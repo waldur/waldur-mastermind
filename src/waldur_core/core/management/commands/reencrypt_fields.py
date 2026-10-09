@@ -4,28 +4,38 @@ import json
 
 from cryptography.fernet import InvalidToken
 from django.apps import apps
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 
-from waldur_core.core import encryption
+from waldur_core.core import encryption, fields
 
-# Whole-column ciphertext: raw ciphertext columns and transparently-encrypted
-# scalar fields alike (both store a single Fernet token in the column).
-# Referenced by name rather than imported: waldur_core must not depend on the
-# apps above it, and Django resolves these lazily once the registry is ready.
-ENCRYPTED_SCALAR_FIELDS = [
-    ("marketplace.ResourceApiKey", "key_ciphertext"),
-    ("structure.ServiceSettings", "password"),
-    ("structure.ServiceSettings", "token"),
-]
 
-# JSON columns that hold Fernet tokens under some keys while the rest stays
-# plaintext (e.g. Offering.secret_options). Both jsonb- and text-backed JSON columns
-# appear here; the scan below casts to text so it does not care which.
-ENCRYPTED_JSON_FIELDS = [
-    ("marketplace.Offering", "secret_options"),
-    ("structure.ServiceSettings", "options"),
-]
+def _concrete_fields(field_classes):
+    """(model, field) for every concrete column whose field is one of these classes.
+
+    Found from the field classes rather than listed by hand: a new encrypted column is
+    rotated the day it is added, instead of being stranded the day an old key is
+    retired. Each column is reported once, on the model that owns its table.
+    """
+    found = []
+    for model in apps.get_models():
+        if model._meta.proxy or not model._meta.managed:
+            continue
+        for field in model._meta.local_concrete_fields:
+            if isinstance(field, field_classes):
+                found.append((model, field))
+    return sorted(found, key=lambda pair: (pair[0]._meta.label, pair[1].name))
+
+
+def encrypted_scalar_fields():
+    """Columns holding one Fernet token: transparently encrypted or written raw."""
+    return _concrete_fields((fields.EncryptedTextField, fields.CiphertextField))
+
+
+def encrypted_json_fields():
+    """JSON columns that hold Fernet tokens under some keys, plaintext elsewhere."""
+    return _concrete_fields(fields.SelectiveEncryptionMixin)
+
 
 # Rows are read in batches so a full-table rotation never materialises every
 # ciphertext row at once.
@@ -52,10 +62,10 @@ class Command(BaseCommand):
         self.dry_run = options["dry_run"]
         self.totals = {"rotated": 0, "undecryptable": 0}
 
-        for label, field in ENCRYPTED_SCALAR_FIELDS:
-            self._process_scalar(apps.get_model(label), field)
-        for label, field in ENCRYPTED_JSON_FIELDS:
-            self._process_json(apps.get_model(label), field)
+        for model, field in encrypted_scalar_fields():
+            self._process_scalar(model, field)
+        for model, field in encrypted_json_fields():
+            self._process_json(model, field)
 
         verb = "would re-encrypt" if self.dry_run else "re-encrypted"
         self.stdout.write(self.style.SUCCESS(f"{verb} {self.totals['rotated']} row(s)"))
@@ -71,21 +81,30 @@ class Command(BaseCommand):
                 )
             )
 
-    def _iter_rows(self, table, field, where):
-        # Read the raw at-rest value, bypassing any decrypting from_db_value, so the
-        # stored ciphertext can be rotated directly. Collect the (cheap) ids first, then
-        # read values one batch at a time — never holding the whole table in memory, and
-        # keeping reads separate from the updates that reuse the same connection.
+    def _iter_rows(self, model, column, condition):
+        """Yield (pk, raw value) for the rows matching ``condition``.
+
+        Reads the raw at-rest value, bypassing any decrypting from_db_value, so the
+        stored ciphertext can be rotated directly. Collects the (cheap) keys first,
+        then reads values one batch at a time — never holding the whole table in
+        memory, and keeping reads separate from the updates that reuse the same
+        connection. ``condition`` names the column as ``{col}``.
+        """
+        quote = connection.ops.quote_name
+        table = quote(model._meta.db_table)
+        pk = quote(model._meta.pk.column)
+        col = quote(column)
+        where = condition.format(col=col)
         with connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT id FROM {table} WHERE {where}"  # noqa: S608 (trusted names)
+                f"SELECT {pk} FROM {table} WHERE {where}"  # noqa: S608 (model metadata)
             )
-            ids = [row[0] for row in cursor.fetchall()]
-        for start in range(0, len(ids), BATCH_SIZE):
-            batch = ids[start : start + BATCH_SIZE]
+            keys = [row[0] for row in cursor.fetchall()]
+        for start in range(0, len(keys), BATCH_SIZE):
+            batch = keys[start : start + BATCH_SIZE]
             with connection.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT id, {field} FROM {table} WHERE id = ANY(%s)",  # noqa: S608
+                    f"SELECT {pk}, {col} FROM {table} WHERE {pk} = ANY(%s)",  # noqa: S608
                     [batch],
                 )
                 yield from cursor.fetchall()
@@ -94,20 +113,25 @@ class Command(BaseCommand):
         if self.dry_run:
             return
         # .update() bypasses pre_save, so the rotated ciphertext is stored verbatim.
+        # The base manager, because a default manager may hide rows: one it skipped
+        # would be counted as rotated and become unreadable once the old key goes.
         with transaction.atomic():
-            model.objects.filter(pk=pk).update(**{field: value})
+            updated = model._base_manager.filter(pk=pk).update(**{field.attname: value})
+        if updated != 1:
+            raise CommandError(
+                f"{model._meta.label} {pk}: {field.name} was not rewritten; "
+                "keep the previous key in FIELD_ENCRYPTION_KEY_FALLBACKS"
+            )
 
     def _process_scalar(self, model, field):
         name = model._meta.label
-        rows = self._iter_rows(
-            model._meta.db_table, field, f"{field} IS NOT NULL AND {field} <> ''"
-        )
+        rows = self._iter_rows(model, field.column, "{col} IS NOT NULL AND {col} <> ''")
         for pk, value in rows:
             if not encryption.is_encrypted(value):
                 # Plaintext left by a deployment that predates encryption: encrypting
                 # it here would be a silent data change, so leave it and say so.
                 self.stdout.write(
-                    self.style.WARNING(f"{name} {pk}: {field} is not encrypted")
+                    self.style.WARNING(f"{name} {pk}: {field.name} is not encrypted")
                 )
                 continue
             try:
@@ -127,14 +151,12 @@ class Command(BaseCommand):
         # answers exactly that question for pre_save/from_db_value. Asking the field
         # keeps this command free of any dependency on the apps above waldur_core, and
         # means a classification change is picked up here with no second list to edit.
-        is_sensitive = model._meta.get_field(field)._is_sensitive_key
+        is_sensitive = field._is_sensitive_key
         # ::text rather than ::jsonb — Offering.secret_options is a jsonb column but
         # ServiceSettings.options is text holding serialised JSON, and both render an
         # empty object as exactly '{}'.
         rows = self._iter_rows(
-            model._meta.db_table,
-            field,
-            f"{field} IS NOT NULL AND {field}::text NOT IN ('', '{{}}')",
+            model, field.column, "{col} IS NOT NULL AND {col}::text NOT IN ('', '{{}}')"
         )
         for pk, raw in rows:
             try:
@@ -143,7 +165,7 @@ class Command(BaseCommand):
                 data = json.loads(raw) if isinstance(raw, str) else raw
             except ValueError:
                 self.stdout.write(
-                    self.style.WARNING(f"{name} {pk}: {field} is not valid JSON")
+                    self.style.WARNING(f"{name} {pk}: {field.name} is not valid JSON")
                 )
                 continue
             if not isinstance(data, dict):
@@ -160,7 +182,7 @@ class Command(BaseCommand):
                         # would be a silent data change, so report it and move on.
                         self.stdout.write(
                             self.style.WARNING(
-                                f"{name} {pk}: {field}[{key}] is not encrypted"
+                                f"{name} {pk}: {field.name}[{key}] is not encrypted"
                             )
                         )
                     result[key] = value

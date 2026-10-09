@@ -5862,7 +5862,7 @@ class ResourceApiKey(
     # the agent, e.g. "<resource_backend_id>-1"; blank on a requested key until
     # the agent has created it.
     client_id = models.CharField(max_length=255, blank=True, db_index=True)
-    key_ciphertext = models.TextField(blank=True)
+    key_ciphertext = core_fields.CiphertextField(blank=True)
     issued_at = models.DateTimeField(
         null=True,
         blank=True,

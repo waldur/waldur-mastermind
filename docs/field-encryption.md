@@ -113,6 +113,18 @@ own, since such rows are invisible until something tries to read them. The comma
 covers every encrypted field: the scalar columns and the selectively-encrypted
 values inside `secret_options`.
 
+The command finds encrypted columns by their field class, so a new one is rotated
+without editing it. Declare a new encrypted column with one of these classes from
+`waldur_core.core.fields`:
+
+- `EncryptedTextField` encrypts and decrypts the whole value transparently.
+- `CiphertextField` marks a column the application writes as a Fernet token itself.
+- `EncryptedJSONField` (or a subclass such as `SecretOptionsField`) encrypts only the
+  sensitive values inside JSON.
+
+Add it to the table under [What is encrypted](#what-is-encrypted); a test fails
+while the table and the encrypted fields disagree.
+
 ## Backups
 
 The encryption key is **not** part of a database dump. Back up `FIELD_ENCRYPTION_KEY`
