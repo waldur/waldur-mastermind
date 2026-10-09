@@ -2,6 +2,7 @@ import json
 import re
 from io import StringIO
 from pathlib import Path
+from unittest import mock
 
 from cryptography.fernet import Fernet
 from django.core.management import call_command
@@ -229,3 +230,32 @@ class EncryptedFieldDiscoveryTest(SimpleTestCase):
             encrypted_json_fields()
         )
         self.assertEqual(documented, discovered)
+
+
+class ReencryptDeletedRowTest(TestCase):
+    def test_a_row_deleted_mid_run_is_skipped(self):
+        resource = factories.ResourceFactory()
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=OLD_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
+        ):
+            ciphertext = encryption.encrypt_value("sk-secret")
+        api_key = models.ResourceApiKey.objects.create(
+            resource=resource,
+            client_id="cid-gone",
+            key_ciphertext=ciphertext,
+            state=models.ResourceApiKey.States.OK,
+        )
+        manager = models.ResourceApiKey._base_manager
+        original_filter = manager.filter
+
+        def deleted_meanwhile(*args, **kwargs):
+            models.ResourceApiKey.objects.filter(pk=api_key.pk).delete()
+            return original_filter(*args, **kwargs)
+
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=NEW_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[OLD_KEY]
+        ):
+            with mock.patch.object(manager, "filter", deleted_meanwhile):
+                output = run()  # must not raise
+
+        self.assertIn("re-encrypted", output)

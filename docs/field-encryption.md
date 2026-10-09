@@ -21,6 +21,7 @@ accepted limitations. For the resource API key lifecycle specifically, see
 | `structure.ServiceSettings.options` | **selective** — only credential-named values in the JSON | `client_secret`, `keycloak_password`, `vault_token`, … |
 | `marketplace.ResourceApiKey.key_ciphertext` | whole value | see [Resource API Keys](resource-api-keys.md#encryption-at-rest) |
 | `matrix_chat.MatrixUserProfile.recovery_key` | whole value | Matrix secret-storage recovery key; see the Matrix appservice setup guide |
+| Constance settings of type `secret_field` | whole value | see [Secret settings](#secret-settings) |
 
 Encryption is transparent: values are encrypted at the database-serialization
 boundary (`pre_save`) and decrypted on read (`from_db_value`). The in-memory model
@@ -30,6 +31,31 @@ save). Because a Fernet token uses a random IV, the same plaintext encrypts to a
 different token every time; encrypted values therefore **cannot be queried by
 value** (`filter(token=...)` will not match) — this is fine, as none of the
 encrypted fields is queried by value.
+
+## Secret settings
+
+Constance settings declared with the `secret_field` type, such as
+`MATRIX_APPSERVICE_AS_TOKEN` or the support-desk and webhook secrets, are stored
+encrypted in `constance_constance` by `waldur_core.core.constance_backend`.
+`config.<KEY>` still returns plaintext, and so does the settings API for staff.
+
+- Migration `core/0053_encrypt_constance_secrets` encrypts the values an earlier
+  release stored in clear. Reversing it writes them back in clear, into the
+  database and every backup taken afterwards.
+- `reencrypt_fields` rotates them with the encrypted columns and reports any
+  still in clear. A pod of the previous release still running during a rolling
+  upgrade saves secrets in clear; `reencrypt_fields --encrypt-plaintext-settings`
+  encrypts those.
+- To roll back to a release without this backend, run `waldur migrate core 0052`
+  first: the older release would use the stored ciphertext as the secret.
+- An empty secret stays empty. A secret no configured key can decrypt reads as an
+  unguessable value, never as its ciphertext (which a database dump holds) and
+  never as empty (which some checks take as "no secret"), and an error is logged
+  once per process. It stays unusable until the key is restored or the setting is
+  set again.
+
+This is an interim measure until Constance is replaced by an in-house settings
+store, which is expected to encrypt secret settings itself.
 
 ## Which JSON values are encrypted
 
