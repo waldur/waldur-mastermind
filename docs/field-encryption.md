@@ -21,6 +21,9 @@ accepted limitations. For the resource API key lifecycle specifically, see
 | `structure.ServiceSettings.options` | **selective** — only credential-named values in the JSON | `client_secret`, `keycloak_password`, `vault_token`, … |
 | `marketplace.ResourceApiKey.key_ciphertext` | whole value | see [Resource API Keys](resource-api-keys.md#encryption-at-rest) |
 | `matrix_chat.MatrixUserProfile.recovery_key` | whole value | Matrix secret-storage recovery key; see the Matrix appservice setup guide |
+| `matrix_chat.MatrixBotIdentity.pickle_key` | whole value | key the Matrix bot's crypto store is pickled under; without it the store is unreadable |
+| `matrix_chat.MatrixBotIdentity.cross_signing_seeds` | whole value | the Matrix bot's cross-signing private keys |
+| `matrix_chat.MatrixBotIdentity.access_token` | whole value | the Matrix bot's access token for its own device |
 | Constance settings of type `secret_field` | whole value | see [Secret settings](#secret-settings) |
 
 Encryption is transparent: values are encrypted at the database-serialization
