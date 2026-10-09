@@ -33,6 +33,18 @@ def _fail_with_tokens():
     raise RuntimeError("homeserver unreachable")
 
 
+def _fail_with_encryption_secrets():
+    # Separate from _fail_with_tokens: Sentry keeps only the first few locals
+    # of a frame, so one long list would hide the names this test is about.
+    recovery_key = "EsSz ykH7 LCZx 7Cae"  # noqa: F841
+    pickle_key = "store-pickle-key"  # noqa: F841
+    session_key = "exported-megolm-session"  # noqa: F841
+    temporary_password = "reset-password"  # noqa: F841
+    lease = "crypto-lease"  # noqa: F841
+    room_id = "!room:example.org"  # noqa: F841
+    raise RuntimeError("escrow failed")
+
+
 def _send(action):
     """Run action against a real client and return the events it sends."""
     transport = _Capture()
@@ -75,6 +87,29 @@ class EventScrubberTest(SimpleTestCase):
             "refresh_token",
             "registration_secret",
             "client_secret",
+        ):
+            self.assertEqual(frame_vars[name], "[Filtered]", name)
+        self.assertEqual(frame_vars["room_id"], "'!room:example.org'")
+
+    def test_encryption_secrets_in_frame_locals_are_filtered(self):
+        def capture(scope):
+            try:
+                _fail_with_encryption_secrets()
+            except RuntimeError:
+                scope.capture_exception()
+
+        frames = _send(capture)[0]["exception"]["values"][0]["stacktrace"]["frames"]
+        frame_vars = next(
+            f["vars"]
+            for f in frames
+            if f["function"] == "_fail_with_encryption_secrets"
+        )
+        for name in (
+            "recovery_key",
+            "pickle_key",
+            "session_key",
+            "temporary_password",
+            "lease",
         ):
             self.assertEqual(frame_vars[name], "[Filtered]", name)
         self.assertEqual(frame_vars["room_id"], "'!room:example.org'")

@@ -33,6 +33,21 @@ urlpatterns = [
         name="matrix-session",
     ),
     path(
+        "api/matrix/crypto/lease/",
+        views.MatrixCryptoLeaseView.as_view(),
+        name="matrix-crypto-lease",
+    ),
+    path(
+        "api/matrix/crypto/lease/release/",
+        views.MatrixCryptoLeaseReleaseView.as_view(),
+        name="matrix-crypto-lease-release",
+    ),
+    path(
+        "api/matrix/crypto/escrow/",
+        views.MatrixCryptoEscrowView.as_view(),
+        name="matrix-crypto-escrow",
+    ),
+    path(
         "_matrix/app/v1/transactions/<str:txn_id>",
         views.MatrixAppserviceWebhookView.as_view(),
         name="matrix-appservice-transactions",

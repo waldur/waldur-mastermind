@@ -426,6 +426,50 @@ REVOCATION_RETRY = dict(
 )
 
 
+@shared_task(
+    name="waldur_mastermind.matrix_chat.scrub_temporary_matrix_password",
+    # The password lets anyone who saw it sign in, so keep trying.
+    **REVOCATION_RETRY,
+)
+def scrub_temporary_matrix_password(matrix_user_id, lease=""):
+    """Replace the temporary password an encryption reset was given.
+
+    Runs when the new recovery key is escrowed, when the reset's lease runs out
+    in case it never is, and from the periodic sweep. Skipped while a newer
+    reset of the same user is under way: that one needs its own password, and
+    scrubs it itself. Decided under the profile's lock, so a late retry can't
+    replace a newer reset's password between the check and the write.
+    """
+    with transaction.atomic():
+        profile = (
+            models.MatrixUserProfile.objects.select_for_update()
+            .filter(matrix_user_id=matrix_user_id)
+            .first()
+        )
+        if (
+            profile
+            and profile.crypto_lease_kind == models.CryptoLeaseKinds.RESET
+            and profile.crypto_lease
+            and profile.crypto_lease != lease
+            and profile.crypto_lease_expires_at
+            and profile.crypto_lease_expires_at > timezone.now()
+        ):
+            return
+        matrix_client.set_password(matrix_user_id, matrix_client.new_password())
+        if profile:
+            profile.crypto_temporary_password_until = None
+            profile.save(update_fields=["crypto_temporary_password_until"])
+
+
+@shared_task(name="waldur_mastermind.matrix_chat.scrub_expired_temporary_passwords")
+def scrub_expired_temporary_passwords():
+    """Replace any reset password whose scrub task was lost or kept failing."""
+    for matrix_user_id in models.MatrixUserProfile.objects.filter(
+        crypto_temporary_password_until__lt=timezone.now()
+    ).values_list("matrix_user_id", flat=True):
+        scrub_temporary_matrix_password.delay(matrix_user_id)
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.prune_all_web_devices")
 def prune_all_web_devices():
     """Prune the idle web devices of every user who may still have one, daily.

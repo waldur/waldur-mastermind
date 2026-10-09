@@ -21,6 +21,11 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core.auth_utils import (
+    AUTH_METHOD_SESSION,
+    AUTH_METHOD_TOKEN,
+    get_auth_method,
+)
 from waldur_core.core.models import User
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
@@ -30,6 +35,7 @@ from waldur_core.structure.models import Project
 
 from . import (
     appservice_registration,
+    crypto_setup,
     filters,
     livekit_client,
     matrix_client,
@@ -686,14 +692,222 @@ class MatrixSessionView(views.APIView):
             raise PermissionDenied("This account has been deactivated.")
 
         tasks.prune_web_devices.delay(matrix_user_id, session["device_id"])
+        recovery_key = (
+            None
+            if _is_delegated(request)
+            else models.MatrixUserProfile.objects.filter(user=request.user)
+            .values_list("recovery_key", flat=True)
+            .first()
+        )
         serializer = serializers.MatrixSessionSerializer(
             {
                 "homeserver_url": matrix_client.get_public_homeserver_url(),
                 "matrix_user_id": matrix_user_id,
+                "recovery_key": recovery_key or None,
                 **session,
             }
         )
-        return Response(serializer.data)
+        return _no_store(Response(serializer.data))
+
+
+# The ways the web UI authenticates: the user's Waldur API token, or a session.
+# Refused: a personal access token (scoped for a script) and an OIDC access
+# token (which may belong to another client of the identity provider). The API
+# token is not proof of an interactive sign-in, though: the user can copy it
+# into a script, and staff can fetch it. Binding key access to the sign-in
+# itself is a separate change.
+FIRST_PARTY_AUTH_METHODS = (AUTH_METHOD_TOKEN, AUTH_METHOD_SESSION)
+
+
+def _is_delegated(request):
+    """Whether the caller authenticated other than the way the web UI does.
+
+    An allowlist, so a new kind of authentication is refused until it is
+    considered. Staff impersonating a user come in with a token but act on the
+    user's behalf, so they are refused too.
+    """
+    return get_auth_method(request.auth) not in FIRST_PARTY_AUTH_METHODS or bool(
+        getattr(request.user, "impersonator", None)
+    )
+
+
+def _refuse_delegated(request):
+    if _is_delegated(request):
+        raise PermissionDenied(
+            "Chat encryption keys are only available to the user's own sign-in."
+        )
+
+
+def _no_store(response):
+    # The response carries a secret; keep it out of every cache on the way.
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+def _crypto_conflict(e):
+    headers = {"Retry-After": str(e.retry_after)} if e.retry_after else None
+    return Response(
+        {"state": e.state, "detail": e.detail},
+        status=status.HTTP_409_CONFLICT,
+        headers=headers,
+    )
+
+
+def _caller_profile(request):
+    if not matrix_client.is_enabled():
+        raise Http404
+    matrix_client.ensure_user_exists(request.user)
+    return models.MatrixUserProfile.objects.get(user=request.user)
+
+
+_CRYPTO_UNAVAILABLE = OpenApiResponse(
+    description="The homeserver could not be asked, or the bot is not a "
+    "homeserver admin (needed for a reset)."
+)
+
+
+class MatrixCryptoLeaseView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_crypto"
+
+    @extend_schema(
+        summary="Take the lease to set up or reset chat encryption",
+        request=serializers.MatrixCryptoLeaseRequestSerializer,
+        responses={
+            200: serializers.MatrixCryptoLeaseSerializer,
+            404: OpenApiResponse(description="Matrix chat is not enabled."),
+            409: serializers.MatrixCryptoConflictSerializer,
+            503: _CRYPTO_UNAVAILABLE,
+        },
+        description="Admits one browser at a time to setting up the caller's "
+        "end-to-end encryption (`bootstrap`), or to replacing an identity Waldur "
+        "can't unlock (`reset`). A reset also returns a temporary password for "
+        "the homeserver's interactive auth; it is replaced once the new recovery "
+        "key is escrowed, or when the lease runs out. 409 says why the request "
+        "can't proceed: `set_up`, `locked` (set up without a key Waldur holds), "
+        "`not_locked`, or `in_progress` (with Retry-After).",
+    )
+    def post(self, request):
+        _refuse_delegated(request)
+        data = serializers.MatrixCryptoLeaseRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        kind = data.validated_data["kind"]
+        try:
+            profile = _caller_profile(request)
+            lease, expires_at, password = crypto_setup.acquire_lease(profile, kind)
+        except crypto_setup.CryptoConflict as e:
+            return _crypto_conflict(e)
+        except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+            logger.warning(
+                "Could not start the encryption %s of %s: %s", kind, request.user, e
+            )
+            return Response(
+                {"detail": "Chat is unavailable right now. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if password:
+            tasks.scrub_temporary_matrix_password.apply_async(
+                (profile.matrix_user_id, lease),
+                countdown=int(crypto_setup.LEASE_TTL.total_seconds()),
+            )
+            event_logger.emit(
+                "User {affected_user_username} has started resetting their chat "
+                "encryption.",
+                event_type=EventType.MATRIX_ENCRYPTION_RESET_STARTED,
+                event_context={"affected_user": request.user},
+                scopes=[request.user],
+            )
+        return _no_store(
+            Response(
+                serializers.MatrixCryptoLeaseSerializer(
+                    {
+                        "lease": lease,
+                        "expires_at": expires_at,
+                        "temporary_password": password,
+                    }
+                ).data
+            )
+        )
+
+
+class MatrixCryptoEscrowView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_crypto"
+
+    @extend_schema(
+        summary="Escrow the recovery key of chat encryption",
+        request=serializers.MatrixCryptoEscrowSerializer,
+        responses={
+            204: None,
+            404: OpenApiResponse(description="Matrix chat is not enabled."),
+            409: serializers.MatrixCryptoConflictSerializer,
+        },
+        description="Stores the caller's new secret-storage recovery key. Only "
+        "the holder of a current lease may; the drawer calls this before it "
+        "uploads any key, so Waldur never loses a key the homeserver depends on.",
+    )
+    def post(self, request):
+        _refuse_delegated(request)
+        data = serializers.MatrixCryptoEscrowSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        try:
+            profile = _caller_profile(request)
+            kind = crypto_setup.escrow(
+                profile,
+                data.validated_data["lease"],
+                data.validated_data["recovery_key"],
+            )
+        except crypto_setup.CryptoConflict as e:
+            return _crypto_conflict(e)
+        except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+            logger.warning("Could not escrow the key of %s: %s", request.user, e)
+            return Response(
+                {"detail": "Chat is unavailable right now. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if kind == models.CryptoLeaseKinds.RESET:
+            tasks.scrub_temporary_matrix_password.delay(
+                profile.matrix_user_id, data.validated_data["lease"]
+            )
+        event_logger.emit(
+            "User {affected_user_username} has stored a new chat encryption "
+            "recovery key.",
+            event_type=EventType.MATRIX_RECOVERY_KEY_ESCROWED,
+            event_context={"affected_user": request.user},
+            scopes=[request.user],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MatrixCryptoLeaseReleaseView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_crypto"
+
+    @extend_schema(
+        summary="Release the lease to set up or reset chat encryption",
+        request=serializers.MatrixCryptoLeaseReleaseSerializer,
+        responses={204: None, 404: OpenApiResponse(description="Chat disabled.")},
+        description="Ends the caller's lease once its setup or reset is done, "
+        "or has failed, so another window need not wait for it to run out. A "
+        "lease that is no longer held is ignored.",
+    )
+    def post(self, request):
+        _refuse_delegated(request)
+        data = serializers.MatrixCryptoLeaseReleaseSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        if not matrix_client.is_enabled():
+            raise Http404
+        profile = models.MatrixUserProfile.objects.filter(user=request.user).first()
+        lease = data.validated_data["lease"]
+        if profile and crypto_setup.release_lease(profile, lease) == (
+            models.CryptoLeaseKinds.RESET
+        ):
+            # A reset that ended, done or failed, needs its password no more.
+            tasks.scrub_temporary_matrix_password.delay(profile.matrix_user_id, lease)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def _is_from_homeserver(request):

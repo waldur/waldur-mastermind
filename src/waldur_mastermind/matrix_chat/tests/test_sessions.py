@@ -63,11 +63,34 @@ class MatrixSessionTest(test.APITestCase):
             {
                 "homeserver_url": "https://chat.example.com",
                 "matrix_user_id": "@alice:example.com",
+                "recovery_key": None,
                 **SESSION,
             },
         )
         mock_ensure.assert_called_once_with(self.user)
         mock_session.assert_called_once_with("@alice:example.com")
+
+    def test_session_is_not_cached(self, mock_ensure, mock_session, mock_prune):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+
+    def test_no_recovery_key_for_a_personal_access_token(
+        self, mock_ensure, mock_session, mock_prune
+    ):
+        models.MatrixUserProfile.objects.create(
+            user=self.user,
+            matrix_user_id="@alice:example.com",
+            recovery_key="EsSz ykH7 LCZx 7Cae",
+        )
+        self.client.force_authenticate(self.user)
+
+        with mock.patch.object(views, "get_auth_method", return_value="pat"):
+            response = self.client.post(self.url)
+
+        self.assertIsNone(response.data["recovery_key"])
 
     def test_prunes_stale_web_devices(self, mock_ensure, mock_session, mock_prune):
         self.client.force_authenticate(self.user)

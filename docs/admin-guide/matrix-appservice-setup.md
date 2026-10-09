@@ -566,6 +566,7 @@ Starts a Matrix session for Waldur's chat drawer. Waldur signs the user in throu
 | `access_token` | Expires after the homeserver's `access_token_ttl` |
 | `refresh_token` | Renews the access token through Matrix `/refresh`; idle-expires after `refresh_token_ttl`. `null` if the homeserver issues no refresh tokens, and then the access token does not expire |
 | `expires_in_ms` | Lifetime of `access_token`; `null` without refresh tokens |
+| `recovery_key` | The user's encryption recovery key (see [Encryption keys](#encryption-keys)); `null` until encryption is set up. Only ever returned to its owner |
 
 | Status | When |
 | --- | --- |
@@ -580,6 +581,67 @@ The drawer keeps both tokens in memory only. It renews the access token through 
 Every session has its own device. Tuwunel keeps one refresh token per device, so two browser tabs sharing a device would invalidate each other's refresh token. A session starts on every page load for a room member, because the drawer connects in the background for unread counts, so each load is one device and one call against the rate limit. After each new session Waldur signs out the user's web devices not seen for 24 hours, a window fixed in Waldur that matches the default `refresh_token_ttl`. Beyond the 10 most recently seen devices it signs out the rest, except devices seen in the last ten minutes: those belong to open tabs. It never signs out the session that triggered the cleanup.
 
 The homeserver sets the lifetimes. The Helm chart and docker-compose configure Tuwunel with `access_token_ttl = 300` (5 minutes) and `refresh_token_ttl = 86400` (24 hours, idle); another homeserver needs its own equivalent settings. Logins without a refresh token, such as Element with a password, keep non-expiring tokens and are unaffected.
+
+## Encryption keys
+
+Chat is end-to-end encrypted. Each user's encryption identity (cross-signing keys,
+key backup and the device that receives messages while no drawer is open) is
+unlocked by a **recovery key** that Waldur holds for them: the homeserver only ever
+stores encrypted keys, and the recovery key that unlocks them is held by your
+Waldur deployment. It is stored encrypted under `FIELD_ENCRYPTION_KEY` (see
+`docs/field-encryption.md`) and returned only in the user's own web chat session.
+
+The drawer sets encryption up on a user's first session. Only one browser may do
+so at a time, and Waldur must hold the recovery key before any key is uploaded:
+
+**POST /api/matrix/crypto/lease/** with `{"kind": "bootstrap"}` grants a lease
+for ten minutes. **POST /api/matrix/crypto/escrow/** with `{"lease": ...,
+"recovery_key": ...}` stores the key, from the lease holder only; the lease is
+kept while the drawer uploads the keys that go with it. **POST
+/api/matrix/crypto/lease/release/** with `{"lease": ...}` ends it when the setup
+is done or has failed.
+
+These endpoints, and the recovery key in the session response, accept only the
+ways the web UI authenticates: the user's Waldur API token or a session.
+Personal access tokens, OIDC access tokens and staff impersonating a user are
+refused (`403`) and get no key. The user's API token itself is not limited to
+the web UI (it can be copied into scripts), so treat it as giving access to the
+user's chat encryption too. Escrowing a key and starting a reset are recorded in
+the user's event log.
+
+| Status | When |
+| --- | --- |
+| `200` / `204` | Lease granted / key stored |
+| `400` | The recovery key is not a valid Matrix recovery key |
+| `409` | `state` says why: `set_up` (already done), `locked` (the homeserver has an identity Waldur holds no key for), `in_progress` (another window holds the lease; see `Retry-After`), `no_lease` (the lease expired or another window took over), `not_locked` (a reset was asked for but isn't needed) |
+| `429` | The per-user `matrix_crypto` rate limit (default 30/hour) is exhausted |
+| `503` | The homeserver could not be asked, or the bot is not a homeserver admin |
+
+### Locked identities
+
+Tuwunel accepts a user's first cross-signing keys without a password but refuses
+to replace them unless the user answers a password prompt, which Waldur's users
+can't. An identity is **locked** when the homeserver has cross-signing keys for
+the user and the key Waldur holds is missing or no longer opens their secret
+storage. That happens when:
+
+- the Waldur database is restored to a point before the user's first setup while
+  the homeserver keeps newer data, or Waldur's profiles are relinked with
+  `link_matrix_account`;
+- `FIELD_ENCRYPTION_KEY` is lost, or `SECRET_KEY` is rotated while it is unset;
+- the user set encryption up in another client with a key Waldur never saw.
+
+A lease with `{"kind": "reset"}` recovers it. Waldur checks that the identity is
+really locked, sets a temporary Matrix password through the admin API (the bot
+must be a homeserver admin), and returns it once so the drawer can answer the
+password prompt. The password is replaced with a discarded random one as soon as
+the new recovery key is escrowed, or when the lease runs out, and a sweep every
+ten minutes replaces any left behind. A reset replaces
+the user's identity and deletes their old key backups, and in password mode it
+also replaces any Matrix password the user generated for an external client.
+
+Back up the homeserver and the Waldur database **together**, and keep
+`FIELD_ENCRYPTION_KEY` safe: without it, no escrowed recovery key can be read.
 
 ## External Clients
 

@@ -2,6 +2,7 @@ import re
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.validators import RegexValidator
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -9,7 +10,8 @@ from rest_framework.exceptions import PermissionDenied
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure.models import Project
 
-from . import models, room_provisioning
+from . import models, recovery_keys, room_provisioning
+from .models import CryptoLeaseKinds
 
 # Matrix appservice registration regexes are built by string interpolation into
 # YAML the homeserver compiles as Python re. Validate inputs up front so a
@@ -56,6 +58,56 @@ class MatrixSessionSerializer(serializers.Serializer):
     access_token = serializers.CharField()
     refresh_token = serializers.CharField(allow_null=True)
     expires_in_ms = serializers.IntegerField(allow_null=True)
+    recovery_key = serializers.CharField(
+        allow_null=True,
+        help_text="The user's secret-storage recovery key, or null before "
+        "encryption is set up. Only ever returned to its owner.",
+    )
+
+
+class MatrixCryptoLeaseRequestSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=CryptoLeaseKinds.CHOICES)
+
+
+class MatrixCryptoLeaseSerializer(serializers.Serializer):
+    lease = serializers.CharField()
+    expires_at = serializers.DateTimeField()
+    temporary_password = serializers.CharField(
+        allow_null=True,
+        help_text="For a reset only: the password to answer the homeserver's "
+        "interactive auth with. Replaced once the new key is escrowed.",
+    )
+
+
+LEASE_FIELD = dict(
+    max_length=64,
+    validators=[RegexValidator(r"^[A-Za-z0-9_-]+$", "Not a lease.")],
+)
+
+
+class MatrixCryptoEscrowSerializer(serializers.Serializer):
+    lease = serializers.CharField(**LEASE_FIELD)
+    recovery_key = serializers.CharField(
+        max_length=recovery_keys.MAX_RECOVERY_KEY_LENGTH
+    )
+
+    def validate_recovery_key(self, value):
+        try:
+            recovery_keys.decode_recovery_key(value)
+        except recovery_keys.InvalidRecoveryKey as e:
+            raise serializers.ValidationError(str(e))
+        return value
+
+
+class MatrixCryptoLeaseReleaseSerializer(serializers.Serializer):
+    lease = serializers.CharField(**LEASE_FIELD)
+
+
+class MatrixCryptoConflictSerializer(serializers.Serializer):
+    state = serializers.ChoiceField(
+        choices=["set_up", "locked", "not_locked", "in_progress", "no_lease"]
+    )
+    detail = serializers.CharField()
 
 
 class MatrixRoomOpenSerializer(serializers.Serializer):

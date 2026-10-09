@@ -20,6 +20,7 @@ accepted limitations. For the resource API key lifecycle specifically, see
 | `structure.ServiceSettings.token` | whole value | |
 | `structure.ServiceSettings.options` | **selective** — only credential-named values in the JSON | `client_secret`, `keycloak_password`, `vault_token`, … |
 | `marketplace.ResourceApiKey.key_ciphertext` | whole value | see [Resource API Keys](resource-api-keys.md#encryption-at-rest) |
+| `matrix_chat.MatrixUserProfile.recovery_key` | whole value | Matrix secret-storage recovery key; see the Matrix appservice setup guide |
 
 Encryption is transparent: values are encrypted at the database-serialization
 boundary (`pre_save`) and decrypted on read (`from_db_value`). The in-memory model

@@ -8,12 +8,19 @@ from django.utils import timezone
 from django_fsm import FSMField, transition
 from model_utils.models import TimeStampedModel
 
+from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Customer, Project
 
 logger = logging.getLogger(__name__)
+
+
+class CryptoLeaseKinds:
+    BOOTSTRAP = "bootstrap"
+    RESET = "reset"
+    CHOICES = ((BOOTSTRAP, "Set up"), (RESET, "Reset"))
 
 
 class MatrixUserProfile(core_models.UuidMixin, TimeStampedModel):
@@ -40,6 +47,20 @@ class MatrixUserProfile(core_models.UuidMixin, TimeStampedModel):
         "Cleared once none of those devices is left, so the daily prune only "
         "asks the homeserver about users who may still have one.",
     )
+    # End-to-end encryption. The recovery key unlocks the user's secret storage
+    # (cross-signing keys, key backup, dehydrated device) and is returned only in
+    # the user's own web chat session. The lease admits one browser at a time to
+    # setting encryption up, or resetting it, so two tabs can't each write secret
+    # storage and leave neither recovery key working.
+    recovery_key = core_fields.EncryptedTextField(blank=True, default="")
+    crypto_lease = models.CharField(max_length=64, blank=True, default="")
+    crypto_lease_kind = models.CharField(
+        max_length=16, blank=True, default="", choices=CryptoLeaseKinds.CHOICES
+    )
+    crypto_lease_expires_at = models.DateTimeField(null=True, blank=True)
+    # Set while a reset's temporary Matrix password may still work; a periodic
+    # sweep replaces any left past this time, so a lost task can't leave it.
+    crypto_temporary_password_until = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = "Matrix user profile"
