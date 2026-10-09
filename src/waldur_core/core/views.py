@@ -52,7 +52,7 @@ from waldur_core.changelog.utils import (
     get_latest_version,
     get_pending_versions,
 )
-from waldur_core.core import WaldurExtension, models, permissions
+from waldur_core.core import WaldurExtension, constance_backend, models, permissions
 from waldur_core.core.authentication import (
     OIDC_AUTHENTICATION_METHODS,
     AuthenticationMethod,
@@ -599,6 +599,7 @@ def _safe_get_constance_values():
         return constance_get_values()
     except TypeError:
         prefix = constance_settings.DATABASE_PREFIX
+        secret_keys = constance_backend.secret_keys()
         values = {}
         for key, options in constance_settings.CONFIG.items():
             default_value = options[0]
@@ -606,7 +607,10 @@ def _safe_get_constance_values():
             try:
                 entry = Constance.objects.filter(key=prefixed_key).first()
                 if entry is not None:
-                    values[key] = constance_loads(entry.value)
+                    value = constance_loads(entry.value)
+                    if key in secret_keys:
+                        value = constance_backend.decrypt_secret(key, value)
+                    values[key] = value
                 else:
                     values[key] = default_value
             except (TypeError, ValueError):

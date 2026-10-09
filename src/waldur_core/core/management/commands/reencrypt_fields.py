@@ -2,12 +2,15 @@
 
 import json
 
+from constance import settings as constance_settings
+from constance.codecs import dumps, loads
+from constance.models import Constance
 from cryptography.fernet import InvalidToken
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 
-from waldur_core.core import encryption, fields
+from waldur_core.core import constance_backend, encryption, fields
 
 
 def _concrete_fields(field_classes):
@@ -57,15 +60,23 @@ class Command(BaseCommand):
             action="store_true",
             help="Report what would be re-encrypted without writing anything",
         )
+        parser.add_argument(
+            "--encrypt-plaintext-settings",
+            action="store_true",
+            help="Also encrypt secret Constance settings stored in clear, e.g. "
+            "saved by a pod of an older release during a rolling upgrade",
+        )
 
     def handle(self, *args, **options):
         self.dry_run = options["dry_run"]
+        self.encrypt_plaintext_settings = options["encrypt_plaintext_settings"]
         self.totals = {"rotated": 0, "undecryptable": 0}
 
         for model, field in encrypted_scalar_fields():
             self._process_scalar(model, field)
         for model, field in encrypted_json_fields():
             self._process_json(model, field)
+        self._process_constance_secrets()
 
         verb = "would re-encrypt" if self.dry_run else "re-encrypted"
         self.stdout.write(self.style.SUCCESS(f"{verb} {self.totals['rotated']} row(s)"))
@@ -116,8 +127,11 @@ class Command(BaseCommand):
         # The base manager, because a default manager may hide rows: one it skipped
         # would be counted as rotated and become unreadable once the old key goes.
         with transaction.atomic():
-            updated = model._base_manager.filter(pk=pk).update(**{field.attname: value})
-        if updated != 1:
+            rows = model._base_manager.filter(pk=pk)
+            updated = rows.update(**{field.attname: value})
+        # A row deleted since it was read needs no key; one still there but not
+        # rewritten would become unreadable once the old key is retired.
+        if updated != 1 and rows.exists():
             raise CommandError(
                 f"{model._meta.label} {pk}: {field.name} was not rewritten; "
                 "keep the previous key in FIELD_ENCRYPTION_KEY_FALLBACKS"
@@ -201,3 +215,40 @@ class Command(BaseCommand):
             if changed:
                 self.totals["rotated"] += 1
                 self._write(model, pk, field, result)
+
+    def _process_constance_secrets(self):
+        prefix = constance_settings.DATABASE_PREFIX
+        keys = [f"{prefix}{key}" for key in constance_backend.secret_keys()]
+        for row in Constance.objects.filter(key__in=keys).order_by("key"):
+            value = loads(row.value)
+            if not isinstance(value, str) or not value:
+                continue
+            if not encryption.is_encrypted(value):
+                if not self.encrypt_plaintext_settings:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Constance {row.key} is not encrypted; run with "
+                            "--encrypt-plaintext-settings to encrypt it"
+                        )
+                    )
+                    continue
+                self.totals["rotated"] += 1
+                if not self.dry_run:
+                    row.value = dumps(encryption.encrypt_value(value))
+                    row.save(update_fields=["value"])
+                continue
+            try:
+                rotated = encryption.rotate_value(value)
+            except InvalidToken:
+                self.totals["undecryptable"] += 1
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Constance {row.key}: undecryptable, left untouched"
+                    )
+                )
+                continue
+            self.totals["rotated"] += 1
+            if not self.dry_run:
+                # save() rather than update(): Constance clears its cache on save.
+                row.value = dumps(rotated)
+                row.save(update_fields=["value"])
