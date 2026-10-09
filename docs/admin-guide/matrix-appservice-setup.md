@@ -591,6 +591,12 @@ stores encrypted keys, and the recovery key that unlocks them is held by your
 Waldur deployment. It is stored encrypted under `FIELD_ENCRYPTION_KEY` (see
 `docs/field-encryption.md`) and returned only in the user's own web chat session.
 
+**Calls are encrypted in transit only.** Audio, video and screen sharing go
+through LiveKit over DTLS-SRTP, so they are encrypted between each browser and
+the LiveKit server, but the server handles them in clear: whoever operates LiveKit
+can see and hear a call. The room's end-to-end encryption covers its messages,
+not its calls. Run LiveKit on infrastructure you trust as much as Waldur itself.
+
 The drawer sets encryption up on a user's first session. Only one browser may do
 so at a time, and Waldur must hold the recovery key before any key is uploaded:
 
