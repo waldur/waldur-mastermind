@@ -34,9 +34,9 @@ max_request_size = 104857600
 access_token_ttl = 300
 refresh_token_ttl = 86400
 
-# Federation must be ON: lk-jwt-service verifies the user's Matrix OpenID token
-# via the federation endpoint /_matrix/federation/v1/openid/userinfo before
-# issuing a LiveKit JWT. With federation off, Element Call token exchange fails.
+# Federation must be ON: Waldur verifies the Matrix OpenID token a client sends
+# for a call token at /_matrix/federation/v1/openid/userinfo, which Tuwunel
+# serves only with federation enabled.
 allow_federation = true
 
 # Well-known for client discovery
@@ -45,9 +45,9 @@ client = "http://localhost:6167"
 server = "localhost:6167"
 
 # LiveKit SFU endpoint for Element Call / Matrix RTC (MSC4143).
-# tuwunel 1.5.0 uses the explicit rtc_transports array; the lk-jwt-service runs
-# in tuwunel's network namespace on port 8080, exposed on the host as 8090.
-# (The frontend rewrites this URL to the Vite /lk-jwt proxy in dev anyway.)
+# tuwunel 1.5.0 uses the explicit rtc_transports array. Waldur serves the call
+# token API: the URL is the mastermind dev API's /api/matrix/livekit, on the
+# hub dev stack's slot-0 port; change the port if your API runs elsewhere.
 [[global.well_known.rtc_transports]]
 type = "livekit"
-livekit_service_url = "http://localhost:8090"
+livekit_service_url = "http://localhost:10780/api/matrix/livekit"

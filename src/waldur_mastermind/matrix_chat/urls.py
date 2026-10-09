@@ -32,11 +32,6 @@ urlpatterns = [
         views.MatrixSessionView.as_view(),
         name="matrix-session",
     ),
-    path(
-        "api/matrix/call-token/",
-        views.MatrixCallTokenView.as_view(),
-        name="matrix-call-token",
-    ),
     # The call token API Matrix clients use; its base, /api/matrix/livekit, is
     # the livekit_service_url of the homeserver's .well-known RTC focus.
     path(

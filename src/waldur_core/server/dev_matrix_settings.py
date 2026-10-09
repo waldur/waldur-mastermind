@@ -16,3 +16,17 @@ CELERY_TASK_EAGER_PROPAGATES = False
 # `host.docker.internal:10780`. ALLOWED_HOSTS must include that hostname
 # or Django's CommonMiddleware rejects the PUT with 400 DisallowedHost.
 ALLOWED_HOSTS = ALLOWED_HOSTS + ["host.docker.internal"]
+
+
+def _constance_default(key, value):
+    _, *rest = CONSTANCE_CONFIG[key]  # noqa: F405
+    CONSTANCE_CONFIG[key] = (value, *rest)  # noqa: F405
+
+
+# Calls against docker/matrix-dev: Waldur issues the call tokens itself, signed
+# with the LiveKit key the stack configures. Defaults only, so values saved in
+# the admin settings still win.
+_constance_default("MATRIX_LIVEKIT_KEY", "devkey")
+_constance_default("MATRIX_LIVEKIT_SECRET", "devsecret")
+_constance_default("MATRIX_LIVEKIT_URL", "http://localhost:7880")
+_constance_default("MATRIX_LIVEKIT_PUBLIC_URL", "ws://localhost:7880")

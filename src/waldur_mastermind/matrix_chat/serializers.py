@@ -65,21 +65,6 @@ class MatrixSessionSerializer(serializers.Serializer):
     )
 
 
-class MatrixCallTokenRequestSerializer(serializers.Serializer):
-    room_id = serializers.CharField(
-        max_length=255, help_text="Matrix ID of the room whose call to join."
-    )
-    device_id = serializers.CharField(
-        max_length=255,
-        help_text="The caller's Matrix device ID; part of their LiveKit identity.",
-    )
-
-
-class MatrixCallTokenSerializer(serializers.Serializer):
-    url = serializers.CharField(help_text="LiveKit signaling URL to connect to.")
-    jwt = serializers.CharField(help_text="LiveKit token for this room's call only.")
-
-
 class MatrixCryptoLeaseRequestSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=CryptoLeaseKinds.CHOICES)
 

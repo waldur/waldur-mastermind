@@ -280,7 +280,7 @@ class LiveKitServiceTest(test.APITestCase):
 
     def test_other_api_preflights_stay_closed(self):
         response = self.client.options(
-            "/api/matrix/call-token/",
+            "/api/matrix/session/",
             HTTP_ORIGIN="https://element.example.org",
             HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
         )
