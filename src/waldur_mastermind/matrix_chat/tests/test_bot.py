@@ -1,3 +1,4 @@
+import asyncio
 from datetime import timedelta
 from unittest import mock
 
@@ -11,6 +12,7 @@ from nio.crypto import OlmAccount, OlmDevice
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_mastermind.matrix_chat import bot, bot_state, models, tasks
 from waldur_mastermind.matrix_chat.crypto import cross_signing
+from waldur_mastermind.matrix_chat.management.commands import matrix_bot
 from waldur_mastermind.matrix_chat.tests import fixtures
 from waldur_mastermind.matrix_chat.tests.test_cross_signing import Identity
 
@@ -369,7 +371,12 @@ class CrossSigningBootstrapTest(TestCase):
 
     def _query(self, users):
         return {
-            "device_keys": {BOT_USER: {self.bot.identity.device_id: self.device}},
+            "device_keys": {
+                BOT_USER: {
+                    self.bot.identity.device_id: self.device,
+                    **getattr(self, "extra_devices", {}),
+                }
+            },
             "master_keys": {BOT_USER: self.published["master_key"]}
             if self.published
             else {},
@@ -413,6 +420,12 @@ class CrossSigningBootstrapTest(TestCase):
         self.calls.clear()
         self._ensure()
         self.assertEqual(self.calls, [])
+
+    def test_other_devices_of_the_bot_user_are_reported(self):
+        self.extra_devices = {"STRANGER": {"device_id": "STRANGER"}}
+        with self.assertLogs(bot.logger, "WARNING") as logs:
+            self._ensure()
+        self.assertIn("STRANGER", "\n".join(logs.output))
 
     def test_other_keys_listed_for_the_bots_device_are_never_signed(self):
         self.device = {
@@ -530,3 +543,214 @@ class EnsureRoomsEncryptedTest(TestCase):
         bot_instance.client.room_put_state.assert_awaited_once_with(
             room.room_id, "m.room.encryption", {"algorithm": "m.megolm.v1.aes-sha2"}
         )
+
+
+class ConfigTest(TestCase):
+    def test_the_same_bot_ignores_cosmetic_changes(self):
+        settings = _settings()
+        renamed = bot.BotSettings(**{**vars(settings), "display_name": "Other Bot"})
+        rotated = bot.BotSettings(**{**vars(settings), "as_token": "rotated"})
+        self.assertTrue(settings.identifies_the_same_bot(renamed))
+        self.assertFalse(settings.identifies_the_same_bot(rotated))
+
+    def test_a_rotated_token_stops_the_bot(self):
+        bot_instance = bot.MatrixBot("holder", _settings())
+        rotated = bot.BotSettings(**{**vars(_settings()), "as_token": "rotated"})
+        with (
+            mock.patch.object(bot, "CONFIG_CHECK_SECONDS", 0),
+            mock.patch.object(bot.BotSettings, "from_config", return_value=rotated),
+        ):
+            with self.assertRaises(bot.ConfigChanged):
+                async_to_sync(bot_instance.watch_config_forever)()
+
+
+class CommandTest(TestCase):
+    def _command(self):
+        return matrix_bot, matrix_bot.Command()
+
+    def test_waits_for_configuration_and_stops_on_request(self):
+        matrix_bot, command = self._command()
+        stopped = mock.Mock(is_set=mock.Mock(side_effect=[False, True]))
+        with mock.patch.object(
+            matrix_bot.matrix_client, "is_homeserver_configured", return_value=False
+        ):
+            self.assertIsNone(command._wait_for_configuration(stopped))
+        stopped.wait.assert_called_once_with(matrix_bot.CONFIG_POLL_SECONDS)
+
+    def test_starts_over_when_the_settings_change(self):
+        matrix_bot, command = self._command()
+        settings = _settings()
+        runs = [bot.ConfigChanged(), None]
+
+        async def run(holder, settings, stopped):
+            outcome = runs.pop(0)
+            if outcome:
+                raise outcome
+
+        with (
+            mock.patch.object(
+                command, "_wait_for_configuration", return_value=settings
+            ),
+            mock.patch.object(command, "_run", side_effect=run),
+        ):
+            command.handle()
+
+        self.assertEqual(runs, [])
+        self.assertFalse(bot_state.is_bot_running(settings.user_id))
+
+
+class StopTest(TestCase):
+    def _bot(self):
+        bot_instance = bot.MatrixBot("holder", _settings())
+        bot_instance.client = mock.Mock(close=mock.AsyncMock())
+        bot_instance.start = mock.AsyncMock()
+        return bot_instance
+
+    def test_a_stop_wins_over_a_settings_change(self):
+        bot_instance = self._bot()
+
+        async def run():
+            stop = asyncio.Event()
+            stop.set()
+
+            async def changed():
+                raise bot.ConfigChanged()
+
+            with (
+                mock.patch.object(bot_instance, "sync_forever", changed),
+                mock.patch.object(bot_instance, "drain_outbox_forever", changed),
+                mock.patch.object(bot_instance, "renew_lease_forever", changed),
+                mock.patch.object(bot_instance, "watch_config_forever", changed),
+            ):
+                await bot_instance.run(stop)
+
+        async_to_sync(run)()  # returns instead of raising ConfigChanged
+
+    def test_the_store_connection_is_closed(self):
+        bot_instance = self._bot()
+
+        async def run():
+            stop = asyncio.Event()
+            stop.set()
+            await bot_instance.run(stop)
+
+        with (
+            mock.patch.object(bot_instance, "sync_forever", asyncio.Event().wait),
+            mock.patch.object(
+                bot_instance, "drain_outbox_forever", asyncio.Event().wait
+            ),
+            mock.patch.object(
+                bot_instance, "renew_lease_forever", asyncio.Event().wait
+            ),
+            mock.patch.object(
+                bot_instance, "watch_config_forever", asyncio.Event().wait
+            ),
+        ):
+            async_to_sync(run)()
+        bot_instance.client.store.database.close.assert_called_once()
+
+    def _run_with(self, bot_instance, stop, sync, config):
+        idle = asyncio.Event().wait
+
+        async def run():
+            with (
+                mock.patch.object(bot_instance, "sync_forever", sync),
+                mock.patch.object(bot_instance, "drain_outbox_forever", idle),
+                mock.patch.object(bot_instance, "renew_lease_forever", idle),
+                mock.patch.object(bot_instance, "watch_config_forever", config),
+            ):
+                await bot_instance.run(stop)
+
+        return run
+
+    def _sender(self, bot_instance, order, seconds=0.05):
+        async def send():
+            async with bot_instance._sending:
+                order.append("sending")
+                await asyncio.sleep(seconds)
+                order.append("sent")
+            await asyncio.Event().wait()
+
+        return send
+
+    def test_a_settings_change_waits_for_the_message_being_sent(self):
+        bot_instance = self._bot()
+        order = []
+
+        async def changed():
+            await asyncio.sleep(0.01)
+            order.append("changed")
+            raise bot.ConfigChanged()
+
+        run = self._run_with(
+            bot_instance, asyncio.Event(), self._sender(bot_instance, order), changed
+        )
+        with self.assertRaises(bot.ConfigChanged):
+            async_to_sync(run)()
+        self.assertEqual(order, ["sending", "changed", "sent"])
+
+    def test_a_stop_waits_for_the_message_being_sent(self):
+        bot_instance = self._bot()
+        order = []
+
+        async def stop_soon(stop):
+            await asyncio.sleep(0.01)
+            order.append("stop")
+            stop.set()
+
+        async def run():
+            stop = asyncio.Event()
+            asyncio.get_running_loop().create_task(stop_soon(stop))
+            await self._run_with(
+                bot_instance,
+                stop,
+                self._sender(bot_instance, order),
+                asyncio.Event().wait,
+            )()
+
+        async_to_sync(run)()
+        self.assertEqual(order, ["sending", "stop", "sent"])
+
+    def test_a_hanging_send_does_not_keep_the_bot_from_stopping(self):
+        bot_instance = self._bot()
+        order = []
+
+        async def changed():
+            await asyncio.sleep(0.01)
+            raise bot.ConfigChanged()
+
+        run = self._run_with(
+            bot_instance,
+            asyncio.Event(),
+            self._sender(bot_instance, order, seconds=3600),
+            changed,
+        )
+        with (
+            mock.patch.object(bot, "SEND_FINISH_SECONDS", 0.05),
+            self.assertLogs(bot.logger, "WARNING"),
+        ):
+            with self.assertRaises(bot.ConfigChanged):
+                async_to_sync(run)()
+        self.assertEqual(order, ["sending"])
+
+
+class SyncOutageTest(TestCase):
+    def test_an_unreachable_homeserver_is_waited_out(self):
+        bot_instance = bot.MatrixBot("holder", _settings())
+        bot_instance.client = mock.Mock()
+        attempts = []
+
+        async def sync(**kwargs):
+            attempts.append(kwargs)
+            if len(attempts) == 1:
+                raise httpx.ConnectError("homeserver down")
+            raise asyncio.CancelledError  # ends the loop after the retry
+
+        bot_instance.client.sync = sync
+        with (
+            mock.patch.object(bot_instance, "_renew_lease", mock.AsyncMock()),
+            mock.patch.object(bot.asyncio, "sleep", mock.AsyncMock()),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                async_to_sync(bot_instance.sync_forever)()
+        self.assertEqual(len(attempts), 2)

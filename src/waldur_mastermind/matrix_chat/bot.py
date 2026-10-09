@@ -52,6 +52,15 @@ logger = logging.getLogger(__name__)
 SYNC_TIMEOUT_MS = 30_000
 # How often the bot checks that every Waldur room it is in is encrypted.
 ENCRYPTION_CHECK_SECONDS = 3600
+# How often the bot looks for a change of homeserver or appservice token.
+CONFIG_CHECK_SECONDS = 30
+# How long a stopping bot lets the message being sent finish. Bounded: a send
+# that hangs must not keep the bot from stopping or from taking new settings.
+# Below Kubernetes' default 30 s grace period, so the lease is still released.
+SEND_FINISH_SECONDS = 20
+# Requests nio retries before giving up, so a send to a homeserver that is
+# down fails and is retried from the outbox instead of blocking forever.
+MAX_REQUEST_RETRIES = 5
 OUTBOX_POLL_SECONDS = 2
 # Keys are queried for this many users at once.
 KEYS_QUERY_BATCH = 100
@@ -68,6 +77,10 @@ class BotError(RuntimeError):
 
 class LeaseLost(RuntimeError):
     """Another process took over, or the database could not renew the lease."""
+
+
+class ConfigChanged(RuntimeError):
+    """The homeserver or the appservice token changed; the bot must start over."""
 
 
 class TransientError(RuntimeError):
@@ -115,6 +128,16 @@ class BotSettings:
     user_id: str
     display_name: str
 
+    def identifies_the_same_bot(self, other):
+        """Whether ``other`` reaches the same homeserver as the same bot user,
+        with the same appservice token: anything else needs a fresh start."""
+        return (self.homeserver_url, self.as_token, self.localpart, self.user_id) == (
+            other.homeserver_url,
+            other.as_token,
+            other.localpart,
+            other.user_id,
+        )
+
     @classmethod
     def from_config(cls):
         return cls(
@@ -129,6 +152,7 @@ class BotSettings:
 class MatrixBot:
     def __init__(self, holder, settings):
         self.holder = holder
+        self.settings = settings
         self.homeserver_url = settings.homeserver_url
         self.as_token = settings.as_token
         self.localpart = settings.localpart
@@ -142,6 +166,10 @@ class MatrixBot:
         # Set once the first sync has filled the client's rooms; nothing can be
         # sent before.
         self._synced = asyncio.Event()
+        # Held while a message is being sent: the bot stops or starts over only
+        # between messages, so none is cancelled after the homeserver took it
+        # and before it is marked sent, to be sent again later.
+        self._sending = asyncio.Lock()
 
     # Homeserver calls the bot makes itself: nio 0.26 has no cross-signing.
 
@@ -245,6 +273,8 @@ class MatrixBot:
                 encryption_enabled=True,
                 store_sync_tokens=True,
                 pickle_key=self.identity.pickle_key,
+                max_timeouts=MAX_REQUEST_RETRIES,
+                max_limit_exceeded=MAX_REQUEST_RETRIES,
             ),
         )
         # Opens the store and loads the Olm account: a wrong pickle key fails
@@ -320,6 +350,19 @@ class MatrixBot:
         # What the bot vouches for is its own device as its Olm account defines
         # it, never what the homeserver lists: signing that would let a
         # homeserver slip in keys of its own under the bot's device id.
+        others = sorted(
+            set(own["device_keys"].get(self.user_id) or {}) - {self.identity.device_id}
+        )
+        if others:
+            # Never trusted, so they get no room keys; but anyone who signed in
+            # as the bot holds the appservice token, so say so.
+            logger.warning(
+                "The bot user %s has devices other than the bot's own: %s. Only "
+                "the appservice token can create them; rotate it, and delete "
+                "the devices with the homeserver's admin tools.",
+                self.user_id,
+                ", ".join(others),
+            )
         device = self._own_device_keys()
         published = (own["device_keys"].get(self.user_id) or {}).get(
             self.identity.device_id
@@ -493,9 +536,14 @@ class MatrixBot:
         while True:
             # Also before the sync: processing its answer writes to the store.
             await self._renew_lease()
-            response = await self.client.sync(
-                timeout=0 if first else SYNC_TIMEOUT_MS, full_state=first
-            )
+            try:
+                response = await self.client.sync(
+                    timeout=0 if first else SYNC_TIMEOUT_MS, full_state=first
+                )
+            except TRANSIENT_ERRORS as error:
+                # nio gives up after its bounded retries; an unreachable
+                # homeserver is waited out here, not by exiting.
+                response = error
             if isinstance(response, SyncError) or not isinstance(
                 response, SyncResponse
             ):
@@ -561,7 +609,8 @@ class MatrixBot:
         while True:
             await self._renew_lease()
             for message in await _db(bot_state.due_messages)():
-                await self.send(message)
+                async with self._sending:
+                    await self.send(message)
             await asyncio.sleep(OUTBOX_POLL_SECONDS)
 
     async def send(self, message):
@@ -628,6 +677,25 @@ class MatrixBot:
         if not renewed:
             raise LeaseLost("Another Matrix bot process took over the lease.")
 
+    async def _finish_sending(self):
+        try:
+            await asyncio.wait_for(self._sending.acquire(), SEND_FINISH_SECONDS)
+        except TimeoutError:
+            logger.warning(
+                "The Matrix bot stops while a message is still being sent; it "
+                "may be sent again."
+            )
+
+    async def watch_config_forever(self):
+        """Stop when the homeserver or the appservice token changes, so the bot
+        signs in again with what is configured now: a rotated token must not
+        stay in use until someone restarts the process."""
+        while True:
+            await asyncio.sleep(CONFIG_CHECK_SECONDS)
+            current = await _db(BotSettings.from_config)()
+            if not current.identifies_the_same_bot(self.settings):
+                raise ConfigChanged("The Matrix settings changed.")
+
     async def renew_lease_forever(self):
         while True:
             await asyncio.sleep(bot_state.LEASE_RENEW_INTERVAL.total_seconds())
@@ -640,18 +708,37 @@ class MatrixBot:
             asyncio.create_task(self.sync_forever(), name="sync"),
             asyncio.create_task(self.drain_outbox_forever(), name="outbox"),
             asyncio.create_task(self.renew_lease_forever(), name="lease"),
+            asyncio.create_task(self.watch_config_forever(), name="config"),
             asyncio.create_task(stop.wait(), name="stop"),
         ]
         try:
             done, _ = await asyncio.wait(parts, return_when=asyncio.FIRST_COMPLETED)
+            changed = any(
+                part.get_name() == "config"
+                and not part.cancelled()
+                and isinstance(part.exception(), ConfigChanged)
+                for part in done
+            )
+            if stop.is_set() or changed:
+                # A requested stop or start-over lets the message being sent
+                # finish, so it is not cancelled after the homeserver took it
+                # and sent again. A lost lease does not wait: another process
+                # owns the store now.
+                await self._finish_sending()
+            if stop.is_set():
+                return  # a stop wins over a settings change seen at once
             for part in done:
-                if part.get_name() != "stop":
-                    part.result()  # re-raises what stopped it
+                part.result()  # re-raises what stopped it
         finally:
             for part in parts:
                 part.cancel()
             await asyncio.gather(*parts, return_exceptions=True)
             await self.client.close()
+            # AsyncClient.close() closes only HTTP; the store's connection
+            # would otherwise outlive each start-over.
+            store = getattr(self.client, "store", None)
+            if store is not None:
+                store.database.close()
 
 
 def _active_room_ids():
