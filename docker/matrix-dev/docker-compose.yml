@@ -2,41 +2,29 @@ services:
   tuwunel:
     image: ghcr.io/matrix-construct/tuwunel:v1.9.3
     restart: unless-stopped
+    # Loopback only: tuwunel.toml allows open registration with a public token.
     ports:
-      - "6167:6167"
-      - "8090:8080"   # lk-jwt-service (shared network namespace)
+      - "127.0.0.1:6167:6167"
     volumes:
       - tuwunel-data:/var/lib/tuwunel
       - ./tuwunel.toml:/etc/tuwunel.toml:ro
     environment:
       TUWUNEL_CONFIG: /etc/tuwunel.toml
-    # Disable IPv6 inside the shared network namespace so lk-jwt-service's
-    # federation lookups of "localhost" go to 127.0.0.1:8448 (the Caddy TLS
-    # proxy below) rather than [::1]:8448; Docker's default network has IPv6
-    # off, so an IPv6 connect would be refused.
-    sysctls:
-      - net.ipv6.conf.all.disable_ipv6=1
 
-  # TLS reverse proxy for Matrix federation on port 8448.
-  # lk-jwt-service's federation lookup requires HTTPS.
-  # Caddy terminates TLS with a self-signed cert and proxies to Tuwunel.
-  # The Caddyfile binds both IPv4 and IPv6, so the proxy answers on whichever
-  # loopback address lk-jwt-service dials inside the shared network namespace.
-  federation-tls:
-    image: caddy:alpine
-    network_mode: "service:tuwunel"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-    depends_on:
-      - tuwunel
-
+  # Waldur issues the call tokens itself (/api/matrix/livekit, advertised in
+  # tuwunel.toml), signing them with the key below; dev_matrix_settings seeds
+  # the same key, secret and URLs.
   livekit:
     image: livekit/livekit-server:v1.13.7
     restart: unless-stopped
+    # Published on loopback only: the dev keys below are public. LiveKit
+    # advertises node_ip 127.0.0.1 as its ICE candidate, so a browser on the
+    # same machine reaches the media ports there; a browser on another host
+    # never could, binding or not.
     ports:
-      - "7880:7880/tcp"
-      - "7881:7881/tcp"
-      - "7882:7882/udp"
+      - "127.0.0.1:7880:7880/tcp"
+      - "127.0.0.1:7881:7881/tcp"
+      - "127.0.0.1:7882:7882/udp"
     environment:
       LIVEKIT_CONFIG: |
         port: 7880
@@ -48,24 +36,6 @@ services:
           node_ip: 127.0.0.1
         keys:
           devkey: devsecret
-
-  # Shares tuwunel's network namespace so that "localhost" resolves to
-  # Tuwunel. Federation discovery falls back to https://localhost:8448
-  # which hits the Caddy TLS proxy above.
-  lk-jwt-service:
-    image: ghcr.io/element-hq/lk-jwt-service:0.7.0
-    restart: unless-stopped
-    network_mode: "service:tuwunel"
-    depends_on:
-      - tuwunel
-      - federation-tls
-    environment:
-      LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_KEY: devkey
-      LIVEKIT_SECRET: devsecret
-      LIVEKIT_FULL_ACCESS_HOMESERVERS: localhost
-      # Accept Caddy's self-signed certificate
-      LIVEKIT_INSECURE_SKIP_VERIFY_TLS: YES_I_KNOW_WHAT_I_AM_DOING
 
 volumes:
   tuwunel-data:

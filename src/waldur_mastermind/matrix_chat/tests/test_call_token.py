@@ -2,8 +2,7 @@ from unittest import mock
 
 import jwt
 from constance.test import override_config
-from django.conf import settings
-from rest_framework import status, test
+from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import (
@@ -11,12 +10,9 @@ from waldur_mastermind.matrix_chat import (
     matrix_client,
     models,
     tasks,
-    views,
 )
 from waldur_mastermind.matrix_chat.matrix_client import MatrixClientError
 from waldur_mastermind.matrix_chat.tests import fixtures
-
-URL = "/api/matrix/call-token/"
 
 
 class CallNamingTest(test.APITestCase):
@@ -32,193 +28,6 @@ class CallNamingTest(test.APITestCase):
         self.assertEqual(
             livekit_client.call_identity("@owner:localhost", "probe"),
             "dvsVGufQ3kd1wnBJ8QWTqtnQAFaxts7nnj3QSYkj7lI",
-        )
-
-
-@override_config(
-    MATRIX_ENABLED=True,
-    MATRIX_HOMESERVER_URL="http://tuwunel.internal:6167",
-    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
-    MATRIX_LIVEKIT_KEY="devkey",
-    MATRIX_LIVEKIT_SECRET="devsecret",
-    MATRIX_LIVEKIT_PUBLIC_URL="wss://matrix.example.com",
-)
-@mock.patch("waldur_mastermind.matrix_chat.livekit_client.create_call_room")
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client.is_joined", return_value=True)
-class MatrixCallTokenTest(test.APITestCase):
-    def setUp(self):
-        self.fixture = fixtures.MatrixChatFixture()
-        self.room = self.fixture.matrix_room
-        self.member = self.fixture.admin
-        self.profile = self.fixture.matrix_user_profile
-        self.fixture.matrix_room_member
-        patcher = mock.patch(
-            "waldur_mastermind.matrix_chat.matrix_client.list_devices",
-            return_value=[{"device_id": "OTHER"}, {"device_id": "DEVICE1"}],
-        )
-        self.mock_devices = patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def post(self, room_id=None, device_id="DEVICE1"):
-        return self.client.post(
-            URL,
-            {"room_id": room_id or self.room.room_id, "device_id": device_id},
-            format="json",
-        )
-
-    def test_member_gets_a_token_for_the_room_only(self, mock_joined, mock_create):
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["url"], "wss://matrix.example.com")
-        self.assertEqual(response.headers["Cache-Control"], "no-store")
-        room_name = livekit_client.call_room_name(self.room.room_id)
-        claims = jwt.decode(response.data["jwt"], "devsecret", algorithms=["HS256"])
-        self.assertEqual(claims["iss"], "devkey")
-        self.assertEqual(
-            claims["sub"],
-            livekit_client.call_identity(self.profile.matrix_user_id, "DEVICE1"),
-        )
-        self.assertEqual(claims["video"]["room"], room_name)
-        self.assertTrue(claims["video"]["roomJoin"])
-        self.assertFalse(claims["video"]["roomCreate"])
-        self.assertNotIn("roomAdmin", claims["video"])
-        self.assertNotIn("canUpdateOwnMetadata", claims["video"])
-        self.assertEqual(
-            claims["attributes"],
-            {livekit_client.MATRIX_USER_ATTRIBUTE: self.profile.matrix_user_id},
-        )
-        self.assertEqual(claims["exp"] - claims["nbf"], 3 * 60)
-        self.mock_devices.assert_called_once_with(self.profile.matrix_user_id)
-        mock_joined.assert_called_once_with(
-            self.profile.matrix_user_id, self.room.room_id
-        )
-        # The first participant's request creates the room.
-        mock_create.assert_called_once_with(room_name)
-
-    def test_user_without_a_role_in_the_room_is_refused(self, mock_joined, mock_create):
-        outsider = structure_factories.UserFactory()
-        models.MatrixUserProfile.objects.create(
-            user=outsider, matrix_user_id="@outsider:example.com", provisioned=True
-        )
-        self.client.force_authenticate(outsider)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        mock_create.assert_not_called()
-
-    def test_member_not_joined_on_the_homeserver_is_refused(
-        self, mock_joined, mock_create
-    ):
-        mock_joined.return_value = False
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        mock_create.assert_not_called()
-
-    def test_device_not_of_the_caller_is_refused(self, mock_joined, mock_create):
-        self.client.force_authenticate(self.member)
-
-        response = self.post(device_id="MADE-UP")
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        mock_create.assert_not_called()
-
-    def test_device_listing_failure_fails_closed(self, mock_joined, mock_create):
-        self.mock_devices.side_effect = MatrixClientError("down")
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        mock_create.assert_not_called()
-
-    def test_unknown_room_is_refused_like_a_foreign_one(self, mock_joined, mock_create):
-        self.client.force_authenticate(self.member)
-
-        response = self.post(room_id="!notaroom:matrix.example.com")
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        mock_joined.assert_not_called()
-        mock_create.assert_not_called()
-
-    def test_archived_room_is_refused(self, mock_joined, mock_create):
-        models.MatrixRoom.objects.filter(pk=self.room.pk).update(
-            state=models.RoomStates.ARCHIVED
-        )
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        mock_create.assert_not_called()
-
-    def test_user_without_matrix_account_is_refused(self, mock_joined, mock_create):
-        self.profile.delete()
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        mock_create.assert_not_called()
-
-    def test_delegated_sign_in_is_refused(self, mock_joined, mock_create):
-        self.client.force_authenticate(self.member)
-
-        with mock.patch.object(views, "get_auth_method", return_value="pat"):
-            response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        mock_create.assert_not_called()
-
-    def test_anonymous_is_rejected(self, mock_joined, mock_create):
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_homeserver_failure_fails_closed(self, mock_joined, mock_create):
-        mock_joined.side_effect = MatrixClientError("down")
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        mock_create.assert_not_called()
-
-    def test_livekit_failure_issues_no_token(self, mock_joined, mock_create):
-        mock_create.side_effect = livekit_client.LiveKitClientError("down")
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        self.assertNotIn("jwt", response.data)
-
-    @override_config(MATRIX_LIVEKIT_PUBLIC_URL="")
-    def test_unconfigured_calls_are_unavailable(self, mock_joined, mock_create):
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-
-    @override_config(MATRIX_ENABLED=False)
-    def test_disabled_chat_is_not_found(self, mock_joined, mock_create):
-        self.client.force_authenticate(self.member)
-
-        response = self.post()
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_is_throttled(self, mock_joined, mock_create):
-        self.assertEqual(views.MatrixCallTokenView.throttle_scope, "matrix_call_token")
-        self.assertIn(
-            "matrix_call_token", settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
         )
 
 
