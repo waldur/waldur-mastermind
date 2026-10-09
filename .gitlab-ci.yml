@@ -1093,7 +1093,10 @@ Release tag:
 Check dependency licences:
   extends: .Licence gate (python) template
   variables:
-    LICENCE_EXEMPT_PACKAGES: "matrix-nio django-jsoneditor"
+    # peewee and vodozemac (the Matrix bot's crypto store and Olm library) ship an
+    # MIT LICENSE file but declare no licence in their metadata, so the checker
+    # cannot classify them.
+    LICENCE_EXEMPT_PACKAGES: "matrix-nio django-jsoneditor peewee vodozemac"
     # Beyond the template's default git: python-ldap (via django-auth-ldap)
     # publishes no wheel on any platform, so the sync builds it from its sdist
     # and needs a compiler plus the OpenLDAP and Cyrus SASL headers.

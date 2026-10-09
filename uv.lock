@@ -167,6 +167,12 @@ wheels = [
 ]
 
 [[package]]
+name = "atomicwrites"
+version = "1.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/c6/53da25344e3e3a9c01095a89f16dbcda021c609ddb42dd6d7c0528236fb2/atomicwrites-1.4.1.tar.gz", hash = "sha256:81b2c9071a49367a7f770170e5eec8cb66567cfbbc8c73d20ce5ca4a8d71cf11", size = 14227, upload-time = "2022-07-08T18:31:40.459Z" }
+
+[[package]]
 name = "attrs"
 version = "25.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1512,7 +1518,7 @@ wheels = [
 
 [[package]]
 name = "matrix-nio"
-version = "0.25.2"
+version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -1524,9 +1530,17 @@ dependencies = [
     { name = "pycryptodome" },
     { name = "unpaddedbase64" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/33/50/c20129fd6f0e1aad3510feefd3229427fc8163a111f3911ed834e414116b/matrix_nio-0.25.2.tar.gz", hash = "sha256:8ef8180c374e12368e5c83a692abfb3bab8d71efcd17c5560b5c40c9b6f2f600", size = 155480, upload-time = "2024-10-04T07:51:41.62Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/74/46fe787ef96993903bfa40f806f28f0f16eb4b482c69cb70a1ff8b774223/matrix_nio-0.26.0.tar.gz", hash = "sha256:6aff7aa1d9e6e5351df8f979f4b647a3b347f635e306b26e2682fd3b59d8e6a8", size = 157175, upload-time = "2026-07-23T10:10:53.855Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/0f/8b958d46e23ed4f69d2cffd63b46bb097a1155524e2e7f5c4279c8691c4a/matrix_nio-0.25.2-py3-none-any.whl", hash = "sha256:9c2880004b0e475db874456c0f79b7dd2b6285073a7663bcaca29e0754a67495", size = 181982, upload-time = "2024-10-04T07:51:39.451Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/e9/fbb39da3f2ed164a6a92e09b2f86a177a3b24daa3a5d7b817ba3c6f1a8f6/matrix_nio-0.26.0-py3-none-any.whl", hash = "sha256:1803d7ba6dbc54a101a02695a5a767a1fb53632e46aced9d116990f4a98eadf3", size = 183482, upload-time = "2026-07-23T10:10:52.365Z" },
+]
+
+[package.optional-dependencies]
+e2e = [
+    { name = "atomicwrites" },
+    { name = "cachetools" },
+    { name = "peewee" },
+    { name = "vodozemac" },
 ]
 
 [[package]]
@@ -1929,6 +1943,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/01/d2/510cc0d218e753ba62a1bc1434651db3cd797a9716a0a66cc714cb4f0935/pbr-6.1.1.tar.gz", hash = "sha256:93ea72ce6989eb2eed99d0f75721474f69ad88128afdef5ac377eb797c4bf76b", size = 125702, upload-time = "2025-02-04T14:28:06.514Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/ac/684d71315abc7b1214d59304e23a982472967f6bf4bde5a98f1503f648dc/pbr-6.1.1-py2.py3-none-any.whl", hash = "sha256:38d4daea5d9fa63b3f626131b9d34947fd0c8be9b05a29276870580050a25a76", size = 108997, upload-time = "2025-02-04T14:28:03.168Z" },
+]
+
+[[package]]
+name = "peewee"
+version = "3.19.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/b0/79462b42e89764998756e0557f2b58a15610a5b4512fbbcccae58fba7237/peewee-3.19.0.tar.gz", hash = "sha256:f88292a6f0d7b906cb26bca9c8599b8f4d8920ebd36124400d0cbaaaf915511f", size = 974035, upload-time = "2026-01-07T17:24:59.597Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/41/19c65578ef9a54b3083253c68a607f099642747168fe00f3a2bceb7c3a34/peewee-3.19.0-py3-none-any.whl", hash = "sha256:de220b94766e6008c466e00ce4ba5299b9a832117d9eb36d45d0062f3cfd7417", size = 411885, upload-time = "2026-01-07T17:24:58.33Z" },
 ]
 
 [[package]]
@@ -3204,6 +3227,29 @@ wheels = [
 ]
 
 [[package]]
+name = "vodozemac"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/0a/ced0576c7e2bbc03f056c9791ae5edfbd0ac6daa66033368f947e89885ed/vodozemac-0.10.0.tar.gz", hash = "sha256:9602edb87ab7d16e7b4aad5a087473d8fb6b3ee99043f9aaf0f54bb78970dde9", size = 39832, upload-time = "2026-07-23T09:50:08.877Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f2/0b/3d4988bc7c3771a9bf9d56ccf09b6a465db6e6883bdcdeb2f17e6a26581e/vodozemac-0.10.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:38478cabb70f5a7d72e4cf7f5a5d8f69102ff01072f00170de4a046b6213727f", size = 694965, upload-time = "2026-07-23T09:49:07.476Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/3b/fb8ece98d767443042baefe6aea9c3a57ce94fbcf202d5282359346afcd8/vodozemac-0.10.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:a871e9841d37170c72b6144ff95d48b2a43831c551b7878ba4f73cee4e0098ee", size = 659401, upload-time = "2026-07-23T09:49:08.504Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/2f/9702fc234d47e8f1703254d4066d836b5bb72f9b86097bca92df20bf3829/vodozemac-0.10.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:291f85fe5f273e8a8cdc39ef343fdee382940e23e27b0f329419616f9e128c32", size = 735945, upload-time = "2026-07-23T09:49:10.113Z" },
+    { url = "https://files.pythonhosted.org/packages/54/ff/0345119fd5299c03e6cc57ae78bb42ee7323bfaff5cd36b3c72a672743de/vodozemac-0.10.0-cp313-cp313-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:c305994a09dcace57ab14d77466acdf32d79d1faee83c08dcfe2b20086b95e8e", size = 752533, upload-time = "2026-07-23T09:49:11.195Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/c7/e0a5d350dd3eebb175cff27d25965f8eb13944f6210e00f848db238abda9/vodozemac-0.10.0-cp313-cp313-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:95d11df55408992ffcdc9d6796381a56e7183f5ca8d830e4f2aed22635ad358d", size = 910685, upload-time = "2026-07-23T09:49:12.238Z" },
+    { url = "https://files.pythonhosted.org/packages/10/5c/4463c08fc9d51afc3f505d93225773d4034617434c028ff43eed2147a5f0/vodozemac-0.10.0-cp313-cp313-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:a8590ed803bd5ba9787fc23b4cb88986a9d7fb65ccc7818bf754e0cd73446bfc", size = 748609, upload-time = "2026-07-23T09:49:13.353Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/10/f2e9373eeff83a932ff2dda19fae6bf5adcc86196ea7467aa066a01ae1b3/vodozemac-0.10.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:83d68ff5419962cf2b573ed98ab86d9dbc1914d3a251f967351c6915bf1ee651", size = 750866, upload-time = "2026-07-23T09:49:14.5Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/51/0f828f3b688ecf227db80234b254ab12ad1d1099092e482d2743f42b2a2a/vodozemac-0.10.0-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:2aada386e7420ae6eed05c9a227a0c13f1aed8adae787447d4174cc8f748fa97", size = 827740, upload-time = "2026-07-23T09:49:15.525Z" },
+    { url = "https://files.pythonhosted.org/packages/08/88/55ac2a5ec11447f405101ddd5b81deb473b2b1b5b1226698f53c7c7a4de2/vodozemac-0.10.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:cbef1e8d129498a0ef76c620488dd4d27d220208bd4452e1914cb3ed76f2ecef", size = 911889, upload-time = "2026-07-23T09:49:16.592Z" },
+    { url = "https://files.pythonhosted.org/packages/82/71/ac7def0241b2aa4e49fedc52d702f42ff185f7ed2162060733e349952060/vodozemac-0.10.0-cp313-cp313-musllinux_1_2_armv7l.whl", hash = "sha256:eecb5a8d50036ad3a7286e3cc976fe94979aaeb1f2b212460a91e227bba1d630", size = 1027105, upload-time = "2026-07-23T09:49:18.156Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/5e/8be4a4be30607279a276b7ee9e401779c54c41d2325b1fbca49b21e524f7/vodozemac-0.10.0-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:c66ad5e26e167150ddcf88c552192fa88f71bf56cfd5c9ff143427e85cf6981d", size = 1012499, upload-time = "2026-07-23T09:49:19.306Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/33/87210b61e51b6ef8f8cd1bde29991156e946f099c1785df1d7f73cf0745a/vodozemac-0.10.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:deb5e15d286cdb56217d01d559608662b93a0b6a3b9823b054d2520bc8dc69dd", size = 968738, upload-time = "2026-07-23T09:49:20.323Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/08/9a9a36c9b88eb2df274edf3a211d9cb62d86401cc7b3cbd0c66d24b06a68/vodozemac-0.10.0-cp313-cp313-win32.whl", hash = "sha256:56ee5428abae869331d4966aba7ca05bc40486f3dc1707cd60faded8b92a77d5", size = 535840, upload-time = "2026-07-23T09:49:21.433Z" },
+    { url = "https://files.pythonhosted.org/packages/61/ae/dc99539a26e49586db7e8922511a7da0b5bd2a1f904c00e18408d73fd137/vodozemac-0.10.0-cp313-cp313-win_amd64.whl", hash = "sha256:caa352f23821ff5a39bb7a44493d87741ac8c17d9ee1f4cd6d04428502b918b2", size = 568366, upload-time = "2026-07-23T09:49:22.496Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/7e/554d672eddddc5e2416c5f9fef8ff8396a57b95d157b40c2dd70a52e9e63/vodozemac-0.10.0-cp313-cp313-win_arm64.whl", hash = "sha256:5644a116c484f18150b3cb9a580daa709d1ca11a055bc0b68b65c68073edb9b5", size = 524525, upload-time = "2026-07-23T09:49:23.551Z" },
+]
+
+[[package]]
 name = "waldur-api-client"
 version = "8.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -3257,7 +3303,7 @@ dependencies = [
     { name = "lxml" },
     { name = "markdown-it-py" },
     { name = "markdownify" },
-    { name = "matrix-nio" },
+    { name = "matrix-nio", extra = ["e2e"] },
     { name = "nh3" },
     { name = "openai" },
     { name = "openportal" },
@@ -3355,7 +3401,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "markdown-it-py", specifier = ">=3.0.0,<5.0.0" },
     { name = "markdownify", specifier = ">=1.2.0,<2.0.0" },
-    { name = "matrix-nio", specifier = ">=0.25.2,<1.0.0" },
+    { name = "matrix-nio", extras = ["e2e"], specifier = "==0.26.0" },
     { name = "nh3", specifier = ">=0.2.18,<1.0.0" },
     { name = "openai", specifier = ">=2.26.0" },
     { name = "openportal", specifier = ">=0.91.0" },
