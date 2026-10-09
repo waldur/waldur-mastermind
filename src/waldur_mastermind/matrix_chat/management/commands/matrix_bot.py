@@ -5,6 +5,7 @@ import threading
 import uuid
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import ProgrammingError, close_old_connections
 
 from waldur_mastermind.matrix_chat import bot_state, matrix_client
 from waldur_mastermind.matrix_chat.bot import (
@@ -53,9 +54,24 @@ class Command(BaseCommand):
         """
         self._watch_signals(stopped)
         logged = False
+        migrations_logged = False
         while not stopped.is_set():
-            if matrix_client.is_homeserver_configured():
-                return BotSettings.from_config()
+            try:
+                if matrix_client.is_homeserver_configured():
+                    return BotSettings.from_config()
+            except ProgrammingError as error:
+                # A fresh install starts the bot before migrations have run, so
+                # the settings table may not exist yet. Only that is waited out:
+                # a database the bot cannot reach at all still stops it.
+                close_old_connections()
+                if not migrations_logged:
+                    logger.warning(
+                        "The Matrix bot waits for the database to be migrated: %s",
+                        error,
+                    )
+                    migrations_logged = True
+                stopped.wait(CONFIG_POLL_SECONDS)
+                continue
             if not logged:
                 logger.info(
                     "The Matrix bot waits for MATRIX_HOMESERVER_URL and "

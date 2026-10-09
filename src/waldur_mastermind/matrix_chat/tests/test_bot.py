@@ -4,6 +4,7 @@ from unittest import mock
 
 import httpx
 from asgiref.sync import async_to_sync
+from django.db import OperationalError, ProgrammingError
 from django.test import TestCase
 from django.utils import timezone
 from nio import KeysQueryResponse, OlmUnverifiedDeviceError, RoomSendResponse
@@ -576,6 +577,33 @@ class CommandTest(TestCase):
         ):
             self.assertIsNone(command._wait_for_configuration(stopped))
         stopped.wait.assert_called_once_with(matrix_bot.CONFIG_POLL_SECONDS)
+
+    def test_waits_while_the_database_is_not_migrated(self):
+        matrix_bot, command = self._command()
+        stopped = mock.Mock(is_set=mock.Mock(side_effect=[False, False, False]))
+        with (
+            mock.patch.object(
+                matrix_bot.matrix_client,
+                "is_homeserver_configured",
+                side_effect=[ProgrammingError("no such table"), True],
+            ),
+            mock.patch.object(
+                matrix_bot.BotSettings, "from_config", return_value=_settings()
+            ),
+        ):
+            self.assertEqual(command._wait_for_configuration(stopped), _settings())
+        stopped.wait.assert_called_once()
+
+    def test_an_unreachable_database_is_not_waited_out(self):
+        matrix_bot, command = self._command()
+        stopped = mock.Mock(is_set=mock.Mock(return_value=False))
+        with mock.patch.object(
+            matrix_bot.matrix_client,
+            "is_homeserver_configured",
+            side_effect=OperationalError("connection refused"),
+        ):
+            with self.assertRaises(OperationalError):
+                command._wait_for_configuration(stopped)
 
     def test_starts_over_when_the_settings_change(self):
         matrix_bot, command = self._command()
