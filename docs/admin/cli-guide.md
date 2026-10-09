@@ -1077,6 +1077,10 @@ options:
 
 ```
 
+## matrix_bot
+
+Run the Matrix bot: Waldur's encrypted member of every Waldur room. It answers commands and posts everything Waldur sends as the bot. Run exactly one; a second process refuses to start while the first holds the bot's lease. Until the homeserver and appservice are configured it waits, and when they change it starts over with the new settings.
+
 ## migrate_fresh
 
 Create the schema of an empty database from the models and record all migrations as applied.
@@ -1487,10 +1491,15 @@ Re-encrypt stored secrets under the current FIELD_ENCRYPTION_KEY. Run this after
 
 ```bash
 
-usage: waldur reencrypt_fields [--dry-run]
+usage: waldur reencrypt_fields [--dry-run] [--encrypt-plaintext-settings]
 
 options:
-  --dry-run  Report what would be re-encrypted without writing anything
+  --dry-run             Report what would be re-encrypted without writing
+                        anything
+  --encrypt-plaintext-settings
+                        Also encrypt secret Constance settings stored in
+                        clear, e.g. saved by a pod of an older release during
+                        a rolling upgrade
 
 ```
 

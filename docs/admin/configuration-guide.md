@@ -3647,19 +3647,25 @@ How users sign in to an external Matrix client such as Element: 'none' (Waldur o
 
 **Type:** str
 
-LiveKit API key for the call SFU (Calls observability tab).
+LiveKit API key for the call SFU.
 
 #### MATRIX_LIVEKIT_SECRET
 
 **Type:** secret_field
 
-LiveKit API secret used to mint the admin token.
+LiveKit API secret used to mint admin and call tokens.
 
 #### MATRIX_LIVEKIT_URL
 
 **Type:** url_field
 
 Internal LiveKit base URL. Falls back to http://livekit:7880 when blank.
+
+#### MATRIX_LIVEKIT_PUBLIC_URL
+
+**Type:** str
+
+Public LiveKit signaling URL that browsers connect to for calls, e.g. wss://matrix.example.org. Waldur issues call tokens only when this and the LiveKit key and secret are set.
 
 ### Personal Access Tokens
 
