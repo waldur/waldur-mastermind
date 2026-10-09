@@ -82,6 +82,10 @@ INSTALLED_APPS = (
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
+# Paths any origin may POST to without credentials: the call token API that
+# Matrix clients on other origins (Element Web) use. See cors_middleware.
+PUBLIC_CORS_PATH_PREFIXES = ("/api/matrix/livekit/",)
+
 MIDDLEWARE = (
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "waldur_core.server.middleware.cors_middleware",
@@ -139,6 +143,14 @@ REST_FRAMEWORK = {
         # Each call may create a LiveKit room. The drawer asks once per call it
         # starts or joins, and again when it reconnects.
         "matrix_call_token": "300/hour",
+        # The call token API Matrix clients use, unauthenticated: per client
+        # address. A join takes one or two requests (Element Call falls back
+        # from /get_token to /sfu/get), so this allows a building behind one
+        # NAT to join calls, while capping homeserver lookups from one source.
+        "matrix_livekit_token": "600/hour",
+        # The same API per Matrix user, once their OpenID token checks out:
+        # each request may create a LiveKit room, from any address.
+        "matrix_livekit_token_user": "120/hour",
         "matrix_webhook": "10000/hour",
         # Passkey ceremonies. Sign-in is anonymous and unauthenticated, so it
         # is the tighter of the two. Deliberately not wired into django-axes:

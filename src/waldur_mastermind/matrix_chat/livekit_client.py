@@ -184,6 +184,11 @@ def list_participants(room_name: str) -> list[dict]:
 # them, so a call keeps the same room whichever service issued the token, and the
 # web chat can map identities back to Matrix users.
 CALL_SLOT_ID = "0"
+# The MatrixRTC slot Element Call uses, and the one lk-jwt-service's legacy
+# /sfu/get endpoint assumes. Calls are only issued tokens for these slots, so
+# removing a user from a room's calls can cover every one of them.
+ELEMENT_CALL_SLOT_ID = "m.call#ROOM"
+CALL_SLOT_IDS = (ELEMENT_CALL_SLOT_ID, CALL_SLOT_ID)
 # Only long enough to connect: the web chat asks for the token right before it
 # connects, and ICE/TURN negotiation takes seconds, so 3 minutes leaves ample
 # margin for a slow join. A connected participant does not need it after that:
@@ -214,9 +219,17 @@ def call_room_name(matrix_room_id: str, slot_id: str = CALL_SLOT_ID) -> str:
     return _hash_strings(matrix_room_id, slot_id)
 
 
-def call_identity(matrix_user_id: str, device_id: str) -> str:
-    """The LiveKit identity of a user's device in a call."""
-    return _hash_strings(matrix_user_id, device_id, device_id)
+def call_identity(matrix_user_id: str, device_id: str, member_id: str = "") -> str:
+    """The LiveKit identity of a user's device in a call (MatrixRTC member).
+
+    The web chat uses its device ID as the member ID too.
+    """
+    return _hash_strings(matrix_user_id, device_id, member_id or device_id)
+
+
+def legacy_call_identity(matrix_user_id: str, device_id: str) -> str:
+    """The identity lk-jwt-service's legacy /sfu/get endpoint issues."""
+    return f"{matrix_user_id}:{device_id}"
 
 
 def create_call_room(room_name: str) -> None:
@@ -241,8 +254,9 @@ def mint_call_token(room_name: str, identity: str, matrix_user_id: str) -> str:
         "nbf": now,
         "exp": now + CALL_TOKEN_TTL_SECONDS,
         "attributes": {MATRIX_USER_ATTRIBUTE: matrix_user_id},
-        # No canUpdateOwnMetadata: the web chat sets no name, metadata or
-        # attributes of its own, and the attribute above must stay Waldur's.
+        # No canUpdateOwnMetadata: neither the web chat nor Element Call sets a
+        # name, metadata or attributes of its own, and the attribute above
+        # must stay Waldur's.
         "video": {
             "room": room_name,
             "roomJoin": True,
@@ -255,37 +269,39 @@ def mint_call_token(room_name: str, identity: str, matrix_user_id: str) -> str:
 
 
 def remove_from_call(matrix_room_id: str, matrix_user_id: str) -> int:
-    """Disconnect the user's participants from the room's call.
+    """Disconnect the user's participants from the room's calls.
 
     LiveKit checks a token only on connect, so someone who loses the room stays
     in a call they are in until removed. Returns how many were removed.
     """
-    room_name = call_room_name(matrix_room_id)
     removed = 0
-    for participant in (
-        _twirp_call("ListParticipants", {"room": room_name}, room=room_name).get(
-            "participants"
-        )
-        or []
-    ):
-        attributes = participant.get("attributes") or {}
-        if attributes.get(MATRIX_USER_ATTRIBUTE) != matrix_user_id:
-            continue
-        _twirp_call(
-            "RemoveParticipant",
-            {"room": room_name, "identity": participant.get("identity", "")},
-            room=room_name,
-        )
-        removed += 1
+    for slot_id in CALL_SLOT_IDS:
+        room_name = call_room_name(matrix_room_id, slot_id)
+        for participant in (
+            _twirp_call("ListParticipants", {"room": room_name}, room=room_name).get(
+                "participants"
+            )
+            or []
+        ):
+            attributes = participant.get("attributes") or {}
+            if attributes.get(MATRIX_USER_ATTRIBUTE) != matrix_user_id:
+                continue
+            _twirp_call(
+                "RemoveParticipant",
+                {"room": room_name, "identity": participant.get("identity", "")},
+                room=room_name,
+            )
+            removed += 1
     return removed
 
 
 def end_call(matrix_room_id: str) -> None:
-    """Close the room's call, disconnecting everyone in it."""
-    room_name = call_room_name(matrix_room_id)
-    try:
-        _twirp_call("DeleteRoom", {"room": room_name}, room=room_name, create=True)
-    except LiveKitClientError as exc:
-        # No call is going on.
-        if exc.status_code != 404:
-            raise
+    """Close the room's calls, disconnecting everyone in them."""
+    for slot_id in CALL_SLOT_IDS:
+        room_name = call_room_name(matrix_room_id, slot_id)
+        try:
+            _twirp_call("DeleteRoom", {"room": room_name}, room=room_name, create=True)
+        except LiveKitClientError as exc:
+            # No call is going on.
+            if exc.status_code != 404:
+                raise

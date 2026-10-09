@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import secrets
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -116,6 +117,26 @@ def _load_nio():
 
 
 logger = logging.getLogger(__name__)
+
+
+class _RedactAccessToken(logging.Filter):
+    """httpx logs every request URL at INFO, and the OpenID userinfo call puts
+    a user's token in its query string."""
+
+    _token = re.compile(r"(access_token=)[^&\s\"']+")
+
+    def filter(self, record):
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self._token.sub(r"\1[Filtered]", str(arg))
+                if "access_token=" in str(arg)
+                else arg
+                for arg in record.args
+            )
+        return True
+
+
+logging.getLogger("httpx").addFilter(_RedactAccessToken())
 
 
 class MatrixClientError(Exception):
@@ -1459,6 +1480,35 @@ def is_joined(matrix_user_id, room_id):
     if not isinstance(joined_rooms, list):
         raise MatrixClientError("Homeserver returned no joined_rooms list")
     return room_id in joined_rooms
+
+
+def get_openid_user(access_token):
+    """The Matrix ID a local OpenID token was issued to, or None for a token
+    the homeserver does not recognise.
+
+    Uses the federation userinfo endpoint, which takes the token only as a
+    query parameter; httpx's request log is redacted for it (see
+    _RedactAccessToken).
+    """
+    try:
+        response = httpx.get(
+            f"{config.MATRIX_HOMESERVER_URL}/_matrix/federation/v1/openid/userinfo",
+            params={"access_token": access_token},
+            timeout=10,
+        )
+    except httpx.HTTPError as e:
+        # The exception text carries the URL, token included.
+        raise MatrixClientError(f"Homeserver unreachable: {type(e).__name__}") from None
+    if response.status_code == 401:
+        return None
+    if response.status_code != 200:
+        raise MatrixClientError(
+            f"OpenID userinfo returned {response.status_code}: {response.text[:200]}"
+        )
+    sub = _json_body(response).get("sub")
+    if not isinstance(sub, str) or not sub:
+        raise MatrixClientError("OpenID userinfo returned no sub")
+    return sub
 
 
 def list_web_devices(matrix_user_id):

@@ -302,7 +302,9 @@ class RemoveFromCallTest(test.APITestCase):
                     _participant("x1"),
                 ]
             }
+            # The web chat's call; the Element Call one is empty.
             if method == "ListParticipants"
+            and body["room"] == livekit_client.call_room_name(ROOM_ID)
             else {}
         )
 

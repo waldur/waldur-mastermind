@@ -146,6 +146,7 @@ def _add_context(target, context):
 # in frame locals, e.g. the appservice token in every homeserver call.
 _SECRET_NAMES = [
     "access_token",
+    "openid_token",
     "refresh_token",
     "login_token",
     "as_token",

@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.conf import settings
 
 
 class MatrixChatConfig(AppConfig):
@@ -88,3 +89,14 @@ class MatrixChatConfig(AppConfig):
         )
 
         register_pat_filter(models.MatrixHistoryExport)(managers.pat_filter_exports)
+
+        if "corsheaders" in settings.INSTALLED_APPS:
+            # Deployments that add django-cors-headers answer preflights
+            # before cors_middleware does; let them allow the call token API
+            # from any origin too.
+            from corsheaders.signals import check_request_enabled
+
+            check_request_enabled.connect(
+                handlers.allow_public_cors,
+                dispatch_uid="waldur_mastermind.matrix_chat.allow_public_cors",
+            )

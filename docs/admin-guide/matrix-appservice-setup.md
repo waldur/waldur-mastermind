@@ -693,6 +693,24 @@ Locking the Matrix account of a deactivated or deleted user, generating password
 
 Use your bot's localpart if it is not `waldur-bot`. The appservice token (`MATRIX_APPSERVICE_AS_TOKEN`) already acts as every local user of the homeserver; as an admin's token it carries server-wide powers on top, such as setting any account's password, so protect it accordingly. Waldur calls the admin API at `MATRIX_HOMESERVER_URL`; if a proxy blocks `/_synapse/admin` there, point it at an internal address. The diagnostics check "Bot is a homeserver admin" (`bot_homeserver_admin`) shows whether the bot is an admin.
 
+## Calls
+
+Calls run on LiveKit. Waldur issues the LiveKit tokens that Matrix clients (Waldur's chat drawer and Element Call) need to join a call, in place of lk-jwt-service. Point the homeserver's `.well-known/matrix/client` LiveKit focus at it: `livekit_service_url` is `https://<waldur-api>/api/matrix/livekit`.
+
+| Endpoint | Request |
+| --- | --- |
+| `POST /api/matrix/livekit/get_token` | `{room_id, slot_id, openid_token, member: {id, claimed_user_id, claimed_device_id}}` |
+| `POST /api/matrix/livekit/sfu/get` | `{room, openid_token, device_id}` (the older form; Element Call falls back to it) |
+
+Both answer `{url, jwt}`. The Matrix OpenID token authenticates the caller, verified at the homeserver (`/_matrix/federation/v1/openid/userinfo` at `MATRIX_HOMESERVER_URL`, so its federation endpoints must be reachable there). Any origin may call these two paths, without credentials.
+
+- **Who gets a token:** a user of this homeserver who is joined to the room at that moment, for one of their own devices. This holds for any room the user has joined, direct messages and rooms created outside Waldur included, not only Waldur's project rooms. Users of other homeservers are refused.
+- **What it allows:** joining that room's call, for 3 minutes; LiveKit renews the token of a connected participant.
+- **Removal:** when a user loses access to a Waldur room (role revoked, staff leave, deactivation, deletion, room disabled), Waldur also disconnects them from its call. A removed user can reconnect until the token LiveKit last gave them expires, up to about 10 minutes. Leaving or being removed from a room Waldur does not manage disconnects no one; the user cannot get a new token for it.
+- **Client address:** the per-address limit keys on the last `X-Forwarded-For` entry, the address the proxy in front of Waldur saw (a port, as Azure Application Gateway adds, is dropped). Behind a further load balancer or CDN that does not pass the real client address on (real-IP or PROXY protocol), every client appears as that balancer and all share one bucket: calls then fail with `429` under load rather than going unlimited.
+- **OpenID tokens:** any Matrix OpenID token of a user lets its holder get call tokens for the rooms that user has joined, as with lk-jwt-service. A widget or integration the user hands an OpenID token to can therefore join their calls while the OpenID token is valid.
+- **Limits:** `matrix_livekit_token` per client address (default 600/hour) and `matrix_livekit_token_user` per Matrix user (default 120/hour); `MATRIX_LIVEKIT_KEY`, `MATRIX_LIVEKIT_SECRET` and `MATRIX_LIVEKIT_PUBLIC_URL` (the signalling URL browsers connect to) must be set, or the endpoints answer `503`.
+
 ## Webhook
 
 **PUT /_matrix/app/v1/transactions/{txnId}**
