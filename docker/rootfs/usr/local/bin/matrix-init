@@ -1,0 +1,425 @@
+#!/usr/bin/env python3
+"""Zero-touch Matrix setup for the Waldur Helm chart.
+
+Subcommands:
+  secrets  generate-or-reuse the appservice/registration tokens as a Secret
+  wire     seed Constance and register the appservice with the homeserver
+  livekit  render livekit config.yaml with the discovered LoadBalancer IP
+
+The chart runs it from this image in its two matrix-init Jobs and in the
+LiveKit node-IP initContainer. It ships with the image rather than in the chart
+so the script and the commands it calls (`init_matrix_settings`,
+`register_matrix_appservice`) are always the same version. The chart passes the
+Secret name in the environment. The livekit-rtc Service, the livekit config
+paths and its placeholder are fixed here, so a chart that renames one must
+change this script in the same release.
+
+The Waldur half, which Constance keys the tokens map to, is not here: that is
+`init_matrix_settings`, which waldur-docker-compose calls with the same
+environment variables.
+
+Token hygiene: this script never prints token material. Everything it logs
+about a secret is a sha256:<first-12-hex> fingerprint, matching what
+/api/admin/matrix/diagnostics/ exposes.
+"""
+
+import hashlib
+import json
+import os
+import secrets as pysecrets
+import socket
+import ssl
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+SA = "/var/run/secrets/kubernetes.io/serviceaccount"
+API = "https://kubernetes.default.svc"
+
+
+def log(msg):
+    print("matrix-init: %s" % msg, flush=True)
+
+
+def fingerprint(value):
+    """sha256:<first-12-hex> — the only form a secret may be logged in."""
+    return "sha256:%s" % hashlib.sha256(value.encode()).hexdigest()[:12]
+
+
+def namespace():
+    with open(os.path.join(SA, "namespace")) as fh:
+        return fh.read().strip()
+
+
+def api(method, path, body=None):
+    """Call the API server; a 404 returns None."""
+    with open(os.path.join(SA, "token")) as fh:
+        token = fh.read().strip()
+    headers = {"Authorization": "Bearer %s" % token}
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode()
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(API + path, data=data, headers=headers, method=method)
+    ctx = ssl.create_default_context(cafile=os.path.join(SA, "ca.crt"))
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
+            return json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise RuntimeError(
+            "%s %s failed: %s %s" % (method, path, exc.code, exc.read().decode())
+        ) from exc
+
+
+def cmd_secrets():
+    """Create the token Secret once; reuse it on every subsequent run.
+
+    The reuse branch is the critical path: an upgrade of an existing Matrix
+    deployment must NOT rotate tokens. A registration carries exactly one
+    as_token, so rotation is an unavoidable cutover — if it happens behind
+    the operator's back the bot silently dies with M_UNKNOWN_TOKEN.
+    """
+    ns = namespace()
+    name = os.environ["SECRET_NAME"]
+    existing = api("GET", "/api/v1/namespaces/%s/secrets/%s" % (ns, name))
+    if existing is not None:
+        keys = sorted(existing.get("data", {}))
+        log("reusing existing Secret %s (keys: %s)" % (name, ", ".join(keys)))
+        if "bootstrap_password" not in keys:
+            # Not patched in: the bootstrap admin on this homeserver was
+            # registered with some other password, so a new one could not log
+            # in anyway.
+            log(
+                "Secret %s has no bootstrap_password: registering rotated "
+                "tokens will need a homeserver admin's access token, added to "
+                "the Secret under admin_token for that upgrade" % name
+            )
+        missing = [
+            k
+            for k in ("as_token", "hs_token", "registration_token")
+            if k not in existing.get("data", {})
+        ]
+        if missing:
+            raise SystemExit(
+                "matrix-init: Secret %s exists but is missing %s. Refusing to "
+                "patch a half-populated appservice Secret: add the missing keys "
+                "by hand, and keep bootstrap_password and registration_token as "
+                "they are. Deleting the Secret replaces those too, so the next "
+                "registration would need admin_token in the Secret and the "
+                "homeserver a restart." % (name, ", ".join(missing))
+            )
+        return
+
+    tokens = {
+        key: pysecrets.token_hex(32)
+        for key in ("as_token", "hs_token", "registration_token", "bootstrap_password")
+    }
+    body = {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {
+            "name": name,
+            # This Secret survives `helm uninstall` because Helm never owned
+            # it: it is created here, through the API, not rendered by the
+            # chart. Nor does ArgoCD prune it, since it carries no tracking
+            # label. That matters — losing these tokens means losing the
+            # ability to talk to a homeserver whose data volume is retained —
+            # and it is why there is no helm.sh/resource-policy annotation: on
+            # an object Helm does not track, it would do nothing.
+            "labels": {"app.kubernetes.io/managed-by": "matrix-init"},
+        },
+        "type": "Opaque",
+        "stringData": tokens,
+    }
+    api("POST", "/api/v1/namespaces/%s/secrets" % ns, body)
+    log(
+        "generated fresh tokens in Secret %s (%s)"
+        % (
+            name,
+            ", ".join("%s=%s" % (k, fingerprint(v)) for k, v in sorted(tokens.items())),
+        )
+    )
+
+
+def missing_commands(names):
+    """Return which of `names` this image's `waldur` CLI does not have.
+
+    One `help --commands` listing — a single Django start, no database — rather
+    than a probe per command. Its stderr goes to the Job log as usual.
+    """
+    listing = subprocess.run(
+        ["waldur", "help", "--commands"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.split()
+    return [name for name in names if name not in listing]
+
+
+def warn_skipped(lines):
+    """A warning that has to be found in a Job log nobody reads when it passes."""
+    log("=" * 72)
+    for line in lines:
+        log("WARNING: %s" % line)
+    log("=" * 72)
+
+
+def cmd_wire():
+    """Seed Constance from the deployment, then register the appservice.
+
+    The Constance key mapping deliberately does not live here. It lives in
+    the `init_matrix_settings` command, which reads exactly the environment
+    variables the chart's wire Job sets — waldur-docker-compose calls the same
+    command with the same variables. A key list restated per packaging repo is
+    a key list that drifts, and a drifted Matrix setting surfaces as
+    M_UNKNOWN_TOKEN long after the deploy that caused it.
+
+    The tokens are already in this process's environment (from secretKeyRef),
+    so they are passed straight through rather than rendered to a file.
+
+    `init_matrix_settings` ships in the same image as this script. An image
+    without `register_matrix_appservice` skips the registration with a warning
+    and exit 0: this is a post-install hook, and failing it fails the whole
+    `helm upgrade`.
+    """
+    register = os.environ.get("REGISTER_APPSERVICE") == "true"
+    missing = missing_commands(["register_matrix_appservice"]) if register else []
+
+    subprocess.run(["waldur", "init_matrix_settings"], check=True)
+    log(
+        "Constance seeded for %s (as_token=%s, hs_token=%s)"
+        % (
+            os.environ["MATRIX_HOMESERVER_DOMAIN"],
+            fingerprint(os.environ["MATRIX_APPSERVICE_AS_TOKEN"]),
+            fingerprint(os.environ["MATRIX_APPSERVICE_HS_TOKEN"]),
+        )
+    )
+
+    if not register:
+        log(
+            "appservice auto-registration disabled "
+            "(matrixChat.setup.registerAppservice=false) — register it by hand"
+        )
+        return
+
+    if "register_matrix_appservice" in missing:
+        warn_skipped(
+            [
+                "this mastermind image has no `waldur register_matrix_appservice`, "
+                "so the appservice was NOT registered (Constance is seeded).",
+                "Chat stays down until the homeserver has the registration: "
+                "upgrade waldur.imageTag and sync again, or register by hand.",
+                "Set matrixChat.setup.registerAppservice=false if registering "
+                "by hand is intended.",
+            ]
+        )
+        return
+
+    # --url is the address the *homeserver* calls back on to deliver
+    # appservice transactions, so it is the in-cluster API Service, not the
+    # public ingress. Everything else the command needs (homeserver URL,
+    # registration token, both appservice tokens) it reads from the Constance
+    # rows seeded immediately above.
+    wait_for_homeserver()
+    log("registering appservice with the homeserver")
+    subprocess.run(
+        [
+            "waldur",
+            "register_matrix_appservice",
+            "--url",
+            os.environ["WALDUR_API_URL"],
+        ],
+        check=True,
+    )
+
+
+def wait_for_homeserver():
+    """Block until the homeserver answers /_matrix/client/versions, or fail.
+
+    Migrations need no wait here — the hook weights already order this Job
+    after the whitelabeling Job, which blocks on `migrate --check`. The
+    homeserver is not ordered by anything: Tuwunel migrates its database
+    silently on the first boot of a new version, before it opens its port, and
+    the StatefulSet may be restarting on the very upgrade that runs this Job.
+    Registering against it then fails with a connection error that reads like
+    a broken homeserver. Runs after Constance is seeded, so a timeout here
+    still leaves Waldur holding the right tokens for the next sync.
+    """
+    url = os.environ["MATRIX_HOMESERVER_URL"].rstrip("/") + "/_matrix/client/versions"
+    timeout = int(os.environ.get("HOMESERVER_WAIT_TIMEOUT", "900"))
+    deadline = time.monotonic() + timeout
+    last_logged = None
+    while True:
+        try:
+            with urllib.request.urlopen(url, timeout=10):
+                log("homeserver is answering at %s" % url)
+                return
+        except urllib.error.HTTPError as exc:
+            why = "HTTP %s" % exc.code
+        except OSError as exc:
+            why = str(getattr(exc, "reason", exc))
+        now = time.monotonic()
+        if now >= deadline:
+            raise SystemExit(
+                "matrix-init: the homeserver at %s did not answer within %ds "
+                "(%s). A Tuwunel version bump migrates the database before the "
+                "port opens; check the matrix-homeserver pod, and raise "
+                "matrixChat.setup.homeserverWaitTimeout if it is still "
+                "migrating. Constance is already seeded; the next sync retries "
+                "the registration." % (url, timeout, why)
+            )
+        if last_logged is None or now - last_logged >= 30:
+            log(
+                "waiting for the homeserver at %s: %s (%ds left)"
+                % (url, why, deadline - now)
+            )
+            last_logged = now
+        time.sleep(min(5, deadline - now))
+
+
+# Must match the line the chart's config-livekit.yaml renders when
+# autoDiscoverNodeIp is on.
+PLACEHOLDER = "@@NODE_IP_BLOCK@@"
+
+
+def substitute(template, lines):
+    """Replace the placeholder with `lines`, at the placeholder's own indent.
+
+    The indent is taken from the template rather than hardcoded: the
+    placeholder sits inside a YAML mapping, so a replacement written at the
+    wrong depth produces a config LiveKit either rejects or, worse, silently
+    reads as a different key.
+    """
+    if PLACEHOLDER not in template:
+        # Writing the template through unchanged would boot LiveKit with no
+        # node_ip, advertising an address nobody outside the cluster can reach.
+        raise SystemExit(
+            "matrix-init: %s not found in the livekit config template; the "
+            "livekit-config ConfigMap and this script disagree" % PLACEHOLDER
+        )
+    out = []
+    for line in template.splitlines():
+        if PLACEHOLDER in line:
+            indent = line[: len(line) - len(line.lstrip())]
+            out.extend(indent + item for item in lines)
+        else:
+            out.append(line)
+    return "\n".join(out) + "\n"
+
+
+def resolve_hostname(hostname):
+    """Return (address, None), or (None, why) while `hostname` does not resolve.
+
+    IPv4 first, because node_ip is one address and the LoadBalancer's IPv4 is
+    what clients on any network can reach; an IPv6-only answer is used as is.
+    """
+    try:
+        infos = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        return None, "hostname %s does not resolve yet (%s)" % (hostname, exc)
+    for family, _, _, _, sockaddr in infos:
+        if family == socket.AF_INET:
+            return sockaddr[0], None
+    return infos[0][4][0], None
+
+
+def livekit_rtc_address(ns):
+    """Return (address, None), or (None, why) while the LoadBalancer has none.
+
+    Some providers (AWS ELB/NLB among them) report a hostname instead of an IP.
+    node_ip has to be an address, so the hostname is resolved here, once per pod
+    start — the same point at which a reprovisioned IP would be picked up.
+    """
+    svc = api("GET", "/api/v1/namespaces/%s/services/livekit-rtc" % ns)
+    if svc is None:
+        return None, "Service livekit-rtc not found"
+    ingress = svc.get("status", {}).get("loadBalancer", {}).get("ingress") or []
+    if not ingress:
+        return None, "no LoadBalancer address assigned yet"
+    for entry in ingress:
+        if entry.get("ip"):
+            return entry["ip"], None
+    why = "LoadBalancer reports neither an IP nor a hostname"
+    for entry in ingress:
+        hostname = entry.get("hostname")
+        if hostname:
+            address, why = resolve_hostname(hostname)
+            if address:
+                log("resolved livekit-rtc hostname %s to %s" % (hostname, address))
+                return address, None
+    return None, why
+
+
+def discover_node_ip():
+    """Poll the livekit-rtc LoadBalancer for its address until a deadline.
+
+    No fallback to STUN at the deadline: STUN picks the wrong address behind a
+    cluster LoadBalancer, and LiveKit then boots fine and every call connects
+    with no audio or video — the failure this initContainer exists to remove.
+    Exiting non-zero instead leaves the pod in Init:Error, where the kubelet
+    retries it and `kubectl get pods` shows what is wrong.
+    """
+    timeout = int(os.environ.get("NODE_IP_DISCOVERY_TIMEOUT", "300"))
+    deadline = time.monotonic() + timeout
+    ns = namespace()
+    last_logged = None
+    while True:
+        try:
+            address, why = livekit_rtc_address(ns)
+        except (RuntimeError, OSError) as exc:
+            # A 403, or the API server briefly unreachable: keep polling, and
+            # let the deadline turn a lasting problem into a visible failure.
+            address, why = None, str(exc)
+        if address:
+            return address
+        now = time.monotonic()
+        if now >= deadline:
+            raise SystemExit(
+                "matrix-init: the livekit-rtc LoadBalancer has no usable address "
+                "after %ds (%s). Exiting so the kubelet retries; check "
+                "`kubectl get service livekit-rtc` and the LoadBalancer "
+                "controller, or set matrixChat.livekit.rtc.nodeIp and "
+                "autoDiscoverNodeIp=false." % (timeout, why)
+            )
+        if last_logged is None or now - last_logged >= 30:
+            log(
+                "waiting for the livekit-rtc LoadBalancer address: %s (%ds left)"
+                % (why, deadline - now)
+            )
+            last_logged = now
+        time.sleep(min(5, deadline - now))
+
+
+def cmd_livekit():
+    """Render livekit config.yaml, substituting the LoadBalancer's external IP.
+
+    LiveKit must advertise a *reachable* address in its ICE candidates. Its
+    own STUN auto-discovery picks the wrong one behind a cluster
+    LoadBalancer, and the symptom is calls that connect and then carry no
+    audio or video. The IP is only knowable after the Service is admitted, so
+    it cannot be a template value — the chart used to ask the operator to
+    copy it back into livekit.rtc.nodeIp by hand.
+    """
+    with open("/etc/livekit-template/config.yaml") as fh:
+        template = fh.read()
+    node_ip = discover_node_ip()
+    log("discovered livekit-rtc external address %s" % node_ip)
+    rendered = substitute(
+        template,
+        ["use_external_ip: false", "node_ip: %s" % json.dumps(node_ip)],
+    )
+    with open("/etc/livekit/config.yaml", "w") as fh:
+        fh.write(rendered)
+    log("rendered /etc/livekit/config.yaml")
+
+
+COMMANDS = {"secrets": cmd_secrets, "wire": cmd_wire, "livekit": cmd_livekit}
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
+        raise SystemExit("usage: matrix-init {%s}" % "|".join(COMMANDS))
+    COMMANDS[sys.argv[1]]()

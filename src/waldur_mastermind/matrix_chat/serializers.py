@@ -413,6 +413,7 @@ class MatrixAppserviceStatusSerializer(serializers.Serializer):
     as_token_configured = serializers.BooleanField()
     hs_token_configured = serializers.BooleanField()
     sender_localpart = serializers.CharField()
+    tokens_managed_by = serializers.CharField(allow_blank=True)
     bot_user_id = serializers.CharField()
     webhook_path = serializers.CharField()
     homeserver_url = serializers.CharField()

@@ -22,6 +22,9 @@ import re
 
 from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
 
+# A plain dict of declarations, importable before Django is set up.
+from waldur_core.server.constance_settings import CONSTANCE_CONFIG
+
 # Keys that may carry the human-readable message, in order of preference.
 # "event" is structlog's default; celery task failures land under "error".
 _MESSAGE_KEYS = ("event", "message", "error")
@@ -169,10 +172,31 @@ _SECRET_NAMES = [
 ]
 
 
+# Constance settings that hold secrets travel in dicts keyed by their names,
+# such as the settings init_matrix_settings seeds from the environment. The
+# scrubber compares keys whole and lowercased, so each such name is listed:
+# every secret_field, and every name that says it is a secret.
+_SECRET_SETTING_SUFFIXES = ("_TOKEN", "_SECRET", "_KEY", "_PASSWORD")
+
+
+def is_secret_setting(key):
+    """Whether the Constance setting `key` holds a secret."""
+    options = CONSTANCE_CONFIG.get(key, ())
+    is_secret_field = len(options) > 2 and options[2] == "secret_field"
+    return is_secret_field or key.endswith(_SECRET_SETTING_SUFFIXES)
+
+
+def _secret_setting_names():
+    return [key.lower() for key in CONSTANCE_CONFIG if is_secret_setting(key)]
+
+
 def event_scrubber():
     # Recursive: httpx and nio keep the Authorization header, and registration
     # keeps passwords, inside dicts.
-    return EventScrubber(denylist=DEFAULT_DENYLIST + _SECRET_NAMES, recursive=True)
+    return EventScrubber(
+        denylist=DEFAULT_DENYLIST + _SECRET_NAMES + _secret_setting_names(),
+        recursive=True,
+    )
 
 
 _SECRET_KEYS = frozenset(event_scrubber().denylist)

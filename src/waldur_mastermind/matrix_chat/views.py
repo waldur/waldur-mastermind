@@ -16,7 +16,12 @@ from django_fsm import TransitionNotAllowed
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import permissions, status, views
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, Throttled, ValidationError
+from rest_framework.exceptions import (
+    APIException,
+    PermissionDenied,
+    Throttled,
+    ValidationError,
+)
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 
@@ -72,6 +77,18 @@ def _token_fingerprint(token):
     """Return a short SHA-256 fingerprint of a secret token for display."""
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return f"sha256:{digest[:12]}"
+
+
+class TokensManagedByDeployment(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Appservice tokens are managed by the deployment and are re-seeded on "
+        "every sync, so rotating them here would be reverted at the next "
+        "deploy. Rotate the deployment's Matrix secret and redeploy instead. "
+        "If the deployment no longer manages Matrix, clear "
+        "MATRIX_TOKENS_MANAGED_BY under Administration → Configuration → "
+        "Matrix chat → Settings."
+    )
 
 
 class MatrixEnabledWriteGuardMixin:
@@ -992,11 +1009,31 @@ class MatrixAppserviceSetupView(views.APIView):
     @extend_schema(
         summary="Setup Matrix appservice registration",
         request=serializers.MatrixAppserviceSetupSerializer,
-        responses={200: serializers.MatrixAppserviceSetupResponseSerializer},
+        responses={
+            200: serializers.MatrixAppserviceSetupResponseSerializer,
+            409: OpenApiResponse(
+                description=(
+                    "The deployment owns the appservice tokens and re-seeds them "
+                    "on every sync. Rotate its Matrix secret and redeploy instead, "
+                    "or clear MATRIX_TOKENS_MANAGED_BY if the deployment no "
+                    "longer manages Matrix."
+                )
+            ),
+        },
         description="Generates fresh appservice tokens (rotating any existing ones), "
-        "enables the appservice, and returns registration YAML.",
+        "enables the appservice, and returns registration YAML. Returns 409 when the "
+        "deployment owns the tokens; see MATRIX_TOKENS_MANAGED_BY.",
     )
     def post(self, request):
+        # Both packagers re-seed Constance from their own copy of the tokens on
+        # every sync, so a rotation issued here would be reverted at the next
+        # deploy while the homeserver went on honouring the old registration —
+        # the silent half-failure this endpoint used to warn about in prose.
+        # Rotation for such a deployment means rotating its secret and
+        # redeploying.
+        if config.MATRIX_TOKENS_MANAGED_BY:
+            raise TokensManagedByDeployment()
+
         serializer = serializers.MatrixAppserviceSetupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -1140,6 +1177,7 @@ class MatrixAppserviceStatusView(views.APIView):
             "as_token_configured": bool(config.MATRIX_APPSERVICE_AS_TOKEN),
             "hs_token_configured": bool(config.MATRIX_APPSERVICE_HS_TOKEN),
             "sender_localpart": sender_localpart,
+            "tokens_managed_by": config.MATRIX_TOKENS_MANAGED_BY,
             "bot_user_id": bot_user_id,
             "webhook_path": webhook_path,
             "homeserver_url": matrix_client.get_public_homeserver_url(),

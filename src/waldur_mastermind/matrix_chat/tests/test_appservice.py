@@ -5,6 +5,7 @@ from unittest import mock
 
 import sentry_sdk
 import yaml
+from constance import config
 from constance.test import override_config
 from django.core.management import call_command
 from rest_framework import status, test
@@ -366,6 +367,41 @@ class AppserviceSetupTest(test.APITestCase):
         self.client.force_authenticate(self.non_staff)
         response = self.client.post(SETUP_URL, data={}, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_config(MATRIX_TOKENS_MANAGED_BY="deployment")
+    def test_setup_refuses_to_rotate_deployment_managed_tokens(self, mock_ensure):
+        """A deployment re-seeds Constance from its own secret on every sync.
+
+        Rotating here would look successful and be silently reverted at the
+        next deploy, while the homeserver kept honouring the old registration.
+        """
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(SETUP_URL, data={}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @override_config(MATRIX_TOKENS_MANAGED_BY="deployment")
+    def test_a_refused_setup_says_how_to_hand_the_tokens_back(self, mock_ensure):
+        """A deployment that stopped seeding Matrix leaves the marker behind,
+        and the wizard stays locked until someone clears it."""
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(SETUP_URL, data={}, format="json")
+
+        self.assertIn("MATRIX_TOKENS_MANAGED_BY", response.data["detail"])
+
+    @override_config(
+        MATRIX_TOKENS_MANAGED_BY="deployment",
+        MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+        MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    )
+    def test_a_refused_setup_leaves_the_tokens_untouched(self, mock_ensure):
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(SETUP_URL, data={}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        mock_ensure.assert_not_called()
+        self.assertEqual(config.MATRIX_APPSERVICE_AS_TOKEN, AS_TOKEN)
+        self.assertEqual(config.MATRIX_APPSERVICE_HS_TOKEN, HS_TOKEN)
 
     def test_unauthenticated_gets_401(self, mock_ensure):
         response = self.client.post(SETUP_URL, data={}, format="json")
@@ -754,6 +790,21 @@ class AppserviceStatusTest(test.APITestCase):
         response = self.client.get(STATUS_URL)
         # Public URL overrides the internal one in browser-facing responses.
         self.assertEqual(response.data["homeserver_url"], "https://public.example.com")
+
+    def test_hand_configured_tokens_are_reported_as_such(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(STATUS_URL)
+
+        self.assertEqual(response.data["tokens_managed_by"], "")
+
+    @override_config(MATRIX_TOKENS_MANAGED_BY="deployment")
+    def test_deployment_managed_tokens_are_reported_as_such(self):
+        """Homeport reads this to render Setup read-only instead of offering a
+        rotation the next deploy would revert."""
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(STATUS_URL)
+
+        self.assertEqual(response.data["tokens_managed_by"], "deployment")
 
 
 DIAGNOSTICS_URL = "/api/admin/matrix/diagnostics/"
