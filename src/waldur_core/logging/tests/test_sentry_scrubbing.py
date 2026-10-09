@@ -34,6 +34,20 @@ def _fail_with_tokens():
     raise RuntimeError("homeserver unreachable")
 
 
+def _fail_while_registering():
+    # Locals of register_matrix_appservice, which handles secrets of its own.
+    admin_token = "homeserver-admin-token"  # noqa: F841
+    bootstrap_password = "bootstrap-password"  # noqa: F841
+    shared_secret = "registration-shared-secret"  # noqa: F841
+    bootstrap_sessions = ["bootstrap-session-token"]  # noqa: F841
+    register_body = (  # noqa: F841
+        "!admin appservices register\n```yaml\n"
+        "as_token: yaml-as-token-4f9c2b7e\nhs_token: yaml-hs-token-8d1a6e3f\n"
+        "id: waldur\n```"
+    )
+    raise RuntimeError("homeserver unreachable")
+
+
 def _fail_with_encryption_secrets():
     # Separate from _fail_with_tokens: Sentry keeps only the first few locals
     # of a frame, so one long list would hide the names this test is about.
@@ -76,18 +90,21 @@ def _send(action):
     return transport.events
 
 
-def _capture_failure(scope):
-    try:
-        _fail_with_tokens()
-    except RuntimeError:
-        scope.capture_exception()
+def _capture_failure(failing):
+    def action(scope):
+        try:
+            failing()
+        except RuntimeError:
+            scope.capture_exception()
+
+    return action
 
 
 class EventScrubberTest(SimpleTestCase):
-    def _frame_vars(self):
-        events = _send(_capture_failure)
+    def _frame_vars(self, failing=_fail_with_tokens):
+        events = _send(_capture_failure(failing))
         frames = events[0]["exception"]["values"][0]["stacktrace"]["frames"]
-        return next(f["vars"] for f in frames if f["function"] == "_fail_with_tokens")
+        return next(f["vars"] for f in frames if f["function"] == failing.__name__)
 
     def test_matrix_and_sso_secrets_in_frame_locals_are_filtered(self):
         # Sentry's default denylist matches exact names such as "token", so
@@ -172,6 +189,36 @@ class EventScrubberTest(SimpleTestCase):
         self.assertNotIn("path-token", frame_vars["path"])
         self.assertIn("/_matrix/client/v3/sync", frame_vars["path"])
         self.assertNotIn("RmTq3cPxYwKzLnVb8sHd", frame_vars["auth_header"])
+
+    def test_register_command_secrets_in_frame_locals_are_filtered(self):
+        frame_vars = self._frame_vars(_fail_while_registering)
+
+        for name in (
+            "admin_token",
+            "bootstrap_password",
+            "shared_secret",
+            "bootstrap_sessions",
+        ):
+            self.assertEqual(frame_vars[name], "[Filtered]", name)
+
+    def test_appservice_tokens_in_a_registration_descriptor_are_filtered(self):
+        # The descriptor travels as YAML in an admin-room message, so both
+        # tokens sit in the body of every frame that carries the command.
+        # Sentry sends string locals as their repr, newlines escaped.
+        body = self._frame_vars(_fail_while_registering)["register_body"]
+
+        self.assertNotIn("yaml-as-token", body)
+        self.assertNotIn("yaml-hs-token", body)
+        self.assertIn("hs_token: [Filtered]", body)
+        self.assertIn("id: waldur", body)
+
+    def test_token_parameters_in_source_lines_are_kept(self):
+        # Sentry sends the source lines around every frame too.
+        message = "def build_registration(url, as_token: str, hs_token: str):"
+
+        redacted = sentry.redact_secrets({"logentry": {"message": message}}, {})
+
+        self.assertEqual(redacted["logentry"]["message"], message)
 
     def test_tokens_in_the_request_query_string_are_filtered(self):
         event = {

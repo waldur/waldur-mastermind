@@ -70,6 +70,11 @@ urlpatterns = [
         name="matrix-appservice-transactions",
     ),
     path(
+        "_matrix/app/v1/ping",
+        views.MatrixAppservicePingView.as_view(),
+        name="matrix-appservice-ping",
+    ),
+    path(
         "api/admin/matrix-appservice/setup/",
         views.MatrixAppserviceSetupView.as_view(),
         name="matrix-appservice-setup",

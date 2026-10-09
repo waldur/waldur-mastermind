@@ -39,6 +39,32 @@ The page lives at **Administration → Configuration → Matrix chat** and is sp
 
 > **Warning:** If AS and HS tokens are already configured, the wizard warns that running setup again will generate new tokens and overwrite the existing ones. You will need to update your homeserver configuration with the new registration YAML.
 
+### Registering on Tuwunel from the command line
+
+Tuwunel takes appservice registrations through its admin room instead of a config file. `waldur register_matrix_appservice` does steps 5–8 for you: it builds the registration from Constance, sends `!admin appservices register` to the admin room, and reads the admin bot's reply.
+
+```bash
+waldur register_matrix_appservice --url https://waldur.example.com
+```
+
+- It acts as a bootstrap admin, `@waldur-bootstrap`, with `MATRIX_BOOTSTRAP_PASSWORD` as its password. The first run creates it through the homeserver's shared-secret registration API, `/_synapse/admin/v1/register`, which Tuwunel serves too. That makes it an admin however many users the homeserver already has. The API is keyed with `MATRIX_USER_REGISTRATION_SECRET`, so the homeserver's `registration_shared_secret` must have the same value; waldur-helm and waldur-docker-compose set both. The call goes to `MATRIX_HOMESERVER_URL`, which therefore has to reach the homeserver's admin API, not only its client API. When `@waldur-bootstrap` already exists, the command signs in as it.
+- To act as another admin, set `MATRIX_ADMIN_TOKEN` in the command's environment to that admin's access token. It takes precedence, and nobody is created. `--admin-token` still works, but an argument shows up in process listings.
+- It signs the bootstrap admin out when it finishes, whether it succeeded or not, so no admin session outlives the run. A token from `MATRIX_ADMIN_TOKEN` is left signed in.
+- It finds the admin room through its `#admins` alias. Pass `--admin-room` only when the alias does not resolve and the admin is in more than one room.
+- Set `MATRIX_BOOTSTRAP_PASSWORD` in the command's environment and keep it. Later runs sign in with it. Without it no bootstrap admin is created, because nobody could sign in as it again, so registering needs `MATRIX_ADMIN_TOKEN`. An empty value counts as unset. With password login off on the homeserver, later runs need `MATRIX_ADMIN_TOKEN` too; see [Token rotation](#token-rotation).
+- `MATRIX_BOOTSTRAP_PASSWORD` is a homeserver admin's permanent password. While password login is on, anyone who holds it can sign in as `@waldur-bootstrap` through the homeserver's public `/login` and administer the whole homeserver. Treat it like the `as_token` and the registration secret (see [Registration secret](#registration-secret)). Keep it only in the deployment's Secret or `secrets.env`, and out of command lines, shell history and logs. The command reads it from the environment only, and never stores it in Constance. Changing it in the deployment alone breaks later runs, because the homeserver still holds the old one: reset the bootstrap admin's password on the homeserver first.
+- Turning password login off (`login_with_password = false` in `tuwunel.toml`) closes that door. It suits a homeserver where users sign in to Element with single sign-on (`MATRIX_EXTERNAL_LOGIN_METHOD = oidc`) or not at all (`none`). It does not suit `password`, where users sign in to Element with passwords Waldur generates for them. A first install works either way, because creating the bootstrap admin returns a session. Once it is off, a rotation, or a ping Waldur turns away, needs `MATRIX_ADMIN_TOKEN`, and so does anything an admin has to do in a client.
+- If `@waldur-bootstrap` exists but is not a homeserver admin, for example because it was created some other way, the command fails with "is not in the admin room". Make it an admin from `#admins` with `!admin users make-user-admin @waldur-bootstrap:<your domain>`, or set `MATRIX_ADMIN_TOKEN`.
+- It is safe to re-run. When the homeserver already accepts the appservice token, the command signs in without creating anyone, with `MATRIX_ADMIN_TOKEN` or as the bootstrap admin with `MATRIX_BOOTSTRAP_PASSWORD`. It reads the homeserver's copy of the registration with `!admin appservices show-config waldur` and replaces it when the URL, a token or a namespace differs. This is how a stack registered by hand before the room-alias namespace existed gets that namespace. When it cannot sign in or read the copy, it leaves the registration alone, prints a warning and succeeds.
+- When `waldur` is registered with other tokens, another URL or other namespaces, it unregisters that registration and registers Waldur's. Registering the same id again is not enough, because Tuwunel answers `Duplicate id` and keeps the old registration.
+- When the homeserver accepts the `as_token` but Waldur turns away its ping with a 4xx, and the homeserver's copy already matches, registering it again cannot help. The command fails without changing anything: the URL does not lead to this Waldur, or Waldur checks another `hs_token`. When it cannot read the copy, it replaces the registration on the strength of the ping. A 5xx is Waldur or its ingress being down, which a new registration cannot fix, so that is only a warning.
+- It unregisters only when the homeserver definitely rejects the token. When it gets no clear answer, such as a timeout or a 5xx from a proxy, it stops without changing anything.
+- It succeeds only when the homeserver accepts Waldur's `as_token` afterwards, and after replacing a live registration, only when Waldur does not turn the next ping away. A failure after the old registration was removed says so: the homeserver delivers no events until a re-run registers the appservice again.
+- It makes the bot a homeserver admin through the admin API (`PUT /_synapse/admin/v2/users/@waldur-bot:<your domain>` with `"admin": true`, sent with this run's admin token), unless that API already answers the bot. Waldur calls that API as its bot, and this command is the one place that holds an admin session. Re-runs check it too, so a stack registered before the command did this gets it on the next run. When it cannot sign in, or the grant fails, it prints a warning with the command to run by hand and succeeds. The bot then sits in the admin room, so its `as_token` is as powerful as an admin's access token: keep it as secret as `MATRIX_ADMIN_TOKEN`.
+- It ends with a ping. A failed ping is a warning, because on a fresh install the API may still be starting.
+
+Synapse loads appservices from its config file only, so use the YAML from the wizard there.
+
 ### Via the API
 
 #### POST /api/admin/matrix-appservice/setup/
@@ -60,7 +86,7 @@ would be reverted while the homeserver kept the old registration. See
 | `sender_localpart` | string | Bot user localpart (default: `waldur-bot`) |
 | `homeserver_url` | string | Homeserver URL. Persisted only when `MATRIX_HOMESERVER_URL` is still empty |
 | `homeserver_domain` | string | Homeserver domain. Persisted only when `MATRIX_HOMESERVER_DOMAIN` is still empty |
-| `user_registration_secret` | string | Shared registration secret (write-only). Persisted only when `MATRIX_USER_REGISTRATION_SECRET` is still empty |
+| `user_registration_secret` | string | The homeserver's registration token (write-only). Persisted only when `MATRIX_USER_REGISTRATION_SECRET` is still empty |
 
 The last three fields back the wizard's prerequisites step — they are only written when the corresponding Constance value is empty, so an existing configuration is never overwritten by them.
 
@@ -127,9 +153,15 @@ Checks performed (the `checks` array in the response):
 10. Appservice can act for users (`appservice_user_namespace`: `/account/whoami` as the staff user's Matrix ID. It fails when the homeserver's appservice registration does not cover users, which breaks chat sessions and room joins; register the appservice again with Waldur's registration. When it fails, it also counts room members recorded as invited, not joined)
 11. Chat drawer tokens expire (`web_token_lifetime`: signs the staff user in on a test device and reads the token's lifetime; fails when tokens never expire or live over an hour. Skipped until the staff user has opened the chat once)
 12. Bot is a homeserver admin (`bot_homeserver_admin`; see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin))
-13. LiveKit configured (`livekit_configured`: a LiveKit focus in the homeserver's `/.well-known/matrix/client`; only calls need it)
-14. Room statistics (`room_stats`: active, creating, errored counts)
-15. User profile statistics (`user_stats`: provisioned count, plus the active users whose roles put them in an active project room but who have no Matrix profile, named up to ten. Provisioning refused or failed for those; the worker log says why, and [Existing Matrix accounts](#existing-matrix-accounts) says how to link one. Fails while any room member is unlinked)
+13. Homeserver can reach Waldur (`appservice_ping`): Waldur asks the homeserver to ping
+    the appservice (MSC2659), and the homeserver calls `POST /_matrix/app/v1/ping` with
+    the `hs_token`. The only check in this direction, so it is the one that fails for a
+    wrong `hs_token` or an appservice URL the homeserver cannot reach. A timeout here
+    usually means the homeserver is still trying to reach Waldur, so check that the
+    appservice URL is reachable from the homeserver.
+14. LiveKit configured (`livekit_configured`: a LiveKit focus in the homeserver's `/.well-known/matrix/client`; only calls need it)
+15. Room statistics (`room_stats`: active, creating, errored counts)
+16. User profile statistics (`user_stats`: provisioned count, plus the active users whose roles put them in an active project room but who have no Matrix profile, named up to ten. Provisioning refused or failed for those; the worker log says why, and [Existing Matrix accounts](#existing-matrix-accounts) says how to link one. Fails while any room member is unlinked)
 
 **Example response (200):**
 
@@ -263,14 +295,20 @@ address. Without it the homeserver refuses every alias request with `M_EXCLUSIVE
 room creation falls back to an alias-less room, and the "Open in Matrix client"
 link never appears because it is only rendered when an alias exists.
 
-If you registered the appservice before this namespace existed, re-run setup and
-register the new YAML on your homeserver. Only rooms created after that get an
-alias, since it is requested at creation time.
+If the appservice was registered before this namespace existed, register it
+again with the namespace. On Tuwunel, run `waldur register_matrix_appservice`;
+packaged deployments run it on every deploy. It adds the namespace without
+rotating any token. It needs the bootstrap admin or `MATRIX_ADMIN_TOKEN`, and
+`MATRIX_ADMIN_TOKEN` when password login is off (see
+[Token rotation](#token-rotation)). Without either it only warns. On Synapse, run
+`waldur generate_appservice_registration --url <Waldur URL>`, replace the
+registration file and restart the homeserver. Do not run the Setup wizard again
+for this: it rotates both tokens.
 
-To give existing rooms an alias, run `waldur reprovision_matrix_rooms`. This is
-the exception to the warning above, and it is destructive: every active project
-room is replaced by an empty one, and the old room stays behind with its
-history. Check the counts with `--dry-run` first.
+Only rooms created after that get an alias, since it is requested at creation
+time. Older rooms keep working without one, so they show no "Open in Matrix
+client" link. Reprovisioning does not add aliases: it is only for moving to a new
+homeserver.
 
 ### Token rotation
 
@@ -286,6 +324,90 @@ Every call to the setup endpoint generates new AS and HS tokens, overwriting any
 existing ones. Re-running setup therefore invalidates the previous registration
 YAML: after each call you must update your homeserver configuration with the new
 YAML and restart the homeserver.
+
+On Tuwunel, run `waldur register_matrix_appservice` after changing the tokens instead.
+It replaces the old registration, as described above, whether the `as_token`, the
+`hs_token` or both changed. Transactions the homeserver sends during the few seconds
+the registration is being replaced are not delivered to Waldur, which loses nothing:
+the transaction endpoint only acknowledges them, and the bot reads its rooms,
+commands included, through its own sync.
+
+Keep `MATRIX_BOOTSTRAP_PASSWORD` when you rotate the tokens, and do not regenerate it
+along with them. Replacing the registration needs a homeserver admin, and the
+command signs in as the bootstrap admin with that password. With a new password it
+cannot sign in, and it cannot create the admin again, so the rotation would need
+`MATRIX_ADMIN_TOKEN` instead. For a packaged deployment this means keeping the Secret
+or `secrets.env` entry that holds the password, and the homeserver's data volume
+that holds the admin.
+
+With password login off on the homeserver (`login_with_password = false`, the
+setting recommended with single sign-on), the bootstrap admin cannot sign in at
+all. The first install still works, because creating the admin returns a session,
+but rotations and other changes to the registration need `MATRIX_ADMIN_TOKEN`. The
+command says so instead of blaming the password. To get a token, register a
+temporary admin through the same shared-secret API, from somewhere that reaches
+the homeserver's internal URL: inside the Compose network, or with `kubectl exec`
+into a pod that reaches the homeserver's Service.
+
+```bash
+HOMESERVER=http://<homeserver internal URL> SECRET=<registration secret> python3 - <<'EOF'
+import hashlib, hmac, json, os, secrets, urllib.request
+
+def call(path, body=None):
+    data = json.dumps(body).encode() if body else None
+    request = urllib.request.Request(os.environ["HOMESERVER"] + path, data,
+                                     {"Content-Type": "application/json"})
+    return json.load(urllib.request.urlopen(request))
+
+user, password = f"rotation-{secrets.token_hex(4)}", secrets.token_hex(32)
+nonce = call("/_synapse/admin/v1/register")["nonce"]
+mac = hmac.new(os.environ["SECRET"].encode(),
+               "\0".join([nonce, user, password, "admin"]).encode(),
+               hashlib.sha1).hexdigest()
+print(call("/_synapse/admin/v1/register", {"nonce": nonce, "username": user,
+      "password": password, "admin": True, "mac": mac})["access_token"])
+EOF
+```
+
+Run the command with that token in `MATRIX_ADMIN_TOKEN`. Then have the temporary
+admin deactivate itself in the admin room. That also signs it out, and nobody can
+sign in to the account again, not even through single sign-on. The snippet waits
+until the token stops working, and fails if it does not, because until then a
+homeserver admin with a known token is left behind:
+
+```bash
+HOMESERVER=http://<homeserver internal URL> TOKEN=<the token> python3 - <<'EOF'
+import json, os, secrets, sys, time, urllib.error, urllib.parse, urllib.request
+
+def call(method, path, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    request = urllib.request.Request(
+        os.environ["HOMESERVER"] + path, data, method=method,
+        headers={"Authorization": "Bearer " + os.environ["TOKEN"],
+                 "Content-Type": "application/json"})
+    return json.load(urllib.request.urlopen(request))
+
+me = call("GET", "/_matrix/client/v3/account/whoami")["user_id"]
+try:
+    alias = urllib.parse.quote("#admins:" + me.split(":", 1)[1], safe="")
+    room = call("GET", "/_matrix/client/v3/directory/room/" + alias)["room_id"]
+    call("PUT", f"/_matrix/client/v3/rooms/{urllib.parse.quote(room, safe='')}"
+         f"/send/m.room.message/{secrets.token_hex(8)}",
+         {"msgtype": "m.text", "body": f"!admin users deactivate {me}"})
+except urllib.error.HTTPError as error:
+    print("could not send the command:", error, file=sys.stderr)
+for _ in range(20):
+    time.sleep(0.5)
+    try:
+        call("GET", "/_matrix/client/v3/account/whoami")
+    except urllib.error.HTTPError as error:
+        if error.code == 401:  # M_UNKNOWN_TOKEN or M_USER_DEACTIVATED
+            print("deactivated", me)
+            break
+else:
+    sys.exit(f"deactivation not confirmed; deactivate {me} from #admins by hand")
+EOF
+```
 
 Prerequisite fields (`homeserver_url`, `homeserver_domain`,
 `user_registration_secret`) are not overwritten — they are only persisted when the
@@ -763,10 +885,27 @@ It sets a random password on the user's Matrix account through the homeserver's 
 
 Locking the Matrix account of a deactivated or deleted user, generating passwords, and refusing Waldur users whose Matrix account is a homeserver admin (see [Existing Matrix accounts](#existing-matrix-accounts)) go through the homeserver's admin API (`/_synapse/admin`), which answers only homeserver admins. Every login method needs the first of these. Until the bot is an admin, or while the admin API is not reachable, a deactivated user's account stays unlocked, a deleted user's password is not replaced, generating a password answers `503`, and admin accounts are not refused.
 
-- **Tuwunel:** as an admin, send `!admin users make-user-admin @waldur-bot:<homeserver domain>` in `#admins`.
+- **Tuwunel:** `register_matrix_appservice` does it on every run that can act as an admin; see [Registering on Tuwunel from the command line](#registering-on-tuwunel-from-the-command-line). By hand, as an admin, send `!admin users make-user-admin @waldur-bot:<homeserver domain>` in `#admins`.
 - **Synapse:** set the bot's admin flag, for example with `PUT /_synapse/admin/v2/users/@waldur-bot:<homeserver domain>` and `{"admin": true}`, using an admin's access token.
 
 Use your bot's localpart if it is not `waldur-bot`. The appservice token (`MATRIX_APPSERVICE_AS_TOKEN`) already acts as every local user of the homeserver; as an admin's token it carries server-wide powers on top, such as setting any account's password, so protect it accordingly. Waldur calls the admin API at `MATRIX_HOMESERVER_URL`; if a proxy blocks `/_synapse/admin` there, point it at an internal address. The diagnostics check "Bot is a homeserver admin" (`bot_homeserver_admin`) shows whether the bot is an admin.
+
+### Registration secret
+
+`MATRIX_USER_REGISTRATION_SECRET` is the homeserver's registration token: Waldur
+registers each user's Matrix account with it, without a password. A user gets a
+password only by generating one; see [Generated passwords](#generated-passwords).
+
+With zero-touch setup it is also the homeserver's `registration_shared_secret`,
+which `register_matrix_appservice` uses to create its bootstrap admin. Whoever holds
+it can create homeserver admins. It sits in Constance, in the homeserver's
+configuration and in the deployment's Secret or `secrets.env`, so protect it like
+the appservice tokens.
+
+To rotate it, change it in Constance (or the deployment's secret) and in the
+homeserver's `registration_token` and `registration_shared_secret` together, then
+restart the homeserver, which reads them only at startup. Existing accounts are not
+affected.
 
 ## Calls
 
@@ -821,7 +960,7 @@ These Constance settings control the integration:
 | `MATRIX_HISTORY_EXPORT_ENABLED` | `False` | Enable periodic and on-deletion exports |
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
 | `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` | `90` | Days to keep history exports, files included; each room's newest completed export is kept; `0` or less keeps them forever |
-| `MATRIX_USER_REGISTRATION_SECRET` | `""` | Shared secret for registering users on the homeserver |
+| `MATRIX_USER_REGISTRATION_SECRET` | `""` | The homeserver's registration token, and with zero-touch setup also its `registration_shared_secret`. See [Registration secret](#registration-secret) |
 | `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local`. Applies only to users provisioned afterwards; existing users keep their Matrix ID. See [Existing Matrix accounts](#existing-matrix-accounts) for IDs two users share |
 | `MATRIX_EXTERNAL_LOGIN_METHOD` | `none` | How users sign in to an external Matrix client: `none`, `password`, or `oidc`. See [External clients](#external-clients) |
 

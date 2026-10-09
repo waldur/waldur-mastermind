@@ -160,6 +160,12 @@ _SECRET_NAMES = [
     "api_secret",
     "auth_token",
     "raw_token",
+    # register_matrix_appservice: a homeserver admin's token, the bootstrap
+    # admin's password and open sessions, and the key that creates admins.
+    "admin_token",
+    "bootstrap_password",
+    "bootstrap_sessions",
+    "shared_secret",
     # Matrix end-to-end encryption.
     "recovery_key",
     "pickle_key",
@@ -223,13 +229,18 @@ def _filter_secret_names(value):
 
 
 # Secrets inside values that no name gives away: nio puts the appservice token
-# into every request path, and auth headers end up in plain strings. The scheme
-# names also start ordinary text ("basic support backend", "Bearer token
-# expired"), so after them only a token-shaped value is taken: one with a digit,
-# or longer than a word.
+# into every request path, auth headers end up in plain strings, and the
+# appservice registration carries both tokens as YAML. The scheme names also
+# start ordinary text ("basic support backend", "Bearer token expired"), and
+# Sentry sends source lines such as "as_token: str", so after them only a
+# token-shaped value is taken: one with a digit, or longer than a word. String
+# locals arrive as their repr, newlines escaped, so a value ends at a backslash
+# and a YAML key has no word boundary before it ("\nas_token: …").
+_TOKEN_SHAPED = r"(?=[^\s&'\"\\]*\d|[^\s&'\"\\]{20})"
 _SECRET_VALUES = re.compile(
-    r"((?:access_token=)|(?:\b(?:Bearer|Basic)\s+(?=[^\s&'\"]*\d|[^\s&'\"]{20})))"
-    r"[^\s&'\"]+",
+    rf"((?:access_token=)|(?:\b(?:Bearer|Basic)\s+{_TOKEN_SHAPED})"
+    rf"|(?:(?:as|hs)_token:\s*{_TOKEN_SHAPED}))"
+    r"[^\s&'\"\\]+",
     re.IGNORECASE,
 )
 

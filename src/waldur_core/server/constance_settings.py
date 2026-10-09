@@ -1893,7 +1893,10 @@ CONSTANCE_CONFIG = {
     ),
     "MATRIX_USER_REGISTRATION_SECRET": (
         "",
-        "Shared secret for Matrix user registration.",
+        "Registration token the homeserver requires for sign-up (its "
+        "registration_token). With zero-touch setup it is also the homeserver's "
+        "registration_shared_secret, which can create homeserver admins. "
+        "Protect it like the appservice tokens.",
         "secret_field",
     ),
     "MATRIX_USER_ID_FORMAT": (
