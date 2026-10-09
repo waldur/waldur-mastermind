@@ -136,6 +136,9 @@ REST_FRAMEWORK = {
         # connect and when a token refresh is rejected, a few times an hour.
         "matrix_session": "120/hour",
         "matrix_crypto": "30/hour",
+        # Each call may create a LiveKit room. The drawer asks once per call it
+        # starts or joins, and again when it reconnects.
+        "matrix_call_token": "300/hour",
         "matrix_webhook": "10000/hour",
         # Passkey ceremonies. Sign-in is anonymous and unauthenticated, so it
         # is the tighter of the two. Deliberately not wired into django-axes:

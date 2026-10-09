@@ -17,7 +17,7 @@ from django_fsm import TransitionNotAllowed
 
 from waldur_core.permissions.models import UserRole
 
-from . import bot_state, formatting, matrix_client, models
+from . import bot_state, formatting, livekit_client, matrix_client, models
 
 User = get_user_model()
 
@@ -58,7 +58,42 @@ def post_as_bot(room, body, reply_to="", wait=False):
 EXPORT_CLEANUP_CHUNK_SIZE = 100
 
 
+def _end_call_presence(room_id, matrix_user_id):
+    """Disconnect a user who lost the room from its call, if they are in it.
+
+    Best effort: LiveKit keeps a connected participant until removed, but a
+    failure here must not undo or retry the removal from the room.
+    """
+    if not room_id or not livekit_client.is_configured():
+        return
+    try:
+        removed = livekit_client.remove_from_call(room_id, matrix_user_id)
+    except Exception:
+        logger.warning(
+            "Failed to remove %s from the call of room %s", matrix_user_id, room_id
+        )
+        return
+    if removed:
+        logger.info(
+            "Removed %s participant(s) of %s from the call of room %s",
+            removed,
+            matrix_user_id,
+            room_id,
+        )
+
+
+def _end_room_call(room_id):
+    """Close a disabled room's call, whoever is still in it. Best effort."""
+    if not livekit_client.is_configured():
+        return
+    try:
+        livekit_client.end_call(room_id)
+    except Exception:
+        logger.warning("Failed to end the call of room %s", room_id)
+
+
 def _record_left(member):
+    _end_call_presence(member.room.room_id, member.matrix_user_id)
     member.membership_state = models.MembershipStates.LEFT
     member.manually_joined = False
     member.save(update_fields=["membership_state", "manually_joined"])
@@ -541,6 +576,8 @@ def end_deleted_user_access(matrix_user_id, room_ids=()):
             # retried on its own rather than through them.
             logger.warning("Failed to kick %s from room %s", matrix_user_id, room_id)
             kick_from_room.delay(room_id, matrix_user_id, reason)
+            continue
+        _end_call_presence(room_id, matrix_user_id)
     locked, logout_error = _sign_out_all(matrix_user_id)
     scramble_error = None
     try:
@@ -799,6 +836,7 @@ def kick_from_room(room_id, matrix_user_id, reason):
     if not matrix_client.is_homeserver_configured():
         return
     matrix_client.kick_user(room_id, matrix_user_id, reason=reason)
+    _end_call_presence(room_id, matrix_user_id)
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.staff_leave_room")
@@ -848,6 +886,8 @@ def staff_leave_room(room_uuid, user_uuid):
 
     if member:
         _record_left(member)
+    else:
+        _end_call_presence(room.room_id, matrix_user_id)
     logger.info("Staff %s left room %s", matrix_user_id, room.room_id)
 
 
@@ -915,6 +955,8 @@ def kick_user_from_room(room_uuid, user_uuid):
 
     if member:
         _record_left(member)
+    else:
+        _end_call_presence(room.room_id, matrix_user_id)
     logger.info("Kicked user %s from room %s", matrix_user_id, room.room_id)
 
 
@@ -1060,6 +1102,7 @@ def disable_room(room_uuid, delete_history=False, reason=""):
                 ]
             ):
                 _kick_or_retry(member, "Chat room was deactivated")
+            _end_room_call(room.room_id)
 
         # 3. Export history if enabled, unless the caller is discarding it anyway
         if config.MATRIX_HISTORY_EXPORT_ENABLED and not delete_history:

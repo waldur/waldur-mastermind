@@ -33,6 +33,11 @@ urlpatterns = [
         name="matrix-session",
     ),
     path(
+        "api/matrix/call-token/",
+        views.MatrixCallTokenView.as_view(),
+        name="matrix-call-token",
+    ),
+    path(
         "api/matrix/crypto/lease/",
         views.MatrixCryptoLeaseView.as_view(),
         name="matrix-crypto-lease",
