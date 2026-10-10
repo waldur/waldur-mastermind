@@ -17,6 +17,21 @@ OTHER_KEY_INFO = {
     "mac": "AyiqcamvFdehcNjzzGERKt32yZxP1qY4fG+rEOH/Yio",
 }
 
+# The master key's private seed (bytes 64..95), stored under the same key by
+# matrix-js-sdk's encryptAESSecretStorageItem, and its published public half.
+STORED_MASTER = {
+    "iv": "qUWq2yug+5sADvlmPS89pQ==",
+    "ciphertext": "5Q5da2ZAZ4IH6CeLfzOwpLMwyIBPHMzz1sVgDQ1S/mdVVNleAl7TcsMvyw==",
+    "mac": "qV5dUZm/HDhv0EaV2vPBQPbqyBG/G4d7Lu6l2C9LnAc=",
+}
+MASTER_PUBLIC = "JUO5L/EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0"
+PUBLISHED_MASTER = {
+    "user_id": "@alice:matrix.example.com",
+    "usage": ["master"],
+    "keys": {f"ed25519:{MASTER_PUBLIC}": MASTER_PUBLIC},
+}
+OTHER_RECOVERY_KEY = "EsTA XFpR o5XU SFgV LJNq AntR oVtp MVDg XQdK Ep6Q C534 Fciu"
+
 
 class DecodeRecoveryKeyTest(SimpleTestCase):
     def test_decodes_the_key(self):
@@ -61,3 +76,53 @@ class RecoveryKeyOpensTest(SimpleTestCase):
 
     def test_garbage_key_is_false(self):
         self.assertFalse(recovery_keys.recovery_key_opens("garbage", KEY_INFO))
+
+
+class UnlocksMasterKeyTest(SimpleTestCase):
+    def test_decrypts_the_published_master_key(self):
+        self.assertTrue(
+            recovery_keys.unlocks_master_key(
+                RECOVERY_KEY, STORED_MASTER, PUBLISHED_MASTER
+            )
+        )
+
+    def test_another_recovery_key_does_not(self):
+        self.assertFalse(
+            recovery_keys.unlocks_master_key(
+                OTHER_RECOVERY_KEY, STORED_MASTER, PUBLISHED_MASTER
+            )
+        )
+
+    def test_a_stored_key_of_another_identity_does_not(self):
+        # Storage left from an older identity: it decrypts, but to a key the
+        # homeserver no longer publishes.
+        other = {"keys": {"ed25519:" + "A" * 43: "A" * 43}}
+
+        self.assertFalse(
+            recovery_keys.unlocks_master_key(RECOVERY_KEY, STORED_MASTER, other)
+        )
+
+    def test_tampered_ciphertext_fails_the_mac(self):
+        tampered = {
+            **STORED_MASTER,
+            "ciphertext": "A" + STORED_MASTER["ciphertext"][1:],
+        }
+
+        self.assertFalse(
+            recovery_keys.unlocks_master_key(RECOVERY_KEY, tampered, PUBLISHED_MASTER)
+        )
+
+    def test_malformed_input_is_false_and_does_not_raise(self):
+        for encrypted, master in (
+            (None, PUBLISHED_MASTER),
+            ({}, PUBLISHED_MASTER),
+            ({**STORED_MASTER, "iv": "AAAA"}, PUBLISHED_MASTER),
+            ({**STORED_MASTER, "mac": 5}, PUBLISHED_MASTER),
+            (STORED_MASTER, None),
+            (STORED_MASTER, {"keys": "x"}),
+            (STORED_MASTER, {}),
+        ):
+            with self.subTest(encrypted=encrypted, master=master):
+                self.assertFalse(
+                    recovery_keys.unlocks_master_key(RECOVERY_KEY, encrypted, master)
+                )

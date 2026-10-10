@@ -16,6 +16,11 @@ user can type a password, which Waldur's users don't have. Two things follow:
 A reset destroys the user's key backups, so it is refused unless the identity is
 really locked: the homeserver has cross-signing keys for the user, and the key
 Waldur holds is missing or does not open the user's secret storage.
+
+A locked identity is often not lost at all: the user set encryption up in Element
+before opening the drawer, or reset it there, and holds the recovery key. The
+import lease lets the drawer escrow that key instead of resetting; Waldur takes it
+only if it opens the user's secret storage.
 """
 
 import logging
@@ -46,6 +51,29 @@ class CryptoConflict(Exception):
         self.retry_after = retry_after
 
 
+def key_unlocks(matrix_user_id, recovery_key):
+    """Whether the recovery key opens the user's secret storage on the homeserver.
+
+    Storage the key opens but that lacks the master key (a setup that died
+    half-way) unlocks nothing either.
+    """
+    _, key_info, master_stored = matrix_client.get_secret_storage_state(matrix_user_id)
+    return recovery_keys.recovery_key_opens(recovery_key, key_info) and master_stored
+
+
+def key_opens_identity(matrix_user_id, recovery_key, master_key):
+    """Whether the recovery key unlocks the user's published identity.
+
+    Stricter than key_unlocks: the private master key stored under the key must
+    be ``master_key``, the one the homeserver publishes, so storage left over
+    from an older identity does not pass.
+    """
+    _, key_info, stored_master = matrix_client.get_stored_master_key(matrix_user_id)
+    if not recovery_keys.recovery_key_opens(recovery_key, key_info):
+        return False
+    return recovery_keys.unlocks_master_key(recovery_key, stored_master, master_key)
+
+
 def is_identity_locked(profile):
     """Whether the user's cross-signing identity exists but Waldur can't unlock it.
 
@@ -56,15 +84,7 @@ def is_identity_locked(profile):
         return False
     if not profile.recovery_key:
         return True
-    _, key_info, master_stored = matrix_client.get_secret_storage_state(
-        profile.matrix_user_id
-    )
-    # Storage the key opens but that lacks the master key (a setup that died
-    # half-way) unlocks nothing either.
-    return not (
-        recovery_keys.recovery_key_opens(profile.recovery_key, key_info)
-        and master_stored
-    )
+    return not key_unlocks(profile.matrix_user_id, profile.recovery_key)
 
 
 def _active_lease_conflict(profile, now):
@@ -80,8 +100,8 @@ def _active_lease_conflict(profile, now):
 def acquire_lease(profile, kind):
     """Grant the caller the lease, and for a reset a temporary password.
 
-    Returns ``(lease, expires_at, temporary_password)``; the password is None for
-    a first setup.
+    Returns ``(lease, expires_at, temporary_password)``; the password is None
+    except for a reset.
     """
     if kind == CryptoLeaseKinds.BOOTSTRAP:
         # Decided by the homeserver, not by the key Waldur holds: a key left over
@@ -95,6 +115,7 @@ def acquire_lease(profile, kind):
                 "locked", "Encryption was set up without a key Waldur holds."
             )
     elif not is_identity_locked(profile):
+        # A reset or an import replaces only a key that doesn't work.
         raise CryptoConflict("not_locked", "Encryption can be unlocked; no reset.")
 
     now = timezone.now()
@@ -153,12 +174,40 @@ def release_lease(profile, lease):
     return kind
 
 
+def _held_lease_kind(profile, lease):
+    held = (
+        MatrixUserProfile.objects.filter(pk=profile.pk)
+        .values_list("crypto_lease", "crypto_lease_kind")
+        .first()
+    )
+    if lease and held and secrets.compare_digest(held[0], lease):
+        return held[1]
+    return None
+
+
 def escrow(profile, lease, recovery_key):
     """Store the recovery key for the lease holder. Returns the lease kind.
 
-    The lease is kept while the holder uploads the keys that go with it.
+    A setup or reset keeps the lease while the holder uploads the keys that go
+    with it. An import uploads nothing, so it ends with the escrow.
     """
     recovery_keys.decode_recovery_key(recovery_key)
+    # A key the user brings must unlock the identity on the homeserver, as it
+    # replaces nothing there. Asked before taking the lock, as it calls the
+    # homeserver; a lease's kind never changes, and the lock below checks it is
+    # still held.
+    if _held_lease_kind(profile, lease) == CryptoLeaseKinds.IMPORT:
+        master_key = matrix_client.get_cross_signing_master_key(profile.matrix_user_id)
+        if not master_key:
+            # The identity is gone since the lease was granted: no key is
+            # wrong, there is just nothing left to unlock.
+            raise CryptoConflict(
+                "not_locked", "Encryption is no longer set up; nothing to unlock."
+            )
+        if not key_opens_identity(profile.matrix_user_id, recovery_key, master_key):
+            raise CryptoConflict(
+                "wrong_key", "This recovery key does not unlock your chat encryption."
+            )
     now = timezone.now()
     with transaction.atomic():
         locked = MatrixUserProfile.objects.select_for_update().get(pk=profile.pk)
@@ -173,5 +222,15 @@ def escrow(profile, lease, recovery_key):
             )
         kind = locked.crypto_lease_kind
         locked.recovery_key = recovery_key
-        locked.save(update_fields=["recovery_key"])
+        update_fields = ["recovery_key"]
+        if kind == CryptoLeaseKinds.IMPORT:
+            locked.crypto_lease = ""
+            locked.crypto_lease_kind = ""
+            locked.crypto_lease_expires_at = None
+            update_fields += [
+                "crypto_lease",
+                "crypto_lease_kind",
+                "crypto_lease_expires_at",
+            ]
+        locked.save(update_fields=update_fields)
     return kind

@@ -525,6 +525,7 @@
 - matrix_encryption_reset_started
 - matrix_password_generated
 - matrix_recovery_key_escrowed
+- matrix_recovery_key_viewed
 - passkey_authentication_failed
 - passkey_authentication_succeeded
 - passkey_registered

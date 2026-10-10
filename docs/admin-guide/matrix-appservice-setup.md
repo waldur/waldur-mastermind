@@ -824,13 +824,20 @@ key backup and the device that receives messages while no drawer is open) is
 unlocked by a **recovery key** that Waldur holds for them: the homeserver only ever
 stores encrypted keys, and the recovery key that unlocks them is held by your
 Waldur deployment. It is stored encrypted under `FIELD_ENCRYPTION_KEY` (see
-`docs/field-encryption.md`) and returned only in the user's own web chat session.
+`docs/field-encryption.md`) and returned only to the user: in their own web chat
+session, and on request in the external client dialog (see
+[Showing the recovery key](#showing-the-recovery-key)).
 
-**Calls are encrypted in transit only.** Audio, video and screen sharing go
-through LiveKit over DTLS-SRTP, so they are encrypted between each browser and
-the LiveKit server, but the server handles them in clear: whoever operates LiveKit
-can see and hear a call. The room's end-to-end encryption covers its messages,
-not its calls. Run LiveKit on infrastructure you trust as much as Waldur itself.
+What is encrypted is the content of messages and files: text, edits, replies,
+attachments and voice messages. Room names and topics, who is in a room, when
+messages were sent, which event replies to, edits or reacts to which, and the
+emoji of reactions stay in plaintext on the homeserver, as Matrix needs them to
+route and order events.
+
+**Calls** in encrypted rooms, which all of Waldur's rooms are, are end-to-end
+encrypted too: each participant encrypts their media with their own key, which
+goes Olm-encrypted to each member's devices. LiveKit still sees the call's metadata: who takes
+part and when, the kinds and sizes of their tracks, and who is speaking.
 
 The drawer sets encryption up on a user's first session. Only one browser may do
 so at a time, and Waldur must hold the recovery key before any key is uploaded:
@@ -844,17 +851,20 @@ is done or has failed.
 
 These endpoints, and the recovery key in the session response, accept only the
 ways the web UI authenticates: the user's Waldur API token or a session.
-Personal access tokens, OIDC access tokens and staff impersonating a user are
-refused (`403`) and get no key. The user's API token itself is not limited to
-the web UI (it can be copied into scripts), so treat it as giving access to the
-user's chat encryption too. Escrowing a key and starting a reset are recorded in
+Personal access tokens, OIDC access tokens and requests made while staff
+impersonate a user are refused (`403`) and get no key. That does not keep the key
+from staff: while impersonating, they can fetch the user's own API token, which
+the endpoints accept. Operators are trusted with the keys anyway (Waldur escrows
+them); binding key access to an interactive sign-in is planned. The user's API
+token itself is not limited to the web UI (it can be copied into scripts), so
+treat it as giving access to the user's chat encryption too. Escrowing a key and starting a reset are recorded in
 the user's event log.
 
 | Status | When |
 | --- | --- |
 | `200` / `204` | Lease granted / key stored |
 | `400` | The recovery key is not a valid Matrix recovery key |
-| `409` | `state` says why: `set_up` (already done), `locked` (the homeserver has an identity Waldur holds no key for), `in_progress` (another window holds the lease; see `Retry-After`), `no_lease` (the lease expired or another window took over), `not_locked` (a reset was asked for but isn't needed) |
+| `409` | `state` says why: `set_up` (already done), `locked` (the homeserver has an identity Waldur holds no key for), `in_progress` (another window holds the lease; see `Retry-After`), `no_lease` (the lease expired or another window took over), `not_locked` (a reset or import was asked for but isn't needed), `wrong_key` (an imported key does not unlock the user's secret storage) |
 | `429` | The per-user `matrix_crypto` rate limit (default 30/hour) is exhausted |
 | `503` | The homeserver could not be asked, or the bot is not a homeserver admin |
 
@@ -870,9 +880,23 @@ storage. That happens when:
   the homeserver keeps newer data, or Waldur's profiles are relinked with
   `link_matrix_account`;
 - `FIELD_ENCRYPTION_KEY` is lost, or `SECRET_KEY` is rotated while it is unset;
-- the user set encryption up in another client with a key Waldur never saw.
+- the user set encryption up in another client with a key Waldur never saw, or
+  reset it there.
 
-A lease with `{"kind": "reset"}` recovers it. Waldur checks that the identity is
+In the last case the user holds a recovery key that works, so the drawer asks
+for it first. A lease with `{"kind": "import"}` lets the drawer escrow a key the
+user enters: Waldur grants it only for a locked identity, and the escrow takes
+the key only if it opens the user's secret storage and decrypts the private
+cross-signing master key stored there to the master key the homeserver
+publishes for the user (`409 wrong_key` otherwise). The escrow also ends the
+lease, as an import uploads nothing. The drawer checks the key itself before
+asking for the lease, then signs its session in with it. No password is involved
+and nothing is replaced on the homeserver; from the next session on, the drawer
+unlocks with the escrowed key as usual. The event log records the escrow as a
+key from another client.
+
+A user who has no working key resets instead. A lease with `{"kind": "reset"}`
+recovers it. Waldur checks that the identity is
 really locked, sets a temporary Matrix password through the admin API (the bot
 must be a homeserver admin), and returns it once so the drawer can answer the
 password prompt. The password is replaced with a discarded random one as soon as
@@ -883,6 +907,31 @@ also replaces any Matrix password the user generated for an external client.
 
 Back up the homeserver and the Waldur database **together**, and keep
 `FIELD_ENCRYPTION_KEY` safe: without it, no escrowed recovery key can be read.
+
+### Showing the recovery key
+
+Element and other Matrix clients need the recovery key to unlock the user's
+secret storage and key backup, and so their history. The external client dialog
+shows it, hidden until the user reveals or copies it:
+
+**POST /api/matrix/credentials/recovery-key/** returns `{"recovery_key": ...}`.
+Waldur first checks the escrowed key against the user's secret storage on the
+homeserver, and returns `null` when it holds none or one that no longer opens
+it, for example after the user reset encryption in Element. The drawer then asks
+the user for their new key on its next session (see
+[Locked identities](#locked-identities)). It is a `POST` because every key shown
+is recorded in the user's event log (`matrix_recovery_key_viewed`), without the
+key; the response is sent with `Cache-Control: no-store`. As with the other
+encryption endpoints, only the user's own sign-in gets the key, with the same
+caveat about staff (see [Encryption keys](#encryption-keys)).
+
+| Status | When |
+| --- | --- |
+| `200` | `recovery_key` is the key, or `null` |
+| `403` | A personal access token, an OIDC access token, or a request made while impersonating the user. Answered before the rate limit, so refusals do not use it up |
+| `404` | Matrix chat is disabled |
+| `429` | The per-user `matrix_recovery_key` rate limit (default 30/hour) is exhausted |
+| `503` | The homeserver could not be asked |
 
 ## External Clients
 

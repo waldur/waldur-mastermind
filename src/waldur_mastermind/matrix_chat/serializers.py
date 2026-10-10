@@ -65,6 +65,15 @@ class MatrixSessionSerializer(serializers.Serializer):
     )
 
 
+class MatrixRecoveryKeySerializer(serializers.Serializer):
+    recovery_key = serializers.CharField(
+        allow_null=True,
+        help_text="The user's secret-storage recovery key, for unlocking chat "
+        "history in another Matrix client. Null while Waldur holds no key that "
+        "opens the user's secret storage.",
+    )
+
+
 class MatrixCryptoLeaseRequestSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=CryptoLeaseKinds.CHOICES)
 
@@ -105,7 +114,14 @@ class MatrixCryptoLeaseReleaseSerializer(serializers.Serializer):
 
 class MatrixCryptoConflictSerializer(serializers.Serializer):
     state = serializers.ChoiceField(
-        choices=["set_up", "locked", "not_locked", "in_progress", "no_lease"]
+        choices=[
+            "set_up",
+            "locked",
+            "not_locked",
+            "in_progress",
+            "no_lease",
+            "wrong_key",
+        ]
     )
     detail = serializers.CharField()
 

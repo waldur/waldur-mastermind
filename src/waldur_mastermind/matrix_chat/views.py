@@ -759,11 +759,18 @@ def _is_delegated(request):
     )
 
 
-def _refuse_delegated(request):
-    if _is_delegated(request):
-        raise PermissionDenied(
-            "Chat encryption keys are only available to the user's own sign-in."
-        )
+class IsOwnSignIn(permissions.BasePermission):
+    """Refuses delegated callers (see _is_delegated). A permission rather than a
+    check in the view, so a refused request is answered before the throttle
+    and does not use up the user's own rate limit."""
+
+    message = "Chat encryption keys are only available to the user's own sign-in."
+
+    def has_permission(self, request, view):
+        return not _is_delegated(request)
+
+
+CRYPTO_PERMISSIONS = [permissions.IsAuthenticated, IsOwnSignIn]
 
 
 def _no_store(response):
@@ -795,7 +802,7 @@ _CRYPTO_UNAVAILABLE = OpenApiResponse(
 
 
 class MatrixCryptoLeaseView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = CRYPTO_PERMISSIONS
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "matrix_crypto"
 
@@ -817,7 +824,6 @@ class MatrixCryptoLeaseView(views.APIView):
         "`not_locked`, or `in_progress` (with Retry-After).",
     )
     def post(self, request):
-        _refuse_delegated(request)
         data = serializers.MatrixCryptoLeaseRequestSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         kind = data.validated_data["kind"]
@@ -860,7 +866,7 @@ class MatrixCryptoLeaseView(views.APIView):
 
 
 class MatrixCryptoEscrowView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = CRYPTO_PERMISSIONS
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "matrix_crypto"
 
@@ -877,7 +883,6 @@ class MatrixCryptoEscrowView(views.APIView):
         "uploads any key, so Waldur never loses a key the homeserver depends on.",
     )
     def post(self, request):
-        _refuse_delegated(request)
         data = serializers.MatrixCryptoEscrowSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         try:
@@ -900,7 +905,10 @@ class MatrixCryptoEscrowView(views.APIView):
                 profile.matrix_user_id, data.validated_data["lease"]
             )
         event_logger.emit(
-            "User {affected_user_username} has stored a new chat encryption "
+            "User {affected_user_username} has stored the chat encryption "
+            "recovery key of another Matrix client."
+            if kind == models.CryptoLeaseKinds.IMPORT
+            else "User {affected_user_username} has stored a new chat encryption "
             "recovery key.",
             event_type=EventType.MATRIX_RECOVERY_KEY_ESCROWED,
             event_context={"affected_user": request.user},
@@ -910,7 +918,7 @@ class MatrixCryptoEscrowView(views.APIView):
 
 
 class MatrixCryptoLeaseReleaseView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = CRYPTO_PERMISSIONS
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "matrix_crypto"
 
@@ -923,7 +931,6 @@ class MatrixCryptoLeaseReleaseView(views.APIView):
         "lease that is no longer held is ignored.",
     )
     def post(self, request):
-        _refuse_delegated(request)
         data = serializers.MatrixCryptoLeaseReleaseSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         if not matrix_client.is_enabled():
@@ -936,6 +943,69 @@ class MatrixCryptoLeaseReleaseView(views.APIView):
             # A reset that ended, done or failed, needs its password no more.
             tasks.scrub_temporary_matrix_password.delay(profile.matrix_user_id, lease)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MatrixRecoveryKeyView(views.APIView):
+    permission_classes = CRYPTO_PERMISSIONS
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_recovery_key"
+
+    @extend_schema(
+        summary="Show the recovery key of chat encryption",
+        request=None,
+        responses={
+            200: serializers.MatrixRecoveryKeySerializer,
+            403: OpenApiResponse(
+                description="Not the user's own sign-in: a personal or OIDC "
+                "access token, or staff impersonating the user."
+            ),
+            404: OpenApiResponse(description="Matrix chat is not enabled."),
+            503: OpenApiResponse(description="The homeserver could not be asked."),
+        },
+        description="Returns the caller's escrowed recovery key, so that another "
+        "Matrix client, such as Element, can unlock their encrypted history. Only "
+        "a key that opens the user's secret storage on the homeserver is "
+        "returned; null otherwise. A POST, as each reveal is recorded in the "
+        "user's event log.",
+    )
+    def post(self, request):
+        if not matrix_client.is_enabled():
+            raise Http404
+        profile = models.MatrixUserProfile.objects.filter(user=request.user).first()
+        recovery_key = None
+        if profile and profile.recovery_key:
+            # A key Waldur holds but the homeserver no longer takes (the user
+            # reset encryption in another client) would only mislead.
+            try:
+                if crypto_setup.key_unlocks(
+                    profile.matrix_user_id, profile.recovery_key
+                ):
+                    recovery_key = profile.recovery_key
+            except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+                logger.warning(
+                    "Could not check the recovery key of %s: %s", request.user, e
+                )
+                return Response(
+                    {
+                        "detail": "Chat is unavailable right now. Please try again later."
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+        if recovery_key:
+            event_logger.emit(
+                "User {affected_user_username} has viewed their chat encryption "
+                "recovery key.",
+                event_type=EventType.MATRIX_RECOVERY_KEY_VIEWED,
+                event_context={"affected_user": request.user},
+                scopes=[request.user],
+            )
+        return _no_store(
+            Response(
+                serializers.MatrixRecoveryKeySerializer(
+                    {"recovery_key": recovery_key}
+                ).data
+            )
+        )
 
 
 def _is_from_homeserver(request):
