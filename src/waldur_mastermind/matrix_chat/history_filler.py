@@ -107,6 +107,10 @@ class HistoryFiller:
             raise FillError(f"Reading the key backup failed: {status}")
         return data
 
+    async def account_data(self, matrix_user_id, kind):
+        """The user's account data item ``kind``, or None if they have none."""
+        return await self._account_data(matrix_user_id, kind)
+
     async def _account_data(self, matrix_user_id, kind):
         status, data = await self._as_user(
             "GET",

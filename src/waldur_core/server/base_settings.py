@@ -142,6 +142,9 @@ REST_FRAMEWORK = {
         "matrix_crypto": "30/hour",
         # Each call reads the recovery key and checks it on the homeserver.
         "matrix_recovery_key": "30/hour",
+        # History export downloads, per user: each is decrypted on the fly,
+        # and an export can be hundreds of megabytes.
+        "matrix_export_download": "120/hour",
         # The call token API Matrix clients use, unauthenticated: per client
         # address. A join takes one or two requests (Element Call falls back
         # from /get_token to /sfu/get), so this allows a building behind one

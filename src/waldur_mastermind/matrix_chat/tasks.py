@@ -1,15 +1,12 @@
-import io
-import json
+import base64
 import logging
-import re
-import zipfile
 from datetime import timedelta
 
 import httpx
 from celery import shared_task
 from constance import config
 from django.contrib.auth import get_user_model
-from django.core.files.base import ContentFile
+from django.core.files.base import File
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
@@ -59,6 +56,10 @@ def post_as_bot(room, body, reply_to="", wait=False):
     ):
         logger.warning("The bot has not posted %s in time", message.uuid)
 
+
+# How long closing a room waits for the bot to export its history: past the
+# bot's own limit on one export, within Celery's soft time limit.
+EXPORT_WAIT_SECONDS = 15 * 60
 
 # Deleting an export runs its post_delete handler, so Django loads every row it
 # deletes; chunks keep the first run after an upgrade from loading them all.
@@ -989,105 +990,132 @@ def kick_user_from_room(room_uuid, user_uuid):
 
 @shared_task(name="waldur_mastermind.matrix_chat.export_room_history")
 def export_room_history(export_uuid):
-    """Export chat history from a Matrix room to a JSON file."""
+    """Ask the bot to export a room's history.
+
+    Rooms are encrypted and only the bot process holds their keys, so the bot
+    reads, decrypts and writes every export: a pending export is its request,
+    and it takes them in turn. Nothing is left to do here but to say when no
+    bot is running to take it.
+    """
     if not matrix_client.is_enabled():
         return
-
-    try:
-        export = models.MatrixHistoryExport.objects.get(uuid=export_uuid)
-    except models.MatrixHistoryExport.DoesNotExist:
+    export = models.MatrixHistoryExport.objects.filter(uuid=export_uuid).first()
+    if export is None:
         logger.error("MatrixHistoryExport %s not found", export_uuid)
         return
+    if export.state == models.ExportStates.PENDING and not bot_state.is_bot_running(
+        matrix_client.get_bot_user_id()
+    ):
+        logger.warning(
+            "History export %s waits for the Matrix bot, which is not running",
+            export_uuid,
+        )
 
-    export.state = models.ExportStates.EXPORTING
-    export.started_at = timezone.now()
-    export.save(update_fields=["state", "started_at"])
 
+def export_file_name(room, kind, extension):
+    return (
+        f"matrix_{kind}_{room.uuid}_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
+        f".{extension}"
+    )
+
+
+def save_history_export(export, prepared_export):
+    """Store the files the bot wrote for ``export`` (``bot_export.ExportFiles``):
+    the messages as JSON, and the media, if any, as a zip archive, both
+    encrypted under the export's own key, which the row keeps.
+
+    Written only while the export is still this claim of it: one failed or
+    taken over meanwhile, by another bot process, keeps that outcome.
+    """
     room = export.room
-    all_messages = []
-    from_token = None
-
-    try:
-        while True:
-            result = matrix_client.get_room_messages(
-                room.room_id, limit=100, from_token=from_token
+    with transaction.atomic():
+        current = bot_state.claimed_export(export).select_for_update().first()
+        if current is None:
+            return False
+        if prepared_export.media is not None:
+            current.media_file.save(
+                export_file_name(room, "media", "zip"),
+                File(prepared_export.media),
+                save=False,
             )
-            messages = result["messages"]
-            if not messages:
-                break
-            all_messages.extend(messages)
-            from_token = result["end_token"]
-            if not from_token:
-                break
-
-        # Media download phase
-        media_count = 0
-        if config.MATRIX_EXPORT_MEDIA:
-            media_messages = [
-                m for m in all_messages if m.get("has_media") and m.get("media_url")
+        current.export_file.save(
+            export_file_name(room, "export", "json"),
+            File(prepared_export.messages),
+            save=False,
+        )
+        current.data_key = base64.b64encode(prepared_export.data_key).decode()
+        current.message_count = prepared_export.message_count
+        current.media_count = prepared_export.media_count
+        current.state = models.ExportStates.COMPLETED
+        current.completed_at = timezone.now()
+        current.error_message = ""
+        current.save(
+            update_fields=[
+                "export_file",
+                "media_file",
+                "data_key",
+                "message_count",
+                "media_count",
+                "state",
+                "completed_at",
+                "error_message",
             ]
-            if media_messages:
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for msg in media_messages:
-                        try:
-                            content_bytes, content_type, original_filename = (
-                                matrix_client.download_media(msg["media_url"])
-                            )
-                            safe_event_id = re.sub(r"[^\w\-.]", "_", msg["event_id"])
-                            safe_filename = re.sub(
-                                r"[^\w\-.]", "_", msg.get("body", "file")
-                            )
-                            archive_name = f"{safe_event_id}_{safe_filename}"
-                            zf.writestr(archive_name, content_bytes)
-                            msg["media_path"] = archive_name
-                            media_count += 1
-                        except Exception:
-                            logger.warning(
-                                "Failed to download media %s for event %s",
-                                msg["media_url"],
-                                msg["event_id"],
-                                exc_info=True,
-                            )
-
-                if media_count > 0:
-                    zip_buffer.seek(0)
-                    zip_filename = f"matrix_media_{room.uuid}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.zip"
-                    export.media_file.save(zip_filename, ContentFile(zip_buffer.read()))
-
-        export_data = {
-            "room_id": room.room_id,
-            "room_name": room.room_name,
-            "exported_at": timezone.now().isoformat(),
-            "message_count": len(all_messages),
-            "media_count": media_count,
-            "messages": all_messages,
-        }
-
-        json_content = json.dumps(export_data, indent=2, default=str)
-        filename = (
-            f"matrix_export_{room.uuid}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
         )
-        export.export_file.save(filename, ContentFile(json_content.encode("utf-8")))
-        export.message_count = len(all_messages)
-        export.media_count = media_count
-        export.state = models.ExportStates.COMPLETED
-        export.completed_at = timezone.now()
-        export.save(
-            update_fields=["message_count", "media_count", "state", "completed_at"]
-        )
+    logger.info(
+        "Exported %d messages and %d media files from room %s",
+        prepared_export.message_count,
+        prepared_export.media_count,
+        room.room_id,
+    )
+    return True
 
-        logger.info(
-            "Exported %d messages and %d media files from room %s",
-            len(all_messages),
-            media_count,
-            room.room_id,
+
+class HistoryNotExported(Exception):
+    """A room being closed could not have its history exported first."""
+
+
+def _export_before_closing(room):
+    """Have the bot export ``room`` and wait for it; the export, or raise if it
+    is not made.
+
+    A room is archived only once its history is exported, so nothing is lost
+    to a bot that is down or an export that failed: the room is left in error
+    instead, and disabling it again exports it then. The export of this
+    disable, asked for by an earlier attempt, is used again: waited for while
+    pending or running, taken as it is once completed, so a room gets one export
+    per disable however often it is retried. Only a failed one is asked again.
+    """
+    export = room.closing_export
+    if export is None or export.state == models.ExportStates.FAILED:
+        export, _ = bot_state.request_export(room, models.ExportTypes.ON_DELETION)
+        # Only onto a room still being disabled: one retried meanwhile has left
+        # this disable, and must not carry its export into the next.
+        models.MatrixRoom.objects.filter(
+            pk=room.pk, state=models.RoomStates.DISABLING
+        ).update(closing_export=export, modified=timezone.now())
+    if export.state == models.ExportStates.COMPLETED:
+        return export
+    if not matrix_client.is_enabled():
+        # Without Matrix there is no history to read, now or later.
+        return export
+    if not bot_state.is_bot_running(matrix_client.get_bot_user_id()):
+        raise HistoryNotExported(
+            "The Matrix bot is not running, so the room's history was not "
+            "exported and the room was not archived. Disable it again once the "
+            "bot runs."
         )
-    except Exception as e:
-        export.state = models.ExportStates.FAILED
-        export.error_message = str(e)
-        export.save(update_fields=["state", "error_message"])
-        logger.exception("Failed to export history for room %s", room.room_id)
+    state = bot_state.wait_until_exported(export, EXPORT_WAIT_SECONDS)
+    if state == models.ExportStates.COMPLETED:
+        return export
+    if state == models.ExportStates.FAILED:
+        raise HistoryNotExported(
+            f"Exporting the room's history failed ({export.error_message}), so "
+            "the room was not archived. Disable it again to retry."
+        )
+    raise HistoryNotExported(
+        "The Matrix bot did not export the room's history in time, so the room "
+        "was not archived. Disable it again once the export has finished."
+    )
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.disable_room")
@@ -1132,27 +1160,55 @@ def disable_room(room_uuid, delete_history=False, reason=""):
             _end_room_call(room.room_id)
 
         # 3. Export history if enabled, unless the caller is discarding it anyway
+        export = None
         if config.MATRIX_HISTORY_EXPORT_ENABLED and not delete_history:
-            export = models.MatrixHistoryExport.objects.create(
-                room=room,
-                export_type=models.ExportTypes.ON_DELETION,
-            )
-            export_room_history(str(export.uuid))
+            export = _export_before_closing(room)
 
         # 4. Optionally delete all history exports, files included
         if delete_history:
             room.exports.all().delete()
 
-        # 5. Transition to archived
-        room.set_archived()
-        room.save(update_fields=["state"])
-        logger.info("Disabled and archived Matrix room %s", room.room_id)
+        # 5. Transition to archived. The disable's export is used up, and an
+        # error left by an earlier attempt no longer holds. A retry may run a
+        # second disable alongside this one, so both outcomes are written only
+        # in the state they apply to: an archive from disabling, or from the
+        # error a failed other attempt left, while the room still holds this
+        # disable's export (a retry since has moved on to something else).
+        archivable = Q(state=models.RoomStates.DISABLING)
+        if export is not None:
+            archivable |= Q(state=models.RoomStates.ERROR, closing_export=export)
+        archived = models.MatrixRoom.objects.filter(archivable, pk=room.pk).update(
+            state=models.RoomStates.ARCHIVED,
+            closing_export=None,
+            error_message="",
+            modified=timezone.now(),
+        )
+        if archived:
+            logger.info("Disabled and archived Matrix room %s", room.room_id)
+        else:
+            logger.info(
+                "Room %s was no longer being disabled; left as it is",
+                room.room_id,
+            )
 
     except Exception as e:
-        room.set_erred()
-        room.error_message = str(e)
-        room.save(update_fields=["state", "error_message"])
-        logger.exception("Failed to disable room %s", room.room_id)
+        # A room another disable archived meanwhile stays archived.
+        erred = models.MatrixRoom.objects.filter(
+            pk=room.pk, state=models.RoomStates.DISABLING
+        ).update(
+            state=models.RoomStates.ERROR,
+            error_message=str(e),
+            modified=timezone.now(),
+        )
+        if erred:
+            logger.exception("Failed to disable room %s", room.room_id)
+        else:
+            logger.warning(
+                "A disable of room %s failed after the room left the disabling "
+                "state; left as it is",
+                room.room_id,
+                exc_info=True,
+            )
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.periodic_history_export")
@@ -1167,10 +1223,15 @@ def periodic_history_export():
 
     rooms = models.MatrixRoom.objects.filter(state=models.RoomStates.ACTIVE)
     for room in rooms:
-        export = models.MatrixHistoryExport.objects.create(
-            room=room,
-            export_type=models.ExportTypes.PERIODIC,
-        )
+        # A room whose last daily export the bot has not made yet, because it
+        # is down or busy, does not get another one queued behind it.
+        export, created = bot_state.request_export(room, models.ExportTypes.PERIODIC)
+        if not created:
+            logger.info(
+                "Room %s still has a periodic export waiting; none queued",
+                room.room_id,
+            )
+            continue
         export_room_history.delay(str(export.uuid))
         logger.info("Queued periodic export for room %s", room.room_id)
 
@@ -1512,7 +1573,15 @@ def reprovision_rooms():
                 continue
             room.room_id = None
             room.room_alias = ""
-            room.save(update_fields=["state", "error_message", "room_id", "room_alias"])
+            room.save(
+                update_fields=[
+                    "state",
+                    "error_message",
+                    "closing_export",
+                    "room_id",
+                    "room_alias",
+                ]
+            )
             room_uuid = str(room.uuid)
             transaction.on_commit(lambda uuid=room_uuid: create_room.delay(uuid))
             room_count += 1

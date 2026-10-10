@@ -41,6 +41,7 @@ if TYPE_CHECKING:
         CallInviteEvent,
         DownloadError,
         InviteMemberEvent,
+        MegolmEvent,
         MemoryDownloadResponse,
         PowerLevelsEvent,
         ReactionEvent,
@@ -48,6 +49,7 @@ if TYPE_CHECKING:
         RedactionEvent,
         RoomCreateError,
         RoomCreateResponse,
+        RoomEncryptedMedia,
         RoomGetEventError,
         RoomInviteError,
         RoomInviteResponse,
@@ -75,6 +77,7 @@ _NIO_NAMES = (
     "CallInviteEvent",
     "DownloadError",
     "InviteMemberEvent",
+    "MegolmEvent",
     "MemoryDownloadResponse",
     "PowerLevelsEvent",
     "ReactionEvent",
@@ -82,6 +85,7 @@ _NIO_NAMES = (
     "RedactionEvent",
     "RoomCreateError",
     "RoomCreateResponse",
+    "RoomEncryptedMedia",
     "RoomGetEventError",
     "RoomInviteError",
     "RoomInviteResponse",
@@ -642,6 +646,30 @@ def _build_media_message(event):
     return msg
 
 
+def _build_encrypted_media_message(event):
+    """Build a message dict for media whose file is encrypted (``content.file``).
+
+    The same shape as unencrypted media; the file's key stays out of it, and so
+    does the key of an encrypted thumbnail in ``info``.
+    """
+    content = event.source.get("content", {})
+    info = content.get("info", {})
+    return {
+        "event_id": event.event_id,
+        "sender": event.sender,
+        "timestamp": event.server_timestamp,
+        "type": event.source.get("type", ""),
+        "msgtype": content.get("msgtype", ""),
+        "body": event.body,
+        "has_media": True,
+        "media_url": event.url,
+        "media_encrypted": True,
+        "media_info": {k: v for k, v in info.items() if k != "thumbnail_file"}
+        if isinstance(info, dict)
+        else {},
+    }
+
+
 def _build_event_message(event):
     """Build a message dict for a generic Matrix event, dispatching by type."""
     _load_nio()
@@ -650,6 +678,21 @@ def _build_event_message(event):
         event, RoomMessageImage | RoomMessageVideo | RoomMessageAudio | RoomMessageFile
     ):
         return _build_media_message(event)
+
+    if isinstance(event, RoomEncryptedMedia):
+        return _build_encrypted_media_message(event)
+
+    # An encrypted event no room key the reader holds decrypts: kept, and marked.
+    if isinstance(event, MegolmEvent):
+        return {
+            "event_id": event.event_id,
+            "sender": event.sender,
+            "timestamp": event.server_timestamp,
+            "type": "m.room.encrypted",
+            "undecryptable": True,
+            "session_id": event.session_id,
+            "device_id": event.device_id,
+        }
 
     # Sticker events
     if isinstance(event, StickerEvent):

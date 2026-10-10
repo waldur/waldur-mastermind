@@ -5,6 +5,7 @@ bot on a device of its own, keeps that device's keys in its crypto store, and:
 
 - syncs, so it can decrypt the commands users send it and answer them;
 - posts everything Waldur queues in the outbox, encrypted for the room;
+- exports rooms' history, decrypted with the room keys it holds;
 - shares room keys only with devices their owner's identity vouches for;
 - writes rooms' earlier keys into new members' key backups.
 
@@ -45,16 +46,46 @@ from nio import (
 )
 
 from waldur_mastermind.matrix_chat import (
+    bot_export,
     bot_state,
     history_filler,
     matrix_client,
     models,
+    recovery_keys,
     tasks,
 )
 from waldur_mastermind.matrix_chat.crypto import cross_signing, nio_compat
 from waldur_mastermind.matrix_chat.crypto.store import PostgresStore
 
 logger = logging.getLogger(__name__)
+
+
+class _WithholdValidationDetails(logging.Filter):
+    """nio logs why an event failed validation with the offending instance, and
+    the event may be one the bot just decrypted: a message, or a room key sent
+    to it. The record is kept, its details are not."""
+
+    def filter(self, record):
+        message = record.getMessage()
+        if message.startswith(VALIDATION_MESSAGES):
+            record.msg = (
+                f"{message.split(':', 1)[0]} (details withheld: they may hold "
+                "decrypted content)"
+            )
+            record.args = ()
+        return True
+
+
+VALIDATION_MESSAGES = (
+    "Error validating event",
+    "Error validating decrypted Olm event",
+    "Error validating response",
+)
+# The nio loggers that log such details: event parsing, the Olm machine, and
+# response parsing.
+NIO_VALIDATION_LOGGERS = ("nio.events.misc", "nio.crypto.log", "nio.responses")
+for _name in NIO_VALIDATION_LOGGERS:
+    logging.getLogger(_name).addFilter(_WithholdValidationDetails())
 
 SYNC_TIMEOUT_MS = 30_000
 # How often the bot checks that every Waldur room it is in is encrypted.
@@ -69,6 +100,12 @@ SEND_FINISH_SECONDS = 20
 # down fails and is retried from the outbox instead of blocking forever.
 MAX_REQUEST_RETRIES = 5
 OUTBOX_POLL_SECONDS = 2
+EXPORT_POLL_SECONDS = 5
+# Exports run side by side, so rooms disabled together are each exported within
+# the time disabling one waits. What one export holds in memory beyond its
+# messages (an attachment in flight, or its archive while it is saved) is held by
+# one export at a time; see MatrixBot._export_memory.
+EXPORT_SLOTS = 3
 # Keys are queried for this many users at once.
 KEYS_QUERY_BATCH = 100
 # nio loads its store only when it has a store path, which ours doesn't use.
@@ -180,6 +217,12 @@ class MatrixBot:
         self.history = history_filler.HistoryFiller(
             self, _db, self._renew_lease, TRANSIENT_ERRORS
         )
+        # Running exports, by task.
+        self._exports = {}
+        # Held by whichever export holds an attachment in memory or saves its
+        # files, so exports running side by side never hold more memory at once
+        # than one export does alone.
+        self._export_memory = bot_export.PriorityLock()
 
     # Homeserver calls the bot makes itself: nio 0.26 has no cross-signing.
 
@@ -691,6 +734,203 @@ class MatrixBot:
                 logger.exception("Matrix bot history fill failed; retrying")
             await asyncio.sleep(history_filler.POLL_SECONDS)
 
+    # History exports.
+
+    async def export_forever(self):
+        """Run exports in EXPORT_SLOTS slots, each claiming its own export.
+
+        Rooms being disabled get every free slot, so one waits only for the
+        exports of rooms disabled before it, never for a whole manual or daily
+        export: at most one of those runs at a time, and it gives way when a
+        room being disabled finds every slot taken.
+        """
+        await self._synced.wait()
+        # Exports a previous process was in the middle of are not finished by
+        # anyone; this process holds the lease, so none of them is running.
+        await _db(bot_state.fail_interrupted_exports)()
+        running = self._exports
+        try:
+            while True:
+                await self._renew_lease()
+                while len(running) < EXPORT_SLOTS:
+                    deletions_only = any(
+                        export.export_type != models.ExportTypes.ON_DELETION
+                        for export in running.values()
+                    )
+                    export = await _db(bot_state.claim_next_export)(
+                        deletions_only=deletions_only
+                    )
+                    if export is None:
+                        break
+                    task = asyncio.create_task(
+                        self.export(export), name=f"export-{export.uuid}"
+                    )
+                    running[task] = export
+                if not running:
+                    await asyncio.sleep(EXPORT_POLL_SECONDS)
+                    continue
+                done, _ = await asyncio.wait(
+                    running,
+                    timeout=EXPORT_POLL_SECONDS,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in done:
+                    del running[task]
+                    task.result()  # export() records failures; this re-raises a lost lease
+        finally:
+            for task in running:
+                task.cancel()
+            # Each puts its export back before it ends.
+            await asyncio.gather(*running, return_exceptions=True)
+            running.clear()
+
+    async def export(self, export):
+        """Export one room's history, and record how it went.
+
+        A stop puts the export back, to be done by the next process. Anything
+        else that goes wrong fails this export, not the bot, and is reported
+        by its type only: its traceback's frames hold decrypted content.
+        """
+        room_id = export.room.room_id
+        try:
+            if not room_id:
+                raise bot_export.ExportError("The room was never created.")
+            export_media = await _db(lambda: config.MATRIX_EXPORT_MEDIA)()
+            priority = 0 if export.export_type == models.ExportTypes.ON_DELETION else 1
+            exporter = bot_export.RoomExporter(
+                self.client,
+                self.homeserver_url,
+                export_media=export_media,
+                should_yield=self._should_yield_to(export),
+                memory_lock=self._export_memory,
+                priority=priority,
+                identity_of=self.sender_identity,
+            )
+            prepared_export = await exporter.export(room_id, export.room.room_name)
+            try:
+                await self._renew_lease()
+                # Saving reads the stored files whole into memory: one export
+                # at a time, and never next to an attachment in flight. A save
+                # runs in the database thread, so the lease is not renewed
+                # until it ends: a save longer than the lease's lifetime would
+                # let a second bot process take over meanwhile, which then
+                # fails this export at its start and this save writes nothing.
+                async with self._export_memory.hold(priority):
+                    saved = await _db(tasks.save_history_export)(
+                        export, prepared_export
+                    )
+            finally:
+                prepared_export.close()
+            if not saved:
+                logger.warning(
+                    "History export %s was no longer this process's to write; "
+                    "its result is discarded",
+                    export.uuid,
+                )
+        except bot_export.Preempted:
+            logger.info(
+                "History export %s gives way to a room being closed", export.uuid
+            )
+            await _db(bot_state.requeue_export)(export)
+        except asyncio.CancelledError:
+            # Work already handed to a thread (a save, an attachment being
+            # written) finishes there after the cancel. A save queued in the
+            # database thread runs before this requeue: the export is then
+            # completed and the requeue, bound to this claim, leaves it so.
+            # After a lost lease the requeue is as harmless: if another process
+            # claimed the export since, this claim no longer matches.
+            await asyncio.shield(_db(bot_state.requeue_export)(export))
+            raise
+        except LeaseLost:
+            raise
+        except bot_export.ExportError as error:
+            logger.warning("History export %s failed: %s", export.uuid, error)
+            await _db(bot_state.fail_export)(export, str(error))
+        except Exception as error:
+            logger.error(
+                "History export %s of %s failed: %s",
+                export.uuid,
+                room_id,
+                type(error).__name__,
+            )
+            await _db(bot_state.fail_export)(
+                export, f"The export failed ({type(error).__name__})."
+            )
+
+    async def sender_identity(self, matrix_user_id):
+        """``(label, vouched)`` for a message's sender: one of
+        ``bot_export.SENDER_IDENTITIES``, and the devices the identity it was
+        judged on signs, from the same ``/keys/query`` answer
+        (see ``bot_export.event_identity``)."""
+        if matrix_user_id == self.user_id:
+            own = self.client.olm.account.identity_keys
+            return "bot", {self.client.device_id: (own["ed25519"], own["curve25519"])}
+        try:
+            profile = await _db(_identity_profile)(matrix_user_id)
+            if profile is None:
+                return "unknown", {}
+            recovery_key, pinned = profile
+            del profile  # the recovery key is kept under its own name only
+            keys = await self.query_keys([matrix_user_id])
+            master_key = (keys.get("master_keys") or {}).get(matrix_user_id)
+            published = cross_signing.published_key(
+                master_key, matrix_user_id, cross_signing.MASTER
+            )
+            if published is None:
+                return "unknown", {}
+            vouched = _vouched_devices(matrix_user_id, keys)
+            if recovery_key:
+                opens = await self._escrow_unlocks(
+                    matrix_user_id, recovery_key, master_key
+                )
+                del recovery_key  # keep key material out of error reports
+                return ("escrowed" if opens else "changed"), vouched
+            if pinned:
+                return ("pinned" if pinned == published else "changed"), vouched
+            return "unknown", {}
+        except Exception as error:  # noqa: BLE001 - a label, never a failed export
+            logger.warning(
+                "Could not check the identity of %s for an export: %s",
+                matrix_user_id,
+                type(error).__name__,
+            )
+            return "unknown", {}
+
+    async def _escrow_unlocks(self, matrix_user_id, recovery_key, master_key):
+        """Whether the escrowed recovery key opens the user's secret storage and
+        the private master key stored there is ``master_key``. Read with the
+        bot's own snapshot of the appservice token, as the history filler reads
+        it."""
+        account_data = self.history.account_data
+        default = await account_data(matrix_user_id, "m.secret_storage.default_key")
+        key_id = default.get("key") if isinstance(default, dict) else None
+        if not isinstance(key_id, str) or not key_id:
+            return False
+        key_info = await account_data(matrix_user_id, f"m.secret_storage.key.{key_id}")
+        master = await account_data(matrix_user_id, "m.cross_signing.master")
+        encrypted = master.get("encrypted") if isinstance(master, dict) else None
+        stored = encrypted.get(key_id) if isinstance(encrypted, dict) else None
+        return recovery_keys.recovery_key_opens(
+            recovery_key, key_info
+        ) and recovery_keys.unlocks_master_key(recovery_key, stored, master_key)
+
+    def _should_yield_to(self, export):
+        """For an export no task waits for: whether a room being closed waits
+        for its export and finds every slot taken, so this one's goes to it.
+        Disabling a room waits a bounded time, which a long export ahead of it
+        would use up."""
+        if export.export_type == models.ExportTypes.ON_DELETION:
+            return None
+
+        async def should_yield():
+            # A slot may free between the two checks, so an export can give way
+            # needlessly; it is put back and starts over, which costs time only.
+            if len(self._exports) < EXPORT_SLOTS:
+                return False
+            return await _db(bot_state.deletion_export_waiting)()
+
+        return should_yield
+
     # Lease.
 
     async def _renew_lease(self):
@@ -737,6 +977,7 @@ class MatrixBot:
             asyncio.create_task(self.sync_forever(), name="sync"),
             asyncio.create_task(self.drain_outbox_forever(), name="outbox"),
             asyncio.create_task(self.fill_history_forever(), name="history"),
+            asyncio.create_task(self.export_forever(), name="exports"),
             asyncio.create_task(self.renew_lease_forever(), name="lease"),
             asyncio.create_task(self.watch_config_forever(), name="config"),
             asyncio.create_task(stop.wait(), name="stop"),
@@ -763,13 +1004,39 @@ class MatrixBot:
             for part in parts:
                 part.cancel()
             await asyncio.gather(*parts, return_exceptions=True)
-            await self.history.close()
+            try:
+                await self.history.close()
+            except Exception:  # noqa: BLE001 - the client and store still close
+                logger.warning("Closing the history filler failed", exc_info=True)
             await self.client.close()
             # AsyncClient.close() closes only HTTP; the store's connection
             # would otherwise outlive each start-over.
             store = getattr(self.client, "store", None)
             if store is not None:
                 store.database.close()
+
+
+def _vouched_devices(user_id, keys):
+    """``{device id: (ed25519, curve25519)}`` of the devices the user's identity
+    signs, in a ``/keys/query`` answer."""
+    devices = (keys.get("device_keys") or {}).get(user_id) or {}
+    vouched = {}
+    for device_id, ed25519 in cross_signing.cross_signed_devices(user_id, keys).items():
+        curve25519 = (devices[device_id].get("keys") or {}).get(
+            f"curve25519:{device_id}"
+        )
+        if isinstance(curve25519, str):
+            vouched[device_id] = (ed25519, curve25519)
+    return vouched
+
+
+def _identity_profile(matrix_user_id):
+    """``(recovery key, pinned master key)`` of a Waldur user, or None."""
+    return (
+        models.MatrixUserProfile.objects.filter(matrix_user_id=matrix_user_id)
+        .values_list("recovery_key", "pinned_master_key")
+        .first()
+    )
 
 
 def _active_room_ids():
