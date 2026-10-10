@@ -175,6 +175,11 @@ _SECRET_NAMES = [
     "seed",
     "seeds",
     "cross_signing_seeds",
+    # Secret storage and key backup: the key a recovery key decodes to, what
+    # HKDF derives from it, and the backup's private key.
+    "secret_key",
+    "derived",
+    "private_key",
 ]
 
 

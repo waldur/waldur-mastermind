@@ -17,7 +17,14 @@ from django_fsm import TransitionNotAllowed
 
 from waldur_core.permissions.models import UserRole
 
-from . import bot_state, formatting, livekit_client, matrix_client, models
+from . import (
+    bot_state,
+    formatting,
+    history_backfill,
+    livekit_client,
+    matrix_client,
+    models,
+)
 
 User = get_user_model()
 
@@ -112,9 +119,26 @@ def _save_member(room, user, matrix_user_id, membership_state, power_level):
         logger.warning(
             "Failed to set the power level of %s in %s", matrix_user_id, room.room_id
         )
-    models.MatrixRoomMember.objects.update_or_create(
+    _record_membership(room, user, defaults)
+
+
+def _record_membership(room, user, defaults):
+    """Save the membership; a member new to the room gets its earlier history."""
+    before = (
+        models.MatrixRoomMember.objects.filter(room=room, user=user)
+        .values_list("membership_state", flat=True)
+        .first()
+    )
+    member, _ = models.MatrixRoomMember.objects.update_or_create(
         room=room, user=user, defaults=defaults
     )
+    if before != member.membership_state and (
+        member.membership_state == models.MembershipStates.JOINED
+        or before is None
+        or before in models.MembershipStates.GONE
+    ):
+        history_backfill.request_member(member)
+    return member
 
 
 def _power_level_in_room(user, room):
@@ -404,10 +428,10 @@ def staff_join_room(room_uuid, user_uuid):
 
         matrix_client.set_power_level(room.room_id, matrix_user_id, STAFF_POWER_LEVEL)
 
-        models.MatrixRoomMember.objects.update_or_create(
-            room=room,
-            user=user,
-            defaults={
+        _record_membership(
+            room,
+            user,
+            {
                 "matrix_user_id": matrix_user_id,
                 "power_level": STAFF_POWER_LEVEL,
                 "membership_state": membership_state,

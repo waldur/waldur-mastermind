@@ -902,7 +902,9 @@ must be a homeserver admin), and returns it once so the drawer can answer the
 password prompt. The password is replaced with a discarded random one as soon as
 the new recovery key is escrowed, or when the lease runs out, and a sweep every
 ten minutes replaces any left behind. A reset replaces
-the user's identity and deletes their old key backups, and in password mode it
+the user's identity and deletes their old key backups (the bot then writes the
+history it holds into the new one, see
+[History for new members](#history-for-new-members)), and in password mode it
 also replaces any Matrix password the user generated for an external client.
 
 Back up the homeserver and the Waldur database **together**, and keep
@@ -932,6 +934,59 @@ caveat about staff (see [Encryption keys](#encryption-keys)).
 | `404` | Matrix chat is disabled |
 | `429` | The per-user `matrix_recovery_key` rate limit (default 30/hour) is exhausted |
 | `503` | The homeserver could not be asked |
+
+### History for new members
+
+A member added to an encrypted room holds no keys for what was said before they
+joined. The bot does, so it writes the room's keys into the member's key backup,
+and the member's clients restore them from there. Messages read this way carry
+the grey "authenticity not guaranteed" shield, as any key restored from a backup
+does. The bot fills a member's backup:
+
+- when Waldur adds them to a room: a role, member sync, a staff Join, or opening
+  a room they were invited to;
+- when the drawer finishes setting encryption up or resetting it (a reset deletes
+  the old backups, so the bot writes everything it holds into the new one);
+- when it finds that the member's backup changed, for example after a reset in
+  another client. A pass compares every member's backup every six hours,
+  spread over the bot's rounds a batch at a time.
+
+Staff and support who join a room with the Join button get its whole earlier
+history, like any other new member, for as long as their Join counts (they are
+still staff or support).
+
+Only keys the bot holds are written: those of messages sent while it was in the
+room and the members' devices shared keys with it. The bot never replaces a key
+the backup already holds. History of rooms the bot isn't in is not covered.
+
+Whoever holds the private key of a backup reads what the bot writes into it, so
+the bot writes only into a backup it can tie to the member:
+
+- **If Waldur holds the member's recovery key, the backup must match it.** The
+  recovery key opens their secret storage, which holds the backup's private key,
+  and the backup is used only if that key belongs to it. There is no fallback. A
+  homeserver can't forge the match, because secret storage is encrypted and
+  authenticated under the recovery key. It can hide the secret, and then the bot
+  writes nothing. What this still trusts is Waldur's own database, which holds
+  the recovery key anyway.
+- **If Waldur holds no recovery key for the member** (they set encryption up in
+  another client), the backup must be signed by the member's master
+  cross-signing key, or by a device that key vouches for. The bot pins that
+  master key the first time it sees it, and refuses a different one until a
+  recovery key is escrowed with Waldur, which clears the pin. Ending a setup
+  that escrowed nothing (cancelled or failed) leaves the pin as it is. What this still trusts is the homeserver at the moment of first
+  sight: a homeserver already compromised then can have its own key pinned.
+
+Only sessions sent by a device of a past or present room member, or by the bot,
+are written: the bot accepts a room key for any room from any device, and a
+stranger's key must not be passed off as the room's history. A backup refused as
+untrusted is not checked again until it changes, or until the member sets up,
+resets or hands over a key through Waldur.
+
+Membership is checked again right before the keys are written, both in Waldur and
+on the homeserver, so a member removed in the meantime gets nothing. A fill that
+can't be written yet, because the join hasn't reached the homeserver or the
+homeserver failed, is retried with backoff for about seven hours.
 
 ## External Clients
 
