@@ -570,41 +570,32 @@ flowchart LR
 
 ### API Endpoints
 
-#### Get/Update Attribute Configuration
+The configuration is read and written through actions on the provider offering:
 
-**Endpoint**: `/api/marketplace-offering-user-attribute-configs/`
-
-```http
-GET /api/marketplace-offering-user-attribute-configs/?offering_uuid={uuid}
-```
-
-```http
-POST /api/marketplace-offering-user-attribute-configs/
-Content-Type: application/json
-
-{
-  "offering": "https://api.example.com/api/marketplace-offerings/{uuid}/",
-  "expose_username": true,
-  "expose_full_name": true,
-  "expose_email": true,
-  "expose_phone_number": false,
-  "expose_organization": true,
-  "expose_nationality": true,
-  "expose_civil_number": false
-}
-```
-
-#### Update Existing Configuration
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/api/marketplace-provider-offerings/{uuid}/user-attribute-config/` | Read the configuration (the defaults if none is stored) |
+| `POST` / `PUT` | `/api/marketplace-provider-offerings/{uuid}/update-user-attribute-config/` | Replace the configuration, creating it if missing |
+| `PATCH` | `/api/marketplace-provider-offerings/{uuid}/update-user-attribute-config/` | Change only the fields sent |
+| `DELETE` | `/api/marketplace-provider-offerings/{uuid}/delete-user-attribute-config/` | Remove it; the offering falls back to the defaults |
 
 ```http
-PATCH /api/marketplace-offering-user-attribute-configs/{uuid}/
+PATCH /api/marketplace-provider-offerings/{uuid}/update-user-attribute-config/
 Content-Type: application/json
 
 {
   "expose_phone_number": true,
-  "expose_nationality": false
+  "expose_civil_number": true
 }
 ```
+
+If the offering has no configuration yet, any of the update methods creates one, and attributes left out
+of the request take their model defaults (username, full name and email exposed, everything else hidden).
+
+In homeport the configuration is edited on the offering's integration settings, under
+**User attribute exposure**. That tab is only shown when the offering lets the service provider create
+offering users (`plugin_options.service_provider_can_create_offering_user`). For other offerings, use the
+API.
 
 ### Available Attributes
 
@@ -690,8 +681,9 @@ GET /api/marketplace-provider-resource-projects/{uuid}/list_users/
 
 ### Permissions
 
-- **View**: Users with `VIEW_OFFERING` permission on the offering
-- **Create/Update**: Offering owner or customer owner
+- **View**: owners of the offering's organization, or anyone with `UPDATE_OFFERING_USER` on the offering,
+  its organization or its service provider (this covers a site agent running as offering manager)
+- **Create/Update/Delete**: owners of the offering's organization
 
 ### GDPR Compliance
 
