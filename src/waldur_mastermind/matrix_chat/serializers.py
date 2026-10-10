@@ -429,6 +429,14 @@ class MatrixDiagnosticCheckSerializer(serializers.Serializer):
     label = serializers.CharField()
     ok = serializers.BooleanField()
     detail = serializers.CharField()
+    metrics = serializers.DictField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="The check's numbers, for monitoring: "
+        '{"round_trip_ms": 12} for appservice_ping, {"failed": 2} for '
+        'history_exports and {"4xx": 3, "5xx": 0} for webhook_errors. '
+        "Absent on other checks, and on appservice_ping when the ping failed.",
+    )
 
 
 class MatrixDiagnosticsResponseSerializer(serializers.Serializer):

@@ -165,7 +165,7 @@ Returns the current appservice configuration state.
 
 #### GET /api/admin/matrix/diagnostics/
 
-Runs live connectivity checks against the configured Matrix homeserver. Staff only.
+Runs live connectivity checks against the configured Matrix homeserver. Staff and support users can call it, so monitoring can poll it with a support token; the Diagnostics action in the UI stays staff-only. The response holds no token or password, only fingerprints of the appservice tokens, and what it does on the homeserver acts for the caller alone.
 
 Checks performed (the `checks` array in the response):
 
@@ -178,8 +178,8 @@ Checks performed (the `checks` array in the response):
 7. HS token configured (`hs_token_configured`)
 8. Registration secret configured (`registration_secret_configured`)
 9. Bot authentication (`bot_whoami`, via `/account/whoami`; also how many rooms the bot is in)
-10. Appservice can act for users (`appservice_user_namespace`: `/account/whoami` as the staff user's Matrix ID. It fails when the homeserver's appservice registration does not cover users, which breaks chat sessions and room joins; register the appservice again with Waldur's registration. When it fails, it also counts room members recorded as invited, not joined)
-11. Chat drawer tokens expire (`web_token_lifetime`: signs the staff user in on a test device and reads the token's lifetime; fails when tokens never expire or live over an hour. Skipped until the staff user has opened the chat once)
+10. Appservice can act for users (`appservice_user_namespace`: `/account/whoami` as the caller's Matrix ID. It fails when the homeserver's appservice registration does not cover users, which breaks chat sessions and room joins; register the appservice again with Waldur's registration. When it fails, it also counts room members recorded as invited, not joined)
+11. Chat drawer tokens expire (`web_token_lifetime`: signs the caller in on a test device, reads the access token's lifetime and signs the device out again; fails when it never expires or lives over an hour. It does not look at the refresh token's lifetime. Until the caller has opened the chat once it is skipped and counts as passed, so monitor it with an account that has)
 12. Bot is a homeserver admin (`bot_homeserver_admin`; see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin))
 13. Homeserver can reach Waldur (`appservice_ping`): Waldur asks the homeserver to ping
     the appservice (MSC2659), and the homeserver calls `POST /_matrix/app/v1/ping` with
@@ -191,6 +191,11 @@ Checks performed (the `checks` array in the response):
 15. Room statistics (`room_stats`: active, creating, errored counts)
 16. User profile statistics (`user_stats`: provisioned count, plus the active users whose roles put them in an active project room but who have no Matrix profile, named up to ten. Provisioning refused or failed for those; the worker log says why, and [Existing Matrix accounts](#existing-matrix-accounts) says how to link one. Fails while any room member is unlinked)
 17. Single sign-on reaches only its own accounts (`sso_id_collisions`: with `MATRIX_EXTERNAL_LOGIN_METHOD = oidc`, the provisioned Matrix IDs another identity provider subject could sign in to, counted and named up to ten: those whose localpart is not the user's lowercased ASCII username, whose user does not sign in to Waldur through `MATRIX_SSO_REGISTRATION_METHOD`, or whose user's username another user's differs from only in case. Fails while `MATRIX_SSO_REGISTRATION_METHOD` is blank. Passes with "Not using single sign-on" otherwise; see [Single sign-on for Matrix clients](matrix-sso.md))
+18. Matrix bot running (`bot_running`: whether a `matrix_bot` process holds the bot's lease, plus how many messages wait for it to post them. Fails while none does)
+19. History exports (`history_exports`: the exports that failed in the last 24 hours. A day covers the last nightly export run; a failed export is never retried, so without a window one failure would fail the check until retention deletes it. Fails while any did; their `error_message` is in [Listing exports](#listing-exports) with `state=failed`)
+20. Appservice endpoint errors (`webhook_errors`: the calls to `/_matrix/app/v1/transactions` and `/_matrix/app/v1/ping` answered with a 4xx or a 5xx in the last hour. Fails on a 5xx only, which is Waldur failing. A 4xx is a call with a wrong token or a malformed body, or one over the `matrix_webhook` rate limit; anyone can send those calls, and a homeserver with the wrong `hs_token` also fails `appservice_ping`. A call refused before it reaches the endpoint, such as one whose `Host` is not in `ALLOWED_HOSTS`, is not counted. The counts are kept in the Django cache, so every API process adds to them; errors in several processes at the same moment can be undercounted, never to zero)
+
+Three checks also carry `metrics`, their numbers as integers for monitoring: `appservice_ping` the round trip, `{"round_trip_ms": 12}`, when the ping succeeded; `history_exports` `{"failed": 1}`; `webhook_errors` `{"4xx": 2, "5xx": 0}`. Other checks have no `metrics`.
 
 **Example response (200):**
 
@@ -199,8 +204,9 @@ Checks performed (the `checks` array in the response):
   "ok": true,
   "checks": [
     {"name": "homeserver_domain_configured", "label": "Homeserver domain configured", "ok": true, "detail": "matrix.example.com"},
-    {"name": "homeserver_reachable", "label": "Homeserver reachable", "ok": true, "detail": "OK — Tuwunel 1.9.0, Matrix up to v1.19"},
-    {"name": "bot_whoami", "label": "Bot authentication (whoami)", "ok": true, "detail": "OK — authenticated as @waldur-bot:matrix.example.com, in 3 room(s)"}
+    {"name": "homeserver_reachable", "label": "Homeserver reachable", "ok": true, "detail": "OK — Tuwunel 1.9.3, Matrix up to v1.19"},
+    {"name": "bot_whoami", "label": "Bot authentication (whoami)", "ok": true, "detail": "OK — authenticated as @waldur-bot:matrix.example.com, in 3 room(s)"},
+    {"name": "webhook_errors", "label": "Appservice endpoint errors", "ok": true, "detail": "Calls to the appservice endpoints in the last hour: 2 answered with 4xx, 0 answered with 5xx; see the API log", "metrics": {"4xx": 2, "5xx": 0}}
   ]
 }
 ```

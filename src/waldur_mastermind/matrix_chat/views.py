@@ -3,6 +3,7 @@ import hmac
 import logging
 import re
 import secrets
+from datetime import timedelta
 from urllib.parse import quote
 
 import httpx
@@ -11,6 +12,7 @@ from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.http import FileResponse, Http404
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
@@ -51,6 +53,7 @@ from . import (
     room_provisioning,
     serializers,
     tasks,
+    webhook_errors,
 )
 from .managers import (
     can_manage_room,
@@ -71,6 +74,11 @@ DIAGNOSTICS_TIMEOUT = httpx.Timeout(connect=3.0, read=2.0, write=2.0, pool=2.0)
 
 # Unlinked users named in diagnostics; the rest are only counted.
 UNLINKED_USERS_SHOWN = 10
+
+# Periodic exports run nightly, so a day covers the last scheduled run. A
+# failed export is never retried and stays until retention deletes it: without
+# a window, one failure would fail the check for months.
+FAILED_EXPORTS_WINDOW = timedelta(hours=24)
 
 
 def _token_fingerprint(token):
@@ -961,7 +969,22 @@ def _is_from_homeserver(request):
     return False
 
 
-class MatrixAppserviceWebhookView(views.APIView):
+class AppserviceErrorCountMixin:
+    """Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic."""
+
+    def dispatch(self, request, *args, **kwargs):
+        try:
+            response = super().dispatch(request, *args, **kwargs)
+        except Exception:
+            # DRF re-raises anything but its own exceptions, and Django answers
+            # it with a 500 that no view hook sees.
+            webhook_errors.record(status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise
+        webhook_errors.record(response.status_code)
+        return response
+
+
+class MatrixAppserviceWebhookView(AppserviceErrorCountMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
     throttle_classes = [ScopedRateThrottle]
@@ -1003,7 +1026,7 @@ class MatrixAppserviceWebhookView(views.APIView):
         return Response({}, status=status.HTTP_200_OK)
 
 
-class MatrixAppservicePingView(views.APIView):
+class MatrixAppservicePingView(AppserviceErrorCountMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
     throttle_classes = [ScopedRateThrottle]
@@ -1387,7 +1410,9 @@ SSO_COLLISIONS_SHOWN = 10
 
 
 class MatrixDiagnosticsView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
+    # Support too, so monitoring can poll it without a staff token. It shows no
+    # secret, and what it does on the homeserver acts for the caller alone.
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
 
     @extend_schema(
         summary="Run Matrix connectivity diagnostics",
@@ -1607,7 +1632,7 @@ class MatrixDiagnosticsView(views.APIView):
         # Check 8a: chat drawer token lifetime. Without access_token_ttl the
         # homeserver gives the drawer tokens that last a week (Tuwunel) or
         # forever, and a leaked one stays valid that long. Measured with a login
-        # like the drawer's, as the staff user running diagnostics.
+        # like the drawer's, as the user running diagnostics.
         profile = models.MatrixUserProfile.objects.filter(
             user=request.user, provisioned=True
         ).first()
@@ -1669,6 +1694,7 @@ class MatrixDiagnosticsView(views.APIView):
         # the hs_token, so it catches a wrong hs_token or an appservice URL the
         # homeserver cannot reach, which otherwise only show as missing events.
         ping_ok = False
+        ping_metrics = None
         if bot_ok:
             try:
                 duration = appservice_registration.ping_appservice(
@@ -1676,6 +1702,8 @@ class MatrixDiagnosticsView(views.APIView):
                 )
                 ping_ok = True
                 detail = f"OK — round trip {duration} ms"
+                if isinstance(duration, int):
+                    ping_metrics = {"round_trip_ms": duration}
             except Exception as e:
                 # A timeout's message names its likely cause: the homeserver
                 # holds the ping open while it retries Waldur.
@@ -1683,14 +1711,15 @@ class MatrixDiagnosticsView(views.APIView):
         else:
             detail = "Skipped — bot authentication failed"
 
-        checks.append(
-            {
-                "name": "appservice_ping",
-                "label": "Homeserver can reach Waldur (ping)",
-                "ok": ping_ok,
-                "detail": detail,
-            }
-        )
+        ping_check = {
+            "name": "appservice_ping",
+            "label": "Homeserver can reach Waldur (ping)",
+            "ok": ping_ok,
+            "detail": detail,
+        }
+        if ping_metrics:
+            ping_check["metrics"] = ping_metrics
+        checks.append(ping_check)
 
         # Check 8b: LiveKit (RTC) configured. The video-call SFU is advertised
         # by the homeserver's .well-known under org.matrix.msc4143.rtc_foci —
@@ -1847,6 +1876,48 @@ class MatrixDiagnosticsView(views.APIView):
                     f"{'Running' if bot_running else 'Not running: start the matrix_bot process'}"
                     f"; {pending} message(s) waiting to be posted"
                 ),
+            }
+        )
+
+        failed_exports = models.MatrixHistoryExport.objects.filter(
+            state=models.ExportStates.FAILED,
+            modified__gte=timezone.now() - FAILED_EXPORTS_WINDOW,
+        ).count()
+        checks.append(
+            {
+                "name": "history_exports",
+                "label": "History exports",
+                "ok": not failed_exports,
+                "detail": (
+                    f"{failed_exports} export(s) failed in the last 24 hours, "
+                    "which cover the last nightly run. Their error_message is in "
+                    "GET /api/matrix/exports/?state=failed"
+                    if failed_exports
+                    else "No export failed in the last 24 hours"
+                ),
+                "metrics": {"failed": failed_exports},
+            }
+        )
+
+        # Only 5xx fails the check. Anyone can call these endpoints, so a 4xx
+        # may be a stranger's request, and a homeserver holding the wrong
+        # hs_token already fails appservice_ping.
+        errors = webhook_errors.counts()
+        if errors["4xx"] or errors["5xx"]:
+            detail = (
+                "Calls to the appservice endpoints in the last hour: "
+                f"{errors['4xx']} answered with 4xx, {errors['5xx']} answered "
+                "with 5xx; see the API log"
+            )
+        else:
+            detail = "No call to the appservice endpoints answered with an error in the last hour"
+        checks.append(
+            {
+                "name": "webhook_errors",
+                "label": "Appservice endpoint errors",
+                "ok": not errors["5xx"],
+                "detail": detail,
+                "metrics": errors,
             }
         )
 
