@@ -22,6 +22,33 @@ Rooms, member sync, bot commands, exports and the chat drawer need a homeserver 
 
 The Setup appservice wizard collects everything else it needs. If the homeserver URL, homeserver domain, or user registration secret (`MATRIX_HOMESERVER_URL`, `MATRIX_HOMESERVER_DOMAIN`, `MATRIX_USER_REGISTRATION_SECRET`) are still empty in Constance, the wizard shows a prerequisites step that prompts for them and persists them. You can also set them in Constance beforehand to skip that step.
 
+## Before enabling in production
+
+- **The homeserver domain is permanent.** The homeserver's `server_name`
+  (`MATRIX_HOMESERVER_DOMAIN`; `matrixChat.homeserver.serverName` in
+  waldur-helm, `WALDUR_DOMAIN` in waldur-docker-compose) is part of every
+  Matrix user and room ID. Tuwunel 1.9 stamps it into its database on the first
+  start and refuses to start under another name:
+
+  ```text
+  Critical error starting server: Database belongs to old.example; configured server name is new.example. Cannot reuse.
+  ```
+
+  Changing it means a new, empty homeserver. Wiping the old one's data to get
+  past the error discards every room and message.
+- **Choose a supported login method.** `MATRIX_EXTERNAL_LOGIN_METHOD` decides
+  how users reach their rooms from Element or another Matrix client. `none`
+  and `oidc` are supported. `password` is for testing and for sites without an
+  identity provider. See [External Clients](#external-clients) and
+  [Single sign-on for Matrix clients](matrix-sso.md).
+- **Backup, monitoring and capacity.** waldur-helm's `docs/matrix-chat.md` and
+  the waldur-docker-compose Matrix add-on guide (`docs/matrix-chat-add-on.md`)
+  cover them in their "Backup and restore", "Monitoring" and "Capacity"
+  sections. Back up the homeserver and Waldur's database together, and keep
+  `FIELD_ENCRYPTION_KEY` safe: without it no escrowed recovery key can be read
+  (see [Locked identities](#locked-identities)). A history export is not a
+  backup.
+
 ## Appservice Setup
 
 ### Via the UI
@@ -957,21 +984,30 @@ The bot responds to commands posted in project chat rooms:
 
 ## Configuration Reference
 
-These Constance settings control the integration:
+These Constance settings control the integration. Those marked **Wiring** connect
+Waldur to its homeserver and LiveKit. They are not choices: waldur-helm and
+waldur-docker-compose set them on every deploy with `init_matrix_settings` (see
+[Seeding from the environment](#seeding-from-the-environment)), which also sets
+`MATRIX_TOKENS_MANAGED_BY`. Change them in the deployment, not here. Without a
+packaged deployment, the Setup wizard sets most of them.
 
 | Setting | Default | Description |
 | --- | --- | --- |
 | `MATRIX_ENABLED` | `False` | Enable Matrix chat integration |
-| `MATRIX_HOMESERVER_URL` | `""` | Homeserver URL (e.g., `https://matrix.example.com`) that Waldur calls, including the admin API under `/_synapse/admin` |
-| `MATRIX_HOMESERVER_DOMAIN` | `""` | Homeserver domain for user IDs (e.g., `matrix.example.com`) |
-| `MATRIX_APPSERVICE_AS_TOKEN` | `""` | Token Waldur uses to authenticate with the homeserver |
-| `MATRIX_APPSERVICE_HS_TOKEN` | `""` | Token the homeserver uses to authenticate with Waldur |
-| `MATRIX_APPSERVICE_SENDER_LOCALPART` | `waldur-bot` | Bot user localpart |
+| `MATRIX_HOMESERVER_URL` | `""` | **Wiring.** Homeserver URL (e.g., `https://matrix.example.com`) that Waldur calls, including the admin API under `/_synapse/admin` |
+| `MATRIX_HOMESERVER_PUBLIC_URL` | `""` | **Wiring.** Homeserver URL browsers use, when it differs from `MATRIX_HOMESERVER_URL`; blank falls back to it |
+| `MATRIX_HOMESERVER_DOMAIN` | `""` | **Wiring.** Homeserver domain for user IDs (e.g., `matrix.example.com`). Cannot change once the homeserver has started; see [Before enabling in production](#before-enabling-in-production) |
+| `MATRIX_APPSERVICE_AS_TOKEN` | `""` | **Wiring.** Token Waldur uses to authenticate with the homeserver |
+| `MATRIX_APPSERVICE_HS_TOKEN` | `""` | **Wiring.** Token the homeserver uses to authenticate with Waldur |
+| `MATRIX_APPSERVICE_SENDER_LOCALPART` | `waldur-bot` | **Wiring.** Bot user localpart |
 | `MATRIX_TOKENS_MANAGED_BY` | `""` | `deployment` when `init_matrix_settings` seeds the tokens; the setup endpoint then answers `409`. Clear it when the deployment stops seeding Matrix |
 | `MATRIX_HISTORY_EXPORT_ENABLED` | `False` | Enable periodic and on-deletion exports |
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
 | `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` | `90` | Days to keep history exports, files included; each room's newest completed export is kept; `0` or less keeps them forever |
-| `MATRIX_USER_REGISTRATION_SECRET` | `""` | The homeserver's registration token, and with zero-touch setup also its `registration_shared_secret`. See [Registration secret](#registration-secret) |
+| `MATRIX_USER_REGISTRATION_SECRET` | `""` | **Wiring.** The homeserver's registration token, and with zero-touch setup also its `registration_shared_secret`. See [Registration secret](#registration-secret) |
+| `MATRIX_LIVEKIT_KEY`, `MATRIX_LIVEKIT_SECRET` | `""` | **Wiring.** LiveKit API key and secret; see [Calls](#calls) |
+| `MATRIX_LIVEKIT_URL` | `""` | **Wiring.** Internal LiveKit URL; blank falls back to `http://livekit:7880` |
+| `MATRIX_LIVEKIT_PUBLIC_URL` | `""` | **Wiring.** LiveKit signalling URL browsers connect to for calls |
 | `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local`. Applies only to users provisioned afterwards; existing users keep their Matrix ID. See [Existing Matrix accounts](#existing-matrix-accounts) for IDs two users share. Single sign-on needs `username` |
 | `MATRIX_EXTERNAL_LOGIN_METHOD` | `none` | How users sign in to an external Matrix client: `none`, `password`, or `oidc`. See [External clients](#external-clients) and, for `oidc`, [Single sign-on for Matrix clients](matrix-sso.md) |
 | `MATRIX_SSO_REGISTRATION_METHOD` | (empty) | With `oidc`: the registration method of the users who sign in to Waldur through the homeserver's identity provider, such as `keycloak`. Only they get a Matrix account; while blank, no user does. See [Single sign-on for Matrix clients](matrix-sso.md#waldur-configuration) |
