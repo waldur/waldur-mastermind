@@ -649,6 +649,45 @@ Content-Type: application/json
 }
 ```
 
+### Where Exposed Attributes Are Returned
+
+The same configuration governs every provider-facing view of a user:
+
+| Endpoint | What it returns |
+|----------|-----------------|
+| `GET /api/marketplace-offering-users/` | Offering users of the offering, with the exposed `user_<attr>` fields |
+| `GET /api/marketplace-provider-resources/{uuid}/list_users/` | Role grants on the resource itself, with the exposed `user_<attr>` fields |
+| `GET /api/marketplace-provider-resource-projects/{uuid}/list_users/` | Role grants on the resource project, with the exposed `user_<attr>` fields |
+
+The two `list_users` endpoints cover users who hold a role on a resource or one of its resource projects
+without being on the parent project's team, so they may have no offering user at all. A site agent that
+grants access per resource project reads its members there.
+
+On the `list_users` endpoints, `user_username`, `user_full_name` and `user_email` are part of the role
+details and are always returned. Every other `user_<attr>` field (for example `user_civil_number`) is
+present only when the offering exposes that attribute. Consumer-side `list_users` endpoints return no
+profile attributes.
+
+For example, the site agent's `rancher-kc-crd` plugin can match users by civil code in a Rancher Keycloak
+that Waldur does not share. That needs `expose_civil_number: true` on the offering:
+
+```http
+GET /api/marketplace-provider-resource-projects/{uuid}/list_users/
+```
+
+```json
+[
+  {
+    "role_name": "project_member",
+    "user_uuid": "3a57ca3e2bf94fbd8767f6f0a52ea03e",
+    "user_username": "alice",
+    "user_full_name": "Alice Smith",
+    "user_email": "alice@example.com",
+    "user_civil_number": "EE38001010001"
+  }
+]
+```
+
 ### Permissions
 
 - **View**: Users with `VIEW_OFFERING` permission on the offering
