@@ -154,6 +154,109 @@ class ProposalAdminEditsTest(ProposalAdminMixin, test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class ProposalLockedAfterSubmissionTest(ProposalAdminMixin, test.APITestCase):
+    """Once submitted, the applicant team no longer changes the proposal's
+    documents or requested resources; those overseeing the call still may."""
+
+    def setUp(self):
+        super().setUp()
+        self.document = models.ProposalDocumentation.objects.create(
+            proposal=self.proposal,
+            file=SimpleUploadedFile("proposal.pdf", b"%PDF-1.4\n%%EOF\n"),
+        )
+
+    def submitted(self, state=ProposalStates.SUBMITTED):
+        self.proposal.state = state
+        self.proposal.save(update_fields=["state"])
+
+    def attach(self, user):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            self._url("attach_document"),
+            {"file": SimpleUploadedFile("late.pdf", b"%PDF-1.4\n%%EOF\n")},
+            format="multipart",
+        )
+
+    def detach(self, user):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            self._url("detach_documents"), {"documents": [self.document.uuid.hex]}
+        )
+
+    def add_resource(self, user):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            self._url("resources"),
+            {
+                "requested_offering_uuid": (
+                    self.fixture.requested_offering_accepted.uuid.hex
+                )
+            },
+        )
+
+    def test_applicant_changes_documents_in_draft(self):
+        self.assertEqual(self.attach(self.applicant).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.detach(self.applicant).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.proposal.proposaldocumentation_set.count(), 1)
+
+    def test_applicant_cannot_attach_after_submission(self):
+        for state in (
+            ProposalStates.SUBMITTED,
+            ProposalStates.IN_REVIEW,
+            ProposalStates.ACCEPTED,
+            ProposalStates.REJECTED,
+        ):
+            self.submitted(state)
+            for user in (self.applicant, self.co_manager, self.admin):
+                response = self.attach(user)
+                self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+                self.assertIn("draft", str(response.data))
+        self.assertEqual(self.proposal.proposaldocumentation_set.count(), 1)
+
+    def test_applicant_cannot_detach_after_submission(self):
+        self.submitted()
+        for user in (self.applicant, self.co_manager, self.admin):
+            response = self.detach(user)
+            self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(
+            self.proposal.proposaldocumentation_set.filter(pk=self.document.pk).exists()
+        )
+
+    def test_member_is_still_forbidden_after_submission(self):
+        self.submitted()
+        self.assertEqual(self.attach(self.member).status_code, 403)
+
+    def test_applicant_cannot_add_requested_resources_after_submission(self):
+        self.submitted()
+        response = self.add_resource(self.applicant)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_applicant_still_reads_after_submission(self):
+        self.submitted()
+        self.client.force_authenticate(self.applicant)
+        response = self.client.get(self._url("resources"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_call_manager_changes_documents_after_submission(self):
+        self.submitted()
+        manager = self.fixture.call_manager
+        self.assertEqual(self.attach(manager).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.detach(manager).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.proposal.proposaldocumentation_set.count(), 1)
+
+    def test_staff_changes_documents_after_submission(self):
+        self.submitted()
+        self.assertEqual(
+            self.attach(self.fixture.staff).status_code, status.HTTP_200_OK
+        )
+
+    def test_applicant_cannot_answer_the_checklist_after_submission(self):
+        self.submitted()
+        self.client.force_authenticate(self.applicant)
+        response = self.client.post(self._url("submit_answers"), [], format="json")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
 class ProposalAdminLimitsTest(ProposalAdminMixin, test.APITestCase):
     def test_admin_cannot_submit(self):
         self.client.force_authenticate(self.admin)

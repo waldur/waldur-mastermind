@@ -20,6 +20,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 
@@ -380,6 +381,30 @@ class ProposalComplianceAPITest(ProposalComplianceTestMixin, test.APITestCase):
 
         response = self.client.post(url, [], format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def _answer_after_submission(self, user):
+        proposal = self.fixture.proposal
+        proposal.state = ProposalStates.SUBMITTED
+        proposal.save(update_fields=["state"])
+        self.client.force_authenticate(user)
+        return self.client.post(
+            proposal_factories.ProposalFactory.get_url(proposal) + "submit_answers/",
+            [{"question_uuid": str(self.required_question.uuid), "answer_data": True}],
+            format="json",
+        )
+
+    def test_applicant_cannot_answer_after_submission(self):
+        response = self._answer_after_submission(self.fixture.proposal_creator)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(
+            checklist_models.Answer.objects.filter(
+                question=self.required_question
+            ).exists()
+        )
+
+    def test_staff_answers_after_submission(self):
+        response = self._answer_after_submission(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @ddt
