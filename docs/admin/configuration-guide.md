@@ -3601,6 +3601,12 @@ Homeserver token for authenticating webhook requests.
 
 Localpart for the appservice bot user.
 
+#### MATRIX_TOKENS_MANAGED_BY
+
+**Type:** str
+
+Set to 'deployment' by the init_matrix_settings management command to record that the appservice tokens come from the deployment's own secret and are re-seeded on every sync. While it is set, the Setup wizard refuses to rotate them, because the rotation would be reverted at the next deploy while the homeserver kept the old registration. Blank means the deployment was configured by hand and the wizard owns the tokens. Clear it when the deployment stops seeding Matrix, so the wizard can rotate them again.
+
 #### MATRIX_HISTORY_EXPORT_ENABLED
 
 **Type:** bool
@@ -3625,7 +3631,7 @@ Days to keep Matrix room history exports, files included, before they are delete
 
 **Type:** secret_field
 
-Shared secret for Matrix user registration.
+Registration token the homeserver requires for sign-up (its registration_token). With zero-touch setup it is also the homeserver's registration_shared_secret, which can create homeserver admins. Protect it like the appservice tokens.
 
 #### MATRIX_USER_ID_FORMAT
 
@@ -3642,6 +3648,12 @@ Format for generating Matrix user IDs: username, uuid, or email_local. Applies o
 **Default value:** none
 
 How users sign in to an external Matrix client such as Element: 'none' (Waldur offers no external sign-in), 'password' (for testing and sites without an identity provider: users generate a password in Waldur; needs the Waldur bot to be a homeserver admin), or 'oidc' (single sign-on configured on the homeserver; use this in production). Switching away from 'password' revokes no generated password and signs out no external client; to refuse password logins, set login_with_password = false on the homeserver.
+
+#### MATRIX_SSO_REGISTRATION_METHOD
+
+**Type:** str
+
+With MATRIX_EXTERNAL_LOGIN_METHOD 'oidc': the registration method of the Waldur users who sign in to Waldur through the identity provider the homeserver's single sign-on uses, i.e. that identity provider's name in Waldur, such as 'keycloak'. Waldur gives a Matrix account only to those users, because the homeserver signs in any subject of that provider to the account its claim names. While blank, no user is given a Matrix account.
 
 #### MATRIX_LIVEKIT_KEY
 
