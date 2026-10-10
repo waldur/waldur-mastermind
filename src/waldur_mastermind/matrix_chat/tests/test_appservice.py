@@ -1,14 +1,20 @@
 import io
 import json
 import re
+from datetime import timedelta
 from unittest import mock
 
 import sentry_sdk
 import yaml
 from constance import config
 from constance.test import override_config
+from django.core.cache import cache
 from django.core.management import call_command
+from django.test import override_settings
+from django.utils import timezone
+from freezegun import freeze_time
 from rest_framework import status, test
+from rest_framework.throttling import ScopedRateThrottle
 from sentry_sdk.transport import Transport
 
 from waldur_core.logging import sentry
@@ -22,6 +28,7 @@ from waldur_mastermind.matrix_chat import (
     matrix_client,
     models,
     tasks,
+    webhook_errors,
 )
 from waldur_mastermind.matrix_chat.tests import fixtures
 
@@ -985,6 +992,23 @@ class AppserviceDiagnosticsTest(test.APITestCase):
         return {c["name"]: c for c in response.data["checks"]}
 
     @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_support_users_can_read_diagnostics(self, mock_httpx_get):
+        # The Prometheus exporter polls this endpoint with a support token.
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        self.client.force_authenticate(UserFactory(is_support=True))
+
+        response = self.client.get(DIAGNOSTICS_URL)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_other_users_cannot_read_diagnostics(self):
+        self.client.force_authenticate(UserFactory())
+
+        response = self.client.get(DIAGNOSTICS_URL)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
     def test_a_round_trip_from_the_homeserver_passes(self, mock_httpx_get):
         mock_httpx_get.return_value = mock.MagicMock(
             status_code=200, json=mock.MagicMock(return_value={"user_id": "@b:x"})
@@ -994,6 +1018,21 @@ class AppserviceDiagnosticsTest(test.APITestCase):
 
         self.assertTrue(check["ok"])
         self.assertIn("4 ms", check["detail"])
+        self.assertEqual(check["metrics"], {"round_trip_ms": 4})
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_a_ping_without_a_duration_carries_no_metrics(self, mock_httpx_get):
+        # duration_ms is the homeserver's to send; a null would break the
+        # integer the generated clients expect.
+        mock_httpx_get.return_value = mock.MagicMock(
+            status_code=200, json=mock.MagicMock(return_value={"user_id": "@b:x"})
+        )
+        self.ping.return_value = None
+
+        check = self._checks()["appservice_ping"]
+
+        self.assertTrue(check["ok"])
+        self.assertNotIn("metrics", check)
 
     @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
     def test_a_homeserver_that_cannot_reach_waldur_fails(self, mock_httpx_get):
@@ -1010,6 +1049,7 @@ class AppserviceDiagnosticsTest(test.APITestCase):
 
         self.assertFalse(check["ok"])
         self.assertIn("M_BAD_STATUS", check["detail"])
+        self.assertNotIn("metrics", check)
 
     @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
     def test_a_ping_timeout_says_the_homeserver_may_still_be_trying(
@@ -1616,3 +1656,253 @@ class WebhookRejectionLogTest(test.APITestCase):
             log = self._put(HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}")
 
         self.assertIn("not set", log)
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+)
+class HistoryExportsDiagnosticsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MatrixChatFixture()
+        patcher = mock.patch.object(
+            appservice_registration, "ping_appservice", return_value=4
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _check(self):
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.views.httpx.get",
+            return_value=mock.MagicMock(status_code=500),
+        ):
+            self.client.force_authenticate(self.fixture.staff)
+            response = self.client.get(DIAGNOSTICS_URL)
+        return {c["name"]: c for c in response.data["checks"]}["history_exports"]
+
+    def _export(self, state, hours_ago):
+        export = models.MatrixHistoryExport.objects.create(
+            room=self.fixture.matrix_room, state=state
+        )
+        models.MatrixHistoryExport.objects.filter(pk=export.pk).update(
+            modified=timezone.now() - timedelta(hours=hours_ago)
+        )
+
+    def test_passes_without_failed_exports(self):
+        self._export(models.ExportStates.COMPLETED, hours_ago=1)
+
+        check = self._check()
+
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["metrics"], {"failed": 0})
+
+    def test_fails_on_an_export_that_failed_in_the_last_day(self):
+        self._export(models.ExportStates.FAILED, hours_ago=23)
+
+        check = self._check()
+
+        self.assertFalse(check["ok"])
+        self.assertEqual(check["metrics"], {"failed": 1})
+        self.assertIn("1 export(s) failed in the last 24 hours", check["detail"])
+
+    def test_leaves_out_older_failures(self):
+        # A failed export is never retried and stays until retention deletes
+        # it, so without a window one failure would fail the check for months.
+        self._export(models.ExportStates.FAILED, hours_ago=25)
+
+        check = self._check()
+
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["metrics"], {"failed": 0})
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class WebhookErrorCountTest(test.APITestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _put(self, txn_id, data=None, token=HS_TOKEN):
+        return self.client.put(
+            f"{WEBHOOK_URL}{txn_id}",
+            data={"events": []} if data is None else data,
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+
+    def test_answers_without_an_error_are_not_counted(self):
+        self.assertEqual(self._put("txn-ok").status_code, status.HTTP_200_OK)
+        response = self.client.post(
+            PING_URL, data={}, format="json", HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(webhook_errors.counts(), {"4xx": 0, "5xx": 0})
+
+    def test_client_errors_of_both_endpoints_are_counted(self):
+        self.assertEqual(
+            self._put("txn-bad-token", token="wrong").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            self._put("txn-bad-body", data=[]).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        response = self.client.post(PING_URL, data={}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.assertEqual(webhook_errors.counts(), {"4xx": 3, "5xx": 0})
+
+    @mock.patch.object(ScopedRateThrottle, "wait", return_value=None)
+    @mock.patch.object(ScopedRateThrottle, "allow_request", return_value=False)
+    def test_a_rate_limited_call_is_counted(self, *_):
+        response = self._put("txn-throttled")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(webhook_errors.counts(), {"4xx": 1, "5xx": 0})
+
+    @mock.patch(
+        "waldur_mastermind.matrix_chat.models.MatrixAppserviceTransaction.objects.get_or_create",
+        side_effect=RuntimeError("database down"),
+    )
+    def test_an_unhandled_exception_is_counted_as_a_server_error(self, _):
+        # It leaves DRF's view as an exception, and Django answers 500.
+        self.client.raise_request_exception = False
+
+        response = self._put("txn-crash")
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(webhook_errors.counts(), {"4xx": 0, "5xx": 1})
+
+    def test_a_failure_to_count_does_not_change_the_answer(self):
+        with mock.patch.object(
+            webhook_errors.cache, "add", side_effect=RuntimeError("cache down")
+        ):
+            response = self._put("txn-cache-down", token="wrong")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_errors_leave_the_count_after_an_hour(self):
+        with freeze_time() as frozen:
+            webhook_errors.record(403)
+            frozen.tick(timedelta(minutes=50))
+            webhook_errors.record(500)
+            self.assertEqual(webhook_errors.counts(), {"4xx": 1, "5xx": 1})
+
+            frozen.tick(timedelta(minutes=15))
+            self.assertEqual(webhook_errors.counts(), {"4xx": 0, "5xx": 1})
+
+    def test_an_error_is_counted_for_a_whole_hour(self):
+        # 10:04:59 is the end of a bucket: the hour must not end with the
+        # bucket that began 55 minutes after it.
+        with freeze_time("2026-10-01 10:04:59") as frozen:
+            webhook_errors.record(500)
+            frozen.tick(timedelta(minutes=59))
+
+            self.assertEqual(webhook_errors.counts(), {"4xx": 0, "5xx": 1})
+
+    def test_a_later_error_in_a_bucket_adds_no_entry(self):
+        # On the database cache, adding an entry that is already there is an
+        # INSERT the database refuses and logs, once for every error.
+        with freeze_time():
+            webhook_errors.record(403)
+            with mock.patch.object(
+                webhook_errors.cache, "add", wraps=webhook_errors.cache.add
+            ) as add:
+                webhook_errors.record(403)
+
+            add.assert_not_called()
+            self.assertEqual(webhook_errors.counts(), {"4xx": 2, "5xx": 0})
+
+    def test_the_count_lasts_the_hour_on_the_database_cache(self):
+        # The packaged deployments keep the Django cache in the database, whose
+        # increment rewrites an entry with the default timeout of five minutes.
+        call_command("createcachetable", "matrix_test_cache", verbosity=0)
+        with override_settings(
+            CACHES={
+                "default": {
+                    "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+                    "LOCATION": "matrix_test_cache",
+                }
+            }
+        ):
+            with freeze_time() as frozen:
+                webhook_errors.record(403)
+                webhook_errors.record(403)
+                frozen.tick(timedelta(minutes=10))
+
+                self.assertEqual(webhook_errors.counts(), {"4xx": 2, "5xx": 0})
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+)
+class WebhookErrorsDiagnosticsTest(test.APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.staff = UserFactory(is_staff=True)
+        patcher = mock.patch.object(
+            appservice_registration, "ping_appservice", return_value=4
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _check(self):
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.views.httpx.get",
+            return_value=mock.MagicMock(status_code=500),
+        ):
+            self.client.force_authenticate(self.staff)
+            response = self.client.get(DIAGNOSTICS_URL)
+        return {c["name"]: c for c in response.data["checks"]}["webhook_errors"]
+
+    def test_passes_without_errors(self):
+        check = self._check()
+
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["metrics"], {"4xx": 0, "5xx": 0})
+
+    def test_client_errors_are_reported_without_failing(self):
+        # Anyone can call these endpoints, so a 4xx may be a stranger's; a
+        # homeserver with the wrong token also fails appservice_ping.
+        webhook_errors.record(403)
+        webhook_errors.record(400)
+
+        check = self._check()
+
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["metrics"], {"4xx": 2, "5xx": 0})
+        self.assertIn("2 answered with 4xx", check["detail"])
+
+    def test_server_errors_fail(self):
+        webhook_errors.record(500)
+
+        check = self._check()
+
+        self.assertFalse(check["ok"])
+        self.assertEqual(check["metrics"], {"4xx": 0, "5xx": 1})
+        self.assertIn("1 answered with 5xx", check["detail"])
+
+    def test_checks_without_numbers_carry_no_metrics(self):
+        self.client.force_authenticate(self.staff)
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.views.httpx.get",
+            return_value=mock.MagicMock(status_code=500),
+        ):
+            response = self.client.get(DIAGNOSTICS_URL)
+
+        checks = {c["name"]: c for c in response.data["checks"]}
+        self.assertNotIn("metrics", checks["homeserver_configured"])
