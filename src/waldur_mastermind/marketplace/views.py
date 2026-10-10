@@ -6984,6 +6984,11 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     ]
 
 
+@extend_schema_view(
+    list_users=extend_schema(
+        responses=serializers.ProviderUserRoleDetailsSerializer(many=True)
+    )
+)
 class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     """
     Manage sub-projects within a resource (provider perspective).
@@ -7023,6 +7028,13 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
         # including users who have not accepted the offering's terms.
         return utils.user_roles_for_provider_caller(
             self.request.user, scope, scope.resource.offering, user
+        )
+
+    def get_list_users_serializer(self, queryset, scope):
+        return serializers.ProviderUserRoleDetailsSerializer(
+            queryset,
+            many=True,
+            context={"request": self.request, "offering": scope.resource.offering},
         )
 
     @extend_schema(responses={status.HTTP_200_OK: StatusSerializer})
@@ -10334,6 +10346,11 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         description="Partially updates the name or description of a resource. Requires provider permissions.",
     ),
 )
+@extend_schema_view(
+    list_users=extend_schema(
+        responses=serializers.ProviderUserRoleDetailsSerializer(many=True)
+    )
+)
 class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def get_queryset(self):
         # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
@@ -10360,6 +10377,13 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def get_user_roles_queryset(self, scope, user=None):
         return utils.user_roles_for_provider_caller(
             self.request.user, scope, scope.offering, user
+        )
+
+    def get_list_users_serializer(self, queryset, scope):
+        return serializers.ProviderUserRoleDetailsSerializer(
+            queryset,
+            many=True,
+            context={"request": self.request, "offering": scope.offering},
         )
 
     @extend_schema(

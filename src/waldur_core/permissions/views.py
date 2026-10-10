@@ -823,9 +823,7 @@ class UserRoleMixin:
             # Count-only request (the `_count` companion): the X-Result-Count
             # header is set from the paginator, so skip serialising the page.
             return self.get_paginated_response([])
-        serializer = serializers.UserRoleDetailsSerializer(
-            queryset, many=True, context={"request": request}
-        )
+        serializer = self.get_list_users_serializer(queryset, scope)
         data = self.filter_user_roles_representation(serializer.data, scope, request)
         return self.get_paginated_response(data)
 
@@ -833,6 +831,15 @@ class UserRoleMixin:
         """Hook for subclasses to refuse list_users query parameters the viewer
         may not use (e.g. searching by an attribute concealed from them).
         Default: every parameter is allowed."""
+
+    def get_list_users_serializer(self, queryset, scope):
+        """Hook for subclasses to serialise the list_users page with a richer
+        serializer (e.g. adding the user attributes a service provider may
+        see). Its schema must be declared on the subclass's list_users too.
+        Default: the role details every scope's team listing returns."""
+        return serializers.UserRoleDetailsSerializer(
+            queryset, many=True, context={"request": self.request}
+        )
 
     def filter_user_roles_representation(self, data, scope, request):
         """Hook for subclasses to redact fields from the list_users payload

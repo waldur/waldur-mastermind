@@ -12,6 +12,10 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.serializers import (
+    ProviderUserRoleDetailsSerializer,
+    UserProfileAttributeFieldsMixin,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
@@ -412,3 +416,113 @@ class ProviderResourceListUsersConsentTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.provider_owner)
         response = self.client.get(self.provider_url)
         self.assertIn(self.member.uuid.hex, self._user_uuids(response))
+
+
+class ProviderListUsersUserAttributesTest(test.APITestCase):
+    """Provider list_users returns the user attributes the offering exposes to
+    its service provider, e.g. the civil number a site agent matches users by
+    in an identity provider Waldur does not share."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.offering = self.resource.offering
+        self.rp = models.ResourceProject.objects.create(
+            resource=self.resource, name="Project A"
+        )
+        self.member = structure_factories.UserFactory(civil_number="EE38001010000")
+
+        rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
+        rp_role = Role.objects.create(
+            name="Project Member", content_type=rp_ct, is_system_role=False
+        )
+        UserRole.objects.create(
+            user=self.member, role=rp_role, content_type=rp_ct, object_id=self.rp.id
+        )
+        resource_ct = ContentType.objects.get_for_model(models.Resource)
+        resource_role = Role.objects.create(
+            name="Cluster Member", content_type=resource_ct, is_system_role=False
+        )
+        UserRole.objects.create(
+            user=self.member,
+            role=resource_role,
+            content_type=resource_ct,
+            object_id=self.resource.id,
+        )
+        # See ProviderResourceListUsersTest: the test DB has no permissions.yaml.
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        self.client.force_authenticate(self.fixture.offering_manager)
+
+    def _expose(self, **flags):
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering, **flags
+        )
+
+    def _provider_resource_rows(self):
+        response = self.client.get(
+            marketplace_factories.ResourceFactory.get_provider_resource_url(
+                self.resource, action="list_users"
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def _provider_resource_project_rows(self):
+        response = self.client.get(
+            reverse(
+                "marketplace-provider-resource-project-list-users",
+                kwargs={"uuid": self.rp.uuid.hex},
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def test_resource_project_returns_exposed_civil_number(self):
+        self._expose(expose_civil_number=True)
+        rows = self._provider_resource_project_rows()
+        self.assertEqual(rows[0]["user_civil_number"], "EE38001010000")
+
+    def test_resource_returns_exposed_civil_number(self):
+        self._expose(expose_civil_number=True)
+        rows = self._provider_resource_rows()
+        self.assertEqual(rows[0]["user_civil_number"], "EE38001010000")
+
+    def test_attribute_not_exposed_is_omitted(self):
+        self._expose(expose_civil_number=False, expose_organization=True)
+        row = self._provider_resource_project_rows()[0]
+        self.assertNotIn("user_civil_number", row)
+        self.assertIn("user_organization", row)
+
+    @override_config(DEFAULT_OFFERING_USER_ATTRIBUTES=["username", "full_name"])
+    def test_offering_without_config_uses_default_attributes(self):
+        row = self._provider_resource_rows()[0]
+        self.assertNotIn("user_civil_number", row)
+        self.assertNotIn("user_phone_number", row)
+
+    def test_role_details_fields_are_not_gated(self):
+        self._expose(expose_email=False, expose_full_name=False)
+        row = self._provider_resource_project_rows()[0]
+        self.assertEqual(row["user_email"], self.member.email)
+        self.assertEqual(row["user_full_name"], self.member.full_name)
+        self.assertEqual(row["user_username"], self.member.username)
+
+    def test_consumer_list_users_has_no_user_attributes(self):
+        self._expose(expose_civil_number=True)
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(staff)
+        response = self.client.get(
+            marketplace_factories.ResourceFactory.get_url(
+                self.resource, action="list_users"
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("user_civil_number", response.data[0])
+
+    def test_every_profile_field_is_gated_by_an_attribute(self):
+        # A field added to the mixin without an entry in
+        # OfferingUserSerializer.USER_ATTRIBUTE_FIELD_MAP would be returned
+        # to providers regardless of the offering's config.
+        self.assertEqual(
+            set(ProviderUserRoleDetailsSerializer.GATED_FIELD_ATTRIBUTES),
+            set(UserProfileAttributeFieldsMixin._declared_fields),
+        )
