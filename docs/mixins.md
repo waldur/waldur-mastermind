@@ -100,6 +100,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ResourceDetailsMixin`](#resourcedetailsmixin) | `waldur_mastermind.marketplace.models` | Mixin combining resource details with cost estimation |
 | [`SafeAttributesMixin`](#safeattributesmixin) | `waldur_mastermind.marketplace.models` | Mixin for safe attribute handling |
 | [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
+| [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
 | [`ScopeHelperAgreementMixin`](#scopehelperagreementmixin) | `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission` | Each helper must list exactly the scopes has_permission allows |
@@ -110,6 +111,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`TenantMixin`](#tenantmixin) | `waldur_mastermind.marketplace_openstack.processors` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
+| [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
 | [`EstimatedCostPolicyMixin`](#estimatedcostpolicymixin) | `waldur_mastermind.policy.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
@@ -1419,6 +1421,21 @@ which is distinct from any real state.
 
 **Base classes:** `Serializer`
 
+### UserProfileAttributeFieldsMixin
+
+**Module:** `waldur_mastermind.marketplace.serializers`
+
+**Description:**
+
+Read-only ``user_<attr>`` fields for the personal-data attributes an
+offering may expose to its service provider (OfferingUserAttributeConfig).
+
+Sources are relative to an object with a ``user`` attribute, so the mixin
+serves both offering users and user role grants. Username, full name and
+email are declared by the serializers themselves.
+
+**Base classes:** `Serializer`
+
 ### DerivedLimitsOrderMixin
 
 **Module:** `waldur_mastermind.marketplace.tests.test_derived_limits`
@@ -1508,6 +1525,14 @@ class MyTestClass(SelectiveDNSMockMixin, test.APITransactionTestCase):
 **Description:**
 
 Mixin to execute scripts in containers for marketplace script processing.
+
+### AppserviceErrorCountMixin
+
+**Module:** `waldur_mastermind.matrix_chat.views`
+
+**Description:**
+
+Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic.
 
 ### MatrixEnabledWriteGuardMixin
 
