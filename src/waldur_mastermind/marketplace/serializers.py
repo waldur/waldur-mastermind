@@ -1,4 +1,5 @@
 import datetime
+import functools
 import ipaddress
 import logging
 import math
@@ -56,6 +57,7 @@ from waldur_core.core.models import (
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions import models as permission_models
+from waldur_core.permissions import serializers as permission_serializers
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -10895,44 +10897,15 @@ class OfferingUserPosixUpdateResponseSerializer(serializers.Serializer):
     )
 
 
-class OfferingUserSerializer(
-    core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
-):
+class UserProfileAttributeFieldsMixin(serializers.Serializer):
     """
-    Serializer for OfferingUser that exposes user attributes based on
-    per-offering configuration (OfferingUserAttributeConfig).
+    Read-only ``user_<attr>`` fields for the personal-data attributes an
+    offering may expose to its service provider (OfferingUserAttributeConfig).
 
-    All user attribute fields are defined in the schema for SDK generation.
-    At runtime, fields are filtered based on the offering's configuration,
-    supporting GDPR compliance by exposing only declared personal data.
+    Sources are relative to an object with a ``user`` attribute, so the mixin
+    serves both offering users and user role grants. Username, full name and
+    email are declared by the serializers themselves.
     """
-
-    offering = serializers.HyperlinkedRelatedField(
-        queryset=models.Offering.objects.all(),
-        view_name="marketplace-provider-offering-detail",
-        lookup_field="uuid",
-        required=False,
-    )
-    offering_uuid = serializers.SlugRelatedField(
-        queryset=models.Offering.objects.all(), slug_field="uuid", required=False
-    )
-    offering_name = serializers.ReadOnlyField(source="offering.name")
-    user = serializers.HyperlinkedRelatedField(
-        queryset=User.objects.all(),
-        view_name="user-detail",
-        lookup_field="uuid",
-        required=False,
-    )
-    user_uuid = serializers.SlugRelatedField(
-        queryset=User.objects.all(), slug_field="uuid", required=False
-    )
-
-    # Core user attributes (controlled by OfferingUserAttributeConfig)
-    user_username = serializers.ReadOnlyField(source="user.username")
-    user_full_name = serializers.ReadOnlyField(source="user.full_name")
-    user_first_name = serializers.ReadOnlyField(source="user.first_name")
-    user_last_name = serializers.ReadOnlyField(source="user.last_name")
-    user_email = serializers.ReadOnlyField(source="user.email")
 
     # Extended profile attributes
     user_phone_number = serializers.ReadOnlyField(source="user.phone_number")
@@ -10997,6 +10970,48 @@ class OfferingUserSerializer(
             "User is deactivated when this becomes empty."
         ),
     )
+
+
+class OfferingUserSerializer(
+    UserProfileAttributeFieldsMixin,
+    core_serializers.RestrictedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """
+    Serializer for OfferingUser that exposes user attributes based on
+    per-offering configuration (OfferingUserAttributeConfig).
+
+    All user attribute fields are defined in the schema for SDK generation.
+    At runtime, fields are filtered based on the offering's configuration,
+    supporting GDPR compliance by exposing only declared personal data.
+    """
+
+    offering = serializers.HyperlinkedRelatedField(
+        queryset=models.Offering.objects.all(),
+        view_name="marketplace-provider-offering-detail",
+        lookup_field="uuid",
+        required=False,
+    )
+    offering_uuid = serializers.SlugRelatedField(
+        queryset=models.Offering.objects.all(), slug_field="uuid", required=False
+    )
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+    user = serializers.HyperlinkedRelatedField(
+        queryset=User.objects.all(),
+        view_name="user-detail",
+        lookup_field="uuid",
+        required=False,
+    )
+    user_uuid = serializers.SlugRelatedField(
+        queryset=User.objects.all(), slug_field="uuid", required=False
+    )
+
+    # Core user attributes (controlled by OfferingUserAttributeConfig)
+    user_username = serializers.ReadOnlyField(source="user.username")
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_first_name = serializers.ReadOnlyField(source="user.first_name")
+    user_last_name = serializers.ReadOnlyField(source="user.last_name")
+    user_email = serializers.ReadOnlyField(source="user.email")
 
     customer_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
@@ -12140,6 +12155,51 @@ class UserChecklistCompletionListSerializer(serializers.ListSerializer):
             for item in items:
                 item._offering_user_cache = offering_users_map.get(item.scope_object_id)
         return super().to_representation(items)
+
+
+class ProviderUserRoleDetailsSerializer(
+    UserProfileAttributeFieldsMixin, permission_serializers.UserRoleDetailsSerializer
+):
+    """
+    A user role grant as the offering's service provider sees it: the role
+    details plus the personal-data attributes the offering exposes.
+
+    Username, full name and email are returned as on every list_users. Each
+    other ``user_<attr>`` field is dropped unless the offering's
+    OfferingUserAttributeConfig exposes the attribute. The offering comes from
+    ``context["offering"]``; every row of a listing shares it.
+    """
+
+    # Profile field name -> the attribute name OfferingUserAttributeConfig uses.
+    GATED_FIELD_ATTRIBUTES = {
+        field_name: attr
+        for attr, field_name in OfferingUserSerializer.USER_ATTRIBUTE_FIELD_MAP.items()
+        if field_name in UserProfileAttributeFieldsMixin._declared_fields
+    }
+
+    class Meta(permission_serializers.UserRoleDetailsSerializer.Meta):
+        fields = permission_serializers.UserRoleDetailsSerializer.Meta.fields + tuple(
+            UserProfileAttributeFieldsMixin._declared_fields
+        )
+
+    @functools.cached_property
+    def _hidden_fields(self) -> set[str]:
+        exposed = set(
+            models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(
+                self.context["offering"]
+            )
+        )
+        return {
+            field_name
+            for field_name, attr in self.GATED_FIELD_ATTRIBUTES.items()
+            if attr not in exposed
+        }
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field_name in self._hidden_fields:
+            data.pop(field_name, None)
+        return data
 
 
 class UserChecklistCompletionOfferingUserSerializer(serializers.ModelSerializer):
