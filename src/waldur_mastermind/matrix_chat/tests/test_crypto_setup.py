@@ -4,7 +4,7 @@ from unittest import mock
 import httpx
 import respx
 from constance.test import override_config
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -266,13 +266,14 @@ class CryptoSetupViewTest(test.APITestCase):
         scrub.apply_async.assert_called_once()
         self.assertEqual(
             scrub.apply_async.call_args.kwargs["countdown"],
-            int(crypto_setup.LEASE_TTL.total_seconds()),
+            int(crypto_setup.LEASE_TTL.total_seconds()) + views.SCRUB_MARGIN_SECONDS,
         )
 
-        response = self._escrow(response.data["lease"])
+        lease = response.data["lease"]
+        response = self._escrow(lease)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        scrub.delay.assert_called_once()
+        scrub.delay.assert_called_once_with(MXID, lease, escrowed=True)
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.recovery_key, RECOVERY_KEY)
 
@@ -585,6 +586,43 @@ class RecoveryKeyViewTest(test.APITestCase):
 
 
 @override_config(**MATRIX)
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+@mock.patch.object(
+    matrix_client, "get_secret_storage_state", return_value=(None, None, False)
+)
+@mock.patch.object(
+    matrix_client, "get_cross_signing_master_key", return_value=MASTER_KEY
+)
+@mock.patch.object(matrix_client, "ensure_user_exists", return_value=MXID)
+@mock.patch.object(matrix_client, "set_password")
+class EagerResetTest(test.APITestCase):
+    """With tasks run at once, as in development and CI."""
+
+    def setUp(self):
+        self.profile = _profile()
+        self.client.force_authenticate(self.profile.user)
+
+    def test_the_temporary_password_lasts_until_the_key_is_escrowed(
+        self, set_password, *mocks
+    ):
+        response = self.client.post(LEASE_URL, {"kind": "reset"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Set, and not yet replaced: the drawer still has to use it.
+        set_password.assert_called_once_with(MXID, response.data["temporary_password"])
+
+        self.client.post(
+            ESCROW_URL,
+            {"lease": response.data["lease"], "recovery_key": RECOVERY_KEY},
+        )
+
+        self.assertEqual(set_password.call_count, 2)
+        self.assertNotEqual(
+            set_password.call_args.args[1], response.data["temporary_password"]
+        )
+
+
+@override_config(**MATRIX)
 @mock.patch.object(matrix_client, "set_password")
 class ScrubTemporaryPasswordTest(TestCase):
     def test_replaces_the_password(self, set_password):
@@ -616,6 +654,41 @@ class ScrubTemporaryPasswordTest(TestCase):
             tasks.scrub_expired_temporary_passwords()
 
         delay.assert_called_once_with(MXID)
+
+    def test_leaves_the_password_of_a_reset_still_under_way(self, set_password):
+        # An eager Celery runs the scrub the lease view schedules at once,
+        # before the drawer has used the password.
+        _profile(
+            crypto_lease="lease-1",
+            crypto_lease_kind=models.CryptoLeaseKinds.RESET,
+            crypto_lease_expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+        tasks.scrub_temporary_matrix_password(MXID, "lease-1")
+
+        set_password.assert_not_called()
+
+    def test_scrubs_once_the_reset_key_is_escrowed(self, set_password):
+        _profile(
+            crypto_lease="lease-1",
+            crypto_lease_kind=models.CryptoLeaseKinds.RESET,
+            crypto_lease_expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+        tasks.scrub_temporary_matrix_password(MXID, "lease-1", escrowed=True)
+
+        set_password.assert_called_once()
+
+    def test_scrubs_once_the_lease_has_run_out(self, set_password):
+        _profile(
+            crypto_lease="lease-1",
+            crypto_lease_kind=models.CryptoLeaseKinds.RESET,
+            crypto_lease_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        tasks.scrub_temporary_matrix_password(MXID, "lease-1")
+
+        set_password.assert_called_once()
 
     def test_leaves_a_newer_reset_alone(self, set_password):
         _profile(

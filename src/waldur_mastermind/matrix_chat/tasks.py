@@ -515,14 +515,17 @@ REVOCATION_RETRY = dict(
     # The password lets anyone who saw it sign in, so keep trying.
     **REVOCATION_RETRY,
 )
-def scrub_temporary_matrix_password(matrix_user_id, lease=""):
+def scrub_temporary_matrix_password(matrix_user_id, lease="", escrowed=False):
     """Replace the temporary password an encryption reset was given.
 
-    Runs when the new recovery key is escrowed, when the reset's lease runs out
-    in case it never is, and from the periodic sweep. Skipped while a newer
-    reset of the same user is under way: that one needs its own password, and
-    scrubs it itself. Decided under the profile's lock, so a late retry can't
-    replace a newer reset's password between the check and the write.
+    Runs when the new recovery key is escrowed, when the reset's lease is
+    released or runs out, and from the periodic sweep. Skipped while a reset of
+    the same user is under way and may still need its password: a newer one
+    always, and the one that took ``lease`` until its key is escrowed
+    (``escrowed``). So a run that comes early, as with an eager Celery that runs
+    the lease-time scrub at once, leaves the password to the later ones.
+    Decided under the profile's lock, so a late retry can't replace a newer
+    reset's password between the check and the write.
     """
     with transaction.atomic():
         profile = (
@@ -534,7 +537,7 @@ def scrub_temporary_matrix_password(matrix_user_id, lease=""):
             profile
             and profile.crypto_lease_kind == models.CryptoLeaseKinds.RESET
             and profile.crypto_lease
-            and profile.crypto_lease != lease
+            and (profile.crypto_lease != lease or not escrowed)
             and profile.crypto_lease_expires_at
             and profile.crypto_lease_expires_at > timezone.now()
         ):
