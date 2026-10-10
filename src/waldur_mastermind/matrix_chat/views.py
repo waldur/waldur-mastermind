@@ -795,6 +795,10 @@ def _caller_profile(request):
     return models.MatrixUserProfile.objects.get(user=request.user)
 
 
+# The lease-time scrub runs this long after the lease's end, so that it does
+# not find the lease still held and skip.
+SCRUB_MARGIN_SECONDS = 5
+
 _CRYPTO_UNAVAILABLE = OpenApiResponse(
     description="The homeserver could not be asked, or the bot is not a "
     "homeserver admin (needed for a reset)."
@@ -841,9 +845,12 @@ class MatrixCryptoLeaseView(views.APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         if password:
+            # Due once the lease has run out; the task leaves a password
+            # whose lease is still held alone, so a run any earlier is a no-op.
             tasks.scrub_temporary_matrix_password.apply_async(
                 (profile.matrix_user_id, lease),
-                countdown=int(crypto_setup.LEASE_TTL.total_seconds()),
+                countdown=int(crypto_setup.LEASE_TTL.total_seconds())
+                + SCRUB_MARGIN_SECONDS,
             )
             event_logger.emit(
                 "User {affected_user_username} has started resetting their chat "
@@ -901,8 +908,9 @@ class MatrixCryptoEscrowView(views.APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         if kind == models.CryptoLeaseKinds.RESET:
+            # The new key is escrowed: the reset needs its password no more.
             tasks.scrub_temporary_matrix_password.delay(
-                profile.matrix_user_id, data.validated_data["lease"]
+                profile.matrix_user_id, data.validated_data["lease"], escrowed=True
             )
         event_logger.emit(
             "User {affected_user_username} has stored the chat encryption "
