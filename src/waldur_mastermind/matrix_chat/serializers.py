@@ -472,6 +472,16 @@ class LiveKitTrackSerializer(serializers.Serializer):
     muted = serializers.BooleanField()
     width = serializers.IntegerField()
     height = serializers.IntegerField()
+    source = serializers.CharField(
+        help_text="What the track carries, as LiveKit names it: CAMERA, "
+        "MICROPHONE, SCREEN_SHARE, SCREEN_SHARE_AUDIO or UNKNOWN."
+    )
+    encryption = serializers.CharField(
+        help_text="How the publisher encrypts the track's media end to end, "
+        "as LiveKit names it: GCM (LiveKit's end-to-end encryption, which "
+        "Matrix calls in encrypted rooms use), CUSTOM (another scheme) or "
+        "NONE (only encrypted between the browser and LiveKit)."
+    )
 
 
 class LiveKitParticipantSerializer(serializers.Serializer):
