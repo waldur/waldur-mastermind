@@ -143,6 +143,18 @@ class CrossSignedDevicesTest(SimpleTestCase):
             set(cross_signing.cross_signed_devices(USER, response)), {"SIGNED"}
         )
 
+    def test_a_signed_device_of_another_user_is_refused(self):
+        # Signed by this user's self-signing key, but it says it is someone
+        # else's device.
+        response = self.identity.response()
+        device = response["device_keys"][USER]["SIGNED"]
+        device["user_id"] = "@mallory:test"
+        device.pop("signatures")
+        response["device_keys"][USER]["SIGNED"] = self.identity.self_signing.sign(
+            device, USER
+        )
+        self.assertEqual(cross_signing.cross_signed_devices(USER, response), {})
+
     def test_a_device_whose_keys_were_swapped_is_refused(self):
         response = self.identity.response()
         response["device_keys"][USER]["SIGNED"]["keys"]["ed25519:SIGNED"] = (

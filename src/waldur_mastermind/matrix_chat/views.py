@@ -1,6 +1,8 @@
+import base64
 import hashlib
 import hmac
 import logging
+import os
 import re
 import secrets
 from datetime import timedelta
@@ -11,8 +13,9 @@ import yaml
 from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, StreamingHttpResponse
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
@@ -56,6 +59,7 @@ from . import (
     tasks,
     webhook_errors,
 )
+from .crypto import export_files
 from .managers import (
     can_manage_room,
     filter_exports_for_request,
@@ -242,21 +246,31 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
     @extend_schema(
         summary="Trigger manual history export",
         request=None,
-        responses={202: serializers.MatrixHistoryExportSerializer},
+        responses={
+            202: serializers.MatrixHistoryExportSerializer,
+            200: serializers.MatrixHistoryExportSerializer,
+        },
     )
     @action(detail=True, methods=["post"])
     def export_history(self, request, uuid=None):
         room = self.get_object()
-        export = models.MatrixHistoryExport.objects.create(
-            room=room,
-            export_type=models.ExportTypes.MANUAL,
-        )
-        export_uuid = str(export.uuid)
-        transaction.on_commit(lambda: tasks.export_room_history.delay(export_uuid))
+        # A room's unfinished manual export is returned rather than queued
+        # again, and a room gets a bounded number a day.
+        try:
+            export, created = bot_state.request_export(room, models.ExportTypes.MANUAL)
+        except bot_state.ExportLimitReached as error:
+            raise Throttled(detail=str(error))
+        if created:
+            export_uuid = str(export.uuid)
+            transaction.on_commit(lambda: tasks.export_room_history.delay(export_uuid))
         output_serializer = serializers.MatrixHistoryExportSerializer(
             export, context=self.get_serializer_context()
         )
-        return Response(output_serializer.data, status=status.HTTP_202_ACCEPTED)
+        # 200 for the export already asked for: nothing new was accepted.
+        return Response(
+            output_serializer.data,
+            status=status.HTTP_202_ACCEPTED if created else status.HTTP_200_OK,
+        )
 
     export_history_permissions = [can_manage_room]
 
@@ -296,7 +310,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
                     raise ValidationError(
                         f"Cannot retry room in state {room.get_state_display()}."
                     )
-                room.save(update_fields=["state", "error_message"])
+                room.save(update_fields=["state", "error_message", "closing_export"])
             if room.state == models.RoomStates.DISABLING:
                 # The original delete_history choice isn't persisted on the row,
                 # so retry defaults to False (non-destructive).
@@ -335,7 +349,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
                 raise ValidationError(
                     f"Cannot disable room in state {room.get_state_display()}."
                 )
-            room.save(update_fields=["state"])
+            room.save(update_fields=["state", "closing_export"])
             transaction.on_commit(
                 lambda: tasks.disable_room.delay(
                     room_uuid,
@@ -366,7 +380,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
                 raise ValidationError(
                     f"Cannot reactivate room in state {room.get_state_display()}."
                 )
-            room.save(update_fields=["state"])
+            room.save(update_fields=["state", "closing_export"])
             transaction.on_commit(
                 lambda: tasks.sync_project_members_to_room.delay(room_uuid)
             )
@@ -2043,6 +2057,46 @@ class MatrixReprovisionView(views.APIView):
         )
 
 
+def _no_store(response):
+    """An export download is a room's history in clear: kept by no cache."""
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+class _DecryptedStream:
+    """A stored export file, decrypted chunk by chunk as it is sent.
+
+    The response closes it when it is done with it, sent or not, which closes
+    the stored file even if no chunk was ever asked for.
+    """
+
+    def __init__(self, stored, data_key, file_kind, export, kind):
+        self._stored = stored
+        self._chunks = export_files.decrypt_chunks(data_key, file_kind, stored)
+        self._export = export
+        self._kind = kind
+
+    def __iter__(self):
+        try:
+            yield from self._chunks
+        except (export_files.ExportFileError, OSError):
+            # Checked in full before the first chunk was sent, so the file
+            # changed in storage since. Raised on, so the server drops the
+            # connection: the client gets a broken download, not one that
+            # looks complete.
+            logger.warning(
+                "History export %s (%s) changed while it was being sent; "
+                "the download was aborted",
+                self._export.uuid,
+                self._kind,
+            )
+            raise
+
+    def close(self):
+        self._chunks.close()
+        self._stored.close()
+
+
 class MatrixHistoryExportDownloadView(views.APIView):
     """Stream a Matrix history export file or its media zip.
 
@@ -2053,6 +2107,8 @@ class MatrixHistoryExportDownloadView(views.APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_export_download"
 
     @extend_schema(
         summary="Download a Matrix history export file",
@@ -2081,15 +2137,80 @@ class MatrixHistoryExportDownloadView(views.APIView):
         file_field = export.export_file if kind == "export" else export.media_file
         if not file_field:
             raise Http404
+        if export.data_key:
+            return _no_store(self._decrypted(export, file_field, kind))
+        # Written before export files were encrypted: served as stored.
         # Force octet-stream: the export is a .json file, and Django would
         # otherwise label it application/json. The SPA downloads via a generic
         # get<Blob>() helper that JSON-parses any application/json response
         # instead of returning a Blob, breaking the download. An as_attachment
         # stream is opaque bytes to the client, so octet-stream is correct.
-        return FileResponse(
-            file_field.open("rb"),
-            as_attachment=True,
+        return _no_store(
+            FileResponse(
+                self._open(export, file_field, kind),
+                as_attachment=True,
+                content_type="application/octet-stream",
+            )
+        )
+
+    def _decrypted(self, export, file_field, kind):
+        """Stream the file decrypted, one chunk at a time.
+
+        Every chunk is checked before the first is sent, and the stream is then
+        read from the same open file, so a file altered at rest is refused
+        rather than sent in part. Only a file changed in storage while it is
+        being sent can still abort the download: the chunk that no longer
+        checks out is not sent, nor anything after it, and the connection is
+        dropped.
+        """
+        file_kind = (
+            export_files.KIND_MESSAGES if kind == "export" else export_files.KIND_MEDIA
+        )
+        try:
+            data_key = base64.b64decode(export.data_key, validate=True)
+        except ValueError:
+            return self._undecryptable(export, kind)
+        stored = self._open(export, file_field, kind)
+        try:
+            export_files.verify(data_key, file_kind, stored)
+            stored.seek(0)
+        except (export_files.ExportFileError, OSError):
+            stored.close()
+            return self._undecryptable(export, kind)
+
+        response = StreamingHttpResponse(
+            _DecryptedStream(stored, data_key, file_kind, export, kind),
             content_type="application/octet-stream",
+        )
+        response["Content-Disposition"] = content_disposition_header(
+            True, os.path.basename(file_field.name)
+        )
+        return response
+
+    @staticmethod
+    def _open(export, file_field, kind):
+        try:
+            # Asked first: the database storage opens a file it has no row for
+            # as an empty one rather than failing.
+            if not file_field.storage.exists(file_field.name):
+                raise FileNotFoundError(file_field.name)
+            return file_field.open("rb")
+        except OSError:
+            # Recorded, but gone from storage.
+            logger.warning(
+                "History export %s (%s) is missing its file", export.uuid, kind
+            )
+            raise Http404
+
+    @staticmethod
+    def _undecryptable(export, kind):
+        logger.warning("History export %s (%s) cannot be decrypted", export.uuid, kind)
+        return Response(
+            {
+                "detail": "The export cannot be decrypted: its file was "
+                "altered, or the key that encrypted it is no longer configured."
+            },
+            status=status.HTTP_409_CONFLICT,
         )
 
 

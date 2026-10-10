@@ -342,7 +342,7 @@ def on_project_pre_delete(sender, instance, **kwargs):
             # alone rather than 500-ing inside the pre_delete signal handler.
             logger.info("Room %s skipped disable: already in %s", room.uuid, room.state)
             return
-        room.save(update_fields=["state"])
+        room.save(update_fields=["state", "closing_export"])
 
     if room.state == RoomStates.DISABLING:
         room_uuid = str(room.uuid)

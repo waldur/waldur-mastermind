@@ -180,6 +180,23 @@ _SECRET_NAMES = [
     "secret_key",
     "derived",
     "private_key",
+    # Room history the bot decrypts for an export, and attachment keys.
+    "decrypted",
+    "plaintext",
+    "export_messages",
+    "export_message",
+    "export_event",
+    "export_page",
+    "export_data",
+    "json_content",
+    "export_record",
+    "export_line",
+    "prepared_export",
+    "spool_key",
+    "encrypted_file",
+    "encrypted_files",
+    "attachment_key",
+    "data_key",
 ]
 
 

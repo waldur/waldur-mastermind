@@ -46,7 +46,8 @@ The Setup appservice wizard collects everything else it needs. If the homeserver
   cover them in their "Backup and restore", "Monitoring" and "Capacity"
   sections. Back up the homeserver and Waldur's database together, and keep
   `FIELD_ENCRYPTION_KEY` safe: without it no escrowed recovery key can be read
-  (see [Locked identities](#locked-identities)). A history export is not a
+  (see [Locked identities](#locked-identities)), and no history export can be
+  downloaded. A history export is not a
   backup.
 
 ## Appservice Setup
@@ -539,7 +540,8 @@ State transitions:
 - `creating` → `active` (on successful creation)
 - any state → `error` (on failure)
 - `active` / `error` → `disabling` (on disable action or project deletion)
-- `disabling` → `archived` (after members kicked and history exported)
+- `disabling` → `archived` (after members kicked and history exported; see
+  [Exports when a room is disabled](#exports-when-a-room-is-disabled))
 - `archived` → `active` (on reactivate action)
 - `error` / `creating` / `disabling` → `creating` (on retry action)
 - `active` → `creating` (on appservice reprovision)
@@ -726,24 +728,155 @@ Only a reactivation unlocks an account, and it unlocks it whoever locked it. If 
 
 ### Export process
 
-1. Messages are fetched from the homeserver via pagination
-2. If `MATRIX_EXPORT_MEDIA` is enabled, media files are downloaded and packaged into a ZIP archive
-3. Output: JSON file with messages and metadata, optionally a media ZIP
+Rooms are end-to-end encrypted, and the Matrix bot process (`waldur matrix_bot`) is the one member
+that holds their keys, so the bot makes every export. An export in `pending` is a request it takes
+in turn: exports of rooms being disabled first, then manual ones, then the daily ones, the oldest
+first within each.
+
+The bot runs up to three exports side by side, so rooms disabled together are each exported within
+the time disabling one waits. Rooms being disabled may take every slot; manual and daily exports
+take one slot at most between them, one at a time, and one gives way, between two pages or two
+attachments, when a room being disabled finds every slot taken: it goes back to `pending` and starts
+over afterwards.
+
+Messages are read and decrypted in parallel; attachments and saves are done one at a time, rooms
+being disabled first. Time an export spends waiting for another's attachment or save does not
+count toward its 10 minutes, though it does toward the 15 minutes disabling a room waits. An export
+keeps little in memory whatever the size of its room, about 4 MiB: it writes the messages, as it
+reads them, to working files encrypted under a key that exists only in the bot's memory, so nothing
+decrypted reaches the disk either. What takes memory is an attachment in flight (up to 50 MB, twice) and a
+save, which reads the stored files whole, and only one export at a time does either. That keeps the
+bot within the Helm chart's default 600Mi limit with three exports running.
+
+A room has at most one unfinished export of each type: asking for a manual export while one is
+pending or running returns that one (with `200` rather than `202`), and the daily run skips a room
+whose previous daily export the bot has not made yet. A room may have 10 manual exports in 24 hours;
+beyond that the request is refused with `429`.
+
+1. The bot pages through the room's history and decrypts each message with the room keys in its
+   crypto store.
+2. If `MATRIX_EXPORT_MEDIA` is enabled, it downloads each attachment, checks the SHA-256 its message
+   records, decrypts it with the key the message carries, and packs it into a ZIP archive.
+3. Output: a JSON file with the messages and metadata, and the media ZIP if any media was exported.
+
+The JSON has the same layout as before rooms were encrypted, with these fields added to messages:
+
+- `encrypted` — whether the event was sent encrypted (stored by the homeserver as
+  `m.room.encrypted`, including one since redacted). In an encrypted room, an event sent in clear
+  comes from the homeserver or from a client that ignores the room's encryption: don't trust its
+  sender.
+- `verified`, `device_id`, `sender_key` — on every decrypted event: the device that sent it, and
+  whether that device is one its sender's cross-signing identity vouches for, as the chat drawer
+  shows it. The homeserver can put any sender on an event, but can't encrypt it with that sender's
+  keys, so treat `"verified": false` like the drawer's warning: the message may not be from who it
+  names. Keys the bot received from a backup or another device are never `verified`. Two limits:
+  - it trusts the cross-signing identity the homeserver publishes for the sender **now**. A
+    homeserver that replaced a user's identity with one of its own, and signed a device of its own
+    with it, would have that device's messages exported as `verified`;
+  - it is judged when the export is made, not when the message was sent: a device signed or
+    unsigned since then is judged as it is now.
+
+  `sender_identity` below checks the identity against what Waldur holds instead.
+- `sender_identity` — on every decrypted event, how far Waldur itself can vouch for the sender's
+  cross-signing identity, which `verified` takes from the homeserver. `escrowed`, `pinned` and `bot`
+  hold only when the message came from a device that identity signs (its keys as the room key's
+  Olm session vouches for them); a message from any other device is `changed`:
+  - `escrowed`: the recovery key Waldur holds for the user unlocks the master key the homeserver
+    publishes, so the homeserver cannot have replaced it;
+  - `pinned`: Waldur holds no recovery key for the user, and the master key is the one the bot
+    pinned when it first saw it (see [History for new members](#history-for-new-members));
+  - `changed`: neither. The user reset their identity, or the homeserver replaced it; read
+    `verified` on such messages with care. Devices are looked up as they are at export time, so a
+    message from a device the user has since signed out or deleted is `changed` too, as is one
+    whose room key reached the bot forwarded or from a backup: `changed` is a reason to look, not
+    by itself a sign of an attack;
+  - `bot`: the bot's own messages;
+  - `unknown`: not a Waldur user, no master key published or pinned yet, or the check failed.
+  It is judged when the export is made, like `verified`. Its limit: `escrowed` proves the master
+  key is one the escrowed recovery key unlocks, not that it is the latest. A homeserver that keeps
+  an older copy of the user's secret storage could serve an identity the user has since reset away
+  from, as long as it is still stored under the same recovery key.
+- `relation` — what a message relates to: `rel_type` and `event_id` for an edit (`m.replace`) or a
+  thread, `in_reply_to` for a reply. An edit is exported as its own message; `relation` tells it
+  apart from a new one.
+- `media_encrypted: true` on encrypted media. The key that decrypts it is never written to the
+  export.
+
+Some entries say why something is missing instead of leaving it out:
+
+- `"type": "m.room.encrypted", "undecryptable": true` — a message no room key the bot holds
+  decrypts, with its `session_id` and `device_id`. Its sender's client never shared the key with the
+  bot, or the bot's crypto store was reset.
+- `"replay": true` — an encrypted event that reuses the message index of another event under the
+  same room key: a copy of another message, not a new one. Its content is not exported.
+- `"bad_event": true` — an event whose content, once decrypted if it was encrypted, is not a valid
+  event of its type. Only its ID, sender, time and type are exported.
+- `"media_error"` on a message whose attachment is not in the ZIP: `download failed`,
+  `could not be decrypted` (the file does not match the hash its message records, or the message's
+  key is malformed), `too large to export` (over 50 MB), or `export size limit reached` (the export's
+  media passed 200 MB).
+
+One export may run for 10 minutes, not counting waits for other exports' attachments and saves; a
+manual or daily export ends after 30 minutes however long it waited. Past either, it fails. While no bot runs, exports stay `pending`
+and are made once it starts. An export the bot was in the middle of when it stopped is put back to
+`pending` on a normal stop, and fails if the bot crashed.
+
+**Exports depend on the bot's crypto store.** It lives in Waldur's database (schema `matrix_bot`),
+unlocked by a key stored encrypted under `FIELD_ENCRYPTION_KEY`, and holds every room key the bot
+has received since it joined each room. Never reset or delete it, and restore it only together with
+the rest of Waldur's database: a bot with a new store reads nothing that was sent before, and every
+older message is exported as undecryptable.
 
 ### Export states
 
 | State | Description |
 | --- | --- |
-| `pending` | Export has been scheduled |
-| `exporting` | Messages are being fetched |
+| `pending` | Export has been requested and waits for the Matrix bot |
+| `exporting` | The bot is reading and decrypting the room's history |
 | `completed` | Export finished successfully |
 | `failed` | Export failed — see `error_message` |
 
+### Exports when a room is disabled
+
+A room is archived only once its history has been exported (when `MATRIX_HISTORY_EXPORT_ENABLED` is
+on and `delete_history` is not set). The disable task waits up to 15 minutes for the bot's export.
+A room's export starts at once unless three other rooms are being disabled at the same time, and
+then waits only for one of their exports to end. If the bot is not
+running, the export fails, or it does not finish in time, the room goes to `error`
+with the reason in `error_message` and is not archived; its members have already been removed.
+Disable it again to finish: the task uses the export it already requested instead of asking for
+another one, waiting for it if it is still pending or running, and archiving at once if the bot
+has made it meanwhile. Only a failed export is requested again. Archiving clears the error. A room
+reactivated and later disabled again gets a new export.
+
 ### Who can download exports
 
-An export is the room's whole history, media included, so it goes to whoever manages the room and
-no further. Listing exports and downloading their files is open to the same people who can trigger
-an export:
+An export is the room's whole history, media included, **decrypted**: messages that are end-to-end
+encrypted in the room are plain text once downloaded. An export therefore goes to whoever manages
+the room and no further.
+
+At rest, export files are encrypted. Each export gets a random 256-bit key; its message file and
+media archive are encrypted under it with AES-256-GCM in 64 KiB chunks, each chunk bound to its
+position and to which file it belongs, so a file altered, cut short or reassembled in storage is
+refused. The export's key is kept in its row encrypted under `FIELD_ENCRYPTION_KEY` (see
+`docs/field-encryption.md`):
+
+- **Losing `FIELD_ENCRYPTION_KEY` makes every export unreadable**, as it does the escrowed recovery
+  keys. Back it up with the database.
+- **Rotating it** works as for every encrypted field: promote the new key, keep the old one in
+  `FIELD_ENCRYPTION_KEY_FALLBACKS`, run `waldur reencrypt_fields`, then retire the old key. Only the
+  per-export keys are rewritten; the files are not.
+- The download endpoint below decrypts on the fly. It checks every chunk of the file before it sends
+  the first, and answers `409` if the file cannot be decrypted (altered in storage, or written
+  under a key no longer configured), or `404` if the file is gone from storage. A file changed in
+  storage while it is being sent aborts the download at the first chunk that no longer checks out:
+  nothing after it is sent, and the connection is dropped rather than ended as if complete. Downloads are limited to 120 an hour per user, and
+  sent with `Cache-Control: no-store`. The generic media
+  endpoint serves only the ciphertext.
+- Exports written before this encryption was introduced are stored and served as they were, in
+  clear, until retention deletes them.
+
+Listing exports and downloading their files is open to the same people who can trigger an export:
 
 - those holding `MATRIX_ROOM.CREATE` on the project or its organization, by default organization
   owners;

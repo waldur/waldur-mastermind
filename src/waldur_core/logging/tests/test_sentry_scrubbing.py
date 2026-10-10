@@ -60,6 +60,40 @@ def _fail_with_encryption_secrets():
     raise RuntimeError("escrow failed")
 
 
+def _fail_while_exporting_history():
+    # What the bot holds while it exports a room's decrypted history.
+    decrypted = "a decrypted message"  # noqa: F841
+    plaintext = b"a decrypted attachment"  # noqa: F841
+    export_messages = [{"body": "a decrypted message"}]  # noqa: F841
+    encrypted_file = {"key": {"k": "attachment-key"}}  # noqa: F841
+    encrypted_files = {"$event": {"key": {"k": "attachment-key"}}}  # noqa: F841
+    attachment_key = b"attachment-key"  # noqa: F841
+    room_id = "!room:example.org"  # noqa: F841
+    raise RuntimeError("export failed")
+
+
+def _fail_while_writing_export():
+    # Separate from _fail_while_exporting_history: Sentry keeps only the first
+    # few locals of a frame.
+    export_message = {"body": "a decrypted message"}  # noqa: F841
+    export_event = {"content": {"body": "a message"}}  # noqa: F841
+    export_page = {"chunk": [{"content": {"body": "a message"}}]}  # noqa: F841
+    export_data = {"messages": [{"body": "a decrypted message"}]}  # noqa: F841
+    json_content = '{"messages": [{"body": "a decrypted message"}]}'  # noqa: F841
+    room_id = "!room:example.org"  # noqa: F841
+    raise RuntimeError("export failed")
+
+
+def _fail_while_building_export():
+    # Separate again: Sentry keeps only the first few locals of a frame.
+    export_record = {"m": {"body": "a decrypted message"}, "f": {"k": "key"}}  # noqa: F841
+    export_line = b'{"m": {"body": "a decrypted message"}}'  # noqa: F841
+    prepared_export = object()  # noqa: F841
+    spool_key = b"working-file-key"  # noqa: F841
+    room_id = "!room:example.org"  # noqa: F841
+    raise RuntimeError("export failed")
+
+
 def _fail_seeding_settings():
     # What init_matrix_settings holds while it saves the seeded settings.
     supplied = {  # noqa: F841
@@ -142,6 +176,66 @@ class EventScrubberTest(SimpleTestCase):
             "temporary_password",
             "lease",
         ):
+            self.assertEqual(frame_vars[name], "[Filtered]", name)
+        self.assertEqual(frame_vars["room_id"], "'!room:example.org'")
+
+    def test_decrypted_history_in_frame_locals_is_filtered(self):
+        def capture(scope):
+            try:
+                _fail_while_exporting_history()
+            except RuntimeError:
+                scope.capture_exception()
+
+        frames = _send(capture)[0]["exception"]["values"][0]["stacktrace"]["frames"]
+        frame_vars = next(
+            f["vars"]
+            for f in frames
+            if f["function"] == "_fail_while_exporting_history"
+        )
+        for name in (
+            "decrypted",
+            "plaintext",
+            "export_messages",
+            "encrypted_file",
+            "encrypted_files",
+            "attachment_key",
+        ):
+            self.assertEqual(frame_vars[name], "[Filtered]", name)
+        self.assertEqual(frame_vars["room_id"], "'!room:example.org'")
+
+    def test_written_export_in_frame_locals_is_filtered(self):
+        def capture(scope):
+            try:
+                _fail_while_writing_export()
+            except RuntimeError:
+                scope.capture_exception()
+
+        frames = _send(capture)[0]["exception"]["values"][0]["stacktrace"]["frames"]
+        frame_vars = next(
+            f["vars"] for f in frames if f["function"] == "_fail_while_writing_export"
+        )
+        for name in (
+            "export_message",
+            "export_event",
+            "export_page",
+            "export_data",
+            "json_content",
+        ):
+            self.assertEqual(frame_vars[name], "[Filtered]", name)
+        self.assertEqual(frame_vars["room_id"], "'!room:example.org'")
+
+    def test_export_working_state_in_frame_locals_is_filtered(self):
+        def capture(scope):
+            try:
+                _fail_while_building_export()
+            except RuntimeError:
+                scope.capture_exception()
+
+        frames = _send(capture)[0]["exception"]["values"][0]["stacktrace"]["frames"]
+        frame_vars = next(
+            f["vars"] for f in frames if f["function"] == "_fail_while_building_export"
+        )
+        for name in ("export_record", "export_line", "prepared_export", "spool_key"):
             self.assertEqual(frame_vars[name], "[Filtered]", name)
         self.assertEqual(frame_vars["room_id"], "'!room:example.org'")
 

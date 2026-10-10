@@ -9,6 +9,7 @@ import secrets
 import time
 from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import Case, DateTimeField, ExpressionWrapper, F, Q, Value, When
 from django.db.models.functions import Now
 from django.utils import timezone
@@ -202,3 +203,146 @@ def drop_undeliverable(message, reason):
     models.MatrixOutboxMessage.objects.filter(pk=message.pk).update(
         state=models.OutboxStates.FAILED, error_message=reason[:2000]
     )
+
+
+# History exports. Only the bot holds the room keys, so it reads and writes
+# every export; an export waiting in PENDING is a request for it.
+
+_UNFINISHED_EXPORT = Q(
+    state__in=[models.ExportStates.PENDING, models.ExportStates.EXPORTING]
+)
+
+# Manual exports a room may have requested in a day: the bot makes exports one
+# at a time, so the room's managers must not be able to fill its queue.
+MANUAL_EXPORTS_PER_DAY = 10
+
+
+class ExportLimitReached(RuntimeError):
+    """The room has had as many manual exports today as it may."""
+
+
+def request_export(room, export_type):
+    """``(export, created)``: the room's unfinished export of this type if it
+    has one, else a new request. A room never waits in the queue twice for the
+    same kind of export, however often one is asked for.
+
+    Raises ExportLimitReached for a manual export past MANUAL_EXPORTS_PER_DAY.
+    """
+    with transaction.atomic():
+        # Serialises requests for one room, so two cannot both find none.
+        models.MatrixRoom.objects.select_for_update().filter(pk=room.pk).first()
+        exports = models.MatrixHistoryExport.objects.filter(
+            room=room, export_type=export_type
+        )
+        unfinished = exports.filter(_UNFINISHED_EXPORT).order_by("-created").first()
+        if unfinished is not None:
+            return unfinished, False
+        if (
+            export_type == models.ExportTypes.MANUAL
+            and exports.filter(created__gte=timezone.now() - timedelta(days=1)).count()
+            >= MANUAL_EXPORTS_PER_DAY
+        ):
+            raise ExportLimitReached(
+                f"This room has had {MANUAL_EXPORTS_PER_DAY} history exports in "
+                "the last 24 hours. Try again later."
+            )
+        return models.MatrixHistoryExport.objects.create(
+            room=room, export_type=export_type
+        ), True
+
+
+# The order the bot takes exports in: a task that closes a room waits for its
+# export, people wait for theirs, and the daily run waits for nobody.
+_EXPORT_PRIORITY = Case(
+    When(export_type=models.ExportTypes.ON_DELETION, then=Value(0)),
+    When(export_type=models.ExportTypes.MANUAL, then=Value(1)),
+    default=Value(2),
+)
+
+
+def deletion_export_waiting():
+    """Whether the export of a room being closed waits for the bot."""
+    return models.MatrixHistoryExport.objects.filter(
+        state=models.ExportStates.PENDING,
+        export_type=models.ExportTypes.ON_DELETION,
+    ).exists()
+
+
+def claim_next_export(deletions_only=False):
+    """Take the next pending export for the bot: exports of rooms being closed
+    first, which a task is waiting for, then manual ones, then the daily ones;
+    the oldest first within each. None if there is none.
+
+    ``deletions_only`` takes only exports of rooms being closed.
+    """
+    pending = models.MatrixHistoryExport.objects.filter(
+        state=models.ExportStates.PENDING
+    )
+    if deletions_only:
+        pending = pending.filter(export_type=models.ExportTypes.ON_DELETION)
+    while True:
+        export = (
+            pending.select_related("room")
+            .order_by(_EXPORT_PRIORITY, "created", "id")
+            .first()
+        )
+        if export is None:
+            return None
+        # The start time also tells this claim from a later one of the same
+        # export, so a process that lost it cannot write over the next.
+        started_at = timezone.now()
+        claimed = models.MatrixHistoryExport.objects.filter(
+            pk=export.pk, state=models.ExportStates.PENDING
+        ).update(state=models.ExportStates.EXPORTING, started_at=started_at)
+        if claimed:
+            export.state = models.ExportStates.EXPORTING
+            export.started_at = started_at
+            return export
+
+
+def claimed_export(export):
+    """The export, as long as it is still this claim of it."""
+    return models.MatrixHistoryExport.objects.filter(
+        pk=export.pk,
+        state=models.ExportStates.EXPORTING,
+        started_at=export.started_at,
+    )
+
+
+def fail_interrupted_exports():
+    """Fail the exports a bot process stopped in the middle of.
+
+    Called by the process that holds the lease, before it exports anything, so
+    every export still marked as running was left behind. Failed, not retried:
+    an export that brings the bot down would otherwise do so on every start.
+    """
+    return models.MatrixHistoryExport.objects.filter(
+        state=models.ExportStates.EXPORTING
+    ).update(
+        state=models.ExportStates.FAILED,
+        error_message="The Matrix bot stopped during the export.",
+    )
+
+
+def requeue_export(export):
+    """Put back an export the bot was stopped in the middle of, on purpose, or
+    that gave way to one that must not wait."""
+    claimed_export(export).update(state=models.ExportStates.PENDING, started_at=None)
+
+
+def fail_export(export, reason):
+    claimed_export(export).update(
+        state=models.ExportStates.FAILED, error_message=reason[:2000]
+    )
+
+
+def wait_until_exported(export, timeout_seconds):
+    """Wait for the bot to finish ``export``; its state then, or None in time."""
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        export.refresh_from_db(fields=["state", "error_message"])
+        if export.state in (models.ExportStates.COMPLETED, models.ExportStates.FAILED):
+            return export.state
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(2)

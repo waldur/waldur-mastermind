@@ -17,7 +17,7 @@ from waldur_core.permissions.tests.test_pat_list_filtering import (
 )
 from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.matrix_chat import models
+from waldur_mastermind.matrix_chat import bot_state, models
 from waldur_mastermind.matrix_chat.tests import fixtures
 
 # is_enabled() requires all three; the write guard rejects mutations otherwise.
@@ -283,6 +283,32 @@ class MatrixRoomActionsTest(test.APITestCase):
         mock_tasks.export_room_history.delay.assert_called_once()
 
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
+    def test_an_unfinished_export_is_returned_not_queued_again(self, mock_tasks):
+        url = f"/api/matrix/rooms/{self.room.uuid.hex}/export_history/"
+        self.client.force_authenticate(self.fixture.owner)
+        first = self.client.post(url)
+        second = self.client.post(url)
+        self.assertEqual(first.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data["uuid"], second.data["uuid"])
+        self.assertEqual(self.room.exports.count(), 1)
+        mock_tasks.export_room_history.delay.assert_called_once()
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
+    def test_manual_exports_are_limited_per_day(self, mock_tasks):
+        for _ in range(bot_state.MANUAL_EXPORTS_PER_DAY):
+            models.MatrixHistoryExport.objects.create(
+                room=self.room,
+                export_type=models.ExportTypes.MANUAL,
+                state=models.ExportStates.COMPLETED,
+            )
+        url = f"/api/matrix/rooms/{self.room.uuid.hex}/export_history/"
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        mock_tasks.export_room_history.delay.assert_not_called()
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
     def test_staff_can_retry_creating_room(self, mock_tasks):
         self.room.state = models.RoomStates.CREATING
         self.room.save(update_fields=["state"])
@@ -356,6 +382,38 @@ class MatrixRoomActionsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         mock_tasks.create_room.delay.assert_not_called()
         mock_tasks.disable_room.delay.assert_not_called()
+
+    def _with_closing_export(self, state):
+        export = models.MatrixHistoryExport.objects.create(
+            room=self.room,
+            export_type=models.ExportTypes.ON_DELETION,
+            state=models.ExportStates.COMPLETED,
+        )
+        models.MatrixRoom.objects.filter(pk=self.room.pk).update(
+            state=state, closing_export=export
+        )
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
+    def test_retrying_an_erred_room_drops_its_disable_export(self, mock_tasks):
+        self._with_closing_export(models.RoomStates.ERROR)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(f"/api/matrix/rooms/{self.room.uuid.hex}/retry/")
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.state, models.RoomStates.CREATING)
+        self.assertIsNone(self.room.closing_export)
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
+    def test_reactivating_a_room_drops_its_disable_export(self, mock_tasks):
+        self._with_closing_export(models.RoomStates.ARCHIVED)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            f"/api/matrix/rooms/{self.room.uuid.hex}/reactivate/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.state, models.RoomStates.ACTIVE)
+        self.assertIsNone(self.room.closing_export)
 
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
     def test_staff_can_reactivate_room(self, mock_tasks):

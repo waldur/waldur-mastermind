@@ -129,6 +129,16 @@ class MatrixRoom(core_models.UuidMixin, TimeStampedModel):
         default=RoomStates.CREATING,
     )
     error_message = models.TextField(blank=True)
+    # The history export of the room's current disable, asked for once however
+    # often disabling is retried; cleared when the room is archived, so the next
+    # disable after a reactivation exports again.
+    closing_export = models.ForeignKey(
+        "MatrixHistoryExport",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -167,7 +177,14 @@ class MatrixRoom(core_models.UuidMixin, TimeStampedModel):
         target=RoomStates.DISABLING,
     )
     def begin_disabling(self):
-        pass
+        # From an active room this is a new disable: any export left from an
+        # earlier one covers older history only. Every way back to an active
+        # room clears it already (retry_creating, begin_reprovisioning,
+        # reactivate); this is the last line. From an error it is the same
+        # disable tried again, which keeps its export: no other way into an
+        # error keeps one.
+        if self.state == RoomStates.ACTIVE:
+            self.closing_export = None
 
     @transition(field=state, source=RoomStates.DISABLING, target=RoomStates.ARCHIVED)
     def set_archived(self):
@@ -180,15 +197,17 @@ class MatrixRoom(core_models.UuidMixin, TimeStampedModel):
     @transition(field=state, source=RoomStates.ERROR, target=RoomStates.CREATING)
     def retry_creating(self):
         self.error_message = ""
+        self.closing_export = None
 
     @transition(field=state, source=RoomStates.ARCHIVED, target=RoomStates.ACTIVE)
     def reactivate(self):
-        pass
+        self.closing_export = None
 
     @transition(field=state, source=RoomStates.ACTIVE, target=RoomStates.CREATING)
     def begin_reprovisioning(self):
         """Reset room for reprovisioning on a new homeserver."""
         self.error_message = ""
+        self.closing_export = None
 
     @property
     def project(self):
@@ -382,6 +401,13 @@ class MatrixHistoryExport(core_models.UuidMixin, TimeStampedModel):
     error_message = models.TextField(blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    # The key the export's files are encrypted under (base64), itself encrypted
+    # under FIELD_ENCRYPTION_KEY. Empty for exports written before files were
+    # encrypted, which are stored and served as they are. A row whose key no
+    # configured FIELD_ENCRYPTION_KEY decrypts holds the token itself here, and
+    # a full save() would encrypt that token again: save such rows only with
+    # update_fields that leave data_key out.
+    data_key = core_fields.EncryptedTextField(blank=True, default="")
 
     class Meta:
         verbose_name = "Matrix history export"
