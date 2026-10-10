@@ -5,7 +5,8 @@ bot on a device of its own, keeps that device's keys in its crypto store, and:
 
 - syncs, so it can decrypt the commands users send it and answer them;
 - posts everything Waldur queues in the outbox, encrypted for the room;
-- shares room keys only with devices their owner's identity vouches for.
+- shares room keys only with devices their owner's identity vouches for;
+- writes rooms' earlier keys into new members' key backups.
 
 The bot's identity is cross-signed: its master key signs its self-signing key,
 which signs its device, so members' clients see a device the bot vouches for.
@@ -43,7 +44,13 @@ from nio import (
     SyncResponse,
 )
 
-from waldur_mastermind.matrix_chat import bot_state, matrix_client, models, tasks
+from waldur_mastermind.matrix_chat import (
+    bot_state,
+    history_filler,
+    matrix_client,
+    models,
+    tasks,
+)
 from waldur_mastermind.matrix_chat.crypto import cross_signing, nio_compat
 from waldur_mastermind.matrix_chat.crypto.store import PostgresStore
 
@@ -170,6 +177,9 @@ class MatrixBot:
         # between messages, so none is cancelled after the homeserver took it
         # and before it is marked sent, to be sent again later.
         self._sending = asyncio.Lock()
+        self.history = history_filler.HistoryFiller(
+            self, _db, self._renew_lease, TRANSIENT_ERRORS
+        )
 
     # Homeserver calls the bot makes itself: nio 0.26 has no cross-signing.
 
@@ -662,6 +672,25 @@ class MatrixBot:
         else:
             await _db(bot_state.mark_failed_attempt)(message, response)
 
+    # History for new members.
+
+    async def fill_history_forever(self):
+        await self._synced.wait()
+        while True:
+            await self._renew_lease()
+            try:
+                await self.history.fill_due()
+                await self.history.check_versions()
+            except TRANSIENT_ERRORS as error:
+                logger.warning("Matrix bot history fill failed (%s); retrying", error)
+            except LeaseLost:
+                raise
+            except Exception:
+                # History is a convenience: a fill that fails unexpectedly must
+                # not stop the bot from syncing and posting.
+                logger.exception("Matrix bot history fill failed; retrying")
+            await asyncio.sleep(history_filler.POLL_SECONDS)
+
     # Lease.
 
     async def _renew_lease(self):
@@ -707,6 +736,7 @@ class MatrixBot:
         parts = [
             asyncio.create_task(self.sync_forever(), name="sync"),
             asyncio.create_task(self.drain_outbox_forever(), name="outbox"),
+            asyncio.create_task(self.fill_history_forever(), name="history"),
             asyncio.create_task(self.renew_lease_forever(), name="lease"),
             asyncio.create_task(self.watch_config_forever(), name="config"),
             asyncio.create_task(stop.wait(), name="stop"),
@@ -733,6 +763,7 @@ class MatrixBot:
             for part in parts:
                 part.cancel()
             await asyncio.gather(*parts, return_exceptions=True)
+            await self.history.close()
             await self.client.close()
             # AsyncClient.close() closes only HTTP; the store's connection
             # would otherwise outlive each start-over.

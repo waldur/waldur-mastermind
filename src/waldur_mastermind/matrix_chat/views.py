@@ -47,6 +47,7 @@ from . import (
     bot_state,
     crypto_setup,
     filters,
+    history_backfill,
     livekit_client,
     matrix_client,
     models,
@@ -430,9 +431,10 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
             else:
                 # Only an invite still pending: a sync or leave may have moved
                 # the row on while the join was in flight.
-                models.MatrixRoomMember.objects.filter(
+                if models.MatrixRoomMember.objects.filter(
                     pk=member.pk, membership_state=models.MembershipStates.INVITED
-                ).update(membership_state=models.MembershipStates.JOINED)
+                ).update(membership_state=models.MembershipStates.JOINED):
+                    history_backfill.request_member(member)
 
         serializer = serializers.MatrixRoomOpenSerializer({"room_id": room.room_id})
         return Response(serializer.data)
@@ -904,6 +906,7 @@ class MatrixCryptoEscrowView(views.APIView):
             tasks.scrub_temporary_matrix_password.delay(
                 profile.matrix_user_id, data.validated_data["lease"]
             )
+        history_backfill.key_escrowed(profile)
         event_logger.emit(
             "User {affected_user_username} has stored the chat encryption "
             "recovery key of another Matrix client."
@@ -937,11 +940,15 @@ class MatrixCryptoLeaseReleaseView(views.APIView):
             raise Http404
         profile = models.MatrixUserProfile.objects.filter(user=request.user).first()
         lease = data.validated_data["lease"]
-        if profile and crypto_setup.release_lease(profile, lease) == (
-            models.CryptoLeaseKinds.RESET
-        ):
+        kind = crypto_setup.release_lease(profile, lease) if profile else None
+        if kind == models.CryptoLeaseKinds.RESET:
             # A reset that ended, done or failed, needs its password no more.
             tasks.scrub_temporary_matrix_password.delay(profile.matrix_user_id, lease)
+        if kind:
+            # Setting up or resetting encryption makes a new key backup, which
+            # holds nothing yet, and a reset deletes the older ones. The pin is
+            # left alone: only an escrowed key clears it.
+            history_backfill.request_for_user(profile.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

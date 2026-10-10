@@ -63,6 +63,11 @@ class MatrixUserProfile(core_models.UuidMixin, TimeStampedModel):
     # Set while a reset's temporary Matrix password may still work; a periodic
     # sweep replaces any left past this time, so a lost task can't leave it.
     crypto_temporary_password_until = models.DateTimeField(null=True, blank=True)
+    # The user's master cross-signing key as the bot first saw it, for users
+    # whose recovery key Waldur doesn't hold. The bot writes room history only
+    # into a backup this key vouches for, until a key escrowed through Waldur
+    # clears it.
+    pinned_master_key = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         verbose_name = "Matrix user profile"
@@ -232,11 +237,24 @@ class MatrixRoomMember(core_models.UuidMixin, TimeStampedModel):
     # sync and role revocation leave such staff and support users in the room
     # while they are active staff or support.
     manually_joined = models.BooleanField(default=False)
+    # The room's earlier history, written into the member's key backup by the
+    # bot: due from history_due_at; history_backup_version is the backup last
+    # handled, written into or refused as untrusted.
+    history_due_at = models.DateTimeField(null=True, blank=True)
+    history_attempts = models.PositiveSmallIntegerField(default=0)
+    history_backup_version = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         verbose_name = "Matrix room member"
         verbose_name_plural = "Matrix room members"
         unique_together = ("room", "user")
+        indexes = [
+            models.Index(
+                fields=["history_due_at"],
+                condition=models.Q(history_due_at__isnull=False),
+                name="matrix_member_history_due",
+            )
+        ]
 
     def __str__(self):
         return f"{self.matrix_user_id} in {self.room}"
