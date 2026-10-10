@@ -1817,14 +1817,25 @@ def get_secret_storage_state(matrix_user_id):
     The last is whether the cross-signing master key is stored under the default
     key; without it, secret storage that the key opens still unlocks nothing.
     """
+    key_id, key_info, stored_master = get_stored_master_key(matrix_user_id)
+    return key_id, key_info, stored_master is not None
+
+
+def get_stored_master_key(matrix_user_id):
+    """``(key id, key description, stored master key)`` of the user's secret storage.
+
+    The last is the encrypted ``m.cross_signing.master`` item under the default
+    key, or None.
+    """
     default = _get_account_data(matrix_user_id, "m.secret_storage.default_key")
     key_id = (default or {}).get("key")
     if not key_id or not isinstance(key_id, str):
-        return None, None, False
+        return None, None, None
     key_info = _get_account_data(matrix_user_id, f"m.secret_storage.key.{key_id}")
     master = _get_account_data(matrix_user_id, "m.cross_signing.master") or {}
     encrypted = master.get("encrypted") if isinstance(master, dict) else None
-    return key_id, key_info, isinstance(encrypted, dict) and key_id in encrypted
+    stored = encrypted.get(key_id) if isinstance(encrypted, dict) else None
+    return key_id, key_info, stored if isinstance(stored, dict) else None
 
 
 def new_password():

@@ -28,6 +28,11 @@ urlpatterns = [
         name="matrix-credentials-password",
     ),
     path(
+        "api/matrix/credentials/recovery-key/",
+        views.MatrixRecoveryKeyView.as_view(),
+        name="matrix-credentials-recovery-key",
+    ),
+    path(
         "api/matrix/session/",
         views.MatrixSessionView.as_view(),
         name="matrix-session",

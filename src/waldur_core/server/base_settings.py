@@ -140,6 +140,8 @@ REST_FRAMEWORK = {
         # connect and when a token refresh is rejected, a few times an hour.
         "matrix_session": "120/hour",
         "matrix_crypto": "30/hour",
+        # Each call reads the recovery key and checks it on the homeserver.
+        "matrix_recovery_key": "30/hour",
         # The call token API Matrix clients use, unauthenticated: per client
         # address. A join takes one or two requests (Element Call falls back
         # from /get_token to /sfu/get), so this allows a building behind one

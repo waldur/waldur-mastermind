@@ -177,11 +177,22 @@ After a user has opened Waldur's chat once:
   owner's encryption identity has signed, and the drawer does not decrypt messages from any other device.
   Until Element's session is verified, Element cannot read the drawer's or the bot's messages, and the
   drawer cannot read Element's. The drawer cannot verify other devices, so verifying takes the user's
-  recovery key, which Waldur holds and does not show them (see
-  [Encryption keys](matrix-appservice-setup.md#encryption-keys)).
-- Element offers to reset the encryption identity instead. Tuwunel allows that for a session signed in
-  through its OAuth server once the user signs in at the IdP again, without the recovery key. The reset
-  replaces the identity whose recovery key Waldur holds.
+  recovery key, which Waldur's external client dialog shows them (see
+  [Showing the recovery key](matrix-appservice-setup.md#showing-the-recovery-key)). The user guide's
+  "Chat encryption" page (under end users) tells users what the key unlocks and what is encrypted.
+- Element may offer to reset the encryption identity instead. Whether the homeserver lets it depends on
+  how Element signed in. Tuwunel (since 1.6.0, so 1.9.x included) runs its own OAuth server whenever an
+  identity provider and `well_known.client` are configured, and Element versions with next-generation
+  authentication (MSC2965) sign in through it. For such a session Tuwunel allows the reset once the user
+  signs in at the IdP again (MSC4312). A session that signed in through the older SSO redirect
+  (`m.login.sso`) has to answer with the account's password, which SSO users do not have, so it cannot
+  reset. (Tuwunel offers single sign-on for that prompt only to accounts it registered itself at an SSO
+  login with a single identity provider; the accounts Waldur provisions are not among them.) Either way, the recovery key Waldur shows is how to open the user's history in Element; tell
+  users not to reset elsewhere unless every key is lost. A reset replaces the identity whose recovery key
+  Waldur holds and deletes the user's key backup. Element then shows a new recovery key, and the drawer
+  asks for it once on its next session (see
+  [Locked identities](matrix-appservice-setup.md#locked-identities)); until the user enters it, chat in
+  Waldur stays locked.
 - Disabling a user at the IdP stops new SSO logins only. An Element session that is already signed in
   stays valid until it is signed out; deactivate the user in Waldur to end it.
 - Deactivating or deleting a user in Waldur signs out every device, Element included, and locks their

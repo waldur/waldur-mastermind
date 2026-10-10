@@ -23,7 +23,10 @@ from waldur_mastermind.matrix_chat import (
 from waldur_mastermind.matrix_chat.tests.test_recovery_keys import (
     KEY_INFO,
     OTHER_KEY_INFO,
+    OTHER_RECOVERY_KEY,
+    PUBLISHED_MASTER,
     RECOVERY_KEY,
+    STORED_MASTER,
 )
 
 HOMESERVER = "https://matrix.example.com"
@@ -38,6 +41,7 @@ MASTER_KEY = {"user_id": MXID, "usage": ["master"], "keys": {"ed25519:M": "M"}}
 LEASE_URL = "/api/matrix/crypto/lease/"
 RELEASE_URL = "/api/matrix/crypto/lease/release/"
 ESCROW_URL = "/api/matrix/crypto/escrow/"
+RECOVERY_KEY_URL = "/api/matrix/credentials/recovery-key/"
 
 
 def _profile(**kwargs):
@@ -320,6 +324,264 @@ class CryptoSetupViewTest(test.APITestCase):
     def test_anonymous_is_rejected(self, *mocks):
         self.client.force_authenticate(None)
         self.assertEqual(self._lease().status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_bootstrap_escrow_is_not_checked_against_the_homeserver(
+        self, scrub, ensure, master, key_info, set_password
+    ):
+        # Secret storage does not exist yet when a first setup escrows its key.
+        with mock.patch.object(matrix_client, "get_stored_master_key") as stored:
+            self._escrow(self._lease().data["lease"])
+
+        stored.assert_not_called()
+
+
+@override_config(**MATRIX)
+@mock.patch.object(
+    matrix_client,
+    "get_stored_master_key",
+    return_value=("K1", KEY_INFO, STORED_MASTER),
+)
+@mock.patch.object(
+    matrix_client, "get_secret_storage_state", return_value=(None, None, False)
+)
+@mock.patch.object(
+    matrix_client, "get_cross_signing_master_key", return_value=PUBLISHED_MASTER
+)
+@mock.patch.object(matrix_client, "ensure_user_exists", return_value=MXID)
+@mock.patch.object(matrix_client, "set_password")
+@mock.patch.object(tasks, "scrub_temporary_matrix_password")
+class ImportRecoveryKeyTest(test.APITestCase):
+    """A key set up or reset in another client, which Waldur never saw."""
+
+    def setUp(self):
+        self.profile = _profile()
+        self.client.force_authenticate(self.profile.user)
+
+    def _import(self, key=RECOVERY_KEY):
+        response = self.client.post(LEASE_URL, {"kind": "import"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        lease = response.data["lease"]
+        return lease, self.client.post(
+            ESCROW_URL, {"lease": lease, "recovery_key": key}
+        )
+
+    def test_key_from_another_client_is_escrowed(self, scrub, set_password, *mocks):
+        lease, response = self._import()
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.recovery_key, RECOVERY_KEY)
+        set_password.assert_not_called()
+        scrub.delay.assert_not_called()
+        scrub.apply_async.assert_not_called()
+
+    def test_the_lease_ends_with_the_escrow(self, *mocks):
+        # An import uploads nothing after it, so nothing needs the lease.
+        self._import()
+
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.crypto_lease, "")
+        self.assertEqual(self.profile.crypto_lease_kind, "")
+        self.assertIsNone(self.profile.crypto_lease_expires_at)
+
+    def test_is_recorded_as_an_import(self, *mocks):
+        self._import()
+
+        event = Event.objects.get(event_type=EventType.MATRIX_RECOVERY_KEY_ESCROWED)
+        self.assertIn("another Matrix client", event.message)
+        self.assertNotIn(RECOVERY_KEY, event.message)
+
+    def test_key_from_a_reset_in_another_client_replaces_the_stale_one(self, *mocks):
+        self.profile.recovery_key = OTHER_RECOVERY_KEY
+        self.profile.save()
+
+        _, response = self._import()
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.recovery_key, RECOVERY_KEY)
+
+    def test_a_key_that_does_not_open_storage_is_refused(self, *mocks):
+        lease, response = self._import(key=OTHER_RECOVERY_KEY)
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["state"], "wrong_key")
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.recovery_key, "")
+        # The holder may try another key under the same lease.
+        self.assertEqual(self.profile.crypto_lease, lease)
+
+    def test_storage_of_an_older_identity_is_refused(
+        self, scrub, set_password, ensure, master, *mocks
+    ):
+        # The key opens secret storage, but the master key stored there is not
+        # the one the homeserver publishes now.
+        master.return_value = {"keys": {"ed25519:" + "A" * 43: "A" * 43}}
+
+        _, response = self._import()
+
+        self.assertEqual(response.data["state"], "wrong_key")
+
+    def test_storage_without_the_master_key_is_refused(
+        self, scrub, set_password, ensure, master, state, stored
+    ):
+        stored.return_value = ("K1", KEY_INFO, None)
+
+        _, response = self._import()
+
+        self.assertEqual(response.data["state"], "wrong_key")
+
+    def test_an_identity_gone_since_the_lease_is_not_a_wrong_key(
+        self, scrub, set_password, ensure, master, *mocks
+    ):
+        lease = self.client.post(LEASE_URL, {"kind": "import"}).data["lease"]
+        master.return_value = None
+
+        response = self.client.post(
+            ESCROW_URL, {"lease": lease, "recovery_key": RECOVERY_KEY}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["state"], "not_locked")
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.recovery_key, "")
+
+    def test_refused_while_the_escrowed_key_works(
+        self, scrub, set_password, ensure, master, state, stored
+    ):
+        self.profile.recovery_key = RECOVERY_KEY
+        self.profile.save()
+        state.return_value = ("K1", KEY_INFO, True)
+
+        response = self.client.post(LEASE_URL, {"kind": "import"})
+
+        self.assertEqual(response.data["state"], "not_locked")
+
+    def test_refused_without_an_identity(
+        self, scrub, set_password, ensure, master, *mocks
+    ):
+        master.return_value = None
+
+        response = self.client.post(LEASE_URL, {"kind": "import"})
+
+        self.assertEqual(response.data["state"], "not_locked")
+
+    def test_impersonation_is_refused(self, *mocks):
+        self.profile.user.impersonator = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(self.profile.user)
+
+        response = self.client.post(LEASE_URL, {"kind": "import"})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@override_config(**MATRIX)
+@mock.patch.object(matrix_client, "get_secret_storage_state")
+class RecoveryKeyViewTest(test.APITestCase):
+    def setUp(self):
+        self.profile = _profile(recovery_key=RECOVERY_KEY)
+        self.client.force_authenticate(self.profile.user)
+
+    def _show(self):
+        return self.client.post(RECOVERY_KEY_URL)
+
+    def test_owner_gets_a_key_that_unlocks(self, key_info):
+        key_info.return_value = ("K1", KEY_INFO, True)
+
+        response = self._show()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["recovery_key"], RECOVERY_KEY)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        key_info.assert_called_once_with(MXID)
+
+    def test_viewing_is_recorded_without_the_key(self, key_info):
+        key_info.return_value = ("K1", KEY_INFO, True)
+
+        self._show()
+
+        event = Event.objects.get(event_type=EventType.MATRIX_RECOVERY_KEY_VIEWED)
+        self.assertNotIn(RECOVERY_KEY, event.message)
+        self.assertNotIn(RECOVERY_KEY, str(event.context))
+
+    def test_stale_key_is_not_shown(self, key_info):
+        # The user reset encryption in Element; the old key opens nothing.
+        key_info.return_value = ("K1", OTHER_KEY_INFO, True)
+
+        response = self._show()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["recovery_key"])
+        self.assertFalse(
+            Event.objects.filter(
+                event_type=EventType.MATRIX_RECOVERY_KEY_VIEWED
+            ).exists()
+        )
+
+    def test_no_key_before_encryption_is_set_up(self, key_info):
+        self.profile.recovery_key = ""
+        self.profile.save()
+
+        response = self._show()
+
+        self.assertIsNone(response.data["recovery_key"])
+        key_info.assert_not_called()
+
+    def test_user_without_a_matrix_profile_gets_no_key(self, key_info):
+        self.client.force_authenticate(structure_factories.UserFactory())
+
+        response = self._show()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["recovery_key"])
+
+    def test_unreachable_homeserver(self, key_info):
+        key_info.side_effect = matrix_client.MatrixClientError("down")
+
+        response = self._show()
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertNotIn(RECOVERY_KEY, str(response.data))
+
+    def test_impersonation_is_refused(self, key_info):
+        self.profile.user.impersonator = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(self.profile.user)
+
+        self.assertEqual(self._show().status_code, status.HTTP_403_FORBIDDEN)
+        key_info.assert_not_called()
+
+    def test_personal_access_token_is_refused(self, key_info):
+        with mock.patch.object(views, "get_auth_method", return_value="pat"):
+            self.assertEqual(self._show().status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_oidc_access_token_is_refused(self, key_info):
+        with mock.patch.object(views, "get_auth_method", return_value="oidc"):
+            self.assertEqual(self._show().status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_refusal_does_not_use_up_the_rate_limit(self, key_info):
+        with (
+            mock.patch.object(
+                views.ScopedRateThrottle, "allow_request", return_value=True
+            ) as allow,
+            mock.patch.object(views, "get_auth_method", return_value="pat"),
+        ):
+            self.assertEqual(self._show().status_code, status.HTTP_403_FORBIDDEN)
+
+        allow.assert_not_called()
+
+    def test_read_only_is_not_allowed(self, key_info):
+        self.assertEqual(
+            self.client.get(RECOVERY_KEY_URL).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def test_disabled_chat_is_not_found(self, key_info):
+        with override_config(MATRIX_ENABLED=False):
+            self.assertEqual(self._show().status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_anonymous_is_rejected(self, key_info):
+        self.client.force_authenticate(None)
+        self.assertEqual(self._show().status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 @override_config(**MATRIX)

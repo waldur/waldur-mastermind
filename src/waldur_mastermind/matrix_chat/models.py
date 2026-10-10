@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 class CryptoLeaseKinds:
     BOOTSTRAP = "bootstrap"
     RESET = "reset"
-    CHOICES = ((BOOTSTRAP, "Set up"), (RESET, "Reset"))
+    # Escrowing a recovery key the user brings from another client.
+    IMPORT = "import"
+    CHOICES = ((BOOTSTRAP, "Set up"), (RESET, "Reset"), (IMPORT, "Import"))
 
 
 class MatrixUserProfile(core_models.UuidMixin, TimeStampedModel):
