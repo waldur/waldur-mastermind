@@ -139,6 +139,9 @@ def _normalize_track(track: dict) -> dict:
         "muted": bool(track.get("muted", False)),
         "width": _as_int(track.get("width")),
         "height": _as_int(track.get("height")),
+        # Enums arrive by name. An absent field is the proto zero value.
+        "source": track.get("source") or "UNKNOWN",
+        "encryption": track.get("encryption") or "NONE",
     }
 
 

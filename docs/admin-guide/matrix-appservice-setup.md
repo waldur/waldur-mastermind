@@ -968,9 +968,7 @@ emoji of reactions stay in plaintext on the homeserver, as Matrix needs them to
 route and order events.
 
 **Calls** in encrypted rooms, which all of Waldur's rooms are, are end-to-end
-encrypted too: each participant encrypts their media with their own key, which
-goes Olm-encrypted to each member's devices. LiveKit still sees the call's metadata: who takes
-part and when, the kinds and sizes of their tracks, and who is speaking.
+encrypted too; see [Call encryption](#call-encryption).
 
 The drawer sets encryption up on a user's first session. Only one browser may do
 so at a time, and Waldur must hold the recovery key before any key is uploaded:
@@ -1205,6 +1203,65 @@ Both answer `{url, jwt}`. The Matrix OpenID token authenticates the caller, veri
 - **Client address:** the per-address limit keys on the last `X-Forwarded-For` entry, the address the proxy in front of Waldur saw (a port, as Azure Application Gateway adds, is dropped). Behind a further load balancer or CDN that does not pass the real client address on (real-IP or PROXY protocol), every client appears as that balancer and all share one bucket: calls then fail with `429` under load rather than going unlimited.
 - **OpenID tokens:** any Matrix OpenID token of a user lets its holder get call tokens for the rooms that user has joined, as with lk-jwt-service. A widget or integration the user hands an OpenID token to can therefore join their calls while the OpenID token is valid.
 - **Limits:** `matrix_livekit_token` per client address (default 600/hour) and `matrix_livekit_token_user` per Matrix user (default 120/hour); `MATRIX_LIVEKIT_KEY`, `MATRIX_LIVEKIT_SECRET` and `MATRIX_LIVEKIT_PUBLIC_URL` (the signalling URL browsers connect to) must be set, or the endpoints answer `503`.
+
+### Call encryption
+
+A call is end-to-end encrypted when its room is encrypted (has `m.room.encryption`),
+as Element Call decides it; all of Waldur's rooms are. In other rooms, such as a
+direct message created unencrypted in Element, the call is encrypted only between
+each browser and LiveKit.
+
+- **Media:** camera, microphone, screen share and screen-share audio are encrypted
+  in the browser with AES-GCM before they reach LiveKit, each participant with
+  their own key. LiveKit forwards frames it cannot decode, and so does anyone who
+  joins with a token minted from `MATRIX_LIVEKIT_SECRET` without a call membership
+  in the Matrix room.
+- **Keys:** each participant sends their key as an Olm-encrypted to-device message
+  (`io.element.call.encryption_keys`) to every device that has a call membership
+  in the room, verified or not, as Element Call does. The web chat accepts a key
+  only from the Olm device that sent it. When a participant's membership ends or
+  they leave the room, the others switch to new keys, so media sent after that
+  cannot be decrypted with the keys they held.
+- **Media in clear:** the web chat never plays media that arrives unencrypted in an
+  encrypted call; it names the participants it comes from ("not end-to-end
+  encrypted") instead.
+- **Interoperability:** the web chat and Element Call exchange keys the same way,
+  so each decrypts the other's media. A client without call encryption cannot
+  decode an encrypted call.
+
+What stays visible:
+
+- **To LiveKit**, and whoever operates it: the call's metadata. Who takes part
+  (identities are `@user:server:DEVICE`) and when, the kinds, sizes and mute
+  state of their tracks, and who is speaking and how much (audio levels and packet
+  sizes are not encrypted).
+- **To Waldur**, and whoever operates it: Waldur can sign in as any of its users
+  through the appservice (the web chat does so for every session) and holds their
+  recovery keys, so it can add a device for a user, cross-sign it, give it a call
+  membership and receive the call's keys. This is not passive: the device's call
+  membership is a state event in the room, and it joins LiveKit as a participant
+  that the others see. The same holds for chat, whose key backup the recovery key
+  opens.
+- **Recording:** a server-side recorder or transcriber (LiveKit egress) would
+  record only encrypted frames. None is deployed with Waldur.
+
+**Browser requirements.** Encrypting call media needs insertable streams
+(Chromium-based browsers such as Chrome and Edge) or `RTCRtpScriptTransform`
+(Firefox, Safari). In a browser with neither, the web chat refuses to join an
+encrypted call and says so ("This browser can't take part in encrypted calls.").
+The encryption runs in a Web Worker served from the web chat's own origin
+(`/assets/e2eeWorker-*.js`), which a Content-Security-Policy with `script-src
+'self'` and no `worker-src` already allows; a policy that sets `worker-src` must
+include `'self'`.
+
+**Checking it.** `GET /api/admin/matrix/livekit/participants/?room=<name>` (staff)
+lists each participant's tracks with LiveKit's view of them. `encryption` is `GCM`
+for a track encrypted end to end, `NONE` for one sent in clear (`CUSTOM` for
+another scheme); `source` says which track it is (`CAMERA`, `MICROPHONE`,
+`SCREEN_SHARE`, `SCREEN_SHARE_AUDIO`). In an encrypted room every track should be
+`GCM`; a `NONE` track comes from a client that does not encrypt, and the other
+participants' web chat does not play it. The Calls tab of the Matrix
+administration shows the same per track, as *Encrypted* or *Not encrypted*.
 
 ## Webhook
 

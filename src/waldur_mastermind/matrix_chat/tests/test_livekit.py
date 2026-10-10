@@ -132,6 +132,41 @@ class LiveKitClientTest(test.APITestCase):
 
     @livekit_configured
     @mock.patch("waldur_mastermind.matrix_chat.livekit_client.httpx.post")
+    def test_list_participants_reports_track_encryption(self, mock_post):
+        mock_post.return_value = _http_response(
+            json_body={
+                "participants": [
+                    {
+                        "sid": "PA_1",
+                        "identity": "@alice:example.com:DEVICE",
+                        "tracks": [
+                            {
+                                "sid": "TR_1",
+                                "type": "AUDIO",
+                                "source": "MICROPHONE",
+                                "encryption": "GCM",
+                            },
+                            {
+                                "sid": "TR_2",
+                                "type": "VIDEO",
+                                "source": "SCREEN_SHARE",
+                                "encryption": "NONE",
+                            },
+                            # A server that leaves out zero values.
+                            {"sid": "TR_3", "type": "VIDEO"},
+                        ],
+                    }
+                ]
+            }
+        )
+        tracks = livekit_client.list_participants("room1")[0]["tracks"]
+        self.assertEqual(
+            [(t["source"], t["encryption"]) for t in tracks],
+            [("MICROPHONE", "GCM"), ("SCREEN_SHARE", "NONE"), ("UNKNOWN", "NONE")],
+        )
+
+    @livekit_configured
+    @mock.patch("waldur_mastermind.matrix_chat.livekit_client.httpx.post")
     def test_non_json_200_raises_client_error(self, mock_post):
         # A health/proxy page answering 200 on the signalling port must not
         # escape as an unhandled 500.
@@ -278,6 +313,8 @@ class LiveKitRoomParticipantsViewTest(test.APITestCase):
                         "muted": False,
                         "width": 1280,
                         "height": 720,
+                        "source": "CAMERA",
+                        "encryption": "GCM",
                     }
                 ],
             }
@@ -289,3 +326,5 @@ class LiveKitRoomParticipantsViewTest(test.APITestCase):
         self.assertEqual(track["type"], "VIDEO")
         self.assertEqual(track["width"], 1280)
         self.assertEqual(track["height"], 720)
+        self.assertEqual(track["source"], "CAMERA")
+        self.assertEqual(track["encryption"], "GCM")
