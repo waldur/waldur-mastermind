@@ -34,24 +34,26 @@ def format_schedule(schedule):
     # Handle cron expressions
     schedule_str = str(schedule)
     if "crontab" in schedule_str:
-        # Try to parse common cron patterns
-        if "0 0 1 * *" in schedule_str:
-            return "Monthly (1st day of month at midnight)"
-        elif "0 0 * * 0" in schedule_str:
-            return "Weekly (every Sunday at midnight)"
-        elif "0 0 * * *" in schedule_str:
-            return "Daily (at midnight)"
-        elif "0 * * * *" in schedule_str:
-            return "Hourly (at minute 0)"
+        # Extract cron expression from format like '<crontab: * * 1 * * (m/h/dM/MY/d)>'
+        match = re.search(r"<crontab:\s*(.+?)>", schedule_str)
+        if match:
+            cron_expr = match.group(1)
         else:
-            # Extract cron expression from format like '<crontab: * * 1 * * (m/h/dM/MY/d)>'
-            match = re.search(r"<crontab:\s*(.+?)>", schedule_str)
-            if match:
-                cron_expr = match.group(1)
-            else:
-                cron_expr = schedule_str
+            cron_expr = schedule_str
 
-            return f"Cron: `{cron_expr}`"
+        # Compare whole fields: as substrings, "*/10 * * * *" reads as hourly
+        # and "30 0 * * *" as midnight.
+        fields = " ".join(cron_expr.split()[:5])
+        if fields == "0 0 1 * *":
+            return "Monthly (1st day of month at midnight)"
+        elif fields == "0 0 * * 0":
+            return "Weekly (every Sunday at midnight)"
+        elif fields == "0 0 * * *":
+            return "Daily (at midnight)"
+        elif fields == "0 * * * *":
+            return "Hourly (at minute 0)"
+
+        return f"Cron: `{cron_expr}`"
 
     return str(schedule)
 
