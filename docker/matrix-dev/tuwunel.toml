@@ -45,9 +45,9 @@ client = "http://localhost:6167"
 server = "localhost:6167"
 
 # LiveKit SFU endpoint for Element Call / Matrix RTC (MSC4143).
-# tuwunel 1.5.0 uses the explicit rtc_transports array. Waldur serves the call
-# token API: the URL is the mastermind dev API's /api/matrix/livekit, on the
-# hub dev stack's slot-0 port; change the port if your API runs elsewhere.
+# Tuwunel reads the LiveKit focus from the rtc_transports array. Waldur serves
+# the call token API: the URL is the mastermind dev API's /api/matrix/livekit,
+# on the hub dev stack's slot-0 port; change the port if your API runs elsewhere.
 [[global.well_known.rtc_transports]]
 type = "livekit"
 livekit_service_url = "http://localhost:10780/api/matrix/livekit"
