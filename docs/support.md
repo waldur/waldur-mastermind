@@ -424,11 +424,11 @@ Open-source ticketing system:
 
 #### 4. Basic Backend
 
-No-op implementation for:
+The built-in service desk, and the default backend. Tickets live only in Waldur:
 
-- Development and testing
-- Environments without external ticketing
-- Minimal support requirements
+- Status transitions, SLA deadlines and auto-assignment are handled in Waldur
+- No external system, URL or credentials to configure
+- Suits deployments without an external ticketing system, and development and testing
 
 ### Backend Interface
 
@@ -578,7 +578,7 @@ Dynamic configuration via admin:
 WALDUR_SUPPORT_ENABLED = True
 
 # Select active backend
-WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE = 'atlassian'  # or 'zammad', 'smax', 'basic'
+WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE = 'atlassian'  # default 'basic'; or 'zammad', 'smax'
 
 # Enable custom field mapping for enhanced integration
 ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = True
@@ -756,7 +756,7 @@ Scheduled background tasks:
 - Use JIRA for enterprise environments with existing Atlassian infrastructure
 - Use SMAX for ITIL-compliant service management
 - Use Zammad for open-source, multi-channel support
-- Use Basic for development or minimal requirements
+- Use Basic, the default, when tickets don't need to leave Waldur
 
 ### 2. Status Configuration
 

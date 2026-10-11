@@ -735,7 +735,7 @@ CONSTANCE_CONFIG = {
         "Toggler for support plugin.",
     ),
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": (
-        "atlassian",
+        "basic",
         "Type of support backend. Possible values: basic, atlassian, zammad, smax.",
         "choice_field",
     ),
