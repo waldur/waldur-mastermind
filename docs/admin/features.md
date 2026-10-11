@@ -32,6 +32,10 @@ Enable display of project digest configuration in organization settings.
 
 Show credit burn-down with a projected exhaustion date on the project dashboard.
 
+## dashboard.usage_include_terminated
+
+Let usage charts include terminated resources: an organization dashboard switch, and a removed project's own usage. While off, the usage endpoints ignore include_terminated.
+
 ## dashboard.usage_limit_horizon
 
 Show a saturation bar per offering component against a timeline, with the current date and the next limit reset marked.

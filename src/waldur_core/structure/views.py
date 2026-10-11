@@ -91,6 +91,7 @@ from waldur_core.structure.serializers_data_access import (
 )
 from waldur_core.structure.utils import (
     get_components_usage_data_from_resources,
+    include_terminated_requested,
 )
 from waldur_core.structure.utils_data_access import bulk_log_user_data_access
 from waldur_core.user_actions import providers as user_action_providers
@@ -123,6 +124,23 @@ PROJECT_UUID_PARAMETER = OpenApiParameter(
     type=OpenApiTypes.UUID,
     location=OpenApiParameter.PATH,
     description="UUID of the project",
+)
+FOR_CURRENT_MONTH_PARAMETER = OpenApiParameter(
+    name="for_current_month",
+    type=bool,
+    location=OpenApiParameter.QUERY,
+    description="If true, returns usage data for the current month only. Otherwise, returns total usage.",
+)
+STATS_INCLUDE_TERMINATED_PARAMETER = OpenApiParameter(
+    name="include_terminated",
+    type=bool,
+    location=OpenApiParameter.QUERY,
+    description=(
+        "If true, also counts terminated resources that reported usage in the "
+        "current month. Their share is returned as usage_terminated and "
+        "limit_usage_terminated; limit never includes them. Ignored unless "
+        "the dashboard.usage_include_terminated feature is enabled."
+    ),
 )
 
 
@@ -364,12 +382,8 @@ class CustomerViewSet(
         description="Provides statistics about the resource usage (e.g., CPU, RAM, storage) for all projects within a customer. Can be filtered to show usage for the current month only.",
         responses=serializers.ComponentsUsageStatsSerializer,
         parameters=[
-            OpenApiParameter(
-                name="for_current_month",
-                type=bool,
-                location=OpenApiParameter.QUERY,
-                description="If true, returns usage data for the current month only. Otherwise, returns total usage.",
-            ),
+            FOR_CURRENT_MONTH_PARAMETER,
+            STATS_INCLUDE_TERMINATED_PARAMETER,
         ],
     )
     @action(detail=True)
@@ -378,7 +392,7 @@ class CustomerViewSet(
 
         resources = marketplace_models.Resource.objects.filter(
             project__customer=customer
-        ).exclude(state=ResourceStates.TERMINATED)
+        )
         resources = filter_queryset_for_user(resources, request.user)
 
         for_current_month = request.query_params.get("for_current_month", False)
@@ -386,7 +400,9 @@ class CustomerViewSet(
             for_current_month = True
 
         components_data_list = get_components_usage_data_from_resources(
-            resources, for_current_month
+            resources,
+            for_current_month,
+            include_terminated=include_terminated_requested(request),
         )
 
         return Response(
@@ -1137,21 +1153,15 @@ class ProjectViewSet(
         description="Provides statistics about the resource usage (e.g., CPU, RAM, storage) for all resources within a project. Can be filtered to show usage for the current month only.",
         responses=serializers.ComponentsUsageStatsSerializer,
         parameters=[
-            OpenApiParameter(
-                name="for_current_month",
-                type=bool,
-                location=OpenApiParameter.QUERY,
-                description="If true, returns usage data for the current month only. Otherwise, returns total usage.",
-            ),
+            FOR_CURRENT_MONTH_PARAMETER,
+            STATS_INCLUDE_TERMINATED_PARAMETER,
         ],
     )
     @action(detail=True)
     def stats(self, request, *args, **kwargs):
         project = self.get_object()
 
-        resources = marketplace_models.Resource.objects.filter(project=project).exclude(
-            state=ResourceStates.TERMINATED
-        )
+        resources = marketplace_models.Resource.objects.filter(project=project)
         resources = filter_queryset_for_user(resources, request.user)
 
         for_current_month = request.query_params.get("for_current_month", False)
@@ -1159,7 +1169,9 @@ class ProjectViewSet(
             for_current_month = True
 
         components_data_list = get_components_usage_data_from_resources(
-            resources, for_current_month
+            resources,
+            for_current_month,
+            include_terminated=include_terminated_requested(request),
         )
 
         return Response(

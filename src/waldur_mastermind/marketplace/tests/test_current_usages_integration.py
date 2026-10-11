@@ -13,8 +13,9 @@ import datetime
 from decimal import Decimal
 
 from freezegun import freeze_time
-from rest_framework import test
+from rest_framework import status, test
 
+from waldur_core.core import models as core_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import callbacks, models
@@ -34,6 +35,7 @@ from waldur_mastermind.marketplace.utils import (
     get_current_period_usage,
     get_offering_usage_by_project,
     get_offering_usage_timeseries,
+    narrow_terminated_to_usage_window,
 )
 
 
@@ -1117,3 +1119,193 @@ class OfferingUsageByProjectTest(test.APITestCase):
         offering = factories.OfferingFactory(customer=self.customer)
         data = get_offering_usage_by_project(models.Resource.objects.none(), offering)
         self.assertIsNone(data)
+
+
+@freeze_time("2026-05-15")
+class IncludeTerminatedUsageEndpointsTest(test.APITestCase):
+    """A removed project's usage shows up in the per-offering endpoints only
+    with include_terminated, reported apart from live usage and never
+    added to the cap."""
+
+    def setUp(self):
+        core_models.Feature.objects.update_or_create(
+            key="dashboard.usage_include_terminated", defaults={"value": True}
+        )
+        self.fixture = structure_fixtures.ProjectFixture()
+        offering, self.component, self.live_resource = (
+            PerOfferingStatsTest._create_offering_with_component(
+                self, BillingTypes.LIMIT, LimitPeriods.QUARTERLY
+            )
+        )
+        self.offering = offering
+        self.removed_project = structure_factories.ProjectFactory(
+            customer=self.fixture.customer
+        )
+        self.terminated_resource = models.Resource.objects.create(
+            offering=offering,
+            plan=self.live_resource.plan,
+            project=self.removed_project,
+            state=ResourceStates.TERMINATED,
+            limits={"node": 500},
+        )
+        _create_usage(
+            self.live_resource,
+            self.component,
+            100,
+            billing_period=datetime.date(2026, 5, 1),
+        )
+        _create_usage(
+            self.terminated_resource,
+            self.component,
+            40,
+            billing_period=datetime.date(2026, 4, 1),
+        )
+        self.removed_project.delete()
+        self.client.force_authenticate(self.fixture.staff)
+        self.customer_url = (
+            f"/api/marketplace-customer-usage/{self.fixture.customer.uuid.hex}/"
+        )
+
+    def _get(self, url, **params):
+        response = self.client.get(url, params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def test_components_usage(self):
+        url = self.customer_url + "components-usage/"
+
+        [row] = self._get(url)["components"]
+        self.assertEqual(row["limit_usage"], 100)
+        self.assertEqual(row["limit_usage_terminated"], 0)
+        self.assertEqual(row["limit"], 1000)
+
+        [row] = self._get(url, include_terminated="true")["components"]
+        self.assertEqual(row["limit_usage"], 140)
+        self.assertEqual(row["limit_usage_terminated"], 40)
+        self.assertEqual(row["usage_terminated"], 0)
+        self.assertEqual(row["limit"], 1000)
+
+    def test_include_terminated_is_ignored_while_the_feature_is_off(self):
+        core_models.Feature.objects.filter(
+            key="dashboard.usage_include_terminated"
+        ).update(value=False)
+
+        [row] = self._get(
+            self.customer_url + "components-usage/", include_terminated="true"
+        )["components"]
+        self.assertEqual(row["limit_usage"], 100)
+        self.assertEqual(row["limit_usage_terminated"], 0)
+
+    def test_components_usage_timeseries(self):
+        data = self._get(
+            self.customer_url + "components-usage-timeseries/",
+            offering_uuid=self.offering.uuid.hex,
+            include_terminated="true",
+        )
+        self.assertEqual(data["limit"], 1000)
+        self.assertEqual(
+            [(b["usage"], b["usage_terminated"]) for b in data["buckets"]],
+            [(40, 40), (100, 0)],
+        )
+
+    def test_components_usage_by_project(self):
+        params = {"offering_uuid": self.offering.uuid.hex}
+        url = self.customer_url + "components-usage-by-project/"
+
+        data = self._get(url, **params)
+        self.assertEqual(len(data["projects"]), 1)
+        self.assertFalse(data["projects"][0]["is_removed"])
+
+        data = self._get(url, include_terminated="true", **params)
+        self.assertEqual(data["limit"], 1000)
+        removed = next(p for p in data["projects"] if p["is_removed"])
+        self.assertEqual(removed["project_uuid"], self.removed_project.uuid.hex)
+        self.assertEqual(removed["usage"], 40)
+        self.assertEqual(removed["usage_terminated"], 40)
+        self.assertEqual(removed["buckets"][0]["usage_terminated"], 40)
+
+    def test_removed_project_scope(self):
+        url = (
+            f"/api/marketplace-project-usage/{self.removed_project.uuid.hex}/"
+            "components-usage/"
+        )
+
+        self.assertEqual(self._get(url)["components"], [])
+
+        [row] = self._get(url, include_terminated="true")["components"]
+        self.assertEqual(row["limit_usage"], 40)
+        self.assertEqual(row["limit_usage_terminated"], 40)
+        self.assertIsNone(row["limit"])
+
+    def test_offering_used_only_by_terminated_resources_without_usage_is_skipped(
+        self,
+    ):
+        _, _, idle = PerOfferingStatsTest._create_offering_with_component(
+            self, BillingTypes.LIMIT, LimitPeriods.MONTH, component_type="gpu"
+        )
+        idle.state = ResourceStates.TERMINATED
+        idle.save()
+
+        rows = self._get(
+            self.customer_url + "components-usage/", include_terminated="true"
+        )["components"]
+        self.assertEqual([r["type"] for r in rows], ["node"])
+
+    def _terminated_resource(self, usage_period):
+        resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.live_resource.plan,
+            project=self.removed_project,
+            state=ResourceStates.TERMINATED,
+            limits={"node": 100},
+        )
+        _create_usage(resource, self.component, 5, billing_period=usage_period)
+        return resource
+
+    def test_terminated_resource_without_usage_in_the_period_is_not_loaded(self):
+        stale = self._terminated_resource(datetime.date(2025, 1, 1))
+
+        narrowed = narrow_terminated_to_usage_window(
+            models.Resource.objects.filter(offering=self.offering)
+        )
+        self.assertCountEqual(narrowed, [self.live_resource, self.terminated_resource])
+        self.assertNotIn(stale, narrowed)
+
+        data = self._get(
+            self.customer_url + "components-usage-by-project/",
+            offering_uuid=self.offering.uuid.hex,
+            include_terminated="true",
+        )
+        [removed] = [p for p in data["projects"] if p["is_removed"]]
+        self.assertEqual(removed["usage"], 40)
+
+    def test_previous_period_keeps_its_terminated_resources(self):
+        march = self._terminated_resource(datetime.date(2026, 3, 1))
+
+        narrowed = narrow_terminated_to_usage_window(
+            models.Resource.objects.filter(offering=self.offering), period_offset=-1
+        )
+        self.assertIn(march, narrowed)
+        self.assertNotIn(
+            march,
+            narrow_terminated_to_usage_window(
+                models.Resource.objects.filter(offering=self.offering)
+            ),
+        )
+
+    def test_lifetime_components_keep_every_terminated_resource_with_usage(self):
+        self.component.limit_period = LimitPeriods.TOTAL
+        self.component.save()
+        old = self._terminated_resource(datetime.date(2020, 1, 1))
+        unused = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.live_resource.plan,
+            project=self.removed_project,
+            state=ResourceStates.TERMINATED,
+        )
+
+        narrowed = narrow_terminated_to_usage_window(
+            models.Resource.objects.filter(offering=self.offering)
+        )
+        self.assertIn(old, narrowed)
+        self.assertNotIn(unused, narrowed)

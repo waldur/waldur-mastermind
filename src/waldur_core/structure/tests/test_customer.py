@@ -14,6 +14,7 @@ from rest_framework import status, test
 
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.core import models as core_models
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
@@ -1466,6 +1467,107 @@ class CustomerResourceQuotasTest(test.APITestCase):
         self.assertEqual(disk_component["usage"], 0)
         self.assertEqual(disk_component["limit_usage"], 10)
         self.assertEqual(disk_component["measured_unit"], "GB")
+
+    def _enable_include_terminated(self, value=True):
+        core_models.Feature.objects.update_or_create(
+            key="dashboard.usage_include_terminated", defaults={"value": value}
+        )
+
+    def _remove_project2(self):
+        self._enable_include_terminated()
+        self.resource2.state = ResourceStates.TERMINATED
+        self.resource2.save()
+        self.project2.delete()
+
+    def _get_component(self, url, component_type):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return next(
+            component
+            for component in response.data["components"]
+            if component["type"] == component_type
+        )
+
+    @freeze_time("2025-10-15")
+    def test_terminated_resources_are_counted_only_when_requested(self):
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+
+        cpu = self._get_component(self.url, "cpu")
+        self.assertEqual(cpu["usage"], 5)
+        self.assertEqual(cpu["usage_terminated"], 0)
+        self.assertEqual(cpu["limit"], 8)
+
+        cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+        # resource2 is terminated but reported 2 this month.
+        self.assertEqual(cpu["usage"], 7)
+        self.assertEqual(cpu["usage_terminated"], 2)
+        # The cap is what the organization holds now: resource1's 8 only.
+        self.assertEqual(cpu["limit"], 8)
+
+    @freeze_time("2025-10-15")
+    def test_include_terminated_is_ignored_while_the_feature_is_off(self):
+        self._remove_project2()
+        self._enable_include_terminated(False)
+        self.client.force_authenticate(self.fixture.staff)
+
+        cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+        self.assertEqual(cpu["usage"], 5)
+        self.assertEqual(cpu["usage_terminated"], 0)
+
+        url = factories.ProjectFactory.get_url(self.project2, "stats")
+        response = self.client.get(url + "?include_terminated=true")
+        self.assertEqual(response.data["components"], [])
+
+    @freeze_time("2025-10-15")
+    def test_include_terminated_param_is_case_insensitive(self):
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+
+        for value in ("TRUE", "1", "yes"):
+            cpu = self._get_component(self.url + f"?include_terminated={value}", "cpu")
+            self.assertEqual(cpu["usage_terminated"], 2)
+
+    @freeze_time("2025-12-15")
+    def test_resource_terminated_in_an_earlier_month_adds_nothing(self):
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Nobody reported usage in December: resource1 still contributes its
+        # latest usage (5), resource2 last reported in October and is gone.
+        cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+        self.assertEqual(cpu["usage"], 5)
+        self.assertEqual(cpu["usage_terminated"], 0)
+        self.assertEqual(cpu["limit"], 8)
+
+    @freeze_time("2025-10-15")
+    def test_terminated_limit_based_usage_is_reported_separately(self):
+        self._enable_include_terminated()
+        self.limit_based_resource.state = ResourceStates.TERMINATED
+        self.limit_based_resource.save()
+        self.client.force_authenticate(self.fixture.staff)
+
+        disk = self._get_component(self.url + "?include_terminated=true", "disk")
+        # Only this month's 10 counts for a terminated resource, not the
+        # year-to-date 25.
+        self.assertEqual(disk["limit_usage"], 10)
+        self.assertEqual(disk["limit_usage_terminated"], 10)
+        self.assertIsNone(disk["limit"])
+
+    @freeze_time("2025-10-15")
+    def test_removed_project_stats_include_its_usage_when_requested(self):
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProjectFactory.get_url(self.project2, "stats")
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["components"], [])
+
+        cpu = self._get_component(url + "?include_terminated=true", "cpu")
+        self.assertEqual(cpu["usage"], 2)
+        self.assertEqual(cpu["usage_terminated"], 2)
+        self.assertIsNone(cpu["limit"])
 
 
 class CustomerProvidersTest(test.APITestCase):

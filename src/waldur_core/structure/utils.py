@@ -10,6 +10,8 @@ from rest_framework.exceptions import ValidationError
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.models import IdentityProvider
+from waldur_core.core import features
+from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
@@ -277,12 +279,27 @@ def move_project(project, customer, current_user=None, preserve_permissions=Fals
     )
 
 
+def include_terminated_requested(request) -> bool:
+    """Whether a usage endpoint should count terminated resources.
+
+    Needs both the include_terminated query parameter and the
+    dashboard.usage_include_terminated feature, so a deployment that has not
+    turned the feature on answers exactly as before.
+    """
+    return core_utils.query_param_is_true(
+        request, "include_terminated"
+    ) and features.is_enabled("dashboard.usage_include_terminated")
+
+
 def get_components_usage_data_from_resources(
     resources: QuerySet[marketplace_models.Resource],
     for_current_month: bool = False,
+    include_terminated: bool = False,
 ) -> list[dict[str, Any]]:
     from waldur_mastermind.marketplace.utils import (
+        filter_resources_for_usage_stats,
         get_components_usage_data,
     )
 
+    resources = filter_resources_for_usage_stats(resources, include_terminated)
     return get_components_usage_data(resources, for_current_month)
