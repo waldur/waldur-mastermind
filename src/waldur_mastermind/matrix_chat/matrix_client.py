@@ -47,8 +47,6 @@ if TYPE_CHECKING:
         ReactionEvent,
         RedactedEvent,
         RedactionEvent,
-        RoomCreateError,
-        RoomCreateResponse,
         RoomEncryptedMedia,
         RoomGetEventError,
         RoomInviteError,
@@ -66,7 +64,6 @@ if TYPE_CHECKING:
         RoomPutStateError,
         RoomPutStateResponse,
         RoomTopicEvent,
-        RoomVisibility,
         StickerEvent,
     )
 
@@ -83,8 +80,6 @@ _NIO_NAMES = (
     "ReactionEvent",
     "RedactedEvent",
     "RedactionEvent",
-    "RoomCreateError",
-    "RoomCreateResponse",
     "RoomEncryptedMedia",
     "RoomGetEventError",
     "RoomInviteError",
@@ -104,7 +99,6 @@ _NIO_NAMES = (
     "RoomSendError",
     "RoomSendResponse",
     "RoomTopicEvent",
-    "RoomVisibility",
     "StickerEvent",
 )
 
@@ -334,72 +328,64 @@ def _room_initial_state(is_private):
     ]
 
 
-async def _create_room_async(
-    homeserver_url,
-    bot_user_id,
-    access_token,
-    name,
-    alias_localpart=None,
-    is_private=True,
-):
-    _load_nio()
-    client = _make_client(homeserver_url, bot_user_id, access_token)
-    try:
-        response = await client.room_create(
-            name=name,
-            alias=alias_localpart,
-            visibility=RoomVisibility.private if is_private else RoomVisibility.public,
+# Room version 12 derives a room's ID from the hash of its create event, which
+# otherwise holds only the bot, m.federate and the time to the millisecond. Rooms
+# the bot creates in the same millisecond, as concurrent workers do when rooms
+# are provisioned in bulk, would get one ID, and the homeserver writes each
+# room's name and alias into that one room. matrix-nio's room_create cannot add
+# a key to the create event, so the request is made here.
+CREATE_EVENT_NONCE = "com.waldur.nonce"
+
+# Creating a room writes its whole initial state, which a homeserver busy with
+# bulk provisioning can take well over the default timeout to do. Giving up
+# early would leave a room the homeserver still creates, under the alias the
+# retry then finds taken, so that retry would create a second room.
+CREATE_ROOM_TIMEOUT = 60
+
+
+def _create_room_request(name, alias_localpart, is_private):
+    body = {
+        "visibility": "private" if is_private else "public",
+        "name": name,
+        "creation_content": {
             # Project rooms are for this Waldur's users only; no other server
             # can ever join, whatever the homeserver's federation settings.
-            federate=False,
-            invite=[],
-            initial_state=_room_initial_state(is_private),
-            power_level_override=ROOM_POWER_LEVELS,
-        )
-        if isinstance(response, RoomCreateError):
-            # If alias is taken or not in appservice namespace, retry without alias
-            error_msg = response.message or ""
-            if alias_localpart and (
-                "M_ROOM_IN_USE" in error_msg or "M_EXCLUSIVE" in error_msg
-            ):
-                logger.warning(
-                    "Room alias %s already in use, creating without alias",
-                    alias_localpart,
-                )
-                response = await client.room_create(
-                    name=name,
-                    visibility=RoomVisibility.private
-                    if is_private
-                    else RoomVisibility.public,
-                    federate=False,
-                    invite=[],
-                    initial_state=_room_initial_state(is_private),
-                    power_level_override=ROOM_POWER_LEVELS,
-                )
-                if isinstance(response, RoomCreateError):
-                    raise MatrixClientError(
-                        f"Failed to create room: {response.message}"
-                    )
-                if isinstance(response, RoomCreateResponse):
-                    return response.room_id, False
-                raise MatrixClientError(f"Unexpected response: {response}")
-            else:
-                raise MatrixClientError(f"Failed to create room: {response.message}")
-        if isinstance(response, RoomCreateResponse):
-            return response.room_id, bool(alias_localpart)
-        raise MatrixClientError(f"Unexpected response: {response}")
-    finally:
-        await client.close()
+            "m.federate": False,
+            CREATE_EVENT_NONCE: secrets.token_hex(16),
+        },
+        "initial_state": _room_initial_state(is_private),
+        "power_level_content_override": ROOM_POWER_LEVELS,
+    }
+    if alias_localpart:
+        body["room_alias_name"] = alias_localpart
+    return _homeserver_call(
+        "POST",
+        "/_matrix/client/v3/createRoom",
+        _get_as_token(),
+        timeout=CREATE_ROOM_TIMEOUT,
+        json=body,
+    )
 
 
 def create_room(name, alias_localpart=None, is_private=True):
     """Create a Matrix room. Returns (room_id, alias_was_set)."""
-    homeserver_url, bot_user_id, access_token = _get_client_params()
-    return _run_async(
-        _create_room_async(
-            homeserver_url, bot_user_id, access_token, name, alias_localpart, is_private
+    response = _create_room_request(name, alias_localpart, is_private)
+    # If alias is taken or not in appservice namespace, retry without alias
+    if alias_localpart and _parse_json_response(response).get("errcode") in (
+        "M_ROOM_IN_USE",
+        "M_EXCLUSIVE",
+    ):
+        logger.warning(
+            "Room alias %s already in use, creating without alias", alias_localpart
         )
-    )
+        alias_localpart = None
+        response = _create_room_request(name, None, is_private)
+    if response.status_code != 200:
+        raise _refusal(response, "create room")
+    room_id = _parse_json_response(response).get("room_id")
+    if not room_id:
+        raise MatrixClientError("Homeserver returned no room ID for the new room")
+    return room_id, bool(alias_localpart)
 
 
 async def _invite_user_async(
@@ -1427,14 +1413,14 @@ WEB_DEVICE_IDLE = timedelta(hours=24)
 RECENT_WEB_DEVICE = timedelta(minutes=10)
 
 
-def _homeserver_call(method, path, token, **kwargs):
+def _homeserver_call(method, path, token, timeout=10, **kwargs):
     """Call the homeserver, reporting transport failures as MatrixClientError."""
     try:
         return httpx.request(
             method,
             f"{config.MATRIX_HOMESERVER_URL}{path}",
             headers={"Authorization": f"Bearer {token}"},
-            timeout=10,
+            timeout=timeout,
             **kwargs,
         )
     except httpx.HTTPError as e:
