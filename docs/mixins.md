@@ -1483,9 +1483,10 @@ Shared logic for customer/project per-offering usage ViewSets.
 Subclasses provide:
 
 - `queryset` — Customer or Project queryset (the route lookup target)
-- `_scope_resources(scope, offering=None)` — returns the non-terminated
+- `_scope_resources(scope, offering=None)` — returns the resources at this
 
-  resources visible at this scope, optionally filtered to one offering
+  scope (non-terminated unless `include_terminated` is set), optionally
+  filtered to one offering
 
 ### PublicViewsetMixin
 

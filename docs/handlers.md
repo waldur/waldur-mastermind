@@ -373,6 +373,9 @@ td:nth-child(4) {
 | `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Signal handler to schedule cleanup of user actions for a deleted object. |
 | `schedule_user_sync` | `Custom Signal (role_granted)` | `—` | No description |
 | `schedule_user_sync` | `Custom Signal (role_revoked)` | `—` | No description |
+| `scrub_logged_request` | `Custom Signal (bind_extra_request_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
+| `scrub_logged_request` | `Custom Signal (bind_extra_request_finished_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
+| `scrub_logged_request` | `Custom Signal (bind_extra_request_failed_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
 | `set_default_token_lifetime` | `Django Signal (post_save)` | `core.User` | Set the default token lifetime for a new user. |
 | `stash_customer_slug` | `Django Signal (pre_save)` | `structure.Customer` | Remember the persisted slug before save so the change can be detected. |
 | `update_customer_users_count` | `Custom Signal (recalculate_quotas)` | `—` | Update the user count for all customers. |
@@ -834,11 +837,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 755
+Total unique handlers found: 758
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 345 handlers
+- **waldur_core**: 348 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 349 handlers
