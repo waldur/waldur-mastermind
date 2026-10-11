@@ -47,8 +47,11 @@ The Setup appservice wizard collects everything else it needs. If the homeserver
   sections. Back up the homeserver and Waldur's database together, and keep
   `FIELD_ENCRYPTION_KEY` safe: without it no escrowed recovery key can be read
   (see [Locked identities](#locked-identities)), and no history export can be
-  downloaded. A history export is not a
-  backup.
+  downloaded. A history export is not a backup; see
+  [Backup and restore](#backup-and-restore).
+- **Chat history is kept for the room's lifetime.** Waldur deletes no messages,
+  and the operator holds the history for each project's organization. See
+  [Chat history retention and ownership](#chat-history-retention-and-ownership).
 
 ## Appservice Setup
 
@@ -715,6 +718,52 @@ The integration automatically responds to role changes:
 Kicks that fail are retried for several minutes, and each retry checks again whether the user still has access. A member whose kick never succeeds stays recorded as a member. A sign-out that fails is retried the same way while the account could not be locked. Once it is locked, the devices left signed in are refused like any other, but work again if the user is reactivated.
 
 Only a reactivation unlocks an account, and it unlocks it whoever locked it. If its unlock fails for longer than the retries last, or the admin API is not usable then, the account stays locked: the user's chat answers "Your chat account is locked; ask your administrator." until staff deactivates and reactivates the user, or an admin unlocks the account on the homeserver (`PUT /_synapse/admin/v2/users/<Matrix ID>` with `{"locked": false}`) and then runs a member sync of the user's rooms, which only a reactivation starts by itself. A new user who gets the Matrix ID of a deleted one is refused before that, like anyone whose ID has an account Waldur did not create for them (see [Existing Matrix accounts](#existing-matrix-accounts)). Linked deliberately, it is still the deleted user's account, with their direct messages and other rooms, and it stays locked until staff or an admin does one of those two.
+
+## Chat history retention and ownership
+
+Waldur does not delete chat history. Messages and media stay on the homeserver
+for as long as the room exists there. Rooms are created with their history
+visible to members who join later (`history_visibility: shared`), and the bot
+writes the room's earlier keys into a new member's key backup, so they read the
+history the bot holds (see [History for new members](#history-for-new-members)).
+Nothing from before the bot was in the room is covered.
+
+Disabling a room keeps its history too. Whether it comes from the `disable`
+action or from deleting the project, it posts a notice, removes every member,
+ends a running call, has the bot export the history when
+`MATRIX_HISTORY_EXPORT_ENABLED` is on (unless `delete_history` is set), and
+archives the room only once that export is done; otherwise the room goes to
+`error` (see [Exports when a room is disabled](#exports-when-a-room-is-disabled)).
+The room and its messages stay on the homeserver, and `reactivate` brings the
+members back to the same history. Deleting the room in Waldur removes Waldur's
+record of it and its exports, not the room on the homeserver, which then stays
+there unmanaged.
+
+[History exports](#history-exports) are made by the bot and are unencrypted once
+downloaded. At rest they are encrypted under a key of their own, which is kept
+encrypted under `FIELD_ENCRYPTION_KEY`; losing that key makes them unreadable.
+How long they are kept is described under [Retention](#retention).
+
+The history of a project's room belongs to the organization the project belongs
+to. The operator who runs Waldur and the homeserver holds it for that
+organization, backups included. The homeserver holds the messages only as
+ciphertext, but Waldur's database holds the users' recovery keys and the room
+keys the bot has received, so the operator can decrypt them.
+
+Where rules require deleting history, Waldur offers:
+
+- deleting exports: retention, `disable` with `delete_history`, or deleting the
+  room, which deletes its exports with their files;
+- removing people: disabling a room removes its members, and deactivating or
+  deleting a user removes them from their rooms and locks their Matrix account
+  (see [Automatic member management](#automatic-member-management)). Their
+  messages stay in the rooms, and so do the room keys: the bot's crypto store
+  and members' key backups keep them. Deleting a Waldur user also
+  deletes their Matrix profile, and with it the recovery key Waldur held for
+  them.
+
+Purging messages on the homeserver, old ones or a whole room's, is not built.
+Doing it with the homeserver's own admin tools is outside Waldur.
 
 ## History Exports
 
