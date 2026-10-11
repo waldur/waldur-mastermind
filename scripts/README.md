@@ -67,6 +67,11 @@ Emulates access log patterns for load testing and log analysis development.
 
 Simulates RabbitMQ message load for testing message queue performance and celery task processing.
 
+### matrix_capacity/
+
+Load test of the Matrix homeserver: holds N chat drawers open and measures message delivery. For a test
+deployment only, as it creates synthetic users and rooms. See [matrix_capacity/README.md](matrix_capacity/README.md).
+
 ## Documentation Validation
 
 ### validate_docs.py
