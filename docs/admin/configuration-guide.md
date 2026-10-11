@@ -1823,7 +1823,7 @@ Toggler for support plugin.
 
 **Type:** choice_field
 
-**Default value:** atlassian
+**Default value:** basic
 
 Type of support backend. Possible values: basic, atlassian, zammad, smax.
 
