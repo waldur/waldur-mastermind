@@ -153,6 +153,8 @@ REST_FRAMEWORK = {
         # The same API per Matrix user, once their OpenID token checks out:
         # each request may create a LiveKit room, from any address.
         "matrix_livekit_token_user": "120/hour",
+        # The appservice endpoints, per client address, for calls without the
+        # homeserver token: the homeserver itself is not limited.
         "matrix_webhook": "10000/hour",
         # Passkey ceremonies. Sign-in is anonymous and unauthenticated, so it
         # is the tighter of the two. Deliberately not wired into django-axes:

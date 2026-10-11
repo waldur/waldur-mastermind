@@ -180,6 +180,103 @@ class WebhookAuthTest(test.APITestCase):
             )
 
 
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+)
+class AppserviceThrottleTest(test.APITestCase):
+    # The homeserver sends about one transaction per chat message, all from
+    # one address, so a busy chat used up the per-address limit and was
+    # answered 429, ping included.
+    def setUp(self):
+        cache.clear()
+        rate = mock.patch.dict(
+            ScopedRateThrottle.THROTTLE_RATES, {"matrix_webhook": "2/hour"}
+        )
+        rate.start()
+        self.addCleanup(rate.stop)
+
+    def _transaction(self, txn_id, **headers):
+        return self.client.put(
+            f"{WEBHOOK_URL}{txn_id}", data={"events": []}, format="json", **headers
+        )
+
+    def _ping(self, **headers):
+        return self.client.post(
+            PING_URL, data={"transaction_id": "t1"}, format="json", **headers
+        )
+
+    def _use_up_the_limit(self):
+        codes = [
+            self._transaction(
+                f"txn-wrong-{i}", HTTP_AUTHORIZATION="Bearer wrong-token"
+            ).status_code
+            for i in range(3)
+        ]
+        self.assertEqual(codes[-1], status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_the_homeserver_is_not_throttled(self):
+        homeserver = {"HTTP_AUTHORIZATION": f"Bearer {HS_TOKEN}"}
+        codes = [
+            self._transaction(f"txn-{i}", **homeserver).status_code for i in range(3)
+        ]
+        codes += [self._ping(**homeserver).status_code for _ in range(3)]
+
+        self.assertEqual(codes, [status.HTTP_200_OK] * 6)
+
+    def test_the_homeserver_is_answered_once_others_used_up_the_limit(self):
+        self._use_up_the_limit()
+        homeserver = {"HTTP_AUTHORIZATION": f"Bearer {HS_TOKEN}"}
+
+        self.assertEqual(
+            self._transaction("txn-hs", **homeserver).status_code, status.HTTP_200_OK
+        )
+        self.assertEqual(self._ping(**homeserver).status_code, status.HTTP_200_OK)
+
+    def test_homeserver_calls_leave_the_limit_to_other_callers(self):
+        for i in range(3):
+            self._transaction(f"txn-{i}", HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}")
+
+        codes = [
+            self._transaction(
+                f"txn-wrong-{i}", HTTP_AUTHORIZATION="Bearer wrong-token"
+            ).status_code
+            for i in range(3)
+        ]
+
+        self.assertEqual(
+            codes,
+            [
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_429_TOO_MANY_REQUESTS,
+            ],
+        )
+
+    def test_calls_without_the_token_stay_throttled(self):
+        self._use_up_the_limit()
+
+        self.assertEqual(
+            self._transaction("txn-none").status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        self.assertEqual(self._ping().status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(
+            self._ping(HTTP_AUTHORIZATION="Bearer wrong-token").status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    def test_a_refused_call_is_logged_once(self):
+        with self.assertLogs("waldur_mastermind.matrix_chat.views", "WARNING") as logs:
+            self._transaction("txn-wrong", HTTP_AUTHORIZATION="Bearer wrong-token")
+            self._ping()
+
+        self.assertEqual(len(logs.records), 2)
+
+
 class _CaptureEvents(Transport):
     def __init__(self):
         super().__init__()
@@ -1765,8 +1862,19 @@ class WebhookErrorCountTest(test.APITestCase):
     @mock.patch.object(ScopedRateThrottle, "wait", return_value=None)
     @mock.patch.object(ScopedRateThrottle, "allow_request", return_value=False)
     def test_a_rate_limited_call_is_counted(self, *_):
-        response = self._put("txn-throttled")
+        # Without the hs_token: the homeserver itself is never limited.
+        response = self._put("txn-throttled", token="wrong")
 
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(webhook_errors.counts(), {"4xx": 1, "5xx": 0})
+
+    @mock.patch.object(ScopedRateThrottle, "wait", return_value=None)
+    @mock.patch.object(ScopedRateThrottle, "allow_request", return_value=False)
+    def test_homeserver_calls_over_the_limit_are_not_counted(self, *_):
+        codes = [self._put(f"txn-hs-{i}").status_code for i in range(3)]
+        response = self._put("txn-other", token="wrong")
+
+        self.assertEqual(codes, [status.HTTP_200_OK] * 3)
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(webhook_errors.counts(), {"4xx": 1, "5xx": 0})
 
