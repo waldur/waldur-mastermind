@@ -2481,6 +2481,24 @@ def release_project_grace_pauses(resources) -> list:
     return unpaused
 
 
+def filter_resources_for_usage_stats(resources, include_terminated=False):
+    """Narrow `resources` to the ones the stats endpoints aggregate.
+
+    Terminated resources are left out unless `include_terminated` is set, and
+    even then only those with usage reported in the current month are kept:
+    nothing older is counted, so loading every resource the scope ever had
+    would only cost queries.
+    """
+    terminated = models.Resource.States.TERMINATED
+    if not include_terminated:
+        return resources.exclude(state=terminated)
+    today = datetime.date.today()
+    with_usage_this_month = models.ComponentUsage.objects.filter(
+        billing_period__year=today.year, billing_period__month=today.month
+    ).values("resource_id")
+    return resources.filter(~Q(state=terminated) | Q(id__in=with_usage_this_month))
+
+
 def get_components_usage_data(resources, for_current_month=False):
     """Aggregate per-component usage and limit stats across resources.
 
@@ -2491,6 +2509,12 @@ def get_components_usage_data(resources, for_current_month=False):
     VPC-level allocation and individual-VM usage are not double-counted.
     OpenStack RAM and storage values are stored in MB; they are divided by
     1024 before returning so the caller always receives GB.
+
+    Terminated resources (present only when the caller asked for them) never
+    add to `limit`, which is the cap the scope holds now, and contribute only
+    usage reported in the current month. Their share of `usage` and
+    `limit_usage` is also reported as `usage_terminated` and
+    `limit_usage_terminated`.
     """
     MB_COMPONENT_TYPES = get_mb_component_types()
 
@@ -2513,10 +2537,13 @@ def get_components_usage_data(resources, for_current_month=False):
     component_usage = defaultdict(float)
     component_limit = defaultdict(float)
     component_limit_usage = defaultdict(float)
+    component_usage_terminated = defaultdict(float)
+    component_limit_usage_terminated = defaultdict(float)
 
     current_date = datetime.date.today()
 
     for resource in resources:
+        is_terminated = resource.state == models.Resource.States.TERMINATED
         usage_components = resource.offering.components.filter(
             billing_type=BillingTypes.USAGE
         )
@@ -2525,7 +2552,7 @@ def get_components_usage_data(resources, for_current_month=False):
         )
 
         for component_type, limit in resource.limits.items():
-            if limit is None:
+            if limit is None or is_terminated:
                 continue
             # Assign limit to the correct billing_type bucket
             if limit_components.filter(type=component_type).exists():
@@ -2538,7 +2565,7 @@ def get_components_usage_data(resources, for_current_month=False):
 
         for component in usage_components:
             key = (component.type, BillingTypes.USAGE)
-            if for_current_month:
+            if for_current_month or is_terminated:
                 usages = models.ComponentUsage.objects.filter(
                     resource=resource,
                     component=component,
@@ -2547,6 +2574,8 @@ def get_components_usage_data(resources, for_current_month=False):
                 )
                 total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
                 component_usage[key] += float(total_usage)
+                if is_terminated:
+                    component_usage_terminated[key] += float(total_usage)
             else:
                 latest = (
                     models.ComponentUsage.objects.filter(
@@ -2558,13 +2587,19 @@ def get_components_usage_data(resources, for_current_month=False):
                 if latest:
                     component_usage[key] += float(latest.usage)
 
-        limit_override = LimitPeriods.MONTH if for_current_month else None
+        limit_override = (
+            LimitPeriods.MONTH if for_current_month or is_terminated else None
+        )
         limit_period_usage = get_current_period_usage(
             resource, limit_period=limit_override
         )
         for component in limit_components:
             key = (component.type, BillingTypes.LIMIT)
             component_limit_usage[key] += limit_period_usage.get(component.type, 0)
+            if is_terminated:
+                component_limit_usage_terminated[key] += limit_period_usage.get(
+                    component.type, 0
+                )
 
     components_data = {}
     # Track keys whose values need MB→GB conversion (OpenStack offerings only).
@@ -2583,6 +2618,8 @@ def get_components_usage_data(resources, for_current_month=False):
                 "billing_type": component.billing_type,
                 "usage": component_usage.get(key, 0),
                 "limit_usage": component_limit_usage.get(key, 0),
+                "usage_terminated": component_usage_terminated.get(key, 0),
+                "limit_usage_terminated": component_limit_usage_terminated.get(key, 0),
                 "limit": component_limit.get(key, None),
                 "offering_name": component.offering.name,
                 "offering_uuid": component.offering.uuid.hex,
@@ -2598,6 +2635,8 @@ def get_components_usage_data(resources, for_current_month=False):
         data = components_data[key]
         data["usage"] = round(data["usage"] / 1024, 2)
         data["limit_usage"] = round(data["limit_usage"] / 1024, 2)
+        data["usage_terminated"] = round(data["usage_terminated"] / 1024, 2)
+        data["limit_usage_terminated"] = round(data["limit_usage_terminated"] / 1024, 2)
         if data["limit"] is not None:
             data["limit"] = round(data["limit"] / 1024, 2)
         if data["measured_unit"] == "MB":
@@ -2663,6 +2702,47 @@ def _resolve_period_bounds(limit_period, today=None, period_offset=0):
     return start, start, label
 
 
+def _earliest_usage_window_start(components, period_offset=0):
+    """Earliest billing period any of `components` can show usage from.
+
+    Covers each component's own limit period shifted by `period_offset`, and
+    for monthly components also the rolling six months the timeseries widens
+    them to. None when a component counts lifetime usage (TOTAL).
+    """
+    today = datetime.date.today()
+    starts = []
+    for limit_period in {c.limit_period or LimitPeriods.MONTH for c in components}:
+        if limit_period == LimitPeriods.TOTAL:
+            return None
+        start, _, _ = _resolve_period_bounds(limit_period, today, period_offset)
+        starts.append(start)
+        if limit_period == LimitPeriods.MONTH:
+            six_months_back, _, _ = _resolve_period_bounds(
+                LimitPeriods.MONTH, today, -5
+            )
+            starts.append(six_months_back)
+    return min(starts) if starts else None
+
+
+def narrow_terminated_to_usage_window(resources, period_offset=0):
+    """Keep live resources, and terminated ones only if they can contribute.
+
+    The per-offering views only count usage inside each component's limit
+    period, so a terminated resource with no usage since the earliest such
+    period adds nothing; leaving it out keeps an organization's whole
+    history from being loaded. Lifetime (TOTAL) components keep every
+    terminated resource that reported any usage.
+    """
+    components = models.OfferingComponent.objects.filter(
+        offering_id__in=resources.values("offering_id")
+    ).only("limit_period")
+    start = _earliest_usage_window_start(components, period_offset)
+    usage = models.ComponentUsage.objects.filter(resource=OuterRef("pk"))
+    if start is not None:
+        usage = usage.filter(billing_period__gte=start)
+    return resources.filter(~Q(state=models.Resource.States.TERMINATED) | Exists(usage))
+
+
 def get_components_usage_data_per_offering(resources):
     """Aggregate per-component usage and limit stats per offering.
 
@@ -2677,6 +2757,10 @@ def get_components_usage_data_per_offering(resources):
     prevent double-counting with the parent tenant offering.
     OpenStack RAM and storage values are stored in MB; they are divided
     by 1024 before returning so the caller always receives GB.
+
+    Terminated resources, when present, are left out of `limit`; their share
+    of the period's usage is reported as `usage_terminated` /
+    `limit_usage_terminated`.
     """
     today = datetime.date.today()
     MB_COMPONENT_TYPES = get_mb_component_types()
@@ -2711,48 +2795,53 @@ def get_components_usage_data_per_offering(resources):
             component.limit_period or LimitPeriods.MONTH, today
         )
 
+        # A subquery rather than the Python list, so the IDs stay in SQL.
         usage_qs = models.ComponentUsage.objects.filter(
-            resource__in=offering_resources, component=component
+            resource__in=resources.filter(offering_id=offering.id),
+            component=component,
         )
         if period_start is not None:
             usage_qs = usage_qs.filter(billing_period__gte=period_start)
         if period_end is not None:
             usage_qs = usage_qs.filter(billing_period__lte=period_end)
-        period_usage = float(usage_qs.aggregate(total=Sum("usage"))["total"] or 0)
+        totals = usage_qs.aggregate(
+            total=Sum("usage"),
+            terminated=Sum(
+                "usage",
+                filter=Q(resource__state=models.Resource.States.TERMINATED),
+            ),
+        )
+        period_usage = float(totals["total"] or 0)
+        period_usage_terminated = float(totals["terminated"] or 0)
 
-        # Sum resource.limits[component.type] across the offering's resources.
-        # Track presence so we emit None when no limit is set anywhere.
-        total_limit = 0.0
-        any_limit = False
-        for resource in offering_resources:
-            limit_val = (resource.limits or {}).get(component.type)
-            if limit_val is None:
-                continue
-            try:
-                total_limit += float(limit_val)
-                any_limit = True
-            except (TypeError, ValueError):
-                continue
+        # An offering used only by terminated resources that reported nothing
+        # in this period has nothing to show.
+        if not period_usage and all(
+            r.state == models.Resource.States.TERMINATED for r in offering_resources
+        ):
+            continue
 
+        limit_value = _sum_offering_limits(offering_resources, component.type)
+
+        usage = limit_usage = 0.0
+        usage_terminated = limit_usage_terminated = 0.0
         if component.billing_type == BillingTypes.USAGE:
             usage = period_usage
-            limit_usage = 0.0
+            usage_terminated = period_usage_terminated
         elif component.billing_type == BillingTypes.LIMIT:
-            usage = 0.0
             limit_usage = period_usage
-        else:
-            usage = 0.0
-            limit_usage = 0.0
+            limit_usage_terminated = period_usage_terminated
 
         # OpenStack persists RAM and storage in MB; convert to GB for the caller.
         measured_unit = component.measured_unit
-        limit_value = total_limit if any_limit else None
         if (
             offering.type == OPENSTACK_TENANT_OFFERING
             and component.type in MB_COMPONENT_TYPES
         ):
             usage = round(usage / 1024, 2)
             limit_usage = round(limit_usage / 1024, 2)
+            usage_terminated = round(usage_terminated / 1024, 2)
+            limit_usage_terminated = round(limit_usage_terminated / 1024, 2)
             if limit_value is not None:
                 limit_value = round(limit_value / 1024, 2)
             if measured_unit == "MB":
@@ -2767,6 +2856,8 @@ def get_components_usage_data_per_offering(resources):
                 "billing_type": component.billing_type,
                 "usage": usage,
                 "limit_usage": limit_usage,
+                "usage_terminated": usage_terminated,
+                "limit_usage_terminated": limit_usage_terminated,
                 "limit": limit_value,
                 "offering_name": offering.name,
                 "offering_uuid": offering.uuid.hex,
@@ -2801,12 +2892,15 @@ def _select_offering_component(offering, component_type=None):
 def _sum_offering_limits(resources, component_type):
     """Sum per-resource limits for one component type across the queryset.
 
+    Terminated resources are skipped: the cap is what the scope holds now.
     Returns the float total, or None if no resource declared a limit for
     that component type (so the caller can render "no cap" rather than 0).
     """
     total = 0.0
     any_limit = False
     for resource in resources:
+        if resource.state == models.Resource.States.TERMINATED:
+            continue
         limit_val = (resource.limits or {}).get(component_type)
         if limit_val is None:
             continue
@@ -2894,11 +2988,21 @@ def get_offering_usage_timeseries(
 
     bucketed = (
         usage_qs.values("billing_period")
-        .annotate(total=Sum("usage"))
+        .annotate(
+            total=Sum("usage"),
+            terminated=Sum(
+                "usage",
+                filter=Q(resource__state=models.Resource.States.TERMINATED),
+            ),
+        )
         .order_by("billing_period")
     )
     buckets = [
-        {"billing_period": b["billing_period"], "usage": float(b["total"] or 0)}
+        {
+            "billing_period": b["billing_period"],
+            "usage": float(b["total"] or 0),
+            "usage_terminated": float(b["terminated"] or 0),
+        }
         for b in bucketed
     ]
 
@@ -2957,18 +3061,26 @@ def get_offering_usage_by_project(
             {
                 "project_uuid": project.uuid.hex,
                 "project_name": project.name,
+                "is_removed": project.is_removed,
                 "usage": 0.0,
-                "_buckets": defaultdict(float),
+                "usage_terminated": 0.0,
+                "_buckets": defaultdict(
+                    lambda: {"usage": 0.0, "usage_terminated": 0.0}
+                ),
             },
         )
+        bucket = entry["_buckets"][cu.billing_period]
         entry["usage"] += usage_val
-        entry["_buckets"][cu.billing_period] += usage_val
+        bucket["usage"] += usage_val
+        if cu.resource.state == models.Resource.States.TERMINATED:
+            entry["usage_terminated"] += usage_val
+            bucket["usage_terminated"] += usage_val
 
     projects = []
     for entry in by_project.values():
         bucket_dict = entry.pop("_buckets")
         entry["buckets"] = [
-            {"billing_period": k, "usage": v} for k, v in sorted(bucket_dict.items())
+            {"billing_period": k, **v} for k, v in sorted(bucket_dict.items())
         ]
         projects.append(entry)
     projects.sort(key=lambda p: p["usage"], reverse=True)

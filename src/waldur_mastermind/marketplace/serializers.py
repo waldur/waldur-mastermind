@@ -17877,6 +17877,14 @@ class ComponentStatsPerOfferingSerializer(serializers.Serializer):
     billing_type = serializers.CharField(read_only=True)
     usage = serializers.FloatField(read_only=True)
     limit_usage = serializers.FloatField(read_only=True)
+    usage_terminated = serializers.FloatField(
+        read_only=True,
+        help_text="Part of usage that came from terminated resources.",
+    )
+    limit_usage_terminated = serializers.FloatField(
+        read_only=True,
+        help_text="Part of limit_usage that came from terminated resources.",
+    )
     limit = serializers.FloatField(read_only=True, allow_null=True)
     offering_name = serializers.CharField(read_only=True)
     offering_uuid = serializers.UUIDField(read_only=True)
@@ -17893,6 +17901,10 @@ class ComponentsUsageStatsPerOfferingSerializer(serializers.Serializer):
 class UsageTimeseriesBucketSerializer(serializers.Serializer):
     billing_period = serializers.DateField(read_only=True)
     usage = serializers.FloatField(read_only=True)
+    usage_terminated = serializers.FloatField(
+        read_only=True,
+        help_text="Part of usage that came from terminated resources.",
+    )
 
 
 class OfferingUsageTimeseriesSerializer(serializers.Serializer):
@@ -17914,7 +17926,12 @@ class OfferingUsageTimeseriesSerializer(serializers.Serializer):
 class ProjectUsageEntrySerializer(serializers.Serializer):
     project_uuid = serializers.UUIDField(read_only=True)
     project_name = serializers.CharField(read_only=True)
+    is_removed = serializers.BooleanField(read_only=True)
     usage = serializers.FloatField(read_only=True)
+    usage_terminated = serializers.FloatField(
+        read_only=True,
+        help_text="Part of usage that came from terminated resources.",
+    )
     buckets = UsageTimeseriesBucketSerializer(many=True, read_only=True)
 
 

@@ -3697,6 +3697,14 @@ class ComponentStatsSerializer(serializers.Serializer):
     billing_type = serializers.CharField(read_only=True)
     usage = serializers.IntegerField(read_only=True)
     limit_usage = serializers.IntegerField(read_only=True)
+    usage_terminated = serializers.IntegerField(
+        read_only=True,
+        help_text="Part of usage that came from terminated resources.",
+    )
+    limit_usage_terminated = serializers.IntegerField(
+        read_only=True,
+        help_text="Part of limit_usage that came from terminated resources.",
+    )
     limit = serializers.IntegerField(read_only=True)
     offering_name = serializers.CharField(read_only=True)
     offering_uuid = serializers.UUIDField(read_only=True)

@@ -290,6 +290,12 @@ class DashboardSection(FeatureSection):
         "per offering component."
     )
 
+    usage_include_terminated = Feature(
+        "Let usage charts include terminated resources: an organization "
+        "dashboard switch, and a removed project's own usage. While off, the "
+        "usage endpoints ignore include_terminated."
+    )
+
     spend_forecast = Feature(
         "Show credit burn-down with a projected exhaustion date on the "
         "project dashboard."

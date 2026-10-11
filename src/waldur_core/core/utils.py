@@ -37,6 +37,7 @@ from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from requests.packages.urllib3 import exceptions
+from rest_framework.fields import BooleanField
 from rest_framework.serializers import ValidationError
 from rest_framework.settings import api_settings
 from ua_parser import user_agent_parser
@@ -76,6 +77,12 @@ def calculate_duration_months(start_date, end_date):
     if delta.days > 0:
         months += 1
     return max(1, months)
+
+
+def query_param_is_true(request, name):
+    """True when the query parameter is one of the values DRF's BooleanField
+    reads as true ("true", "1", "yes", "on", ...), in any letter case."""
+    return str(request.query_params.get(name, "")).lower() in BooleanField.TRUE_VALUES
 
 
 def month_start(date):

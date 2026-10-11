@@ -205,6 +205,7 @@ from waldur_mastermind.marketplace.utils import (
     get_model_serializer,
     get_offering_usage_by_project,
     get_offering_usage_timeseries,
+    narrow_terminated_to_usage_window,
     validate_attributes,
 )
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
@@ -19553,6 +19554,18 @@ _PERIOD_OFFSET_PARAM = OpenApiParameter(
     location=OpenApiParameter.QUERY,
     required=False,
 )
+_INCLUDE_TERMINATED_PARAM = OpenApiParameter(
+    "include_terminated",
+    OpenApiTypes.BOOL,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description=(
+        "If true, also counts terminated resources. Their share of usage is "
+        "returned as usage_terminated (and limit_usage_terminated); limit "
+        "never includes them. Ignored unless the "
+        "dashboard.usage_include_terminated feature is enabled."
+    ),
+)
 
 
 def _resolve_offering(request):
@@ -19579,8 +19592,9 @@ class OfferingUsageMixin:
 
     Subclasses provide:
     - `queryset` — Customer or Project queryset (the route lookup target)
-    - `_scope_resources(scope, offering=None)` — returns the non-terminated
-      resources visible at this scope, optionally filtered to one offering
+    - `_scope_resources(scope, offering=None)` — returns the resources at this
+      scope (non-terminated unless `include_terminated` is set), optionally
+      filtered to one offering
     """
 
     lookup_field = "uuid"
@@ -19590,14 +19604,23 @@ class OfferingUsageMixin:
     def _scope_resources(self, scope, offering=None):
         raise NotImplementedError
 
+    def _exclude_terminated(self, qs):
+        if structure_utils.include_terminated_requested(self.request):
+            return narrow_terminated_to_usage_window(
+                qs, _resolve_period_offset(self.request)
+            )
+        return qs.exclude(state=ResourceStates.TERMINATED)
+
     @extend_schema(
         summary="Get resource usage statistics broken down per offering",
         description=(
             "Returns one row per (offering, component type, billing type) for "
-            "all non-terminated resources within the scope. Each row's "
+            "all non-terminated resources within the scope (or all resources "
+            "when `include_terminated` is true). Each row's "
             "`usage` and `limit_usage` are aggregated using the offering's "
             "own `limit_period`."
         ),
+        parameters=[_INCLUDE_TERMINATED_PARAM],
         responses=serializers.ComponentsUsageStatsPerOfferingSerializer,
     )
     @action(detail=True, url_path="components-usage")
@@ -19615,7 +19638,12 @@ class OfferingUsageMixin:
             "Buckets are keyed by `billing_period` (always month-start). "
             "`period_offset` shifts the window backward by N periods."
         ),
-        parameters=[_OFFERING_UUID_PARAM, _COMPONENT_TYPE_PARAM, _PERIOD_OFFSET_PARAM],
+        parameters=[
+            _OFFERING_UUID_PARAM,
+            _COMPONENT_TYPE_PARAM,
+            _PERIOD_OFFSET_PARAM,
+            _INCLUDE_TERMINATED_PARAM,
+        ],
         responses=serializers.OfferingUsageTimeseriesSerializer,
     )
     @action(detail=True, url_path="components-usage-timeseries")
@@ -19643,8 +19671,8 @@ class MarketplaceCustomerUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericVie
     queryset = structure_models.Customer.objects.all()
 
     def _scope_resources(self, customer, offering=None):
-        qs = models.Resource.objects.filter(project__customer=customer).exclude(
-            state=ResourceStates.TERMINATED
+        qs = self._exclude_terminated(
+            models.Resource.objects.filter(project__customer=customer)
         )
         if offering is not None:
             qs = qs.filter(offering=offering)
@@ -19658,7 +19686,12 @@ class MarketplaceCustomerUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericVie
             "and a monthly `buckets` array. Projects are sorted by usage "
             "descending."
         ),
-        parameters=[_OFFERING_UUID_PARAM, _COMPONENT_TYPE_PARAM, _PERIOD_OFFSET_PARAM],
+        parameters=[
+            _OFFERING_UUID_PARAM,
+            _COMPONENT_TYPE_PARAM,
+            _PERIOD_OFFSET_PARAM,
+            _INCLUDE_TERMINATED_PARAM,
+        ],
         responses=serializers.OfferingUsageByProjectSerializer,
     )
     @action(detail=True, url_path="components-usage-by-project")
@@ -19689,9 +19722,7 @@ class MarketplaceProjectUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericView
     queryset = structure_models.Project.objects.all()
 
     def _scope_resources(self, project, offering=None):
-        qs = models.Resource.objects.filter(project=project).exclude(
-            state=ResourceStates.TERMINATED
-        )
+        qs = self._exclude_terminated(models.Resource.objects.filter(project=project))
         if offering is not None:
             qs = qs.filter(offering=offering)
         return qs
