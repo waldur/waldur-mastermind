@@ -18,7 +18,7 @@ account Waldur provisioned:
 2. **`MATRIX_USER_ID_FORMAT = username`** makes the Waldur username the Matrix localpart. Waldur lowercases
    it and replaces characters a localpart may not hold.
 3. **The homeserver's identity provider** turns the same claim into the localpart (`userid_claims`).
-   Tuwunel 1.9.0 reads only `sub`, `preferred_username`, `username`, `nickname`, the local part of
+   Tuwunel 1.9.3 reads only `sub`, `preferred_username`, `username`, `nickname`, the local part of
    `email`, and `login` (GitHub). Other claims, such as eduTEAMS' `voperson_id`, cannot be used.
 
 The claim must already be a valid Matrix localpart: lowercase letters after folding, digits and

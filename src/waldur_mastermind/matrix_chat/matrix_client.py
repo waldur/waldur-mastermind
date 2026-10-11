@@ -296,7 +296,7 @@ ENCRYPTION_STATE = {
     "content": {"algorithm": "m.megolm.v1.aes-sha2"},
 }
 
-# Only Waldur (the room creator, at 100) changes room state, the encryption
+# Only Waldur, the room's creator, changes room state, the encryption
 # setting included; members may post and join calls.
 ROOM_POWER_LEVELS = {
     "invite": 100,
