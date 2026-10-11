@@ -14,7 +14,10 @@ class MarketplaceSupportConfig(AppConfig):
         from waldur_mastermind.marketplace import serializers as marketplace_serializers
         from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING
         from waldur_mastermind.marketplace.plugins import manager
-        from waldur_mastermind.marketplace_support.serializers import add_issue
+        from waldur_mastermind.marketplace_support.serializers import (
+            add_issue,
+            attach_issues,
+        )
         from waldur_mastermind.support import models as support_models
 
         from . import handlers, processor
@@ -45,6 +48,9 @@ class MarketplaceSupportConfig(AppConfig):
         core_signals.pre_serializer_fields.connect(
             sender=marketplace_serializers.OrderDetailsSerializer,
             receiver=add_issue,
+        )
+        marketplace_serializers.OrderDetailsSerializer.page_loaders.append(
+            attach_issues
         )
 
         signals.post_save.connect(
