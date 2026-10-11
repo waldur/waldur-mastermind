@@ -105,7 +105,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace_openstack import get_mb_component_types
 
-from . import models, plugins, posix_ids
+from . import managers, models, plugins, posix_ids
 from . import project_groups as provider_project_groups
 from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 from .enums import OrderTypes
@@ -2039,7 +2039,59 @@ def _accumulate_hourly_usage(
     )
 
 
-def get_current_period_usage(resource, limit_period=None):
+def _billing_period_date(value):
+    """The date a DateField lookup compares billing_period with for ``value``."""
+    return models.ComponentUsage._meta.get_field("billing_period").get_prep_value(value)
+
+
+def _in_usage_period(billing_period, effective_period) -> bool:
+    """``billing_period`` falls in the period ``get_current_period_usage`` sums."""
+    if effective_period in (None, LimitPeriods.MONTH):
+        return billing_period == _billing_period_date(
+            core_utils.month_start(datetime.date.today())
+        )
+    if effective_period == LimitPeriods.QUARTERLY:
+        return (
+            _billing_period_date(core_utils.get_current_quarter_start())
+            <= billing_period
+            <= _billing_period_date(core_utils.get_current_quarter_end())
+        )
+    if effective_period == LimitPeriods.ANNUAL:
+        return billing_period.year >= datetime.date.today().year
+    return True
+
+
+def load_current_period_usages(resources) -> dict:
+    """The ComponentUsage rows ``get_current_period_usage`` reads, per resource id.
+
+    One query for a page of resources instead of one per component of each.
+    Only this year's rows are loaded unless a component sums its whole history.
+    """
+    resources = [
+        resource for resource in resources if resource.is_limit_based and resource.plan
+    ]
+    if not resources:
+        return {}
+    usages = models.ComponentUsage.objects.filter(
+        resource__in=resources
+    ).select_related("plan_period__plan")
+    sums_whole_history = any(
+        effective.limit_period
+        not in (None, LimitPeriods.MONTH, LimitPeriods.QUARTERLY, LimitPeriods.ANNUAL)
+        for resource in resources
+        for effective in billing_mode.resolve_for_resource(resource).components.values()
+    )
+    if not sums_whole_history:
+        usages = usages.filter(
+            billing_period__gte=datetime.date(datetime.date.today().year, 1, 1)
+        )
+    result = {resource.id: [] for resource in resources}
+    for usage in usages:
+        result[usage.resource_id].append(usage)
+    return result
+
+
+def get_current_period_usage(resource, limit_period=None, usages=None):
     """Get per-component usage for a resource in the current period.
 
     Shared between the resource serializer (panel display) and the
@@ -2055,6 +2107,9 @@ def get_current_period_usage(resource, limit_period=None):
         limit_period: Override period for all components.
             If None, each component's own limit_period is used.
 
+        usages: The resource's ComponentUsage rows, as loaded for a page by
+            ``load_current_period_usages``. Queried per component when omitted.
+
     Returns:
         dict[str, float]: Component type → aggregated usage amount
     """
@@ -2064,30 +2119,22 @@ def get_current_period_usage(resource, limit_period=None):
         component = effective.component
         effective_period = limit_period or effective.limit_period
 
-        usages = models.ComponentUsage.objects.filter(
-            resource=resource, component=component
-        )
-
-        if effective_period in (None, LimitPeriods.MONTH):
-            month_start = core_utils.month_start(datetime.date.today())
-            usages = usages.filter(billing_period=month_start)
-        elif effective_period == LimitPeriods.QUARTERLY:
-            quarter_start = core_utils.get_current_quarter_start()
-            quarter_end = core_utils.get_current_quarter_end()
-            usages = usages.filter(
-                billing_period__gte=quarter_start, billing_period__lte=quarter_end
-            )
-        elif effective_period == LimitPeriods.ANNUAL:
-            usages = usages.filter(billing_period__year__gte=datetime.date.today().year)
-        elif effective_period == LimitPeriods.TOTAL:
-            pass  # Sum all usages
+        if usages is not None:
+            period_rows = [
+                row
+                for row in usages
+                if row.component_id == component.id
+                and _in_usage_period(row.billing_period, effective_period)
+            ]
+        else:
+            period_rows = _query_period_usages(resource, component, effective_period)
 
         # After a switch between a usage plan and a limit plan the month holds
         # rows of both semantics (accumulated core-hours next to a peak core
         # count). Only rows billed the same way as the current plan count.
         rows = [
             row
-            for row in usages.select_related("plan_period__plan")
+            for row in period_rows
             if billing_mode.resolve_component(
                 component, row.plan_period.plan if row.plan_period else resource.plan
             ).billing_type
@@ -2109,6 +2156,29 @@ def get_current_period_usage(resource, limit_period=None):
         result[component.type] = float(total)
 
     return result
+
+
+def _query_period_usages(resource, component, effective_period):
+    """The rows of ``component`` in its current period, queried for one resource."""
+    usages = models.ComponentUsage.objects.filter(
+        resource=resource, component=component
+    )
+
+    if effective_period in (None, LimitPeriods.MONTH):
+        month_start = core_utils.month_start(datetime.date.today())
+        usages = usages.filter(billing_period=month_start)
+    elif effective_period == LimitPeriods.QUARTERLY:
+        quarter_start = core_utils.get_current_quarter_start()
+        quarter_end = core_utils.get_current_quarter_end()
+        usages = usages.filter(
+            billing_period__gte=quarter_start, billing_period__lte=quarter_end
+        )
+    elif effective_period == LimitPeriods.ANNUAL:
+        usages = usages.filter(billing_period__year__gte=datetime.date.today().year)
+    elif effective_period == LimitPeriods.TOTAL:
+        pass  # Sum all usages
+
+    return usages.select_related("plan_period__plan")
 
 
 def get_effective_component_limit(resource, component):
@@ -5324,14 +5394,17 @@ def get_new_order_notification_recipients(order) -> list[str]:
 
 
 def check_pending_order_exists(resource):
-    return models.Order.objects.filter(
-        resource=resource,
-        state__in=(
-            OrderStates.PENDING_CONSUMER,
-            OrderStates.PENDING_PROVIDER,
-            OrderStates.EXECUTING,
-        ),
-    ).exists()
+    states = (
+        OrderStates.PENDING_CONSUMER,
+        OrderStates.PENDING_PROVIDER,
+        OrderStates.EXECUTING,
+    )
+    # A subset of OrderStates.PENDING_STATES, so the page-wide prefetch of
+    # pending orders made by list views answers it without a query.
+    prefetched = getattr(resource, "prefetched_pending_orders", None)
+    if prefetched is not None:
+        return any(order.state in states for order in prefetched)
+    return models.Order.objects.filter(resource=resource, state__in=states).exists()
 
 
 def get_pending_consumer_terminate_order(resource):
@@ -7810,7 +7883,50 @@ def _is_field_empty_q(user_field_name):
         return Q(**{f"{prefix}__isnull": True})
 
 
-def user_can_see_resource_order_workflow(user, resource) -> bool:
+class ResourceViewerScopes:
+    """The viewer's roles that decide how a page of resources is rendered.
+
+    ``user_can_see_resource_order_workflow`` and
+    ``is_resource_project_only_viewer`` otherwise re-read the viewer's roles
+    for every resource they are asked about; a list builds this once per page
+    and passes it in. ``resource_ids`` bounds the ResourceProject lookup to the
+    page.
+    """
+
+    def __init__(self, user, resource_ids):
+        self.project_ids = set(get_connected_projects(user))
+        self.customer_ids = set(get_connected_customers(user))
+        self.offering_ids = set(managers.get_connected_offerings(user))
+        self.service_provider_customer_ids = set(
+            models.ServiceProvider.objects.filter(
+                id__in=managers.get_connected_serviceproviders(user)
+            ).values_list("customer_id", flat=True)
+        )
+        self.direct_resource_ids = set(managers.get_user_direct_resource_ids(user))
+        self.resource_project_resource_ids = set(
+            models.ResourceProject.available_objects.filter(
+                id__in=managers.get_user_resource_project_ids(user),
+                resource_id__in=resource_ids,
+            ).values_list("resource_id", flat=True)
+        )
+
+    def is_consumer(self, resource) -> bool:
+        return (
+            resource.project_id in self.project_ids
+            or resource.project.customer_id in self.customer_ids
+        )
+
+    def is_provider(self, resource) -> bool:
+        """Mirrors ``ResourceQuerySet.filter_for_service_provider``."""
+        offering = resource.offering
+        return (
+            offering.customer_id in self.customer_ids
+            or offering.customer_id in self.service_provider_customer_ids
+            or offering.id in self.offering_ids
+        )
+
+
+def user_can_see_resource_order_workflow(user, resource, scopes=None) -> bool:
     """Return whether ``user`` may see ``order_in_progress`` / ``creation_order``.
 
     Visible to consumer project/customer members and to service providers with
@@ -7821,6 +7937,8 @@ def user_can_see_resource_order_workflow(user, resource) -> bool:
         return False
     if user.is_staff or user.is_support:
         return True
+    if scopes is not None:
+        return scopes.is_consumer(resource) or scopes.is_provider(resource)
     if resource.project_id in get_connected_projects(user):
         return True
     if resource.project.customer_id in get_connected_customers(user):
@@ -7832,7 +7950,7 @@ def user_can_see_resource_order_workflow(user, resource) -> bool:
     )
 
 
-def is_resource_project_only_viewer(user, resource) -> bool:
+def is_resource_project_only_viewer(user, resource, scopes=None) -> bool:
     """True when ``user`` can only see ``resource`` via a ResourceProject role.
 
     Returns False for staff/support, for users with project/customer roles on
@@ -7842,6 +7960,12 @@ def is_resource_project_only_viewer(user, resource) -> bool:
         return False
     if user.is_staff or user.is_support:
         return False
+    if scopes is not None:
+        return (
+            not scopes.is_consumer(resource)
+            and resource.id not in scopes.direct_resource_ids
+            and resource.id in scopes.resource_project_resource_ids
+        )
     project = resource.project
     if get_connected_projects(user).filter(id=project.id).exists():
         return False

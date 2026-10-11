@@ -7827,26 +7827,7 @@ def _emit_resource_failure_event(order, resource):
 class OrderViewSet(
     ConnectedResourceDetailsMixin, ConnectedOfferingDetailsMixin, BaseMarketplaceView
 ):
-    queryset = models.Order.objects.select_related(
-        "resource",
-        "project",
-        "project__customer",
-        "offering",
-        "offering__customer",
-        "offering__category",
-        "plan",
-        "plan__offering",
-        "old_plan",
-        "old_plan__offering",
-        "created_by",
-        "consumer_reviewed_by",
-        "provider_reviewed_by",
-    ).prefetch_related(
-        # old_plan_billing_mode / new_plan_billing_mode resolve each plan
-        # against its offering's components.
-        "plan__offering__components",
-        "old_plan__offering__components",
-    )
+    queryset = serializers.OrderDetailsSerializer.eager_load(models.Order.objects.all())
     filter_backends = (DjangoFilterBackend,)
     serializer_class = serializers.OrderDetailsSerializer
     create_serializer_class = serializers.OrderCreateSerializer
@@ -9735,24 +9716,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def get_queryset(self):
         queryset = self.queryset.filter_for_service_consumer(self.request.user)
         queryset = filter_queryset_by_user_ip(queryset, self.request)
-        # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
-        queryset = queryset.select_related(
-            "offering",
-            "offering__category",
-            "offering__customer__serviceprovider",
-            "offering__parent",
-            "project",
-            "project__customer",
-            "plan",
-        )
-        # Lets the portal offer key management without knowing the backend, at the
-        # cost of one subquery rather than a query per row.
-        queryset = queryset.annotate(
-            has_api_keys_annotation=Exists(
-                models.ResourceApiKey.objects.filter(resource=OuterRef("pk"))
-            )
-        )
-        return queryset
+        return serializers.ResourceSerializer.eager_load(queryset)
 
     @extend_schema(
         summary="Get resource team",
@@ -10354,25 +10318,8 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
 class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def get_queryset(self):
         # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
-        queryset = self.queryset.filter_for_service_provider(
-            self.request.user
-        ).select_related(
-            "offering",
-            "offering__category",
-            "offering__customer__serviceprovider",
-            "offering__parent",
-            "project",
-            "project__customer",
-            "plan",
-        )
-        # Same annotation as the consumer viewset: this list shares
-        # ResourceSerializer, so without it every row falls back to a per-instance
-        # api_keys.exists() query.
-        return queryset.annotate(
-            has_api_keys_annotation=Exists(
-                models.ResourceApiKey.objects.filter(resource=OuterRef("pk"))
-            )
-        )
+        queryset = self.queryset.filter_for_service_provider(self.request.user)
+        return serializers.ResourceSerializer.eager_load(queryset)
 
     def get_user_roles_queryset(self, scope, user=None):
         return utils.user_roles_for_provider_caller(

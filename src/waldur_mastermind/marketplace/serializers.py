@@ -1,3 +1,4 @@
+import dataclasses
 import datetime
 import functools
 import ipaddress
@@ -5,6 +6,7 @@ import logging
 import math
 import re
 import uuid as uuid_lib
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Literal, cast
 
@@ -22,7 +24,16 @@ from django.core.exceptions import (
 )
 from django.core.validators import DomainNameValidator
 from django.db import transaction
-from django.db.models import Count, Q, QuerySet, Sum
+from django.db.models import (
+    Count,
+    Exists,
+    Manager,
+    OuterRef,
+    Prefetch,
+    Q,
+    QuerySet,
+    Sum,
+)
 from django.urls import resolve
 from django.utils import timezone
 from django.utils.text import slugify
@@ -61,6 +72,7 @@ from waldur_core.permissions import serializers as permission_serializers
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
+    build_role_index,
     count_users,
     get_permissions,
     has_permission,
@@ -6975,8 +6987,55 @@ class DashboardMyOrderSerializer(serializers.Serializer):
     created = serializers.DateTimeField(read_only=True)
 
 
+class OrderDetailsListSerializer(serializers.ListSerializer):
+    """Loads what a page of orders needs once, rather than once per order."""
+
+    def to_representation(self, data):
+        orders = list(data.all() if isinstance(data, Manager) else data)
+        OrderDetailsSerializer.load_page(orders)
+        return super().to_representation(orders)
+
+
 class OrderDetailsSerializer(BaseOrderSerializer):
+    # Apps that add a field to this serializer (see marketplace_support's
+    # issue) register here a function that loads what the field reads for a
+    # whole page of orders at once.
+    page_loaders: list[Callable[[list[models.Order]], None]] = []
+
+    @classmethod
+    def load_page(cls, orders: list[models.Order]) -> None:
+        for loader in cls.page_loaders:
+            loader(orders)
+
+    @staticmethod
+    def eager_load(queryset):
+        """The relations the fields of this serializer read."""
+        return queryset.select_related(
+            "resource",
+            "project",
+            "project__customer",
+            "offering",
+            "offering__customer",
+            "offering__category",
+            "plan",
+            "plan__offering",
+            "old_plan",
+            "old_plan__offering",
+            "created_by",
+            "consumer_reviewed_by",
+            "provider_reviewed_by",
+            "auto_approved_by_rule",
+        ).prefetch_related(
+            # old_plan_billing_mode / new_plan_billing_mode resolve each plan
+            # against its offering's components.
+            "plan__offering__components",
+            "old_plan__offering__components",
+            # fixed_price and activation_price sum the plan's components.
+            "plan__components__component",
+        )
+
     class Meta(BaseOrderSerializer.Meta):
+        list_serializer_class = OrderDetailsListSerializer
         fields = BaseOrderSerializer.Meta.fields + (
             "url",
             "consumer_reviewed_by",
@@ -8077,6 +8136,31 @@ class AggregatedAccessSubnetsSerializer(serializers.Serializer):
     organization_subnets = OrganizationAccessSubnetRowSerializer(many=True)
 
 
+@dataclasses.dataclass
+class ResourcePage:
+    """What a page of resources needs about its viewer, loaded once for the page.
+
+    Attached to every resource of the page as ``serialization_page`` by
+    ``ResourceListSerializer``. Fields left as None are not loaded, and the
+    serializer falls back to its per-resource lookups for them.
+    """
+
+    scopes: "utils.ResourceViewerScopes | None" = None
+    role_index: dict | None = None
+    usernames: dict | None = None
+    requires_reconsent: dict | None = None
+    period_usages: dict | None = None
+
+
+class ResourceListSerializer(serializers.ListSerializer):
+    """Loads what a page of resources needs once, rather than once per row."""
+
+    def to_representation(self, data):
+        resources = list(data.all() if isinstance(data, Manager) else data)
+        self.child.load_page(resources)
+        return super().to_representation(resources)
+
+
 class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerializer):
     project_slug = serializers.ReadOnlyField(source="project.slug")
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
@@ -8195,11 +8279,152 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "offering_components",
         )
         view_name = "marketplace-resource-detail"
+        list_serializer_class = ResourceListSerializer
         extra_kwargs = dict(
             **BaseItemSerializer.Meta.extra_kwargs,
             url={"lookup_field": "uuid"},
             end_date_requested_by={"lookup_field": "uuid", "view_name": "user-detail"},
         )
+
+    @staticmethod
+    def eager_load(queryset):
+        """The relations the fields of this serializer read, for a list."""
+        orders = OrderDetailsSerializer.eager_load(models.Order.objects.all())
+        return (
+            queryset.select_related(
+                "offering",
+                "offering__category",
+                "offering__customer__serviceprovider",
+                "offering__parent",
+                "project",
+                "project__customer",
+                "plan",
+                "plan__offering",
+                "parent",
+            )
+            .prefetch_related(
+                # offering_components and the billing mode behind
+                # is_usage_based, is_limit_based and renewal_date.
+                "offering__components",
+                "endpoints",
+                # creation_order and order_in_progress (see the model).
+                Prefetch(
+                    "order_set",
+                    queryset=orders.filter(type=OrderTypes.CREATE),
+                    to_attr="prefetched_create_orders",
+                ),
+                Prefetch(
+                    "order_set",
+                    queryset=orders.filter(state__in=OrderStates.PENDING_STATES),
+                    to_attr="prefetched_pending_orders",
+                ),
+            )
+            .annotate(
+                # One subquery rather than an api_keys.exists() per row.
+                has_api_keys_annotation=Exists(
+                    models.ResourceApiKey.objects.filter(resource=OuterRef("pk"))
+                )
+            )
+        )
+
+    def load_page(self, resources: list[models.Resource]) -> None:
+        """Answer the per-row viewer questions for a whole page at once."""
+        if not resources:
+            return
+        fields = self.fields
+        if "order_in_progress" in fields or "creation_order" in fields:
+            OrderDetailsSerializer.load_page(
+                [
+                    order
+                    for resource in resources
+                    for attr in (
+                        "prefetched_create_orders",
+                        "prefetched_pending_orders",
+                    )
+                    for order in getattr(resource, attr, None) or []
+                ]
+            )
+
+        page = ResourcePage()
+        if "limit_usage" in fields:
+            page.period_usages = utils.load_current_period_usages(resources)
+        for resource in resources:
+            resource.serialization_page = page
+
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return
+
+        offering_ids = {resource.offering_id for resource in resources}
+        if not (user.is_staff or user.is_support):
+            page.scopes = utils.ResourceViewerScopes(
+                user, [resource.id for resource in resources]
+            )
+            if "can_terminate" in fields:
+                page.role_index = build_role_index(
+                    user,
+                    [
+                        (PermissionEnum.TERMINATE_RESOURCE, scope)
+                        for resource in resources
+                        for scope in (
+                            resource.project,
+                            resource.project.customer,
+                            resource.offering.customer,
+                        )
+                    ],
+                )
+        if "username" in fields:
+            page.usernames = dict(
+                models.OfferingUser.objects.filter(
+                    user=user, offering_id__in=offering_ids
+                ).values_list("offering_id", "username")
+            )
+        if "user_requires_reconsent" in fields:
+            page.requires_reconsent = self._load_requires_reconsent(
+                user,
+                {resource.offering_id: resource.offering for resource in resources},
+            )
+
+    @staticmethod
+    def _load_requires_reconsent(user, offerings) -> dict:
+        """``get_user_requires_reconsent`` for many offerings, by offering id."""
+        if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+            return {}
+        if user.is_staff or user.is_support:
+            return {}
+        candidates = [
+            offering_id
+            for offering_id, offering in offerings.items()
+            if offering.plugin_options.get(
+                "service_provider_can_create_offering_user", False
+            )
+        ]
+        active_tos = {
+            tos.offering_id: tos
+            for tos in models.OfferingTermsOfService.objects.filter(
+                offering_id__in=candidates, is_active=True
+            )
+        }
+        consents = {}
+        for consent in models.UserOfferingConsent.objects.filter(
+            user=user, offering_id__in=list(active_tos), revocation_date__isnull=True
+        ):
+            # The default ordering puts the consent .first() would pick first.
+            consents.setdefault(consent.offering_id, consent)
+        result = {}
+        for offering_id, tos in active_tos.items():
+            consent = consents.get(offering_id)
+            if consent is None:
+                result[offering_id] = True
+            else:
+                result[offering_id] = (
+                    tos.requires_reconsent and consent.version != tos.version
+                )
+        return result
+
+    def _page(self, resource) -> ResourcePage | None:
+        return getattr(resource, "serialization_page", None)
 
     state = serializers.SerializerMethodField()
     scope = core_serializers.GenericRelatedField(read_only=True)
@@ -8292,8 +8517,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     def get_can_terminate(self, resource) -> bool:
         view = self.context["view"]
+        page = self._page(resource)
         try:
-            permissions.user_can_terminate_resource(view.request, view, resource)
+            permissions.user_can_terminate_resource(
+                view.request,
+                view,
+                resource,
+                role_index=page.role_index if page else None,
+            )
         except APIException:
             return False
         except ObjectDoesNotExist:
@@ -8314,6 +8545,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         return not check_pending_order_exists(resource)
 
     def get_username(self, resource) -> str | None:
+        page = self._page(resource)
+        if page and page.usernames is not None:
+            return page.usernames.get(resource.offering_id)
         user = self.context["request"].user
         offering_user = models.OfferingUser.objects.filter(
             offering=resource.offering, user=user
@@ -8341,7 +8575,13 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         if not resource.is_limit_based or not resource.plan:
             return {}
 
-        return utils.get_current_period_usage(resource)
+        page = self._page(resource)
+        usages = (
+            page.period_usages.get(resource.id)
+            if page and page.period_usages is not None
+            else None
+        )
+        return utils.get_current_period_usage(resource, usages=usages)
 
     def get_available_actions(self, resource: models.Resource) -> list[str]:
         return plugins.manager.get_available_resource_actions(resource)
@@ -8383,6 +8623,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     def get_user_requires_reconsent(self, resource: models.Resource) -> bool:
         """Check if the current user needs to re-consent for this resource's offering."""
+        page = self._page(resource)
+        if page and page.requires_reconsent is not None:
+            return page.requires_reconsent.get(resource.offering_id, False)
+
         if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
             return False
 
@@ -8442,7 +8686,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         request = self.context.get("request")
         if not request or getattr(request, "user", None) is None:
             return True
-        return utils.user_can_see_resource_order_workflow(request.user, resource)
+        page = self._page(resource)
+        return utils.user_can_see_resource_order_workflow(
+            request.user, resource, page.scopes if page else None
+        )
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -8450,8 +8697,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             for hidden in ("project_description",):
                 data.pop(hidden, None)
         request = self.context.get("request")
+        page = self._page(instance)
         if request and utils.is_resource_project_only_viewer(
-            getattr(request, "user", None), instance
+            getattr(request, "user", None), instance, page.scopes if page else None
         ):
             for hidden in (
                 "limits",

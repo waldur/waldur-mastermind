@@ -2469,12 +2469,23 @@ class Resource(
 
         return f"{self.uuid} ({self.offering.name})"
 
+    # List views load these orders for a whole page at once, as
+    # ``prefetched_create_orders`` and ``prefetched_pending_orders`` (see
+    # ``ResourceSerializer.eager_load``); both keep the default Order ordering,
+    # so their first element is what ``.first()`` would return.
+
     @property
     def creation_order(self) -> "Order | None":
+        prefetched = getattr(self, "prefetched_create_orders", None)
+        if prefetched is not None:
+            return prefetched[0] if prefetched else None
         return self.order_set.filter(type=OrderTypes.CREATE).first()
 
     @property
     def order_in_progress(self) -> "Order | None":
+        prefetched = getattr(self, "prefetched_pending_orders", None)
+        if prefetched is not None:
+            return prefetched[0] if prefetched else None
         return self.order_set.filter(state__in=OrderStates.PENDING_STATES).first()
 
     def get_prepaid_balance(

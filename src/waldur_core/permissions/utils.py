@@ -238,6 +238,7 @@ def has_permission_on_any_source(
     permission: enums.PermissionEnum,
     scope: "Model | None",
     sources: list[str] | None = None,
+    role_index: "dict | None" = None,
 ) -> bool:
     """Whether the user holds permission on scope or on any of its named sources.
 
@@ -248,12 +249,14 @@ def has_permission_on_any_source(
     This is the traversal `permission_factory` enforces, exposed as a predicate
     so that a read gate and the write gate it has to agree with can be built
     from the same rule instead of restating it.
+
+    ``role_index`` is passed through to every ``has_permission`` call; see there.
     """
     if not scope:
         return False
 
     if not sources:
-        return has_permission(request, permission, scope)
+        return has_permission(request, permission, scope, role_index)
 
     attribute_errors = 0
     for path in sources:
@@ -262,7 +265,7 @@ def has_permission_on_any_source(
             if path != "*":
                 for part in path.split("."):
                     source = getattr(source, part)
-            if has_permission(request, permission, source):
+            if has_permission(request, permission, source, role_index):
                 return True
         except AttributeError:
             # Continue to next path if attribute doesn't exist
@@ -284,11 +287,13 @@ def permission_factory(permission, sources=None):
     if sources is not None and not isinstance(sources, list):
         raise ValueError(f"sources must be a list or None, got {type(sources)}")
 
-    def permission_function(request, view, scope=None):
+    def permission_function(request, view, scope=None, role_index=None):
         if not scope:
             return
 
-        if has_permission_on_any_source(request, permission, scope, sources):
+        if has_permission_on_any_source(
+            request, permission, scope, sources, role_index
+        ):
             return
 
         raise exceptions.PermissionDenied()
