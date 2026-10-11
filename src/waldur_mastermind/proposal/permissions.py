@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rest_framework import exceptions, permissions
 
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import (
@@ -73,19 +74,42 @@ def can_update_proposal(request, view, obj=None):
         raise exceptions.PermissionDenied()
 
 
+def _require_draft(proposal):
+    """Refuse the applicant's change to a proposal no longer in draft: once
+    submitted, what was submitted is what gets evaluated."""
+    if proposal.state != ProposalStates.DRAFT:
+        raise IncorrectStateException(
+            "Only proposals with a draft status are available for editing."
+        )
+
+
 def can_update_proposal_attachments(request, view, obj=None):
     """Change a proposal's requested resources and documents.
 
-    As ``can_update_proposal``, and those overseeing the call may also adjust
-    them. Reads stay open to everyone who can see the proposal.
+    Those overseeing the call, and staff, at any time. The applicant side --
+    its creator, managers and administrators (PROPOSAL.UPDATE) -- only while
+    the proposal is a draft. Reads stay open to everyone who can see the
+    proposal.
     """
     if obj is None or request.method in permissions.SAFE_METHODS:
         return
-    if _holds_on_proposal(
-        request, PermissionEnum.UPDATE_PROPOSAL, obj
-    ) or oversees_proposal_call(request, obj):
+    if oversees_proposal_call(request, obj):
         return
-    raise exceptions.PermissionDenied()
+    if not _holds_on_proposal(request, PermissionEnum.UPDATE_PROPOSAL, obj):
+        raise exceptions.PermissionDenied()
+    _require_draft(obj)
+
+
+def can_answer_proposal_checklist(request, view, obj=None):
+    """Answer a proposal's checklist: those who may edit the proposal
+    (PROPOSAL.UPDATE), only while it is a draft; staff at any time."""
+    if obj is None:
+        return
+    if not has_permission(request, PermissionEnum.UPDATE_PROPOSAL, obj):
+        raise exceptions.PermissionDenied()
+    if request.user.is_staff:
+        return
+    _require_draft(obj)
 
 
 def can_manage_proposal(request, view, obj=None):

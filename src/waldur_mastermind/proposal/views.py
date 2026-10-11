@@ -3412,8 +3412,9 @@ class ProposalViewSet(
 
     checklist_permissions = [_checklist_view_permission]
     completion_status_permissions = [permission_factory(PermissionEnum.UPDATE_PROPOSAL)]
-    # Only those who may edit the proposal (managers, administrators) answer it
-    submit_answers_permissions = [permission_factory(PermissionEnum.UPDATE_PROPOSAL)]
+    # Only those who may edit the proposal (managers, administrators) answer
+    # it, and only while it is a draft
+    submit_answers_permissions = [proposal_permissions.can_answer_proposal_checklist]
 
     # ReviewerChecklistMixin permissions - for proposal reviewers
     # Custom permission for compliance checklists (call managers only) or regular proposal review permissions
