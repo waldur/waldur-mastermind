@@ -1439,6 +1439,40 @@ class CustomerResourceQuotasTest(test.APITestCase):
         self.assertEqual(ram_component["measured_unit"], "GB")
 
     @freeze_time("2025-10-15")
+    def test_for_current_month_is_parsed_as_a_boolean(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        def disk_limit_usage(query):
+            response = self.client.get(self.url + query)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            return next(
+                c["limit_usage"]
+                for c in response.data["components"]
+                if c["type"] == "disk"
+            )
+
+        # The ANNUAL disk component reports year-to-date (10 + 15) in total
+        # mode and only October's 10 for the current month.
+        self.assertEqual(disk_limit_usage(""), 25)
+        self.assertEqual(disk_limit_usage("?for_current_month=false"), 25)
+        self.assertEqual(disk_limit_usage("?for_current_month=true"), 10)
+        self.assertEqual(disk_limit_usage("?for_current_month=TRUE"), 10)
+        # The values DRF's BooleanField reads as true keep meaning true.
+        self.assertEqual(disk_limit_usage("?for_current_month=1"), 10)
+        self.assertEqual(disk_limit_usage("?for_current_month=yes"), 10)
+        self.assertEqual(disk_limit_usage("?for_current_month=0"), 25)
+
+    @freeze_time("2025-10-15")
+    def test_project_for_current_month_false_returns_total_usage(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProjectFactory.get_url(self.project1, "stats")
+
+        response = self.client.get(url + "?for_current_month=false")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        disk = next(c for c in response.data["components"] if c["type"] == "disk")
+        self.assertEqual(disk["limit_usage"], 25)
+
+    @freeze_time("2025-10-15")
     def test_customer_with_limit_based_resources(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)

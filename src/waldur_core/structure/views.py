@@ -381,9 +381,10 @@ class CustomerViewSet(
         ).exclude(state=ResourceStates.TERMINATED)
         resources = filter_queryset_for_user(resources, request.user)
 
-        for_current_month = request.query_params.get("for_current_month", False)
-        if for_current_month in ["true", "True"]:
-            for_current_month = True
+        for_current_month = (
+            request.query_params.get("for_current_month", "").lower()
+            in rf_serializers.BooleanField.TRUE_VALUES
+        )
 
         components_data_list = get_components_usage_data_from_resources(
             resources, for_current_month
@@ -1154,9 +1155,10 @@ class ProjectViewSet(
         )
         resources = filter_queryset_for_user(resources, request.user)
 
-        for_current_month = request.query_params.get("for_current_month", False)
-        if for_current_month in ["true", "True"]:
-            for_current_month = True
+        for_current_month = (
+            request.query_params.get("for_current_month", "").lower()
+            in rf_serializers.BooleanField.TRUE_VALUES
+        )
 
         components_data_list = get_components_usage_data_from_resources(
             resources, for_current_month
