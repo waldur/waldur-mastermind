@@ -280,6 +280,25 @@ test, `docker compose down -v` removes everything.
 
 Delete `sessions.jsonl` as well.
 
+## Running it in CI
+
+waldur-integration-testing has a manual job, "Matrix capacity smoke (manual)",
+that runs these scripts from the mastermind image under test against its
+Docker E2E stack with the Matrix profile: it creates the users, waits for the
+bot's history fills, runs the steps (50, 100 and 200 users by default, set
+with `MATRIX_CAPACITY_USERS` when you play the job) and fails when a step does
+not pass. The table, each step's `summary.json` and the homeserver, bot and
+API logs are its artifacts; the sessions file never leaves the job.
+
+To measure a merge request, open the integration-testing pipeline that the
+merge request's "Trigger integration tests" job started, and play the job
+there: it then runs against the image built from the merge request.
+
+The homeserver shares a CI runner with the rest of the stack and with the
+load generator, so the job's numbers are a regression signal, to compare
+between runs. They are not a capacity figure: measure that as described
+above, on hardware sized like the deployment.
+
 ## What it does not cover
 
 - End-to-end encryption. Messages are plain text the size of an encrypted
