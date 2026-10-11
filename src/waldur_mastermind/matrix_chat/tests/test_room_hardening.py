@@ -1,8 +1,11 @@
+import json
 from unittest import mock
 
+import httpx
+import respx
+from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
-from nio import RoomCreateError, RoomCreateResponse
 
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -31,43 +34,102 @@ def _room_for(project):
     )
 
 
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client._get_client_params")
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client._make_client")
-class UnfederatedRoomsTest(TestCase):
-    def _client(self, mock_make_client, mock_get_params, *responses):
-        client = mock.AsyncMock()
-        client.room_create.side_effect = responses
-        mock_make_client.return_value = client
-        mock_get_params.return_value = ("http://hs", "@bot:hs", "token")
-        return client
+def _created(route):
+    return [json.loads(call.request.content) for call in route.calls]
 
-    def test_rooms_are_created_without_federation(
-        self, mock_make_client, mock_get_params
-    ):
+
+@override_config(
+    MATRIX_HOMESERVER_URL="http://hs.test",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+)
+class CreateEventTest(TestCase):
+    def _homeserver(self, *responses):
+        return respx.post("http://hs.test/_matrix/client/v3/createRoom").mock(
+            side_effect=responses
+        )
+
+    @respx.mock
+    def test_rooms_are_created_without_federation(self):
         # Project rooms are for one Waldur's users; m.federate=false keeps every
         # other server out for good, whatever the homeserver's settings.
-        client = self._client(
-            mock_make_client, mock_get_params, RoomCreateResponse(room_id="!r:hs")
+        route = self._homeserver(httpx.Response(200, json={"room_id": "!r:hs"}))
+
+        matrix_client.create_room("Project", alias_localpart="waldur-1")
+
+        self.assertIs(_created(route)[0]["creation_content"]["m.federate"], False)
+
+    @respx.mock
+    def test_the_retry_without_an_alias_is_unfederated_too(self):
+        route = self._homeserver(
+            httpx.Response(
+                400,
+                json={"errcode": "M_ROOM_IN_USE", "error": "Room alias already taken"},
+            ),
+            httpx.Response(200, json={"room_id": "!r:hs"}),
+        )
+
+        result = matrix_client.create_room("Project", alias_localpart="waldur-1")
+
+        self.assertEqual(result, ("!r:hs", False))
+        retry = _created(route)[1]
+        self.assertNotIn("room_alias_name", retry)
+        self.assertIs(retry["creation_content"]["m.federate"], False)
+        self.assertIn(matrix_client.ENCRYPTION_STATE, retry["initial_state"])
+
+    @respx.mock
+    def test_room_creation_waits_longer_than_other_calls(self):
+        # A homeserver that finishes after Waldur gave up would leave the
+        # aliased room behind, and the retry would create a second one.
+        route = self._homeserver(httpx.Response(200, json={"room_id": "!r:hs"}))
+
+        matrix_client.create_room("Project", alias_localpart="waldur-1")
+
+        timeout = route.calls[0].request.extensions["timeout"]
+        self.assertEqual(timeout["read"], matrix_client.CREATE_ROOM_TIMEOUT)
+
+    @respx.mock
+    def test_every_room_has_a_create_event_of_its_own(self):
+        # Room version 12 derives the room ID from the create event, so two
+        # rooms the bot created in the same millisecond would get one ID.
+        route = self._homeserver(
+            httpx.Response(200, json={"room_id": "!a:hs"}),
+            httpx.Response(200, json={"room_id": "!b:hs"}),
+        )
+
+        matrix_client.create_room("Project A", alias_localpart="waldur-a")
+        matrix_client.create_room("Project A", alias_localpart="waldur-a")
+
+        first, second = (body["creation_content"] for body in _created(route))
+        self.assertTrue(first[matrix_client.CREATE_EVENT_NONCE])
+        self.assertNotEqual(
+            first[matrix_client.CREATE_EVENT_NONCE],
+            second[matrix_client.CREATE_EVENT_NONCE],
+        )
+
+    @respx.mock
+    def test_the_retry_without_an_alias_has_a_create_event_of_its_own_too(self):
+        route = self._homeserver(
+            httpx.Response(400, json={"errcode": "M_EXCLUSIVE", "error": "Exclusive"}),
+            httpx.Response(200, json={"room_id": "!r:hs"}),
         )
 
         matrix_client.create_room("Project", alias_localpart="waldur-1")
 
-        self.assertIs(client.room_create.call_args[1]["federate"], False)
-
-    def test_the_retry_without_an_alias_is_unfederated_too(
-        self, mock_make_client, mock_get_params
-    ):
-        client = self._client(
-            mock_make_client,
-            mock_get_params,
-            RoomCreateError(message="M_ROOM_IN_USE: Room alias already taken"),
-            RoomCreateResponse(room_id="!r:hs"),
+        first, retry = (body["creation_content"] for body in _created(route))
+        self.assertTrue(retry[matrix_client.CREATE_EVENT_NONCE])
+        self.assertNotEqual(
+            first[matrix_client.CREATE_EVENT_NONCE],
+            retry[matrix_client.CREATE_EVENT_NONCE],
         )
 
-        matrix_client.create_room("Project", alias_localpart="waldur-1")
+    @respx.mock
+    def test_a_refusal_names_the_homeserver_error(self):
+        self._homeserver(
+            httpx.Response(403, json={"errcode": "M_FORBIDDEN", "error": "No"})
+        )
 
-        self.assertEqual(client.room_create.call_count, 2)
-        self.assertIs(client.room_create.call_args_list[1][1]["federate"], False)
+        with self.assertRaisesMessage(matrix_client.MatrixClientError, "M_FORBIDDEN"):
+            matrix_client.create_room("Project", alias_localpart="waldur-1")
 
 
 class MarkdownSafeTextTest(TestCase):

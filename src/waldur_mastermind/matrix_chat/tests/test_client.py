@@ -816,39 +816,31 @@ class BuildEventMessageTest(TestCase):
         self.assertEqual(msg["type"], "m.call.hangup")
 
 
+@override_config(
+    MATRIX_HOMESERVER_URL="http://hs.test",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+)
 class CreateRoomPowerLevelsTest(TestCase):
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._get_client_params")
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._make_client")
-    def test_room_created_with_invite_power_level_100(
-        self, mock_make_client, mock_get_params
-    ):
-        from nio import RoomCreateResponse
-
-        mock_client = mock.AsyncMock()
-        mock_client.room_create.return_value = RoomCreateResponse(
-            room_id="!new:example.com"
-        )
-        mock_make_client.return_value = mock_client
-        mock_get_params.return_value = (
-            "http://matrix.example.com",
-            "@bot:example.com",
-            "token",
+    @respx.mock
+    def test_room_created_with_invite_power_level_100(self):
+        route = respx.post("http://hs.test/_matrix/client/v3/createRoom").mock(
+            return_value=httpx.Response(200, json={"room_id": "!new:example.com"})
         )
 
         room_id, alias_was_set = matrix_client.create_room("Test Room")
 
         self.assertEqual(room_id, "!new:example.com")
         self.assertFalse(alias_was_set)
-        mock_client.room_create.assert_called_once()
-        call_kwargs = mock_client.room_create.call_args[1]
+        self.assertEqual(route.call_count, 1)
+        body = json.loads(route.calls[0].request.content)
         # Every room is encrypted from its creation.
-        self.assertIn(matrix_client.ENCRYPTION_STATE, call_kwargs["initial_state"])
+        self.assertIn(matrix_client.ENCRYPTION_STATE, body["initial_state"])
         # Power level 100 gates the privileged actions (invite/kick/ban/redact
         # and every state event); m.room.message stays at 0 so members can
         # post freely. The org.matrix.msc3401.call.member event is lowered to
         # 0 to let users join LiveKit calls.
         self.assertEqual(
-            call_kwargs["power_level_override"],
+            body["power_level_content_override"],
             {
                 "invite": 100,
                 "kick": 100,
