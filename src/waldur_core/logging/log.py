@@ -147,6 +147,47 @@ def scrub_sensitive(value):
     return value
 
 
+def scrub_query_string(path):
+    """Mask credentials in the query string of a request path.
+
+    Requests are logged with their full path, and a Matrix homeserver sends its
+    hs_token as ?access_token= on every call to the appservice. The text
+    scrubber runs on one parameter at a time, as it would otherwise take the
+    rest of the query along with the value.
+    """
+    path, sep, query = path.partition("?")
+    if not sep:
+        return path
+    params = (_SENSITIVE_RE.sub(rf"\1\2{_SCRUBBED}", p) for p in query.split("&"))
+    return f"{path}?{'&'.join(params)}"
+
+
+def scrub_request(logger, method_name, event_dict):
+    """structlog processor for the request Django passes to its own loggers,
+    which renderers write as its repr, query string included."""
+    request = event_dict.get("request")
+    if hasattr(request, "get_full_path"):
+        path = request.get_full_path()
+        scrubbed = scrub_query_string(path)
+        # Replaced only when masked, so other requests render as they did.
+        if scrubbed != path:
+            event_dict["request"] = (
+                f"<{type(request).__name__}: {request.method} {scrubbed!r}>"
+            )
+    return event_dict
+
+
+class ScrubRequestLine(logging.Filter):
+    """runserver logs the request line of every request, query included."""
+
+    def filter(self, record):
+        if isinstance(record.args, tuple) and record.args:
+            request_line, *rest = record.args
+            if isinstance(request_line, str):
+                record.args = (scrub_query_string(request_line), *rest)
+        return True
+
+
 class DatabaseLogHandler(logging.Handler):
     """
     Custom logging handler that stores log records in PostgreSQL.

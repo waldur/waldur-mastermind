@@ -1,6 +1,8 @@
 import io
 import json
+import logging
 import re
+from contextlib import contextmanager
 from datetime import timedelta
 from unittest import mock
 
@@ -1906,3 +1908,75 @@ class WebhookErrorsDiagnosticsTest(test.APITestCase):
 
         checks = {c["name"]: c for c in response.data["checks"]}
         self.assertNotIn("metrics", checks["homeserver_configured"])
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class HomeserverCallRequestLogTest(test.APITestCase):
+    # Tuwunel sends the hs_token as ?access_token= as well as in the
+    # Authorization header, and every 4xx answer is logged with its request.
+
+    def setUp(self):
+        cache.clear()
+
+    @contextmanager
+    def _console(self):
+        stream = io.StringIO()
+        console = logging.getHandlerByName("console")
+        previous = console.setStream(stream)
+        try:
+            yield stream
+        finally:
+            console.setStream(previous)
+
+    def _put(self, txn_id, token):
+        return self.client.put(
+            f"{WEBHOOK_URL}{txn_id}?access_token={token}",
+            data={"events": []},
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+
+    def test_a_rejected_call_is_logged_without_the_token(self):
+        # A homeserver still registered with a replaced hs_token.
+        with self._console() as console:
+            response = self._put("txn-1", "old-hs-token")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        log = console.getvalue()
+        self.assertNotIn("old-hs-token", log)
+        self.assertIn(f"{WEBHOOK_URL}txn-1?access_token=***", log)
+
+    def test_a_throttled_call_is_logged_without_the_token(self):
+        # Not the current hs_token: calls carrying it are never throttled.
+        with mock.patch.dict(
+            ScopedRateThrottle.THROTTLE_RATES, {"matrix_webhook": "1/hour"}
+        ):
+            self._put("txn-1", "old-hs-token")
+            with self._console() as console:
+                response = self._put("txn-2", "old-hs-token")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        log = console.getvalue()
+        self.assertNotIn("old-hs-token", log)
+        self.assertIn(f"{WEBHOOK_URL}txn-2?access_token=***", log)
+
+    def test_a_query_waldur_does_not_serve_is_logged_without_the_token(self):
+        # The homeserver asks the appservice about users, rooms and third-party
+        # protocols, none of which Waldur serves.
+        with self._console() as console:
+            response = self.client.get(
+                f"/_matrix/app/v1/thirdparty/user/irc?nick=alice&access_token={HS_TOKEN}",
+                HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        log = console.getvalue()
+        self.assertNotIn(HS_TOKEN, log)
+        self.assertIn("/irc?nick=alice&access_token=***", log)

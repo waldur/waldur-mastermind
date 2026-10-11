@@ -29,6 +29,16 @@ class EventsConfig(AppConfig):
         )
         receiver(structlog_signals.bind_extra_request_failed_metadata)(_bind_user_uuid)
 
+        for signal in (
+            structlog_signals.bind_extra_request_metadata,
+            structlog_signals.bind_extra_request_finished_metadata,
+            structlog_signals.bind_extra_request_failed_metadata,
+        ):
+            signal.connect(
+                handlers.scrub_logged_request,
+                dispatch_uid="waldur_core.logging.handlers.scrub_logged_request",
+            )
+
         # Patch APIView.initial so all DRF views (incl. token-authenticated) bind user_uuid
         # after perform_authentication; middleware signals fire before that for token auth
         from waldur_core.logging.middleware import set_current_auth, set_current_user

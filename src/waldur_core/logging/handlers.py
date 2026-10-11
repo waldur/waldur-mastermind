@@ -3,11 +3,16 @@ import logging
 from django.db import transaction
 from rest_framework.authtoken.models import Token
 
-from waldur_core.logging import backend, models, tasks, utils
+from waldur_core.logging import backend, log, models, tasks, utils
 from waldur_core.logging.models import Event, EventSubscriptionQueue, SystemNotification
 from waldur_core.logging.tasks import get_matching_hooks
 
 logger = logging.getLogger(__name__)
+
+
+def scrub_logged_request(log_kwargs, **kwargs):
+    """Mask credentials in the query of the request django-structlog logs."""
+    log_kwargs["request"] = log.scrub_query_string(log_kwargs["request"])
 
 
 def process_hook(sender, instance: Event, **kwargs):

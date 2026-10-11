@@ -308,10 +308,13 @@ STORAGES = {
 
 import structlog
 
+from waldur_core.logging.log import scrub_request
+
 # Processors for stdlib loggers (foreign_pre_chain) - ExtraAdder merges record.extra
 _FOREIGN_PRE_CHAIN = [
     structlog.contextvars.merge_contextvars,
     structlog.stdlib.ExtraAdder(),
+    scrub_request,
     structlog.processors.TimeStamper(fmt="iso"),
     structlog.stdlib.add_logger_name,
     structlog.stdlib.add_log_level,
@@ -351,6 +354,11 @@ LOGGING = {
             "foreign_pre_chain": _FOREIGN_PRE_CHAIN,
         },
     },
+    "filters": {
+        "scrub_request_line": {
+            "()": "waldur_core.logging.log.ScrubRequestLine",
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
@@ -387,6 +395,7 @@ LOGGING = {
         "django.server": {
             "level": "INFO",
             "handlers": ["console"],
+            "filters": ["scrub_request_line"],
             "propagate": False,
         },
         "django_structlog": {
