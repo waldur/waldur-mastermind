@@ -1037,27 +1037,37 @@ class MatrixRecoveryKeyView(views.APIView):
         )
 
 
-def _is_from_homeserver(request):
-    """Check the homeserver token in the Authorization header.
+def _bearer_token(request):
+    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+    return auth_header[7:] if auth_header.startswith("Bearer ") else ""
 
-    A function of its own, so the token is not among the view's locals that
-    Sentry records for an error raised later in the request.
+
+def _holds_homeserver_token(request):
+    """Whether the Authorization header carries the homeserver token.
+
+    A function of its own, so the token is not among the locals of the view or
+    throttle that Sentry records for an error raised later in the request.
     """
     hs_token = config.MATRIX_APPSERVICE_HS_TOKEN
-    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-    provided = auth_header[7:] if auth_header.startswith("Bearer ") else ""
     # Constant-time, as a naive `!=` leaks the token byte by byte. Bytes,
     # because compare_digest raises on non-ASCII text and anyone can send this
     # header.
-    if hs_token and hmac.compare_digest(provided.encode(), hs_token.encode()):
+    return bool(hs_token) and hmac.compare_digest(
+        _bearer_token(request).encode(), hs_token.encode()
+    )
+
+
+def _is_from_homeserver(request):
+    """Check the homeserver token, logging why a call is refused."""
+    if _holds_homeserver_token(request):
         return True
 
     # A homeserver holding another hs_token gets a 403 on every call, and bot
     # commands and invites just stop; without this nothing on Waldur's side
     # says why.
-    if not hs_token:
+    if not config.MATRIX_APPSERVICE_HS_TOKEN:
         reason = "MATRIX_APPSERVICE_HS_TOKEN is not set"
-    elif not provided:
+    elif not _bearer_token(request):
         reason = "no token"
     else:
         reason = (
@@ -1066,6 +1076,18 @@ def _is_from_homeserver(request):
         )
     logger.warning("Rejected a homeserver call to %s: %s", request.path, reason)
     return False
+
+
+class AppserviceThrottle(ScopedRateThrottle):
+    """Per client address, for calls without the homeserver token only.
+
+    The homeserver sends every transaction from one address, about one per
+    chat message, so a busy chat would use up any per-address limit and the
+    homeserver would retry, while its pings failed.
+    """
+
+    def allow_request(self, request, view):
+        return _holds_homeserver_token(request) or super().allow_request(request, view)
 
 
 class AppserviceErrorCountMixin:
@@ -1086,7 +1108,7 @@ class AppserviceErrorCountMixin:
 class MatrixAppserviceWebhookView(AppserviceErrorCountMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [AppserviceThrottle]
     throttle_scope = "matrix_webhook"
 
     @extend_schema(
@@ -1128,7 +1150,7 @@ class MatrixAppserviceWebhookView(AppserviceErrorCountMixin, views.APIView):
 class MatrixAppservicePingView(AppserviceErrorCountMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [AppserviceThrottle]
     throttle_scope = "matrix_webhook"
 
     @extend_schema(
