@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest import mock
 
 from django.core import mail
@@ -7,7 +8,7 @@ from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import serializers, tasks
+from waldur_mastermind.marketplace import models, order_approval, serializers, tasks
 from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -220,11 +221,15 @@ class NewOrderNotificationContentTest(test.APITestCase):
 
 @mock.patch("waldur_mastermind.marketplace.tasks.notify_about_new_order.delay")
 class NewOrderNotificationTriggerTest(test.APITestCase):
-    """The notification is scheduled by order creation, not by the approval flow."""
+    """The notification is scheduled once the consumer side has cleared the
+    order: on creation if it needs no consumer review, on consumer approval
+    otherwise."""
 
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_ORDER)
 
     def set_options(self, **options):
         self.offering.secret_options.update(options)
@@ -241,21 +246,92 @@ class NewOrderNotificationTriggerTest(test.APITestCase):
                 **kwargs,
             )
 
+    def review_by_consumer(self, order, action):
+        self.client.force_authenticate(self.fixture.owner)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(factories.OrderFactory.get_url(order, action))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order.refresh_from_db()
+
     def test_auto_approved_order_is_notified(self, mock_delay):
-        """The regression this feature exists for: an order which never enters an
-        approval state produces no approval mail, but must still notify."""
+        """An order which never enters an approval state produces no approval
+        mail, but must still notify."""
         self.set_options(order_notification_emails=["ops@example.com"])
 
         order = self.create_order(OrderStates.EXECUTING)
 
         mock_delay.assert_called_once_with(order.uuid)
 
-    def test_pending_order_is_notified(self, mock_delay):
+    def test_pending_provider_order_is_notified_on_creation(self, mock_delay):
         self.set_options(order_notification_roles=[RoleEnum.CUSTOMER_OWNER])
 
         order = self.create_order(OrderStates.PENDING_PROVIDER)
 
         mock_delay.assert_called_once_with(order.uuid)
+
+    def test_order_cleared_by_consumer_on_creation_is_notified_once(self, mock_delay):
+        """Staff orders skip consumer review: the order is created in
+        pending-consumer and moved on by the creation handler."""
+        self.set_options(order_notification_emails=["ops@example.com"])
+
+        order = self.create_order(
+            OrderStates.PENDING_CONSUMER, created_by=self.fixture.staff
+        )
+
+        self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+        mock_delay.assert_called_once_with(order.uuid)
+
+    def test_order_awaiting_consumer_approval_is_not_notified(self, mock_delay):
+        """The recipients act on the order, so they must not hear about one the
+        consumer side may still reject."""
+        self.set_options(order_notification_emails=["ops@example.com"])
+
+        order = self.create_order(OrderStates.PENDING_CONSUMER)
+
+        self.assertEqual(order.state, OrderStates.PENDING_CONSUMER)
+        mock_delay.assert_not_called()
+
+    def test_order_is_notified_once_approved_by_consumer(self, mock_delay):
+        self.set_options(order_notification_emails=["ops@example.com"])
+        order = self.create_order(OrderStates.PENDING_CONSUMER)
+
+        self.review_by_consumer(order, "approve_by_consumer")
+
+        self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+        mock_delay.assert_called_once_with(order.uuid)
+
+    def test_order_rejected_by_consumer_is_not_notified(self, mock_delay):
+        self.set_options(order_notification_emails=["ops@example.com"])
+        order = self.create_order(OrderStates.PENDING_CONSUMER)
+
+        self.review_by_consumer(order, "reject_by_consumer")
+
+        self.assertEqual(order.state, OrderStates.REJECTED)
+        mock_delay.assert_not_called()
+
+    def test_order_approved_by_project_rule_is_notified(self, mock_delay):
+        self.set_options(order_notification_emails=["ops@example.com"])
+        order = self.create_order(OrderStates.PENDING_CONSUMER)
+        mock_delay.assert_not_called()
+        models.ProjectOrderAutoApproval.objects.create(
+            project=self.fixture.project,
+            monthly_cost_limit=Decimal("1000000"),
+            enabled=True,
+            created_by=self.fixture.owner,
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            approved = order_approval.try_apply_project_auto_approval(order.pk)
+
+        self.assertTrue(approved)
+        mock_delay.assert_called_once_with(order.uuid)
+
+    def test_approval_is_not_notified_when_no_option_is_set(self, mock_delay):
+        order = self.create_order(OrderStates.PENDING_CONSUMER)
+
+        self.review_by_consumer(order, "approve_by_consumer")
+
+        mock_delay.assert_not_called()
 
     def test_task_is_not_scheduled_when_no_option_is_set(self, mock_delay):
         self.create_order(OrderStates.EXECUTING)

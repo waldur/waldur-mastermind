@@ -1500,7 +1500,9 @@ class OrderNotificationSecretOptionsSerializer(serializers.Serializer):
         allow_empty=True,
         max_length=MAX_ORDER_NOTIFICATION_EMAILS,
         help_text="Email addresses notified about every new order for this "
-        "offering, regardless of whether the order needs approval. Intended for "
+        "offering, once the consumer side has approved it, or when it is placed "
+        "if it needs no consumer approval. Provider approval is not awaited. "
+        "Intended for "
         "provider-side mailboxes which do not belong to a Waldur user, so these "
         "addresses are notified even if a user with the same address disabled "
         f"notifications. At most {MAX_ORDER_NOTIFICATION_EMAILS} addresses.",
@@ -1512,8 +1514,9 @@ class OrderNotificationSecretOptionsSerializer(serializers.Serializer):
         max_length=MAX_ORDER_NOTIFICATION_ROLES,
         help_text="List of organization or offering role names (e.g. "
         "'CUSTOMER.OWNER', 'OFFERING.MANAGER') whose holders are notified about "
-        "every new order for this offering, regardless of whether the order "
-        "needs approval. Names are resolved on the provider organization and on "
+        "every new order for this offering, once the consumer side has approved "
+        "it, or when it is placed if it needs no consumer approval. Provider "
+        "approval is not awaited. Names are resolved on the provider organization and on "
         "the offering itself. Users who disabled notifications in their profile "
         f"are skipped. At most {MAX_ORDER_NOTIFICATION_ROLES} names.",
     )

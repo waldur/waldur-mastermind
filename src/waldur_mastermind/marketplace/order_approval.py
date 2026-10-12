@@ -124,6 +124,11 @@ def transition_order_from_consumer_approval(order: models.Order, reviewer) -> st
     Returns one of: "pending_project", "pending_provider", "pending_start_date",
     "executing".
     """
+    # Consumer approval is what the offering's new-order recipients wait for:
+    # an order the consumer may still reject is not one the provider can act
+    # on. Every way out of consumer review passes through here.
+    tasks.notify_about_new_order_on_commit(order)
+
     if order.project.start_date and order.project.start_date > timezone.now().date():
         order.state = OrderStates.PENDING_PROJECT
         order.save(update_fields=["state"])

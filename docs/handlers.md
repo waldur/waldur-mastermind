@@ -597,7 +597,7 @@ td:nth-child(4) {
 | `notify_about_resource_end_date_change_request` | `Django Signal (post_save)` | `marketplace.ResourceEndDateChangeRequest` | Email approvers about a new request, and the requester about the verdict. |
 | `notify_approvers_when_order_is_created` | `Django Signal (post_save)` | `marketplace.Order` | Notify approvers when an order is created. |
 | `notify_offering_user_about_tos_requirement` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Notify user about ToS requirement when OfferingUser is created. |
-| `notify_recipients_when_order_is_created` | `Django Signal (post_save)` | `marketplace.Order` | Notify the recipients configured on the offering about a new order. |
+| `notify_recipients_when_order_needs_no_consumer_approval` | `Django Signal (post_save)` | `marketplace.Order` | Notify the offering's configured recipients about an order needing no consumer review. |
 | `notify_user_about_rejected_order` | `Django Signal (post_save)` | `marketplace.Order` | Notify user about rejected order. |
 | `notify_users_about_tos_update_signal` | `Django Signal (post_save)` | `marketplace.OfferingTermsOfService` | Notify users when ToS is updated and requires re-consent. |
 | `offering_component_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Log offering component creation and updates. |

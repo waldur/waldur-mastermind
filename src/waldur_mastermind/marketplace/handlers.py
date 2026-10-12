@@ -278,53 +278,43 @@ def notify_approvers_when_order_is_created(
             )
 
 
-def notify_recipients_when_order_is_created(
+def notify_recipients_when_order_needs_no_consumer_approval(
     sender, instance: Order, created=False, **kwargs
 ):
-    """Notify the recipients configured on the offering about a new order.
+    """Notify the offering's configured recipients about an order needing no consumer review.
 
-    Fires on creation regardless of the approval state, so that offerings which
-    auto-approve are covered too. The task re-reads the order after commit, so
-    state changes made later in the creating transaction are irrelevant.
+    The recipients are told about an order once the consumer side has cleared
+    it, because that is when the provider can act on it. An order which still
+    waits for consumer review is announced by
+    order_approval.transition_order_from_consumer_approval when it is approved,
+    and never if it is rejected. Every other order has nothing left to wait for
+    on the consumer side, so it is announced now: offerings which auto-approve
+    are covered too. The task re-reads the order after commit, so state changes
+    made later in the creating transaction are irrelevant.
 
-    Orders nobody placed are skipped, on three signals. Import commands and the
-    orphan-resource reconciliation sweep insert orders directly in a terminal
-    state, as audit records for work that already happened. Robots place orders
-    on their own initiative: the cost-policy sweep creates one termination order
-    per over-budget resource, and openportal mirrors remote activity. And an
-    order placed automatically names the person it is for, not somebody who
-    placed it: proposal allocation, and the termination sweeps when they carry
-    an allocated resource's author over. Announcing any of these as a new order
-    would be wrong, and all of them arrive in bulk.
+    Import commands and the orphan-resource reconciliation sweep insert orders
+    directly in a terminal state, as audit records for work that already
+    happened, so those are skipped as well. The remaining guards against orders
+    nobody placed live in tasks.order_is_announced_as_new.
     """
-    if get_skip_side_effects():
-        return
-
     if not created:
         return
 
     if instance.state in OrderStates.TERMINAL_STATES:
         return
 
-    if instance.created_by is None or core_utils.is_robot_user(instance.created_by):
+    # Rule out offerings without recipients before the consumer-review check
+    # below, which costs permission queries on every order creation.
+    if not tasks.order_is_announced_as_new(instance):
         return
 
-    # An order placed automatically records the person it is for, not somebody
-    # who placed it. Proposal allocation is the case in point: announcing one
-    # new order per granted resource on allocation day is exactly the bulk
-    # this guard exists to avoid. The end-date and cost-policy sweeps land here
-    # too when they name an allocated resource's author instead of the robot.
-    if instance.placed_automatically:
-        return
-
-    secret_options = instance.offering.secret_options or {}
-    if not secret_options.get("order_notification_emails") and not secret_options.get(
-        "order_notification_roles"
+    if (
+        instance.state == OrderStates.PENDING_CONSUMER
+        and not order_should_not_be_reviewed_by_consumer(instance)
     ):
         return
 
-    order_uuid = instance.uuid
-    transaction.on_commit(lambda: tasks.notify_about_new_order.delay(order_uuid))
+    tasks.notify_about_new_order_on_commit(instance)
 
 
 def maybe_auto_approve_order_for_project(

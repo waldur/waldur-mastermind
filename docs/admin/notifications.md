@@ -2166,7 +2166,7 @@ A notification about usages. The recipients are organization owners.
 
 ### marketplace.notify_about_new_order
 
-Notifies the recipients configured on the offering about every new order for it, regardless of whether the order needs approval.
+Notifies the recipients configured on the offering about every new order for it, once the consumer side has approved the order or straight away if it needs no consumer approval.
 
 #### Templates
 

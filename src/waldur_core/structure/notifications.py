@@ -633,7 +633,8 @@ class MarketplaceSection(NotificationSection):
     notify_about_new_order = Notification(
         key="notify_about_new_order",
         description="Notifies the recipients configured on the offering about every "
-        "new order for it, regardless of whether the order needs approval.",
+        "new order for it, once the consumer side has approved the order or "
+        "straight away if it needs no consumer approval.",
         context_model=NewOrderNotificationContext,
     )
     notify_consumer_about_pending_order = Notification(

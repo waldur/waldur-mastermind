@@ -340,7 +340,7 @@ class AllocatedOrderApprovalRecordTest(test.APITestCase):
     @mock.patch("waldur_mastermind.marketplace.tasks.notify_about_new_order")
     def test_allocated_orders_are_not_announced_as_new_orders(self, mock_notify):
         # One mail per granted resource on allocation day is exactly the bulk
-        # the guard in notify_recipients_when_order_is_created exists to avoid.
+        # the guard in order_is_announced_as_new exists to avoid.
         offering = self.fixture.offering
         offering.secret_options = {"order_notification_emails": ["ops@example.com"]}
         offering.save(update_fields=["secret_options"])
