@@ -836,14 +836,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 758
+Total unique handlers found: 757
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 348 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 349 handlers
+- **waldur_mastermind**: 348 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers

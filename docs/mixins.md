@@ -104,6 +104,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
 | [`ScopeHelperAgreementMixin`](#scopehelperagreementmixin) | `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission` | Each helper must list exactly the scopes has_permission allows |
+| [`GrantMixin`](#grantmixin) | `waldur_mastermind.marketplace.tests.test_slug_permissions` | No description available |
 | [`ConnectedOfferingDetailsMixin`](#connectedofferingdetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide offering details action for connected resources |
 | [`ConnectedResourceDetailsMixin`](#connectedresourcedetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide resource details action for connected resources |
 | [`OfferingUsageMixin`](#offeringusagemixin) | `waldur_mastermind.marketplace.views` | Shared logic for customer/project per-offering usage ViewSets |
@@ -813,7 +814,12 @@ but remains active for list views (where parent is a ListSerializer).
 
 **Description:**
 
-Ensures that slug is editable only by staff
+Ensures that slug is editable only by staff.
+
+A serializer that sets ``slug_create_permission`` also accepts a slug on
+create from a caller holding that permission, checked on the scope that
+``get_slug_permission_scope`` returns. Defining such a serializer without
+the hook fails at import, so the check cannot be left out.
 
 **Base classes:** `Serializer`
 
@@ -1455,6 +1461,12 @@ email are declared by the serializers themselves.
 **Description:**
 
 Each helper must list exactly the scopes has_permission allows.
+
+### GrantMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_slug_permissions`
+
+**Description:** No description available.
 
 ### ConnectedOfferingDetailsMixin
 
