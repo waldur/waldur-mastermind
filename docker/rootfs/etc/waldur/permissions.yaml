@@ -1,3 +1,6 @@
+# PROJECT.SET_SLUG and RESOURCE.SET_SLUG are deliberately granted to no role
+# here, so only staff can set slugs out of the box. Grant them per deployment
+# with add_permissions in permissions-override.yaml.
 - role: CUSTOMER.OWNER
   description: Organization owner
   scope: customer

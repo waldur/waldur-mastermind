@@ -9103,7 +9103,11 @@ class BaseResourceViewSet(
 
     @extend_schema(
         summary="Set resource slug",
-        description="Updates the slug for a resource. Requires staff permissions.",
+        description="Updates the slug of a resource. Requires staff or the "
+        "RESOURCE.SET_SLUG permission, which no role holds unless the deployment "
+        "grants it. Other than staff, a holder cannot change the slug once the "
+        "resource's creation order is executing or the resource exists in the "
+        "backend.",
         request=serializers.ResourceSlugSerializer,
         responses={
             status.HTTP_200_OK: StatusSerializer,
@@ -9112,34 +9116,63 @@ class BaseResourceViewSet(
     @action(detail=True, methods=["post"])
     def set_slug(self, request, uuid=None):
         resource: models.Resource = self.get_object()
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(resource, data=request.data)
         serializer.is_valid(raise_exception=True)
         new_slug = serializer.validated_data["slug"]
-        old_slug = resource.slug
-        if new_slug != old_slug:
-            resource.slug = serializer.validated_data["slug"]
+
+        with transaction.atomic():
+            # Lock the resource and its creation order, so an agent cannot set a
+            # backend_id or the order start executing before the save.
+            resource = models.Resource.objects.select_for_update().get(pk=resource.pk)
+            list(
+                models.Order.objects.select_for_update()
+                .filter(resource=resource, type=OrderTypes.CREATE)
+                .values_list("pk", flat=True)
+            )
+            old_slug = resource.slug
+            if new_slug == old_slug:
+                return Response(
+                    {"status": _("Resource slug is not changed.")},
+                    status=status.HTTP_200_OK,
+                )
+
+            if (
+                not request.user.is_staff
+                and models.Resource.objects.filter(pk=resource.pk)
+                .filter(models.slug_locked_q())
+                .exists()
+            ):
+                raise rf_exceptions.ValidationError(
+                    {
+                        "slug": _(
+                            "The slug cannot be changed: the resource is being or "
+                            "has been provisioned with a backend account named "
+                            "after it."
+                        )
+                    }
+                )
+            resource.slug = new_slug
             with reversion.create_revision():
                 resource.save()
                 reversion.set_user(request.user)
                 reversion.set_comment(f"Slug changed from '{old_slug}' to '{new_slug}'")
-            logger.info(
-                "%s has changed slug from %s to %s",
-                request.user.full_name,
-                old_slug,
-                new_slug,
-            )
+        logger.info(
+            "%s has changed slug from %s to %s",
+            request.user.full_name,
+            old_slug,
+            new_slug,
+        )
+        return Response(
+            {"status": _("Resource slug has been changed.")},
+            status=status.HTTP_200_OK,
+        )
 
-            return Response(
-                {"status": _("Resource slug has been changed.")},
-                status=status.HTTP_200_OK,
-            )
-        else:
-            return Response(
-                {"status": _("Resource slug is not changed.")},
-                status=status.HTTP_200_OK,
-            )
-
-    set_slug_permissions = [structure_permissions.is_staff]
+    set_slug_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_SLUG,
+            marketplace_permissions.RESOURCE_SLUG_PERMISSION_SOURCES,
+        )
+    ]
 
     set_slug_serializer_class = serializers.ResourceSlugSerializer
 

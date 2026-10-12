@@ -262,6 +262,16 @@ class AffiliatedOrganizationSerializer(
             return 0
 
 
+class ProjectSlugSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Project
+        fields = ("slug",)
+
+    def validate_slug(self, value):
+        core_serializers.validate_unique_slug(models.Project, value, self.instance)
+        return value
+
+
 class ProjectAffiliationUpdateSerializer(serializers.Serializer):
     affiliation = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -560,6 +570,15 @@ class ProjectSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
+    slug_create_permission = PermissionEnum.SET_PROJECT_SLUG
+    slug = serializers.SlugField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+        help_text="URL-friendly identifier. Editable by staff; on create also by "
+        "holders of PROJECT.SET_SLUG on the organization, otherwise ignored.",
+    )
+
     resources_count = serializers.SerializerMethodField(
         help_text="Number of active resources in this project"
     )
@@ -866,6 +885,9 @@ class ProjectSerializer(
 
     def get_filtered_field_names(self):
         return ("customer",)
+
+    def get_slug_permission_scope(self, attrs):
+        return attrs.get("customer"), None
 
     def validate(self, attrs):
         customer = (

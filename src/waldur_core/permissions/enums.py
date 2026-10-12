@@ -147,6 +147,10 @@ class PermissionEnum(StrEnum):
     SWITCH_RESOURCE_PLAN = "RESOURCE.SET_PLAN"
     UPDATE_RESOURCE_LIMITS = "RESOURCE.SET_LIMITS"
     SET_RESOURCE_BACKEND_ID = "RESOURCE.SET_BACKEND_ID"
+    # Granted to no role in permissions.yaml: a slug names the backend account
+    # (SLURM account, namespace), so a wrong one points it at another
+    # allocation. A deployment opts in per role via permissions-override.yaml.
+    SET_RESOURCE_SLUG = "RESOURCE.SET_SLUG"
     SUBMIT_RESOURCE_REPORT = "RESOURCE.SUBMIT_REPORT"
     SET_RESOURCE_BACKEND_METADATA = "RESOURCE.SET_BACKEND_METADATA"
     MANAGE_RESOURCE_API_KEY = "RESOURCE.MANAGE_API_KEY"
@@ -220,6 +224,8 @@ class PermissionEnum(StrEnum):
     DELETE_PROJECT = "PROJECT.DELETE"
     UPDATE_PROJECT = "PROJECT.UPDATE"
     UPDATE_PROJECT_METADATA = "PROJECT.UPDATE_METADATA"
+    # Granted to no role, like SET_RESOURCE_SLUG.
+    SET_PROJECT_SLUG = "PROJECT.SET_SLUG"
 
     REVIEW_PROJECT_MEMBERSHIP = "PROJECT.REVIEW_MEMBERSHIP"
 
@@ -512,6 +518,7 @@ def categorize_permission(category, action):
             "SET_END_DATE",
             "SET_STATE",
             "SET_BACKEND_METADATA",
+            "SET_SLUG",
             "CREATE_ROBOT_ACCOUNT",
             "UPDATE_ROBOT_ACCOUNT",
             "DELETE_ROBOT_ACCOUNT",

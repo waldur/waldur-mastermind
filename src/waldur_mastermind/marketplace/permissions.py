@@ -30,6 +30,17 @@ from . import models, utils
 # them — cannot drift from the permission required to write.
 OFFERING_ADMIN_SOURCES = ["*", "customer", "customer.serviceprovider"]
 
+# Where RESOURCE.SET_SLUG may be held to set a resource's slug: on the consumer
+# side (project, organization) or the provider side (offering, its organization,
+# that organization's service provider). Shared by set_slug and order create.
+RESOURCE_SLUG_PERMISSION_SOURCES = [
+    "project",
+    "project.customer",
+    "offering",
+    "offering.customer",
+    "offering.customer.serviceprovider",
+]
+
 
 def can_register_service_provider(request, customer):
     if request.user.is_staff:

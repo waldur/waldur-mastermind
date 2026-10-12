@@ -7459,6 +7459,18 @@ class OrderCreateSerializer(
     # nothing downstream expects.
     type = NaturalChoiceField(choices=OrderTypes.CHOICES, read_only=True)
 
+    # The slug given on create names the new resource, not the order.
+    slug_create_permission = PermissionEnum.SET_RESOURCE_SLUG
+    slug_model = models.Resource
+    slug = serializers.SlugField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+        help_text="Slug of the new resource. Used when the caller is staff or "
+        "holds RESOURCE.SET_SLUG on the project, the offering or their "
+        "organizations; otherwise ignored.",
+    )
+
     class Meta:
         model = models.Order
         fields = BaseOrderSerializer.Meta.fields + (
@@ -7531,6 +7543,12 @@ class OrderCreateSerializer(
             project=validated_data["project"], offering=validated_data["offering"]
         ).generate_slug()
 
+    def get_slug_permission_scope(self, attrs):
+        return (
+            models.Resource(project=attrs["project"], offering=attrs["offering"]),
+            permissions.RESOURCE_SLUG_PERMISSION_SOURCES,
+        )
+
     def validate_project(
         self, project: structure_models.Project
     ) -> structure_models.Project:
@@ -7569,6 +7587,7 @@ class OrderCreateSerializer(
             limits=validated_data.get("limits") or {},
             attributes=attributes,
             name=attributes.get("name") or "",
+            slug=validated_data.get("slug") or "",
         )
         # Set end_date BEFORE init_cost so prepaid duration is included.
         # Use order start_date as offset base when it is in the future so
@@ -9965,6 +9984,10 @@ class ResourceSlugSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
         fields = ("slug",)
+
+    def validate_slug(self, value):
+        core_serializers.validate_unique_slug(models.Resource, value, self.instance)
+        return value
 
 
 class ResourceDownscaledSerializer(serializers.ModelSerializer):
