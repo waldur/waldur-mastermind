@@ -144,9 +144,9 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.notify_recipients_when_order_is_created,
+            handlers.notify_recipients_when_order_needs_no_consumer_approval,
             sender=models.Order,
-            dispatch_uid="waldur_mastermind.marketplace.notify_recipients_when_order_is_created",
+            dispatch_uid="waldur_mastermind.marketplace.notify_recipients_when_order_needs_no_consumer_approval",
         )
 
         signals.post_save.connect(

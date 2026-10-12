@@ -27,6 +27,7 @@ from waldur_core.core import features as core_features
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
@@ -369,6 +370,52 @@ def notify_provider_about_pending_order(order_uuid):
     core_utils.broadcast_mail(
         "marketplace", "notify_provider_about_pending_order", context, approvers
     )
+
+
+def order_is_announced_as_new(order: models.Order) -> bool:
+    """Whether the offering's new-order recipients should hear about this order
+    once the consumer side has cleared it.
+
+    Cheap by design: it reads the order and its offering only, so callers can
+    rule out the common case -- no recipients configured -- before doing
+    anything costlier.
+
+    Orders nobody placed are not announced. Robots place orders on their own
+    initiative: the cost-policy sweep creates one termination order per
+    over-budget resource, and openportal mirrors remote activity. And an order
+    placed automatically names the person it is for, not somebody who placed
+    it: proposal allocation, and the termination sweeps when they carry an
+    allocated resource's author over. Announcing any of these as a new order
+    would be wrong, and all of them arrive in bulk.
+    """
+    if get_skip_side_effects():
+        return False
+
+    if order.created_by is None or core_utils.is_robot_user(order.created_by):
+        return False
+
+    if order.placed_automatically:
+        return False
+
+    secret_options = order.offering.secret_options or {}
+    return bool(
+        secret_options.get("order_notification_emails")
+        or secret_options.get("order_notification_roles")
+    )
+
+
+def notify_about_new_order_on_commit(order: models.Order):
+    """Schedule the new-order notification for an order the consumer side has
+    cleared, if order_is_announced_as_new allows it.
+
+    Called once per order: on creation for an order which needs no consumer
+    review, and on consumer approval for one which does.
+    """
+    if not order_is_announced_as_new(order):
+        return
+
+    order_uuid = order.uuid
+    transaction.on_commit(lambda: notify_about_new_order.delay(order_uuid))
 
 
 @shared_task
