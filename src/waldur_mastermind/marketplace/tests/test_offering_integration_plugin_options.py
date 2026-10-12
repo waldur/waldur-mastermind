@@ -66,6 +66,34 @@ class LifecyclePluginOptionsPersistenceTest(test.APITestCase):
         )
         self.assertEqual(serializer.validated_data["enable_scim_entitlements"], True)
 
+    def test_scim_login_nodes_persist_as_bare_hostnames(self):
+        result = self._update(
+            {
+                "scim_login_nodes": [
+                    "Login.Example.ORG.",
+                    "login.example.org",
+                    "  other.example.org  ",
+                ]
+            }
+        )
+        self.assertEqual(
+            result["scim_login_nodes"],
+            ["login.example.org", "other.example.org"],
+        )
+
+    @data(
+        "ssh://login.example.org",
+        "user@login.example.org",
+        "login.example.org:22",
+        "not a hostname",
+    )
+    def test_scim_login_nodes_reject_non_hostnames(self, hostname):
+        serializer = serializers.MergedPluginOptionsSerializer(
+            data={"scim_login_nodes": [hostname]}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("scim_login_nodes", serializer.errors)
+
     def test_invalid_limit_policy_rejected(self):
         serializer = serializers.MergedPluginOptionsSerializer(
             data={"resource_projects_limit_policy": "bogus"}

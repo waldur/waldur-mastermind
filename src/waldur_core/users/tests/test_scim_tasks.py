@@ -20,17 +20,16 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 class BaseScimTestCase(TestCase):
     """Base class for SCIM tests with shared helper methods."""
 
-    def _create_offering_with_ssh_endpoint(self, login_node="login.example.org"):
-        """Create an offering with SSH endpoint and SCIM entitlements enabled."""
-        offering = marketplace_factories.OfferingFactory(
-            plugin_options={"enable_scim_entitlements": True}
+    def _create_offering_with_login_nodes(self, login_nodes="login.example.org"):
+        """Create an offering opted into SCIM with login hosts in plugin options."""
+        if isinstance(login_nodes, str):
+            login_nodes = [login_nodes]
+        return marketplace_factories.OfferingFactory(
+            plugin_options={
+                "enable_scim_entitlements": True,
+                "scim_login_nodes": list(login_nodes),
+            }
         )
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=offering,
-            name="SSH Access",
-            url=f"ssh://{login_node}",
-        )
-        return offering
 
     def _create_offering_user(
         self, user=None, offering=None, username=None, state=OfferingUserStates.OK
@@ -78,11 +77,11 @@ class ScimTasksTest(BaseScimTestCase):
         self.urn_namespace = "urn:ietf:dev"
         self.ssh_username = self.user.username
 
-    def _create_resource_with_ssh_endpoint(
+    def _create_resource_with_login_nodes(
         self, project, login_node="login.example.org"
     ):
-        """Create a resource in project with SSH endpoint."""
-        offering = self._create_offering_with_ssh_endpoint(login_node)
+        """Create a resource whose offering declares the given login host."""
+        offering = self._create_offering_with_login_nodes(login_node)
         resource = marketplace_factories.ResourceFactory(
             project=project,
             offering=offering,
@@ -105,7 +104,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_add_entitlements_when_user_has_project_role_and_resource(self):
         """Test adding entitlements when user has project role and resource with SSH endpoint."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         offering_username = "user-on-offering"
@@ -132,10 +131,10 @@ class ScimTasksTest(BaseScimTestCase):
     def test_add_multiple_entitlements_for_multiple_login_nodes(self):
         """Test adding multiple entitlements when user has resources with different SSH endpoints."""
         self._grant_project_role()
-        resource1, offering1 = self._create_resource_with_ssh_endpoint(
+        resource1, offering1 = self._create_resource_with_login_nodes(
             self.project, "login1.example.org"
         )
-        resource2, offering2 = self._create_resource_with_ssh_endpoint(
+        resource2, offering2 = self._create_resource_with_login_nodes(
             self.project, "login2.example.org"
         )
 
@@ -171,7 +170,7 @@ class ScimTasksTest(BaseScimTestCase):
 
     def test_remove_entitlements_when_user_has_no_project_roles(self):
         """Test removing entitlements when user has no project roles."""
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         offering_username = "user-on-offering"
@@ -196,7 +195,7 @@ class ScimTasksTest(BaseScimTestCase):
         """Test removing stale entitlements when user's resources change."""
         self._grant_project_role()
         # User had access to login1, now only has login2
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login2.example.org"
         )
         offering_username = "user-on-offering"
@@ -226,7 +225,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_clear_all_entitlements_when_user_inactive(self):
         """Test clearing all entitlements when user is inactive."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         offering_username = "user-on-offering"
@@ -252,7 +251,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_skip_when_user_has_no_username(self):
         """Test skipping sync when user has no username."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self.user.username = ""
@@ -266,16 +265,17 @@ class ScimTasksTest(BaseScimTestCase):
         client.get_user.assert_not_called()
         client.add_entitlements.assert_not_called()
 
-    def test_skip_when_no_ssh_endpoints(self):
-        """Test skipping sync when user has resources but no SSH endpoints."""
+    def test_skip_when_offering_has_no_login_nodes(self):
+        """An opted-in offering with an empty login-node list grants nothing."""
         self._grant_project_role()
-        offering = marketplace_factories.OfferingFactory()
+        offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": True}
+        )
         marketplace_factories.ResourceFactory(
             project=self.project,
             offering=offering,
             state=marketplace_models.Resource.States.OK,
         )
-        # Create offering user but no SSH endpoints
         self._create_offering_user(user=self.user, offering=offering)
 
         client = self._mock_client()
@@ -305,7 +305,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_skip_when_resource_not_ok_state(self):
         """Test skipping sync when resource is not in OK state."""
         self._grant_project_role()
-        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering = self._create_offering_with_login_nodes("login.example.org")
         marketplace_factories.ResourceFactory(
             project=self.project,
             offering=offering,
@@ -325,7 +325,7 @@ class ScimTasksTest(BaseScimTestCase):
         """Sync a user whose only resource is in the given state while the
         remote SCIM user already holds the matching entitlement."""
         self._grant_project_role()
-        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering = self._create_offering_with_login_nodes("login.example.org")
         offering_username = "user-on-offering"
         marketplace_factories.ResourceFactory(
             project=self.project,
@@ -379,7 +379,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_handle_scim_error_on_get_user(self):
         """Test handling SCIM error when getting user."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=offering)
@@ -396,7 +396,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_handle_scim_error_on_update(self):
         """Test handling SCIM error when updating entitlements."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=offering)
@@ -413,7 +413,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_sync_user_entitlements_task_uses_user_uuid(self):
         """Test that sync_user_entitlements task uses user UUID."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=offering)
@@ -432,7 +432,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_skip_when_settings_missing_required_options(self):
         """Test skipping sync when required SCIM settings are missing."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=offering)
@@ -451,7 +451,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_skip_when_scim_disabled(self):
         """Test skipping sync when SCIM is disabled."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=offering)
@@ -466,27 +466,11 @@ class ScimTasksTest(BaseScimTestCase):
 
         client.get_user.assert_not_called()
 
-    def test_extract_hostname_from_ssh_url(self):
-        """Test extracting hostname from SSH URL."""
-        self.assertEqual(
-            tasks.extract_hostname_from_ssh_url("ssh://login.example.org"),
-            "login.example.org",
-        )
-        self.assertEqual(
-            tasks.extract_hostname_from_ssh_url("ssh://login.example.org:22"),
-            "login.example.org",
-        )
-        self.assertIsNone(tasks.extract_hostname_from_ssh_url("http://example.org"))
-        self.assertIsNone(tasks.extract_hostname_from_ssh_url("invalid"))
-
     def test_skip_offering_without_enable_scim_entitlements(self):
-        """SSH endpoints on offerings that did not opt in must not produce entitlements."""
+        """Login nodes on offerings that did not opt in must not produce entitlements."""
         self._grant_project_role()
-        offering = marketplace_factories.OfferingFactory()
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=offering,
-            name="SSH Access",
-            url="ssh://login.example.org",
+        offering = marketplace_factories.OfferingFactory(
+            plugin_options={"scim_login_nodes": ["login.example.org"]}
         )
         marketplace_factories.ResourceFactory(
             project=self.project,
@@ -507,19 +491,39 @@ class ScimTasksTest(BaseScimTestCase):
         client.add_entitlements.assert_not_called()
         client.clear_all_entitlements.assert_not_called()
 
-    def test_only_opted_in_offerings_produce_entitlements(self):
-        """When a user has mixed offerings, only opted-in SSH nodes are synced."""
+    def test_ssh_endpoints_are_not_login_nodes(self):
+        """An ssh:// access endpoint is not an entitlement hostname."""
         self._grant_project_role()
-        _, offering_in = self._create_resource_with_ssh_endpoint(
+        offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": True}
+        )
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=offering,
+            name="SSH Access",
+            url="ssh://login.example.org",
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=marketplace_models.Resource.States.OK,
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering, username="user-on-offering"
+        )
+
+        self.assertEqual(tasks.get_user_ssh_login_nodes(self.user), {})
+
+    def test_only_opted_in_offerings_produce_entitlements(self):
+        """When a user has mixed offerings, only opted-in login nodes are synced."""
+        self._grant_project_role()
+        _, offering_in = self._create_resource_with_login_nodes(
             self.project, "login-in.example.org"
         )
         offering_out = marketplace_factories.OfferingFactory(
-            plugin_options={"enable_scim_entitlements": False}
-        )
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=offering_out,
-            name="SSH Access",
-            url="ssh://login-out.example.org",
+            plugin_options={
+                "enable_scim_entitlements": False,
+                "scim_login_nodes": ["login-out.example.org"],
+            }
         )
         marketplace_factories.ResourceFactory(
             project=self.project,
@@ -550,12 +554,10 @@ class ScimTasksTest(BaseScimTestCase):
         """Stale remote entitlements are cleared when the offering is not opted in."""
         self._grant_project_role()
         offering = marketplace_factories.OfferingFactory(
-            plugin_options={"enable_scim_entitlements": False}
-        )
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=offering,
-            name="SSH Access",
-            url="ssh://login.example.org",
+            plugin_options={
+                "enable_scim_entitlements": False,
+                "scim_login_nodes": ["login.example.org"],
+            }
         )
         marketplace_factories.ResourceFactory(
             project=self.project,
@@ -582,14 +584,11 @@ class ScimTasksTest(BaseScimTestCase):
     def test_get_user_ssh_login_nodes_skips_offering_without_plugin_option(self):
         """Login-node discovery ignores offerings that did not opt into SCIM."""
         self._grant_project_role()
-        _, offering_in = self._create_resource_with_ssh_endpoint(
+        _, offering_in = self._create_resource_with_login_nodes(
             self.project, "login-in.example.org"
         )
-        offering_out = marketplace_factories.OfferingFactory()
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=offering_out,
-            name="SSH Access",
-            url="ssh://login-out.example.org",
+        offering_out = marketplace_factories.OfferingFactory(
+            plugin_options={"scim_login_nodes": ["login-out.example.org"]}
         )
         marketplace_factories.ResourceFactory(
             project=self.project,
@@ -611,10 +610,10 @@ class ScimTasksTest(BaseScimTestCase):
     def test_get_user_ssh_login_nodes(self):
         """Test getting SSH login nodes from user's resources."""
         self._grant_project_role()
-        resource1, offering1 = self._create_resource_with_ssh_endpoint(
+        resource1, offering1 = self._create_resource_with_login_nodes(
             self.project, "login1.example.org"
         )
-        resource2, offering2 = self._create_resource_with_ssh_endpoint(
+        resource2, offering2 = self._create_resource_with_login_nodes(
             self.project, "login2.example.org"
         )
         offering1_username = "user-on-offering1"
@@ -635,6 +634,24 @@ class ScimTasksTest(BaseScimTestCase):
             },
         )
 
+    def test_one_offering_can_declare_several_login_nodes(self):
+        """Every hostname on the offering shares that offering's username."""
+        self._grant_project_role()
+        _, offering = self._create_resource_with_login_nodes(
+            self.project, ["login1.example.org", "login2.example.org"]
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering, username="user-on-offering"
+        )
+
+        self.assertEqual(
+            tasks.get_user_ssh_login_nodes(self.user),
+            {
+                "login1.example.org": "user-on-offering",
+                "login2.example.org": "user-on-offering",
+            },
+        )
+
     def test_get_user_ssh_login_nodes_empty_when_no_resources(self):
         """Test getting empty dict when user has no resources."""
         self._grant_project_role()
@@ -649,7 +666,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_skip_offering_user_not_in_ok_state(self):
         """Test that offering users not in OK state are excluded from entitlements."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
 
@@ -678,7 +695,7 @@ class ScimTasksTest(BaseScimTestCase):
     def test_skip_offering_user_without_username(self):
         """Test that offering users without username are excluded from entitlements."""
         self._grant_project_role()
-        resource, offering = self._create_resource_with_ssh_endpoint(
+        resource, offering = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(
@@ -713,11 +730,11 @@ class ScimReconcileTasksTest(BaseScimTestCase):
             username="11111111-1111-1111-1111-111111111111@myaccessid.org"
         )
 
-    def _create_resource_with_ssh_endpoint(
+    def _create_resource_with_login_nodes(
         self, project, login_node="login.example.org"
     ):
-        """Create a resource in project with SSH endpoint."""
-        offering = self._create_offering_with_ssh_endpoint(login_node)
+        """Create a resource whose offering declares the given login host."""
+        offering = self._create_offering_with_login_nodes(login_node)
         resource = marketplace_factories.ResourceFactory(
             project=project,
             offering=offering,
@@ -746,7 +763,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self, mock_batch_delay
     ):
         """Test that sync_recent_entitlements includes users with recently modified roles."""
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=resource.offering)
@@ -766,7 +783,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
 
     def test_sync_recent_entitlements_excludes_old_roles(self):
         """Test that sync_recent_entitlements excludes users with old role modifications."""
-        self._create_resource_with_ssh_endpoint(self.project, "login.example.org")
+        self._create_resource_with_login_nodes(self.project, "login.example.org")
         self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
 
         client = mock.Mock(spec=ScimClient)
@@ -783,7 +800,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self, mock_batch_delay
     ):
         """Reconcile users when OfferingUser became ready but project role is unchanged."""
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
@@ -811,7 +828,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self, mock_batch_delay
     ):
         """Reconcile offering users when a resource became OK but project role is unchanged."""
-        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering = self._create_offering_with_login_nodes("login.example.org")
         resource = marketplace_factories.ResourceFactory(
             project=self.project,
             offering=offering,
@@ -837,7 +854,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
 
     def test_sync_recent_entitlements_excludes_stale_marketplace_changes(self):
         """Old OfferingUser/Resource changes do not trigger reconcile without role updates."""
-        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering = self._create_offering_with_login_nodes("login.example.org")
         resource = marketplace_factories.ResourceFactory(
             project=self.project,
             offering=offering,
@@ -864,7 +881,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
 
     def test_get_users_for_reconciliation_unions_role_and_marketplace_sources(self):
         """Unit check that marketplace changes expand the reconcile user set."""
-        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering = self._create_offering_with_login_nodes("login.example.org")
         resource = marketplace_factories.ResourceFactory(
             project=self.project,
             offering=offering,
@@ -899,7 +916,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self, mock_batch_delay
     ):
         """Reconcile runs cleanup when a revocation event was missed."""
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         offering_username = "user-on-offering"
@@ -931,7 +948,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self, mock_batch_delay
     ):
         """Reconcile users when OfferingUser left OK but project role is unchanged."""
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         offering_username = "user-on-offering"
@@ -967,7 +984,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self, mock_batch_delay
     ):
         """Reconcile offering users when a resource left OK but project role is unchanged."""
-        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering = self._create_offering_with_login_nodes("login.example.org")
         offering_username = "user-on-offering"
         resource = marketplace_factories.ResourceFactory(
             project=self.project,
@@ -1001,7 +1018,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
 
     def test_sync_recent_entitlements_excludes_stale_role_revocation(self):
         """Old revocations outside the lookback window are not reconciled."""
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=resource.offering)
@@ -1025,7 +1042,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self, mock_batch_delay
     ):
         """Test that sync_all_entitlements includes all users with active roles."""
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         self._create_offering_user(user=self.user, offering=resource.offering)
@@ -1048,7 +1065,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
     def test_sync_recent_entitlements_batches_users_correctly(self, mock_batch_delay):
         """Test that sync_recent_entitlements splits users into batches of correct size."""
         # Create 22 users with roles (batch size is 20, so should create 2 batches: 20 + 2)
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         users = []
@@ -1087,7 +1104,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
     def test_sync_all_entitlements_batches_users_correctly(self, mock_batch_delay):
         """Test that sync_all_entitlements splits users into batches of correct size."""
         # Create 22 users with roles (batch size is 20, so should create 2 batches: 20 + 2)
-        resource = self._create_resource_with_ssh_endpoint(
+        resource = self._create_resource_with_login_nodes(
             self.project, "login.example.org"
         )
         users = []
@@ -1151,69 +1168,65 @@ class ScimSyncAllApiTest(test.APITestCase):
     SCIM_API_KEY="secret",
     SCIM_URN_NAMESPACE="urn:ietf:dev",
 )
-class ScimEndpointChangeTest(BaseScimTestCase):
-    """Test that the signal handler dispatches the right task — nothing more."""
+class ScimLoginNodesChangeTest(BaseScimTestCase):
+    """Changing scim_login_nodes schedules a sync. Endpoints do not."""
 
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(
             plugin_options={"enable_scim_entitlements": True}
         )
 
+    def _save_login_nodes(self, offering, hostnames):
+        offering.plugin_options["scim_login_nodes"] = hostnames
+        with self.captureOnCommitCallbacks(execute=True):
+            offering.save()
+
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
-    def test_ssh_endpoint_creation_triggers_scim_sync(self, mock_task_delay):
-        """Creating an SSH endpoint dispatches sync for that offering."""
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=self.offering,
-            name="SSH Access",
-            url="ssh://login.example.org",
-        )
+    def test_setting_login_nodes_triggers_scim_sync(self, mock_task_delay):
+        self._save_login_nodes(self.offering, ["login.example.org"])
 
         mock_task_delay.assert_called_once_with(self.offering.uuid.hex)
 
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
-    def test_ssh_endpoint_update_triggers_scim_sync(self, mock_task_delay):
-        """Updating an SSH endpoint dispatches sync for that offering."""
-        endpoint = marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=self.offering,
-            name="SSH Access",
-            url="ssh://login.example.org",
-        )
+    def test_changing_login_nodes_triggers_scim_sync(self, mock_task_delay):
+        self.offering.plugin_options["scim_login_nodes"] = ["login.example.org"]
+        self.offering.save()
         mock_task_delay.reset_mock()
 
-        endpoint.url = "ssh://new-login.example.org"
-        endpoint.save()
+        self._save_login_nodes(self.offering, ["new-login.example.org"])
 
         mock_task_delay.assert_called_once_with(self.offering.uuid.hex)
 
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
-    def test_ssh_endpoint_deletion_triggers_scim_sync(self, mock_task_delay):
-        """Deleting an SSH endpoint dispatches sync for that offering."""
-        endpoint = marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=self.offering,
-            name="SSH Access",
-            url="ssh://login.example.org",
-        )
+    def test_clearing_login_nodes_triggers_scim_sync(self, mock_task_delay):
+        self.offering.plugin_options["scim_login_nodes"] = ["login.example.org"]
+        self.offering.save()
         mock_task_delay.reset_mock()
 
-        endpoint.delete()
+        self._save_login_nodes(self.offering, [])
 
         mock_task_delay.assert_called_once_with(self.offering.uuid.hex)
 
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
-    def test_non_ssh_endpoint_does_not_trigger_sync(self, mock_task_delay):
-        """Non-SSH endpoints must not trigger a sync."""
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=self.offering,
-            name="HTTP Access",
-            url="https://example.org",
-        )
+    def test_other_plugin_option_does_not_trigger_sync(self, mock_task_delay):
+        self.offering.plugin_options["scim_login_nodes"] = ["login.example.org"]
+        self.offering.save()
+        mock_task_delay.reset_mock()
+
+        self.offering.plugin_options["conceal_billing_data"] = True
+        with self.captureOnCommitCallbacks(execute=True):
+            self.offering.save()
 
         mock_task_delay.assert_not_called()
 
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
-    def test_endpoint_change_skips_when_scim_disabled(self, mock_task_delay):
-        """No task is dispatched when SCIM sync is disabled."""
-        with override_config(SCIM_MEMBERSHIP_SYNC_ENABLED=False):
+    def test_endpoint_change_does_not_trigger_sync(self, mock_task_delay):
+        with self.captureOnCommitCallbacks(execute=True):
+            marketplace_models.OfferingAccessEndpoint.objects.create(
+                offering=self.offering,
+                name="SSH CA",
+                url="https://ca.example.org",
+            )
             marketplace_models.OfferingAccessEndpoint.objects.create(
                 offering=self.offering,
                 name="SSH Access",
@@ -1223,18 +1236,32 @@ class ScimEndpointChangeTest(BaseScimTestCase):
         mock_task_delay.assert_not_called()
 
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
-    def test_endpoint_change_skips_when_offering_does_not_enable_scim(
-        self, mock_task_delay
-    ):
-        """No task is dispatched when the offering has not opted into SCIM entitlements."""
-        offering = marketplace_factories.OfferingFactory()
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=offering,
-            name="SSH Access",
-            url="ssh://login.example.org",
-        )
+    def test_login_node_change_skips_when_scim_disabled(self, mock_task_delay):
+        with override_config(SCIM_MEMBERSHIP_SYNC_ENABLED=False):
+            self._save_login_nodes(self.offering, ["login.example.org"])
 
         mock_task_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_login_node_change_skips_when_offering_does_not_enable_scim(
+        self, mock_task_delay
+    ):
+        offering = marketplace_factories.OfferingFactory()
+        self._save_login_nodes(offering, ["login.example.org"])
+
+        mock_task_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_creating_offering_with_login_nodes_triggers_sync(self, mock_task_delay):
+        with self.captureOnCommitCallbacks(execute=True):
+            offering = marketplace_factories.OfferingFactory(
+                plugin_options={
+                    "enable_scim_entitlements": True,
+                    "scim_login_nodes": ["login.example.org"],
+                }
+            )
+
+        mock_task_delay.assert_called_once_with(offering.uuid.hex)
 
 
 @override_config(
@@ -1357,6 +1384,52 @@ class ScimSyncUsersForOfferingTaskTest(BaseScimTestCase):
             u.uuid.hex for u in extra_users
         }
         self.assertEqual(all_batched, expected)
+
+
+@override_config(
+    SCIM_MEMBERSHIP_SYNC_ENABLED=True,
+    SCIM_API_URL="https://scim.example.org",
+    SCIM_API_KEY="secret",
+    SCIM_URN_NAMESPACE="urn:ietf:dev",
+)
+class ScimProjectRoleSignalTest(BaseScimTestCase):
+    """Project role signals schedule outbound SCIM entitlement sync."""
+
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.user = structure_factories.UserFactory(username="user@example.org")
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_role_revoked_schedules_scim_sync(self, mock_sync_delay):
+        role = self._grant_project_role(self.user, self.project)
+        mock_sync_delay.reset_mock()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            role.revoke()
+
+        mock_sync_delay.assert_called_once_with(self.user.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_role_granted_schedules_scim_sync_on_restore(self, mock_sync_delay):
+        role = self._grant_project_role(self.user, self.project)
+        role.revoke()
+        mock_sync_delay.reset_mock()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            role.restore()
+
+        mock_sync_delay.assert_called_once_with(self.user.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_role_revoked_does_not_schedule_sync_when_scim_disabled(
+        self, mock_sync_delay
+    ):
+        role = self._grant_project_role(self.user, self.project)
+        with override_config(SCIM_MEMBERSHIP_SYNC_ENABLED=False):
+            with self.captureOnCommitCallbacks(execute=True):
+                role.revoke()
+
+        mock_sync_delay.assert_not_called()
 
 
 @override_config(

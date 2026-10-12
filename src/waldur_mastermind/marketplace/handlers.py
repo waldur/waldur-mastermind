@@ -3156,20 +3156,42 @@ def update_resource_scope_availability_on_offering_state_change(
     tasks.update_resource_scope_availability.delay(offering.uuid.hex, can_be_managed)
 
 
-def trigger_scim_sync_on_offering_endpoint_change(
-    sender, instance: models.OfferingAccessEndpoint, created=False, **kwargs
+def trigger_scim_sync_on_login_nodes_change(
+    sender, instance: Offering, created=False, **kwargs
 ):
-    """Trigger SCIM entitlements synchronization when offering SSH endpoints change."""
+    """Sync SCIM entitlements when an offering's login-node list changes.
+
+    ``plugin_options`` is tracked as a whole, so this compares
+    ``scim_login_nodes`` itself. Any other plugin-option edit leaves the
+    list alone and does not sync.
+    """
     if not config.SCIM_MEMBERSHIP_SYNC_ENABLED or not scim_tasks.is_scim_configured():
         return
 
-    if not scim_tasks.offering_enables_scim_entitlements(instance.offering):
+    if not scim_tasks.offering_enables_scim_entitlements(instance):
         return
 
-    if not instance.url or not instance.url.startswith("ssh://"):
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None and "plugin_options" not in update_fields:
         return
 
-    scim_tasks.sync_users_for_offering_endpoint.delay(instance.offering.uuid.hex)
+    current = scim_tasks.get_scim_login_nodes(instance)
+    if created:
+        if not current:
+            return
+    else:
+        if not instance.tracker.has_changed("plugin_options"):
+            return
+        previous = scim_tasks.get_scim_login_nodes(
+            instance, instance.tracker.previous("plugin_options") or {}
+        )
+        if previous == current:
+            return
+
+    offering_uuid = instance.uuid.hex
+    transaction.on_commit(
+        lambda: scim_tasks.sync_users_for_offering_endpoint.delay(offering_uuid)
+    )
 
 
 def trigger_scim_sync_on_offering_user_ok(

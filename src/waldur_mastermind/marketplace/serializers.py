@@ -458,11 +458,25 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text=(
             "Include this offering in outbound SCIM user entitlement sync. "
-            "When unset or false, SSH access endpoints on this offering "
-            "are not pushed to the remote SCIM service even if "
+            "Login hosts are read from scim_login_nodes. When unset or false, "
+            "this offering is not pushed to the remote SCIM service even if "
             "SCIM_MEMBERSHIP_SYNC_ENABLED is on."
         ),
     )
+    scim_login_nodes = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        help_text=(
+            "Bare hostnames of login nodes included in outbound SCIM "
+            "entitlements when enable_scim_entitlements is set. Each entry is "
+            "a DNS hostname only (for example login.example.org): stored "
+            "lowercased, with no ssh:// URL, user@host, or host:port. These "
+            "are not access links and do not appear in the resource access "
+            "dropdown."
+        ),
+    )
+    _scim_login_node_validator = DomainNameValidator()
     enable_resource_access_subnets = serializers.BooleanField(
         required=False,
         help_text="If set to True, an Access subnets tab is shown on resource "
@@ -614,6 +628,38 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
 
     def validate_auto_approve_for_roles(self, value):
         return validate_project_or_customer_role_names(value)
+
+    def validate_scim_login_nodes(self, value):
+        """Store bare, lowercased hostnames. A colon would split the SCIM URN."""
+        normalized = []
+        seen = set()
+        for entry in value:
+            hostname = entry.strip().lower().rstrip(".")
+            if (
+                not hostname
+                or "://" in hostname
+                or any(char in hostname for char in "@:/")
+            ):
+                raise rf_exceptions.ValidationError(
+                    _(
+                        "Each login node must be a bare hostname, for example "
+                        "login.example.org."
+                    )
+                )
+            try:
+                self._scim_login_node_validator(hostname)
+            except ValidationError:
+                raise rf_exceptions.ValidationError(
+                    _(
+                        "Each login node must be a bare hostname, for example "
+                        "login.example.org."
+                    )
+                )
+            if hostname in seen:
+                continue
+            seen.add(hostname)
+            normalized.append(hostname)
+        return normalized
 
     def validate_latest_date_for_resource_termination(self, value):
         try:
