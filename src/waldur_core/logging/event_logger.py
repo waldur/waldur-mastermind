@@ -1,5 +1,6 @@
 """Event loggers that allows to store logs in DB"""
 
+import copy
 import logging
 from decimal import Decimal
 
@@ -15,7 +16,7 @@ from waldur_core.logging.enums import (
     EventGroup,
     EventType,
 )
-from waldur_core.logging.log import EventLoggerAdapter
+from waldur_core.logging.log import EventLoggerAdapter, scrub_sensitive
 from waldur_core.logging.middleware import get_event_context
 from waldur_core.logging.mixins import LoggableMixin
 
@@ -79,7 +80,11 @@ def emit(
     context = compile_context(**event_context)
     msg = str(message_template).format(**context)
     log = getattr(event_logger, level)
-    log(f"EVENT_LOG: {msg}", extra={"event_type": event_type, "event_context": context})
+    log_context = scrub_sensitive(copy.deepcopy(context))
+    log(
+        f"EVENT_LOG: {msg}",
+        extra={"event_type": event_type, "event_context": log_context},
+    )
 
     event = models.Event.objects.create(
         event_type=event_type,
