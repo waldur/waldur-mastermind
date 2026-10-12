@@ -1,6 +1,5 @@
 import logging
 from datetime import timedelta
-from urllib.parse import urlparse
 
 from celery import shared_task
 from constance import config
@@ -23,6 +22,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_SCIM_REQUEST_TIMEOUT = 10
 DEFAULT_SCIM_BATCH_SIZE = 20
 SCIM_ENTITLEMENTS_PLUGIN_OPTION = "enable_scim_entitlements"
+SCIM_LOGIN_NODES_PLUGIN_OPTION = "scim_login_nodes"
 
 
 def get_project_content_type():
@@ -71,18 +71,27 @@ def offering_enables_scim_entitlements(offering) -> bool:
     return bool(offering.plugin_options.get(SCIM_ENTITLEMENTS_PLUGIN_OPTION))
 
 
-def extract_hostname_from_ssh_url(url: str) -> str | None:
-    """Extract hostname from ssh:// URL."""
-    parsed = urlparse(url)
-    if parsed.scheme.lower() == "ssh" and parsed.hostname:
-        return parsed.hostname
-    return None
+def get_scim_login_nodes(offering, plugin_options=None) -> list[str]:
+    """Bare hostnames declared in ``plugin_options.scim_login_nodes``.
+
+    ``plugin_options`` reads a stored copy instead of the offering's current
+    value, such as the options from before this save. Pass ``{}`` for an empty
+    copy; ``None`` uses the offering.
+    """
+    options = offering.plugin_options if plugin_options is None else plugin_options
+    if not isinstance(options, dict):
+        return []
+    nodes = options.get(SCIM_LOGIN_NODES_PLUGIN_OPTION) or []
+    if not isinstance(nodes, list):
+        return []
+    return [node for node in nodes if isinstance(node, str) and node]
 
 
 def get_user_ssh_login_nodes(user: User):
-    """Get SSH login nodes mapped to offering-specific usernames for a user.
+    """Map login-node hostnames to offering-specific usernames for a user.
 
     Only offerings with ``plugin_options.enable_scim_entitlements`` are included.
+    Hostnames come from ``plugin_options.scim_login_nodes``.
     """
     project_ct = get_project_content_type()
     user_roles = UserRole.objects.filter(
@@ -133,17 +142,10 @@ def get_user_ssh_login_nodes(user: User):
         off_user.offering: off_user.username for off_user in offering_users
     }
 
-    ssh_endpoints = marketplace_models.OfferingAccessEndpoint.objects.filter(
-        offering__in=offering_user_username_map.keys(), url__startswith="ssh://"
-    ).select_related("offering")
-
     login_node_username_map = {}
-    for endpoint in ssh_endpoints:
-        hostname = extract_hostname_from_ssh_url(endpoint.url)
-        if hostname:
-            offering_user_username = offering_user_username_map.get(endpoint.offering)
-            if offering_user_username:
-                login_node_username_map[hostname] = offering_user_username
+    for offering, offering_username in offering_user_username_map.items():
+        for hostname in get_scim_login_nodes(offering):
+            login_node_username_map[hostname] = offering_username
 
     return login_node_username_map
 
@@ -380,13 +382,13 @@ def sync_users_for_offering_endpoint(offering_uuid: str) -> None:
 
     if not user_uuids:
         logger.info(
-            "SCIM Offering Endpoint change: no eligible users for offering %s, nothing to sync.",
+            "SCIM: no eligible users for offering %s, nothing to sync.",
             offering_uuid,
         )
         return
 
     logger.info(
-        "SCIM Offering Endpoint change: scheduling sync for %d users of offering %s in batches of %d",
+        "SCIM: scheduling sync for %d users of offering %s in batches of %d",
         len(user_uuids),
         offering_uuid,
         DEFAULT_SCIM_BATCH_SIZE,

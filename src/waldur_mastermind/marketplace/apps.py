@@ -720,14 +720,9 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.trigger_scim_sync_on_offering_endpoint_change,
-            sender=models.OfferingAccessEndpoint,
-            dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_offering_endpoint_save",
-        )
-        signals.post_delete.connect(
-            handlers.trigger_scim_sync_on_offering_endpoint_change,
-            sender=models.OfferingAccessEndpoint,
-            dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_offering_endpoint_delete",
+            handlers.trigger_scim_sync_on_login_nodes_change,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_login_nodes_change",
         )
 
         signals.post_save.connect(

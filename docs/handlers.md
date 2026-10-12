@@ -724,8 +724,7 @@ td:nth-child(4) {
 | `terminate_resource` | `Django Signal (pre_delete)` | `waldur_rancher.Cluster` | Terminate a resource. |
 | `terminate_resource` | `Django Signal (pre_delete)` | `waldur_vmware.VirtualMachine` | Terminate a resource. |
 | `trigger_order_callback` | `Django Signal (post_save)` | `marketplace.Order` | Trigger HTTP callback when marketplace order state changes. |
-| `trigger_scim_sync_on_offering_endpoint_change` | `Django Signal (post_save)` | `marketplace.OfferingAccessEndpoint` | Trigger SCIM entitlements synchronization when offering SSH endpoints change. |
-| `trigger_scim_sync_on_offering_endpoint_change` | `Django Signal (post_delete)` | `marketplace.OfferingAccessEndpoint` | Trigger SCIM entitlements synchronization when offering SSH endpoints change. |
+| `trigger_scim_sync_on_login_nodes_change` | `Django Signal (post_save)` | `marketplace.Offering` | Sync SCIM entitlements when an offering's login-node list changes. |
 | `trigger_scim_sync_on_offering_user_ok` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Trigger SCIM entitlements synchronization when OfferingUser transitions to OK with username. |
 | `trigger_scim_sync_on_resource_ok` | `Django Signal (post_save)` | `marketplace.Resource` | Trigger SCIM entitlements synchronization when resource transitions to OK. |
 | `trigger_user_action_recalculation_on_order_state_change` | `Django Signal (post_save)` | `marketplace.Order` | Trigger immediate UserAction recalculation when Order state changes. |
