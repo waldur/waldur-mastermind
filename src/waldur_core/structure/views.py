@@ -47,7 +47,11 @@ from waldur_core.core import views as core_views
 from waldur_core.core.db_template_cache import add_template_to_cache
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
-from waldur_core.core.serializers import DetailSerializer, ReviewCommentSerializer
+from waldur_core.core.serializers import (
+    DetailSerializer,
+    ReviewCommentSerializer,
+    StatusSerializer,
+)
 from waldur_core.core.user_attributes import get_profile_completeness_details
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
@@ -108,7 +112,7 @@ from waldur_core.users.scim import tasks as scim_tasks
 from waldur_core.users.utils import get_manageable_permission_requests
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderTypes, ResourceStates
 
 logger = logging.getLogger(__name__)
 
@@ -1147,6 +1151,62 @@ class ProjectViewSet(
     update_affiliation_serializer_class = serializers.ProjectAffiliationUpdateSerializer
     update_affiliation_permissions = [
         permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
+    ]
+
+    @extend_schema(
+        summary="Set project slug",
+        description="Updates the slug of a project. Requires staff or the "
+        "PROJECT.SET_SLUG permission, which no role holds unless the deployment "
+        "grants it. Other than staff, a holder cannot change the slug once a "
+        "resource of the project is being provisioned or exists in the backend.",
+        request=serializers.ProjectSlugSerializer,
+        responses={200: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_slug(self, request, uuid=None):
+        project = self.get_object()
+        serializer = serializers.ProjectSlugSerializer(project, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_slug = serializer.validated_data["slug"]
+
+        with transaction.atomic():
+            project = models.Project.objects.select_for_update().get(pk=project.pk)
+            if new_slug == project.slug:
+                return Response({"status": _("Project slug is not changed.")})
+
+            if not request.user.is_staff:
+                live_resources = marketplace_models.Resource.objects.filter(
+                    project=project
+                ).exclude(state=marketplace_models.Resource.States.TERMINATED)
+                # Lock the resources and their creation orders, so an agent
+                # cannot set a backend_id or an order start executing between
+                # this check and the save.
+                list(live_resources.select_for_update().values_list("pk", flat=True))
+                list(
+                    marketplace_models.Order.objects.select_for_update()
+                    .filter(resource__in=live_resources, type=OrderTypes.CREATE)
+                    .values_list("pk", flat=True)
+                )
+                if live_resources.filter(marketplace_models.slug_locked_q()).exists():
+                    raise rf_serializers.ValidationError(
+                        {
+                            "slug": _(
+                                "The slug cannot be changed: a resource of this "
+                                "project is being or has been provisioned with a "
+                                "backend account named after it."
+                            )
+                        }
+                    )
+
+            # Recorded by the project_update_succeeded event; Project has no
+            # reversion history.
+            project.slug = new_slug
+            project.save()
+        return Response({"status": _("Project slug has been changed.")})
+
+    set_slug_serializer_class = serializers.ProjectSlugSerializer
+    set_slug_permissions = [
+        permission_factory(PermissionEnum.SET_PROJECT_SLUG, ["*", "customer"])
     ]
 
     @extend_schema(

@@ -25,7 +25,7 @@ from drf_spectacular.utils import extend_schema_field
 from modeltranslation.manager import get_translatable_fields_for_model
 from rest_framework import serializers
 from rest_framework import serializers as rf_serializers
-from rest_framework.fields import Field, ReadOnlyField, lazy_format
+from rest_framework.fields import Field, ReadOnlyField, empty, lazy_format
 from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import utils as core_utils
@@ -37,7 +37,11 @@ from waldur_core.core.validators import (
     validate_access_email_patterns,
 )
 from waldur_core.permissions.enums import TYPE_KEY_BY_CT, TYPE_MAP, PermissionEnum
-from waldur_core.permissions.utils import get_scope_ancestors, has_any_permission
+from waldur_core.permissions.utils import (
+    get_scope_ancestors,
+    has_any_permission,
+    has_permission_on_any_source,
+)
 from waldur_core.users.scim.server import matching as scim_matching
 from waldur_mastermind.common.serializers import StringListSerializer
 
@@ -834,9 +838,22 @@ class TranslatedModelSerializerMixin(serializers.ModelSerializer):
         return all_fields
 
 
+def validate_unique_slug(model_class, value, instance=None):
+    queryset = model_class.objects.filter(slug=value)
+    if instance is not None:
+        queryset = queryset.exclude(pk=instance.pk)
+    if queryset.exists():
+        raise serializers.ValidationError(_("An object with this slug already exists."))
+
+
 class SlugSerializerMixin(serializers.Serializer):
     """
-    Ensures that slug is editable only by staff
+    Ensures that slug is editable only by staff.
+
+    A serializer that sets ``slug_create_permission`` also accepts a slug on
+    create from a caller holding that permission, checked on the scope that
+    ``get_slug_permission_scope`` returns. Defining such a serializer without
+    the hook fails at import, so the check cannot be left out.
     """
 
     slug = serializers.SlugField(
@@ -845,6 +862,33 @@ class SlugSerializerMixin(serializers.Serializer):
         max_length=50,
         help_text="URL-friendly identifier. Only editable by staff users.",
     )
+
+    slug_create_permission = None
+    # The model whose slugs must stay unique, when it is not Meta.model.
+    slug_model = None
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if (
+            cls.slug_create_permission is not None
+            and cls.get_slug_permission_scope
+            is SlugSerializerMixin.get_slug_permission_scope
+        ):
+            raise TypeError(
+                f"{cls.__name__} sets slug_create_permission and must define "
+                "get_slug_permission_scope."
+            )
+
+    def get_slug_permission_scope(self, attrs):
+        """Return (scope, sources) on which slug_create_permission is checked."""
+        raise NotImplementedError
+
+    def _slug_writable_by_non_staff(self):
+        return self.slug_create_permission is not None and self.instance is None
+
+    def _request_user(self):
+        request = self.context.get("request")
+        return getattr(request, "user", None)
 
     def get_fields(self):
         fields = super().get_fields()
@@ -858,7 +902,7 @@ class SlugSerializerMixin(serializers.Serializer):
         if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
-        if not user.is_staff:
+        if not user.is_staff and not self._slug_writable_by_non_staff():
             if "slug" in fields:
                 fields["slug"].read_only = True
 
@@ -868,31 +912,50 @@ class SlugSerializerMixin(serializers.Serializer):
         """
         Validates that the slug is unique for the model.
 
-        Staff can edit slug values, but they must be unique.
+        Staff can edit slug values, but they must be unique. A non-staff
+        caller's slug never reaches this method: run_validation checks it once
+        the scope is known.
         """
         if not value:
             return value
 
-        # Get the model class
-        model_class = self.Meta.model
-
-        # Check if this is an update or create operation
-        instance = getattr(self, "instance", None)
-
-        # Build the query to check for existing slugs
-        queryset = model_class.objects.filter(slug=value)
-
-        # If updating, exclude the current instance
-        if instance:
-            queryset = queryset.exclude(pk=instance.pk)
-
-        # Check if slug already exists
-        if queryset.exists():
-            raise serializers.ValidationError(
-                _("An object with this slug already exists.")
-            )
-
+        validate_unique_slug(self.slug_model or self.Meta.model, value, self.instance)
         return value
+
+    def run_validation(self, data=empty):
+        user = self._request_user()
+        if (
+            not self._slug_writable_by_non_staff()
+            or user is None
+            or user.is_staff
+            or not isinstance(data, Mapping)
+            or "slug" not in data
+        ):
+            return super().run_validation(data)
+
+        # Validate everything else without the slug: a slug the caller may not
+        # set is ignored, so it must not fail the request, even when malformed.
+        # .get/del rather than .pop: QueryDict.pop returns the list of values.
+        data = data.copy()
+        raw_slug = data.get("slug")
+        del data["slug"]
+        attrs = super().run_validation(data)
+        if not raw_slug:
+            return attrs
+
+        scope, sources = self.get_slug_permission_scope(attrs)
+        if not has_permission_on_any_source(
+            self.context["request"], self.slug_create_permission, scope, sources
+        ):
+            return attrs
+
+        try:
+            slug = self.fields["slug"].run_validation(raw_slug)
+            validate_unique_slug(self.slug_model or self.Meta.model, slug)
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"slug": e.detail})
+        attrs["slug"] = slug
+        return attrs
 
     def create(self, validated_data):
         # Strip empty slug so the model's generate_slug() is used on save.

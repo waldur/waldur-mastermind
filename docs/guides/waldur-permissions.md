@@ -165,6 +165,52 @@ The test suite mirrors the YAML grant: an autouse fixture in the root
 project-scoped system role that `get_system_role` creates. A test that needs
 the permission absent calls `role.delete_permission(...)`.
 
+## Slug permissions
+
+Site agents name backend accounts after slugs: a SLURM account from the resource
+or project slug, a Kubernetes namespace from the resource slug. A wrong or late
+slug points an account at another allocation, so `PROJECT.SET_SLUG` and
+`RESOURCE.SET_SLUG` are granted to **no role** in `permissions.yaml`, and out of
+the box only staff can set a slug.
+
+A deployment that wants others to name allocations grants the permission to the
+roles it chooses, in `permissions-override.yaml`:
+
+```yaml
+- role: OFFERING.MANAGER
+  add_permissions:
+    - RESOURCE.SET_SLUG
+- role: CUSTOMER.OWNER
+  add_permissions:
+    - PROJECT.SET_SLUG
+```
+
+`initdb` runs `import_roles` and then `override_roles` on every deploy, so the
+grant is re-applied each time. Do **not** grant them through the role editor in
+the UI: `import_roles` resets system roles to `permissions.yaml` on the next
+deploy and the grant disappears.
+
+What a holder can do:
+
+| Permission | Checked on | Where it applies |
+|---|---|---|
+| `RESOURCE.SET_SLUG` | the resource's project or organization, its offering, the offering's organization or service provider | `POST .../marketplace-resources/{uuid}/set_slug/` (and the provider-resources twin); `slug` on order create names the new resource |
+| `PROJECT.SET_SLUG` | the project or its organization | `POST /api/projects/{uuid}/set_slug/`; `slug` on project create |
+
+Without the permission, `slug` on create is ignored, even when malformed, and
+the slug template applies, as before. Other than staff, a holder cannot change
+a slug once a backend account may exist or is being created:
+
+- a resource is locked once it has a `backend_id`, or once its creation order
+  is executing, done or erred. While the order still awaits approval or its
+  start date, the slug can change;
+- a project is locked once any of its non-terminated resources is.
+
+The check and the save run under row locks on the resources and their creation
+orders, so an order cannot start executing in between. Slugs must be unique
+per model. Every change is recorded in the event log with the old and new slug
+and the caller.
+
 ## Permission System Behavior
 
 ### Expiration Handling

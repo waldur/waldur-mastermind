@@ -2078,6 +2078,18 @@ RESOURCE_SLUG_MAX_LENGTH = 40
 # beyond it we fall back to suffix-based uniqueness.
 MAX_SLUG_COUNTER_ATTEMPTS = 10000
 
+# Once its creation order is executing, a site agent may already be naming a
+# backend account after the resource slug; ERRED counts too, since the account
+# may exist in part. Pending, canceled and rejected orders leave it free.
+SLUG_LOCKING_ORDER_STATES = (OrderStates.EXECUTING, OrderStates.DONE, OrderStates.ERRED)
+
+
+def slug_locked_q():
+    """Resources whose slug only staff may still change."""
+    return ~Q(backend_id="") | Q(
+        order__type=OrderTypes.CREATE, order__state__in=SLUG_LOCKING_ORDER_STATES
+    )
+
 
 class Resource(
     PermissionMixin,
