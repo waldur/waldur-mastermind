@@ -597,6 +597,52 @@ class SrcpPresetTest(test.APITestCase):
             for key in re.findall(r"{(.+?)}", offering["getting_started"]):
                 self.assertRegex(key, allowed, offering["name"])
 
+    def test_prepaid_components_are_one_time(self):
+        # The portal shows the term picker (which sets attributes.end_date)
+        # only for prepaid one-time components; a prepaid limit component
+        # leaves the order form without the end date the backend requires.
+        for component in self.preset["offering_components"]:
+            if component.get("is_prepaid"):
+                self.assertEqual(component["billing_type"], "one", component["type"])
+
+    def test_client_orders_a_platform_for_a_term_and_resizes_it(self):
+        client = User.objects.get(username="pi_smith")
+        swd = Offering.objects.get(name="Secure Windows Desktop")
+        self.client.force_authenticate(client)
+        space = self.client.post(
+            "/api/projects/",
+            {
+                "name": "Order test space",
+                # Department of Clinical Neurosciences, which pi_smith owns
+                "customer": "http://testserver/api/customers/5ca10000000000000000000000000002/",
+            },
+            format="json",
+        )
+        self.assertEqual(space.status_code, status.HTTP_201_CREATED, space.data)
+        end_date = (timezone.now() + datetime.timedelta(days=365)).date()
+
+        order = self.client.post(
+            "/api/marketplace-orders/",
+            {
+                "offering": f"http://testserver/api/marketplace-public-offerings/{swd.uuid.hex}/",
+                "plan": f"http://testserver/api/marketplace-public-offerings/{swd.uuid.hex}/plans/{swd.plans.get().uuid.hex}/",
+                "project": space.data["url"],
+                "limits": {"desktop_hours": 1000, "storage": 100},
+                "attributes": {"name": "Order test", "end_date": end_date.isoformat()},
+                "accepting_terms_of_service": True,
+            },
+            format="json",
+        )
+        self.assertEqual(order.status_code, status.HTTP_201_CREATED, order.data)
+
+        rds = Resource.objects.get(name="DCN Research Data Store")
+        resize = self.client.post(
+            f"/api/marketplace-resources/{rds.uuid.hex}/update_limits/",
+            {"limits": {"storage": 60}},
+            format="json",
+        )
+        self.assertEqual(resize.status_code, status.HTTP_200_OK, resize.data)
+
     def test_every_role_assignment_is_loaded(self):
         for entry in self.preset["user_roles"]:
             self.assertTrue(
