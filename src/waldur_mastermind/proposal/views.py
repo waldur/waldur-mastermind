@@ -1,6 +1,7 @@
 import logging
 import secrets
 import uuid as uuid_module
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import cast
 
@@ -964,6 +965,29 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             {"message": "Call has been archived."},
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        description=(
+            "Proposal, review and workflow step counts for the whole call and "
+            "for each of its rounds. Round blocks add up to the call block."
+        ),
+        request=None,
+        responses={200: serializers.CallStatsSerializer},
+        filters=False,
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def stats(self, request, uuid=None):
+        call: models.Call = self.get_object()
+        return response.Response(
+            serializers.CallStatsSerializer(_call_stats(call)).data,
+            status=status.HTTP_200_OK,
+        )
+
+    stats_permissions = [
+        proposal_permissions.support_can_read(
+            permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+        )
+    ]
 
     @extend_schema(
         operation_id="proposal_protected_calls_export_proposals",
@@ -3226,6 +3250,133 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             },
             status=status.HTTP_200_OK,
         )
+
+
+def _call_stats(call):
+    """Counts for the call dashboard, one block per round plus their sum.
+
+    Every count is a grouped aggregate keyed on the round, so the number of
+    queries stays the same however many rounds or proposals the call has.
+    """
+    rounds = list(call.round_set.order_by("start_time", "id"))
+    blocks = {}
+    for round_obj in rounds:
+        block = _empty_call_stats_block()
+        block.update(
+            uuid=round_obj.uuid,
+            slug=round_obj.slug,
+            start_time=round_obj.start_time,
+            cutoff_time=round_obj.cutoff_time,
+        )
+        blocks[round_obj.id] = block
+
+    proposals = models.Proposal.objects.filter(round__call=call)
+    for row in proposals.values("round_id", "state", "workflow_step").annotate(
+        count=Count("id")
+    ):
+        block = blocks[row["round_id"]]
+        block["proposals"]["total"] += row["count"]
+        block["proposals"][row["state"]] += row["count"]
+        if row["workflow_step"]:
+            block["step_counts"][row["workflow_step"]] += row["count"]
+
+    admin_check = models.ProposalWorkflowStepInstance.objects.filter(
+        proposal__round__call=call,
+        step="administrative_check",
+    )
+    for row in admin_check.values("proposal__round_id").annotate(
+        approved=Count(
+            "id",
+            filter=Q(
+                status=proposal_enums.WorkflowStepInstanceStatuses.COMPLETED,
+                outcome=proposal_enums.WorkflowStepOutcomes.ELIGIBLE,
+            ),
+        ),
+        missing=Count(
+            "id",
+            filter=Q(
+                status__in=[
+                    proposal_enums.WorkflowStepInstanceStatuses.ACTIVE,
+                    proposal_enums.WorkflowStepInstanceStatuses.EXPIRED,
+                ]
+            ),
+        ),
+    ):
+        block = blocks[row["proposal__round_id"]]
+        block["admin_approved"] = row["approved"]
+        block["missing_admin_checks"] = row["missing"]
+
+    reviews = models.Review.objects.filter(proposal__round__call=call)
+    for row in reviews.values("proposal__round_id", "state").annotate(
+        count=Count("id")
+    ):
+        block = blocks[row["proposal__round_id"]]
+        block["reviews"]["total"] += row["count"]
+        block["reviews"][row["state"]] += row["count"]
+
+    overdue = reviews.with_deadline().filter(
+        state=models.Review.States.IN_REVIEW,
+        review_deadline__lt=timezone.now(),
+    )
+    for row in overdue.values("proposal__round_id").annotate(count=Count("id")):
+        blocks[row["proposal__round_id"]]["reviews"]["overdue"] = row["count"]
+
+    enabled_steps = dict(
+        call.workflow_steps.filter(is_enabled=True).values_list("step", "min_reviewers")
+    )
+    min_reviewers = enabled_steps.get("expert_review")
+    if min_reviewers:
+        short = (
+            proposals.filter(workflow_step="expert_review")
+            .annotate(
+                submitted_reviews=Count(
+                    "review", filter=Q(review__state=models.Review.States.SUBMITTED)
+                )
+            )
+            .filter(submitted_reviews__lt=min_reviewers)
+        )
+        for row in (
+            models.Proposal.objects.filter(id__in=short.values("id"))
+            .values("round_id")
+            .annotate(count=Count("id"))
+        ):
+            blocks[row["round_id"]]["proposals_missing_reviews"] = row["count"]
+
+    call_block = _empty_call_stats_block()
+    for block in blocks.values():
+        for key in ("proposals", "reviews", "step_counts"):
+            for name, value in block[key].items():
+                call_block[key][name] += value
+        for key in ("admin_approved", "missing_admin_checks"):
+            call_block[key] += block[key]
+        call_block["proposals_missing_reviews"] += block["proposals_missing_reviews"]
+
+    steps = [step for step in WORKFLOW_STEPS if step.id in enabled_steps]
+    for block in [call_block, *blocks.values()]:
+        step_counts = block.pop("step_counts")
+        block["steps"] = [
+            {"step": step.id, "label": step.name, "count": step_counts[step.id]}
+            for step in steps
+        ]
+    return {"call": call_block, "rounds": list(blocks.values())}
+
+
+def _empty_call_stats_block():
+    return {
+        "proposals": {
+            "total": 0,
+            **{state: 0 for state, _label in ProposalStates.CHOICES},
+        },
+        "admin_approved": 0,
+        "missing_admin_checks": 0,
+        "reviews": {
+            "total": 0,
+            "overdue": 0,
+            **{state: 0 for state, _label in models.Review.States.CHOICES},
+        },
+        "proposals_missing_reviews": 0,
+        "step_counts": defaultdict(int),
+    }
 
 
 def _terminal_workflow_detail(proposal_state):
