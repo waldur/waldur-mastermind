@@ -96,6 +96,28 @@ class RobotAccountTest(test.APITestCase):
         response = self.client.patch(url, {"username": "foo"})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
+    def test_robot_account_details_exposes_resource_backend_id(self):
+        self.client.force_authenticate(self.fixture.service_owner)
+        self.fixture.resource.backend_id = "slurm-resource-backend-1"
+        self.fixture.resource.save(update_fields=["backend_id"])
+        account = factories.RobotAccountFactory(resource=self.fixture.resource)
+        url = factories.RobotAccountFactory.get_url(account)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            response.data["resource_backend_id"], "slurm-resource-backend-1"
+        )
+
+        response = self.client.get(
+            url, {"field": ["uuid", "resource_backend_id"]}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(set(response.data.keys()), {"uuid", "resource_backend_id"})
+        self.assertEqual(
+            response.data["resource_backend_id"], "slurm-resource-backend-1"
+        )
+
     def test_robot_account_response_contains_key_fingerprints(self):
         self.client.force_authenticate(self.fixture.service_owner)
         ssh_keys = [

@@ -14822,6 +14822,9 @@ class RobotAccountDetailsSerializer(
     user_keys = serializers.SerializerMethodField()
     resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.CharField(read_only=True, source="resource.name")
+    resource_backend_id = serializers.CharField(
+        read_only=True, source="resource.backend_id"
+    )
     project_uuid = serializers.UUIDField(read_only=True, source="resource.project.uuid")
     project_name = serializers.CharField(read_only=True, source="resource.project.name")
     customer_uuid = serializers.UUIDField(
@@ -14845,6 +14848,7 @@ class RobotAccountDetailsSerializer(
             "user_keys",
             "resource_name",
             "resource_uuid",
+            "resource_backend_id",
             "project_name",
             "project_uuid",
             "customer_uuid",
