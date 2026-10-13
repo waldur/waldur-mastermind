@@ -1,7 +1,7 @@
 import logging
 import secrets
 import uuid as uuid_module
-from collections import defaultdict
+from collections import Counter
 from datetime import datetime, timedelta
 from typing import cast
 
@@ -967,21 +967,14 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
 
     @extend_schema(
-        description=(
-            "Proposal, review and workflow step counts for the whole call and "
-            "for each of its rounds. Round blocks add up to the call block."
-        ),
+        description="Proposal, review and workflow step counts per call and round.",
         request=None,
         responses={200: serializers.CallStatsSerializer},
         filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def stats(self, request, uuid=None):
-        call: models.Call = self.get_object()
-        return response.Response(
-            serializers.CallStatsSerializer(_call_stats(call)).data,
-            status=status.HTTP_200_OK,
-        )
+        return response.Response(_call_stats(self.get_object()))
 
     stats_permissions = [
         proposal_permissions.support_can_read(
@@ -3253,129 +3246,92 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
 
 def _call_stats(call):
-    """Counts for the call dashboard, one block per round plus their sum.
+    """Dashboard counts per round and for the whole call (the rounds' sum).
 
-    Every count is a grouped aggregate keyed on the round, so the number of
-    queries stays the same however many rounds or proposals the call has.
+    Grouped aggregates only, so the query count does not depend on the number
+    of rounds or proposals.
     """
+    Statuses = proposal_enums.WorkflowStepInstanceStatuses
     rounds = list(call.round_set.order_by("start_time", "id"))
-    blocks = {}
-    for round_obj in rounds:
-        block = _empty_call_stats_block()
-        block.update(
-            uuid=round_obj.uuid,
-            slug=round_obj.slug,
-            start_time=round_obj.start_time,
-            cutoff_time=round_obj.cutoff_time,
-        )
-        blocks[round_obj.id] = block
-
+    counts = {r.id: Counter() for r in rounds}
     proposals = models.Proposal.objects.filter(round__call=call)
-    for row in proposals.values("round_id", "state", "workflow_step").annotate(
-        count=Count("id")
-    ):
-        block = blocks[row["round_id"]]
-        block["proposals"]["total"] += row["count"]
-        block["proposals"][row["state"]] += row["count"]
-        if row["workflow_step"]:
-            block["step_counts"][row["workflow_step"]] += row["count"]
+    reviews = models.Review.objects.filter(proposal__round__call=call)
 
-    admin_check = models.ProposalWorkflowStepInstance.objects.filter(
-        proposal__round__call=call,
-        step="administrative_check",
+    for row in proposals.values("round_id", "state", "workflow_step").annotate(
+        n=Count("id")
+    ):
+        counts[row["round_id"]]["proposals", row["state"]] += row["n"]
+        counts[row["round_id"]]["steps", row["workflow_step"]] += row["n"]
+
+    admin_checks = models.ProposalWorkflowStepInstance.objects.filter(
+        proposal__round__call=call, step="administrative_check"
     )
-    for row in admin_check.values("proposal__round_id").annotate(
+    for row in admin_checks.values("proposal__round_id").annotate(
         approved=Count(
             "id",
             filter=Q(
-                status=proposal_enums.WorkflowStepInstanceStatuses.COMPLETED,
+                status=Statuses.COMPLETED,
                 outcome=proposal_enums.WorkflowStepOutcomes.ELIGIBLE,
             ),
         ),
-        missing=Count(
-            "id",
-            filter=Q(
-                status__in=[
-                    proposal_enums.WorkflowStepInstanceStatuses.ACTIVE,
-                    proposal_enums.WorkflowStepInstanceStatuses.EXPIRED,
-                ]
-            ),
-        ),
+        missing=Count("id", filter=Q(status__in=[Statuses.ACTIVE, Statuses.EXPIRED])),
     ):
-        block = blocks[row["proposal__round_id"]]
-        block["admin_approved"] = row["approved"]
-        block["missing_admin_checks"] = row["missing"]
+        counts[row["proposal__round_id"]]["admin_approved"] += row["approved"]
+        counts[row["proposal__round_id"]]["missing_admin_checks"] += row["missing"]
 
-    reviews = models.Review.objects.filter(proposal__round__call=call)
-    for row in reviews.values("proposal__round_id", "state").annotate(
-        count=Count("id")
-    ):
-        block = blocks[row["proposal__round_id"]]
-        block["reviews"]["total"] += row["count"]
-        block["reviews"][row["state"]] += row["count"]
+    for row in reviews.values("proposal__round_id", "state").annotate(n=Count("id")):
+        counts[row["proposal__round_id"]]["reviews", row["state"]] += row["n"]
 
     overdue = reviews.with_deadline().filter(
-        state=models.Review.States.IN_REVIEW,
-        review_deadline__lt=timezone.now(),
+        state=models.Review.States.IN_REVIEW, review_deadline__lt=timezone.now()
     )
-    for row in overdue.values("proposal__round_id").annotate(count=Count("id")):
-        blocks[row["proposal__round_id"]]["reviews"]["overdue"] = row["count"]
+    for round_id in overdue.values_list("proposal__round_id", flat=True):
+        counts[round_id]["overdue_reviews"] += 1
 
-    enabled_steps = dict(
+    enabled = dict(
         call.workflow_steps.filter(is_enabled=True).values_list("step", "min_reviewers")
     )
-    min_reviewers = enabled_steps.get("expert_review")
-    if min_reviewers:
+    if enabled.get("expert_review"):
         short = (
             proposals.filter(workflow_step="expert_review")
             .annotate(
-                submitted_reviews=Count(
+                submitted=Count(
                     "review", filter=Q(review__state=models.Review.States.SUBMITTED)
                 )
             )
-            .filter(submitted_reviews__lt=min_reviewers)
+            .filter(submitted__lt=enabled["expert_review"])
         )
-        for row in (
-            models.Proposal.objects.filter(id__in=short.values("id"))
-            .values("round_id")
-            .annotate(count=Count("id"))
-        ):
-            blocks[row["round_id"]]["proposals_missing_reviews"] = row["count"]
+        for round_id in short.values_list("round_id", flat=True):
+            counts[round_id]["missing_reviews"] += 1
 
-    call_block = _empty_call_stats_block()
-    for block in blocks.values():
-        for key in ("proposals", "reviews", "step_counts"):
-            for name, value in block[key].items():
-                call_block[key][name] += value
-        for key in ("admin_approved", "missing_admin_checks"):
-            call_block[key] += block[key]
-        call_block["proposals_missing_reviews"] += block["proposals_missing_reviews"]
+    steps = [step for step in WORKFLOW_STEPS if step.id in enabled]
 
-    steps = [step for step in WORKFLOW_STEPS if step.id in enabled_steps]
-    for block in [call_block, *blocks.values()]:
-        step_counts = block.pop("step_counts")
-        block["steps"] = [
-            {"step": step.id, "label": step.name, "count": step_counts[step.id]}
-            for step in steps
-        ]
-    return {"call": call_block, "rounds": list(blocks.values())}
+    def block(c):
+        return {
+            "proposals": {s: c["proposals", s] for s, _ in ProposalStates.CHOICES},
+            "reviews": {s: c["reviews", s] for s, _ in models.Review.States.CHOICES},
+            "admin_approved": c["admin_approved"],
+            "missing_admin_checks": c["missing_admin_checks"],
+            "missing_reviews": c["missing_reviews"],
+            "overdue_reviews": c["overdue_reviews"],
+            "steps": [
+                {"step": step.id, "label": step.name, "count": c["steps", step.id]}
+                for step in steps
+            ],
+        }
 
-
-def _empty_call_stats_block():
     return {
-        "proposals": {
-            "total": 0,
-            **{state: 0 for state, _label in ProposalStates.CHOICES},
-        },
-        "admin_approved": 0,
-        "missing_admin_checks": 0,
-        "reviews": {
-            "total": 0,
-            "overdue": 0,
-            **{state: 0 for state, _label in models.Review.States.CHOICES},
-        },
-        "proposals_missing_reviews": 0,
-        "step_counts": defaultdict(int),
+        "call": block(sum(counts.values(), Counter())),
+        "rounds": [
+            {
+                "uuid": r.uuid,
+                "slug": r.slug,
+                "start_time": r.start_time,
+                "cutoff_time": r.cutoff_time,
+                **block(counts[r.id]),
+            }
+            for r in rounds
+        ],
     }
 
 
