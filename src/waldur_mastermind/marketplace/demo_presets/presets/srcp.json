@@ -424,9 +424,13 @@
       "type": "storage",
       "name": "Storage",
       "description": "Storage allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "TB",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     },
     {
       "uuid": "5c0c0000000000000000000000000002",
@@ -434,9 +438,13 @@
       "type": "storage",
       "name": "Storage",
       "description": "Storage allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "TB",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     },
     {
       "uuid": "5c0c0000000000000000000000000003",
@@ -444,9 +452,13 @@
       "type": "cpu_hours",
       "name": "CPU Hours",
       "description": "CPU Hours allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "hours",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     },
     {
       "uuid": "5c0c0000000000000000000000000004",
@@ -454,9 +466,13 @@
       "type": "gpu_hours",
       "name": "GPU Hours",
       "description": "GPU Hours allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "hours",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     },
     {
       "uuid": "5c0c0000000000000000000000000005",
@@ -464,9 +480,13 @@
       "type": "scratch_storage",
       "name": "Scratch Storage",
       "description": "Scratch Storage allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "GB",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     },
     {
       "uuid": "5c0c0000000000000000000000000006",
@@ -474,9 +494,13 @@
       "type": "desktop_hours",
       "name": "Desktop Hours",
       "description": "Desktop Hours allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "hours",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     },
     {
       "uuid": "5c0c0000000000000000000000000007",
@@ -484,9 +508,13 @@
       "type": "storage",
       "name": "Project Drive",
       "description": "Project Drive allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "GB",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     },
     {
       "uuid": "5c0c0000000000000000000000000008",
@@ -494,9 +522,13 @@
       "type": "data_storage",
       "name": "Data Storage",
       "description": "Data Storage allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "GB",
-      "is_prepaid": true
+      "is_prepaid": true,
+      "min_prepaid_duration": 12,
+      "max_prepaid_duration": 60,
+      "min_renewal_duration": 12,
+      "max_renewal_duration": 60
     }
   ],
   "plans": [
