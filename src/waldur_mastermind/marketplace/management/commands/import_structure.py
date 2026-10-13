@@ -29,7 +29,12 @@ from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import Feature, SshPublicKey, User
 from waldur_core.core.serializers import ConstanceSettingsSerializer
 from waldur_core.logging.models import Event
-from waldur_core.permissions.models import Role, RolePermission, UserRole
+from waldur_core.permissions.models import (
+    Role,
+    RoleAvailability,
+    RolePermission,
+    UserRole,
+)
 from waldur_core.permissions.tasks import sync_user_deactivation_status
 from waldur_core.structure.models import (
     Customer,
@@ -3812,6 +3817,10 @@ class Command(BaseCommand):
                         with transaction.atomic():
                             Role.objects.create(uuid=uuid, **defaults)
                         self.stats["roles"]["created"] += 1
+
+                    self._import_role_availability(
+                        uuid, role_data.get("offering_uuids") or []
+                    )
                 else:
                     # Dry run
                     existing = Role.objects.filter(uuid=uuid).exists()
@@ -3835,6 +3844,33 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["roles"]["errors"] += 1
+
+    def _import_role_availability(self, role_uuid, offering_uuids):
+        """Make an offering role assignable on the given offerings.
+
+        Offering-scoped roles (on resources and resource projects) are listed
+        by the offering roles API only through their RoleAvailability rows, so
+        a role imported without them has nowhere to be picked from.
+        """
+        if not offering_uuids:
+            return
+        role = Role.objects.get(uuid=role_uuid)
+        offering_ct = ContentType.objects.get_for_model(Offering)
+        for offering_uuid in offering_uuids:
+            offering = Offering.objects.filter(
+                uuid=self._normalize_uuid(offering_uuid)
+            ).first()
+            if not offering:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Role {role.name}: offering {offering_uuid} not found"
+                    )
+                )
+                self.stats["roles"]["errors"] += 1
+                continue
+            RoleAvailability.objects.get_or_create(
+                role=role, content_type=offering_ct, object_id=offering.id
+            )
 
     def import_role_permissions(self, role_permissions_data):
         """Import role permission mappings."""
@@ -4039,9 +4075,19 @@ class Command(BaseCommand):
                     )
                     self.stats["resource_projects"]["errors"] += 1
                     continue
+                # A preset describes provisioned sub-projects, so default to OK
+                # rather than the model's CREATING, which waits for an agent.
                 _, created = ResourceProject.objects.update_or_create(
                     uuid=self._normalize_uuid(uuid),
-                    defaults={"resource": resource, "name": item.get("name", "")},
+                    defaults={
+                        "resource": resource,
+                        "name": item.get("name", ""),
+                        "description": item.get("description", ""),
+                        "backend_id": item.get("backend_id", ""),
+                        "state": item.get("state", ResourceProject.States.OK),
+                        "limits": item.get("limits") or {},
+                        "current_usages": item.get("current_usages") or {},
+                    },
                 )
                 self.stats["resource_projects"][
                     "created" if created else "updated"
