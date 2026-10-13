@@ -3077,13 +3077,29 @@ class CallStatsStepSerializer(serializers.Serializer):
 
 
 class CallStatsBlockSerializer(serializers.Serializer):
-    proposals = serializers.DictField(child=serializers.IntegerField())
-    reviews = serializers.DictField(child=serializers.IntegerField())
-    admin_approved = serializers.IntegerField()
-    missing_admin_checks = serializers.IntegerField()
-    missing_reviews = serializers.IntegerField()
-    overdue_reviews = serializers.IntegerField()
-    steps = CallStatsStepSerializer(many=True)
+    proposals = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Proposals by state (accepted = awarded), plus total.",
+    )
+    reviews = serializers.DictField(
+        child=serializers.IntegerField(), help_text="Reviews by state, plus total."
+    )
+    admin_approved = serializers.IntegerField(
+        help_text="Proposals whose administrative check completed as eligible."
+    )
+    missing_admin_checks = serializers.IntegerField(
+        help_text="Proposals whose administrative check is active or expired."
+    )
+    missing_reviews = serializers.IntegerField(
+        help_text="Proposals in expert review below the step's minimum reviews."
+    )
+    overdue_reviews = serializers.IntegerField(
+        help_text="Reviews still in review past their deadline."
+    )
+    steps = CallStatsStepSerializer(
+        many=True,
+        help_text="Proposals per current workflow step, over the enabled steps.",
+    )
 
 
 class CallStatsRoundSerializer(CallStatsBlockSerializer):

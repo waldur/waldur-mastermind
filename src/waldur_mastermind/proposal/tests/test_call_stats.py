@@ -60,11 +60,23 @@ class CallStatsTest(test.APITestCase):
         self.assertEqual(a["missing_reviews"], 1)
         self.assertEqual(a["overdue_reviews"], 1)
         self.assertEqual(b["missing_admin_checks"], 1)
-        self.assertEqual(data["call"]["proposals"]["in_review"], 3)
+        self.assertEqual(data["call"]["proposals"]["total"], 5)
+        self.assertEqual(data["call"]["reviews"]["total"], 1)
+        for kind in ("proposals", "reviews"):
+            for key, value in data["call"][kind].items():
+                self.assertEqual(value, a[kind][key] + b[kind][key], key)
         self.assertEqual(
             [(s["step"], s["count"]) for s in data["call"]["steps"]],
             [("administrative_check", 1), ("expert_review", 1)],
         )
+
+    def test_call_without_rounds(self):
+        url = factories.CallFactory.get_protected_url(
+            self.fixture.new_call, action="stats"
+        )
+        data = self.client.get(url).data
+        self.assertEqual(data["rounds"], [])
+        self.assertEqual(data["call"]["proposals"]["total"], 0)
 
     def test_permissions(self):
         other_manager = structure_factories.UserFactory()

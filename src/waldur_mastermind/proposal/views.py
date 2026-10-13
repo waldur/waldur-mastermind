@@ -3306,10 +3306,14 @@ def _call_stats(call):
 
     steps = [step for step in WORKFLOW_STEPS if step.id in enabled]
 
+    def totalled(c, kind, choices):
+        by_state = {state: c[kind, state] for state, _label in choices}
+        return {"total": sum(by_state.values()), **by_state}
+
     def block(c):
         return {
-            "proposals": {s: c["proposals", s] for s, _ in ProposalStates.CHOICES},
-            "reviews": {s: c["reviews", s] for s, _ in models.Review.States.CHOICES},
+            "proposals": totalled(c, "proposals", ProposalStates.CHOICES),
+            "reviews": totalled(c, "reviews", models.Review.States.CHOICES),
             "admin_approved": c["admin_approved"],
             "missing_admin_checks": c["missing_admin_checks"],
             "missing_reviews": c["missing_reviews"],
