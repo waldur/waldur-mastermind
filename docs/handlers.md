@@ -609,10 +609,10 @@ td:nth-child(4) {
 | `on_project_pre_delete` | `Django Signal (pre_delete)` | `structure.Project` | When a project is about to be deleted, disable room (kick members, export, archive). |
 | `on_room_permission_changed` | `Django Signal (post_save)` | `permissions.RolePermission` | Sync the project rooms of a role that gains or loses MATRIX_ROOM.CREATE. |
 | `on_room_permission_changed` | `Django Signal (post_delete)` | `permissions.RolePermission` | Sync the project rooms of a role that gains or loses MATRIX_ROOM.CREATE. |
-| `on_user_deactivated` | `Django Signal (post_save)` | `core.User` | Sign out every Matrix device of a deactivated user, remove them from |
-| `on_user_demoted` | `Django Signal (post_save)` | `core.User` | Take former staff and support out of the rooms they joined with the |
-| `on_user_pre_delete` | `Django Signal (pre_delete)` | `core.User` | End a deleted user's Matrix sessions and room memberships, replace |
-| `on_user_reactivated` | `Django Signal (post_save)` | `core.User` | Unlock a reactivated user's Matrix account and bring them back into the |
+| `on_user_deactivated` | `Django Signal (post_save)` | `core.User` | Sign out, remove from rooms and lock the Matrix account of a deactivated user. |
+| `on_user_demoted` | `Django Signal (post_save)` | `core.User` | Take former staff and support out of the rooms they joined with Join. |
+| `on_user_pre_delete` | `Django Signal (pre_delete)` | `core.User` | Sign out, remove from rooms and lock the Matrix account of a deleted user. |
+| `on_user_reactivated` | `Django Signal (post_save)` | `core.User` | Unlock a reactivated user's Matrix account and bring them back to their rooms. |
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
 | `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |

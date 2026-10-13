@@ -940,9 +940,7 @@ options:
   --all           Link every user without a Matrix profile to the existing
                   account with their generated Matrix ID. Only for a Waldur
                   database that was restored or reset against a homeserver
-                  whose accounts all belong to this Waldur's users. Users with
-                  '+' in their username provisioned before Waldur kept '+'
-                  have '_' in its place; link them by hand.
+                  whose accounts all belong to this Waldur's users.
 
 ```
 
