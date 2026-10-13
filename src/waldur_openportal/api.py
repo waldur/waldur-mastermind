@@ -861,7 +861,9 @@ def get_api_token(request):
 
     # GET Waldur user
     user, _ = core_models.User.objects.get_or_create(username=user_identifier)
-    set_user_context(user)
+    # The Bearer credential is the IdP token, and this view mints the DRF token
+    # below; requiring one to exist already rejected every user who had logged out.
+    set_user_context(user, skip_token_check=True)
 
     # Check staff access
     user_access = "staff" if user.is_staff else "not a staff"
