@@ -34,9 +34,10 @@ max_request_size = 104857600
 access_token_ttl = 300
 refresh_token_ttl = 86400
 
-# Federation must be ON: Waldur verifies the Matrix OpenID token a client sends
-# for a call token at /_matrix/federation/v1/openid/userinfo, which Tuwunel
-# serves only with federation enabled.
+# On, as in the packaged homeservers. Calls do not need it: Waldur verifies the
+# Matrix OpenID token a client sends for a call token at
+# /_matrix/federation/v1/openid/userinfo, which Tuwunel serves with federation
+# off too. Waldur's rooms are created unfederated either way.
 allow_federation = true
 
 # Well-known for client discovery

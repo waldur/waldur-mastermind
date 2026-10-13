@@ -161,8 +161,7 @@ def on_role_revoked(sender, instance: UserRole, **kwargs):
 
 
 def on_user_deactivated(sender, instance, created=False, **kwargs):
-    """Sign out every Matrix device of a deactivated user, remove them from
-    their rooms and lock their Matrix account."""
+    """Sign out, remove from rooms and lock the Matrix account of a deactivated user."""
     # previous() rather than has_changed(): a receiver that re-saves a new user
     # inside its own post_save reaches this one before the tracker is reset,
     # so has_changed() is true for a user who was never active.
@@ -178,8 +177,11 @@ def on_user_deactivated(sender, instance, created=False, **kwargs):
 
 
 def on_user_demoted(sender, instance, created=False, **kwargs):
-    """Take former staff and support out of the rooms they joined with the
-    Join button, which exempts them from member sync only while they are."""
+    """Take former staff and support out of the rooms they joined with Join.
+
+    The Join button exempts them from member sync only while they are staff or
+    support.
+    """
     if created or instance.is_staff or instance.is_support:
         return
     tracker = instance.tracker
@@ -205,8 +207,7 @@ def on_user_demoted(sender, instance, created=False, **kwargs):
 
 
 def on_user_reactivated(sender, instance, created=False, **kwargs):
-    """Unlock a reactivated user's Matrix account and bring them back into the
-    rooms deactivation removed them from."""
+    """Unlock a reactivated user's Matrix account and bring them back to their rooms."""
     if created or not instance.is_active or instance.tracker.previous("is_active"):
         return
     # None: a user just created inside another receiver's post_save.
@@ -266,11 +267,11 @@ def on_room_permission_changed(sender, instance, created=None, **kwargs):
 
 
 def on_user_pre_delete(sender, instance, **kwargs):
-    """End a deleted user's Matrix sessions and room memberships, replace
-    their Matrix password and lock the account.
+    """Sign out, remove from rooms and lock the Matrix account of a deleted user.
 
-    The Matrix profile and room memberships are deleted with the user, so they
-    are read now and handed to the task, which runs once the deletion commits.
+    Its password is replaced too. The Matrix profile and room memberships are
+    deleted with the user, so they are read now and handed to the task, which
+    runs once the deletion commits.
     """
     profile = MatrixUserProfile.objects.filter(user=instance).first()
     if profile is None:
