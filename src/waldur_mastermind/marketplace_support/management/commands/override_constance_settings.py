@@ -2,13 +2,13 @@ import os
 
 import yaml
 from constance.models import Constance
-from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import logos
+from waldur_core.core.constance_backend import is_constance_secret
 from waldur_core.core.serializers import ConstanceSettingsSerializer
 
 WHITELABELING_LOGOS = logos.LOGO_MAP.keys()
@@ -140,7 +140,9 @@ class Command(BaseCommand):
             )
 
         for setting_key, setting_value in constance_settings.items():
-            if _is_secret(setting_key):
+            # This output lands in container logs. The name heuristic also
+            # hides settings declared before secret_field existed.
+            if is_constance_secret(setting_key, name_heuristic=True):
                 setting_value = "<redacted>"
 
             self.stdout.write(
@@ -148,13 +150,3 @@ class Command(BaseCommand):
                     f"{setting_key.upper()} has been set to {setting_value}."
                 )
             )
-
-
-def _is_secret(setting_key):
-    # This output lands in container logs. Constance marks secrets with
-    # secret_field; names catch the ones declared before that type existed.
-    field = settings.CONSTANCE_CONFIG.get(setting_key.upper(), ())
-    if len(field) > 2 and field[2] == "secret_field":
-        return True
-    key = setting_key.lower()
-    return any(part in key for part in ("password", "token", "secret"))

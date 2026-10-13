@@ -43,6 +43,35 @@ def secret_keys():
     )
 
 
+# Name fragments used only when redacting log output. They also match
+# non-secret settings (token limits, token URLs), so API responses must
+# not use this heuristic.
+CONSTANCE_SECRET_NAME_PARTS = ("password", "token", "secret")
+
+
+def is_constance_secret(key, *, name_heuristic=False):
+    """Whether a Constance setting must be kept out of non-staff output.
+
+    A ``secret_field`` declaration is the canonical marker. ``name_heuristic``
+    also treats keys containing "password", "token", or "secret" as secret.
+    That extra match is for log lines, where hiding a token limit is harmless
+    and it catches settings declared before ``secret_field`` existed.
+    """
+    # The management command passes keys as written in YAML, often lowercase.
+    if key.upper() in secret_keys():
+        return True
+    if not name_heuristic:
+        return False
+    lowered = key.lower()
+    return any(part in lowered for part in CONSTANCE_SECRET_NAME_PARTS)
+
+
+def redact_constance_secrets(values):
+    """Return a copy with ``secret_field`` values replaced by an empty string."""
+    hidden = secret_keys()
+    return {key: "" if key in hidden else value for key, value in values.items()}
+
+
 def encrypt_secret(value):
     """The stored form of a secret setting's value."""
     if isinstance(value, str) and value:

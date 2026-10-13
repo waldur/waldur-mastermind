@@ -74,7 +74,11 @@ from waldur_core.core.metadata_schemas import (
 )
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.models import DailyTableSizeHistory, TokenExchangeCode
-from waldur_core.core.permissions import PATScopeAwareIsAdminUser
+from waldur_core.core.permissions import (
+    IsStaffWriterOrSupportReader,
+    PATScopeAwareIsAdminUser,
+    can_read_constance_secrets,
+)
 from waldur_core.core.serializers import (
     AuthTokenChallengeSerializer,
     AvailableBindingTargetSerializer,
@@ -806,14 +810,18 @@ def _parse_bracket_notation(data):
 @extend_schema(
     methods=["GET"],
     summary="Get all overridable settings",
-    description="Returns all settings that can be overridden in the database via the Constance backend. Requires admin permissions.",
+    description=(
+        "Returns all settings that can be overridden in the database via the "
+        "Constance backend. Staff receive every value. Support users receive "
+        "the same keys, with secret_field values blanked."
+    ),
     request=None,
     responses={status.HTTP_200_OK: ConstanceSettingsSerializer},
 )
 @extend_schema(
     methods=["POST"],
     summary="Update overridable settings",
-    description="Updates one or more settings in the database via the Constance backend. Requires admin permissions.",
+    description="Updates one or more settings in the database via the Constance backend. Requires staff permissions. Support users cannot update settings.",
     request=ConstanceSettingsSerializer,
     responses={status.HTTP_200_OK: None},
     examples=[
@@ -829,10 +837,13 @@ def _parse_bracket_notation(data):
     ],
 )
 @api_view(["POST", "GET"])
-@permission_classes((PATScopeAwareIsAdminUser,))
+@permission_classes((IsStaffWriterOrSupportReader,))
 def override_db_settings(request):
     if request.method == "GET":
-        return Response(_safe_get_constance_values())
+        values = _safe_get_constance_values()
+        if not can_read_constance_secrets(request):
+            values = constance_backend.redact_constance_secrets(values)
+        return Response(values)
 
     # Parse bracket notation keys for nested dict fields (e.g., multilingual images)
     data = _parse_bracket_notation(request.data)

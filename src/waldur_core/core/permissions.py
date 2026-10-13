@@ -161,6 +161,36 @@ class PATScopeAwareIsAdminUser(BasePermission):
         return request.user and request.user.is_staff and check_pat_staff_scope(request)
 
 
+class IsStaffWriterOrSupportReader(BasePermission):
+    """Staff may read and write. Support may only read.
+
+    Safe methods accept staff or support, including a personal access token
+    with the support scope (the staff scope satisfies that check too).
+    Other methods require staff and the staff personal-access-token scope.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated or not user.is_active:
+            return False
+        if request.method in SAFE_METHODS:
+            return (user.is_staff or user.is_support) and check_pat_support_scope(
+                request
+            )
+        return user.is_staff and check_pat_staff_scope(request)
+
+
+def can_read_constance_secrets(request):
+    """Whether this request may receive unredacted Constance secret values.
+
+    Staff session authentication qualifies. A personal access token qualifies
+    only when it carries the staff scope, so a staff user holding a
+    support-scoped token is treated as support.
+    """
+    user = getattr(request, "user", None)
+    return bool(user and user.is_staff and check_pat_staff_scope(request))
+
+
 class RequiresCompleteProfile(BasePermission):
     """
     Permission class that requires users to have a complete profile.
