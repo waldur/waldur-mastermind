@@ -602,7 +602,9 @@ class OIDCAuthentication(BaseAuthentication):
             )
 
         user = self._get_or_provision_user(user_identifier, parsed_token)
-        set_user_context(user)
+        # LogoutView deletes the DRF authtoken; requiring it here rejected every still-valid
+        # access token until the user signed in again.
+        set_user_context(user, skip_token_check=True)
 
         return (user, parsed_token)
 

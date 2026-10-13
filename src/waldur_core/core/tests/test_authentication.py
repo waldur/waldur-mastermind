@@ -442,6 +442,32 @@ class OIDCAuthenticationTest(test.APITestCase):
         self.assertEqual(response.data["username"], "test_user")
 
     @respx.mock
+    def test_bearer_survives_deletion_of_the_session_token(self):
+        """An IdP access token keeps working after logout deletes the DRF token.
+
+        A portal that calls the API with the user's introspection token must
+        not lose access when that user logs out of Waldur. Logout only deletes
+        the SPA session token, and this path must not mint a replacement.
+        """
+        user = User.objects.create_user(username="test_user")
+        self.assertTrue(Token.objects.filter(user=user).exists())
+        Token.objects.filter(user=user).delete()
+
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": "test_user"}
+            )
+        )
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {VALID_JWT_TOKEN}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["username"], "test_user")
+        self.assertFalse(Token.objects.filter(user=user).exists())
+
+    @respx.mock
     def test_user_is_not_active(self):
         respx.post("http://oidc.example.com/introspect").mock(
             return_value=httpx.Response(
