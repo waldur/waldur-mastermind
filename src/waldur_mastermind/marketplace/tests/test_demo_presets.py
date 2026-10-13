@@ -8,12 +8,15 @@ from io import StringIO
 from unittest import mock
 
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.core.models import User
+from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.demo_presets.manifest import (
     DemoPresetManager,
@@ -21,6 +24,11 @@ from waldur_mastermind.marketplace.demo_presets.manifest import (
 )
 from waldur_mastermind.marketplace.demo_presets.time_shift import (
     rebase_to_current_month,
+)
+from waldur_mastermind.marketplace.models import (
+    Offering,
+    Resource,
+    ResourceProject,
 )
 from waldur_mastermind.proposal.models import (
     CallAssignmentConfiguration,
@@ -480,6 +488,98 @@ class DemoPresetLoadTest(test.APITestCase):
                 "send_reminder_before_expiry_days",
             ):
                 self.assertEqual(getattr(config, field), entry[field], field)
+
+
+class SrcpPresetTest(test.APITestCase):
+    """The SRCP preset demonstrates resource projects carving up a purchase."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.preset = json.loads(
+            pathlib.Path(DemoPresetManager.get_preset_path("srcp")).read_text()
+        )
+        result = DemoPresetManager.load_preset(
+            "srcp",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        assert result["success"], result["message"]
+
+    def test_resource_projects_load_ready_with_their_limits(self):
+        for entry in self.preset["resource_projects"]:
+            project = ResourceProject.objects.get(uuid=entry["uuid"])
+            self.assertEqual(project.state, ResourceProject.States.OK)
+            self.assertEqual(project.limits, entry["limits"])
+
+    def test_aggregate_projects_fit_inside_the_purchase(self):
+        for offering in Offering.objects.filter(
+            plugin_options__resource_projects_limit_policy="aggregate"
+        ):
+            for resource in Resource.objects.filter(offering=offering):
+                total = sum(
+                    p.limits.get("storage", 0)
+                    for p in ResourceProject.available_objects.filter(resource=resource)
+                )
+                self.assertLessEqual(total, resource.limits["storage"])
+
+    def test_offering_roles_are_offered_on_resource_project_offerings(self):
+        for offering in Offering.objects.filter(
+            plugin_options__enable_resource_projects=True
+        ):
+            names = set(
+                Role.objects.filter(
+                    availability__content_type=ContentType.objects.get_for_model(
+                        Offering
+                    ),
+                    availability__object_id=offering.id,
+                ).values_list("name", flat=True)
+            )
+            self.assertEqual(
+                names,
+                {"Data Owner", "Data Manager", "Project Manager", "Project User"},
+                offering.name,
+            )
+
+    def test_a_project_past_the_purchased_capacity_is_rejected(self):
+        rds = Resource.objects.get(name="DCN Research Data Store")
+        self.client.force_authenticate(User.objects.get(username="researcher_jones"))
+
+        response = self.client.post(
+            "/api/marketplace-resource-projects/",
+            {"resource": rds.uuid.hex, "name": "New Study", "limits": {"storage": 1}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Aggregate project limits", str(response.data["limits"]))
+
+    def test_offering_roles_api_lists_the_preset_roles(self):
+        rds = Offering.objects.get(name="Research Data Store (RDS)")
+        self.client.force_authenticate(User.objects.get(username="rcs_admin"))
+
+        response = self.client.get(
+            "/api/marketplace-offering-roles/", {"offering_uuid": rds.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {role["name"] for role in response.data},
+            {"Data Owner", "Data Manager", "Project Manager", "Project User"},
+        )
+
+    def test_every_role_assignment_is_loaded(self):
+        for entry in self.preset["user_roles"]:
+            self.assertTrue(
+                UserRole.objects.filter(
+                    user__uuid=entry["user_uuid"],
+                    role__name=entry["role_name"],
+                    object_id__isnull=False,
+                    is_active=True,
+                ).exists(),
+                entry,
+            )
 
 
 class PresetMonthRebaseTest(TestCase):

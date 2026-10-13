@@ -1,0 +1,1743 @@
+{
+  "_metadata": {
+    "title": "SRCP - Resource Projects and Allocations",
+    "description": "Cambridge Secure Research Computing Platform (SRCP): organizations buy storage, compute and desktop capacity as accounts, then divide it between SRCP projects (resource projects) with their own limits, data owners, data managers, project managers and users. Shows aggregate, per-project and unrestricted limit policies and a purchase history with PO numbers.",
+    "version": "1.0.0",
+    "scenarios": [
+      "Resource projects with limit allocations",
+      "Aggregate limit policy (project sizes add up to the purchased capacity)",
+      "Per-project limit policy",
+      "Offering-specific roles: Data Owner, Data Manager, Project Manager, Project User",
+      "Storage purchase and renewal history with PO numbers",
+      "Upcoming resource renewals"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "5c010000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@cam.ac.uk",
+      "first_name": "Platform",
+      "last_name": "Admin",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567101",
+      "organization": "Cambridge Research Computing Services",
+      "job_title": "SRCP Platform Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000002",
+      "username": "rcs_admin",
+      "email": "rcs-admin@cam.ac.uk",
+      "first_name": "Rachel",
+      "last_name": "Hughes",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567102",
+      "organization": "Cambridge Research Computing Services",
+      "job_title": "SRCP Service Manager",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000003",
+      "username": "storage_eng_walker",
+      "email": "t.walker@cam.ac.uk",
+      "first_name": "Tom",
+      "last_name": "Walker",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567103",
+      "organization": "Cambridge Research Computing Services",
+      "job_title": "Storage Engineer",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000004",
+      "username": "pi_smith",
+      "email": "e.smith@cam.ac.uk",
+      "first_name": "Eleanor",
+      "last_name": "Smith",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567104",
+      "organization": "Department of Clinical Neurosciences",
+      "job_title": "Professor of Clinical Neuroscience",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000005",
+      "username": "data_steward_patel",
+      "email": "a.patel@cam.ac.uk",
+      "first_name": "Anika",
+      "last_name": "Patel",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567105",
+      "organization": "Department of Clinical Neurosciences",
+      "job_title": "Research Data Steward",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000006",
+      "username": "researcher_jones",
+      "email": "d.jones@cam.ac.uk",
+      "first_name": "David",
+      "last_name": "Jones",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567106",
+      "organization": "Department of Clinical Neurosciences",
+      "job_title": "Senior Research Associate",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000007",
+      "username": "phd_garcia",
+      "email": "l.garcia@cam.ac.uk",
+      "first_name": "Lucia",
+      "last_name": "Garcia",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567107",
+      "organization": "Department of Clinical Neurosciences",
+      "job_title": "PhD Researcher",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000008",
+      "username": "ra_okafor",
+      "email": "c.okafor@cam.ac.uk",
+      "first_name": "Chidi",
+      "last_name": "Okafor",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567108",
+      "organization": "Department of Clinical Neurosciences",
+      "job_title": "Research Assistant",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c010000000000000000000000000009",
+      "username": "prof_evans",
+      "email": "m.evans@mrc-epid.cam.ac.uk",
+      "first_name": "Margaret",
+      "last_name": "Evans",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567109",
+      "organization": "MRC Epidemiology Unit",
+      "job_title": "Professor of Epidemiology",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c01000000000000000000000000000a",
+      "username": "it_officer_chen",
+      "email": "w.chen@mrc-epid.cam.ac.uk",
+      "first_name": "Wei",
+      "last_name": "Chen",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567110",
+      "organization": "MRC Epidemiology Unit",
+      "job_title": "Departmental IT Officer",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c01000000000000000000000000000b",
+      "username": "analyst_brown",
+      "email": "s.brown@mrc-epid.cam.ac.uk",
+      "first_name": "Sarah",
+      "last_name": "Brown",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567111",
+      "organization": "MRC Epidemiology Unit",
+      "job_title": "Senior Data Analyst",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "5c01000000000000000000000000000c",
+      "username": "statistician_kaur",
+      "email": "p.kaur@mrc-epid.cam.ac.uk",
+      "first_name": "Priya",
+      "last_name": "Kaur",
+      "is_staff": false,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+441234567112",
+      "organization": "MRC Epidemiology Unit",
+      "job_title": "Statistician",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "5ca10000000000000000000000000001",
+      "name": "Cambridge Research Computing Services",
+      "abbreviation": "RCS",
+      "description": "Operates the Secure Research Computing Platform (SRCP) for research on sensitive data.",
+      "email": "rcs-support@cam.ac.uk",
+      "country": "GB"
+    },
+    {
+      "uuid": "5ca10000000000000000000000000002",
+      "name": "Department of Clinical Neurosciences",
+      "abbreviation": "DCN",
+      "description": "Neuroimaging and clinical neuroscience research groups.",
+      "email": "it@neuro.cam.ac.uk",
+      "country": "GB"
+    },
+    {
+      "uuid": "5ca10000000000000000000000000003",
+      "name": "MRC Epidemiology Unit",
+      "abbreviation": "EPID",
+      "description": "Population health research using large cohort studies.",
+      "email": "it@mrc-epid.cam.ac.uk",
+      "country": "GB"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "5cae0000000000000000000000000001",
+      "customer_uuid": "5ca10000000000000000000000000001",
+      "description": "Secure Research Computing Platform (SRCP): storage, compute and desktops for sensitive research data."
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "5cc10000000000000000000000000001",
+      "name": "Neuroimaging Research",
+      "description": "Imaging studies of dementia, stroke, epilepsy and multiple sclerosis.",
+      "customer_uuid": "5ca10000000000000000000000000002"
+    },
+    {
+      "uuid": "5cc10000000000000000000000000002",
+      "name": "Population Health Cohorts",
+      "description": "Derived data and analysis environments for long-running population cohorts.",
+      "customer_uuid": "5ca10000000000000000000000000003"
+    }
+  ],
+  "category_groups": [
+    {
+      "uuid": "5ce00000000000000000000000000001",
+      "title": "Secure Research Computing",
+      "description": "SRCP platform services for sensitive research data"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "5ce10000000000000000000000000001",
+      "title": "Storage",
+      "description": "SRCP storage",
+      "group_uuid": "5ce00000000000000000000000000001"
+    },
+    {
+      "uuid": "5ce10000000000000000000000000002",
+      "title": "High Performance Computing",
+      "description": "SRCP high performance computing",
+      "group_uuid": "5ce00000000000000000000000000001"
+    },
+    {
+      "uuid": "5ce10000000000000000000000000003",
+      "title": "Secure Desktops",
+      "description": "SRCP secure desktops",
+      "group_uuid": "5ce00000000000000000000000000001"
+    },
+    {
+      "uuid": "5ce10000000000000000000000000004",
+      "title": "Data Capture",
+      "description": "SRCP data capture",
+      "group_uuid": "5ce00000000000000000000000000001"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "5cf10000000000000000000000000001",
+      "name": "Research Data Store (RDS)",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "5ce10000000000000000000000000001",
+      "customer_uuid": "5ca10000000000000000000000000001",
+      "description": "Resilient storage for active research data. An account buys capacity in TB and divides it between its SRCP projects; together the projects cannot exceed what was bought.",
+      "plugin_options": {
+        "billing_enabled": true,
+        "resource_expiration_reminders": [
+          90,
+          60,
+          30,
+          14,
+          7,
+          3,
+          1
+        ],
+        "enable_resource_projects": true,
+        "auto_ok_resource_projects": true,
+        "resource_projects_limit_policy": "aggregate",
+        "resource_projects_limits_required": true
+      },
+      "getting_started": "## Research Data Store\n\nEach SRCP project is mounted at `/rds/project/<project-id>`.\nProject managers can resize projects within the account's purchased capacity.\n\nSupport: rcs-support@cam.ac.uk"
+    },
+    {
+      "uuid": "5cf10000000000000000000000000002",
+      "name": "Research Cold Store (RCS)",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "5ce10000000000000000000000000001",
+      "customer_uuid": "5ca10000000000000000000000000001",
+      "description": "Low-cost archive storage for data that is rarely accessed. Capacity is bought in TB per account and shared out between projects.",
+      "plugin_options": {
+        "billing_enabled": true,
+        "resource_expiration_reminders": [
+          90,
+          60,
+          30,
+          14,
+          7,
+          3,
+          1
+        ],
+        "enable_resource_projects": true,
+        "auto_ok_resource_projects": true,
+        "resource_projects_limit_policy": "aggregate"
+      },
+      "getting_started": "## Research Cold Store\n\nData is written to tape-backed storage via `rcs-transfer`.\n\nSupport: rcs-support@cam.ac.uk"
+    },
+    {
+      "uuid": "5cf10000000000000000000000000003",
+      "name": "Virtual HPC (vHPC)",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "5ce10000000000000000000000000002",
+      "customer_uuid": "5ca10000000000000000000000000001",
+      "description": "Isolated SLURM cluster for processing sensitive data. Each project gets its own quota, which may not exceed the allocation of the cluster.",
+      "plugin_options": {
+        "billing_enabled": true,
+        "resource_expiration_reminders": [
+          90,
+          60,
+          30,
+          14,
+          7,
+          3,
+          1
+        ],
+        "enable_resource_projects": true,
+        "auto_ok_resource_projects": true,
+        "resource_projects_limit_policy": "per_project"
+      },
+      "getting_started": "## Getting Started with vHPC\n\nConnect via SSH: `ssh <crsid>@vhpc.srcp.cam.ac.uk` and submit jobs with `sbatch`.\n\nSupport: rcs-support@cam.ac.uk"
+    },
+    {
+      "uuid": "5cf10000000000000000000000000004",
+      "name": "Secure Windows Desktop",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "5ce10000000000000000000000000003",
+      "customer_uuid": "5ca10000000000000000000000000001",
+      "description": "Windows virtual desktops with statistics software, without internet access. Each project on a platform gets its own shared drive.",
+      "plugin_options": {
+        "billing_enabled": true,
+        "resource_expiration_reminders": [
+          90,
+          60,
+          30,
+          14,
+          7,
+          3,
+          1
+        ],
+        "enable_resource_projects": true,
+        "auto_ok_resource_projects": true,
+        "resource_projects_limit_policy": "none"
+      },
+      "getting_started": "## Secure Windows Desktop\n\nLog in at https://desktop.srcp.cam.ac.uk with your Raven account.\n\nSupport: rcs-support@cam.ac.uk"
+    },
+    {
+      "uuid": "5cf10000000000000000000000000005",
+      "name": "REDCap",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "5ce10000000000000000000000000004",
+      "customer_uuid": "5ca10000000000000000000000000001",
+      "description": "Secure web platform for building and managing online surveys and clinical databases.",
+      "plugin_options": {
+        "billing_enabled": true,
+        "resource_expiration_reminders": [
+          90,
+          60,
+          30,
+          14,
+          7,
+          3,
+          1
+        ]
+      },
+      "getting_started": "## Getting Started with REDCap\n\nLog in at https://redcap.srcp.cam.ac.uk. Complete the online training before creating projects.\n\nSupport: rcs-support@cam.ac.uk"
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "5c0c0000000000000000000000000001",
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "type": "storage",
+      "name": "Storage",
+      "description": "Storage allocation",
+      "billing_type": "limit",
+      "measured_unit": "TB",
+      "is_prepaid": true
+    },
+    {
+      "uuid": "5c0c0000000000000000000000000002",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "type": "storage",
+      "name": "Storage",
+      "description": "Storage allocation",
+      "billing_type": "limit",
+      "measured_unit": "TB",
+      "is_prepaid": true
+    },
+    {
+      "uuid": "5c0c0000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "type": "cpu_hours",
+      "name": "CPU Hours",
+      "description": "CPU Hours allocation",
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "is_prepaid": true
+    },
+    {
+      "uuid": "5c0c0000000000000000000000000004",
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "type": "gpu_hours",
+      "name": "GPU Hours",
+      "description": "GPU Hours allocation",
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "is_prepaid": true
+    },
+    {
+      "uuid": "5c0c0000000000000000000000000005",
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "type": "scratch_storage",
+      "name": "Scratch Storage",
+      "description": "Scratch Storage allocation",
+      "billing_type": "limit",
+      "measured_unit": "GB",
+      "is_prepaid": true
+    },
+    {
+      "uuid": "5c0c0000000000000000000000000006",
+      "offering_uuid": "5cf10000000000000000000000000004",
+      "type": "desktop_hours",
+      "name": "Desktop Hours",
+      "description": "Desktop Hours allocation",
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "is_prepaid": true
+    },
+    {
+      "uuid": "5c0c0000000000000000000000000007",
+      "offering_uuid": "5cf10000000000000000000000000004",
+      "type": "storage",
+      "name": "Project Drive",
+      "description": "Project Drive allocation",
+      "billing_type": "limit",
+      "measured_unit": "GB",
+      "is_prepaid": true
+    },
+    {
+      "uuid": "5c0c0000000000000000000000000008",
+      "offering_uuid": "5cf10000000000000000000000000005",
+      "type": "data_storage",
+      "name": "Data Storage",
+      "description": "Data Storage allocation",
+      "billing_type": "limit",
+      "measured_unit": "GB",
+      "is_prepaid": true
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "5cb10000000000000000000000000001",
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "name": "Standard",
+      "description": "Research Data Store (RDS) standard pricing",
+      "unit": "month",
+      "unit_price": "0"
+    },
+    {
+      "uuid": "5cb10000000000000000000000000002",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "name": "Standard",
+      "description": "Research Cold Store (RCS) standard pricing",
+      "unit": "month",
+      "unit_price": "0"
+    },
+    {
+      "uuid": "5cb10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "name": "Standard",
+      "description": "Virtual HPC (vHPC) standard pricing",
+      "unit": "month",
+      "unit_price": "0"
+    },
+    {
+      "uuid": "5cb10000000000000000000000000004",
+      "offering_uuid": "5cf10000000000000000000000000004",
+      "name": "Standard",
+      "description": "Secure Windows Desktop standard pricing",
+      "unit": "month",
+      "unit_price": "0"
+    },
+    {
+      "uuid": "5cb10000000000000000000000000005",
+      "offering_uuid": "5cf10000000000000000000000000005",
+      "name": "Standard",
+      "description": "REDCap standard pricing",
+      "unit": "month",
+      "unit_price": "0"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "5cb10000000000000000000000000001",
+      "component_uuid": "5c0c0000000000000000000000000001",
+      "amount": 0,
+      "price": "4.50"
+    },
+    {
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "component_uuid": "5c0c0000000000000000000000000002",
+      "amount": 0,
+      "price": "1.80"
+    },
+    {
+      "plan_uuid": "5cb10000000000000000000000000003",
+      "component_uuid": "5c0c0000000000000000000000000003",
+      "amount": 0,
+      "price": "0.05"
+    },
+    {
+      "plan_uuid": "5cb10000000000000000000000000003",
+      "component_uuid": "5c0c0000000000000000000000000004",
+      "amount": 0,
+      "price": "1.20"
+    },
+    {
+      "plan_uuid": "5cb10000000000000000000000000003",
+      "component_uuid": "5c0c0000000000000000000000000005",
+      "amount": 0,
+      "price": "0.02"
+    },
+    {
+      "plan_uuid": "5cb10000000000000000000000000004",
+      "component_uuid": "5c0c0000000000000000000000000006",
+      "amount": 0,
+      "price": "0.15"
+    },
+    {
+      "plan_uuid": "5cb10000000000000000000000000004",
+      "component_uuid": "5c0c0000000000000000000000000007",
+      "amount": 0,
+      "price": "0.05"
+    },
+    {
+      "plan_uuid": "5cb10000000000000000000000000005",
+      "component_uuid": "5c0c0000000000000000000000000008",
+      "amount": 0,
+      "price": "0.10"
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "5cd10000000000000000000000000001",
+      "name": "DCN Research Data Store",
+      "state": 2,
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "plan_uuid": "5cb10000000000000000000000000001",
+      "project_uuid": "5cc10000000000000000000000000001",
+      "limits": {
+        "storage": 50
+      },
+      "end_date": "2026-12-01",
+      "backend_id": "uIkLOKdRLKkO",
+      "description": "50 TB Research Data Store account for the department's imaging studies. Renewal is due before 1 December."
+    },
+    {
+      "uuid": "5cd10000000000000000000000000002",
+      "name": "DCN Virtual HPC",
+      "state": 2,
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "plan_uuid": "5cb10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000001",
+      "limits": {
+        "cpu_hours": 100000,
+        "gpu_hours": 5000,
+        "scratch_storage": 10000
+      },
+      "end_date": "2027-03-31",
+      "backend_id": "idhj7mq6kqo",
+      "description": "vHPC cluster for image preprocessing and modelling."
+    },
+    {
+      "uuid": "5cd10000000000000000000000000003",
+      "name": "EPID Research Cold Store",
+      "state": 2,
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "limits": {
+        "storage": 300
+      },
+      "end_date": "2028-06-01",
+      "backend_id": "roirIg84EhyZ",
+      "description": "300 TB archive for derived cohort data, held since 2018."
+    },
+    {
+      "uuid": "5cd10000000000000000000000000004",
+      "name": "EPID Windows Desktops",
+      "state": 2,
+      "offering_uuid": "5cf10000000000000000000000000004",
+      "plan_uuid": "5cb10000000000000000000000000004",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "limits": {
+        "desktop_hours": 6000,
+        "storage": 500
+      },
+      "end_date": "2026-11-10",
+      "backend_id": "bqltglzwgk7",
+      "description": "Windows desktop platform for the unit's statistical analysis projects. Expires within 30 days."
+    },
+    {
+      "uuid": "5cd10000000000000000000000000005",
+      "name": "EPID Survey Database",
+      "state": 2,
+      "offering_uuid": "5cf10000000000000000000000000005",
+      "plan_uuid": "5cb10000000000000000000000000005",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "limits": {
+        "data_storage": 50
+      },
+      "end_date": "2027-01-31",
+      "backend_id": "qb7ggrngxuo",
+      "description": "REDCap instance for cohort follow-up questionnaires."
+    }
+  ],
+  "resource_projects": [
+    {
+      "uuid": "5cd20000000000000000000000000001",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "name": "Imaging Cohort A",
+      "description": "Baseline MRI scans for the cohort study.",
+      "backend_id": "P090U0A3j99q",
+      "state": 2,
+      "limits": {
+        "storage": 3
+      },
+      "current_usages": {
+        "storage": 2
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "name": "Imaging Cohort B",
+      "description": "Follow-up MRI and PET scans.",
+      "backend_id": "kmwqQ3FtNazc",
+      "state": 2,
+      "limits": {
+        "storage": 18
+      },
+      "current_usages": {
+        "storage": 15
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000003",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "name": "Dementia Biomarkers",
+      "description": "CSF and blood biomarker measurements.",
+      "backend_id": "9iMW8ZmLzKg2",
+      "state": 2,
+      "limits": {
+        "storage": 1
+      },
+      "current_usages": {
+        "storage": 1
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000004",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "name": "Stroke Recovery",
+      "description": "Rehabilitation outcomes after stroke.",
+      "backend_id": "e93LZJeuXSU8",
+      "state": 2,
+      "limits": {
+        "storage": 2
+      },
+      "current_usages": {
+        "storage": 1
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000005",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "name": "Epilepsy Surgery Outcomes",
+      "description": "Pre- and post-surgical EEG and imaging.",
+      "backend_id": "Nes2ynwhLQx3",
+      "state": 2,
+      "limits": {
+        "storage": 10
+      },
+      "current_usages": {
+        "storage": 7
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000006",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "name": "MS Lesion Atlas",
+      "description": "Annotated lesion maps for multiple sclerosis.",
+      "backend_id": "ZfImLynLEEHe",
+      "state": 2,
+      "limits": {
+        "storage": 16
+      },
+      "current_usages": {
+        "storage": 9
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000007",
+      "resource_uuid": "5cd10000000000000000000000000002",
+      "name": "Image Preprocessing",
+      "description": "Registration and segmentation pipelines.",
+      "backend_id": "vhpc-preproc",
+      "state": 2,
+      "limits": {
+        "cpu_hours": 60000,
+        "gpu_hours": 4000,
+        "scratch_storage": 6000
+      },
+      "current_usages": {
+        "cpu_hours": 21000,
+        "gpu_hours": 1500,
+        "scratch_storage": 3500
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000008",
+      "resource_uuid": "5cd10000000000000000000000000002",
+      "name": "Statistical Modelling",
+      "description": "Group-level statistics and machine learning.",
+      "backend_id": "vhpc-stats",
+      "state": 2,
+      "limits": {
+        "cpu_hours": 40000,
+        "gpu_hours": 500,
+        "scratch_storage": 2000
+      },
+      "current_usages": {
+        "cpu_hours": 8000,
+        "gpu_hours": 0,
+        "scratch_storage": 400
+      }
+    },
+    {
+      "uuid": "5cd20000000000000000000000000009",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "name": "UK Biobank Derived Data",
+      "description": "Derived imaging and genetic variables for approved applications.",
+      "backend_id": "nPXNRovGYl2R",
+      "state": 2,
+      "limits": {
+        "storage": 300
+      },
+      "current_usages": {
+        "storage": 241
+      }
+    },
+    {
+      "uuid": "5cd2000000000000000000000000000a",
+      "resource_uuid": "5cd10000000000000000000000000004",
+      "name": "BRAIN Registry Study",
+      "description": "Patient registry analysis.",
+      "backend_id": "6ffc67q48zx",
+      "state": 2,
+      "limits": {
+        "desktop_hours": 2000,
+        "storage": 150
+      },
+      "current_usages": {
+        "desktop_hours": 1200,
+        "storage": 90
+      }
+    },
+    {
+      "uuid": "5cd2000000000000000000000000000b",
+      "resource_uuid": "5cd10000000000000000000000000004",
+      "name": "Long-term Outcomes Survey",
+      "description": "Survey analysis for long-term outcomes.",
+      "backend_id": "xzsh6krc3pm",
+      "state": 2,
+      "limits": {
+        "desktop_hours": 2000,
+        "storage": 150
+      },
+      "current_usages": {
+        "desktop_hours": 600,
+        "storage": 40
+      }
+    },
+    {
+      "uuid": "5cd2000000000000000000000000000c",
+      "resource_uuid": "5cd10000000000000000000000000004",
+      "name": "Patient Safety Programme",
+      "description": "Incident data analysis.",
+      "backend_id": "9qzf6vtjfvg",
+      "state": 2,
+      "limits": {
+        "desktop_hours": 2000,
+        "storage": 200
+      },
+      "current_usages": {
+        "desktop_hours": 300,
+        "storage": 20
+      }
+    }
+  ],
+  "roles": [
+    {
+      "uuid": "5c7e0000000000000000000000000001",
+      "name": "Data Owner",
+      "description": "Accountable for the data held in this allocation and pays for it.",
+      "content_type": "marketplace.resource",
+      "is_system_role": false,
+      "is_active": true,
+      "offering_uuids": [
+        "5cf10000000000000000000000000001",
+        "5cf10000000000000000000000000002",
+        "5cf10000000000000000000000000003",
+        "5cf10000000000000000000000000004"
+      ]
+    },
+    {
+      "uuid": "5c7e0000000000000000000000000002",
+      "name": "Data Manager",
+      "description": "Manages the allocation and its projects on behalf of the data owner.",
+      "content_type": "marketplace.resource",
+      "is_system_role": false,
+      "is_active": true,
+      "offering_uuids": [
+        "5cf10000000000000000000000000001",
+        "5cf10000000000000000000000000002",
+        "5cf10000000000000000000000000003",
+        "5cf10000000000000000000000000004"
+      ]
+    },
+    {
+      "uuid": "5c7e0000000000000000000000000003",
+      "name": "Project Manager",
+      "description": "Manages membership and size of a single SRCP project.",
+      "content_type": "marketplace.resourceproject",
+      "is_system_role": false,
+      "is_active": true,
+      "offering_uuids": [
+        "5cf10000000000000000000000000001",
+        "5cf10000000000000000000000000002",
+        "5cf10000000000000000000000000003",
+        "5cf10000000000000000000000000004"
+      ]
+    },
+    {
+      "uuid": "5c7e0000000000000000000000000004",
+      "name": "Project User",
+      "description": "Reads and writes data in a single SRCP project.",
+      "content_type": "marketplace.resourceproject",
+      "is_system_role": false,
+      "is_active": true,
+      "offering_uuids": [
+        "5cf10000000000000000000000000001",
+        "5cf10000000000000000000000000002",
+        "5cf10000000000000000000000000003",
+        "5cf10000000000000000000000000004"
+      ]
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "5c0e0000000000000000000000000001",
+      "user_uuid": "5c010000000000000000000000000002",
+      "user_username": "rcs_admin",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "5ca10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000002",
+      "user_uuid": "5c010000000000000000000000000003",
+      "user_username": "storage_eng_walker",
+      "role_name": "CUSTOMER.SUPPORT",
+      "scope_type": "structure.customer",
+      "scope_uuid": "5ca10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000003",
+      "user_uuid": "5c010000000000000000000000000004",
+      "user_username": "pi_smith",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "5ca10000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000004",
+      "user_uuid": "5c010000000000000000000000000009",
+      "user_username": "prof_evans",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "5ca10000000000000000000000000003",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000005",
+      "user_uuid": "5c010000000000000000000000000006",
+      "user_username": "researcher_jones",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "5cc10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000006",
+      "user_uuid": "5c010000000000000000000000000005",
+      "user_username": "data_steward_patel",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "5cc10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000007",
+      "user_uuid": "5c010000000000000000000000000007",
+      "user_username": "phd_garcia",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "5cc10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000008",
+      "user_uuid": "5c010000000000000000000000000008",
+      "user_username": "ra_okafor",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "5cc10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000009",
+      "user_uuid": "5c01000000000000000000000000000b",
+      "user_username": "analyst_brown",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "5cc10000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e000000000000000000000000000a",
+      "user_uuid": "5c01000000000000000000000000000a",
+      "user_username": "it_officer_chen",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "5cc10000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e000000000000000000000000000b",
+      "user_uuid": "5c01000000000000000000000000000c",
+      "user_username": "statistician_kaur",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "5cc10000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "5c0e000000000000000000000000000c",
+      "user_uuid": "5c010000000000000000000000000004",
+      "user_username": "pi_smith",
+      "role_name": "Data Owner",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000001",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000001"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000000d",
+      "user_uuid": "5c010000000000000000000000000005",
+      "user_username": "data_steward_patel",
+      "role_name": "Data Manager",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000001",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000002"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000000e",
+      "user_uuid": "5c010000000000000000000000000004",
+      "user_username": "pi_smith",
+      "role_name": "Data Owner",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000002",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000001"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000000f",
+      "user_uuid": "5c010000000000000000000000000005",
+      "user_username": "data_steward_patel",
+      "role_name": "Data Manager",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000002",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000002"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000010",
+      "user_uuid": "5c010000000000000000000000000009",
+      "user_username": "prof_evans",
+      "role_name": "Data Owner",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000003",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000001"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000011",
+      "user_uuid": "5c01000000000000000000000000000a",
+      "user_username": "it_officer_chen",
+      "role_name": "Data Manager",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000003",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000002"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000012",
+      "user_uuid": "5c010000000000000000000000000009",
+      "user_username": "prof_evans",
+      "role_name": "Data Owner",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000004",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000001"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000013",
+      "user_uuid": "5c01000000000000000000000000000a",
+      "user_username": "it_officer_chen",
+      "role_name": "Data Manager",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "5cd10000000000000000000000000004",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000002"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000014",
+      "user_uuid": "5c010000000000000000000000000008",
+      "user_username": "ra_okafor",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000001",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000015",
+      "user_uuid": "5c010000000000000000000000000006",
+      "user_username": "researcher_jones",
+      "role_name": "Project Manager",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000002",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000003"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000016",
+      "user_uuid": "5c010000000000000000000000000007",
+      "user_username": "phd_garcia",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000002",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000017",
+      "user_uuid": "5c010000000000000000000000000007",
+      "user_username": "phd_garcia",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000003",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000018",
+      "user_uuid": "5c010000000000000000000000000008",
+      "user_username": "ra_okafor",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000003",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000019",
+      "user_uuid": "5c010000000000000000000000000006",
+      "user_username": "researcher_jones",
+      "role_name": "Project Manager",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000005",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000003"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000001a",
+      "user_uuid": "5c010000000000000000000000000007",
+      "user_username": "phd_garcia",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000006",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000001b",
+      "user_uuid": "5c010000000000000000000000000008",
+      "user_username": "ra_okafor",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000006",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000001c",
+      "user_uuid": "5c010000000000000000000000000006",
+      "user_username": "researcher_jones",
+      "role_name": "Project Manager",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000007",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000003"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000001d",
+      "user_uuid": "5c010000000000000000000000000007",
+      "user_username": "phd_garcia",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000007",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000001e",
+      "user_uuid": "5c010000000000000000000000000008",
+      "user_username": "ra_okafor",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000008",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e000000000000000000000000001f",
+      "user_uuid": "5c01000000000000000000000000000b",
+      "user_username": "analyst_brown",
+      "role_name": "Project Manager",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000009",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000003"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000020",
+      "user_uuid": "5c01000000000000000000000000000c",
+      "user_username": "statistician_kaur",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd20000000000000000000000000009",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000021",
+      "user_uuid": "5c01000000000000000000000000000b",
+      "user_username": "analyst_brown",
+      "role_name": "Project Manager",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd2000000000000000000000000000a",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000003"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000022",
+      "user_uuid": "5c01000000000000000000000000000c",
+      "user_username": "statistician_kaur",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd2000000000000000000000000000a",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000023",
+      "user_uuid": "5c01000000000000000000000000000c",
+      "user_username": "statistician_kaur",
+      "role_name": "Project User",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd2000000000000000000000000000b",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000004"
+    },
+    {
+      "uuid": "5c0e0000000000000000000000000024",
+      "user_uuid": "5c01000000000000000000000000000b",
+      "user_username": "analyst_brown",
+      "role_name": "Project Manager",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "5cd2000000000000000000000000000c",
+      "is_active": true,
+      "role_uuid": "5c7e0000000000000000000000000003"
+    }
+  ],
+  "offering_users": [
+    {
+      "uuid": "5c0f0000000000000000000000000001",
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "user_uuid": "5c010000000000000000000000000006",
+      "username": "dj421",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000002",
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "user_uuid": "5c010000000000000000000000000007",
+      "username": "lg588",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "user_uuid": "5c010000000000000000000000000008",
+      "username": "co312",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000004",
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "user_uuid": "5c010000000000000000000000000006",
+      "username": "dj421",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000005",
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "user_uuid": "5c010000000000000000000000000007",
+      "username": "lg588",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000006",
+      "offering_uuid": "5cf10000000000000000000000000003",
+      "user_uuid": "5c010000000000000000000000000008",
+      "username": "co312",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000007",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "user_uuid": "5c01000000000000000000000000000b",
+      "username": "sb907",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000008",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "user_uuid": "5c01000000000000000000000000000c",
+      "username": "pk244",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f0000000000000000000000000009",
+      "offering_uuid": "5cf10000000000000000000000000004",
+      "user_uuid": "5c01000000000000000000000000000b",
+      "username": "sb907",
+      "state": 5
+    },
+    {
+      "uuid": "5c0f000000000000000000000000000a",
+      "offering_uuid": "5cf10000000000000000000000000004",
+      "user_uuid": "5c01000000000000000000000000000c",
+      "username": "pk244",
+      "state": 5
+    }
+  ],
+  "orders": [
+    {
+      "uuid": "5c700000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "created_by_uuid": "5c010000000000000000000000000009",
+      "created": "2018-06-01T09:00:00",
+      "completed_at": "2018-06-01T12:00:00",
+      "request_comment": "MyStorage (PO PB-9746826)",
+      "attributes": {
+        "po_number": "PB-9746826",
+        "payer": "vcd45"
+      },
+      "limits": {
+        "storage": 50
+      },
+      "cost": "1536.00"
+    },
+    {
+      "uuid": "5c700000000000000000000000000002",
+      "type": 2,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "created_by_uuid": "5c010000000000000000000000000009",
+      "created": "2019-06-01T09:00:00",
+      "completed_at": "2019-06-01T12:00:00",
+      "request_comment": "Renewal (PO PB-9756826)",
+      "attributes": {
+        "po_number": "PB-9756826",
+        "payer": "vcd45"
+      },
+      "limits": {
+        "storage": 50
+      },
+      "cost": "1536.00"
+    },
+    {
+      "uuid": "5c700000000000000000000000000003",
+      "type": 2,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "created_by_uuid": "5c010000000000000000000000000009",
+      "created": "2019-12-01T09:00:00",
+      "completed_at": "2019-12-01T12:00:00",
+      "request_comment": "50TB extra (PO PB-9766826)",
+      "attributes": {
+        "po_number": "PB-9766826",
+        "payer": "vcd45"
+      },
+      "limits": {
+        "storage": 100
+      },
+      "cost": "768.00"
+    },
+    {
+      "uuid": "5c700000000000000000000000000004",
+      "type": 2,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "created_by_uuid": "5c010000000000000000000000000009",
+      "created": "2019-12-01T09:00:00",
+      "completed_at": "2019-12-01T12:00:00",
+      "request_comment": "Increase to 200TB (PO PB-9776826)",
+      "attributes": {
+        "po_number": "PB-9776826",
+        "payer": "vcd45"
+      },
+      "limits": {
+        "storage": 200
+      },
+      "cost": "2160.00"
+    },
+    {
+      "uuid": "5c700000000000000000000000000005",
+      "type": 2,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "created_by_uuid": "5c010000000000000000000000000009",
+      "created": "2020-06-01T09:00:00",
+      "completed_at": "2020-06-01T12:00:00",
+      "request_comment": "Renew for 3 years (PO PB-9786826)",
+      "attributes": {
+        "po_number": "PB-9786826",
+        "payer": "vcd45"
+      },
+      "limits": {
+        "storage": 200
+      },
+      "cost": "12960.00"
+    },
+    {
+      "uuid": "5c700000000000000000000000000006",
+      "type": 2,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "created_by_uuid": "5c010000000000000000000000000009",
+      "created": "2022-10-01T09:00:00",
+      "completed_at": "2022-10-01T12:00:00",
+      "request_comment": "Additional Storage (PO PB-9796826)",
+      "attributes": {
+        "po_number": "PB-9796826",
+        "payer": "vcd45"
+      },
+      "limits": {
+        "storage": 300
+      },
+      "cost": "1438.03"
+    },
+    {
+      "uuid": "5c700000000000000000000000000007",
+      "type": 2,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "offering_uuid": "5cf10000000000000000000000000002",
+      "plan_uuid": "5cb10000000000000000000000000002",
+      "created_by_uuid": "5c010000000000000000000000000009",
+      "created": "2023-06-01T09:00:00",
+      "completed_at": "2023-06-01T12:00:00",
+      "request_comment": "Renew my storage again (PO PB-9797826)",
+      "attributes": {
+        "po_number": "PB-9797826",
+        "payer": "vcd45"
+      },
+      "limits": {
+        "storage": 300
+      },
+      "cost": "32400.00"
+    },
+    {
+      "uuid": "5c700000000000000000000000000008",
+      "type": 1,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000001",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "plan_uuid": "5cb10000000000000000000000000001",
+      "created_by_uuid": "5c010000000000000000000000000004",
+      "created": "2024-12-01T09:00:00",
+      "completed_at": "2024-12-01T12:00:00",
+      "request_comment": "Research Data Store purchase (PO PE2-7573835)",
+      "attributes": {
+        "po_number": "PE2-7573835",
+        "payer": "fio44"
+      },
+      "limits": {
+        "storage": 50
+      },
+      "cost": "2700.00"
+    },
+    {
+      "uuid": "5c700000000000000000000000000009",
+      "type": 2,
+      "state": 3,
+      "project_uuid": "5cc10000000000000000000000000001",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "offering_uuid": "5cf10000000000000000000000000001",
+      "plan_uuid": "5cb10000000000000000000000000001",
+      "created_by_uuid": "5c010000000000000000000000000004",
+      "created": "2025-12-01T09:00:00",
+      "completed_at": "2025-12-01T12:00:00",
+      "request_comment": "Extension of RDS for a year (PO PE2-9872381)",
+      "attributes": {
+        "po_number": "PE2-9872381",
+        "payer": "fio44"
+      },
+      "limits": {
+        "storage": 50
+      },
+      "cost": "2700.00"
+    }
+  ],
+  "invoices": [
+    {
+      "uuid": "5c1a0000000000000000000000000001",
+      "customer_uuid": "5ca10000000000000000000000000003",
+      "year": 2018,
+      "month": 6,
+      "state": "paid",
+      "created": "2018-06-01",
+      "invoice_date": "2018-06-01"
+    },
+    {
+      "uuid": "5c1a0000000000000000000000000002",
+      "customer_uuid": "5ca10000000000000000000000000003",
+      "year": 2019,
+      "month": 6,
+      "state": "paid",
+      "created": "2019-06-01",
+      "invoice_date": "2019-06-01"
+    },
+    {
+      "uuid": "5c1a0000000000000000000000000003",
+      "customer_uuid": "5ca10000000000000000000000000003",
+      "year": 2019,
+      "month": 12,
+      "state": "paid",
+      "created": "2019-12-01",
+      "invoice_date": "2019-12-01"
+    },
+    {
+      "uuid": "5c1a0000000000000000000000000004",
+      "customer_uuid": "5ca10000000000000000000000000003",
+      "year": 2020,
+      "month": 6,
+      "state": "paid",
+      "created": "2020-06-01",
+      "invoice_date": "2020-06-01"
+    },
+    {
+      "uuid": "5c1a0000000000000000000000000005",
+      "customer_uuid": "5ca10000000000000000000000000003",
+      "year": 2022,
+      "month": 10,
+      "state": "paid",
+      "created": "2022-10-01",
+      "invoice_date": "2022-10-01"
+    },
+    {
+      "uuid": "5c1a0000000000000000000000000006",
+      "customer_uuid": "5ca10000000000000000000000000003",
+      "year": 2023,
+      "month": 6,
+      "state": "paid",
+      "created": "2023-06-01",
+      "invoice_date": "2023-06-01"
+    },
+    {
+      "uuid": "5c1a0000000000000000000000000007",
+      "customer_uuid": "5ca10000000000000000000000000002",
+      "year": 2024,
+      "month": 12,
+      "state": "paid",
+      "created": "2024-12-01",
+      "invoice_date": "2024-12-01"
+    },
+    {
+      "uuid": "5c1a0000000000000000000000000008",
+      "customer_uuid": "5ca10000000000000000000000000002",
+      "year": 2025,
+      "month": 12,
+      "state": "paid",
+      "created": "2025-12-01",
+      "invoice_date": "2025-12-01"
+    }
+  ],
+  "invoice_items": [
+    {
+      "uuid": "5c1b0000000000000000000000000001",
+      "invoice_uuid": "5c1a0000000000000000000000000001",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "name": "MyStorage",
+      "quantity": 50,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "30.7200",
+      "start": "2018-06-01T00:00:00",
+      "end": "2019-06-01T00:00:00",
+      "details": {
+        "po_number": "PB-9746826",
+        "payer": "vcd45",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000002",
+      "invoice_uuid": "5c1a0000000000000000000000000002",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "name": "Renewal",
+      "quantity": 50,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "30.7200",
+      "start": "2019-06-01T00:00:00",
+      "end": "2020-06-01T00:00:00",
+      "details": {
+        "po_number": "PB-9756826",
+        "payer": "vcd45",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000003",
+      "invoice_uuid": "5c1a0000000000000000000000000003",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "name": "50TB extra",
+      "quantity": 50,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "15.3600",
+      "start": "2019-12-01T00:00:00",
+      "end": "2020-06-01T00:00:00",
+      "details": {
+        "po_number": "PB-9766826",
+        "payer": "vcd45",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000004",
+      "invoice_uuid": "5c1a0000000000000000000000000003",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "name": "Increase to 200TB",
+      "quantity": 100,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "21.6000",
+      "start": "2019-12-01T00:00:00",
+      "end": "2020-06-01T00:00:00",
+      "details": {
+        "po_number": "PB-9776826",
+        "payer": "vcd45",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000005",
+      "invoice_uuid": "5c1a0000000000000000000000000004",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "name": "Renew for 3 years",
+      "quantity": 200,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "64.8000",
+      "start": "2020-06-01T00:00:00",
+      "end": "2023-06-01T00:00:00",
+      "details": {
+        "po_number": "PB-9786826",
+        "payer": "vcd45",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000006",
+      "invoice_uuid": "5c1a0000000000000000000000000005",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "name": "Additional Storage",
+      "quantity": 100,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "14.3803",
+      "start": "2022-10-01T00:00:00",
+      "end": "2023-06-01T00:00:00",
+      "details": {
+        "po_number": "PB-9796826",
+        "payer": "vcd45",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000007",
+      "invoice_uuid": "5c1a0000000000000000000000000006",
+      "resource_uuid": "5cd10000000000000000000000000003",
+      "project_uuid": "5cc10000000000000000000000000002",
+      "name": "Renew my storage again",
+      "quantity": 300,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "108.0000",
+      "start": "2023-06-01T00:00:00",
+      "end": "2028-06-01T00:00:00",
+      "details": {
+        "po_number": "PB-9797826",
+        "payer": "vcd45",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000008",
+      "invoice_uuid": "5c1a0000000000000000000000000007",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "project_uuid": "5cc10000000000000000000000000001",
+      "name": "Research Data Store purchase",
+      "quantity": 50,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "54.0000",
+      "start": "2024-12-01T00:00:00",
+      "end": "2025-12-01T00:00:00",
+      "details": {
+        "po_number": "PE2-7573835",
+        "payer": "fio44",
+        "cufs": true
+      }
+    },
+    {
+      "uuid": "5c1b0000000000000000000000000009",
+      "invoice_uuid": "5c1a0000000000000000000000000008",
+      "resource_uuid": "5cd10000000000000000000000000001",
+      "project_uuid": "5cc10000000000000000000000000001",
+      "name": "Extension of RDS for a year",
+      "quantity": 50,
+      "measured_unit": "TB",
+      "unit": "quantity",
+      "unit_price": "54.0000",
+      "start": "2025-12-01T00:00:00",
+      "end": "2026-12-01T00:00:00",
+      "details": {
+        "po_number": "PE2-9872381",
+        "payer": "fio44",
+        "cufs": true
+      }
+    }
+  ]
+}

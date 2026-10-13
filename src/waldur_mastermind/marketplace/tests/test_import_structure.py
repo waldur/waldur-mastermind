@@ -39,6 +39,7 @@ from waldur_mastermind.marketplace.models import (
     Plan,
     PlanComponent,
     Resource,
+    ResourceProject,
     RobotAccount,
     SoftwareCatalog,
 )
@@ -830,6 +831,88 @@ class ImportStructureCommandTest(TestCase):
 
         # Verify role not created
         self.assertFalse(Role.objects.filter(name="TestRole").exists())
+
+    def test_offering_role_is_made_available_on_its_offerings(self):
+        offering = marketplace_factories.OfferingFactory()
+        role_uuid = uuid.uuid4().hex
+        self._create_test_json(
+            {
+                "roles": [
+                    {
+                        "uuid": role_uuid,
+                        "name": "Data Manager",
+                        "content_type": "marketplace.resource",
+                        "offering_uuids": [offering.uuid.hex, uuid.uuid4().hex],
+                    }
+                ]
+            }
+        )
+
+        self._call_import_command("-i", self.test_file_path)
+
+        role = Role.objects.get(uuid=role_uuid)
+        self.assertEqual(
+            list(role.availability.values_list("object_id", flat=True)),
+            [offering.id],
+        )
+        self.assertEqual(
+            role.availability.get().content_type,
+            ContentType.objects.get_for_model(Offering),
+        )
+
+    # Resource Project Tests
+
+    def test_resource_project_keeps_limits_and_defaults_to_ok(self):
+        resource = marketplace_factories.ResourceFactory(limits={"storage": 50})
+        rp_uuid = uuid.uuid4().hex
+        self._create_test_json(
+            {
+                "resource_projects": [
+                    {
+                        "uuid": rp_uuid,
+                        "resource_uuid": resource.uuid.hex,
+                        "name": "Imaging Cohort A",
+                        "description": "MRI scans",
+                        "backend_id": "P090U0A3j99q",
+                        "limits": {"storage": 18},
+                        "current_usages": {"storage": 12},
+                    }
+                ]
+            }
+        )
+
+        self._call_import_command("-i", self.test_file_path)
+
+        project = ResourceProject.objects.get(uuid=rp_uuid)
+        self.assertEqual(project.resource, resource)
+        self.assertEqual(project.description, "MRI scans")
+        self.assertEqual(project.backend_id, "P090U0A3j99q")
+        self.assertEqual(project.state, ResourceProject.States.OK)
+        self.assertEqual(project.limits, {"storage": 18})
+        self.assertEqual(project.current_usages, {"storage": 12})
+
+    def test_resource_project_state_can_be_set(self):
+        resource = marketplace_factories.ResourceFactory()
+        rp_uuid = uuid.uuid4().hex
+        self._create_test_json(
+            {
+                "resource_projects": [
+                    {
+                        "uuid": rp_uuid,
+                        "resource_uuid": resource.uuid.hex,
+                        "name": "pending",
+                        "state": ResourceProject.States.CREATING,
+                    }
+                ]
+            }
+        )
+
+        self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(
+            ResourceProject.objects.get(uuid=rp_uuid).state,
+            ResourceProject.States.CREATING,
+        )
 
     # Statistics Summary Tests
 
