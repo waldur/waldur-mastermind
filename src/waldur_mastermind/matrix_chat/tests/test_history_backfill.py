@@ -7,6 +7,7 @@ from unittest import mock
 import vodozemac
 from asgiref.sync import async_to_sync
 from constance.test import override_config
+from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PrivateKey,
@@ -14,7 +15,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
 )
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from nio.crypto import (
     GroupSessionStore,
@@ -44,6 +45,7 @@ from waldur_mastermind.matrix_chat.tests.test_recovery_keys import (
 )
 
 ROOM = "!test_room:matrix.example.com"
+LOST_KEY = Fernet.generate_key().decode()
 USER = "@alice:matrix.example.com"
 SENDER = "@bob:matrix.example.com"
 
@@ -620,6 +622,23 @@ class FillerTest(TestCase):
         self._signed_by(identity.master)
         self._fill()
         self.assertEqual(set(self.homeserver.written), {self.session.id})
+
+    def test_a_key_it_can_no_longer_decrypt_counts_as_none(self):
+        # Escrowed under a FIELD_ENCRYPTION_KEY since lost, the key reads back
+        # as its ciphertext; the pinned identity decides, as without a key.
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=LOST_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
+        ):
+            self.profile.save(update_fields=["recovery_key"])
+        identity = Identity(USER)
+        self.bot.query_keys.return_value = identity.response()
+
+        member = self._fill()
+
+        self.assertEqual(self.homeserver.written, {})
+        self.assertEqual(member.history_backup_version, "1")
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.pinned_master_key, identity.master.public_key)
 
     def test_a_master_key_other_than_the_pinned_one_gets_nothing(self):
         self._without_recovery_key()

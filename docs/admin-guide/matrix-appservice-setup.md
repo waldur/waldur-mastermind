@@ -896,8 +896,9 @@ Besides its `event_id`, `sender`, `timestamp`, `type` and content, each message 
   Olm session vouches for them); a message from any other device is `changed`:
   - `escrowed`: the recovery key Waldur holds for the user unlocks the master key the homeserver
     publishes, so the homeserver cannot have replaced it;
-  - `pinned`: Waldur holds no recovery key for the user, and the master key is the one the bot
-    pinned when it first saw it (see [History for new members](#history-for-new-members));
+  - `pinned`: Waldur holds no recovery key for the user, or none it can still decrypt, and the
+    master key is the one the bot pinned when it first saw it (see
+    [History for new members](#history-for-new-members));
   - `changed`: neither. The user reset their identity, or the homeserver replaced it; read
     `verified` on such messages with care. Devices are looked up as they are at export time, so a
     message from a device the user has since signed out or deleted is `changed` too, as is one
@@ -1130,13 +1131,19 @@ storage. That happens when:
 - the user set encryption up in another client with a key Waldur never saw, or
   reset it there.
 
-A lost `FIELD_ENCRYPTION_KEY`, or `SECRET_KEY` rotated while it is unset, does
-not lead here. Nothing stored under it can be read: chat sessions fail until the
-appservice tokens are set again (a packaged deployment seeds them on its next
-deploy), and the bot refuses to start. After that, the drawer gets the stored
-ciphertext in place of a recovery key and says
-"Encryption is unavailable in this browser", with no import or reset to offer.
-Only the key itself brings encryption back, so keep it with your backups.
+A lost `FIELD_ENCRYPTION_KEY`, or `SECRET_KEY` rotated while it is unset, leads
+here as well. Nothing stored under the old key can be read: chat sessions fail
+until the appservice tokens are set again (a packaged deployment seeds them on
+its next deploy), and the bot refuses to start. The escrowed recovery keys are
+still in the database but read back as their ciphertext, which Waldur treats as
+no key: the session returns no `recovery_key`, so the drawer reports the
+identity locked and offers the import and the reset below,
+[Showing the recovery key](#showing-the-recovery-key) returns `null`, and the
+bot treats the user as one whose key Waldur does not hold (see
+[History for new members](#history-for-new-members)). Keep the key with your
+backups: put back in `FIELD_ENCRYPTION_KEY_FALLBACKS`, next to the current one,
+it makes the escrowed key of every user who has not reset meanwhile readable
+again.
 
 In the last case the user holds a recovery key that works, so the drawer asks
 for it first. A lease with `{"kind": "import"}` lets the drawer escrow a key the
@@ -1226,12 +1233,15 @@ the bot writes only into a backup it can tie to the member:
   writes nothing. What this still trusts is Waldur's own database, which holds
   the recovery key anyway.
 - **If Waldur holds no recovery key for the member** (they set encryption up in
-  another client), the backup must be signed by the member's master
-  cross-signing key, or by a device that key vouches for. The bot pins that
-  master key the first time it sees it, and refuses a different one until a
-  recovery key is escrowed with Waldur, which clears the pin. Ending a setup
-  that escrowed nothing (cancelled or failed) leaves the pin as it is. What this still trusts is the homeserver at the moment of first
-  sight: a homeserver already compromised then can have its own key pinned.
+  another client, or the key Waldur holds can no longer be decrypted, see
+  [Locked identities](#locked-identities)), the backup must be signed by the
+  member's master cross-signing key, or by a device that key vouches for. The
+  bot pins that master key the first time it sees it, and refuses a different
+  one until a recovery key is escrowed with Waldur, which clears the pin. Ending
+  a setup that escrowed nothing (cancelled or failed) leaves the pin as it is.
+  What this still trusts is the homeserver at the moment of first sight (for a
+  key that can no longer be decrypted, the first fill after the loss): a
+  homeserver already compromised then can have its own key pinned.
 
 Only sessions sent by a device of a past or present room member, or by the bot,
 are written: the bot accepts a room key for any room from any device, and a

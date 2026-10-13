@@ -10,6 +10,7 @@ from unittest import mock
 
 import httpx
 from asgiref.sync import async_to_sync, sync_to_async
+from cryptography.fernet import Fernet
 from django.test import TestCase, override_settings
 from nio import Event
 from nio.exceptions import EncryptionError
@@ -25,6 +26,7 @@ from waldur_mastermind.matrix_chat.tests.test_cross_signing import Identity
 
 ROOM_ID = "!test_room:matrix.example.com"
 HOMESERVER = "https://matrix.example.com"
+LOST_KEY = Fernet.generate_key().decode()
 
 
 def raw(event_id, content, event_type="m.room.message", sender=None):
@@ -1759,6 +1761,18 @@ class BotSenderIdentityTest(TestCase):
         self._set(recovery_key=recovery_vectors.RECOVERY_KEY)
         self.alice.master = cross_signing.SigningKey.generate()
         self.assertEqual(self._identity()[0], "changed")
+
+    def test_a_key_it_can_no_longer_decrypt_counts_as_none(self):
+        # Escrowed under a FIELD_ENCRYPTION_KEY since lost, the key reads back
+        # as its ciphertext; the pinned identity decides, as without a key.
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=LOST_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
+        ):
+            self._set(
+                recovery_key=recovery_vectors.RECOVERY_KEY,
+                pinned_master_key=recovery_vectors.MASTER_PUBLIC,
+            )
+        self.assertEqual(self._label(), "pinned")
 
     def test_pinned(self):
         self._set(pinned_master_key=recovery_vectors.MASTER_PUBLIC)

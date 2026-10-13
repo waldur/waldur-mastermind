@@ -20,6 +20,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from waldur_core.core import encryption
+
 AES_HMAC_SHA2 = "m.secret_storage.v1.aes-hmac-sha2"
 
 _PREFIX = b"\x8b\x01"
@@ -32,6 +34,20 @@ _BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 class InvalidRecoveryKey(ValueError):
     pass
+
+
+def escrowed(stored):
+    """The recovery key Waldur holds, from the stored field value; "" if none.
+
+    ``EncryptedTextField`` hands back the ciphertext when no configured
+    ``FIELD_ENCRYPTION_KEY`` decrypts it (the key was lost, or ``SECRET_KEY``
+    rotated while it was unset). A Fernet token is no recovery key, so it counts
+    as none: the drawer then offers the import and the reset, and the bot waits
+    for a key it can use, rather than either choking on the ciphertext.
+    """
+    if not stored or encryption.is_encrypted(stored):
+        return ""
+    return stored
 
 
 def _base58_decode(text):
