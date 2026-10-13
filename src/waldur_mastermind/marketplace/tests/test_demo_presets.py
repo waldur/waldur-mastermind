@@ -3,6 +3,7 @@ import datetime
 import decimal
 import json
 import pathlib
+import re
 import uuid
 from io import StringIO
 from unittest import mock
@@ -568,6 +569,33 @@ class SrcpPresetTest(test.APITestCase):
             {role["name"] for role in response.data},
             {"Data Owner", "Data Manager", "Project Manager", "Project User"},
         )
+
+    def test_platform_types_enable_the_srcp_workflow_options(self):
+        # Without these the Client cannot approve spend or reply to SRCPS,
+        # nobody but staff sees platform accounts, and no network can be
+        # recorded for a platform.
+        for offering in Offering.objects.filter(
+            uuid__in=[o["uuid"] for o in self.preset["offerings"]]
+        ):
+            for option in (
+                "disable_autoapprove",
+                "enable_provider_consumer_messaging",
+                "service_provider_can_create_offering_user",
+                "enable_resource_access_subnets",
+            ):
+                self.assertIs(
+                    offering.plugin_options.get(option), True, (offering.name, option)
+                )
+
+    def test_getting_started_uses_only_placeholders_the_portal_fills(self):
+        # The portal replaces {backend_id}, {resource_name}, {resource_username}
+        # and {backend_metadata_*}/{options_*}; anything else renders "undefined".
+        allowed = re.compile(
+            r"^(backend_id|resource_name|resource_username|backend_metadata_\w+|options_\w+)$"
+        )
+        for offering in self.preset["offerings"]:
+            for key in re.findall(r"{(.+?)}", offering["getting_started"]):
+                self.assertRegex(key, allowed, offering["name"])
 
     def test_every_role_assignment_is_loaded(self):
         for entry in self.preset["user_roles"]:
