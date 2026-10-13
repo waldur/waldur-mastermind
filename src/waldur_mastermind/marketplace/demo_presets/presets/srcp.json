@@ -284,12 +284,16 @@
           3,
           1
         ],
+        "disable_autoapprove": true,
+        "enable_provider_consumer_messaging": true,
+        "service_provider_can_create_offering_user": true,
+        "enable_resource_access_subnets": true,
         "enable_resource_projects": true,
         "auto_ok_resource_projects": true,
         "resource_projects_limit_policy": "aggregate",
         "resource_projects_limits_required": true
       },
-      "getting_started": "## Research Data Store\n\nEach SRCP project is mounted at `/rds/project/<project-id>`.\nProject managers can resize projects within the account's purchased capacity.\n\nSupport: rcs-support@cam.ac.uk"
+      "getting_started": "## Getting started with {resource_name}\n\nPlatform ID: `{backend_id}`\n\nEach SRCP project of this store is mounted on your SRCP platforms at `/rds/{backend_id}/<project-id>`.\n\nUpload or download data through the Data Management Server (University network or VPN, SSH key registered under My access):\n\n```\nsftp <crsid>@data-{backend_id}.srcp.hpc.cam.ac.uk\n```\n\nSupport: rcs-support@cam.ac.uk"
     },
     {
       "uuid": "5cf10000000000000000000000000002",
@@ -312,11 +316,15 @@
           3,
           1
         ],
+        "disable_autoapprove": true,
+        "enable_provider_consumer_messaging": true,
+        "service_provider_can_create_offering_user": true,
+        "enable_resource_access_subnets": true,
         "enable_resource_projects": true,
         "auto_ok_resource_projects": true,
         "resource_projects_limit_policy": "aggregate"
       },
-      "getting_started": "## Research Cold Store\n\nData is written to tape-backed storage via `rcs-transfer`.\n\nSupport: rcs-support@cam.ac.uk"
+      "getting_started": "## Getting started with {resource_name}\n\nPlatform ID: `{backend_id}`\n\nArchive and retrieve data through the transfer service:\n\n```\nsftp <crsid>@rcs-transfer.srcp.hpc.cam.ac.uk:/{backend_id}/\n```\n\nRetrievals from tape can take several hours.\n\nSupport: rcs-support@cam.ac.uk"
     },
     {
       "uuid": "5cf10000000000000000000000000003",
@@ -339,11 +347,15 @@
           3,
           1
         ],
+        "disable_autoapprove": true,
+        "enable_provider_consumer_messaging": true,
+        "service_provider_can_create_offering_user": true,
+        "enable_resource_access_subnets": true,
         "enable_resource_projects": true,
         "auto_ok_resource_projects": true,
         "resource_projects_limit_policy": "per_project"
       },
-      "getting_started": "## Getting Started with vHPC\n\nConnect via SSH: `ssh <crsid>@vhpc.srcp.cam.ac.uk` and submit jobs with `sbatch`.\n\nSupport: rcs-support@cam.ac.uk"
+      "getting_started": "## Getting started with {resource_name}\n\nPlatform ID: `{backend_id}`\n\nLog in from the University network or the VPN with your Raven password and SRCP two-factor code:\n\n```\nssh <crsid>@vhpc-{backend_id}.srcp.hpc.cam.ac.uk\n```\n\nMove data in and out through this platform's Data Management Server:\n\n```\nsftp <crsid>@data-{backend_id}.srcp.hpc.cam.ac.uk\n```\n\nList software with `module avail` and submit jobs with `sbatch`.\n\nSupport: rcs-support@cam.ac.uk"
     },
     {
       "uuid": "5cf10000000000000000000000000004",
@@ -366,11 +378,15 @@
           3,
           1
         ],
+        "disable_autoapprove": true,
+        "enable_provider_consumer_messaging": true,
+        "service_provider_can_create_offering_user": true,
+        "enable_resource_access_subnets": true,
         "enable_resource_projects": true,
         "auto_ok_resource_projects": true,
         "resource_projects_limit_policy": "none"
       },
-      "getting_started": "## Secure Windows Desktop\n\nLog in at https://desktop.srcp.cam.ac.uk with your Raven account.\n\nSupport: rcs-support@cam.ac.uk"
+      "getting_started": "## Getting started with {resource_name}\n\nPlatform ID: `{backend_id}`\n\nOpen the Citrix Workspace app (a browser will not work) and sign in at https://desktop.srcp.cam.ac.uk with your Microsoft two-factor code.\n\nYour projects are under `X:\\SRCP`. Import data through the Import space of the project in the web portal; a Manager moves it in.\n\nSupport: rcs-support@cam.ac.uk"
     },
     {
       "uuid": "5cf10000000000000000000000000005",
@@ -392,9 +408,13 @@
           7,
           3,
           1
-        ]
+        ],
+        "disable_autoapprove": true,
+        "enable_provider_consumer_messaging": true,
+        "service_provider_can_create_offering_user": true,
+        "enable_resource_access_subnets": true
       },
-      "getting_started": "## Getting Started with REDCap\n\nLog in at https://redcap.srcp.cam.ac.uk. Complete the online training before creating projects.\n\nSupport: rcs-support@cam.ac.uk"
+      "getting_started": "## Getting started with {resource_name}\n\nLog in at https://redcap.srcp.cam.ac.uk/{backend_id} with your Raven account. Complete the online training before creating projects.\n\nSupport: rcs-support@cam.ac.uk"
     }
   ],
   "offering_components": [
