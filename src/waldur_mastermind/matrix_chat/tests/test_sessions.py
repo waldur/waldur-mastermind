@@ -3,8 +3,10 @@ from unittest import mock
 
 import httpx
 from constance.test import override_config
+from cryptography.fernet import Fernet
 from django.conf import settings
 from django.forms.models import model_to_dict
+from django.test import override_settings
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -14,6 +16,8 @@ from waldur_mastermind.matrix_chat.matrix_client import (
     MatrixUserLocked,
 )
 from waldur_mastermind.matrix_chat.tests import fixtures
+
+LOST_KEY = Fernet.generate_key().decode()
 
 SESSION = {
     "device_id": "WALDUR_WEB_0A1B2C3D4E5F",
@@ -89,6 +93,25 @@ class MatrixSessionTest(test.APITestCase):
 
         with mock.patch.object(views, "get_auth_method", return_value="pat"):
             response = self.client.post(self.url)
+
+        self.assertIsNone(response.data["recovery_key"])
+
+    def test_no_recovery_key_it_can_no_longer_decrypt(
+        self, mock_ensure, mock_session, mock_prune
+    ):
+        # Escrowed under a FIELD_ENCRYPTION_KEY since lost, the key reads back
+        # as its ciphertext, which the drawer must not be handed as a key.
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=LOST_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
+        ):
+            models.MatrixUserProfile.objects.create(
+                user=self.user,
+                matrix_user_id="@alice:example.com",
+                recovery_key="EsSz ykH7 LCZx 7Cae",
+            )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(self.url)
 
         self.assertIsNone(response.data["recovery_key"])
 

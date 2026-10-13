@@ -18,7 +18,7 @@ from django.db.models import Min
 from django.db.models.functions import Now
 from django.utils import timezone
 
-from waldur_mastermind.matrix_chat import models
+from waldur_mastermind.matrix_chat import models, recovery_keys
 
 # A fill that could not be written yet (the member's join has not reached the
 # homeserver, or the homeserver failed) is tried again after these delays, and
@@ -76,9 +76,9 @@ def due_fills(user_id):
 
 
 def recovery_key(user_id):
-    """The user's escrowed recovery key, or "" if Waldur holds none."""
+    """The user's escrowed recovery key, or "" if Waldur holds none it can read."""
     profile = models.MatrixUserProfile.objects.filter(user_id=user_id).first()
-    return profile.recovery_key if profile else ""
+    return recovery_keys.escrowed(profile.recovery_key) if profile else ""
 
 
 def is_current_member(member_pk):

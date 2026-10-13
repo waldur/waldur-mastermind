@@ -54,6 +54,7 @@ from . import (
     livekit_client,
     matrix_client,
     models,
+    recovery_keys,
     room_provisioning,
     serializers,
     tasks,
@@ -739,9 +740,11 @@ class MatrixSessionView(views.APIView):
         recovery_key = (
             None
             if _is_delegated(request)
-            else models.MatrixUserProfile.objects.filter(user=request.user)
-            .values_list("recovery_key", flat=True)
-            .first()
+            else recovery_keys.escrowed(
+                models.MatrixUserProfile.objects.filter(user=request.user)
+                .values_list("recovery_key", flat=True)
+                .first()
+            )
         )
         serializer = serializers.MatrixSessionSerializer(
             {

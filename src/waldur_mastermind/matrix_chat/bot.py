@@ -1031,12 +1031,17 @@ def _vouched_devices(user_id, keys):
 
 
 def _identity_profile(matrix_user_id):
-    """``(recovery key, pinned master key)`` of a Waldur user, or None."""
-    return (
+    """``(recovery key, pinned master key)`` of a Waldur user, or None. The
+    recovery key is "" if Waldur holds none it can read."""
+    profile = (
         models.MatrixUserProfile.objects.filter(matrix_user_id=matrix_user_id)
         .values_list("recovery_key", "pinned_master_key")
         .first()
     )
+    if profile is None:
+        return None
+    recovery_key, pinned = profile
+    return recovery_keys.escrowed(recovery_key), pinned
 
 
 def _active_room_ids():
