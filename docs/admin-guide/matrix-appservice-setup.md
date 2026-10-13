@@ -12,13 +12,18 @@ Waldur integrates with the [Matrix](https://matrix.org/) open communication prot
 - **External clients** — optionally, users can sign in to Element or another Matrix client
 - **Room lifecycle** — disable, reactivate, and reprovision rooms
 
-Rooms, member sync, bot commands, exports and the chat drawer need a homeserver with the Application Service API, and short-lived drawer sessions also need refresh tokens. Locking the accounts of deactivated and deleted users, generated passwords and the refusal of homeserver-admin accounts also need the Synapse admin API (`/_synapse/admin`), with the bot as a homeserver admin; Synapse and Tuwunel have it. The Helm chart and docker-compose ship Tuwunel.
+Rooms, member sync, bot commands, exports and the chat drawer need a homeserver with the Application Service API, and short-lived drawer sessions also need refresh tokens. Locking the accounts of deactivated and deleted users, generated passwords, resetting a locked encryption identity and the refusal of homeserver-admin accounts also need the Synapse admin API (`/_synapse/admin`), with the bot as a homeserver admin; Synapse and Tuwunel have it. The Helm chart and docker-compose ship Tuwunel.
 
 ## Prerequisites
 
 - A running Matrix homeserver with Application Service support
 - Waldur reachable from the homeserver over HTTP/HTTPS
 - A staff account in Waldur — the Setup appservice wizard, Diagnostics, and the **Settings** tab are staff-only
+- The `project.show_matrix_chat` feature flag turned on (see [Feature Flag](#feature-flag)). It is off by default, and it hides the whole chat UI, the Matrix chat admin page included
+- `MATRIX_ENABLED` switched on in the **Settings** tab. Setup does not switch it on, and its button stays disabled until it is on
+- One `waldur matrix_bot` process running next to the Celery workers. It is the encrypted member of every room: without it there are no notifications, no command answers and no exports, and a room being disabled goes to `error`. Run exactly one; a second refuses to start
+
+The Helm chart and docker-compose do all three for you, except the feature flag on docker-compose, whose Matrix add-on guide shows the command.
 
 Waldur's calls to the homeserver carry the appservice token, which can act as any user, and the passwords and tokens Waldur sets or mints for users; the homeserver's calls to Waldur carry the `hs_token`. The Helm chart and docker-compose send both over plain HTTP inside the cluster or the Compose network, and Waldur's calls to the bundled LiveKit's room API too. Elsewhere, use HTTPS, or a network only Waldur and the homeserver share.
 
@@ -62,16 +67,17 @@ The Setup appservice wizard collects everything else it needs. If the homeserver
 
 ### Via the UI
 
-The page lives at **Administration → Configuration → Matrix chat** and is split into a **Rooms** tab and a staff-only **Settings** tab. Support users see only the Rooms tab; the Setup appservice and Diagnostics actions are staff-only.
+The page lives at **Administration → Configuration → Matrix chat** and is split into a **Rooms** tab, and staff-only **Calls** and **Settings** tabs. Support users see only the Rooms tab; the Setup appservice and Diagnostics actions are staff-only. Setup is hidden while `MATRIX_TOKENS_MANAGED_BY` is set (see [Token rotation](#token-rotation)).
 
 1. Navigate to **Administration → Configuration → Matrix chat**
 2. Click **Setup appservice** to open the wizard
-3. **Prerequisites step** (shown only when these are missing): enter the homeserver URL, homeserver domain, and user registration secret
+3. **Prerequisites step** (shown only when these are missing): enter the homeserver URL, homeserver domain, and user registration secret, and the public homeserver URL if browsers reach the homeserver at another address
 4. **Main step**: optionally adjust the Waldur URL (defaults to the current browser origin; this is the base URL the homeserver uses to reach Waldur) and the bot localpart (default `waldur-bot`)
 5. On the result step, copy the generated registration YAML
 6. Save the YAML to a file on your homeserver (e.g., `/etc/matrix/waldur-appservice.yaml`)
 7. Register the file in your homeserver configuration (e.g., `app_service_config_files` in Synapse, or the equivalent directive for your homeserver)
 8. Restart the homeserver
+9. Make the bot a homeserver admin; see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin)
 
 > **Warning:** If AS and HS tokens are already configured, the wizard warns that running setup again will generate new tokens and overwrite the existing ones. You will need to update your homeserver configuration with the new registration YAML.
 
@@ -79,7 +85,7 @@ The page lives at **Administration → Configuration → Matrix chat** and is sp
 
 On Tuwunel, Waldur registers its appservice through the homeserver's admin room; Tuwunel can also read registrations from its config file, which Waldur does not use. `waldur register_matrix_appservice` does steps 5–8 for you: it builds the registration from Constance, sends `!admin appservices register` to the admin room, and reads the admin bot's reply.
 
-That message is the whole registration, both tokens included, sent as a plain message, and nothing removes it afterwards: the tokens stay in the admin room's history, and so in the homeserver's database and its backups. The `show-config` replies that re-runs read carry them too. A rotation makes the old ones useless.
+That message is the whole registration, both tokens included, sent as a plain message, and nothing removes it afterwards: the tokens stay in the admin room's history, and so in the homeserver's database and its backups. The `show-config` replies that re-runs read carry them too. A rotation stops the old ones from working, but does not end sessions already signed in with them; see [Token rotation](#token-rotation).
 
 ```bash
 waldur register_matrix_appservice --url https://waldur.example.com
@@ -93,21 +99,21 @@ waldur register_matrix_appservice --url https://waldur.example.com
 - `MATRIX_BOOTSTRAP_PASSWORD` is a homeserver admin's permanent password. While password login is on, anyone who holds it can sign in as `@waldur-bootstrap` through the homeserver's public `/login` and administer the whole homeserver. Treat it like the `as_token` and the registration secret (see [Registration secret](#registration-secret)). Keep it only in the deployment's Secret or `secrets.env`, and out of command lines, shell history and logs. The command reads it from the environment only, and never stores it in Constance. Changing it in the deployment alone breaks later runs, because the homeserver still holds the old one: reset the bootstrap admin's password on the homeserver first.
 - Turning password login off (`login_with_password = false` in `tuwunel.toml`) closes that door. It suits a homeserver where users sign in to Element with single sign-on (`MATRIX_EXTERNAL_LOGIN_METHOD = oidc`) or not at all (`none`). It does not suit `password`, where users sign in to Element with passwords Waldur generates for them. A first install works either way, because creating the bootstrap admin returns a session. Once it is off, a rotation, or a ping Waldur turns away, needs `MATRIX_ADMIN_TOKEN`, and so does anything an admin has to do in a client.
 - If `@waldur-bootstrap` exists but is not a homeserver admin, for example because it was created some other way, the command fails with "is not in the admin room". Make it an admin from `#admins` with `!admin users make-user-admin @waldur-bootstrap:<your domain>`, or set `MATRIX_ADMIN_TOKEN`.
-- It is safe to re-run. When the homeserver already accepts the appservice token, the command signs in without creating anyone, with `MATRIX_ADMIN_TOKEN` or as the bootstrap admin with `MATRIX_BOOTSTRAP_PASSWORD`. It reads the homeserver's copy of the registration with `!admin appservices show-config waldur` and replaces it when the URL, a token or a namespace differs. This is how a stack registered by hand before the room-alias namespace existed gets that namespace. When it cannot sign in or read the copy, it leaves the registration alone, prints a warning and succeeds.
+- It is safe to re-run. When the homeserver already accepts the appservice token, the command signs in without creating anyone, with `MATRIX_ADMIN_TOKEN` or as the bootstrap admin with `MATRIX_BOOTSTRAP_PASSWORD`. It reads the homeserver's copy of the registration with `!admin appservices show-config waldur` and replaces it when the URL, a token or a namespace differs. When it cannot sign in or read the copy, it leaves the registration alone, prints a warning and succeeds.
 - When `waldur` is registered with other tokens, another URL or other namespaces, it unregisters that registration and registers Waldur's. Registering the same id again is not enough, because Tuwunel answers `Duplicate id` and keeps the old registration.
 - When the homeserver accepts the `as_token` but Waldur turns away its ping with a 4xx, and the homeserver's copy already matches, registering it again cannot help. The command fails without changing anything: the URL does not lead to this Waldur, or Waldur checks another `hs_token`. When it cannot read the copy, it replaces the registration on the strength of the ping. A 5xx is Waldur or its ingress being down, which a new registration cannot fix, so that is only a warning.
 - It unregisters only when the homeserver definitely rejects the token. When it gets no clear answer, such as a timeout or a 5xx from a proxy, it stops without changing anything.
 - It succeeds only when the homeserver accepts Waldur's `as_token` afterwards, and after replacing a live registration, only when Waldur does not turn the next ping away. A failure after the old registration was removed says so: the homeserver delivers no events until a re-run registers the appservice again.
-- It makes the bot a homeserver admin through the admin API (`PUT /_synapse/admin/v2/users/@waldur-bot:<your domain>` with `"admin": true`, sent with this run's admin token), unless that API already answers the bot. Waldur calls that API as its bot, and this command is the one place that holds an admin session. Re-runs check it too, so a stack registered before the command did this gets it on the next run. When it cannot sign in, or the grant fails, it prints a warning with the command to run by hand and succeeds. The bot then sits in the admin room too. The `as_token` could act as any account of the homeserver, admins included, before that grant (see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin)), so treat it as an admin credential and keep it as secret as `MATRIX_ADMIN_TOKEN`.
+- It makes the bot a homeserver admin through the admin API (`PUT /_synapse/admin/v2/users/@waldur-bot:<your domain>` with `"admin": true`, sent with this run's admin token), unless that API already answers the bot. Waldur calls that API as its bot, and this command is the one place that holds an admin session. Re-runs check it too. When it cannot sign in, or the grant fails, it prints a warning with the command to run by hand and succeeds. The bot then sits in the admin room too. The `as_token` could act as any account of the homeserver, admins included, before that grant (see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin)), so treat it as an admin credential and keep it as secret as `MATRIX_ADMIN_TOKEN`.
 - It ends with a ping. A failed ping is a warning, because on a fresh install the API may still be starting.
 
-Synapse loads appservices from its config file only, so use the YAML from the wizard there.
+Synapse loads appservices from its config file only, so use the YAML from the wizard there. `waldur generate_appservice_registration --url <Waldur URL>` prints the same YAML from the tokens already in Constance, without rotating them.
 
 ### Via the API
 
 #### POST /api/admin/matrix-appservice/setup/
 
-Generates fresh appservice tokens (rotating any existing ones), enables the appservice, and returns registration YAML.
+Generates fresh appservice tokens (rotating any existing ones) and returns registration YAML. It does not switch chat on: that is `MATRIX_ENABLED`. The status endpoint's `enabled` only means both tokens are set.
 
 **Authentication:** Staff only (`is_staff = True`). Non-staff users receive `403 Forbidden`.
 
@@ -127,7 +133,7 @@ would be reverted while the homeserver kept the old registration. See
 | `user_registration_secret` | string | The homeserver's registration token (write-only). Persisted only when `MATRIX_USER_REGISTRATION_SECRET` is still empty |
 | `homeserver_public_url` | string | Homeserver URL browsers use, when it differs from `homeserver_url`. Persisted only when `MATRIX_HOMESERVER_PUBLIC_URL` is still empty |
 
-The last four fields back the wizard's prerequisites step. Each is written only while its Constance value is empty, so an existing configuration is never overwritten by them. A value that differs from a stored one (a trailing slash aside) is refused with `400` and `Already configured with a different value: <KEY>. Change it in the Settings tab first, then run Setup again.`, and no tokens are rotated.
+The last four fields back the wizard's prerequisites step. Each is written only while its Constance value is empty, so an existing configuration is never overwritten by them. A value that differs from a stored one (a trailing slash aside) is refused with `400` and `Already configured with a different value: <KEY>. Change it in the Settings tab first, then run Setup again.`, and no tokens are rotated. `user_registration_secret` is the exception: a different value is ignored, not refused, since the answer would tell a caller whether they guessed the stored secret. Change it in the Settings tab.
 
 **Example request:**
 
@@ -149,7 +155,8 @@ curl -X POST https://waldur.example.com/api/admin/matrix-appservice/setup/ \
   "as_token": "abc123...",
   "hs_token": "def456...",
   "sender_localpart": "waldur-bot",
-  "webhook_url": "https://waldur.example.com/_matrix/app/v1/transactions/{txnId}"
+  "webhook_url": "https://waldur.example.com/_matrix/app/v1/transactions/{txnId}",
+  "bot_provision_status": "ok"
 }
 ```
 
@@ -236,7 +243,13 @@ same `server_name` as the old one. Under another domain Waldur keeps acting for
 the old IDs, and chat fails for every user. To move, point
 `MATRIX_HOMESERVER_URL` at the new homeserver, register the appservice there,
 make the bot a homeserver admin there (see
-[Existing Matrix accounts](#existing-matrix-accounts)), then reprovision.
+[Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin);
+on Tuwunel `register_matrix_appservice` does it), then reprovision.
+
+Only active rooms are reprovisioned. Archived rooms keep the old homeserver's
+room ID, and their history exports stay. Reactivating one after the move points
+Waldur at a room the new homeserver does not have, so download its exports
+before you change anything about it.
 
 Reprovisioning takes over an account the new homeserver already has under a
 user's ID, since the profile says the ID is theirs. With the bot an admin, it
@@ -329,7 +342,8 @@ waldur provision_matrix_rooms --limit 50                # at most 50 rooms this 
 
 The backfill skips projects that already have a room, including an archived
 one, so it is safe to re-run. Each room provisions a Matrix account for, and
-invites, every member of its project and of its organization. `--limit` only caps how many rooms one
+invites, every member of its project and the holders of `MATRIX_ROOM.CREATE` on
+its organization (the owners, by default; see [Member Sync](#member-sync)). `--limit` only caps how many rooms one
 run queues; on a large deployment, wait for a batch to leave `creating` before
 running the next.
 
@@ -341,20 +355,9 @@ address. Without it the homeserver refuses every alias request with `M_EXCLUSIVE
 room creation falls back to an alias-less room, and the "Open in Matrix client"
 link never appears because it is only rendered when an alias exists.
 
-If the appservice was registered before this namespace existed, register it
-again with the namespace. On Tuwunel, run `waldur register_matrix_appservice`;
-packaged deployments run it on every deploy. It adds the namespace without
-rotating any token. It needs the bootstrap admin or `MATRIX_ADMIN_TOKEN`, and
-`MATRIX_ADMIN_TOKEN` when password login is off (see
-[Token rotation](#token-rotation)). Without either it only warns. On Synapse, run
-`waldur generate_appservice_registration --url <Waldur URL>`, replace the
-registration file and restart the homeserver. Do not run the Setup wizard again
-for this: it rotates both tokens.
-
-Only rooms created after that get an alias, since it is requested at creation
-time. Older rooms keep working without one, so they show no "Open in Matrix
-client" link. Reprovisioning does not add aliases: it is only for moving to a new
-homeserver.
+The alias is requested only when a room is created. A room created without one
+keeps working without it, and shows no "Open in Matrix client" link.
+Reprovisioning does not add aliases: it is only for moving to a new homeserver.
 
 ### Token rotation
 
@@ -387,6 +390,11 @@ encrypted in Waldur's database (`MatrixBotIdentity`). It asks for no refresh
 token, so that access token never expires, and the bot goes on using it across
 restarts and after a rotation, for as long as the homeserver accepts it.
 
+Nor does a rotation end anyone else's session signed in with the old `as_token`.
+The appservice can sign in as any local user, homeserver admins included, and
+such a login that asks for no refresh token never expires. After a leak, also
+sign out on the homeserver the devices nobody recognises.
+
 Keep `MATRIX_BOOTSTRAP_PASSWORD` when you rotate the tokens, and do not regenerate it
 along with them. Replacing the registration needs a homeserver admin, and the
 command signs in as the bootstrap admin with that password. With a new password it
@@ -399,74 +407,84 @@ With password login off on the homeserver (`login_with_password = false`, the
 setting recommended with single sign-on), the bootstrap admin cannot sign in at
 all. The first install still works, because creating the admin returns a session,
 but rotations and other changes to the registration need `MATRIX_ADMIN_TOKEN`. The
-command says so instead of blaming the password. To get a token, register a
-temporary admin through the same shared-secret API, from somewhere that reaches
-the homeserver's internal URL: inside the Compose network, or with `kubectl exec`
-into a pod that reaches the homeserver's Service.
+command says so instead of blaming the password. Get a token from a
+[temporary homeserver admin](#temporary-homeserver-admin).
+
+#### Temporary homeserver admin
+
+When a task needs a homeserver admin's access token and none is at hand, create
+a temporary admin through the shared-secret registration API, use its token,
+then have the admin deactivate itself. Run the commands where `waldur` runs, in
+the deployment's own Waldur container if it has one. They read the homeserver
+URL and the registration secret from Constance, and keep the admin's token in a
+shell variable, handed on through the environment or standard input, so neither
+secret appears on a command line or in shell history. `MATRIX_HOMESERVER_URL` has to reach the
+homeserver's admin API, as it does for `register_matrix_appservice`.
+
+Create the admin and keep its token in a shell variable. The snippet prints the
+token after a `TOKEN ` marker, and `sed` keeps only that, whatever else
+`waldur shell` and its logging print:
 
 ```bash
-HOMESERVER=http://<homeserver internal URL> SECRET=<registration secret> python3 - <<'EOF'
-import hashlib, hmac, json, os, secrets, urllib.request
-
-def call(path, body=None):
-    data = json.dumps(body).encode() if body else None
-    request = urllib.request.Request(os.environ["HOMESERVER"] + path, data,
-                                     {"Content-Type": "application/json"})
-    return json.load(urllib.request.urlopen(request))
-
-user, password = f"rotation-{secrets.token_hex(4)}", secrets.token_hex(32)
-nonce = call("/_synapse/admin/v1/register")["nonce"]
-mac = hmac.new(os.environ["SECRET"].encode(),
-               "\0".join([nonce, user, password, "admin"]).encode(),
-               hashlib.sha1).hexdigest()
-print(call("/_synapse/admin/v1/register", {"nonce": nonce, "username": user,
-      "password": password, "admin": True, "mac": mac})["access_token"])
-EOF
+TOKEN=$(waldur shell -c '
+import hashlib, hmac, secrets, httpx
+from constance import config
+user, password = "temp-admin-" + secrets.token_hex(4), secrets.token_hex(32)
+homeserver = httpx.Client(base_url=config.MATRIX_HOMESERVER_URL)
+nonce = homeserver.get("/_synapse/admin/v1/register").raise_for_status().json()["nonce"]
+mac = hmac.new(config.MATRIX_USER_REGISTRATION_SECRET.encode(),
+               "\0".join([nonce, user, password, "admin"]).encode(), hashlib.sha1)
+print("TOKEN " + homeserver.post("/_synapse/admin/v1/register", json={
+    "nonce": nonce, "username": user, "password": password, "admin": True,
+    "mac": mac.hexdigest()}).raise_for_status().json()["access_token"])
+' | sed -n 's/^TOKEN //p')
 ```
 
-Run the command with that token in `MATRIX_ADMIN_TOKEN`. Then have the temporary
-admin deactivate itself in the admin room. That also signs it out, and nobody can
-sign in to the account again, not even through single sign-on. The snippet waits
-until the token stops working, and fails if it does not, because until then a
-homeserver admin with a known token is left behind:
+Use it, for example to register the appservice:
 
 ```bash
-HOMESERVER=http://<homeserver internal URL> TOKEN=<the token> python3 - <<'EOF'
-import json, os, secrets, sys, time, urllib.error, urllib.parse, urllib.request
+MATRIX_ADMIN_TOKEN="$TOKEN" waldur register_matrix_appservice --url https://waldur.example.com
+```
 
-def call(method, path, body=None):
-    data = json.dumps(body).encode() if body is not None else None
-    request = urllib.request.Request(
-        os.environ["HOMESERVER"] + path, data, method=method,
-        headers={"Authorization": "Bearer " + os.environ["TOKEN"],
-                 "Content-Type": "application/json"})
-    return json.load(urllib.request.urlopen(request))
+Then have the temporary admin deactivate itself in the admin room. That also
+signs it out, and nobody can sign in to the account again, not even through
+single sign-on. The command waits until the token stops working, and fails if it
+does not, because until then a homeserver admin with a known token is left
+behind:
 
-me = call("GET", "/_matrix/client/v3/account/whoami")["user_id"]
+```bash
+printf '%s\n' "$TOKEN" | waldur shell -c '
+import secrets, sys, time, httpx
+from urllib.parse import quote
+from constance import config
+homeserver = httpx.Client(base_url=config.MATRIX_HOMESERVER_URL, headers={
+    "Authorization": "Bearer " + sys.stdin.readline().strip()})
+me = homeserver.get("/_matrix/client/v3/account/whoami").raise_for_status().json()["user_id"]
 try:
-    alias = urllib.parse.quote("#admins:" + me.split(":", 1)[1], safe="")
-    room = call("GET", "/_matrix/client/v3/directory/room/" + alias)["room_id"]
-    call("PUT", f"/_matrix/client/v3/rooms/{urllib.parse.quote(room, safe='')}"
-         f"/send/m.room.message/{secrets.token_hex(8)}",
-         {"msgtype": "m.text", "body": f"!admin users deactivate {me}"})
-except urllib.error.HTTPError as error:
+    alias = quote("#admins:" + me.split(":", 1)[1], safe="")
+    room = homeserver.get("/_matrix/client/v3/directory/room/" + alias).raise_for_status().json()["room_id"]
+    homeserver.put("/_matrix/client/v3/rooms/" + quote(room, safe="")
+                   + "/send/m.room.message/" + secrets.token_hex(8),
+                   json={"msgtype": "m.text", "body": "!admin users deactivate " + me}).raise_for_status()
+except httpx.HTTPError as error:
     print("could not send the command:", error, file=sys.stderr)
 for _ in range(20):
     time.sleep(0.5)
-    try:
-        call("GET", "/_matrix/client/v3/account/whoami")
-    except urllib.error.HTTPError as error:
-        if error.code == 401:  # M_UNKNOWN_TOKEN or M_USER_DEACTIVATED
-            print("deactivated", me)
-            break
+    # M_UNKNOWN_TOKEN or M_USER_DEACTIVATED
+    if homeserver.get("/_matrix/client/v3/account/whoami").status_code == 401:
+        print("deactivated", me)
+        break
 else:
     sys.exit(f"deactivation not confirmed; deactivate {me} from #admins by hand")
-EOF
+'
+unset TOKEN
 ```
 
-Prerequisite fields (`homeserver_url`, `homeserver_domain`,
-`user_registration_secret`) are not overwritten — they are only persisted when the
-corresponding Constance value is still empty.
+If the deployment keeps `MATRIX_ADMIN_TOKEN` for its setup runs, in a Secret for
+example, remove it there too. Once the temporary admin is deactivated, the token
+left behind still takes precedence over `MATRIX_BOOTSTRAP_PASSWORD`: every later
+run warns that it could not compare the registration, and the next rotation
+fails with "Could not identify the admin user".
 
 ### Seeding from the environment
 
@@ -506,8 +524,9 @@ Tokens and other secrets are never printed.
 `MATRIX_ENABLED` is applied whenever the environment sets it. When it does not,
 the command switches chat on at the first seeding, which is a run where neither
 `MATRIX_TOKENS_MANAGED_BY` nor an appservice token is stored yet. It leaves the
-flag alone after that, so an administrator who turns chat off keeps it off across
-deploys, including after clearing only `MATRIX_TOKENS_MANAGED_BY`. Clearing both
+flag alone after that, so an administrator who turns chat off (see
+[Turning chat off](#turning-chat-off)) keeps it off across deploys, including
+after clearing only `MATRIX_TOKENS_MANAGED_BY`. Clearing both
 appservice tokens as well, as the refusal below asks, starts over: the next
 deploy switches chat on again.
 
@@ -523,11 +542,43 @@ wizard's tokens. To hand the tokens to the deployment, clear
 again. The deploy then registers the appservice with the deployment's tokens.
 Otherwise start from a fresh stack.
 
+### Turning chat off
+
+`MATRIX_ENABLED` switches chat off in Waldur, not on the homeserver. While it is
+off:
+
+- the chat UI is hidden from the next page load, except the Matrix chat admin
+  page, where staff switch it back on;
+- the chat endpoints (sessions, credentials, encryption, call tokens) answer
+  `404`, and room actions answer `400`; the room list stays readable;
+- Waldur applies no role changes to the rooms: project and organization roles
+  granted or revoked, staff or support status lost, and roles gaining or losing
+  `MATRIX_ROOM.CREATE` change nothing, and a deleted project's room is not
+  disabled;
+- notifications, command answers, daily exports and automatic room creation
+  stop.
+
+The homeserver and its rooms keep working, and so do Element and other clients,
+chat drawers that are already open until they next need a session, and the bot
+process. Deactivating, reactivating and deleting users still end and restore
+Matrix access.
+
+Nothing catches up when chat is switched back on, so a user whose role was
+revoked meanwhile is still in the room and reads its new messages. After
+switching chat on, sync every active room, and disable by hand the rooms of
+projects deleted while it was off, which are still active:
+
+```bash
+waldur shell -c "from waldur_mastermind.matrix_chat import models, tasks; [tasks.sync_project_members_to_room.delay(str(room.uuid)) for room in models.MatrixRoom.objects.filter(state=models.RoomStates.ACTIVE)]"
+```
+
+On a large site, expect a burst of worker tasks and homeserver calls.
+
 ## Chat Rooms
 
 ### Creating a room
 
-Staff and support users create a chat room for a project. Each project can have at most one room.
+Holders of `MATRIX_ROOM.CREATE` on a project or its organization, and staff and support, create a chat room for a project; see [Creating project rooms](#creating-project-rooms). Each project can have at most one room.
 
 **POST /api/matrix/rooms/**
 
@@ -539,7 +590,7 @@ The room name is automatically set to the project name. Room creation is asynchr
 
 Rooms are created unfederated (`m.federate: false`): only accounts on this homeserver can join them, whatever its federation settings. The packaged homeservers ship with federation on, which does not open these rooms. Calls do not need it: Tuwunel answers the OpenID check Waldur makes for them with federation off too.
 
-The room alias is automatically generated as `#waldur-{project_uuid_prefix}:{homeserver_domain}`.
+The room alias is automatically generated as `#waldur-<project UUID hex>:<homeserver domain>`, with the whole UUID.
 
 ### Room states
 
@@ -559,7 +610,7 @@ State transitions:
 - `disabling` → `archived` (after members kicked and history exported; see
   [Exports when a room is disabled](#exports-when-a-room-is-disabled))
 - `archived` → `active` (on reactivate action)
-- `error` / `creating` / `disabling` → `creating` (on retry action)
+- `error` → `creating` (on retry action); retry also re-queues a room stuck in `creating` or `disabling`, which keeps its state
 - `active` → `creating` (on appservice reprovision)
 
 ### Listing rooms
@@ -602,9 +653,11 @@ Triggers a manual history export. Returns `202 Accepted` with the export object.
 
 Re-queues provisioning for a room that is stuck. Accepts rooms in `error`, `creating`, or `disabling` state. For `disabling`, the disable task is re-queued with `delete_history=False`. Returns `202 Accepted`, or `409 Conflict` if the room is in another state.
 
+A room in `error` is created again: Waldur makes a new, empty room on the homeserver and invites the members into it. For a room that went to `error` while being disabled, use `disable`, not `retry`: retry would replace the old room, members already removed and history intact, with a new one, and the old room would no longer be reachable through Waldur (see [Exports when a room is disabled](#exports-when-a-room-is-disabled)).
+
 **POST /api/matrix/rooms/{uuid}/disable/**
 
-Disables an active room. The disable process kicks all members, optionally exports history, and archives the room.
+Disables an active room, or a room in `error`, such as one whose earlier disable failed. The disable process kicks all members, optionally exports history, and archives the room.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -686,12 +739,6 @@ by hand. Run it only when every such account belongs to this Waldur's users.
 Back up the homeserver together with Waldur's database, so a restore brings
 both back to the same point.
 
-Users with `+` in their username who were provisioned before Waldur kept `+` in
-Matrix IDs hold an account with `_` in its place. `--all` derives the ID with
-`+`, finds no account and skips them, and their next chat creates a new, empty
-one. Link each of them by hand before they next open chat:
-`waldur link_matrix_account <username> @<localpart with _ for +>:<domain>`.
-
 Different users can derive the same ID: under `email_local` (`alice@a.org` and
 `alice@b.org`), and when usernames differ only in case or in ASCII characters
 Matrix does not allow, which become `_` (`a@b` and `a_b`). The first one provisioned
@@ -732,7 +779,7 @@ The integration automatically responds to role changes:
 
 Losing roles, or staff or support status, only takes the user out of Waldur's rooms. Their Matrix account and its sessions stay, and so do their direct messages and rooms Waldur does not manage, and they can still start web chat sessions. Deactivate the user to end their Matrix access.
 
-Kicks that fail are retried for several minutes, and each retry checks again whether the user still has access. A member whose kick never succeeds stays recorded as a member. A sign-out that fails is retried the same way while the account could not be locked. Once it is locked, the devices left signed in are refused like any other, but work again if the user is reactivated.
+Kicks that fail are retried for several minutes, and each retry checks again whether the user still has access. A member whose kick never succeeds stays recorded as a member. Member sync's own kicks are not retried; the next sync tries again. A sign-out that fails is retried the same way while the account could not be locked. Once it is locked, the devices left signed in are refused like any other, but work again if the user is reactivated.
 
 Only a reactivation unlocks an account, and it unlocks it whoever locked it. If its unlock fails for longer than the retries last, or the admin API is not usable then, the account stays locked: the user's chat answers "Your chat account is locked; ask your administrator." until staff deactivates and reactivates the user, or an admin unlocks the account on the homeserver (`PUT /_synapse/admin/v2/users/<Matrix ID>` with `{"locked": false}`) and then runs a member sync of the user's rooms, which only a reactivation starts by itself. A new user who gets the Matrix ID of a deleted one is refused before that, like anyone whose ID has an account Waldur did not create for them (see [Existing Matrix accounts](#existing-matrix-accounts)). Linked deliberately, it is still the deleted user's account, with their direct messages and other rooms, and it stays locked until staff or an admin does one of those two.
 
@@ -795,7 +842,7 @@ Doing it with the homeserver's own admin tools is outside Waldur.
 ### Export process
 
 Rooms are end-to-end encrypted, and the Matrix bot process (`waldur matrix_bot`) is the one member
-that holds their keys, so the bot makes every export. An export in `pending` is a request it takes
+Waldur runs that holds their keys, so the bot makes every export. An export in `pending` is a request it takes
 in turn: exports of rooms being disabled first, then manual ones, then the daily ones, the oldest
 first within each.
 
@@ -825,7 +872,7 @@ beyond that the request is refused with `429`.
    records, decrypts it with the key the message carries, and packs it into a ZIP archive.
 3. Output: a JSON file with the messages and metadata, and the media ZIP if any media was exported.
 
-The JSON has the same layout as before rooms were encrypted, with these fields added to messages:
+Besides its `event_id`, `sender`, `timestamp`, `type` and content, each message in the JSON carries:
 
 - `encrypted` — whether the event was sent encrypted (stored by the homeserver as
   `m.room.encrypted`, including one since redacted). In an encrypted room, an event sent in clear
@@ -910,7 +957,8 @@ A room's export starts at once unless three other rooms are being disabled at th
 then waits only for one of their exports to end. If the bot is not
 running, the export fails, or it does not finish in time, the room goes to `error`
 with the reason in `error_message` and is not archived; its members have already been removed.
-Disable it again to finish: the task uses the export it already requested instead of asking for
+Disable it again to finish, and do not use Retry, which would make a new, empty room in its place
+(see [Room actions](#room-actions)). The task uses the export it already requested instead of asking for
 another one, waiting for it if it is still pending or running, and archiving at once if the bot
 has made it meanwhile. Only a failed export is requested again. Archiving clears the error. A room
 reactivated and later disabled again gets a new export.
@@ -939,8 +987,6 @@ refused. The export's key is kept in its row encrypted under `FIELD_ENCRYPTION_K
   nothing after it is sent, and the connection is dropped rather than ended as if complete. Downloads are limited to 120 an hour per user, and
   sent with `Cache-Control: no-store`. The generic media
   endpoint serves only the ciphertext.
-- Exports written before this encryption was introduced are stored and served as they were, in
-  clear, until retention deletes them.
 
 Listing exports and downloading their files is open to the same people who can trigger an export:
 
@@ -948,7 +994,8 @@ Listing exports and downloading their files is open to the same people who can t
   owners;
 - staff and support.
 
-Everyone else gets `404`, room members included: they read the room itself. Access follows the
+Everyone else, room members included, sees none in the list and gets `404` on an export or its
+files: they read the room itself. Access follows the
 role, so it ends when the role does, and it stays with the same people after the room is archived.
 
 A personal access token reaches only the exports within its bindings. It also has to carry
@@ -965,9 +1012,6 @@ deleted with the rest.
 Exports keep messages that were later redacted in the room; retention is what removes them from older
 exports. Set it to `0` or less to keep exports forever. Deleting an export, by retention, `disable`
 with `delete_history`, or with its room, also deletes its files.
-
-When upgrading, the first nightly run deletes every export older than 90 days except each room's
-newest completed one. To keep them, set `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` before upgrading.
 
 There is no action to delete a single export. Besides retention, exports are deleted only when
 staff disable a room with `delete_history` or delete the room.
@@ -1053,7 +1097,8 @@ is done or has failed.
 These endpoints, and the recovery key in the session response, accept only the
 ways the web UI authenticates: the user's Waldur API token or a session.
 Personal access tokens, OIDC access tokens and requests made while staff
-impersonate a user are refused (`403`) and get no key. That does not keep the key
+impersonate a user are refused (`403`), and the session response carries
+`recovery_key: null` for them. That does not keep the key
 from staff: while impersonating, they can fetch the user's own API token, which
 the endpoints accept. Operators are trusted with the keys anyway (Waldur escrows
 them); binding key access to an interactive sign-in is planned. The user's API
@@ -1065,6 +1110,8 @@ the user's event log.
 | --- | --- |
 | `200` / `204` | Lease granted / key stored |
 | `400` | The recovery key is not a valid Matrix recovery key |
+| `403` | Not the user's own sign-in: a personal access token, an OIDC access token, or a request made while impersonating the user |
+| `404` | Matrix chat is disabled |
 | `409` | `state` says why: `set_up` (already done), `locked` (the homeserver has an identity Waldur holds no key for), `in_progress` (another window holds the lease; see `Retry-After`), `no_lease` (the lease expired or another window took over), `not_locked` (a reset or import was asked for but isn't needed), `wrong_key` (an imported key does not unlock the user's secret storage) |
 | `429` | The per-user `matrix_crypto` rate limit (default 30/hour) is exhausted |
 | `503` | The homeserver could not be asked, or the bot is not a homeserver admin |
@@ -1080,9 +1127,16 @@ storage. That happens when:
 - the Waldur database is restored to a point before the user's first setup while
   the homeserver keeps newer data, or Waldur's profiles are relinked with
   `link_matrix_account`;
-- `FIELD_ENCRYPTION_KEY` is lost, or `SECRET_KEY` is rotated while it is unset;
 - the user set encryption up in another client with a key Waldur never saw, or
   reset it there.
+
+A lost `FIELD_ENCRYPTION_KEY`, or `SECRET_KEY` rotated while it is unset, does
+not lead here. Nothing stored under it can be read: chat sessions fail until the
+appservice tokens are set again (a packaged deployment seeds them on its next
+deploy), and the bot refuses to start. After that, the drawer gets the stored
+ciphertext in place of a recovery key and says
+"Encryption is unavailable in this browser", with no import or reset to offer.
+Only the key itself brings encryption back, so keep it with your backups.
 
 In the last case the user holds a recovery key that works, so the drawer asks
 for it first. A lease with `{"kind": "import"}` lets the drawer escrow a key the
@@ -1141,9 +1195,9 @@ caveat about staff (see [Encryption keys](#encryption-keys)).
 
 A member added to an encrypted room holds no keys for what was said before they
 joined. The bot does, so it writes the room's keys into the member's key backup,
-and the member's clients restore them from there. Messages read this way carry
-the grey "authenticity not guaranteed" shield, as any key restored from a backup
-does. The bot fills a member's backup:
+and the member's clients restore them from there. The drawer shows messages
+read this way like any other, without a marker; how Element shows them has not
+been checked. The bot fills a member's backup:
 
 - when Waldur adds them to a room: a role, member sync, a staff Join, or opening
   a room they were invited to;
@@ -1222,6 +1276,16 @@ Restored alone, for example after losing only its volume or to roll back a
 Tuwunel upgrade, the homeserver is older than Waldur's database. Messages, rooms,
 accounts and devices created after the backup are gone, and:
 
+- **Revocations since the backup are undone.** The kicks, account locks, device
+  sign-outs and password replacements Waldur made since then roll back with the
+  homeserver. Users deactivated, deleted or removed from rooms since the backup
+  are unlocked, back in their rooms and signed in on their old devices again,
+  and other members' clients share new room keys with those devices. Calls stay
+  refused, since Waldur checks its own records for those. The repair below does
+  not undo this: member sync skips members Waldur already records as gone, and a
+  deleted user's profile, which held their Matrix ID, went with them. Re-apply
+  the revocations; see
+  [Re-applying revocations after a restore](#re-applying-revocations-after-a-restore).
 - **The bot skips events.** It stores how far it has read as a position in the
   homeserver's event count. A restored homeserver counts from an earlier point,
   and a bot still at the later position skips the events that arrive until the
@@ -1329,12 +1393,81 @@ Restored alone to an older dump, Waldur's database is older than the homeserver:
 - Rooms created after the dump exist on the homeserver, and Waldur does not know
   them. Creating the project's room again makes a new room, without the alias,
   which the old room still holds.
+- Account locks no longer match. Users deactivated or deleted after the dump are
+  active again in Waldur, but their Matrix account stays locked, and their chat
+  answers "Your chat account is locked; ask your administrator." until you
+  deactivate and reactivate them. Users reactivated after the dump are inactive
+  again in Waldur, but unlocked and back in their rooms on the homeserver:
+  re-apply the revocations (see
+  [Re-applying revocations after a restore](#re-applying-revocations-after-a-restore)).
 
 Where you can, restore the homeserver from the same backup set as well, and
 accept losing the chat since then.
 
 Not tested: restoring only Waldur's database, the encryption cases above, and
 the refill of members' key backups.
+
+### Re-applying revocations after a restore
+
+After a restore of only the homeserver, or only Waldur's database, the
+homeserver can let in users Waldur has removed. This re-applies what Waldur
+records. It signs out and locks again the Matrix account of every deactivated
+user, and removes from each room the members whom no role, or staff Join, puts
+in it now. It changes nothing for a member who is no Waldur user's, and lists
+them instead. Only the bot invites to Waldur's rooms, so after a restore of only
+the homeserver such a member is most likely a user deleted since the backup,
+whose Matrix profile went with them. After a restore of only Waldur's database,
+link the accounts provisioned since the dump first (see above); a member still
+listed then can also be a user created after the dump, whom the restored
+database does not have.
+
+```bash
+waldur shell <<'EOF'
+import httpx
+from urllib.parse import quote
+from constance import config
+from waldur_mastermind.matrix_chat import matrix_client, models, tasks
+
+for profile in models.MatrixUserProfile.objects.filter(user__is_active=False).select_related("user"):
+    tasks.end_matrix_access.delay(profile.user.uuid.hex)
+
+# Asked as the bot, which stays in every room Waldur created, archived ones included
+homeserver = httpx.Client(
+    base_url=config.MATRIX_HOMESERVER_URL,
+    headers={"Authorization": f"Bearer {config.MATRIX_APPSERVICE_AS_TOKEN}"},
+)
+bot = matrix_client.get_bot_user_id()
+users = {profile.matrix_user_id: profile.user for profile in models.MatrixUserProfile.objects.select_related("user")}
+for room in models.MatrixRoom.objects.filter(room_id__gt=""):
+    response = homeserver.get(f"/_matrix/client/v3/rooms/{quote(room.room_id, safe='')}/joined_members")
+    if response.status_code != 200:
+        print("Could not read the members of", room.room_name, response.status_code)
+        continue
+    members = {member.matrix_user_id: member for member in room.members.select_related("user")}
+    for matrix_user_id in sorted(set(response.json()["joined"]) - {bot}):
+        member = members.get(matrix_user_id)
+        if member and member.membership_state not in models.MembershipStates.GONE:
+            continue
+        user = member.user if member else users.get(matrix_user_id)
+        if user is None:
+            print("No Waldur user for", matrix_user_id, "in", room.room_id, room.room_name)
+        elif not (room.state == models.RoomStates.ACTIVE and models.keeps_room_access(user, room)):
+            print("Removing", matrix_user_id, "from", room.room_name)
+            tasks.kick_from_room.delay(room.room_id, matrix_user_id, "Removed in Waldur")
+EOF
+```
+
+For each listed account that you know is a deleted user's, do what the deletion
+did: sign out every device, replace the password, lock the account and remove it
+from the rooms it was listed in:
+
+```bash
+waldur shell -c "from waldur_mastermind.matrix_chat import tasks; tasks.end_deleted_user_access.delay('<Matrix ID>', ['<room ID>', '<room ID>'])"
+```
+
+Like the deletion, these need the bot to be a homeserver admin to lock accounts
+(see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin)).
+Not tested against a live homeserver.
 
 ## External Clients
 
@@ -1387,7 +1520,7 @@ It sets a random password on the user's Matrix account through the homeserver's 
 
 ### Making the bot a homeserver admin
 
-Locking the Matrix account of a deactivated or deleted user, generating passwords, and refusing Waldur users whose Matrix account is a homeserver admin (see [Existing Matrix accounts](#existing-matrix-accounts)) go through the homeserver's admin API (`/_synapse/admin`), which answers only homeserver admins. Every login method needs the first of these. Until the bot is an admin, or while the admin API is not reachable, a deactivated user's account stays unlocked, a deleted user's password is not replaced, generating a password answers `503`, and admin accounts are not refused.
+Locking the Matrix account of a deactivated or deleted user, generating passwords, resetting a locked encryption identity (see [Locked identities](#locked-identities)), and refusing Waldur users whose Matrix account is a homeserver admin (see [Existing Matrix accounts](#existing-matrix-accounts)) go through the homeserver's admin API (`/_synapse/admin`), which answers only homeserver admins. Every login method needs the first of these. Until the bot is an admin, or while the admin API is not reachable, a deactivated user's account stays unlocked, a deleted user's password is not replaced, generating a password and resetting encryption answer `503`, and admin accounts are not refused.
 
 - **Tuwunel:** `register_matrix_appservice` does it on every run that can act as an admin; see [Registering on Tuwunel from the command line](#registering-on-tuwunel-from-the-command-line). By hand, as an admin, send `!admin users make-user-admin @waldur-bot:<homeserver domain>` in `#admins`.
 - **Synapse:** set the bot's admin flag, for example with `PUT /_synapse/admin/v2/users/@waldur-bot:<homeserver domain>` and `{"admin": true}`, using an admin's access token.
@@ -1397,8 +1530,9 @@ Use your bot's localpart if it is not `waldur-bot`. The appservice token (`MATRI
 ### Registration secret
 
 `MATRIX_USER_REGISTRATION_SECRET` is the homeserver's registration token: Waldur
-registers each user's Matrix account with it, without a password. A user gets a
-password only by generating one; see [Generated passwords](#generated-passwords).
+registers each user's Matrix account with it, and with a random password nobody
+knows. A user gets a password they can use only by generating one; see
+[Generated passwords](#generated-passwords).
 
 With zero-touch setup it is also the homeserver's `registration_shared_secret`,
 which `register_matrix_appservice` uses to create its bootstrap admin. Whoever holds
@@ -1427,7 +1561,7 @@ Calls run on LiveKit. Waldur issues the LiveKit tokens that Matrix clients (Wald
 
 Both answer `{url, jwt}`. The Matrix OpenID token authenticates the caller, verified at the homeserver (`/_matrix/federation/v1/openid/userinfo` at `MATRIX_HOMESERVER_URL`, so its federation endpoints must be reachable there). Any origin may call these two paths, without credentials.
 
-- **Who gets a token:** a user of this homeserver who is joined to the room at that moment, for one of their own devices. For a room Waldur manages, the room must also be active and the user a Waldur user who still has access to it (a role that puts them in the room, or staff who joined it), so a user whose role was revoked gets no token even before they are removed from the room on the homeserver. Rooms Waldur does not manage, such as direct messages and rooms created in Element, have no Waldur roles: there membership on the homeserver alone decides. Users of other homeservers are refused.
+- **Who gets a token:** a user of this homeserver who is joined to the room at that moment, for one of their own devices. For a room Waldur manages, the room must also be active and the user a Waldur user who still has access to it (a role that puts them in the room, or staff or support who joined it), so a user whose role was revoked gets no token even before they are removed from the room on the homeserver. Rooms Waldur does not manage, such as direct messages and rooms created in Element, have no Waldur roles: there membership on the homeserver alone decides. Users of other homeservers are refused.
 - **What it allows:** joining that room's call, for 3 minutes; LiveKit renews the token of a connected participant.
 - **Removal:** when a user loses access to a Waldur room (role revoked, staff leave, deactivation, deletion, room disabled), Waldur also disconnects them from its call. A removed user can reconnect until the token LiveKit last gave them expires, up to about 10 minutes. Leaving or being removed from a room Waldur does not manage disconnects no one; the user cannot get a new token for it.
 - **Client address:** the per-address limit keys on the last `X-Forwarded-For` entry, the address the proxy in front of Waldur saw (a port, as Azure Application Gateway adds, is dropped). Behind a further load balancer or CDN that does not pass the real client address on (real-IP or PROXY protocol), every client appears as that balancer and all share one bucket: calls then fail with `429` under load rather than going unlimited.
@@ -1499,18 +1633,18 @@ administration shows the same per track, as *Encrypted* or *Not encrypted*.
 
 The homeserver sends room events to this endpoint. Authentication is via the `hs_token` in the `Authorization: Bearer` header.
 
-The endpoint is idempotent — duplicate transaction IDs are ignored. Events are dispatched to a Celery task for asynchronous processing.
+The endpoint only acknowledges transactions: it records each transaction ID, so duplicates are ignored, and answers `200`. It answers `200` to anything while Matrix chat is disabled, `403` without the `hs_token`, and `400` when the body has no `events` list. Nothing else happens there: the bot (`waldur matrix_bot`) reads the rooms' events, commands included, from its own sync, where it can decrypt them. Without the bot, commands go unanswered.
 
 ### Bot commands
 
-The bot responds to commands posted in project chat rooms:
+The bot answers commands posted in an active project room, to senders whose role puts them in the room. Anyone else, staff and support who joined with the Join action included, is told they have no access to the room's project. While chat is switched off, commands go unanswered.
 
 | Command | Description |
 | --- | --- |
 | `!help` | Show available commands |
 | `!status` | Resource status summary for the linked project |
 | `!orders` | Last 5 orders for the project |
-| `!members` | List room members with their project roles |
+| `!members` | List the room's joined members, each as admin (power level 50 or more) or member |
 
 ## Configuration Reference
 
@@ -1523,7 +1657,8 @@ packaged deployment, the Setup wizard sets most of them.
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `MATRIX_ENABLED` | `False` | Enable Matrix chat integration |
+| `MATRIX_ENABLED` | `False` | Enable Matrix chat integration; see [Turning chat off](#turning-chat-off) |
+| `MATRIX_AUTO_CREATE_PROJECT_ROOMS` | `False` | Create a room for every project created from then on; see [Creating project rooms](#creating-project-rooms) |
 | `MATRIX_HOMESERVER_URL` | `""` | **Wiring.** Homeserver URL (e.g., `https://matrix.example.com`) that Waldur calls, including the admin API under `/_synapse/admin` |
 | `MATRIX_HOMESERVER_PUBLIC_URL` | `""` | **Wiring.** Homeserver URL browsers use, when it differs from `MATRIX_HOMESERVER_URL`; blank falls back to it |
 | `MATRIX_HOMESERVER_DOMAIN` | `""` | **Wiring.** Homeserver domain for user IDs (e.g., `matrix.example.com`). Cannot change once the homeserver has started; see [Before enabling in production](#before-enabling-in-production) |
@@ -1544,13 +1679,13 @@ packaged deployment, the Setup wizard sets most of them.
 
 ## Feature Flag
 
-The Matrix chat UI is gated on the project feature flag `project.show_matrix_chat` ("Enable Matrix chat integration for projects"). When disabled, all Matrix-related UI elements are hidden — the admin route, the project **Communication** and **Chat** tabs, the dashboard "Team chat" button, and background auto-connect. Note the flag only controls UI visibility; the API endpoints are guarded by their own permission checks.
+The Matrix chat UI is gated on the project feature flag `project.show_matrix_chat`, which is off by default. Turn it on under **Administration → User interface → Features**, or with `waldur load_features`. When disabled, all Matrix-related UI elements are hidden — the admin route, the project **Communication** and **Chat** tabs, the **Team chat** tab of the header's support drawer, and background auto-connect. Note the flag only controls UI visibility; the API endpoints are guarded by `MATRIX_ENABLED` and their own permission checks.
 
 ## Data Model
 
 | Model | Description |
 | --- | --- |
-| `MatrixUserProfile` | Links a Waldur user to their Matrix user ID and tracks provisioning state. It stores no Matrix token. |
+| `MatrixUserProfile` | Links a Waldur user to their Matrix user ID and tracks provisioning state. It also holds the user's escrowed recovery key, encrypted under `FIELD_ENCRYPTION_KEY` (see [Encryption keys](#encryption-keys)), the lease for setting encryption up, when a reset's temporary password expires, and the master key the bot pinned. It stores no Matrix token. |
 | `MatrixRoom` | A Matrix room linked to a project via generic FK. One room per project. Manages state via FSM transitions. |
 | `MatrixRoomMember` | Tracks room membership, power levels, and membership state per user. `manually_joined` marks staff and support who joined with the Join action. |
 | `MatrixHistoryExport` | A chat history export with state, message/media counts, and file references. |
