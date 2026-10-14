@@ -52,6 +52,8 @@ class IdentityProvidersViewSetTest(test.APITestCase):
             responses.GET,
             discovery_url,
             json={
+                "issuer": base_url,
+                "jwks_uri": f"{base_url}/jwks",
                 "userinfo_endpoint": f"{base_url}/userinfo",
                 "token_endpoint": f"{base_url}/token",
                 "authorization_endpoint": f"{base_url}/auth",
@@ -105,6 +107,21 @@ class IdentityProvidersViewSetTest(test.APITestCase):
         response = self.client.post(self.get_list_url(), payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @responses.activate
+    def test_creation_stores_issuer_and_jwks_url(self):
+        self._mock_openid_configuration(
+            "https://example.com/.well-known/openid-configuration"
+        )
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            self.get_list_url(), self._get_base_provider_payload()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["issuer"], "https://example.com")
+        self.assertEqual(response.data["jwks_url"], "https://example.com/jwks")
 
     def test_non_staff_cannot_create_provider(self):
         self.client.force_authenticate(self.user)

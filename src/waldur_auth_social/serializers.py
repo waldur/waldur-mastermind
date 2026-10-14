@@ -44,6 +44,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             "token_url": {"read_only": True},
             "auth_url": {"read_only": True},
             "logout_url": {"read_only": True},
+            "issuer": {"read_only": True},
+            "jwks_url": {"read_only": True},
         }
 
     def validate_provider(self, provider):
@@ -186,6 +188,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
                 "token_url": endpoints["token_endpoint"],
                 "auth_url": endpoints["authorization_endpoint"],
                 "logout_url": endpoints.get("end_session_endpoint") or "",
+                "issuer": endpoints.get("issuer") or "",
+                "jwks_url": endpoints.get("jwks_uri") or "",
             }
         except (requests.JSONDecodeError, KeyError, TypeError):
             raise ValidationError("Unable to parse JSON in discovery response.")

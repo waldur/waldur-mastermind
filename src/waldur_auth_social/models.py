@@ -48,6 +48,18 @@ class IdentityProvider(models.Model):
         default="",
         blank=True,
     )
+    issuer = models.CharField(
+        max_length=200,
+        help_text="The issuer identifier the ID token must carry.",
+        default="",
+        blank=True,
+    )
+    jwks_url = models.CharField(
+        max_length=200,
+        help_text="The endpoint publishing the keys that sign ID tokens.",
+        default="",
+        blank=True,
+    )
 
     label = models.CharField(
         help_text="Human-readable identity provider is label.", max_length=200
