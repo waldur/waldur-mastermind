@@ -9,6 +9,7 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.utils import get_scope_ids
 from waldur_mastermind.proposal.enums import (
+    WORKFLOW_STEPS_CHOICES,
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
@@ -140,6 +141,9 @@ class ProposalFilter(django_filters.FilterSet):
         view_name="call-round-detail", field_name="round__uuid"
     )
     state = django_filters.MultipleChoiceFilter(choices=ProposalStates.CHOICES)
+    workflow_step = django_filters.MultipleChoiceFilter(
+        choices=WORKFLOW_STEPS_CHOICES, label="Current workflow step"
+    )
     name = django_filters.CharFilter(lookup_expr="icontains")
     call_uuid = core_filters.RelatedUUIDFilter(
         view_name="proposal-public-call-detail", field_name="round__call__uuid"

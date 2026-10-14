@@ -584,6 +584,38 @@ client-side keeps a PDF toolchain and its system packages out of the image for
 the sake of one document, and the attachment files themselves stay behind the
 media endpoint, which applies its own access rules.
 
+## Call Dashboard Statistics
+
+`GET /api/proposal-protected-calls/<uuid>/stats/` answers "where is each round?"
+for one call. It returns a `call` block and a `rounds` list (one block per
+round, with `uuid`, `slug`, `start_time` and `cutoff_time`). The round blocks
+add up to the call block; a call with a single continuously open round has one
+round block equal to the call block.
+
+Each block holds:
+
+| Field | Counts |
+|-------|--------|
+| `proposals` | Proposals by state: `draft`, `submitted`, `in_review`, `accepted` (awarded), `rejected` and `canceled` (not awarded), plus `total` |
+| `admin_approved` | Proposals whose administrative check completed as `eligible` |
+| `missing_admin_checks` | Proposals whose administrative check is active or expired |
+| `reviews` | Reviews by state (`in_review`, `submitted`, `rejected`), plus `total` |
+| `missing_reviews` | Proposals in expert review with fewer submitted reviews than the step's `min_reviewers`; 0 when the step sets no minimum |
+| `overdue_reviews` | Reviews still in review past their deadline |
+| `steps` | A list of `{step, label, count}`: proposals per current workflow step, over the call's enabled steps in catalogue order |
+
+Steps disabled on the call do not appear in `steps`. Draft proposals have no
+current step, so the step counts add up to the submitted proposals only.
+
+The state and step counts can be opened in the proposal list: `round_uuid`,
+`state` and `workflow_step` filter `GET /api/proposal-proposals/` to the same
+set.
+
+The endpoint takes the same permission as the call's exports — staff, support
+(read-only), call managers and call organisers. Reviewers, panel members and
+managers of other calls get a 403 or 404. All counts are grouped aggregates, so
+the number of queries does not grow with the number of rounds or proposals.
+
 ## Integration with Waldur Marketplace
 
 ### Resource Provisioning Flow

@@ -3070,6 +3070,50 @@ class CallPerformanceStatSerializer(serializers.Serializer):
     last_submission_date = serializers.DateField(read_only=True, allow_null=True)
 
 
+class CallStatsStepSerializer(serializers.Serializer):
+    step = serializers.CharField()
+    label = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class CallStatsBlockSerializer(serializers.Serializer):
+    proposals = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Proposals by state (accepted = awarded), plus total.",
+    )
+    reviews = serializers.DictField(
+        child=serializers.IntegerField(), help_text="Reviews by state, plus total."
+    )
+    admin_approved = serializers.IntegerField(
+        help_text="Proposals whose administrative check completed as eligible."
+    )
+    missing_admin_checks = serializers.IntegerField(
+        help_text="Proposals whose administrative check is active or expired."
+    )
+    missing_reviews = serializers.IntegerField(
+        help_text="Proposals in expert review below the step's minimum reviews."
+    )
+    overdue_reviews = serializers.IntegerField(
+        help_text="Reviews still in review past their deadline."
+    )
+    steps = CallStatsStepSerializer(
+        many=True,
+        help_text="Proposals per current workflow step, over the enabled steps.",
+    )
+
+
+class CallStatsRoundSerializer(CallStatsBlockSerializer):
+    uuid = serializers.UUIDField()
+    slug = serializers.CharField()
+    start_time = serializers.DateTimeField()
+    cutoff_time = serializers.DateTimeField()
+
+
+class CallStatsSerializer(serializers.Serializer):
+    call = CallStatsBlockSerializer()
+    rounds = CallStatsRoundSerializer(many=True)
+
+
 class ReviewProgressStatSerializer(serializers.Serializer):
     reviewer_uuid = serializers.UUIDField(read_only=True)
     reviewer_name = serializers.CharField(read_only=True)
