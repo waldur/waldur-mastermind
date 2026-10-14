@@ -1827,6 +1827,18 @@ CONSTANCE_CONFIG = {
         "Enable the affiliate program: staff-configured affiliate links, "
         "fee accrual from finalized invoices, and the customer-affiliates API.",
     ),
+    "VAT_TAXATION_ENABLED": (
+        False,
+        "Calculate invoice VAT from EU VAT rules and rates instead of the "
+        "organization's default tax percent.",
+    ),
+    "VAT_OSS_ENABLED": (
+        False,
+        "Charge EU private persons the VAT rate of their own country "
+        "(One-Stop Shop). When disabled, the operator's country rate is used, "
+        "which is only allowed while the operator's cross-border sales to EU "
+        "private persons stay under EUR 10,000 a year.",
+    ),
     # Matrix chat settings
     "MATRIX_ENABLED": (False, "Enable Matrix chat integration."),
     "MATRIX_AUTO_CREATE_PROJECT_ROOMS": (
@@ -2387,6 +2399,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Reporting": ("ENABLED_REPORTING_SCREENS",),
     "POSIX ID pools": ("POSIX_ID_POOL_UTILIZATION_THRESHOLD",),
     "Affiliates": ("AFFILIATES_ENABLED",),
+    "VAT": (
+        "VAT_TAXATION_ENABLED",
+        "VAT_OSS_ENABLED",
+    ),
     "Matrix chat": (
         "MATRIX_ENABLED",
         "MATRIX_AUTO_CREATE_PROJECT_ROOMS",
@@ -2479,6 +2495,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "MATRIX_ENABLED",
     "MATRIX_EXTERNAL_LOGIN_METHOD",
     "AFFILIATES_ENABLED",
+    "VAT_TAXATION_ENABLED",
     "SRAM_INTEGRATION_ENABLED",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",

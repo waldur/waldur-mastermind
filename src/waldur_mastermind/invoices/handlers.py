@@ -12,7 +12,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
-from waldur_mastermind.invoices import ledger, models
+from waldur_mastermind.invoices import ledger, models, vat
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
@@ -91,8 +91,24 @@ def set_tax_percent_on_invoice_creation(sender, instance: Invoice, **kwargs):
     if instance.pk is not None:
         return
 
+    if vat.is_enabled():
+        try:
+            vat.apply_vat(instance)
+            return
+        except vat.VATError:
+            # Finalization recalculates it and refuses to proceed without a rate.
+            logger.exception("Unable to calculate VAT for %s.", instance.customer)
+
     if not instance.tax_percent:
         instance.tax_percent = instance.customer.default_tax_percent
+
+
+def refresh_vat_rates_when_enabled(sender, key, old_value, new_value, **kwargs):
+    """Without rates, pending invoices cannot get VAT until the next month."""
+    if key == "VAT_TAXATION_ENABLED" and new_value and not old_value:
+        from waldur_mastermind.invoices import tasks
+
+        tasks.refresh_vat_rates.delay()
 
 
 def set_project_name_on_invoice_item_creation(

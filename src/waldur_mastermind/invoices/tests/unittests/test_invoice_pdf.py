@@ -116,7 +116,7 @@ class InvoicePdfTest(TestCase):
             self.totals(data),
             [
                 ("Subtotal", "EUR 37,035.00"),
-                ("VAT", "EUR 8,888.40"),
+                ("VAT (24%)", "EUR 8,888.40"),
                 ("TOTAL", "EUR 45,923.40"),
             ],
         )
@@ -150,7 +150,11 @@ class InvoicePdfTest(TestCase):
         data = utils.get_invoice_pdf_data(self.invoice)
         self.assertEqual(
             self.totals(data),
-            [("Subtotal", "EUR 16.10"), ("VAT", "EUR 2.42"), ("TOTAL", "EUR 18.52")],
+            [
+                ("Subtotal", "EUR 16.10"),
+                ("VAT (15%)", "EUR 2.42"),
+                ("TOTAL", "EUR 18.52"),
+            ],
         )
 
     def test_items_with_zero_price_are_omitted(self):
@@ -198,6 +202,39 @@ class InvoicePdfTest(TestCase):
         self.assertEqual(
             [label for label, _ in self.totals(data)], ["Subtotal", "TOTAL"]
         )
+
+    @override_config(VAT_TAXATION_ENABLED=True)
+    def test_zero_vat_row_is_kept_with_eu_vat(self):
+        self.invoice.tax_percent = 0
+        self.invoice.save()
+        self.add_item("Compute", "1", "10")
+        data = utils.get_invoice_pdf_data(self.invoice)
+        self.assertEqual(self.totals(data)[1], ("VAT (0%)", "EUR 0.00"))
+
+    @override_config(VAT_TAXATION_ENABLED=True)
+    def test_reverse_charge_is_stated(self):
+        self.invoice.tax_percent = 0
+        self.invoice.vat_reverse_charge = True
+        self.invoice.save()
+        self.add_item("Compute", "1", "10")
+        data = utils.get_invoice_pdf_data(self.invoice)
+        self.assertEqual(self.totals(data)[1], ("VAT (0%, reverse charge)", "EUR 0.00"))
+        self.assertIn(
+            "Subject to Reverse Charge - Article 44 of the EU VAT Directive "
+            "(2006/112/EC)",
+            " ".join(self.pdf_pages()),
+        )
+
+    def test_invoice_without_reverse_charge_has_no_note(self):
+        self.add_item("Compute", "1", "10")
+        self.assertEqual(utils.get_invoice_pdf_data(self.invoice)["notes"], [])
+
+    def test_fractional_vat_percent_is_printed(self):
+        self.invoice.tax_percent = Decimal("25.5")
+        self.invoice.save()
+        self.add_item("Compute", "1", "100")
+        data = utils.get_invoice_pdf_data(self.invoice)
+        self.assertEqual(self.totals(data)[1], ("VAT (25.5%)", "EUR 25.50"))
 
     def test_pending_invoice_has_no_due_date(self):
         self.invoice.invoice_date = None

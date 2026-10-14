@@ -110,3 +110,8 @@
     if row.emphasis { (strong(row.label), strong(row.value)) } else { (row.label, row.value) }
   }).flatten(),
 ))
+
+#for note in data.notes {
+  v(8mm)
+  strong(note)
+}

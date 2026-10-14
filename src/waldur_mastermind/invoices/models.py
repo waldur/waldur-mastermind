@@ -117,6 +117,13 @@ class Invoice(
         decimal_places=2,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
+    vat_reverse_charge = models.BooleanField(
+        default=False,
+        help_text=_(
+            "The customer accounts for the VAT (reverse charge, VAT Directive "
+            "Art. 44): a company with a verified EU VAT number or outside the EU."
+        ),
+    )
     invoice_date = models.DateField(
         null=True,
         blank=True,
@@ -1310,3 +1317,40 @@ reversion.register(InvoiceItem)
 reversion.register(Invoice, follow=("items",))
 reversion.register(CustomerCredit)
 reversion.register(ProjectCredit)
+
+
+class VATRate(models.Model):
+    """Standard EU VAT rate of a member state in a billing month, from the EC TEDB service.
+
+    Rates are kept per month because an invoice is taxed at the rate in force
+    at the end of its own month, and rates usually change on the 1st, the day
+    the previous month is finalized.
+    """
+
+    country = models.CharField(
+        max_length=2, help_text=_("ISO 3166-1 alpha-2 country code.")
+    )
+    year = models.PositiveSmallIntegerField(default=utils.get_current_year)
+    month = models.PositiveSmallIntegerField(
+        default=utils.get_current_month,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+    )
+    rate = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-year", "-month", "country", "id")
+        verbose_name = _("VAT rate")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["country", "year", "month"],
+                name="invoices_vatrate_country_period_uniq",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.country} {self.year}-{self.month:02d}: {self.rate}%"

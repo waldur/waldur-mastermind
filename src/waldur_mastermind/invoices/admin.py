@@ -143,8 +143,15 @@ class ProjectCreditAdmin(VersionAdmin, admin.ModelAdmin):
     )
 
 
+class VATRateAdmin(admin.ModelAdmin):
+    list_display = ("country", "year", "month", "rate", "fetched_at")
+    list_filter = ("year", "month")
+    search_fields = ("country",)
+
+
 admin.site.register(models.Invoice, InvoiceAdmin)
 admin.site.register(models.PaymentProfile, PaymentProfileAdmin)
 admin.site.register(models.Payment, PaymentAdmin)
 admin.site.register(models.CustomerCredit, CustomerCreditAdmin)
 admin.site.register(models.ProjectCredit, ProjectCreditAdmin)
+admin.site.register(models.VATRate, VATRateAdmin)

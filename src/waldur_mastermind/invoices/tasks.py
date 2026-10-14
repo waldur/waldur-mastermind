@@ -21,7 +21,7 @@ from waldur_mastermind.marketplace import billing_discount
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
-from ..invoices import compensations, ledger, models, serializers, utils
+from ..invoices import compensations, ledger, models, serializers, utils, vat
 from ..invoices.audit import skip_credit_audit
 
 logger = logging.getLogger(__name__)
@@ -51,12 +51,20 @@ def create_monthly_invoices():
         )
     )
 
+    if vat.is_enabled():
+        vat.prepare_finalization(
+            old_invoices if grace_hours == 0 else old_invoices.none()
+        )
+
     if grace_hours == 0:
         # Backward compatible: finalize immediately
         set_to_zero_overdue_credits(local_date.date())
         for invoice in old_invoices:
             try:
                 with transaction.atomic():
+                    # Credits are netted against VAT, so the rate must be final first.
+                    if vat.is_enabled():
+                        vat.update_invoice_tax_percent(invoice)
                     billing_discount.apply_aggregated_volume_discounts(invoice)
                     process_invoice_credits(invoice)
                     invoice.set_created()
@@ -139,10 +147,15 @@ def finalize_previous_invoices():
     # When grace period delays finalization (e.g. to Feb 2), credits with
     # end_date on the 1st must not be zeroed before compensations are applied.
     effective_date = local_now.replace(day=1).date()
+    if vat.is_enabled():
+        vat.prepare_finalization(pending_invoices)
     set_to_zero_overdue_credits(effective_date)
     for invoice in pending_invoices:
         try:
             with transaction.atomic():
+                # Credits are netted against VAT, so the rate must be final first.
+                if vat.is_enabled():
+                    vat.update_invoice_tax_percent(invoice)
                 billing_discount.apply_aggregated_volume_discounts(invoice)
                 process_invoice_credits(invoice)
                 invoice.set_created()
@@ -163,6 +176,16 @@ def finalize_previous_invoices():
 
         if settings.WALDUR_INVOICES["SEND_CUSTOMER_INVOICES"]:
             send_new_invoices_notification.delay()
+
+
+@shared_task(name="invoices.refresh_vat_rates")
+def refresh_vat_rates():
+    if not vat.is_enabled():
+        return
+    try:
+        vat.refresh_vat_rates()
+    except Exception:
+        logger.exception("Unable to refresh EU VAT rates.")
 
 
 @shared_task(name="invoices.send_invoice_notification")

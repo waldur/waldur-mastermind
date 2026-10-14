@@ -566,6 +566,7 @@ class Command(BaseCommand):
                     "default_tax_percent": str(customer.default_tax_percent)
                     if customer.default_tax_percent
                     else None,
+                    "is_private_person": customer.is_private_person,
                     "sponsor_number": customer.sponsor_number,
                     "access_subnets": customer.access_subnets,
                     "notification_emails": customer.notification_emails,

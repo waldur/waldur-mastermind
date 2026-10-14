@@ -2137,6 +2137,7 @@ class Command(BaseCommand):
                     "grace_period_days": customer_data.get("grace_period_days"),
                     "bank_name": customer_data.get("bank_name", ""),
                     "bank_account": customer_data.get("bank_account", ""),
+                    "is_private_person": customer_data.get("is_private_person", False),
                     "latitude": latitude,
                     "longitude": longitude,
                 }

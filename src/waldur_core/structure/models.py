@@ -66,6 +66,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.mixins import CoordinatesMixin, IPCoordinatesMixin
 from waldur_core.structure.registry import SupportedServices, get_resource_type
+from waldur_core.structure.vies import normalize_vat_code
 
 
 def validate_service_type(service_type):
@@ -729,6 +730,20 @@ class Customer(
         decimal_places=2,
         validators=[MinValueValidator(Decimal(0)), MaxValueValidator(Decimal(200))],
     )
+    is_private_person = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Organization represents a private person rather than a legal entity. "
+            "Used for EU VAT calculation."
+        ),
+    )
+    vat_verified_code = models.CharField(
+        max_length=20,
+        blank=True,
+        editable=False,
+        help_text=_("VAT number last confirmed as registered by the EU VIES service."),
+    )
+    vat_verified_at = models.DateTimeField(null=True, blank=True, editable=False)
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
     display_billing_info_in_projects = models.BooleanField(default=True)
@@ -839,6 +854,13 @@ class Customer(
             return Customer.objects.filter(
                 id__in=get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
             )
+
+    @property
+    def is_vat_code_verified(self) -> bool:
+        """Whether the current VAT number is the one VIES last confirmed."""
+        return bool(self.vat_code) and self.vat_verified_code == normalize_vat_code(
+            self.vat_code
+        )
 
     def get_display_name(self):
         if self.abbreviation:
