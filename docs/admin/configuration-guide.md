@@ -3549,6 +3549,20 @@ Utilization percentage of a POSIX ID pool namespace that triggers a warning even
 
 Enable the affiliate program: staff-configured affiliate links, fee accrual from finalized invoices, and the customer-affiliates API.
 
+### VAT
+
+#### VAT_TAXATION_ENABLED
+
+**Type:** bool
+
+Calculate invoice VAT from EU VAT rules and rates instead of the organization's default tax percent.
+
+#### VAT_OSS_ENABLED
+
+**Type:** bool
+
+Charge EU private persons the VAT rate of their own country (One-Stop Shop). When disabled, the operator's country rate is used, which is only allowed while the operator's cross-border sales to EU private persons stay under EUR 10,000 a year.
+
 ### Matrix chat
 
 #### MATRIX_ENABLED

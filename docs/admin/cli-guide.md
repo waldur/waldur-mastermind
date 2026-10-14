@@ -1507,6 +1507,21 @@ options:
 
 ```
 
+## refresh_vat_rates
+
+Fetch standard EU VAT rates from the European Commission TEDB service for a billing month, the current one by default.
+
+```bash
+
+usage: waldur refresh_vat_rates [--year YEAR]
+                                [--month {1,2,3,4,5,6,7,8,9,10,11,12}]
+
+options:
+  --year YEAR
+  --month {1,2,3,4,5,6,7,8,9,10,11,12}
+
+```
+
 ## register_matrix_appservice
 
 Register Waldur's appservice on a Conduit-family homeserver (Tuwunel) via its admin-room command, so no operator has to paste the registration YAML into a Matrix client. Synapse is not supported — it loads appservices from app_service_config_files at startup instead. It acts as the bootstrap admin, @waldur-bootstrap. The first run creates it through the homeserver's shared-secret registration, keyed with MATRIX_USER_REGISTRATION_SECRET, which must also be the homeserver's registration_shared_secret; later runs sign in as it. Set MATRIX_BOOTSTRAP_PASSWORD in the environment and keep it: it is the bootstrap admin's password, and without it no bootstrap admin is created. Set MATRIX_ADMIN_TOKEN to an admin's access token to act as that admin instead, which later runs need when password login is off on the homeserver. The bootstrap admin is signed out when the command ends; an admin token is not.

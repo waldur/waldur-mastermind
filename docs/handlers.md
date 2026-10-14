@@ -630,6 +630,7 @@ td:nth-child(4) {
 | `reconcile_offering_profile_on_roles_changed` | `Django Signal (m2m_changed)` | `OfferingProfile_roles` | When OfferingProfile.roles M2M changes, schedule reconciliation |
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.CustomerCredit` | Write ledger rows for every credit value change, organization or project. |
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.ProjectCredit` | Write ledger rows for every credit value change, organization or project. |
+| `refresh_vat_rates_when_enabled` | `Custom Signal (config_updated)` | `—` | Without rates, pending invoices cannot get VAT until the next month. |
 | `refund_project_credit_on_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `release_grace_pauses_when_project_end_date_changes` | `Django Signal (post_save)` | `structure.Project` | Lift grace-period pauses once a project's end date moves it out of the grace period. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Mark the deleted POSIX id consumer's identity as released. |
@@ -836,14 +837,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 757
+Total unique handlers found: 758
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 348 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 348 handlers
+- **waldur_mastermind**: 349 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers
