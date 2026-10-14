@@ -14,6 +14,7 @@ from rest_framework.reverse import reverse
 from waldur_auth_social import models, views
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_auth_social.serializers import IdentityProviderSerializer
+from waldur_auth_social.tests.oidc_helpers import mock_token_endpoint
 from waldur_auth_social.utils import (
     create_or_update_oauth_user,
     parse_schac_personal_unique_id,
@@ -286,14 +287,15 @@ class OAuthViewCompleteTest(test.APITestCase):
     def _mock_token_request(
         self, access_token="test_access_token", refresh_token="test_refresh_token"
     ):
-        return responses.add(
-            method="POST",
-            url=self.provider.token_url,
-            json={"access_token": access_token, "refresh_token": refresh_token},
-            status=status.HTTP_200_OK,
+        return mock_token_endpoint(
+            self.provider,
+            lambda: getattr(self, "_userinfo_sub", "test-subject"),
+            access_token=access_token,
+            refresh_token=refresh_token,
         )
 
     def _mock_userinfo_request(self, user_info):
+        self._userinfo_sub = user_info.get("sub")
         responses.add(
             method="GET",
             url=self.provider.userinfo_url,
@@ -1120,14 +1122,15 @@ class MultiHomeportRedirectTest(test.APITestCase):
     def _mock_token_request(
         self, access_token="test_access_token", refresh_token="test_refresh_token"
     ):
-        return responses.add(
-            method="POST",
-            url=self.provider.token_url,
-            json={"access_token": access_token, "refresh_token": refresh_token},
-            status=status.HTTP_200_OK,
+        return mock_token_endpoint(
+            self.provider,
+            lambda: getattr(self, "_userinfo_sub", "test-subject"),
+            access_token=access_token,
+            refresh_token=refresh_token,
         )
 
     def _mock_userinfo_request(self, user_info):
+        self._userinfo_sub = user_info.get("sub")
         responses.add(
             method="GET",
             url=self.provider.userinfo_url,
@@ -1285,11 +1288,11 @@ class MultiHomeportRedirectTest(test.APITestCase):
             "family_name": "User",
         }
 
-        responses.add(
-            method="POST",
-            url=provider_no_allowed.token_url,
-            json={"access_token": "token", "refresh_token": "refresh"},
-            status=status.HTTP_200_OK,
+        mock_token_endpoint(
+            provider_no_allowed,
+            lambda: user_info["sub"],
+            access_token="token",
+            refresh_token="refresh",
         )
         responses.add(
             method="GET",
@@ -1772,14 +1775,15 @@ class EnabledUserProfileAttributesSyncTest(test.APITestCase):
     def _mock_token_request(
         self, access_token="test_access_token", refresh_token="test_refresh_token"
     ):
-        return responses.add(
-            method="POST",
-            url=self.provider.token_url,
-            json={"access_token": access_token, "refresh_token": refresh_token},
-            status=status.HTTP_200_OK,
+        return mock_token_endpoint(
+            self.provider,
+            lambda: getattr(self, "_userinfo_sub", "test-subject"),
+            access_token=access_token,
+            refresh_token=refresh_token,
         )
 
     def _mock_userinfo_request(self, user_info):
+        self._userinfo_sub = user_info.get("sub")
         responses.add(
             method="GET",
             url=self.provider.userinfo_url,
@@ -2101,17 +2105,12 @@ class OIDCEmailMatchmakingTest(test.APITestCase):
         self.addCleanup(responses.stop)
 
     def _mock_token_request(self):
-        return responses.add(
-            method="POST",
-            url=self.provider.token_url,
-            json={
-                "access_token": "test_access_token",
-                "refresh_token": "test_refresh_token",
-            },
-            status=status.HTTP_200_OK,
+        return mock_token_endpoint(
+            self.provider, lambda: getattr(self, "_userinfo_sub", "test-subject")
         )
 
     def _mock_userinfo_request(self, user_info):
+        self._userinfo_sub = user_info.get("sub")
         responses.add(
             method="GET",
             url=self.provider.userinfo_url,
@@ -2443,17 +2442,12 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
         self.addCleanup(responses.stop)
 
     def _mock_token_request(self):
-        return responses.add(
-            method="POST",
-            url=self.provider.token_url,
-            json={
-                "access_token": "test_access_token",
-                "refresh_token": "test_refresh_token",
-            },
-            status=status.HTTP_200_OK,
+        return mock_token_endpoint(
+            self.provider, lambda: getattr(self, "_userinfo_sub", "test-subject")
         )
 
     def _mock_userinfo_request(self, user_info):
+        self._userinfo_sub = user_info.get("sub")
         responses.add(
             method="GET",
             url=self.provider.userinfo_url,

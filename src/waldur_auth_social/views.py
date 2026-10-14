@@ -23,6 +23,7 @@ from waldur_auth_social.claim_mapping import (
 )
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.exceptions import OAuthException
+from waldur_auth_social.id_token import validate_id_token
 from waldur_auth_social.models import OAuthToken
 from waldur_auth_social.utils import (
     create_or_update_bridge_user,
@@ -332,9 +333,18 @@ class OAuthViewComplete(BaseOAuthView):
                 self.config.provider, "Authentication response does not contain token."
             )
 
+        id_token_claims = validate_id_token(self.config, token_data.get("id_token"))
         refresh_token = token_data.get("refresh_token", "")
         user_info = self.get_user_info(access_token)
         logger.debug("Received user info: %s", user_info)
+        if user_info.get("sub") != id_token_claims["sub"]:
+            logger.warning(
+                "Subject of user info does not match ID token for provider %s.",
+                self.config.provider,
+            )
+            raise OAuthException(
+                self.config.provider, "User info does not match ID token."
+            )
 
         user, created = create_or_update_oauth_user(self.config, user_info)
 

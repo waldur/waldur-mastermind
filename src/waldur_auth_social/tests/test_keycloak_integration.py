@@ -10,6 +10,7 @@ from rest_framework.reverse import reverse
 
 from waldur_auth_social import models
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
+from waldur_auth_social.tests.oidc_helpers import mock_token_endpoint
 from waldur_core.core.models import TokenExchangeCode, User
 
 
@@ -42,15 +43,7 @@ class KeycloakTokenExchangeTest(test.APITestCase):
         self.addCleanup(responses.stop)
 
     def _mock_oidc_responses(self, user_info):
-        responses.add(
-            method="POST",
-            url=self.provider.token_url,
-            json={
-                "access_token": "test_access_token",
-                "refresh_token": "test_refresh_token",
-            },
-            status=status.HTTP_200_OK,
-        )
+        mock_token_endpoint(self.provider, lambda: user_info["sub"])
         responses.add(
             method="GET",
             url=self.provider.userinfo_url,
