@@ -41,7 +41,7 @@ from waldur_core.permissions.serializers import (
     PermissionSerializer,
 )
 from waldur_core.permissions.utils import has_permission
-from waldur_core.structure import managers, models, utils
+from waldur_core.structure import managers, models, utils, vies
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
@@ -1385,6 +1385,17 @@ class CustomerSerializer(
     users_count = serializers.SerializerMethodField(
         help_text="Number of users with access to this organization"
     )
+    vat_percent = serializers.SerializerMethodField(
+        help_text="VAT percent calculated from EU VAT rules, when VAT taxation is on."
+    )
+    vat_rule = serializers.SerializerMethodField(
+        help_text="Which EU VAT rule picked vat_percent, or why it cannot be calculated."
+    )
+    vat_code_verified = serializers.BooleanField(
+        source="is_vat_code_verified",
+        read_only=True,
+        help_text="Whether the EU VIES service confirmed the current VAT number.",
+    )
     is_service_provider_manager_only = serializers.SerializerMethodField(
         help_text=(
             "True when the requesting user's only link to this organization is a "
@@ -1431,6 +1442,10 @@ class CustomerSerializer(
             "archived",
             "display_billing_info_in_projects",
             "default_tax_percent",
+            "is_private_person",
+            "vat_code_verified",
+            "vat_percent",
+            "vat_rule",
             "accounting_start_date",
             "projects_count",
             "users_count",
@@ -1449,6 +1464,7 @@ class CustomerSerializer(
             "access_subnets",
             "accounting_start_date",
             "default_tax_percent",
+            "is_private_person",
             "agreement_number",
             "domain",
             "organization_groups",
@@ -1534,7 +1550,44 @@ class CustomerSerializer(
             for field_name in staff_fields & set(fields.keys()):
                 fields[field_name].read_only = True
 
+        # EU VAT rules decide the rate, so a manual one would be ignored anyway.
+        # They follow the country, so only staff may change it.
+        if config.VAT_TAXATION_ENABLED:
+            locked = {"default_tax_percent"} | (set() if user.is_staff else {"country"})
+            for field_name in locked & set(fields.keys()):
+                fields[field_name].read_only = True
+
         return fields
+
+    def _explain_vat(self, customer):
+        if not config.VAT_TAXATION_ENABLED:
+            return None
+        from waldur_mastermind.invoices import vat
+
+        cache = self.context.setdefault("_vat_explanations", {})
+        if customer.pk not in cache:
+            if "_vat_rates" not in self.context:
+                self.context["_vat_rates"] = vat.get_rates()
+            try:
+                percent, rule = vat.explain_vat(customer, self.context["_vat_rates"])
+                cache[customer.pk] = (percent, str(rule.label))
+            except vat.VATError as e:
+                cache[customer.pk] = (None, str(e))
+        return cache[customer.pk]
+
+    @extend_schema_field(
+        serializers.DecimalField(max_digits=4, decimal_places=2, allow_null=True)
+    )
+    def get_vat_percent(self, customer):
+        explanation = self._explain_vat(customer)
+        if not explanation or explanation[0] is None:
+            return None
+        return f"{explanation[0]:.2f}"
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_vat_rule(self, customer):
+        explanation = self._explain_vat(customer)
+        return explanation[1] if explanation else None
 
     def create(self, validated_data):
         user = self.context["request"].user
@@ -1615,16 +1668,41 @@ class CustomerSerializer(
                     {"vat_code": _("VAT number has invalid format.")}
                 )
 
-            # Note: VIES validation (EU VAT Information Exchange System) has been removed.
-            # If needed, it can be implemented separately using external services.
-            # The vat_name and vat_address fields can now be manually entered if required.
-            logger.debug(
-                "VAT number %s format validated for country %s. "
-                "VIES validation not performed - manual verification may be required.",
-                vat_code,
-                country,
-            )
+        if config.VAT_TAXATION_ENABLED:
+            self._verify_vat_code(attrs)
         return attrs
+
+    def _verify_vat_code(self, attrs):
+        """EU VAT numbers zero-rate invoices, so VIES must confirm them."""
+        instance = self.instance
+        vat_code = attrs.get("vat_code", instance.vat_code if instance else "")
+        country = attrs.get("country", instance.country if instance else "")
+        if not vies.is_eu_vat_code(vat_code, country):
+            return
+        code = vies.normalize_vat_code(vat_code)
+        # Only a changed number is checked, so a stale one never blocks
+        # unrelated edits; invoice finalization re-checks it.
+        if instance and (
+            vies.normalize_vat_code(instance.vat_code) == code
+            and instance.country == country
+        ):
+            return
+        try:
+            result = vies.check_vat_number(code, country)
+        except vies.VIESUnavailable:
+            # Saved unverified; invoice finalization checks it again.
+            logger.warning("VIES is unavailable, VAT number %s left unverified.", code)
+            return
+        if not result.valid:
+            raise serializers.ValidationError(
+                {"vat_code": _("VAT number is not registered in the EU VIES system.")}
+            )
+        attrs["vat_verified_code"] = code
+        attrs["vat_verified_at"] = timezone.now()
+        if result.name and not attrs.get("vat_name"):
+            attrs["vat_name"] = result.name
+        if result.address and not attrs.get("vat_address"):
+            attrs["vat_address"] = result.address
 
     def validate_project_metadata_checklist(self, checklist):
         """Validate that the checklist is of PROJECT_METADATA type."""

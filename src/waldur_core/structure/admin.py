@@ -225,6 +225,7 @@ class CustomerAdmin(
         "bank_account",
         "accounting_start_date",
         "default_tax_percent",
+        "is_private_person",
         "blocked",
         "archived",
         "grace_period_days",

@@ -1,3 +1,4 @@
+from constance import signals as constance_signals
 from django.apps import AppConfig
 from django.db.models import signals
 
@@ -11,6 +12,11 @@ class InvoiceConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
 
         from . import handlers, models
+
+        constance_signals.config_updated.connect(
+            handlers.refresh_vat_rates_when_enabled,
+            dispatch_uid="waldur_mastermind.invoices.refresh_vat_rates_when_enabled",
+        )
 
         signals.pre_save.connect(
             handlers.set_tax_percent_on_invoice_creation,

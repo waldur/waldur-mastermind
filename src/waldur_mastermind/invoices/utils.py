@@ -367,10 +367,18 @@ def get_invoice_pdf_data(invoice: "models.Invoice") -> dict:
             "emphasis": False,
         }
     ]
-    if vat:
+    # With EU VAT on, a 0% row is kept so reverse-charge invoices state the rate.
+    if vat or config.VAT_TAXATION_ENABLED:
+        percent = f"{Decimal(str(invoice.tax_percent)).normalize():f}"
+        # A reverse-charge invoice must say so (VAT Directive Art. 226(11a)).
+        label = (
+            _("VAT (%(percent)s%%, reverse charge)")
+            if invoice.vat_reverse_charge
+            else _("VAT (%(percent)s%%)")
+        )
         totals.append(
             {
-                "label": str(_("VAT")),
+                "label": label % {"percent": percent},
                 "value": _format_money(vat, currency),
                 "emphasis": False,
             }
@@ -399,6 +407,16 @@ def get_invoice_pdf_data(invoice: "models.Invoice") -> dict:
         "customer": _customer_lines(invoice.customer),
         "projects": project_rows,
         "totals": totals,
+        "notes": [
+            str(
+                _(
+                    "Subject to Reverse Charge - Article 44 of the EU VAT "
+                    "Directive (2006/112/EC)"
+                )
+            )
+        ]
+        if invoice.vat_reverse_charge
+        else [],
     }
 
 
