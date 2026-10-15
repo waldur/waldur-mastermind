@@ -13,6 +13,9 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import Role
+from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.invoices import compensations, models, tasks
@@ -254,6 +257,24 @@ class ProjectCreditRetrieveTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         for field in ("customer_credit", "allocated_customer_credit", "offerings"):
             self.assertIn(field, response.data)
+
+    @data(True, False)
+    def test_organization_wide_figures_follow_view_accounting(self, granted):
+        # A hand-made organization role (an accountant) sees the figures only
+        # when it may view the organization's accounting.
+        accountant = Role.objects.create(
+            name="CUSTOMER.ACCOUNTANT",
+            content_type=ContentType.objects.get_for_model(Customer),
+        )
+        if granted:
+            accountant.add_permission(PermissionEnum.VIEW_CUSTOMER_ACCOUNTING)
+        user = structure_factories.UserFactory()
+        self.fixture.customer.add_user(user, accountant)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in ("customer_credit", "allocated_customer_credit", "offerings"):
+            self.assertEqual(field in response.data, granted)
 
     def test_spendable_value_is_serialised_as_a_decimal_string(self):
         # Same shape as `value` and `customer_credit`; the generated SDK types

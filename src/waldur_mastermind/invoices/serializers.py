@@ -12,7 +12,9 @@ from rest_framework import exceptions, serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -1224,7 +1226,8 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
 
     # Organization-wide figures. ProjectCredit is readable by project roles so
     # the dashboard can explain a paused resource, but these three describe the
-    # whole organization, so they stay with customer-level roles.
+    # whole organization, so they stay with owners and with roles that may view
+    # the organization's accounting (CUSTOMER.VIEW_ACCOUNTING).
     ORGANIZATION_SCOPED_FIELDS = (
         "customer_credit",
         "allocated_customer_credit",
@@ -1250,7 +1253,11 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         # re-run the role lookup for every row.
         cache = self.context.setdefault("_owner_access_cache", {})
         if customer.id not in cache:
-            cache[customer.id] = structure_permissions._has_owner_access(user, customer)
+            cache[customer.id] = structure_permissions._has_owner_access(
+                user, customer
+            ) or has_permission(
+                request, PermissionEnum.VIEW_CUSTOMER_ACCOUNTING, customer
+            )
         if cache[customer.id]:
             return data
 
