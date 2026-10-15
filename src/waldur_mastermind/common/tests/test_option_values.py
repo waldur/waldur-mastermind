@@ -1,7 +1,12 @@
 from django.test import TestCase
 from rest_framework import serializers
 
-from waldur_mastermind.common.serializers import get_hidden_options, validate_options
+from waldur_mastermind.common.serializers import (
+    get_hidden_options,
+    transform_option_value,
+    transform_option_values,
+    validate_options,
+)
 
 
 class ValidateOptionsTest(TestCase):
@@ -216,7 +221,7 @@ class OptionVisibilityTest(TestCase):
     def test_validate_options_without_rules_returns_attributes_unchanged(self):
         options = {"field1": {"type": "integer", "required": True}}
         attributes = {"field1": 1, "other": 2}
-        self.assertIs(validate_options(options, attributes), attributes)
+        self.assertEqual(validate_options(options, attributes), attributes)
 
 
 class OptionPatternTest(TestCase):
@@ -227,7 +232,7 @@ class OptionPatternTest(TestCase):
 
     def test_matching_value_is_accepted(self):
         attributes = {"slug": "abc"}
-        self.assertIs(validate_options(self.options, attributes), attributes)
+        self.assertEqual(validate_options(self.options, attributes), attributes)
 
     def test_partial_match_is_rejected_with_provider_message(self):
         with self.assertRaisesMessage(serializers.ValidationError, "Bad slug"):
@@ -262,3 +267,95 @@ class OptionPatternTest(TestCase):
             validate_options(options, {"word": "käse"})
         with self.assertRaises(serializers.ValidationError):
             validate_options(options, {"digit": "٣"})
+
+
+class OptionTransformTest(TestCase):
+    transform = {"prefix": "acme-", "suffix": "-prod", "case": "lower"}
+    options = {
+        "bucket": {
+            "type": "string",
+            "pattern": "[A-Za-z]+",
+            "transform": {"prefix": "acme-", "suffix": "-prod", "case": "lower"},
+        },
+        "count": {"type": "integer", "transform": {"prefix": "acme-"}},
+    }
+
+    def test_prefix_suffix_and_case_are_applied(self):
+        self.assertEqual(
+            transform_option_value(self.transform, "Backups"), "acme-backups-prod"
+        )
+
+    def test_transforming_twice_gives_the_same_value(self):
+        once = transform_option_value(self.transform, "Backups")
+        self.assertEqual(transform_option_value(self.transform, once), once)
+
+    def test_case_does_not_change_prefix_and_suffix(self):
+        transform = {"prefix": "Acme-", "case": "upper"}
+        self.assertEqual(transform_option_value(transform, "logs"), "Acme-LOGS")
+
+    def test_value_typed_with_the_prefix_does_not_get_it_twice(self):
+        self.assertEqual(
+            transform_option_value({"prefix": "acme-"}, "acme-logs"), "acme-logs"
+        )
+
+    def test_validate_options_returns_transformed_values(self):
+        attributes = {"bucket": "Backups", "other": "kept"}
+        self.assertEqual(
+            validate_options(self.options, attributes),
+            {"bucket": "acme-backups-prod", "other": "kept"},
+        )
+        # The submitted values are not modified.
+        self.assertEqual(attributes["bucket"], "Backups")
+
+    def test_pattern_is_checked_against_the_typed_part(self):
+        # "acme-" and "-prod" contain dashes the pattern does not allow.
+        self.assertEqual(
+            validate_options(self.options, {"bucket": "acme-Backups-prod"}),
+            {"bucket": "acme-backups-prod"},
+        )
+        with self.assertRaises(serializers.ValidationError):
+            validate_options(self.options, {"bucket": "back-ups"})
+
+    def test_prefix_alone_is_not_a_value(self):
+        with self.assertRaises(serializers.ValidationError) as e:
+            validate_options(self.options, {"bucket": "acme-"})
+        self.assertEqual(
+            str(e.exception.detail["bucket"]),
+            "Enter a value besides the prefix and suffix.",
+        )
+
+    def test_prefix_typed_in_another_case_is_not_added_twice(self):
+        self.assertEqual(
+            transform_option_value(self.transform, "ACME-Logs-PROD"),
+            "acme-logs-prod",
+        )
+        self.assertEqual(
+            validate_options(self.options, {"bucket": "ACME-Logs"}),
+            {"bucket": "acme-logs-prod"},
+        )
+
+    def test_prefix_case_matters_without_a_case_transform(self):
+        self.assertEqual(
+            transform_option_value({"prefix": "acme-"}, "ACME-logs"),
+            "acme-ACME-logs",
+        )
+
+    def test_transform_option_values_does_not_validate(self):
+        values = {"bucket": "back-ups", "count": 5}
+        transformed = transform_option_values(self.options, values)
+        self.assertEqual(transformed, {"bucket": "acme-back-ups-prod", "count": 5})
+        self.assertEqual(
+            transform_option_values(self.options, transformed), transformed
+        )
+
+    def test_empty_value_is_not_transformed(self):
+        options = {"bucket": {"type": "string", "transform": {"prefix": "acme-"}}}
+        self.assertEqual(validate_options(options, {}), {})
+        with self.assertRaises(serializers.ValidationError):
+            validate_options(options, {"bucket": ""})
+
+    def test_transform_is_ignored_for_other_types(self):
+        self.assertEqual(
+            validate_options(self.options, {"bucket": "logs", "count": 5}),
+            {"bucket": "acme-logs-prod", "count": 5},
+        )

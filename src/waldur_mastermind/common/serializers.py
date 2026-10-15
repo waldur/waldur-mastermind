@@ -218,6 +218,91 @@ class OptionPatternValidator:
             raise serializers.ValidationError(self.message)
 
 
+# Option types whose value can be rewritten before it is stored.
+TRANSFORM_FIELD_TYPES = PATTERN_FIELD_TYPES
+TRANSFORM_CASES = ("lower", "upper")
+MAX_TRANSFORM_AFFIX_LENGTH = 100
+
+
+def strip_option_affixes(transform, value):
+    """The part of a value the user typed, without the transform's prefix and suffix.
+
+    A stored value comes back already transformed when a pending order or a
+    resource's options are edited, so the prefix and suffix are removed if the
+    value carries them. That keeps transform_option_value from adding them twice.
+    With a case set, the user may type the prefix in either case ("ACME-logs"),
+    so the affixes are matched ignoring case.
+    """
+    prefix = transform.get("prefix") or ""
+    suffix = transform.get("suffix") or ""
+
+    def fold(text):
+        return text.lower() if transform.get("case") else text
+
+    if prefix and fold(value[: len(prefix)]) == fold(prefix):
+        value = value[len(prefix) :]
+    if (
+        suffix
+        and len(value) >= len(suffix)
+        and fold(value[-len(suffix) :]) == fold(suffix)
+    ):
+        value = value[: -len(suffix)]
+    return value
+
+
+def transform_option_value(transform, value):
+    """The value to store for a submitted one, by the option's transform.
+
+    Applying it to its own result gives the same value. The case applies only
+    to the part the user typed: the prefix and suffix are kept as written.
+    """
+    value = strip_option_affixes(transform, value)
+    case = transform.get("case")
+    if case == "lower":
+        value = value.lower()
+    elif case == "upper":
+        value = value.upper()
+    return "{}{}{}".format(
+        transform.get("prefix") or "", value, transform.get("suffix") or ""
+    )
+
+
+def get_option_transforms(options, values, hidden=()):
+    """The transforms that apply to the submitted values, by option name.
+
+    Only string and text options with a transform and a typed value qualify.
+    """
+    if not isinstance(values, dict):
+        return {}
+    return {
+        name: option["transform"]
+        for name, option in options.items()
+        if name not in hidden
+        and option.get("type") in TRANSFORM_FIELD_TYPES
+        and option.get("transform")
+        and isinstance(values.get(name), str)
+        and values[name] != ""
+    }
+
+
+def transform_option_values(options, values, hidden=()):
+    """The values with each option's transform applied, without validating them.
+
+    For values that were stored before they were transformed: as the transform
+    gives the same result twice, already transformed values are kept.
+    """
+    transforms = get_option_transforms(options, values, hidden)
+    if not transforms:
+        return values
+    return {
+        **values,
+        **{
+            name: transform_option_value(transform, values[name])
+            for name, transform in transforms.items()
+        },
+    }
+
+
 def _option_value_matches(option, value, values):
     """Whether a submitted option value satisfies a visible_if rule."""
     field_type = option.get("type")
@@ -286,7 +371,11 @@ def get_hidden_options(options, values):
 
 
 def validate_options(options, attributes, optional=False, hidden=None):
-    """Validate submitted option values and return them without hidden options.
+    """Validate submitted option values and return the values to store.
+
+    Hidden options are dropped, and the values of options with a `transform`
+    are rewritten (see transform_option_value). Their pattern is checked
+    against the part the user typed, before the transform.
 
     `hidden` is the set of hidden option names. When omitted it is worked out
     from `attributes`; callers that validate a partial update pass the set
@@ -294,6 +383,25 @@ def validate_options(options, attributes, optional=False, hidden=None):
     """
     if hidden is None:
         hidden = get_hidden_options(options, attributes)
+    transforms = get_option_transforms(options, attributes, hidden)
+    data = attributes
+    if transforms:
+        data = {
+            **attributes,
+            **{
+                name: strip_option_affixes(transform, attributes[name])
+                for name, transform in transforms.items()
+            },
+        }
+        # Only the prefix or suffix leaves nothing typed; say so rather than
+        # report the field as blank, as the user did type something.
+        affix_only = {
+            name: _("Enter a value besides the prefix and suffix.")
+            for name in transforms
+            if data[name] == ""
+        }
+        if affix_only:
+            raise serializers.ValidationError(affix_only)
     fields = {}
 
     for name, option in options.items():
@@ -383,12 +491,13 @@ def validate_options(options, attributes, optional=False, hidden=None):
         fields["validate"] = validate
 
     serializer_class = type("AttributesSerializer", (serializers.Serializer,), fields)
-    serializer = serializer_class(data=attributes)
+    serializer = serializer_class(data=data)
     serializer.is_valid(raise_exception=True)
 
-    return strip_hidden_options(
+    values = strip_hidden_options(
         options, strip_non_input_options(options, attributes), hidden
     )
+    return transform_option_values(options, values, hidden)
 
 
 def strip_non_input_options(options, values):

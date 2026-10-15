@@ -98,6 +98,9 @@ SPECTACULAR_SETTINGS = {
         "SramProjectRuleField": sram_enums.ProjectField.choices,
         "SramProjectRuleMatch": sram_enums.MatchType.choices,
         "SramProjectRuleSourceKind": sram_enums.SourceKind.choices,
+        # An offering option transform's "case"; would otherwise be a generic
+        # CaseEnum. A path, so settings do not import the serializers module.
+        "OptionTransformCase": "waldur_mastermind.common.serializers.TRANSFORM_CASES",
         "RoleType": TYPE_MAP.keys(),
         "InvitationState": InvitationState.values,
         "BillingUnit": Units.CHOICES,
