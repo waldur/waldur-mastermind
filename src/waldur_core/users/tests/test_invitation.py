@@ -3,11 +3,15 @@ from datetime import timedelta
 from unittest import mock
 from uuid import uuid4
 
+import httpx
+import jwt
+import respx
 from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from freezegun import freeze_time
@@ -15,7 +19,7 @@ from rest_framework import status, test
 
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
-from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.tests.helpers import create_pat, override_waldur_core_settings
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -37,6 +41,7 @@ from waldur_core.users import models, tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.tests import factories
 from waldur_core.users.utils import get_invitation_link, get_invitation_token
+from waldur_core.users.views import InvitationViewSet
 from waldur_mastermind.proposal.tests.factories import CallFactory, ProposalFactory
 
 
@@ -1928,6 +1933,324 @@ class InvitationAcceptTest(BaseInvitationTest):
         invitation.refresh_from_db()
         self.assertEqual(invitation.state, InvitationState.ACCEPTED)
         self.assertTrue(invitation.scope.has_user(self.user, invitation.role))
+
+
+OIDC_INTROSPECTION_URL = "http://oidc.example.com/introspect"
+IMPERSONATED_USER_HEADER = settings.WALDUR_CORE["REQUEST_HEADER_IMPERSONATED_USER_UUID"]
+
+
+@ddt
+class InvitationAcceptOnBehalfTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.invitee = structure_factories.UserFactory(
+            email=self.project_invitation.email
+        )
+        self.url = factories.ProjectInvitationFactory.get_url(
+            self.project_invitation, action="accept"
+        )
+
+    def accept_for(self, user, **extra):
+        return self.client.post(self.url, {"user": user.uuid.hex}, **extra)
+
+    def assert_not_accepted(self):
+        self.project_invitation.refresh_from_db()
+        self.assertEqual(self.project_invitation.state, InvitationState.PENDING)
+        self.assertFalse(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+
+    def test_staff_accepts_invitation_for_named_user(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.project_invitation.refresh_from_db()
+        self.assertEqual(self.project_invitation.state, InvitationState.ACCEPTED)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+        self.assertFalse(get_permissions(self.project, self.staff).exists())
+
+    def test_role_granted_event_names_the_staff_caller(self):
+        self.project_invitation.created_by = self.customer_owner
+        self.project_invitation.save(update_fields=["created_by"])
+        self.client.force_authenticate(user=self.staff)
+
+        self.accept_for(self.invitee)
+
+        event = logging_models.Event.objects.get(
+            event_type="role_granted",
+            context__affected_user_uuid=self.invitee.uuid.hex,
+        )
+        self.assertIn(
+            f"accepted on behalf of the user by {self.staff.username}",
+            event.message,
+        )
+        self.assertEqual(event.context["acting_user_uuid"], self.staff.uuid.hex)
+        # The role is still granted on the inviter's authority.
+        self.assertEqual(event.context["user_uuid"], self.customer_owner.uuid.hex)
+
+    @override_config(
+        OIDC_INTROSPECTION_URL=OIDC_INTROSPECTION_URL,
+        OIDC_CLIENT_ID="test-client",
+        OIDC_CLIENT_SECRET="test-secret",
+        OIDC_USER_FIELD="username",
+    )
+    @respx.mock
+    def test_service_account_with_oidc_bearer_token_accepts_for_named_user(self):
+        service_account = structure_factories.UserFactory(
+            username="service-account", is_staff=True
+        )
+        respx.post(OIDC_INTROSPECTION_URL).mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": service_account.username}
+            )
+        )
+        token = jwt.encode(
+            {"exp": 9999999999, "username": service_account.username},
+            "test-secret-of-at-least-32-bytes!",
+        )
+
+        self.addCleanup(cache.clear)
+
+        response = self.accept_for(self.invitee, HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+        self.assertFalse(get_permissions(self.project, service_account).exists())
+
+    @override_config(PAT_ENABLED=True)
+    def test_staff_token_without_staff_scope_cannot_accept_for_another_user(self):
+        self.staff.can_use_personal_access_tokens = True
+        self.staff.save(update_fields=["can_use_personal_access_tokens"])
+        _, token = create_pat(self.staff, scopes=[PermissionEnum.LIST_PROJECTS.value])
+
+        response = self.accept_for(self.invitee, HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_not_accepted()
+
+    @override_config(PAT_ENABLED=True)
+    def test_staff_token_with_staff_scope_accepts_for_another_user(self):
+        self.staff.can_use_personal_access_tokens = True
+        self.staff.save(update_fields=["can_use_personal_access_tokens"])
+        _, token = create_pat(self.staff, scopes=[PermissionEnum.STAFF_ACCESS.value])
+
+        response = self.accept_for(self.invitee, HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+
+    @data(None, "")
+    def test_empty_user_accepts_for_the_caller(self, value):
+        self.client.force_authenticate(user=self.invitee)
+
+        response = self.client.post(self.url, {"user": value}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+
+    def test_empty_form_field_accepts_for_the_caller(self):
+        self.client.force_authenticate(user=self.invitee)
+
+        response = self.client.post(self.url, {"user": ""}, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    @override_config(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=False)
+    def test_staff_naming_themselves_accepts_as_the_caller(self):
+        # The staff email differs from the invitation's; as an ordinary
+        # acceptance that is allowed while the strict check is off.
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.staff)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(self.project.has_user(self.staff, self.project_invitation.role))
+        event = logging_models.Event.objects.get(
+            event_type="role_granted",
+            context__affected_user_uuid=self.staff.uuid.hex,
+        )
+        self.assertNotIn("on behalf", event.message)
+        self.assertNotIn("acting_user_uuid", event.context)
+
+    def test_non_staff_naming_themselves_accepts_as_the_caller(self):
+        self.client.force_authenticate(user=self.invitee)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
+    def test_email_case_is_ignored_when_invitation_email_is_validated(self):
+        self.invitee.email = self.invitee.email.upper()
+        self.invitee.save(update_fields=["email"])
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_accepted_invitation_cannot_be_accepted_again(self):
+        self.client.force_authenticate(user=self.staff)
+        self.accept_for(self.invitee)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_invitation_accepted_concurrently_is_not_accepted_twice(self):
+        # Another request accepted it after this one looked it up.
+        stale = models.Invitation.objects.get(pk=self.project_invitation.pk)
+        models.Invitation.objects.filter(pk=stale.pk).update(
+            state=InvitationState.ACCEPTED
+        )
+        self.client.force_authenticate(user=self.staff)
+
+        with mock.patch.object(InvitationViewSet, "get_object", return_value=stale):
+            response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+
+    def test_non_staff_cannot_accept_for_another_user(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_not_accepted()
+        self.assertFalse(get_permissions(self.project, self.user).exists())
+
+    @override_config(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=False)
+    def test_email_mismatch_is_rejected_even_when_strict_check_is_off(self):
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(other)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.project.has_user(other, self.project_invitation.role))
+        self.assert_not_accepted()
+
+    def test_email_match_is_case_insensitive(self):
+        self.invitee.email = self.invitee.email.upper()
+        self.invitee.save(update_fields=["email"])
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+
+    def test_civil_number_is_matched_against_named_user(self):
+        self.project_invitation.civil_number = "123456789"
+        self.project_invitation.save(update_fields=["civil_number"])
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assert_not_accepted()
+
+        self.invitee.civil_number = "123456789"
+        self.invitee.save(update_fields=["civil_number"])
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_named_user_who_already_has_the_role_is_rejected(self):
+        self.project.add_user(self.invitee, self.project_invitation.role)
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data, ["User has already the same role in this scope."]
+        )
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_multiple_roles_check_applies_to_named_user(self):
+        self.project.add_user(self.invitee, ProjectRole.MANAGER)
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, ["User already has role within this scope."])
+
+    def test_scope_restrictions_apply_to_named_user(self):
+        # The caller passes the restriction and the named user does not, so a
+        # check made against the caller would let this through.
+        self.customer.user_email_patterns = [r".*@restricted\.example$"]
+        self.customer.save()
+        self.staff.email = "operator@restricted.example"
+        self.staff.save(update_fields=["email"])
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assert_not_accepted()
+
+    def test_non_staff_gets_same_answer_for_unknown_user(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(self.url, {"user": uuid4().hex})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unknown_user_is_rejected(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.post(self.url, {"user": uuid4().hex})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("user", response.data)
+
+    def test_inactive_user_is_rejected(self):
+        self.invitee.is_active = False
+        self.invitee.save(update_fields=["is_active"])
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("user", response.data)
+
+    def test_user_cannot_be_combined_with_impersonation_header(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(
+            self.invitee, **{IMPERSONATED_USER_HEADER: self.invitee.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assert_not_accepted()
+
+    def test_accept_without_body_still_accepts_for_caller(self):
+        self.client.force_authenticate(user=self.invitee)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
 
 
 class InvitationApproveTest(BaseInvitationTest):

@@ -1,4 +1,5 @@
 from typing import cast
+from uuid import UUID
 
 from constance import config
 from django.conf import settings
@@ -13,6 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import ReviewStates
@@ -377,45 +379,121 @@ class InvitationViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="Accept an invitation",
-        description="Accepts an invitation for the currently authenticated user. This grants the user the specified role in the invitation's scope.",
-        request=None,
+        description="Accepts an invitation for the currently authenticated user. "
+        "This grants the user the specified role in the invitation's scope. "
+        "Staff may pass `user` to accept it for that user instead, for example "
+        "from a service account that registers users elsewhere; the user's "
+        "email must match the invitation.",
+        request=serializers.UserInvitationAcceptSerializer,
         responses={200: None},
     )
     @action(
         detail=True, methods=["post"], filter_backends=[filters.PendingInvitationFilter]
     )
     def accept(self, request, uuid=None):
+        target = self._get_named_user()
+        if target is not None:
+            # Read by PendingInvitationFilter, so that get_object() finds the
+            # invitation for the user the role is going to.
+            self.invitation_recipient = target
         invitation: models.Invitation = self.get_object()
+        user = target or request.user
 
-        if has_user(
-            invitation.scope, request.user, invitation.role, match_clones=False
-        ):
-            raise ValidationError(_("User has already the same role in this scope."))
+        if target is None:
+            reason = acting_user = None
+        else:
+            reason = (
+                f"Invitation accepted on behalf of the user by {request.user.username}"
+            )
+            acting_user = request.user
 
-        if invitation.email.casefold() != request.user.email.casefold():
-            if config.ENABLE_STRICT_CHECK_ACCEPTING_INVITATION:
+        with transaction.atomic():
+            # A user accepting from the email while a service account accepts
+            # for them must not both pass the checks below.
+            invitation = models.Invitation.objects.select_for_update().get(
+                pk=invitation.pk
+            )
+            if invitation.state != InvitationState.PENDING:
+                raise ValidationError(_("Only pending invitations can be accepted."))
+
+            if has_user(invitation.scope, user, invitation.role, match_clones=False):
                 raise ValidationError(
-                    _("User’s email and email of the invitation are not equal.")
+                    _("User has already the same role in this scope.")
                 )
 
-        if config.INVITATION_DISABLE_MULTIPLE_ROLES:
-            if UserRole.objects.filter(
-                user=request.user,
-                is_active=True,
-                content_type=invitation.content_type,
-                object_id=invitation.object_id,
-            ).exists():
-                raise ValidationError(_("User already has role within this scope."))
+            if invitation.email.casefold() != user.email.casefold():
+                # Accepting for someone else is never let through on a
+                # mismatch: the setting lets a person use another address of
+                # their own, while here it would only hide a caller that named
+                # the wrong user.
+                if (
+                    target is not None
+                    or config.ENABLE_STRICT_CHECK_ACCEPTING_INVITATION
+                ):
+                    raise ValidationError(
+                        _("User’s email and email of the invitation are not equal.")
+                    )
 
-        # Validate user against scope's email/affiliation restrictions
-        validate_user_restrictions(invitation.scope, request.user)
+            if config.INVITATION_DISABLE_MULTIPLE_ROLES:
+                if UserRole.objects.filter(
+                    user=user,
+                    is_active=True,
+                    content_type=invitation.content_type,
+                    object_id=invitation.object_id,
+                ).exists():
+                    raise ValidationError(_("User already has role within this scope."))
 
-        invitation.accept(request.user)
+            # Validate user against scope's email/affiliation restrictions
+            validate_user_restrictions(invitation.scope, user)
+
+            invitation.accept(user, reason=reason, acting_user=acting_user)
 
         return Response(
             {"detail": _("Invitation has been successfully accepted.")},
             status=status.HTTP_200_OK,
         )
+
+    def _get_named_user(self):
+        """The user named in the body to accept for, or None to accept as the caller.
+
+        An absent, empty or null value, or the caller's own uuid, is an ordinary
+        acceptance.
+        """
+        data = self.request.data
+        value = data.get("user") if hasattr(data, "get") else None
+        if value in (None, ""):
+            return None
+        try:
+            if UUID(str(value)) == UUID(str(self.request.user.uuid)):
+                return None
+        except ValueError:
+            pass
+
+        # Before validating the field, so that only staff learn whether the
+        # uuid they sent belongs to a user.
+        self._check_can_accept_for_others()
+
+        serializer = serializers.UserInvitationAcceptSerializer(data={"user": value})
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data["user"]
+
+    def _check_can_accept_for_others(self):
+        # Naming the user replaces impersonation for this call; combining the
+        # two would leave it unclear whose acceptance it is.
+        if settings.WALDUR_CORE["REQUEST_HEADER_IMPERSONATED_USER_UUID"] in (
+            self.request.META
+        ):
+            raise ValidationError(
+                _("Do not combine user with an impersonation header.")
+            )
+
+        # IsStaff rather than a local is_staff test: it also rejects a
+        # deactivated account and a personal access token without the
+        # STAFF_ACCESS scope.
+        if not core_permissions.IsStaff().has_permission(self.request, self):
+            raise PermissionDenied(
+                _("Only staff can accept an invitation for another user.")
+            )
 
     @extend_schema(
         summary="Check invitation validity",

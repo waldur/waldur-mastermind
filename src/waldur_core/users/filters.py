@@ -257,7 +257,9 @@ def filter_invitations_for_recipient(user, states):
         Q(civil_number="") | Q(civil_number=user.civil_number)
     )
     if settings.WALDUR_CORE["VALIDATE_INVITATION_EMAIL"]:
-        subquery = subquery & Q(email=user.email)
+        # Accepting compares the addresses case-insensitively, so finding the
+        # invitation must too, or a case difference ends in a 404 instead.
+        subquery = subquery & Q(email__iexact=user.email)
 
     return subquery
 
@@ -284,7 +286,10 @@ def filter_by_connected_scopes(user):
 
 class PendingInvitationFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        subquery = filter_pending_invitations(request.user)
+        # Staff can accept an invitation for a named user; the invitation must
+        # then match that user, not the caller.
+        recipient = getattr(view, "invitation_recipient", None) or request.user
+        subquery = filter_pending_invitations(recipient)
         return queryset.filter(subquery)
 
 

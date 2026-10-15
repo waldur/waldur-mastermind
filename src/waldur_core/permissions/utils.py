@@ -738,6 +738,7 @@ def add_user(
     force=False,
     source="",
     reason=None,
+    acting_user=None,
 ):
     """Grant ``role`` to ``user`` on ``scope`` (low-level write primitive).
 
@@ -750,9 +751,11 @@ def add_user(
     ``rule:<uuid>``) and is what makes automatic revocation safe: reconciliation
     only ever touches rows it recognises as its own. ``reason`` is carried into
     the audit event, so an automatic grant can say what caused it instead of the
-    generic "System-initiated role assignment". Both are appended last on
-    purpose — several callers pass ``created_by`` and ``expiration_time``
-    positionally.
+    generic "System-initiated role assignment". ``acting_user`` records who
+    performed the grant when that is not ``created_by``, whose authority the
+    role is granted on (e.g. staff accepting an invitation for the invitee).
+    All three are appended last on purpose — several callers pass
+    ``created_by`` and ``expiration_time`` positionally.
     """
     if not force:
         check_grant_policy(scope, role)
@@ -771,6 +774,7 @@ def add_user(
         instance=permission,
         current_user=created_by,
         reason=reason,
+        acting_user=acting_user,
     )
     return permission
 
