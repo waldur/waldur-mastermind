@@ -496,6 +496,65 @@ class ConsumerSetEndDateTest(test.APITestCase):
         self.resource.refresh_from_db()
         self.assertIsNone(self.resource.end_date)
 
+    @freeze_time("2020-01-15")
+    def test_end_date_equal_to_project_end_date_is_accepted(self):
+        self.resource.project.end_date = parse_date("2020-01-18")
+        self.resource.project.save()
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-01-18"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-01-18"))
+
+    @freeze_time("2020-01-15")
+    def test_end_date_after_project_end_date_is_rejected(self):
+        self.resource.project.end_date = parse_date("2020-01-18")
+        self.resource.project.save()
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-01-19"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date)
+
+    @freeze_time("2020-01-15")
+    def test_end_date_in_the_past_is_rejected(self):
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-01-14"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date)
+
+    @freeze_time("2020-01-15")
+    def test_end_date_equal_to_today_is_accepted(self):
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-01-15"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-01-15"))
+
+    @freeze_time("2020-01-01")
+    def test_end_date_beyond_offering_max_offset_is_rejected(self):
+        # Offset is measured from the resource creation date.
+        self.resource.created = datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC)
+        self.resource.save(update_fields=["created"])
+        self.resource.offering.plugin_options = {
+            "max_resource_termination_offset_in_days": 10,
+        }
+        self.resource.offering.save()
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-01-20"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date)
+
+    @freeze_time("2020-01-01")
+    def test_end_date_within_offering_max_offset_is_accepted(self):
+        self.resource.created = datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC)
+        self.resource.save(update_fields=["created"])
+        self.resource.offering.plugin_options = {
+            "max_resource_termination_offset_in_days": 10,
+        }
+        self.resource.offering.save()
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-01-11"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-01-11"))
+
     @data("staff", "owner", "admin")
     @freeze_time("2020-01-01")
     def test_permission_positive(self, user):
@@ -586,6 +645,17 @@ class ProviderSetEndDateTest(test.APITestCase):
         self.resource.save()
         response = self.make_request(self.fixture.offering_owner, {"end_date": None})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date)
+
+    @freeze_time("2020-01-15")
+    def test_end_date_after_project_end_date_is_rejected(self):
+        self.resource.project.end_date = parse_date("2020-01-18")
+        self.resource.project.save()
+        response = self.make_request(
+            self.fixture.offering_owner, {"end_date": "2020-01-19"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.resource.refresh_from_db()
         self.assertIsNone(self.resource.end_date)
 

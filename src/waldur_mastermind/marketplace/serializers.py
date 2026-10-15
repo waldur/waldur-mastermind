@@ -9464,9 +9464,24 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
 
 
 class ResourceEndDateSerializer(serializers.ModelSerializer):
+    """Direct end-date write for holders of SET_RESOURCE_END_DATE.
+
+    A set date uses the same bounds as resource PATCH and end-date change
+    request approval (not before today, not after the project end date, within
+    the offering termination limits). Clearing the date stays allowed. There is
+    no minimum lead time: the 7-day rule belongs only to the deprecated
+    provider serializer.
+    """
+
     class Meta:
         model = models.Resource
         fields = ("end_date",)
+
+    def validate(self, attrs):
+        end_date = attrs.get("end_date")
+        if end_date and self.instance:
+            utils.validate_end_date_for_resource(self.instance, end_date)
+        return attrs
 
     def save(self, **kwargs):
         resource = super().save(**kwargs)
