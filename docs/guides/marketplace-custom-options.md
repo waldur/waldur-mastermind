@@ -642,8 +642,61 @@ of type `component_formula` with the same internal name as the order option:
   the offering (`billing_type: limit`; prepaid one-time components are not
   accepted).
 - While an option refers to a component, the component cannot be removed,
-  renamed or switched to another billing type. If a plan's billing mode stops
+  renamed or switched to another billing type, including by importing the
+  offering with `import_offering`. If a plan's billing mode stops
   billing it as a limit, orders on that plan are refused with an error naming
   the option.
 - A component may be derived by only one option.
 - A sum may not include its own target, and sums may not form a cycle.
+
+## Showing a Resource Option as a Usage Limit
+
+A provider's backend may enforce a quota for a component that Waldur only
+meters, such as a file count. The quota is held in a resource option, and
+`display_limit_config` on that option names the usage-based component it
+belongs to. The resource then shows the component's usage against that value.
+
+```json
+{
+  "resource_options": {
+    "order": ["inode_quota"],
+    "options": {
+      "inode_quota": {
+        "type": "integer",
+        "label": "Inode quota",
+        "display_limit_config": {"component_type": "inodes"}
+      }
+    }
+  }
+}
+```
+
+- **Shown, not stored**: the resource API returns the option's value in the
+  resource's `display_limits` under the component's type, for example
+  `"display_limits": {"inodes": 2000000}`. It is computed when the resource is
+  read, so the value always follows the option and is not affected by limit
+  change orders.
+- **`limits` is unchanged**: the resource's `limits` keep holding only the
+  stored limits of limit-based components. Clients that send a resource's
+  limits back in an order, or compare them with a backend's limits, never see
+  the displayed value there.
+- **Display only**: the value is not billed, validated as a limit or enforced.
+  The component stays usage-based, and usage reports are accepted above it.
+- **A stored limit wins**: if the resource holds a limit for the component, or
+  its plan bills the component by limit, that limit is reported in `limits`
+  and the option's value is not returned in `display_limits`.
+- **No value, no limit**: a resource without the option, or with a value that
+  is not a non-negative number, shows usage only.
+- **Units**: the value is shown as entered, so the option must be in the same
+  unit as the usage reported for the component.
+
+### Validation when the offering is saved
+
+- The setting is accepted on resource options of type `integer` only, not on
+  order options.
+- The component must be a usage-based component of the offering
+  (`billing_type: usage`).
+- A component takes its displayed limit from one option only.
+- While an option refers to a component, the component cannot be removed,
+  renamed or switched to another billing type, including by importing the
+  offering with `import_offering`.
