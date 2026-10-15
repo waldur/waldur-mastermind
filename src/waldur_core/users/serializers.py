@@ -6,7 +6,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.models import UserDetailsMatchMixin
+from waldur_core.core.models import User, UserDetailsMatchMixin
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.core.validators import get_project_name_regex_error
 from waldur_core.permissions.enums import TYPE_MAP
@@ -815,6 +815,18 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
 class TokenSerializer(serializers.Serializer):
     token = serializers.CharField(
         help_text="Authentication token for invitation acceptance"
+    )
+
+
+class UserInvitationAcceptSerializer(serializers.Serializer):
+    user = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Staff only. Accept the invitation for this user instead of the "
+        "caller. The user's email must match the invitation. Empty, null or the "
+        "caller's own uuid accepts for the caller.",
     )
 
 
