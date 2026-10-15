@@ -163,6 +163,7 @@ from waldur_mastermind.marketplace import (
     billing_mode,
     callbacks,
     derived_limits,
+    display_limits,
     provider_accounts,
 )
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
@@ -4635,6 +4636,21 @@ class ProviderOfferingViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        option = display_limits.display_limit_options(offering.resource_options).get(
+            offering_component.type
+        )
+        if option:
+            return Response(
+                {
+                    "details": _(
+                        "The component %(component)s is used by resource option "
+                        "%(option)s; change or remove that option first."
+                    )
+                    % {"component": offering_component.type, "option": option}
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         offering_component.delete()
         return Response(status=status.HTTP_200_OK)
 
@@ -6282,6 +6298,7 @@ class ProviderOfferingViewSet(
     def _import_offering_components(self, offering, components_data):
         """Import offering components."""
         warnings = []
+        shown = display_limits.display_limit_options(offering.resource_options)
 
         for index, component_data in enumerate(components_data):
             path = f"components[{index}]"
@@ -6299,6 +6316,18 @@ class ProviderOfferingViewSet(
                 type=component_type,
                 defaults=values,
             )
+
+            option = shown.get(component_type)
+            billing_type = values.get("billing_type", component.billing_type)
+            if option and billing_type != BillingTypes.USAGE:
+                raise _import_error(
+                    f"{path}.billing_type",
+                    _(
+                        "Component %(component)s is used by resource option "
+                        "%(option)s; change or remove that option first."
+                    )
+                    % {"component": component_type, "option": option},
+                )
 
             if not created:
                 # Update existing component

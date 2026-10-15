@@ -173,6 +173,7 @@ from waldur_pid import models as pid_models
 from . import (
     billing_mode,
     derived_limits,
+    display_limits,
     log,
     models,
     permissions,
@@ -3692,6 +3693,12 @@ class ComponentSumConfigSerializer(serializers.Serializer):
     )
 
 
+class DisplayLimitConfigSerializer(serializers.Serializer):
+    component_type = serializers.CharField(
+        help_text=_("Usage-based component whose limit the option's value is shown as.")
+    )
+
+
 class StorageDataTypeSerializer(serializers.Serializer):
     key = serializers.CharField()
     label = serializers.CharField()
@@ -3821,6 +3828,13 @@ class OptionFieldSerializer(serializers.Serializer):
     component_multiplier_config = ComponentMultiplierConfigSerializer(required=False)
     component_formula_config = ComponentFormulaConfigSerializer(required=False)
     component_sum_config = ComponentSumConfigSerializer(required=False)
+    display_limit_config = DisplayLimitConfigSerializer(
+        required=False,
+        help_text=_(
+            "Show this option's value as the limit of a usage-based component. "
+            "Only for integer resource options; the value is not billed or enforced."
+        ),
+    )
     storage_folder_config = StorageFolderConfigSerializer(required=False)
     default_configs = K8sDefaultConfigurationSerializer(required=False)
     validators = serializers.ListField(
@@ -4003,6 +4017,9 @@ class OfferingOptionsSerializer(serializers.Serializer):
                         }
                     )
             derived_limits.validate_derived_options(options)
+            display_limits.validate_order_options(options)
+        else:
+            display_limits.validate_resource_options(options)
         for name, option in options.items():
             validators = option.get("validators")
             if not validators:
@@ -4409,7 +4426,27 @@ class UpdateOfferingComponent(OfferingComponentSerializer):
 
         if self.instance:
             self._validate_derived_reference(attrs)
+            self._validate_display_limit_reference(attrs)
         return attrs
+
+    def _validate_display_limit_reference(self, attrs):
+        # A resource option shown as this component's limit only makes sense
+        # while the component is metered, not billed by limit.
+        option = display_limits.display_limit_options(
+            self.instance.offering.resource_options
+        ).get(self.instance.type)
+        if not option:
+            return
+        renamed = attrs.get("type", self.instance.type) != self.instance.type
+        billing_type = attrs.get("billing_type", self.instance.billing_type)
+        if renamed or billing_type != BillingTypes.USAGE:
+            raise serializers.ValidationError(
+                _(
+                    "Component %(component)s is used by resource option %(option)s; "
+                    "change or remove that option first."
+                )
+                % {"component": self.instance.type, "option": option}
+            )
 
     def _validate_derived_reference(self, attrs):
         # An order option calculating this component's limit would otherwise
@@ -4606,6 +4643,33 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
             "latitude",
             "longitude",
         )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance:
+            self._validate_display_limit_components(attrs.get("components", []))
+        return attrs
+
+    def _validate_display_limit_components(self, components):
+        # The import replaces the components wholesale, past the guards on
+        # removing or re-billing a component one at a time. Its payload has no
+        # resource options, so the existing ones keep referring to them.
+        billing_types = {
+            component["type"]: component.get("billing_type") for component in components
+        }
+        for component_type, option in display_limits.display_limit_options(
+            self.instance.resource_options
+        ).items():
+            if billing_types.get(component_type) != BillingTypes.USAGE:
+                raise serializers.ValidationError(
+                    {
+                        "components": _(
+                            "Component %(component)s is used by resource option "
+                            "%(option)s; change or remove that option first."
+                        )
+                        % {"component": component_type, "option": option}
+                    }
+                )
 
     def save(self, **kwargs):
         validated_data = self.validated_data
@@ -5752,6 +5816,21 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             attrs["resource_options"] = derived_limits.pair_resource_options(
                 attrs["resource_options"], options
             )
+            self._validate_display_limits(attrs)
+
+    def _validate_display_limits(self, attrs):
+        offering_type = attrs.get("type", getattr(self.instance, "type", None))
+        usage_types = {
+            component.type
+            for component in plugins.manager.get_components(offering_type)
+            if component.billing_type == BillingTypes.USAGE
+        }
+        usage_types |= {
+            component["type"]
+            for component in attrs.get("components") or []
+            if component.get("billing_type") == BillingTypes.USAGE
+        }
+        display_limits.validate_components(attrs["resource_options"], usage_types)
 
     def _validate_offering_group(self, attrs):
         offering_group = attrs.get("offering_group")
@@ -6051,6 +6130,14 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
             resource_options, order_options
         )
         self._check_changed_values_are_kept(resource_options, order_options)
+        display_limits.validate_components(
+            resource_options,
+            set(
+                self.instance.components.filter(
+                    billing_type=BillingTypes.USAGE
+                ).values_list("type", flat=True)
+            ),
+        )
         return resource_options
 
     def _check_changed_values_are_kept(self, resource_options, order_options):
@@ -8405,6 +8492,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "offering_components",
             "has_api_keys",
             "offering_account_settings",
+            "display_limits",
         )
         read_only_fields = (
             "backend_metadata",
@@ -8655,6 +8743,12 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     available_actions = serializers.SerializerMethodField()
     limits = serializers.SerializerMethodField()
+    display_limits = serializers.SerializerMethodField(
+        help_text=_(
+            "Resource option values shown as the limits of usage-based components. "
+            "Display only: not stored in limits, billed or enforced."
+        )
+    )
     attributes = serializers.SerializerMethodField()
     current_usages = serializers.SerializerMethodField(
         help_text="Dictionary mapping component types to their latest reported usage amounts."
@@ -8739,6 +8833,28 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         # float, not int: a component may allow fractional limits, and the
         # annotation is what the generated clients are typed from.
         return resource.limits
+
+    def get_display_limits(self, resource: models.Resource) -> dict[str, float]:
+        # Kept out of limits: clients read limits as the stored quantities
+        # and send them back or compare them with a backend's (see display_limits).
+        shown = display_limits.get_display_limits(
+            resource.offering.resource_options, resource.options
+        )
+        if not shown:
+            return {}
+        stored = resource.limits or {}
+        plan = resource.plan
+        billed = {}
+        if plan and plan.billing_mode in billing_mode.OVERRIDING_BILLING_MODES:
+            # A plan may bill a component stored as usage-based by limit;
+            # what it holds then is a quantity, not a quota to show.
+            # resolve_for_resource reuses the prefetched offering components.
+            billed = billing_mode.resolve_for_resource(resource).limit_components
+        return {
+            key: value
+            for key, value in shown.items()
+            if key not in billed and key not in stored
+        }
 
     def get_attributes(self, resource: models.Resource) -> dict:
         return resource.safe_attributes
