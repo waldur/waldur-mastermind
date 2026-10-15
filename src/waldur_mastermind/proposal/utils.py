@@ -23,6 +23,7 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
+from waldur_mastermind.common.serializers import transform_option_values
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -632,7 +633,12 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
                 project=project,
                 offering=offering,
                 plan=awarded.effective_plan,
-                attributes=awarded.attributes,
+                # Values requested before transforms were applied on request
+                # are stored as an order would store them; others are kept.
+                attributes=transform_option_values(
+                    (offering.options or {}).get("options") or {},
+                    awarded.attributes,
+                ),
                 limits=awarded.limits,
             )
             resource = marketplace_models.Resource(

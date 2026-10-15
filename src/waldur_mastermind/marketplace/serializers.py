@@ -100,13 +100,17 @@ from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import (
     K8S_TOPOLOGY_MODES,
     MAX_PATTERN_LENGTH,
+    MAX_TRANSFORM_AFFIX_LENGTH,
     PATTERN_FIELD_TYPES,
+    TRANSFORM_CASES,
+    TRANSFORM_FIELD_TYPES,
     VISIBLE_IF_FIELD_TYPES,
     compile_option_pattern,
     get_hidden_options,
     option_pattern_matches,
     strip_hidden_options,
     strip_non_input_options,
+    strip_option_affixes,
     validate_options,
 )
 from waldur_mastermind.common.utils import prices_are_equal
@@ -3773,6 +3777,37 @@ class OptionVisibleIfSerializer(serializers.Serializer):
 UNIQUE_OPTION_FIELD_TYPES = ("string", "text", "integer", "select_string")
 
 
+class OptionTransformSerializer(serializers.Serializer):
+    prefix = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        # Whitespace is part of what is added.
+        trim_whitespace=False,
+        max_length=MAX_TRANSFORM_AFFIX_LENGTH,
+        help_text=_("Text added before the value."),
+    )
+    suffix = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
+        max_length=MAX_TRANSFORM_AFFIX_LENGTH,
+        help_text=_("Text added after the value."),
+    )
+    case = serializers.ChoiceField(
+        choices=TRANSFORM_CASES,
+        required=False,
+        allow_blank=True,
+        help_text=_(
+            "Convert the part the user typed to lower or upper case. "
+            "The prefix and suffix are kept as written."
+        ),
+    )
+
+    def validate(self, attrs):
+        # A cleared field arrives as a blank string and means "none".
+        return {key: value for key, value in attrs.items() if value != ""}
+
+
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
@@ -3822,10 +3857,21 @@ class OptionFieldSerializer(serializers.Serializer):
         max_length=255,
         help_text=_("Error shown when the value does not match the pattern."),
     )
+    transform = OptionTransformSerializer(
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "Rewrite the value before it is stored: add a prefix or suffix, "
+            "or change its case. Only for string and text options. The "
+            "pattern is checked against the value the user typed. A value "
+            "that already carries the prefix or suffix does not get it twice."
+        ),
+    )
 
     def validate(self, attrs):
         field_type = attrs.get("type")
         self._validate_pattern(attrs)
+        self._validate_transform(attrs)
 
         if attrs.get("unique") and field_type not in UNIQUE_OPTION_FIELD_TYPES:
             raise serializers.ValidationError(
@@ -3899,6 +3945,9 @@ class OptionFieldSerializer(serializers.Serializer):
         default = attrs.get("default")
         if not default:
             return
+        # The pattern describes the part the user types, so a default that
+        # already carries the transform's prefix or suffix is checked without.
+        default = strip_option_affixes(attrs.get("transform") or {}, default)
         try:
             default_matches = option_pattern_matches(pattern, default)
         except TimeoutError:
@@ -3908,6 +3957,20 @@ class OptionFieldSerializer(serializers.Serializer):
         if not default_matches:
             raise serializers.ValidationError(
                 {"default": _("The default value does not match the pattern.")}
+            )
+
+    def _validate_transform(self, attrs):
+        if "transform" in attrs and not attrs["transform"]:
+            # Cleared, or every key blank.
+            del attrs["transform"]
+            return
+        if "transform" in attrs and attrs.get("type") not in TRANSFORM_FIELD_TYPES:
+            raise serializers.ValidationError(
+                {
+                    "transform": _(
+                        "A transform is only allowed for string and text options."
+                    )
+                }
             )
 
 
@@ -6839,9 +6902,17 @@ class OrderUpdateSerializer(BaseOrderSerializer):
     def validate(self, attrs):
         options = (self.instance.offering.options or {}).get("options")
         if options and "attributes" in attrs:
-            attrs["attributes"] = strip_non_input_options(
-                options, strip_hidden_options(options, attrs["attributes"])
-            )
+            if self.instance.type == OrderTypes.CREATE:
+                # Check the edited form values as at order creation (types,
+                # pattern) and store them transformed. Required options are
+                # not enforced, as an edit may send only some values.
+                attrs["attributes"] = validate_options(
+                    options, attrs["attributes"], optional=True
+                )
+            else:
+                attrs["attributes"] = strip_non_input_options(
+                    options, strip_hidden_options(options, attrs["attributes"])
+                )
         attributes = attrs.get("attributes", self.instance.attributes) or {}
         if (
             options
@@ -6969,6 +7040,16 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
                 exclude_resource=order.resource,
             )
         if order.type == OrderTypes.CREATE:
+            options = (order.offering.options or {}).get("options")
+            if options:
+                # The provider's values are checked and transformed as the
+                # ordered ones were, so the checks below see what is stored.
+                hidden = get_hidden_options(
+                    options, {**(order.attributes or {}), **attributes}
+                )
+                attributes = validate_options(
+                    options, attributes, optional=True, hidden=hidden
+                )
             self._validate_unique_create_values(order, attributes)
         return attributes
 
@@ -10102,13 +10183,14 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
             )
 
         options = resource_options["options"]
-        merged = {**(self.instance.options or {}), **attrs}
-        hidden = get_hidden_options(options, merged)
-        validate_options(options, attrs, optional=True, hidden=hidden)
-        self._validate_unique_options(
-            {key: value for key, value in attrs.items() if key not in hidden}
+        hidden = get_hidden_options(options, {**(self.instance.options or {}), **attrs})
+        # Store the values as validate_options returns them, transformed, and
+        # check those for uniqueness, as they are what other resources hold.
+        attrs = validate_options(options, attrs, optional=True, hidden=hidden)
+        self._validate_unique_options(attrs)
+        return strip_hidden_options(
+            options, {**(self.instance.options or {}), **attrs}, hidden
         )
-        return strip_hidden_options(options, merged, hidden)
 
     def _validate_unique_options(self, values):
         # Only values that change are checked, as at provider approval: a

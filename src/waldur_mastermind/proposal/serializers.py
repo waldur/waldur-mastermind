@@ -31,6 +31,7 @@ from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer
+from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -1410,6 +1411,23 @@ class RequestedOfferingSerializer(
 PREPAID_DURATION_FIELD = "attributes.prepaid_duration_months"
 
 
+def _validate_option_values(attributes, offering):
+    """The requested option values as an order for them would store them.
+
+    They are checked as at order creation (types, pattern), but not for
+    required options, which a request may leave for later. Values of options
+    with a transform are stored transformed, so the request, the award and the
+    resource allocated from it carry what the order form previewed.
+    """
+    options = (offering.options or {}).get("options")
+    if not options or not attributes:
+        return attributes
+    try:
+        return validate_options(options, attributes, optional=True)
+    except serializers.ValidationError as e:
+        raise serializers.ValidationError({"attributes": e.detail})
+
+
 def _validate_prepaid_duration(attributes, offering, proposal_round):
     """Hold the requested subscription length to the terms it is sold under.
 
@@ -1491,10 +1509,12 @@ class RequestedResourceSerializer(
     def validate(self, attrs):
         if self.instance:
             if "attributes" in attrs:
+                offering = self.instance.requested_offering.offering
+                attrs["attributes"] = _validate_option_values(
+                    attrs["attributes"], offering
+                )
                 _validate_prepaid_duration(
-                    attrs["attributes"],
-                    self.instance.requested_offering.offering,
-                    self.instance.proposal.round,
+                    attrs["attributes"], offering, self.instance.proposal.round
                 )
             return attrs
 
@@ -1564,11 +1584,10 @@ class RequestedResourceSerializer(
                 )
             )
 
-        _validate_prepaid_duration(
-            attrs.get("attributes"),
-            attrs["requested_offering"].offering,
-            proposal.round,
-        )
+        offering = attrs["requested_offering"].offering
+        if attrs.get("attributes"):
+            attrs["attributes"] = _validate_option_values(attrs["attributes"], offering)
+        _validate_prepaid_duration(attrs.get("attributes"), offering, proposal.round)
         return attrs
 
     def validate_attributes(self, attributes):
@@ -1802,6 +1821,9 @@ class AwardedResourceSerializer(serializers.ModelSerializer):
             else (self.instance.attributes if self.instance else {})
         )
         if "attributes" in attrs or moved:
+            attributes = _validate_option_values(attributes, offering)
+            if "attributes" in attrs:
+                attrs["attributes"] = attributes
             _validate_prepaid_duration(attributes, offering, proposal.round)
 
         return attrs
