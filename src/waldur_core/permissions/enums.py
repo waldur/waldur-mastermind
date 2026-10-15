@@ -240,6 +240,12 @@ class PermissionEnum(StrEnum):
     VIEW_CUSTOMER_TEAM = "CUSTOMER.VIEW_TEAM"
     VIEW_PROJECT_TEAM = "PROJECT.VIEW_TEAM"
 
+    # Accounting visibility (invoices, payments, payment profiles, credits).
+    # HomePort gates its Accounting pages on it rather than on the owner role,
+    # so a role that copies the owner minus ORDER.* still sees them. The API
+    # does not enforce it yet: those reads are open to any organization role.
+    VIEW_CUSTOMER_ACCOUNTING = "CUSTOMER.VIEW_ACCOUNTING"
+
     ACCEPT_REQUESTED_OFFERING = "OFFERING.ACCEPT_CALL_REQUEST"
     APPROVE_AND_REJECT_PROPOSALS = "CALL.APPROVE_AND_REJECT_PROPOSALS"
     CLOSE_ROUNDS = "CALL.CLOSE_ROUNDS"

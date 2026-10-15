@@ -165,6 +165,33 @@ The test suite mirrors the YAML grant: an autouse fixture in the root
 project-scoped system role that `get_system_role` creates. A test that needs
 the permission absent calls `role.delete_permission(...)`.
 
+## Accounting visibility
+
+`CUSTOMER.VIEW_ACCOUNTING` (`PermissionEnum.VIEW_CUSTOMER_ACCOUNTING`) decides
+whether HomePort shows an organization's Accounting pages: invoices, payments,
+payment profiles and credits. HomePort checks the permission, not the role
+name, so a clone of `CUSTOMER.OWNER` with `ORDER.*` removed still sees
+Accounting but cannot place orders. Staff always see it.
+
+`permissions.yaml` grants it to `CUSTOMER.OWNER` only, the role that saw these
+pages before. `import_roles` adds it to the owner role on the next deployment;
+a stack that skips initdb (the local dev stack) needs `waldur import_roles`
+run by hand. A clone of the owner copies its template's permissions once, so
+clones made after the upgrade have it, but clones that already exist do not:
+grant it to them in the role editor. Until then such a clone sees every other
+owner screen but not Accounting, as before. Other roles get it only when
+someone grants it, in the role editor or in `custom-roles.yaml`.
+
+The API does not enforce the permission yet. Invoice, payment, payment profile
+and credit reads are filtered by `GenericRoleFilter`, so any role on the
+organization can still list them. Creating, editing and deleting a project
+credit stays with owners and their clones (`is_owner`), so a role that only
+views accounting sees credits read-only. The permission does widen one read:
+a project credit's organization-wide figures (`customer_credit`,
+`allocated_customer_credit`, `offerings`) are shown to owners and to roles
+that grant `CUSTOMER.VIEW_ACCOUNTING` on the organization, and hidden from
+everyone else.
+
 ## Slug permissions
 
 Site agents name backend accounts after slugs: a SLURM account from the resource
