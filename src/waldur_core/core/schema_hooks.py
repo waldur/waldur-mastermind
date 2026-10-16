@@ -425,6 +425,14 @@ def _has_binary_field(schema_ref: dict[str, Any], full_spec: dict[str, Any]) -> 
         for prop in schema_ref["properties"].values():
             if prop.get("type") == "string" and prop.get("format") == "binary":
                 return True
+            # A list of files, such as several documents uploaded at once.
+            items = prop.get("items") or {}
+            if (
+                prop.get("type") == "array"
+                and items.get("type") == "string"
+                and items.get("format") == "binary"
+            ):
+                return True
             if prop.get("type") == "object" or "$ref" in prop:
                 if _has_binary_field(prop, full_spec):
                     return True
