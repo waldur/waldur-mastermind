@@ -1,4 +1,5 @@
 import copy
+import functools
 import json
 from collections import defaultdict
 from urllib.parse import quote
@@ -8,10 +9,13 @@ from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import forms as admin_forms
+from django.contrib.admin.actions import delete_selected
+from django.contrib.admin.models import DELETION, LogEntry
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.auth import admin as auth_admin
 from django.contrib.auth import forms as auth_forms
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt
 from django.http import HttpResponseRedirect
@@ -35,7 +39,10 @@ from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import constance_admin as waldur_constance_admin  # noqa: F401
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
+from waldur_core.core.handlers import emit_admin_action_event
 from waldur_core.core.utils import chunked_queryset
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.passkeys import admin_auth
 from waldur_core.passkeys import policy as passkey_policy
 
@@ -460,6 +467,19 @@ class CustomAdminAuthenticationForm(admin_forms.AdminAuthenticationForm):
         if not can_access_admin_site(user):
             return super().confirm_login_allowed(user)
 
+    def clean(self):
+        try:
+            return super().clean()
+        except ValidationError:
+            username = self.cleaned_data.get("username", "")
+            event_logger.emit_failed_login(
+                "User {username} failed to log in to the admin site.",
+                event_type=EventType.AUTH_LOGIN_FAILED_TO_ADMIN_SITE,
+                event_context={"username": username},
+                identity=username,
+            )
+            raise
+
 
 class CustomAdminSite(admin.AdminSite):
     site_title = _("Waldur MasterMind admin")
@@ -492,7 +512,24 @@ class CustomAdminSite(admin.AdminSite):
             if next_url:
                 target = f"{target}?{REDIRECT_FIELD_NAME}={quote(next_url)}"
             return HttpResponseRedirect(target)
-        return super().login(request, extra_context)
+        response = super().login(request, extra_context)
+        # LoginView redirects only after a successful form submission. Under
+        # passkey enforcement the password is only the first half of the login,
+        # and the passkey step logs the outcome of the whole.
+        if (
+            request.method == "POST"
+            and request.user.is_authenticated
+            and isinstance(response, HttpResponseRedirect)
+            and not passkey_policy.is_enforced_for(request.user)
+        ):
+            event_logger.emit(
+                "User {user_username} with full name {user_full_name} "
+                "logged in to the admin site with username and password.",
+                event_type=EventType.AUTH_LOGGED_IN_TO_ADMIN_SITE,
+                event_context={"user": request.user},
+                scopes=[request.user],
+            )
+        return response
 
     def get_urls(self):
         from django.urls import path
@@ -530,7 +567,30 @@ class CustomAdminSite(admin.AdminSite):
         return instance
 
 
+@functools.wraps(delete_selected)
+def delete_selected_with_events(modeladmin, request, queryset):
+    objects = list(queryset) if request.POST.get("post") else []
+    response = delete_selected(modeladmin, request, queryset)
+    # Deleting several objects logs them with bulk_create, which sends no
+    # post_save, so log_admin_action never sees those LogEntry rows.
+    if response is None and len(objects) > 1:
+        for obj in objects:
+            emit_admin_action_event(
+                LogEntry(
+                    user=request.user,
+                    content_type=ContentType.objects.get_for_model(
+                        obj, for_concrete_model=False
+                    ),
+                    object_id=str(obj.pk),
+                    object_repr=str(obj)[:200],
+                    action_flag=DELETION,
+                )
+            )
+    return response
+
+
 admin_site = CustomAdminSite.clone_default()
+admin_site.add_action(delete_selected_with_events, "delete_selected")
 admin.site = admin_site
 admin.site.register(models.User, UserAdmin)
 admin.site.register(models.SshPublicKey, SshPublicKeyAdmin)

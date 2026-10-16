@@ -12,7 +12,12 @@ from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
+from rest_framework.exceptions import (
+    APIException,
+    AuthenticationFailed,
+    NotFound,
+    ValidationError,
+)
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
@@ -63,6 +68,8 @@ logger = logging.getLogger(__name__)
 
 
 OIDC_STATE_KEY = "oidc_state"
+
+MAX_FAILURE_REASON_LENGTH = 200
 
 OIDC_CODE_VERIFIER_KEY = "oidc_code_verifier"
 
@@ -251,7 +258,17 @@ class OAuthViewComplete(BaseOAuthView):
         self.validate_config(provider)
         try:
             return self._complete_login(request, provider)
-        except OAuthException as e:
+        except APIException as e:
+            reason = self.get_failure_reason(request, e)
+            # error and error_description come from the query string, so only
+            # the short error code keys the deduplication.
+            error = request.query_params.get("error", "")[:MAX_FAILURE_REASON_LENGTH]
+            event_logger.emit_failed_login(
+                "OAuth authentication with {provider} failed: {reason}",
+                event_type=EventType.AUTH_LOGIN_FAILED_WITH_OAUTH,
+                event_context={"provider": provider, "reason": reason},
+                identity=f"{provider}:{error or reason}",
+            )
             # The complete endpoint is reached via a top-level browser navigation
             # (the IdP redirects here directly), so raising a DRF exception would
             # render raw JSON in the browser. For user-facing messages (e.g. the
@@ -261,6 +278,21 @@ class OAuthViewComplete(BaseOAuthView):
             if getattr(e, "user_facing", False):
                 return login_failed(e.user_message)
             raise
+
+    @staticmethod
+    def get_failure_reason(request, exc):
+        # An IdP that rejects the request (e.g. the user declined consent)
+        # redirects back with error/error_description and no code, which only
+        # surfaces here as a validation error about the missing code.
+        error = request.query_params.get("error")
+        if error:
+            description = request.query_params.get("error_description")
+            reason = f"{error} ({description})" if description else error
+        elif isinstance(exc, OAuthException):
+            reason = exc.user_message
+        else:
+            reason = str(exc.detail)
+        return reason[:MAX_FAILURE_REASON_LENGTH]
 
     def _complete_login(self, request, provider):
         stored_state = self.request.session.get(OIDC_STATE_KEY)

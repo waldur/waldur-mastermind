@@ -2644,7 +2644,7 @@ class Command(BaseCommand):
     def export_events(self):
         """Export audit log events related to invoicing, credits and policies."""
         event_types = set()
-        for group in [EventGroup.INVOICES, EventGroup.CREDITS]:
+        for group in [EventGroup.INVOICES, EventGroup.CREDITS, EventGroup.POLICIES]:
             event_types.update(
                 item.value for item in EVENT_GROUP_MAPPING.get(group, [])
             )

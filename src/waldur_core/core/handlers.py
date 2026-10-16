@@ -1,5 +1,6 @@
 import reversion
 from django.conf import settings
+from django.contrib.admin.models import ADDITION, CHANGE, DELETION, LogEntry
 from django.contrib.auth.hashers import is_password_usable
 from django.core.cache import cache
 from django.db.models.fields.files import FieldFile
@@ -490,3 +491,39 @@ def log_user_locked_out(sender, username=None, ip_address=None, request=None, **
 def constance_updated(sender, key, old_value, new_value, **kwargs):
     """Clear the API configuration cache when a Constance setting is updated."""
     cache.delete("API_CONFIGURATION")
+
+
+ADMIN_ACTION_EVENTS = {
+    ADDITION: (EventType.ADMIN_OBJECT_CREATED, "created"),
+    CHANGE: (EventType.ADMIN_OBJECT_UPDATED, "updated"),
+    DELETION: (EventType.ADMIN_OBJECT_DELETED, "deleted"),
+}
+
+
+def emit_admin_action_event(log_entry: LogEntry):
+    """Emit an audit event for an add, change or delete made in the admin site."""
+    event_type, verb = ADMIN_ACTION_EVENTS[log_entry.action_flag]
+    content_type = log_entry.content_type
+    event_logger.emit(
+        "{admin_object_type} {admin_object_repr} has been %s "
+        "in the admin site by {user_username}." % verb,
+        event_type=event_type,
+        event_context={
+            "user": log_entry.user,
+            "admin_object_type": (
+                f"{content_type.app_label}.{content_type.model}" if content_type else ""
+            ),
+            # A freshly created entry still holds obj.pk as given, not as text.
+            "admin_object_id": (
+                "" if log_entry.object_id is None else str(log_entry.object_id)
+            ),
+            "admin_object_repr": log_entry.object_repr,
+            "admin_change_message": log_entry.get_change_message(),
+        },
+        scopes=[],
+    )
+
+
+def log_admin_action(sender, instance: LogEntry, created=False, **kwargs):
+    if created and instance.action_flag in ADMIN_ACTION_EVENTS:
+        emit_admin_action_event(instance)

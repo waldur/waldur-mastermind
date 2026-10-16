@@ -13,15 +13,24 @@ class EventType(StrEnum):
     )
     OFFERING_ACCESS_SUBNET_UPDATE_SUCCEEDED = "offering_access_subnet_update_succeeded"
     ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED = "allowed_offerings_have_been_updated"
+    ADMIN_OBJECT_CREATED = "admin_object_created"
+    ADMIN_OBJECT_DELETED = "admin_object_deleted"
+    ADMIN_OBJECT_UPDATED = "admin_object_updated"
     ATTACHMENT_CREATED = "attachment_created"
     ATTACHMENT_DELETED = "attachment_deleted"
     ATTACHMENT_UPDATED = "attachment_updated"
     AUTH_LOGGED_IN_WITH_SAML2 = "auth_logged_in_with_saml2"
     AUTH_LOGGED_IN_WITH_USERNAME = "auth_logged_in_with_username"
     AUTH_LOGGED_IN_WITH_OAUTH = "auth_logged_in_with_oauth"
+    AUTH_LOGGED_IN_WITH_VALIMO = "auth_logged_in_with_valimo"
+    AUTH_LOGGED_IN_TO_ADMIN_SITE = "auth_logged_in_to_admin_site"
     AUTH_LOGGED_OUT = "auth_logged_out"
     AUTH_LOGGED_OUT_WITH_SAML2 = "auth_logged_out_with_saml2"
     AUTH_LOGIN_FAILED_WITH_USERNAME = "auth_login_failed_with_username"
+    AUTH_LOGIN_FAILED_WITH_OAUTH = "auth_login_failed_with_oauth"
+    AUTH_LOGIN_FAILED_WITH_SAML2 = "auth_login_failed_with_saml2"
+    AUTH_LOGIN_FAILED_WITH_VALIMO = "auth_login_failed_with_valimo"
+    AUTH_LOGIN_FAILED_TO_ADMIN_SITE = "auth_login_failed_to_admin_site"
     BLOCK_CREATION_OF_NEW_RESOURCES = "block_creation_of_new_resources"
     BLOCK_MODIFICATION_OF_EXISTING_RESOURCES = (
         "block_modification_of_existing_resources"
@@ -56,6 +65,7 @@ class EventType(StrEnum):
     MARKETPLACE_OFFERING_COMPONENT_DELETED = "marketplace_offering_component_deleted"
     MARKETPLACE_OFFERING_COMPONENT_UPDATED = "marketplace_offering_component_updated"
     MARKETPLACE_OFFERING_CREATED = "marketplace_offering_created"
+    MARKETPLACE_OFFERING_DELETED = "marketplace_offering_deleted"
     MARKETPLACE_OFFERING_MERGE_CREATED = "marketplace_offering_merge_created"
     MARKETPLACE_OFFERING_MERGE_EXECUTED = "marketplace_offering_merge_executed"
     MARKETPLACE_OFFERING_MERGE_FAILED = "marketplace_offering_merge_failed"
@@ -254,7 +264,10 @@ class EventType(StrEnum):
     PAYMENT_ADDED = "payment_added"
     PAYMENT_CREATED = "payment_created"
     PAYMENT_REMOVED = "payment_removed"
+    POLICY_CREATED = "policy_created"
+    POLICY_DELETED = "policy_deleted"
     POLICY_NOTIFICATION = "policy_notification"
+    POLICY_UPDATED = "policy_updated"
     PROJECT_CREATION_SUCCEEDED = "project_creation_succeeded"
     PROJECT_DELETION_SUCCEEDED = "project_deletion_succeeded"
     PROJECT_DELETION_TRIGGERED = "project_deletion_triggered"
@@ -422,6 +435,7 @@ class EventType(StrEnum):
     TERMINATE_RESOURCES = "terminate_resources"
     TOKEN_CREATED = "token_created"
     TOKEN_LIFETIME_UPDATED = "token_lifetime_updated"
+    TOKEN_VIEWED = "token_viewed"
     UPDATE_OF_AFFILIATE_BY_STAFF = "update_of_affiliate_by_staff"
     UPDATE_OF_CREDIT_BY_STAFF = "update_of_credit_by_staff"
     UPDATE_OF_PROJECT_CREDIT_BY_STAFF = "update_of_project_credit_by_staff"
@@ -476,6 +490,7 @@ class EventType(StrEnum):
 
 class EventGroup(StrEnum):
     ACCESS_SUBNETS = "access_subnets"
+    ADMIN = "admin"
     AUTH = "auth"
     CALL = "call"
     CHAT = "chat"
@@ -498,6 +513,7 @@ class EventGroup(StrEnum):
     OPENSTACK_SECURITY_GROUP = "openstack_security_group"
     OPENSTACK_SUBNET = "openstack_subnet"
     PERMISSIONS = "permissions"
+    POLICIES = "policies"
     PROJECTS = "projects"
     PROPOSAL = "proposal"
     PROVIDERS = "providers"
@@ -518,14 +534,26 @@ EVENT_GROUP_MAPPING = {
         EventType.OFFERING_ACCESS_SUBNET_DELETION_SUCCEEDED,
         EventType.OFFERING_ACCESS_SUBNET_UPDATE_SUCCEEDED,
     ],
+    EventGroup.ADMIN: [
+        EventType.ADMIN_OBJECT_CREATED,
+        EventType.ADMIN_OBJECT_UPDATED,
+        EventType.ADMIN_OBJECT_DELETED,
+    ],
     EventGroup.AUTH: [
         EventType.AUTH_LOGGED_IN_WITH_USERNAME,
         EventType.AUTH_LOGGED_IN_WITH_OAUTH,
+        EventType.AUTH_LOGGED_IN_WITH_VALIMO,
+        EventType.AUTH_LOGGED_IN_TO_ADMIN_SITE,
         EventType.AUTH_LOGGED_OUT,
         EventType.AUTH_LOGIN_FAILED_WITH_USERNAME,
+        EventType.AUTH_LOGIN_FAILED_WITH_OAUTH,
+        EventType.AUTH_LOGIN_FAILED_WITH_SAML2,
+        EventType.AUTH_LOGIN_FAILED_WITH_VALIMO,
+        EventType.AUTH_LOGIN_FAILED_TO_ADMIN_SITE,
         EventType.USER_BLOCKED,
         EventType.TOKEN_CREATED,
         EventType.TOKEN_LIFETIME_UPDATED,
+        EventType.TOKEN_VIEWED,
         EventType.PAT_CREATED,
         EventType.PAT_REVOKED,
         EventType.PAT_ROTATED,
@@ -679,7 +707,13 @@ EVENT_GROUP_MAPPING = {
         EventType.ROUND_RESULTS_PUBLISHED,
         EventType.ROUND_UNDECIDED_PROPOSALS_REJECTED,
     ],
+    EventGroup.POLICIES: [
+        EventType.POLICY_CREATED,
+        EventType.POLICY_UPDATED,
+        EventType.POLICY_DELETED,
+    ],
     EventGroup.PROVIDERS: [
+        EventType.MARKETPLACE_OFFERING_DELETED,
         EventType.MARKETPLACE_PROVIDER_PROJECT_GROUP_GID_UPDATED,
         EventType.MARKETPLACE_RESOURCE_CREATE_CANCELED,
         EventType.MARKETPLACE_RESOURCE_CREATE_FAILED,

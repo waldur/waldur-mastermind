@@ -1,11 +1,14 @@
 """Event loggers that allows to store logs in DB"""
 
 import copy
+import hashlib
 import logging
+import time
 from decimal import Decimal
 
 import structlog
 from constance import config
+from django.core.cache import cache
 from django.dispatch import Signal
 
 from waldur_core.core.middleware import get_skip_side_effects
@@ -97,6 +100,34 @@ def emit(
                 models.Feed.objects.create(scope=scope, event=event)
 
     event_emitted.send(sender=type(event), instance=event)
+
+
+FAILED_LOGIN_DEDUP_TIMEOUT = 60
+FAILED_LOGIN_EVENTS_PER_MINUTE = 20
+
+
+def emit_failed_login(
+    message_template: str,
+    event_type: EventType,
+    event_context: dict,
+    identity: str = "",
+):
+    """Emit a failed-login event with bounded volume.
+
+    These endpoints take anonymous requests and, unlike username login, have no
+    lockout to bound them. An identical failure is logged once a minute, and a
+    type is capped at FAILED_LOGIN_EVENTS_PER_MINUTE events a minute. The key
+    leaves out the client IP: it comes from X-Forwarded-For, which the client
+    sets, so varying it or the identity only runs into the cap.
+    """
+    digest = hashlib.sha256(f"{event_type}:{identity}".encode()).hexdigest()
+    if not cache.add(f"FAILED_LOGIN_EVENT_{digest}", True, FAILED_LOGIN_DEDUP_TIMEOUT):
+        return
+    counter_key = f"FAILED_LOGIN_EVENTS_{event_type}_{int(time.time() // 60)}"
+    cache.add(counter_key, 0, 2 * FAILED_LOGIN_DEDUP_TIMEOUT)
+    if cache.incr(counter_key) > FAILED_LOGIN_EVENTS_PER_MINUTE:
+        return
+    emit(message_template, event_type, event_context, scopes=[])
 
 
 def get_valid_events():

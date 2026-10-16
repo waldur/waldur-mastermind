@@ -7,10 +7,33 @@ from django.utils import timezone
 from waldur_core.core import tasks
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.models import User
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 
 from . import client, models
 
 logger = logging.getLogger(__name__)
+
+
+def emit_login_failed(auth_result, reason):
+    event_logger.emit(
+        "Valimo authentication {auth_result_uuid} failed: {reason}",
+        event_type=EventType.AUTH_LOGIN_FAILED_WITH_VALIMO,
+        event_context={
+            "auth_result_uuid": auth_result.uuid.hex,
+            "reason": reason,
+        },
+        scopes=[],
+    )
+
+
+class AuthErrorTask(tasks.ErrorStateTransitionTask):
+    """Covers what PollTask cannot report itself: a failed signature request
+    and a poll that ran out of retries before the user answered."""
+
+    def execute(self, instance):
+        super().execute(instance)
+        emit_login_failed(instance, instance.error_message)
 
 
 class AuthTask(tasks.StateTransitionTask):
@@ -43,6 +66,7 @@ class PollTask(tasks.Task):
             auth_result.set_canceled()
             auth_result.details = response.details
             auth_result.save(update_fields=["state", "details"])
+            emit_login_failed(auth_result, auth_result.details)
             logger.info(
                 "PKI login failed for auth result %s, details: %s.",
                 auth_result.uuid.hex,
@@ -63,9 +87,17 @@ class PollTask(tasks.Task):
             user.last_login = timezone.now()
             user.save(update_fields=["last_login"])
             logger.info("PKI login was successfully done for user %s.", user.username)
+            event_logger.emit(
+                "User {user_username} with full name {user_full_name} "
+                "authenticated successfully with Valimo.",
+                event_type=EventType.AUTH_LOGGED_IN_WITH_VALIMO,
+                event_context={"user": user},
+                scopes=[user],
+            )
         except User.DoesNotExist:
             auth_result.details = "User is not registered."
             auth_result.set_canceled()
+            emit_login_failed(auth_result, auth_result.details)
             logger.info(
                 "PKI login failed for auth result %s - user record does not exist in Waldur.",
                 auth_result.uuid.hex,

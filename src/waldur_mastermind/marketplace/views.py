@@ -2951,11 +2951,24 @@ class ProviderOfferingViewSet(
                     status=status.HTTP_403_FORBIDDEN,
                 )
             else:
-                offering.delete()
+                self.perform_destroy(offering)
                 return Response(
                     status=status.HTTP_204_NO_CONTENT,
                 )
         return super().destroy(request, *args, **kwargs)
+
+    def perform_destroy(self, instance):
+        # Emitted here rather than from post_delete: a customer deletion
+        # cascades to its offerings after the customer row is gone, and
+        # cleanup commands delete offerings that nobody removed by hand.
+        customer = instance.customer
+        super().perform_destroy(instance)
+        event_logger.emit(
+            "Offering {offering_name} has been deleted.",
+            event_type=EventType.MARKETPLACE_OFFERING_DELETED,
+            event_context={"offering": instance},
+            scopes=[customer],
+        )
 
     @extend_schema(
         summary="Activate an offering",
