@@ -11594,6 +11594,10 @@
     },
     {
       "role_name": "CUSTOMER.OWNER",
+      "permission": "OFFERING.UPDATE_ENDPOINT"
+    },
+    {
+      "role_name": "CUSTOMER.OWNER",
       "permission": "OFFERING.UPDATE_INTEGRATION"
     },
     {
