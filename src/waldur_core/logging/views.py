@@ -3,6 +3,7 @@ import logging
 
 import rest_framework
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import connection, transaction
 from django.db.models import Count, Max
 from django_filters.rest_framework import DjangoFilterBackend
@@ -29,7 +30,16 @@ from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core.serializers import StatusSerializer
-from waldur_core.logging import backend, enums, filters, models, serializers, utils
+from waldur_core.logging import (
+    backend,
+    enums,
+    event_dispatch,
+    event_logger,
+    filters,
+    models,
+    serializers,
+    utils,
+)
 from waldur_core.logging.availability import get_available_event_groups
 from waldur_core.structure.serializers_data_access import (
     GlobalUserDataAccessLogSerializer,
@@ -1204,6 +1214,10 @@ def _resolve_consumer_authorization(request, resolved_scopes) -> str:
     return enums.ConsumerAuthorization.SCOPE_ROLE
 
 
+# Minimum interval between two resyncs of one consumer, in seconds.
+RESYNC_COOLDOWN = 15 * 60
+
+
 class EventConsumerViewSet(
     mixins.ListModelMixin,
     mixins.DestroyModelMixin,
@@ -1233,6 +1247,17 @@ class EventConsumerViewSet(
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.EventConsumerFilter
+
+    def perform_destroy(self, instance):
+        # Support may list consumers and remove queue consumers, but a webhook
+        # is a staff-owned integration with a third party; only staff end it.
+        if instance.is_webhook and not core_permissions.IsStaff().has_permission(
+            self.request, self
+        ):
+            raise rest_framework.exceptions.PermissionDenied(
+                "Only staff can deregister a webhook consumer."
+            )
+        super().perform_destroy(instance)
 
     def get_queryset(self):
         # Consumers owned by a site agent are excluded platform-wide: they are
@@ -1307,7 +1332,13 @@ class EventConsumerViewSet(
                 # and Postgres refuses FOR UPDATE on the nullable side of one.
                 # We only need the consumer rows locked anyway.
                 models.EventConsumer.objects.select_for_update(of=("self",))
-                .filter(user=request.user, agent_identity__isnull=True)
+                # A webhook consumer with the same bindings is a different
+                # consumer, not one to provision a queue onto.
+                .filter(
+                    user=request.user,
+                    agent_identity__isnull=True,
+                    delivery=models.EventConsumer.Delivery.RMQ,
+                )
                 .prefetch_related("scopes")
             )
             for candidate in candidates:
@@ -1398,6 +1429,206 @@ class EventConsumerViewSet(
         out = serializers.EventConsumerRegistrationResponseSerializer(data=result)
         out.is_valid(raise_exception=True)
         return response.Response(out.data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        description="Create a webhook event consumer: the same messages a queue "
+        "consumer receives are POSTed as JSON to `webhook_url` instead. Staff "
+        "only. An EMPTY `scopes` list makes it global (all events, including "
+        "all-user PII). Use `payload_filters` to narrow delivery, e.g. to one "
+        "role, and `resync` to send the current state once.",
+        request=serializers.EventConsumerWebhookSerializer,
+        responses={status.HTTP_201_CREATED: serializers.EventConsumerSerializer},
+    )
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated, core_permissions.IsStaff],
+    )
+    def register_webhook(self, request):
+        input_serializer = serializers.EventConsumerWebhookSerializer(
+            data=request.data, context={"request": request}
+        )
+        input_serializer.is_valid(raise_exception=True)
+        data = input_serializer.validated_data
+        resolved_scopes = data.get("scopes", [])
+
+        # Consumer + bindings in ONE transaction, as in register: a consumer
+        # left without its bindings is a global one.
+        with transaction.atomic():
+            consumer = models.EventConsumer.objects.create(
+                user=request.user,
+                delivery=models.EventConsumer.Delivery.WEBHOOK,
+                webhook_url=data["webhook_url"],
+                object_types=data.get("object_types") or [],
+                payload_filters=data.get("payload_filters") or {},
+            )
+            models.EventConsumerScope.objects.bulk_create(
+                [
+                    models.EventConsumerScope(
+                        consumer=consumer,
+                        content_type_id=scope["content_type_id"],
+                        object_id=scope["object_id"],
+                    )
+                    for scope in resolved_scopes
+                ]
+            )
+            utils.record_consumer_attribution(
+                consumer,
+                request,
+                _resolve_consumer_authorization(request, resolved_scopes),
+            )
+
+        consumer = self.get_queryset().get(pk=consumer.pk)
+        return response.Response(
+            serializers.EventConsumerSerializer(consumer).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @extend_schema(
+        description="Change a webhook consumer's destination URL, object types "
+        "or payload filters. Staff only. Omitted fields are left unchanged.",
+        request=serializers.EventConsumerWebhookUpdateSerializer,
+        responses={status.HTTP_200_OK: serializers.EventConsumerSerializer},
+    )
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated, core_permissions.IsStaff],
+    )
+    def update_webhook(self, request, uuid=None):
+        consumer = self.get_object()
+        if not consumer.is_webhook:
+            raise rest_framework.exceptions.ValidationError(
+                "Only webhook consumers have a destination to update."
+            )
+        input_serializer = serializers.EventConsumerWebhookUpdateSerializer(
+            data=request.data, context={"request": request}
+        )
+        input_serializer.is_valid(raise_exception=True)
+        changes = dict(input_serializer.validated_data)
+        if changes:
+            # The editor takes ownership. Delivery is authorized by the owner's
+            # privileges, so leaving the consumer with its previous owner would
+            # let one staff member re-point another's feed and keep it flowing
+            # on someone else's right after losing their own.
+            previous_owner = consumer.user
+            with transaction.atomic():
+                consumer = models.EventConsumer.objects.select_for_update().get(
+                    pk=consumer.pk
+                )
+                for field, value in changes.items():
+                    setattr(consumer, field, value)
+                consumer.user = request.user
+                consumer.save(update_fields=[*changes, "user", "modified"])
+                utils.record_consumer_attribution(
+                    consumer,
+                    request,
+                    _resolve_consumer_authorization(request, []),
+                )
+            event_logger.emit(
+                "Webhook of event consumer {consumer_uuid} has been updated by "
+                "{affected_user_username}: {changed_fields}. Destination: "
+                "{webhook_destination}.",
+                event_type=enums.EventType.EVENT_CONSUMER_WEBHOOK_UPDATED,
+                event_context={
+                    "affected_user": request.user,
+                    "consumer_uuid": consumer.uuid.hex,
+                    "previous_owner_username": previous_owner.username,
+                    "changed_fields": ", ".join(sorted(changes)),
+                    # Host only: the URL itself is a credential.
+                    "webhook_destination": serializers.webhook_destination(
+                        consumer.webhook_url
+                    ),
+                },
+                scopes=[request.user],
+            )
+        consumer = self.get_queryset().get(pk=consumer.pk)
+        return response.Response(serializers.EventConsumerSerializer(consumer).data)
+
+    @extend_schema(
+        description="Replay the current state to a global consumer, through its "
+        "own transport and filters, so a receiver that starts late can seed "
+        "itself. Every active role grant is sent as a `user_role` message with "
+        "`event_type` `role_snapshot`. Runs asynchronously. Staff/support only.",
+        request=None,
+        responses={
+            status.HTTP_202_ACCEPTED: serializers.EventConsumerResyncResponseSerializer
+        },
+    )
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated, core_permissions.IsSupport],
+    )
+    def resync(self, request, uuid=None):
+        consumer = self.get_object()
+        if not consumer.is_global:
+            # A snapshot of every grant is only correct for a consumer entitled
+            # to every grant; replaying through a bound consumer would need the
+            # per-binding authorization the dispatcher applies to each event.
+            raise rest_framework.exceptions.ValidationError(
+                "Resync is supported for global consumers only."
+            )
+        object_types = [
+            object_type.value
+            for object_type in event_dispatch.RESYNC_OBJECT_TYPES
+            if not consumer.object_types or object_type.value in consumer.object_types
+        ]
+        if not object_types:
+            raise rest_framework.exceptions.ValidationError(
+                "This consumer receives none of the object types a resync can "
+                "replay: "
+                + ", ".join(t.value for t in event_dispatch.RESYNC_OBJECT_TYPES)
+                + "."
+            )
+        blocked_reason = event_dispatch.delivery_blocked_reason(consumer)
+        if blocked_reason:
+            raise rest_framework.exceptions.ValidationError(blocked_reason)
+        # Snapshot messages are role_snapshot with granted=true; a filter that
+        # rules those out would make the resync a silent no-op.
+        probe = {"event_type": "role_snapshot", "granted": True}
+        excluded = [
+            field
+            for field in ("event_type", "granted")
+            if field in (consumer.payload_filters or {})
+            and not consumer.accepts("user_role", {field: probe[field]})
+        ]
+        if excluded:
+            raise rest_framework.exceptions.ValidationError(
+                "This consumer's payload filters on "
+                + ", ".join(excluded)
+                + " exclude snapshot messages (event_type role_snapshot, "
+                "granted true), so a resync would send nothing."
+            )
+        # A resync replays every grant on the platform to a third party; one
+        # at a time per consumer, at most once per cooldown.
+        if not cache.add(
+            f"event-consumer-resync:{consumer.uuid.hex}", True, RESYNC_COOLDOWN
+        ):
+            raise rest_framework.exceptions.Throttled(
+                wait=RESYNC_COOLDOWN,
+                detail="A resync of this consumer was requested recently.",
+            )
+        event_logger.emit(
+            "Resync of event consumer {consumer_uuid} has been requested by "
+            "{affected_user_username}.",
+            event_type=enums.EventType.EVENT_CONSUMER_RESYNC_REQUESTED,
+            event_context={
+                "affected_user": request.user,
+                "consumer_uuid": consumer.uuid.hex,
+                "webhook_destination": serializers.webhook_destination(
+                    consumer.webhook_url
+                ),
+            },
+            scopes=[request.user],
+        )
+        transaction.on_commit(
+            lambda: event_dispatch.resync_event_consumer.delay(consumer.uuid.hex)
+        )
+        out = serializers.EventConsumerResyncResponseSerializer(
+            {"object_types": object_types}
+        )
+        return response.Response(out.data, status=status.HTTP_202_ACCEPTED)
 
 
 class EmailDebugViewSet(viewsets.ViewSet):

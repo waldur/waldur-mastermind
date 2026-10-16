@@ -1,7 +1,9 @@
 import logging
 import uuid
+from urllib.parse import urlsplit
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
@@ -14,6 +16,7 @@ from waldur_core.core.serializers import (
     AllowedScopeInputSerializer,
     RestrictedSerializerMixin,
 )
+from waldur_core.core.utils import validate_outbound_url
 from waldur_core.logging import (
     backend,
     enums,
@@ -1408,6 +1411,38 @@ class ObjectTypesField(serializers.JSONField):
     """A JSONField holding a list of object types, typed as such in the schema."""
 
 
+def webhook_destination(url: str) -> str | None:
+    """Scheme, host and port of a webhook URL — never its path, query or userinfo."""
+    if not url:
+        return None
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    if ":" in host:  # IPv6 literal
+        host = f"[{host}]"
+    try:
+        port = f":{parsed.port}" if parsed.port else ""
+    except ValueError:
+        # Out-of-range or non-numeric port on a row stored before validation
+        # checked it; listing consumers must not fail over it.
+        port = ""
+    return f"{parsed.scheme}://{host}{port}/…"
+
+
+@extend_schema_field(
+    {
+        "type": "object",
+        "additionalProperties": {
+            "type": "array",
+            "items": {
+                "oneOf": [{"type": "string"}, {"type": "number"}, {"type": "boolean"}]
+            },
+        },
+    }
+)
+class PayloadFiltersField(serializers.JSONField):
+    """``{field: [allowed values]}``, typed as such in the schema."""
+
+
 class EventConsumerSerializer(serializers.ModelSerializer):
     scopes = EventConsumerScopeOutputSerializer(many=True, read_only=True)
     is_global = serializers.BooleanField(read_only=True)
@@ -1426,6 +1461,14 @@ class EventConsumerSerializer(serializers.ModelSerializer):
         choices=enums.ConsumerAuthorization.choices(include_blank=True), read_only=True
     )
     delivery_blocked_reason = serializers.SerializerMethodField()
+    payload_filters = PayloadFiltersField(read_only=True)
+    webhook_destination = serializers.SerializerMethodField(
+        help_text="Scheme and host of the webhook URL. The full URL is a "
+        "credential and is never returned."
+    )
+
+    def get_webhook_destination(self, consumer) -> str | None:
+        return webhook_destination(consumer.webhook_url)
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_delivery_blocked_reason(self, consumer) -> str | None:
@@ -1458,10 +1501,94 @@ class EventConsumerSerializer(serializers.ModelSerializer):
             "auth_token_name",
             "authorized_via",
             "delivery_blocked_reason",
+            "delivery",
+            "webhook_destination",
+            "payload_filters",
+            "last_delivered_at",
+            "last_error",
+            "last_error_at",
             "created",
             "modified",
         )
         read_only_fields = fields
+
+
+class WebhookConsumerFieldsMixin(serializers.Serializer):
+    """Webhook destination and payload filters, shared by create and update."""
+
+    webhook_url = serializers.CharField(
+        write_only=True,
+        help_text="HTTP(S) URL the messages are POSTed to as JSON. May carry "
+        "its credential in the query string; it is stored as a secret and "
+        "never returned.",
+    )
+    payload_filters = PayloadFiltersField(
+        required=False,
+        help_text='Allow-list over message fields, e.g. {"role_name": '
+        '["CUSTOMER.OWNER"], "scope_type": ["customer"]}. A message is '
+        "delivered only if every listed field holds one of its values.",
+    )
+
+    def validate_webhook_url(self, value):
+        parsed = urlsplit(value)
+        # The feed carries all-user PII and the URL often carries a credential:
+        # neither may travel in clear text.
+        if parsed.scheme != "https":
+            raise serializers.ValidationError(_("Webhook URL must use https."))
+        # Userinfo would become HTTP basic auth and, unlike a query-string
+        # token, would sit in the netloc that every display of the host shows.
+        try:
+            parsed.port
+        except ValueError:
+            raise serializers.ValidationError(_("Webhook URL has an invalid port."))
+        if parsed.username is not None or parsed.password is not None:
+            raise serializers.ValidationError(
+                _(
+                    "Webhook URL must not contain user:password@. Put the "
+                    "credential in the query string instead."
+                )
+            )
+        try:
+            validate_outbound_url(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
+        return value
+
+    def validate_payload_filters(self, value):
+        try:
+            models.validate_payload_filters(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
+        return value
+
+
+class EventConsumerWebhookSerializer(
+    WebhookConsumerFieldsMixin, EventConsumerRegistrationSerializer
+):
+    """Input for creating a webhook event consumer (staff only)."""
+
+
+class EventConsumerWebhookUpdateSerializer(WebhookConsumerFieldsMixin):
+    """Partial update of a webhook consumer's destination and filters."""
+
+    object_types = serializers.ListField(
+        child=serializers.ChoiceField(
+            choices=[(m.value, m.value) for m in enums.ObservableObjectType],
+        ),
+        required=False,
+        help_text="Observable object types to receive; an empty list means all.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["webhook_url"].required = False
+
+
+class EventConsumerResyncResponseSerializer(serializers.Serializer):
+    object_types = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Object types whose current state is being replayed.",
+    )
 
 
 class EmailConfigSerializer(serializers.Serializer):

@@ -60,6 +60,10 @@ on the envelope's `object_type`.
 | `rmq_username` | RMQ login (random UUID hex), blank until provisioned |
 | `queue_created` | Whether the queue exists in RMQ |
 | `object_types` | Allow-list of event types (empty = all) |
+| `payload_filters` | Allow-list over envelope fields, `{field: [values]}` (empty = none) |
+| `delivery` | Transport: `rmq` (queue, the default) or `webhook` |
+| `webhook_url` | Destination of a webhook consumer; a credential, never returned |
+| `last_delivered_at`, `last_error`, `last_error_at` | Webhook delivery health |
 | `scopes` | Entity bindings — see below |
 
 The queue is `consumer_{uuid}`. A consumer is **generic**: a site agent, an
@@ -253,6 +257,71 @@ Housekeeping tasks operate on `EventConsumer` regardless of binding:
   consumer; an empty `scopes` list requires staff/support. Idempotent per
   binding set.
 
+## Webhook delivery
+
+Some receivers — ITSM, CRM and IdM tools — can only accept HTTP calls: they
+expose a listener URL, often with the credential in its query string, and expect
+flat JSON. For them a consumer is created with `delivery=webhook` and a
+`webhook_url` instead of a queue. Matching, delivery authorization, filters and
+payloads are exactly those of a queue consumer; only the last hop differs.
+
+- **Creation** — `POST /api/event-consumers/register_webhook/` takes
+  `webhook_url`, `object_types`, `payload_filters` and `scopes` (empty = global).
+  Staff only. The URL must be `https`, must not carry `user:password@` (put a
+  credential in the query string instead), and may not resolve to a private or
+  loopback address. It is never returned: the API shows `webhook_destination`
+  (scheme, host and port) instead.
+- **Changes** — `POST /api/event-consumers/{uuid}/update_webhook/` changes the
+  URL, object types or filters. Staff only. The editor becomes the owner, because
+  delivery is authorized by the owner's privileges, and every change emits an
+  `event_consumer_webhook_updated` audit event naming the host, never the URL.
+  Deregistering a webhook consumer is staff only too; support can list them.
+- **Routing** — `build_messages` emits `{"webhook_consumer": uuid, "payload": …}`
+  for a webhook consumer. Every producer already hands its messages to
+  `publish_messages`, which sends `vhost`/`topic` messages to STOMP and gives
+  each webhook consumer its own `deliver_webhook_messages` task on the
+  background queue. A webhook does not count as delivery to its owner, so the
+  owner's legacy subscription queues keep receiving their events.
+- **Delivery** — each payload is POSTed as the JSON body. The URL is re-validated
+  at send time (DNS rebinding), redirects are refused, the connect timeout is
+  3 s, and the response body is never read. The owner is re-checked first: once
+  they are no longer active staff or support, queued messages are dropped.
+  A non-2xx answer or connection error records `last_error` and retries the
+  undelivered remainder with exponential backoff (10 s doubling, capped at
+  10 min, 8 retries), after which the remainder is dropped and logged. Error
+  text never contains the URL, since requests' exception messages embed it.
+- **Guarantees** — delivery is **at-least-once with no ordering across events**:
+  every event is its own task and retries independently, so a revoke can arrive
+  before the grant it follows. Every message carries `emitted_at`, and every
+  request an `X-Waldur-Message-Id` header that stays the same across retries, so
+  a receiver can drop duplicates and ignore an update older than one it already
+  applied.
+- **Filters** — `payload_filters` narrow delivery by envelope field, for both
+  transports (only the webhook endpoints set them so far):
+  `{"role_name": ["CUSTOMER.OWNER"], "scope_type": ["customer"]}` delivers
+  organization-owner changes only. Comparison is type-strict, so `1` does not
+  match `true`. A filter on a field a message lacks drops that message: a
+  `role_name` filter also drops profile and SSH-key events.
+
+### Resync
+
+Events describe changes, so a receiver that starts late has no way to learn the
+existing state. `POST /api/event-consumers/{uuid}/resync/` (staff/support,
+global consumers only) replays it asynchronously through the consumer's own
+transport and filters: every active role grant of an active user, as a
+`user_role` message with `event_type: "role_snapshot"` and `granted: true`, in
+batches of 200. It is throttled to once per 15 minutes per consumer and emits an
+`event_consumer_resync_requested` audit event. Re-run it whenever a receiver
+loses its state. Snapshot batches can interleave with live events, so a receiver
+should compare `emitted_at`. Bound consumers are refused because a snapshot of
+every grant would bypass the per-binding authorization applied to each live
+event, and so are consumers whose filters would exclude every snapshot.
+
+`user_role` messages carry the organization the scope belongs to —
+`customer_uuid`, `customer_name` and `customer_registration_code` — the scope
+itself for an organization role, its parent for a project or offering role.
+That is the key an external system matches its own records on.
+
 ## The legacy path
 
 `EventSubscription` plus `EventSubscriptionQueue` — one queue per
@@ -307,6 +376,11 @@ introducing `SUBSCRIBE_*` permissions that would have to be kept in sync.
   to its next round; a move changes no state, so it publishes nothing (it is
   logged as a `proposal_draft_carried_over` event instead), and only drafts
   without a next round are cancelled.
+- **Webhooks** — delivery relies on the credential the receiver embeds in its
+  URL; there is no HMAC signature header yet. Ordering is per event, not per
+  consumer. Core role events are published from the signal, not on commit, so a
+  grant rolled back after the signal still reaches consumers. Resync covers
+  `user_role` only.
 - **`AgentIdentity` retirement** — the site-agent model still exists alongside
   its consumer; collapsing it is only worthwhile once the legacy path is gone.
 

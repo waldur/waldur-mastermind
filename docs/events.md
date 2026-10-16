@@ -28,6 +28,8 @@
 - auth_login_failed_with_username
 - auth_login_failed_with_valimo
 - event_consumer_registered_with_broad_credential
+- event_consumer_resync_requested
+- event_consumer_webhook_updated
 - passkey_authentication_failed
 - passkey_authentication_succeeded
 - passkey_registered
@@ -541,6 +543,8 @@
 - auth_login_failed_with_username
 - auth_login_failed_with_valimo
 - event_consumer_registered_with_broad_credential
+- event_consumer_resync_requested
+- event_consumer_webhook_updated
 - freeipa_profile_created
 - freeipa_profile_deleted
 - freeipa_profile_disabled

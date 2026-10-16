@@ -324,6 +324,25 @@ def validate_observable_object_types(value):
             )
 
 
+def validate_payload_filters(value):
+    """``{field: [allowed values]}`` — a flat allow-list over envelope fields."""
+    if not isinstance(value, dict):
+        raise DjangoValidationError("Payload filters must be an object.")
+    for field, allowed in value.items():
+        if not isinstance(field, str) or not field:
+            raise DjangoValidationError("Payload filter keys must be field names.")
+        if not isinstance(allowed, list) or not allowed:
+            raise DjangoValidationError(
+                f"Payload filter '{field}' must be a non-empty list of values."
+            )
+        for item in allowed:
+            if item is None or isinstance(item, dict | list):
+                raise DjangoValidationError(
+                    f"Payload filter '{field}' may only list strings, numbers "
+                    "or booleans."
+                )
+
+
 class EventConsumer(UuidMixin, TimeStampedModel):
     """A generic pub/sub consumer draining a single unified queue.
 
@@ -339,7 +358,16 @@ class EventConsumer(UuidMixin, TimeStampedModel):
     only** — it receives the all-user PII firehose, so a consumer must never be
     left bindingless by accident. Create the consumer and its bindings in one
     transaction.
+
+    ``delivery`` picks the transport. A ``webhook`` consumer has no queue: the
+    same messages are POSTed as JSON to ``webhook_url`` instead, so a receiver
+    that can only accept HTTP calls (an ITSM or CRM listener) needs no STOMP
+    client. Matching and authorization are identical for both transports.
     """
+
+    class Delivery(models.TextChoices):
+        RMQ = "rmq", "RabbitMQ queue"
+        WEBHOOK = "webhook", "HTTP webhook"
 
     user = models.ForeignKey(
         to=core_models.User,
@@ -362,6 +390,30 @@ class EventConsumer(UuidMixin, TimeStampedModel):
         ),
         validators=[validate_observable_object_types],
     )
+    payload_filters = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Allow-list over message fields, e.g. "
+            '{"role_name": ["CUSTOMER.OWNER"]}. A message is delivered only if '
+            "every listed field holds one of its values. Empty means no filter."
+        ),
+        validators=[validate_payload_filters],
+    )
+    delivery = models.CharField(
+        max_length=16, choices=Delivery.choices, default=Delivery.RMQ
+    )
+    # A TextField, not a URLField: signed listener URLs carry their credential
+    # in the query string and routinely exceed URLField's 200 characters.
+    webhook_url = models.TextField(
+        blank=True,
+        default="",
+        validators=[validate_outbound_url],
+        help_text=_("Destination of a webhook consumer. Treated as a secret."),
+    )
+    last_delivered_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True, default="")
+    last_error_at = models.DateTimeField(null=True, blank=True)
     # How and by what right the consumer was registered. Refreshed on EVERY
     # (re-)registration: these describe the credential the queue currently runs
     # on, not the one it was first created with. Blank on rows that predate the
@@ -415,6 +467,25 @@ class EventConsumer(UuidMixin, TimeStampedModel):
     def is_global(self) -> bool:
         """No bindings = unrestricted (staff/support only)."""
         return not self.scopes.exists()
+
+    @property
+    def is_webhook(self) -> bool:
+        return self.delivery == self.Delivery.WEBHOOK
+
+    def accepts(self, object_type: str, envelope: dict) -> bool:
+        """Whether this consumer's object-type and payload filters admit a message."""
+        if self.object_types and object_type not in self.object_types:
+            return False
+        # Type-strict: plain `in` would let True match 1. A filter value must
+        # have the same JSON type as the message value it is compared with.
+        return all(
+            any(
+                type(value) is type(envelope.get(field))
+                and value == envelope.get(field)
+                for value in allowed
+            )
+            for field, allowed in (self.payload_filters or {}).items()
+        )
 
     def __str__(self):
         return f"EventConsumer {self.uuid.hex} (user={self.user_id})"
