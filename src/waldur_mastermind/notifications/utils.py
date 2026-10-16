@@ -1,14 +1,12 @@
 import collections
-import logging
 
 from django.db.models import Q
 
 from waldur_core.core.models import User
+from waldur_core.media.validators import parse_email_list
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Offering, Resource
-
-logger = logging.getLogger(__name__)
 
 
 def get_user_emails_for_query(query):
@@ -144,27 +142,7 @@ def get_recipients_for_query(query):
 
 
 def get_customer_notification_emails(customer):
-    if (
-        not customer
-        or not hasattr(customer, "notification_emails")
-        or not customer.notification_emails
-    ):
-        return []
-
-    try:
-        emails = []
-        notification_emails_str = str(customer.notification_emails).strip()
-        for email_str in notification_emails_str.split(","):
-            email = email_str.strip()
-            if email:
-                emails.append(email)
-        return emails
-
-    except (TypeError, ValueError) as e:
-        logger.warning(
-            f"Failed to parse notification emails for customer {getattr(customer, 'uuid', 'unknown')}: {e}"
-        )
-        return []
+    return parse_email_list(getattr(customer, "notification_emails", ""))
 
 
 def get_customer_notification_emails_dict(customer, offerings=None):

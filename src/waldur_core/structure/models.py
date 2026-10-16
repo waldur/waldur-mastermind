@@ -46,6 +46,7 @@ from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import (
     CertificateValidator,
+    parse_email_list,
     validate_notification_emails,
 )
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
@@ -450,6 +451,7 @@ CUSTOMER_DETAILS_FIELDS = (
     "bank_account",
     "country",
     "notification_emails",
+    "invoice_emails",
     "city",
     "state",
     "parish",
@@ -642,6 +644,16 @@ class CustomerDetailsMixin(
         max_length=640,
         validators=[validate_notification_emails],
     )
+    invoice_emails = models.CharField(
+        blank=True,
+        default="",
+        help_text=_(
+            "Comma-separated list of email addresses that receive invoice "
+            "notifications instead of the organization owners"
+        ),
+        max_length=640,
+        validators=[validate_notification_emails],
+    )
 
 
 class ServiceAccountMixin(models.Model):
@@ -784,7 +796,8 @@ class Customer(
         ),
     )
     tracker = cast(
-        FieldInstanceTracker, FieldTracker(fields=["project_metadata_checklist"])
+        FieldInstanceTracker,
+        FieldTracker(fields=["project_metadata_checklist", "invoice_emails"]),
     )
     objects = NetManager()
 
@@ -830,6 +843,10 @@ class Customer(
             .exclude(notifications_enabled=False)
             .values_list("email", flat=True)
         )
+
+    def get_invoice_mails(self):
+        """Explicit invoice recipients when configured, otherwise the owners."""
+        return parse_email_list(self.invoice_emails) or list(self.get_owner_mails())
 
     def get_users(self, role=None):
         """Return all connected to customer users"""

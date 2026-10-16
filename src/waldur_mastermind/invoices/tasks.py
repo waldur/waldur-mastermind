@@ -15,6 +15,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.middleware import set_current_user
+from waldur_core.media.validators import parse_email_list
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import billing_discount
@@ -190,10 +191,10 @@ def refresh_vat_rates():
 
 @shared_task(name="invoices.send_invoice_notification")
 def send_invoice_notification(invoice_uuid):
-    """Sends email notification with invoice link to customer owners"""
+    """Sends email notification with invoice link to the customer's invoice recipients"""
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
 
-    emails = invoice.customer.get_owner_mails()
+    emails = invoice.customer.get_invoice_mails()
 
     filename = "{}_{}_{}.pdf".format(
         config.SITE_NAME.replace(" ", "_"),
@@ -367,13 +368,36 @@ def send_notifications_about_upcoming_ends():
             "end": utils.get_end_date_for_profile(profile),
             "contract_number": profile.attributes.get("contract_number", ""),
         }
-        emails = profile.organization.get_owner_mails()
+        emails = profile.organization.get_invoice_mails()
         core_utils.broadcast_mail(
             "invoices",
             "upcoming_ends_notification",
             context,
             emails,
         )
+
+
+@shared_task(name="invoices.send_invoice_emails_changed_notification")
+def send_invoice_emails_changed_notification(
+    customer_uuid, old_invoice_emails, changed_by=None
+):
+    """Tell the owners that invoices for their organization now go elsewhere."""
+    customer = structure_models.Customer.objects.get(uuid=customer_uuid)
+    context = {
+        "organization_name": customer.name,
+        "old_recipients": parse_email_list(old_invoice_emails),
+        "new_recipients": parse_email_list(customer.invoice_emails),
+        "changed_by": changed_by,
+        "link": core_utils.format_homeport_link(
+            "organizations/{uuid}/manage/", uuid=customer.uuid.hex
+        ),
+    }
+    core_utils.broadcast_mail(
+        "invoices",
+        "invoice_emails_changed",
+        context,
+        list(customer.get_owner_mails()),
+    )
 
 
 @shared_task(name="invoices.send_monthly_invoicing_reports_about_customers")

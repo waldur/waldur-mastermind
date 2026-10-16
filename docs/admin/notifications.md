@@ -965,9 +965,67 @@ Sent to users to notify them about their upcoming bookings.
 
 ## WALDUR_MASTERMIND.INVOICES
 
+### invoices.invoice_emails_changed
+
+Tells organization owners that the addresses receiving the organization's invoices have changed.
+
+#### Templates
+
+=== "invoices/invoice_emails_changed_subject.txt"
+
+```txt
+
+    Invoice recipients changed for {{ organization_name }}
+
+```
+
+=== "invoices/invoice_emails_changed_message.txt"
+
+```txt
+
+    Hello,
+
+    the addresses that receive invoices for {{ organization_name }} have changed{% if changed_by %} by {{ changed_by }}{% endif %}.
+
+    Before: {% if old_recipients %}{{ old_recipients|join:", " }}{% else %}organization owners{% endif %}
+    Now: {% if new_recipients %}{{ new_recipients|join:", " }}{% else %}organization owners{% endif %}
+
+    If you did not expect this change, review the organization's contact settings:
+    {{ link }}
+
+```
+
+=== "invoices/invoice_emails_changed_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Invoice recipients changed for {{ organization_name }}</title>
+    </head>
+    <body>
+    <p>
+        Hello,
+        <br/>
+        the addresses that receive invoices for {{ organization_name }} have changed{% if changed_by %} by {{ changed_by }}{% endif %}.
+    </p>
+    <p>
+        Before: {% if old_recipients %}{{ old_recipients|join:", " }}{% else %}organization owners{% endif %}
+        <br/>
+        Now: {% if new_recipients %}{{ new_recipients|join:", " }}{% else %}organization owners{% endif %}
+    </p>
+    <p>
+        If you did not expect this change, <a href="{{ link }}">review the organization's contact settings</a>.
+    </p>
+    </body>
+    </html>
+
+```
+
 ### invoices.notification
 
-Sent to organization owners with a new invoice. Includes the invoice as a PDF attachment.
+Sent with a new invoice to the organization's invoice emails, or to its owners when none are set. Includes the invoice as a PDF attachment.
 
 #### Templates
 

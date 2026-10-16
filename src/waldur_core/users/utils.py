@@ -16,6 +16,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import pwgen
+from waldur_core.media.validators import parse_email_list
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import (
     build_role_index,
@@ -591,12 +592,7 @@ def get_customer_notification_emails(customer):
     emails = []
     if customer.email:
         emails.append(customer.email)
-    if customer.notification_emails:
-        emails += [
-            email.strip()
-            for email in customer.notification_emails.split(",")
-            if email.strip()
-        ]
+    emails += parse_email_list(customer.notification_emails)
     return emails
 
 

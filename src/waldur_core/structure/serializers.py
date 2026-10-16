@@ -1118,6 +1118,7 @@ class CustomerContactUpdateSerializer(serializers.ModelSerializer):
             "phone_number",
             "homepage",
             "notification_emails",
+            "invoice_emails",
         )
 
 

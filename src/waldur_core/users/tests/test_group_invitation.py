@@ -861,15 +861,10 @@ class RequestNotificationRecipientsTest(BaseInvitationTest):
         )
 
     def test_get_customer_notification_emails_combines_contact_and_list(self):
-        # The helper splits and trims but does not de-duplicate; the task does.
+        # Repeats inside the list are dropped; the task de-duplicates the rest.
         self.assertEqual(
             utils.get_customer_notification_emails(self.orphan_customer),
-            [
-                "contact@example.com",
-                "ops@example.com",
-                "ops@example.com",
-                "second@example.com",
-            ],
+            ["contact@example.com", "ops@example.com", "second@example.com"],
         )
 
     def test_get_customer_notification_emails_empty(self):

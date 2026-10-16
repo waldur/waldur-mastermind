@@ -2131,6 +2131,7 @@ class Command(BaseCommand):
                     "sponsor_number": customer_data.get("sponsor_number"),
                     "access_subnets": customer_data.get("access_subnets", ""),
                     "notification_emails": customer_data.get("notification_emails", ""),
+                    "invoice_emails": customer_data.get("invoice_emails", ""),
                     "display_billing_info_in_projects": customer_data.get(
                         "display_billing_info_in_projects", True
                     ),

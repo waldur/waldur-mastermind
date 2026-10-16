@@ -575,6 +575,7 @@ class CustomerContactUpdateTest(CustomerBaseTest):
             "phone_number": "+372000000",
             "homepage": "http://example.com",
             "notification_emails": "contact@example.com,alt@example.com",
+            "invoice_emails": "billing@example.com",
         }
 
     def test_owner_can_update_contact_details_with_contact_permission(self):
@@ -590,6 +591,17 @@ class CustomerContactUpdateTest(CustomerBaseTest):
         self.assertEqual(
             self.fixture.customer.contact_details, self.payload["contact_details"]
         )
+        self.assertEqual(
+            self.fixture.customer.invoice_emails, self.payload["invoice_emails"]
+        )
+
+    def test_invalid_invoice_emails_are_rejected(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        response = self.client.post(self.url, {"invoice_emails": "not-an-email"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("invoice_emails", response.data)
 
     def test_owner_can_update_contact_details_with_update_permission(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)

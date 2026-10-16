@@ -66,6 +66,10 @@ class InvoicesExtension(WaldurExtension):
         return "waldur_mastermind.invoices"
 
     @staticmethod
+    def get_public_settings():
+        return ["SEND_CUSTOMER_INVOICES"]
+
+    @staticmethod
     def rest_urls():
         from .urls import register_in
 
