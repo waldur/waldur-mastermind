@@ -11,6 +11,8 @@ from rest_framework.serializers import ValidationError
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.views import ActionsViewSet
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -29,7 +31,89 @@ from . import (
 logger = logging.getLogger(__name__)
 
 
-class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
+class PolicyEventsMixin:
+    """Log policy changes made through the API.
+
+    Policies are saved by the background tasks too (has_fired, fired_datetime),
+    so the events are emitted here rather than from post_save.
+    """
+
+    def emit_policy_event(self, policy, event_type, verb, changes=""):
+        scope = policy.scope
+        message = (
+            "{policy_type} {policy_uuid} for {policy_scope_type} "
+            "{policy_scope_name} has been %s by {user_username}." % verb
+        )
+        if changes:
+            message += " Changes: {policy_changes}."
+        event_logger.emit(
+            message,
+            event_type=event_type,
+            event_context={
+                "user": self.request.user,
+                "policy_type": policy.__class__.__name__,
+                "policy_uuid": policy.uuid.hex,
+                "policy_scope_type": scope.__class__.__name__,
+                "policy_scope_uuid": scope.uuid.hex,
+                "policy_scope_name": scope.name,
+                "policy_actions": policy.actions,
+                "policy_changes": changes,
+            },
+            scopes=[scope],
+        )
+
+    @staticmethod
+    def describe_related_item(item):
+        # Nested limits are deleted and recreated on every update and have no
+        # __str__, so they are compared by their field values, not identity.
+        parts = []
+        for field in item._meta.concrete_fields:
+            if field.primary_key or field.name in ("policy", "created", "modified"):
+                continue
+            value = getattr(item, field.name)
+            # Names repeat across offerings (every one has a "CPU"), so a
+            # related object is told apart by its UUID as well.
+            if field.is_relation and hasattr(value, "uuid"):
+                value = f"{value} [{value.uuid.hex}]"
+            parts.append(f"{field.name}={value}")
+        return "(" + ", ".join(parts) + ")"
+
+    def get_field_values(self, policy, fields):
+        values = {}
+        for field in fields:
+            value = getattr(policy, field, None)
+            if hasattr(value, "all"):
+                value = sorted(self.describe_related_item(item) for item in value.all())
+            values[field] = value
+        return values
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        self.emit_policy_event(serializer.instance, EventType.POLICY_CREATED, "created")
+
+    def perform_update(self, serializer):
+        # Clients send the whole form, so the submitted fields are not the
+        # changed ones; compare the values instead.
+        fields = sorted(serializer.validated_data)
+        old_values = self.get_field_values(serializer.instance, fields)
+        super().perform_update(serializer)
+        new_values = self.get_field_values(serializer.instance, fields)
+        changes = ", ".join(
+            f"{field}: {old_values[field]} -> {new_values[field]}"
+            for field in fields
+            if old_values[field] != new_values[field]
+        )
+        if changes:
+            self.emit_policy_event(
+                serializer.instance, EventType.POLICY_UPDATED, "updated", changes
+            )
+
+    def perform_destroy(self, instance):
+        super().perform_destroy(instance)
+        self.emit_policy_event(instance, EventType.POLICY_DELETED, "deleted")
+
+
+class ProjectEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = (
         models.ProjectEstimatedCostPolicy.objects.all()
         .select_related("scope", "scope__customer", "created_by")
@@ -68,7 +152,7 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
+class CustomerEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = (
         models.CustomerEstimatedCostPolicy.objects.all()
         .select_related("scope", "created_by")
@@ -92,7 +176,7 @@ class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class OfferingEstimatedCostPolicyViewSet(ActionsViewSet):
+class OfferingEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = models.OfferingEstimatedCostPolicy.objects.all().order_by("-created")
     serializer_class = serializers.OfferingEstimatedCostPolicySerializer
     filter_backends = [
@@ -116,7 +200,7 @@ class OfferingEstimatedCostPolicyViewSet(ActionsViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class OfferingUsagePolicyViewSet(ActionsViewSet):
+class OfferingUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = models.OfferingUsagePolicy.objects.all().order_by("-created")
     serializer_class = serializers.OfferingUsagePolicySerializer
     filter_backends = [
@@ -136,7 +220,7 @@ class OfferingUsagePolicyViewSet(ActionsViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class CustomerComponentUsagePolicyViewSet(ActionsViewSet):
+class CustomerComponentUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = models.CustomerComponentUsagePolicy.objects.all().order_by("-created")
     serializer_class = serializers.CustomerComponentUsagePolicySerializer
     filter_backends = [
@@ -156,7 +240,7 @@ class CustomerComponentUsagePolicyViewSet(ActionsViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
+class SlurmPeriodicUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = models.SlurmPeriodicUsagePolicy.objects.all().order_by("-created")
     serializer_class = serializers.SlurmPeriodicUsagePolicySerializer
     filter_backends = [

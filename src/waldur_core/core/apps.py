@@ -9,6 +9,7 @@ class CoreConfig(AppConfig):
     verbose_name = "Core"
 
     def ready(self):
+        from django.contrib.admin.models import LogEntry
         from health_check.plugins import plugin_dir
         from rest_framework.authtoken.models import Token
 
@@ -96,6 +97,12 @@ class CoreConfig(AppConfig):
             handlers.log_token_create,
             sender=Token,
             dispatch_uid="waldur_core.core.handlers.log_token_create",
+        )
+
+        signals.post_save.connect(
+            handlers.log_admin_action,
+            sender=LogEntry,
+            dispatch_uid="waldur_core.core.handlers.log_admin_action",
         )
 
         signals.pre_save.connect(

@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import responses
 from constance.test.unittest import override_config
 from django.contrib.sessions.models import Session
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
@@ -27,6 +28,8 @@ from waldur_auth_social.views import (
 )
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
 from waldur_core.core.models import User
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -572,6 +575,60 @@ class OAuthViewCompleteTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("Invalid auth state", str(response.content))
+
+    def test_failed_login_is_logged(self):
+        cache.clear()
+        self.client.get(self.url, {"state": "invalid_state", "code": self.code})
+        event = Event.objects.get(event_type=EventType.AUTH_LOGIN_FAILED_WITH_OAUTH)
+        self.assertEqual(event.context["provider"], self.provider.provider)
+        self.assertEqual(event.context["reason"], "Invalid auth state.")
+
+    def test_login_rejected_by_identity_provider_is_logged(self):
+        cache.clear()
+        response = self.client.get(
+            self.url,
+            {
+                "state": self.state,
+                "error": "access_denied",
+                "error_description": "User declined consent",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        event = Event.objects.get(event_type=EventType.AUTH_LOGIN_FAILED_WITH_OAUTH)
+        self.assertEqual(
+            event.context["reason"], "access_denied (User declined consent)"
+        )
+
+    def test_varying_error_description_does_not_bypass_deduplication(self):
+        cache.clear()
+        for description in ["x0", "x1", "x2"]:
+            self.client.get(
+                self.url,
+                {
+                    "state": self.state,
+                    "error": "access_denied",
+                    "error_description": description,
+                },
+            )
+        self.assertEqual(
+            Event.objects.filter(
+                event_type=EventType.AUTH_LOGIN_FAILED_WITH_OAUTH
+            ).count(),
+            1,
+        )
+
+    def test_long_error_description_is_truncated(self):
+        cache.clear()
+        self.client.get(
+            self.url,
+            {
+                "state": self.state,
+                "error": "access_denied",
+                "error_description": "A" * 6000,
+            },
+        )
+        event = Event.objects.get(event_type=EventType.AUTH_LOGIN_FAILED_WITH_OAUTH)
+        self.assertEqual(len(event.context["reason"]), views.MAX_FAILURE_REASON_LENGTH)
 
     def test_missing_state_in_session(self):
         session = self.client.session

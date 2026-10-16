@@ -108,6 +108,7 @@ EVENT_GROUP_AVAILABILITY: dict[EventGroup, Availability] = {
     # Nobody could subscribe until after the first one was created, and for a
     # security or finance notification the first event is the one worth having.
     EventGroup.ACCESS_SUBNETS: ALWAYS,
+    EventGroup.ADMIN: ALWAYS,
     EventGroup.AUTH: ALWAYS,
     EventGroup.CALL: FeatureFlag("marketplace.show_call_management_functionality"),
     EventGroup.CHAT: ConstanceSetting("AI_ASSISTANT_ENABLED"),
@@ -125,6 +126,7 @@ EVENT_GROUP_AVAILABILITY: dict[EventGroup, Availability] = {
     EventGroup.OPENSTACK_SECURITY_GROUP: OPENSTACK_OFFERINGS,
     EventGroup.OPENSTACK_SUBNET: OPENSTACK_OFFERINGS,
     EventGroup.PERMISSIONS: ALWAYS,
+    EventGroup.POLICIES: ALWAYS,
     EventGroup.PROJECTS: ALWAYS,
     EventGroup.PROPOSAL: FeatureFlag("marketplace.show_call_management_functionality"),
     EventGroup.PROVIDERS: ALWAYS,

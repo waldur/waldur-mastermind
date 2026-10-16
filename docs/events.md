@@ -9,12 +9,24 @@
 - offering_access_subnet_deletion_succeeded
 - offering_access_subnet_update_succeeded
 
+## Admin
+
+- admin_object_created
+- admin_object_deleted
+- admin_object_updated
+
 ## Auth
 
+- auth_logged_in_to_admin_site
 - auth_logged_in_with_oauth
 - auth_logged_in_with_username
+- auth_logged_in_with_valimo
 - auth_logged_out
+- auth_login_failed_to_admin_site
+- auth_login_failed_with_oauth
+- auth_login_failed_with_saml2
 - auth_login_failed_with_username
+- auth_login_failed_with_valimo
 - event_consumer_registered_with_broad_credential
 - passkey_authentication_failed
 - passkey_authentication_succeeded
@@ -32,6 +44,7 @@
 - pat_used_from_new_ip
 - token_created
 - token_lifetime_updated
+- token_viewed
 - user_blocked
 
 ## Call
@@ -294,6 +307,12 @@
 - role_revoked
 - role_updated
 
+## Policies
+
+- policy_created
+- policy_deleted
+- policy_updated
+
 ## Projects
 
 - project_creation_succeeded
@@ -331,6 +350,7 @@
 - maintenance_announcement_started
 - maintenance_announcement_unscheduled
 - maintenance_announcement_updated
+- marketplace_offering_deleted
 - marketplace_provider_project_group_gid_updated
 - marketplace_resource_create_canceled
 - marketplace_resource_create_failed
@@ -508,12 +528,18 @@
 
 ## Users
 
+- auth_logged_in_to_admin_site
 - auth_logged_in_with_oauth
 - auth_logged_in_with_saml2
 - auth_logged_in_with_username
+- auth_logged_in_with_valimo
 - auth_logged_out
 - auth_logged_out_with_saml2
+- auth_login_failed_to_admin_site
+- auth_login_failed_with_oauth
+- auth_login_failed_with_saml2
 - auth_login_failed_with_username
+- auth_login_failed_with_valimo
 - event_consumer_registered_with_broad_credential
 - freeipa_profile_created
 - freeipa_profile_deleted
@@ -544,6 +570,7 @@
 - ssh_key_deletion_succeeded
 - token_created
 - token_lifetime_updated
+- token_viewed
 - user_activated
 - user_blocked
 - user_creation_succeeded

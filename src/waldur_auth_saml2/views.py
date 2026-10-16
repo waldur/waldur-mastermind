@@ -184,6 +184,15 @@ class Saml2LoginCompleteView(BaseSaml2View):
 
     serializer_class = serializers.Saml2LoginCompleteSerializer
 
+    def login_failed(self, reason):
+        event_logger.emit_failed_login(
+            "SAML2 authentication failed: {reason}",
+            event_type=EventType.AUTH_LOGIN_FAILED_WITH_SAML2,
+            event_context={"reason": str(reason)},
+            identity=str(reason),
+        )
+        return login_failed(reason)
+
     @validate_saml2
     def post(self, request):
         from djangosaml2.conf import get_config
@@ -218,7 +227,7 @@ class Saml2LoginCompleteView(BaseSaml2View):
                 xmlstr, BINDING_HTTP_POST, outstanding_queries
             )
         except StatusRequestDenied:
-            return login_failed(
+            return self.login_failed(
                 _(
                     "Authentication request has been denied by identity provider. "
                     "Please check your credentials."
@@ -226,15 +235,19 @@ class Saml2LoginCompleteView(BaseSaml2View):
             )
         except Exception as e:
             logger.error("SAML response parsing failed %s", e)
-            return login_failed(_("SAML2 response has errors."))
+            return self.login_failed(_("SAML2 response has errors."))
 
         if response is None:
             logger.error("SAML response is None")
-            return login_failed(_("SAML response has errors. Please check the logs"))
+            return self.login_failed(
+                _("SAML response has errors. Please check the logs")
+            )
 
         if response.assertion is None:
             logger.error("SAML response assertion is None")
-            return login_failed(_("SAML response has errors. Please check the logs"))
+            return self.login_failed(
+                _("SAML response has errors. Please check the logs")
+            )
 
         session_id = response.session_id()
         oq_cache.delete(session_id)
@@ -255,9 +268,9 @@ class Saml2LoginCompleteView(BaseSaml2View):
                 create_unknown_user=create_unknown_user,
             )
         except ValidationError as e:
-            return login_failed(e.message)
+            return self.login_failed(e.message)
         if user is None:
-            return login_failed(_("SAML2 authentication failed."))
+            return self.login_failed(_("SAML2 authentication failed."))
 
         registration_method = settings.WALDUR_AUTH_SAML2.get("NAME", "saml2")
         if user.registration_method != registration_method:

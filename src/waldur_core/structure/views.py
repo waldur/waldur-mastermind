@@ -2224,6 +2224,13 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     def token(self, request, uuid=None):
         user = self.get_object()
         token = user.auth_token
+        if user != request.user:
+            event_logger.emit(
+                "Auth token of user {affected_user_username} has been viewed by {user_username}.",
+                event_type=EventType.TOKEN_VIEWED,
+                event_context={"affected_user": user, "user": request.user},
+                scopes=[user],
+            )
         serializer = self.get_serializer(token)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
