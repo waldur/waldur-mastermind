@@ -13,6 +13,7 @@ from waldur_core.core.schema_hooks import (
     create_offering_attributes_schema,
     inject_waldur_operation_ids,
     make_fields_optional,
+    preprocess_request_bodies,
     remove_waldur_cookie_auth,
     transform_paginated_arrays,
     validate_go_sdk_naming_collisions,
@@ -612,3 +613,45 @@ def test_polymorphic_schema_includes_offering_specific_attributes():
     assert len(offering_schema_names) > 0, (
         "No offering-type schemas in components/schemas"
     )
+
+
+class TestPreprocessRequestBodies(unittest.TestCase):
+    def spec(self, documents):
+        return {
+            "paths": {
+                "/api/notes/": {
+                    "post": {
+                        "requestBody": {
+                            "content": {
+                                "multipart/form-data": {
+                                    "schema": {"$ref": "#/components/schemas/Note"}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "Note": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "documents": documents,
+                        },
+                    }
+                }
+            },
+        }
+
+    def content(self, documents):
+        result = preprocess_request_bodies(self.spec(documents))
+        return result["paths"]["/api/notes/"]["post"]["requestBody"]["content"]
+
+    def test_a_list_of_files_keeps_the_multipart_body(self):
+        documents = {"type": "array", "items": {"type": "string", "format": "binary"}}
+        self.assertIn("multipart/form-data", self.content(documents))
+
+    def test_multipart_without_files_is_pruned(self):
+        documents = {"type": "array", "items": {"type": "string"}}
+        self.assertNotIn("multipart/form-data", self.content(documents))

@@ -520,10 +520,21 @@ class ActionsViewSet(viewsets.ModelViewSet):
     """
 
     disabled_actions = []
+    # Actions that open their own transactions instead of running in the
+    # request's one -- for example a bulk action that commits each item on its
+    # own, so that one failing item neither undoes the others nor holds every
+    # item's lock until the request ends.
+    non_atomic_actions = ()
     permission_classes = (rf_permissions.IsAuthenticated, permissions.ActionsPermission)
 
-    @ensure_atomic_transaction
     def dispatch(self, request, *args, **kwargs):
+        action_map = getattr(self, "action_map", None) or {}
+        if action_map.get(request.method.lower()) in self.non_atomic_actions:
+            return super().dispatch(request, *args, **kwargs)
+        return self._atomic_dispatch(request, *args, **kwargs)
+
+    @ensure_atomic_transaction
+    def _atomic_dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_class(self):
