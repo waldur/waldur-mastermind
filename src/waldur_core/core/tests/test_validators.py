@@ -95,6 +95,78 @@ class NormalizeNetworkAclTest(test.APITestCase):
         self.assertEqual(validators.normalize_network_acl([]), [])
 
 
+class BackendURLValidatorTest(test.APITestCase):
+    def setUp(self):
+        self.validator = validators.BackendURLValidator()
+
+    def test_accepts_each_supported_scheme(self):
+        for value in (
+            "http://keystone.example.com:5000/v3",
+            "https://example.com:5000/v3",
+            "https://user:pass@example.com/path",
+            "ssh://user@bastion.example.com:22",
+            "ldap://directory.example.com",
+            "ldaps://directory.example.com",
+            "rdp://desktop.example.com",
+            "http://192.168.0.150:8000/v1",
+        ):
+            with self.subTest(value=value):
+                self.validator(value)
+
+    def test_accepts_a_single_label_internal_host(self):
+        for value in (
+            "http://controller:5000/v3",
+            "http://litellm:4000/v1",
+            "http://Controller:5000/v3",
+            "http://user:pass@controller:5000/v3",
+            "ssh://login01",
+        ):
+            with self.subTest(value=value):
+                self.validator(value)
+
+    def test_accepts_a_real_ipv4_address_and_a_hex_hostname(self):
+        for value in (
+            "http://10.0.0.1:5000/v3",
+            "http://127.0.0.1",
+            "http://1and1.com",
+            "http://123abc",
+            "http://0x7f000001",
+        ):
+            with self.subTest(value=value):
+                self.validator(value)
+
+    def test_rejects_a_host_of_only_digits_and_dots(self):
+        for value in (
+            "http://999.999.999.999",
+            "http://256.0.0.1:5000",
+            "http://1.2.3",
+            "http://1234",
+            "http://127.1",
+            "http://2130706433",
+        ):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    self.validator(value)
+
+    def test_rejects_an_underscore_in_the_host(self):
+        for value in ("http://keystone_1.example.com", "http://foo_bar:4000/v1"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    self.validator(value)
+
+    def test_rejects_a_scheme_outside_the_backend_list(self):
+        for value in ("ftp://files.example.com", "ftps://files.example.com"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    self.validator(value)
+
+    def test_rejects_values_that_are_not_urls(self):
+        for value in ("not a url", "localhost", "example.com"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    self.validator(value)
+
+
 class NotificationEmailsValidatorTest(test.APITestCase):
     def test_validator_accepts_valid_emails(self):
         validate_notification_emails("user@localhost")

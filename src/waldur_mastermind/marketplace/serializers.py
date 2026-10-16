@@ -1409,7 +1409,7 @@ class RancherSecretOptionsSerializer(serializers.Serializer):
     backend_url = serializers.CharField(
         max_length=200,
         label=_("Rancher server URL"),
-        validators=[BackendURLValidator],
+        validators=[BackendURLValidator()],
         required=False,
     )
 
@@ -4769,7 +4769,8 @@ class NestedEndpointSerializer(serializers.ModelSerializer):
         fields = ("uuid", "name", "url")
 
     url = serializers.CharField(
-        validators=[core_validators.BackendURLValidator],
+        max_length=200,
+        validators=[core_validators.BackendURLValidator()],
         help_text="URL of the access endpoint",
     )
 
@@ -9737,7 +9738,8 @@ class ResourceApiKeySetErredSerializer(serializers.Serializer):
 class ResourceEndpointSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="Name of the access endpoint")
     url = serializers.CharField(
-        validators=[BackendURLValidator],
+        max_length=200,
+        validators=[BackendURLValidator()],
         help_text="URL of the access endpoint",
     )
 
