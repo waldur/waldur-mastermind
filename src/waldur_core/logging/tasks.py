@@ -1,7 +1,9 @@
 import logging
+from collections import defaultdict
 from datetime import timedelta
 
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
@@ -142,6 +144,22 @@ def publish_messages(self, messages: list[dict[str, str]]) -> dict:
     Uses Celery's built-in retry mechanism with exponential backoff.
     Returns statistics about successful and failed message delivery.
     """
+    stomp_messages, webhook_payloads = _split_by_transport(messages)
+    if webhook_payloads:
+        # Each webhook consumer gets its own delivery task, so a dead listener
+        # retries on its own schedule. The STOMP half is re-queued as a task of
+        # its own rather than published here: this task retries with its
+        # original arguments, and must not hand the webhooks out a second time.
+        for consumer_uuid, payloads in webhook_payloads.items():
+            deliver_webhook_messages.delay(consumer_uuid, payloads)
+        if stomp_messages:
+            publish_messages.delay(stomp_messages)
+        return {
+            "stomp": {"sent": 0, "failed": 0},
+            "webhook_consumers": len(webhook_payloads),
+            "retry_count": self.request.retries,
+        }
+
     results = {
         "stomp": {"sent": 0, "failed": 0},
         "retry_count": self.request.retries,
@@ -163,6 +181,117 @@ def publish_messages(self, messages: list[dict[str, str]]) -> dict:
         raise ConnectionError(f"All {failed} STOMP messages failed to publish")
 
     return results
+
+
+def _split_by_transport(messages):
+    """STOMP messages as a list, webhook payloads grouped by consumer uuid."""
+    stomp_messages = []
+    webhook_payloads = defaultdict(list)
+    for message in messages:
+        consumer_uuid = message.get("webhook_consumer")
+        if consumer_uuid:
+            webhook_payloads[consumer_uuid].append(message["payload"])
+        else:
+            stomp_messages.append(message)
+    return stomp_messages, dict(webhook_payloads)
+
+
+WEBHOOK_MAX_RETRIES = 8
+WEBHOOK_RETRY_BACKOFF_MAX = 600
+
+
+@shared_task(
+    name="waldur_core.logging.deliver_webhook_messages",
+    bind=True,
+    max_retries=WEBHOOK_MAX_RETRIES,
+    # Off the default queue: a slow or unreachable listener must not starve
+    # every other task of workers.
+    is_background=True,
+)
+def deliver_webhook_messages(self, consumer_uuid: str, payloads: list[str]) -> dict:
+    """POST each payload of one batch, in order, to a webhook consumer.
+
+    Delivery is at-least-once, and ordered only within this batch: every event
+    is its own batch and retries on its own schedule, so two events can arrive
+    in either order. Messages carry ``emitted_at`` and an
+    ``X-Waldur-Message-Id`` header so the receiver can reorder and deduplicate.
+
+    On the first failure the task retries with the payloads not yet delivered,
+    with exponential backoff. Once the retries are exhausted the remainder is
+    dropped and logged; ``resync`` is how a receiver recovers the full state.
+    """
+    consumer = (
+        models.EventConsumer.objects.filter(
+            uuid=consumer_uuid, delivery=models.EventConsumer.Delivery.WEBHOOK
+        )
+        .exclude(webhook_url="")
+        .select_related("user")
+        .first()
+    )
+    if consumer is None or not _may_still_receive(consumer):
+        # Deleted, switched away from webhook delivery, or its owner lost the
+        # right to this feed since the messages were queued (retries can run
+        # for half an hour after dispatch).
+        return {"sent": 0, "dropped": len(payloads)}
+
+    sent = 0
+    for index, payload in enumerate(payloads):
+        try:
+            utils.post_consumer_webhook(
+                consumer.webhook_url,
+                payload,
+                utils.webhook_message_id(consumer_uuid, payload),
+            )
+        except SoftTimeLimitExceeded:
+            # A long batch against a slow listener: hand the rest to a fresh
+            # task rather than lose it with this one.
+            _record_webhook_delivery(consumer, sent)
+            deliver_webhook_messages.delay(consumer_uuid, payloads[index:])
+            return {"sent": sent, "requeued": len(payloads) - index}
+        except utils.WebhookDeliveryError as exc:
+            _record_webhook_delivery(consumer, sent, error=str(exc))
+            remaining = payloads[index:]
+            if self.request.retries >= self.max_retries:
+                logger.error(
+                    "Dropping %s webhook messages for event consumer %s after %s "
+                    "retries: %s",
+                    len(remaining),
+                    consumer_uuid,
+                    self.request.retries,
+                    exc,
+                )
+                return {"sent": sent, "dropped": len(remaining)}
+            countdown = min(WEBHOOK_RETRY_BACKOFF_MAX, 10 * 2**self.request.retries)
+            raise self.retry(args=[consumer_uuid, remaining], countdown=countdown)
+        sent += 1
+
+    _record_webhook_delivery(consumer, sent)
+    return {"sent": sent, "dropped": 0}
+
+
+def _may_still_receive(consumer) -> bool:
+    """Delivery-time re-check of the owner.
+
+    Only staff can create a webhook consumer, and the feed leaves the platform
+    for a third party, so it stops as soon as its owner is no longer active
+    staff or support -- bound or global alike.
+    """
+    user = consumer.user
+    return user.is_active and (user.is_staff or user.is_support)
+
+
+def _record_webhook_delivery(consumer, sent: int, error: str | None = None) -> None:
+    # A queryset update, not save(): delivery tasks for one consumer may run
+    # concurrently with an API edit of the same row.
+    now = timezone.now()
+    fields = {}
+    if sent:
+        fields["last_delivered_at"] = now
+    if error is not None:
+        fields["last_error"] = error
+        fields["last_error_at"] = now
+    if fields:
+        models.EventConsumer.objects.filter(pk=consumer.pk).update(**fields)
 
 
 @shared_task(name="waldur_core.logging.cleanup_orphan_subscription_queues")

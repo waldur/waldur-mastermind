@@ -8,15 +8,19 @@ import uuid as uuid_mod
 from collections.abc import Callable
 from typing import Any
 
+import requests
 import stomp
+from celery.exceptions import SoftTimeLimitExceeded
 from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import QuerySet
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.auth_utils import AUTH_METHOD_PAT, get_auth_method
+from waldur_core.core.utils import validate_outbound_url
 from waldur_core.logging import backend, event_logger, models
 from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
 from waldur_core.logging.enums import ConsumerAuthorization, EventType
@@ -721,3 +725,82 @@ def publish_stomp_messages(
                 connection.disconnect()
 
     return (successful, failed)
+
+
+class WebhookDeliveryError(Exception):
+    """A webhook POST that did not reach a 2xx response.
+
+    The message never contains the destination URL: listener URLs often carry
+    their credential in the query string, and this text is logged and stored on
+    the consumer.
+    """
+
+
+# Same default as WebHook; settings.WEBHOOK_REQUEST_TIMEOUT overrides both.
+_DEFAULT_WEBHOOK_TIMEOUT_SECONDS = 10
+# Connecting is bounded separately and tightly: an unreachable listener that
+# drops packets would otherwise hold a worker for the full read timeout on
+# every attempt.
+_WEBHOOK_CONNECT_TIMEOUT_SECONDS = 3
+
+
+def webhook_message_id(consumer_uuid: str, body: str) -> str:
+    """Stable per (consumer, message): a retry re-sends the same id."""
+    return hashlib.sha256(f"{consumer_uuid}:{body}".encode()).hexdigest()[:32]
+
+
+def post_consumer_webhook(url: str, body: str, message_id: str) -> None:
+    """POST one JSON message to a webhook consumer, or raise WebhookDeliveryError.
+
+    The destination is re-validated at send time to defeat DNS rebinding since
+    it was saved, and redirects are refused so a public listener cannot bounce
+    the request to an internal address -- the same guards as WebHook.process.
+    The response body is never read, so a hostile listener cannot make the
+    worker download an unbounded body.
+
+    ``X-Waldur-Message-Id`` lets the receiver drop a duplicate: delivery is
+    at-least-once, and a timed-out request that the listener did process is
+    sent again.
+    """
+    try:
+        validate_outbound_url(url)
+    except DjangoValidationError:
+        raise WebhookDeliveryError("Destination is not a public address.")
+
+    try:
+        response = requests.post(
+            url,
+            data=body.encode(),
+            headers={
+                "Content-Type": "application/json",
+                "X-Waldur-Message-Id": message_id,
+            },
+            timeout=(
+                _WEBHOOK_CONNECT_TIMEOUT_SECONDS,
+                getattr(
+                    settings,
+                    "WEBHOOK_REQUEST_TIMEOUT",
+                    _DEFAULT_WEBHOOK_TIMEOUT_SECONDS,
+                ),
+            ),
+            verify=getattr(settings, "VERIFY_WEBHOOK_REQUESTS", True),
+            allow_redirects=False,
+            stream=True,
+        )
+    except requests.RequestException as exc:
+        # The class name only: requests' messages embed the full URL.
+        raise WebhookDeliveryError(f"Request failed: {type(exc).__name__}.")
+    except SoftTimeLimitExceeded:
+        # The caller re-queues the rest of its batch on this one.
+        raise
+    except Exception as exc:
+        # Anything else (a urllib3 or socket error surfacing raw) would reach
+        # Sentry with this frame's locals: the credentialed URL and the payload.
+        raise WebhookDeliveryError(f"Request failed: {type(exc).__name__}.")
+    try:
+        status_code = response.status_code
+    finally:
+        response.close()
+
+    if not 200 <= status_code < 300:
+        raise WebhookDeliveryError(f"Listener answered HTTP {status_code}.")

@@ -6962,16 +6962,15 @@ def prepare_messages(
     # marketplace signal across every tenant; on an install (or object type) with
     # nothing listening on EITHER path, skip the several-query scope-key
     # resolution below and return immediately. Two indexed EXISTS replace ~5-7
-    # queries when idle. Any unified consumer (global or bound) has
-    # queue_created=True, so a single EXISTS covers them all.
+    # queries when idle. deliverable_q() is the dispatcher's own candidate
+    # filter (a provisioned queue or a webhook URL), so one EXISTS covers every
+    # unified consumer on either transport.
     legacy_subscriptions = logging_models.EventSubscription.objects.filter(
         observable_objects__contains=[{"object_type": affected_object.value}]
     )
-    has_unified_consumer = (
-        logging_models.EventConsumer.objects.filter(queue_created=True)
-        .exclude(rmq_username="")
-        .exists()
-    )
+    has_unified_consumer = logging_models.EventConsumer.objects.filter(
+        event_dispatch.deliverable_q()
+    ).exists()
     if not has_unified_consumer and not legacy_subscriptions.exists():
         return messages_to_send
 

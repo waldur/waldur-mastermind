@@ -486,6 +486,8 @@ class EventType(StrEnum):
     EVENT_CONSUMER_REGISTERED_WITH_BROAD_CREDENTIAL = (
         "event_consumer_registered_with_broad_credential"
     )
+    EVENT_CONSUMER_WEBHOOK_UPDATED = "event_consumer_webhook_updated"
+    EVENT_CONSUMER_RESYNC_REQUESTED = "event_consumer_resync_requested"
 
 
 class EventGroup(StrEnum):
@@ -569,6 +571,8 @@ EVENT_GROUP_MAPPING = {
         EventType.PASSKEY_AUTHENTICATION_SUCCEEDED,
         EventType.PASSKEY_AUTHENTICATION_FAILED,
         EventType.EVENT_CONSUMER_REGISTERED_WITH_BROAD_CREDENTIAL,
+        EventType.EVENT_CONSUMER_WEBHOOK_UPDATED,
+        EventType.EVENT_CONSUMER_RESYNC_REQUESTED,
     ],
     EventGroup.CALL: [
         EventType.CALL_DOCUMENT_ADDED,

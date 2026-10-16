@@ -255,6 +255,9 @@ class EventConsumerFilter(django_filters.FilterSet):
         widget=BooleanWidget,
         label="Consumer is bound to no scope and therefore receives every event",
     )
+    delivery = django_filters.ChoiceFilter(
+        choices=models.EventConsumer.Delivery.choices
+    )
 
     class Meta:
         model = models.EventConsumer

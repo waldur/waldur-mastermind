@@ -36,16 +36,22 @@ import logging
 from collections.abc import Callable
 from typing import Any, NamedTuple
 
+from celery import shared_task
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Q
+from django.utils import timezone
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.user_attributes import get_enabled_profile_attributes
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.enums import ObservableObjectType
+from waldur_core.permissions import models as permission_models
 from waldur_core.permissions import utils as permission_utils
+from waldur_core.structure import permissions as structure_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -79,14 +85,49 @@ def _global_consumers():
     the all-user PII firehose immediately."""
     return (
         logging_models.EventConsumer.objects.filter(
+            deliverable_q(),
             scopes__isnull=True,  # no bindings = global
-            queue_created=True,
             user__is_active=True,
         )
         .filter(Q(user__is_staff=True) | Q(user__is_support=True))
-        .exclude(rmq_username="")
         .select_related("user")
     )
+
+
+def deliverable_q() -> Q:
+    """Consumers with a working transport: a provisioned queue, or a webhook URL."""
+    Delivery = logging_models.EventConsumer.Delivery
+    return (Q(delivery=Delivery.RMQ, queue_created=True) & ~Q(rmq_username="")) | (
+        Q(delivery=Delivery.WEBHOOK) & ~Q(webhook_url="")
+    )
+
+
+def consumer_message(consumer, payload_str: str) -> dict:
+    """One publishable message for ``consumer``, shaped for its transport.
+
+    ``publish_messages`` routes on the shape: ``webhook_consumer`` goes to the
+    HTTP delivery task, ``vhost``/``topic`` to STOMP.
+    """
+    if consumer.is_webhook:
+        return {"webhook_consumer": consumer.uuid.hex, "payload": payload_str}
+    return {
+        "vhost": consumer.user.uuid.hex,
+        "topic": consumer.queue_name,
+        "payload": payload_str,
+    }
+
+
+def _envelope(payload, object_type: ObservableObjectType, event_type) -> dict:
+    envelope = dict(payload)
+    envelope["object_type"] = object_type.value
+    if event_type is not None:
+        envelope["event_type"] = event_type
+    envelope.setdefault("schema_version", 1)
+    # Delivery is at-least-once with no ordering across events (each event is
+    # its own task, retried independently), so a receiver needs the emission
+    # time to discard an update older than one it already applied.
+    envelope.setdefault("emitted_at", timezone.now().isoformat())
+    return envelope
 
 
 class DispatchResult(NamedTuple):
@@ -150,10 +191,8 @@ def build_messages(
             # single query with a nested IN (SELECT ...) subquery rather than two
             # round trips — this runs on essentially every marketplace event.
             logging_models.EventConsumer.objects.filter(
-                id__in=matched_ids, queue_created=True, user__is_active=True
-            )
-            .exclude(rmq_username="")
-            .select_related("user")
+                deliverable_q(), id__in=matched_ids, user__is_active=True
+            ).select_related("user")
         ):
             consumers[consumer.id] = consumer
 
@@ -200,11 +239,7 @@ def build_messages(
     if not consumers:
         return DispatchResult([], set())
 
-    envelope = dict(payload_builder())
-    envelope["object_type"] = object_type.value
-    if event_type is not None:
-        envelope["event_type"] = event_type
-    envelope.setdefault("schema_version", 1)
+    envelope = _envelope(payload_builder(), object_type, event_type)
     # DjangoJSONEncoder, not the stdlib default: payloads carry raw model values
     # (e.g. a DateField in the profile diff, a Decimal in a marketplace payload).
     # A TypeError here would surface INSIDE a post_save handler and abort the
@@ -214,16 +249,14 @@ def build_messages(
     messages = []
     delivered_user_ids = set()
     for consumer in consumers.values():
-        if consumer.object_types and object_type.value not in consumer.object_types:
+        if not consumer.accepts(object_type.value, envelope):
             continue
-        delivered_user_ids.add(consumer.user_id)
-        messages.append(
-            {
-                "vhost": consumer.user.uuid.hex,
-                "topic": consumer.queue_name,
-                "payload": payload_str,
-            }
-        )
+        # Only a queue counts as "this user already has it": the marketplace
+        # caller skips the user's legacy subscription queues on this set, and a
+        # webhook delivers to some other system, not to the user's own client.
+        if not consumer.is_webhook:
+            delivered_user_ids.add(consumer.user_id)
+        messages.append(consumer_message(consumer, payload_str))
     return DispatchResult(messages, delivered_user_ids)
 
 
@@ -283,8 +316,9 @@ def delivery_blocked_reason(consumer) -> str | None:
 
     Kept next to :func:`build_messages` so the two cannot drift: the ladder
     below walks the drop conditions in the order the dispatcher applies them —
-    the candidate querysets (``user__is_active``, ``queue_created``, a non-empty
-    ``rmq_username``), the staff/support bypass, the global-consumer
+    the candidate querysets (``user__is_active``, and per transport either
+    ``queue_created`` with a non-empty ``rmq_username`` or a non-empty
+    ``webhook_url``), the staff/support bypass, the global-consumer
     staff/support filter, and finally the batched role re-check.
 
     The last rung is deliberately WIDER than dispatch: it asks whether the owner
@@ -312,9 +346,12 @@ def delivery_blocked_reason(consumer) -> str | None:
     user = consumer.user
     if not user.is_active:
         return "Owner account is deactivated."
-    if not consumer.queue_created:
+    if consumer.is_webhook:
+        if not consumer.webhook_url:
+            return "Webhook consumer has no destination URL."
+    elif not consumer.queue_created:
         return "Queue is not provisioned in RabbitMQ."
-    if not consumer.rmq_username:
+    elif not consumer.rmq_username:
         return "Consumer has no RabbitMQ credential."
     # Before the staff/support bypass: a dead type filter drops the message
     # after authorization, so privilege does not rescue it.
@@ -535,9 +572,27 @@ def emit_user_ssh_key_delete(sender, instance, **kwargs):
     )
 
 
-def _build_role_payload(permission, granted):
+def _scope_customer(scope):
+    """The organization a role scope belongs to, or None if it has none."""
+    if scope is None or not hasattr(scope, "Permissions"):
+        return None
+    try:
+        return structure_permissions._get_customer(scope)
+    except (AttributeError, ObjectDoesNotExist):
+        return None
+
+
+_UNRESOLVED = object()
+
+
+def _build_role_payload(permission, granted, customer=_UNRESOLVED):
     scope = permission.scope
     scope_uuid = getattr(scope, "uuid", None)
+    # The organization is the natural join key for an external system mirroring
+    # Waldur's structure: the scope itself for an organization role, the parent
+    # organization for a project/offering/call role.
+    if customer is _UNRESOLVED:
+        customer = _scope_customer(scope)
     return {
         "user_uuid": _hex(permission.user.uuid),
         "user_username": permission.user.username,
@@ -548,6 +603,9 @@ def _build_role_payload(permission, granted):
         "scope_type": permission.content_type.model,
         "scope_uuid": _hex(scope_uuid),
         "scope_name": getattr(scope, "name", None),
+        "customer_uuid": _hex(getattr(customer, "uuid", None)),
+        "customer_name": getattr(customer, "name", None),
+        "customer_registration_code": getattr(customer, "registration_code", None),
     }
 
 
@@ -568,3 +626,90 @@ def on_role_granted(sender, instance, **kwargs):
 
 def on_role_revoked(sender, instance, **kwargs):
     _dispatch_role_change(instance, granted=False)
+
+
+# --- Resync: replay current state to one consumer -------------------------
+# Events only describe changes, so a receiver that starts late (or lost its
+# state) has no way to learn what already exists. A resync sends the current
+# state as snapshot messages through the consumer's own transport and filters.
+# Lives here rather than in tasks.py because it builds the same payloads as the
+# signal emitters above, and this module already imports tasks.py.
+
+SNAPSHOT_BATCH_SIZE = 200
+RESYNC_OBJECT_TYPES = (ObservableObjectType.USER_ROLE,)
+
+
+def role_snapshot_batches(consumer):
+    """Messages describing every active role grant this consumer accepts.
+
+    Yields lists of at most SNAPSHOT_BATCH_SIZE messages. The role-name and
+    scope-type filters are pushed into the query, since they are the common
+    case (e.g. organization owners only) and otherwise every grant on the
+    platform would be loaded just to be dropped.
+    """
+    filters = consumer.payload_filters or {}
+    roles = (
+        permission_models.UserRole.objects.filter(is_active=True, user__is_active=True)
+        .select_related("user", "role", "content_type")
+        # One query per content type per chunk instead of one per grant.
+        .prefetch_related("scope")
+        .order_by("id")
+    )
+    if "role_name" in filters:
+        roles = roles.filter(role__name__in=filters["role_name"])
+    if "scope_type" in filters:
+        roles = roles.filter(content_type__model__in=filters["scope_type"])
+
+    object_type = ObservableObjectType.USER_ROLE
+    # Many grants share an organization; resolve each scope's customer once.
+    customers = {}
+    batch = []
+    # Client-side chunks, not .iterator(): a server-side cursor breaks behind
+    # PgBouncer, and this generator suspends between fetches while its caller
+    # publishes each batch.
+    for permission in core_utils.chunked_queryset(roles, chunk_size=500):
+        if permission.scope is None:  # dangling GenericFK
+            continue
+        key = (permission.content_type_id, permission.object_id)
+        if key not in customers:
+            customers[key] = _scope_customer(permission.scope)
+        envelope = _envelope(
+            _build_role_payload(permission, granted=True, customer=customers[key]),
+            object_type,
+            "role_snapshot",
+        )
+        if not consumer.accepts(object_type.value, envelope):
+            continue
+        payload_str = json.dumps(envelope, cls=DjangoJSONEncoder)
+        batch.append(consumer_message(consumer, payload_str))
+        if len(batch) >= SNAPSHOT_BATCH_SIZE:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
+@shared_task(name="waldur_core.logging.resync_event_consumer", is_background=True)
+def resync_event_consumer(consumer_uuid: str) -> dict:
+    """Send the current role state to a global consumer as snapshot messages."""
+    consumer = (
+        logging_models.EventConsumer.objects.filter(deliverable_q(), uuid=consumer_uuid)
+        .select_related("user")
+        .first()
+    )
+    # Re-checked here, not only in the view: a snapshot is the all-user PII
+    # firehose, and the owner may have been demoted while the task was queued.
+    if (
+        consumer is None
+        or not consumer.user.is_active
+        or not (consumer.user.is_staff or consumer.user.is_support)
+        or not consumer.is_global
+    ):
+        return {"sent": 0}
+
+    sent = 0
+    for batch in role_snapshot_batches(consumer):
+        logging_tasks.publish_messages.delay(batch)
+        sent += len(batch)
+    logger.info("Resync queued %s snapshot messages for %s", sent, consumer)
+    return {"sent": sent}
