@@ -4779,6 +4779,19 @@ class EndpointUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField(help_text="UUID of the access endpoint")
 
 
+class UpdateEndpointSerializer(NestedEndpointSerializer):
+    class Meta(NestedEndpointSerializer.Meta):
+        extra_kwargs = {"name": {"required": False}}
+
+    uuid = serializers.UUIDField(help_text="UUID of the access endpoint")
+    url = serializers.CharField(
+        required=False,
+        max_length=200,
+        validators=[core_validators.BackendURLValidator()],
+        help_text="URL of the access endpoint",
+    )
+
+
 class NestedOfferingAccessSubnetSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OfferingAccessSubnet

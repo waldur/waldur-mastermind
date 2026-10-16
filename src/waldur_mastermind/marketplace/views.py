@@ -4245,6 +4245,44 @@ class ProviderOfferingViewSet(
     add_endpoint_validators = update_validators
 
     @extend_schema(
+        summary="Update an access endpoint of an offering",
+        description="Updates the name and/or URL of an existing access endpoint "
+        "of an offering, identified by its UUID.",
+        request=serializers.UpdateEndpointSerializer,
+        responses={200: serializers.NestedEndpointSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def update_endpoint(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        endpoint = get_object_or_404(
+            offering.endpoints, uuid=serializer.validated_data["uuid"]
+        )
+
+        if "url" in serializer.validated_data:
+            url = serializer.validated_data["url"]
+            self._validate_endpoint_domain(offering, url)
+            endpoint.url = url
+        if "name" in serializer.validated_data:
+            endpoint.name = serializer.validated_data["name"]
+        endpoint.save()
+
+        return Response(
+            serializers.NestedEndpointSerializer(endpoint).data,
+            status=status.HTTP_200_OK,
+        )
+
+    update_endpoint_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_ENDPOINT,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    update_endpoint_serializer_class = serializers.UpdateEndpointSerializer
+    update_endpoint_validators = update_validators
+
+    @extend_schema(
         summary="Delete an access endpoint from an offering",
         description="Deletes an existing access endpoint from an offering by its UUID.",
         request=serializers.EndpointUUIDSerializer,

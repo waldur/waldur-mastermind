@@ -1535,3 +1535,94 @@ class OfferingEndpointDomainValidationTest(test.APITestCase):
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
+
+
+class OfferingEndpointUpdateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_ENDPOINT)
+        self.endpoint = models.OfferingAccessEndpoint.objects.create(
+            offering=self.offering,
+            name="Login node",
+            url="ssh://login.provider.org",
+        )
+        self.url = factories.OfferingFactory.get_url(self.offering, "update_endpoint")
+
+    def _update_endpoint(self, user, payload):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            self.url, {"uuid": self.endpoint.uuid.hex, **payload}, format="json"
+        )
+
+    def test_owner_can_update_name_and_url(self):
+        response = self._update_endpoint(
+            self.fixture.service_owner,
+            {"name": "Portal", "url": "https://portal.provider.org"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["uuid"], self.endpoint.uuid.hex)
+        self.endpoint.refresh_from_db()
+        self.assertEqual(self.endpoint.name, "Portal")
+        self.assertEqual(self.endpoint.url, "https://portal.provider.org")
+
+    def test_partial_update_keeps_other_fields(self):
+        response = self._update_endpoint(
+            self.fixture.service_owner, {"name": "Renamed"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.endpoint.refresh_from_db()
+        self.assertEqual(self.endpoint.name, "Renamed")
+        self.assertEqual(self.endpoint.url, "ssh://login.provider.org")
+
+    def test_staff_can_update_endpoint(self):
+        response = self._update_endpoint(self.fixture.staff, {"name": "Renamed"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_user_without_permission_cannot_update_endpoint(self):
+        response = self._update_endpoint(
+            self.fixture.offering_manager, {"name": "Renamed"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.endpoint.refresh_from_db()
+        self.assertEqual(self.endpoint.name, "Login node")
+
+    def test_unrelated_user_cannot_update_endpoint(self):
+        # Provider offerings of other organizations are hidden from the user.
+        response = self._update_endpoint(self.fixture.user, {"name": "Renamed"})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.endpoint.refresh_from_db()
+        self.assertEqual(self.endpoint.name, "Login node")
+
+    def test_url_outside_allowed_domains_is_rejected(self):
+        self.fixture.service_provider.allowed_domains = ["provider.org"]
+        self.fixture.service_provider.save()
+
+        response = self._update_endpoint(
+            self.fixture.service_owner, {"url": "https://attacker.com/endpoint"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.endpoint.refresh_from_db()
+        self.assertEqual(self.endpoint.url, "ssh://login.provider.org")
+
+    def test_invalid_url_is_rejected(self):
+        response = self._update_endpoint(
+            self.fixture.service_owner, {"url": "not a url"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_endpoint_of_another_offering_cannot_be_updated(self):
+        other_endpoint = models.OfferingAccessEndpoint.objects.create(
+            offering=factories.OfferingFactory(),
+            name="Other",
+            url="https://other.example.com",
+        )
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.post(
+            self.url,
+            {"uuid": other_endpoint.uuid.hex, "name": "Hijacked"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        other_endpoint.refresh_from_db()
+        self.assertEqual(other_endpoint.name, "Other")
