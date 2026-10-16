@@ -985,7 +985,7 @@ Tells organization owners that the addresses receiving the organization's invoic
 
     Hello,
 
-    the addresses that receive invoices for {{ organization_name }} have changed{% if changed_by %} by {{ changed_by }}{% endif %}.
+    the addresses that receive invoices for {{ organization_name }} have been changed{% if changed_by %} by {{ changed_by }}{% endif %}.
 
     Before: {% if old_recipients %}{{ old_recipients|join:", " }}{% else %}organization owners{% endif %}
     Now: {% if new_recipients %}{{ new_recipients|join:", " }}{% else %}organization owners{% endif %}
@@ -1008,7 +1008,7 @@ Tells organization owners that the addresses receiving the organization's invoic
     <p>
         Hello,
         <br/>
-        the addresses that receive invoices for {{ organization_name }} have changed{% if changed_by %} by {{ changed_by }}{% endif %}.
+        the addresses that receive invoices for {{ organization_name }} have been changed{% if changed_by %} by {{ changed_by }}{% endif %}.
     </p>
     <p>
         Before: {% if old_recipients %}{{ old_recipients|join:", " }}{% else %}organization owners{% endif %}

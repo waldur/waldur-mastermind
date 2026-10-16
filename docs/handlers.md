@@ -154,6 +154,7 @@ td:nth-child(4) {
 | `invalidate_cache_on_commit` | `Django Signal (post_delete)` | `marketplace.Offering` | Signal receiver that defers the drop until the transaction commits. |
 | `log_access_subnet_deletion_succeeded` | `Django Signal (post_delete)` | `structure.AccessSubnet` | Log successful access subnet deletion. |
 | `log_access_subnet_save` | `Django Signal (post_save)` | `structure.AccessSubnet` | Log access subnet creation and updates. |
+| `log_admin_action` | `Django Signal (post_save)` | `admin.LogEntry` | No description |
 | `log_customer_delete` | `Django Signal (post_delete)` | `structure.Customer` | Log customer deletion. |
 | `log_customer_save` | `Django Signal (post_save)` | `structure.Customer` | Log customer creation and updates. |
 | `log_project_delete` | `Django Signal (post_delete)` | `structure.Project` | Log project deletion. |
@@ -597,6 +598,7 @@ td:nth-child(4) {
 | `notify_about_resource_end_date_change_request` | `Django Signal (post_save)` | `marketplace.ResourceEndDateChangeRequest` | Email approvers about a new request, and the requester about the verdict. |
 | `notify_approvers_when_order_is_created` | `Django Signal (post_save)` | `marketplace.Order` | Notify approvers when an order is created. |
 | `notify_offering_user_about_tos_requirement` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Notify user about ToS requirement when OfferingUser is created. |
+| `notify_owners_about_invoice_emails_change` | `Django Signal (post_save)` | `structure.Customer` | Owners stop getting invoices once invoice emails are set, so tell them. |
 | `notify_recipients_when_order_needs_no_consumer_approval` | `Django Signal (post_save)` | `marketplace.Order` | Notify the offering's configured recipients about an order needing no consumer review. |
 | `notify_user_about_rejected_order` | `Django Signal (post_save)` | `marketplace.Order` | Notify user about rejected order. |
 | `notify_users_about_tos_update_signal` | `Django Signal (post_save)` | `marketplace.OfferingTermsOfService` | Notify users when ToS is updated and requires re-consent. |
@@ -837,14 +839,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 758
+Total unique handlers found: 760
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 348 handlers
+- **waldur_core**: 349 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 349 handlers
+- **waldur_mastermind**: 350 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers

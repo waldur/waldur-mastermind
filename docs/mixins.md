@@ -65,6 +65,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`LoggableMixin`](#loggablemixin) | `waldur_core.logging.mixins` | Mixin to serialize model in logs |
 | [`EventTypesMixin`](#eventtypesmixin) | `waldur_core.logging.models` | Mixin to add a event_types and event_groups fields |
 | [`UuidMixin`](#uuidmixin) | `waldur_core.logging.models` | Make subclasses preserve the alters_data attribute on overridden methods |
+| [`WebhookConsumerFieldsMixin`](#webhookconsumerfieldsmixin) | `waldur_core.logging.serializers` | Webhook destination and payload filters, shared by create and update |
 | [`ImageModelMixin`](#imagemodelmixin) | `waldur_core.media.mixins` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`PermissionMixin`](#permissionmixin) | `waldur_core.permissions.mixins` | Base permission management mixin for customer and project |
 | [`UserRoleMixin`](#userrolemixin) | `waldur_core.permissions.views` | Mixin to provide user role management functionality for viewsets |
@@ -116,6 +117,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
 | [`EstimatedCostPolicyMixin`](#estimatedcostpolicymixin) | `waldur_mastermind.policy.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
+| [`PolicyEventsMixin`](#policyeventsmixin) | `waldur_mastermind.policy.views` | Log policy changes made through the API |
 | [`CallNotArchivedCreateMixin`](#callnotarchivedcreatemixin) | `waldur_mastermind.proposal.serializers` | Provide the ``validate_call_not_archived`` hook used by ``ActionMethodMixin |
 | [`ApplicantIdentityTestMixin`](#applicantidentitytestmixin) | `waldur_mastermind.proposal.tests.test_applicant_identity_paths` | No description available |
 | [`AssignmentBatchTestMixin`](#assignmentbatchtestmixin) | `waldur_mastermind.proposal.tests.test_assignment_batch_notifications` | No description available |
@@ -985,6 +987,16 @@ Make subclasses preserve the alters_data attribute on overridden methods.
 
 **Base classes:** `Model`
 
+### WebhookConsumerFieldsMixin
+
+**Module:** `waldur_core.logging.serializers`
+
+**Description:**
+
+Webhook destination and payload filters, shared by create and update.
+
+**Base classes:** `Serializer`
+
 ### ImageModelMixin
 
 **Module:** `waldur_core.media.mixins`
@@ -1666,6 +1678,17 @@ Example:
 or uses URL name specified in a model of serialized object.
 
 **Base classes:** `AugmentedSerializerMixin`
+
+### PolicyEventsMixin
+
+**Module:** `waldur_mastermind.policy.views`
+
+**Description:**
+
+Log policy changes made through the API.
+
+Policies are saved by the background tasks too (has_fired, fired_datetime),
+so the events are emitted here rather than from post_save.
 
 ### CallNotArchivedCreateMixin
 

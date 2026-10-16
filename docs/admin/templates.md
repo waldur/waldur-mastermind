@@ -1305,6 +1305,22 @@ this is a reminder that {{ organization_name }}'s fixed price contract {{ contra
 
 ```
 
+### invoice_emails_changed_message.txt (waldur_mastermind.invoices)
+
+```txt
+
+Hello,
+
+the addresses that receive invoices for {{ organization_name }} have been changed{% if changed_by %} by {{ changed_by }}{% endif %}.
+
+Before: {% if old_recipients %}{{ old_recipients|join:", " }}{% else %}organization owners{% endif %}
+Now: {% if new_recipients %}{{ new_recipients|join:", " }}{% else %}organization owners{% endif %}
+
+If you did not expect this change, review the organization's contact settings:
+{{ link }}
+
+```
+
 ### upcoming_ends_notification_message.html (waldur_mastermind.invoices)
 
 ```html
@@ -1450,6 +1466,14 @@ Invoice for {{ customer }}, {{ month }}/{{ year }}
 
 ```
 
+### invoice_emails_changed_subject.txt (waldur_mastermind.invoices)
+
+```txt
+
+Invoice recipients changed for {{ organization_name }}
+
+```
+
 ### notification_message.html (waldur_mastermind.invoices)
 
 ```html
@@ -1466,6 +1490,34 @@ Invoice for {{ customer }}, {{ month }}/{{ year }}
 <p>
     Here is the {{ month }}/{{ year }} invoice for {{ customer }}.
     {% if attached %}It is attached as a PDF, and you can also <a href="{{ link }}">view it online</a>.{% else %}You can <a href="{{ link }}">view it online</a>.{% endif %}
+</p>
+</body>
+</html>
+
+```
+
+### invoice_emails_changed_message.html (waldur_mastermind.invoices)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Invoice recipients changed for {{ organization_name }}</title>
+</head>
+<body>
+<p>
+    Hello,
+    <br/>
+    the addresses that receive invoices for {{ organization_name }} have been changed{% if changed_by %} by {{ changed_by }}{% endif %}.
+</p>
+<p>
+    Before: {% if old_recipients %}{{ old_recipients|join:", " }}{% else %}organization owners{% endif %}
+    <br/>
+    Now: {% if new_recipients %}{{ new_recipients|join:", " }}{% else %}organization owners{% endif %}
+</p>
+<p>
+    If you did not expect this change, <a href="{{ link }}">review the organization's contact settings</a>.
 </p>
 </body>
 </html>
