@@ -61,7 +61,9 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
         )
 
     backend_url = serializers.CharField(
-        max_length=200, label=_("Rancher server URL"), validators=[BackendURLValidator]
+        max_length=200,
+        label=_("Rancher server URL"),
+        validators=[BackendURLValidator()],
     )
 
     username = serializers.CharField(max_length=100, label=_("Rancher access key"))

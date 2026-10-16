@@ -94,7 +94,56 @@ class RuntimeStateValidator(StateValidator):
 
 
 class BackendURLValidator(URLValidator):
+    """URL check for service endpoints and backend API addresses.
+
+    The scheme list is Waldur's. The host grammar is Django's, except the
+    public suffix is optional: internal DNS is often one label, as in
+    ``http://controller:5000/v3`` or ``http://litellm:4000/v1``. Underscores
+    stay rejected. A label is still letters, digits, and hyphens.
+
+    A host made only of digits and dots is accepted only when it is a real
+    IPv4 address. ``999.999.999.999``, ``256.0.0.1``, ``1.2.3``, and ``1234``
+    are rejected. A hex name such as ``0x7f000001`` stays a hostname.
+    """
+
     schemes = ["ldap", "ldaps", "http", "https", "ssh", "rdp"]
+
+    host_re = (
+        "("
+        + URLValidator.hostname_re
+        + URLValidator.domain_re
+        + "(?:"
+        + URLValidator.tld_re
+        + ")?"
+        + ")"
+    )
+
+    # URLValidator compiles regex from its own host_re when the class is
+    # defined. Overriding host_re on a subclass does not change that compiled
+    # expression, so the expression is rebuilt here. __init__ compiles it
+    # case-insensitively, which is what Django does.
+    regex = (
+        r"^(?:[a-z0-9.+-]*)://"
+        r"(?:[^\s:@/]+(?::[^\s:@/]*)?@)?"
+        # ipv4_re matches a real address such as 10.0.0.1. The lookahead then
+        # rejects any other host of only digits and dots. Hex names are not
+        # part of that pattern, so 0x7f000001 stays a hostname.
+        r"(?:"
+        + URLValidator.ipv4_re
+        + "|"
+        + URLValidator.ipv6_re
+        + "|"
+        + r"(?![0-9.]+(?::|[/?#]|\Z))"
+        + host_re
+        + ")"
+        r"(?::[0-9]{1,5})?"
+        r"(?:[/?#][^\s]*)?"
+        r"\Z"
+    )
+
+    def __init__(self, schemes=None, **kwargs):
+        kwargs.setdefault("flags", re.IGNORECASE)
+        super().__init__(schemes, **kwargs)
 
 
 def is_valid_ipv4_cidr(value: str) -> bool:

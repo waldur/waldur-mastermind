@@ -31,7 +31,7 @@ class ServiceSettingsValidationTest(test.APITestCase):
 
     def get_payload(self):
         return {
-            "backend_url": "localhost",
+            "backend_url": "https://rancher.example.com",
             "username": "user",
             "password": "password",
             "base_image_name": "ubuntu",
@@ -44,3 +44,52 @@ class ServiceSettingsValidationTest(test.APITestCase):
                 self.user = request_user
 
         return {"request": Request(user)}
+
+
+class BackendURLValidationTest(test.APITestCase):
+    def _payload(self, backend_url):
+        return {
+            "backend_url": backend_url,
+            "username": "user",
+            "password": "password",
+            "base_image_name": "ubuntu",
+        }
+
+    def test_accepts_supported_backend_urls(self):
+        for backend_url in (
+            "https://rancher.example.com",
+            "http://rancher:8443",
+            "http://rancher.example.com:8443",
+            "ssh://bastion.example.com",
+            "ssh://login01",
+            "ldap://directory.example.com",
+            "ldaps://directory.example.com",
+            "rdp://desktop.example.com",
+        ):
+            with self.subTest(backend_url=backend_url):
+                serializer = rancher_serializers.RancherServiceSettingsSerializer(
+                    data=self._payload(backend_url)
+                )
+                self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_rejects_malformed_backend_urls(self):
+        for backend_url in (
+            "not a url",
+            "localhost",
+            "example.com",
+            "ftp://files.example.com",
+            "ftps://files.example.com",
+            "http://keystone_1.example.com",
+            "http://999.999.999.999",
+            "http://256.0.0.1:5000",
+            "http://1.2.3",
+            "http://1234",
+        ):
+            with self.subTest(backend_url=backend_url):
+                serializer = rancher_serializers.RancherServiceSettingsSerializer(
+                    data=self._payload(backend_url)
+                )
+                self.assertFalse(serializer.is_valid())
+                self.assertIn(
+                    "Enter a valid URL", str(serializer.errors["backend_url"])
+                )

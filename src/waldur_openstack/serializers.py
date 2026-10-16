@@ -79,7 +79,7 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         label=_("API URL"),
         default="http://keystone.example.com:5000/v3",
         help_text=_("Keystone auth URL (e.g. http://keystone.example.com:5000/v3)"),
-        validators=[BackendURLValidator],
+        validators=[BackendURLValidator()],
     )
 
     username = serializers.CharField(

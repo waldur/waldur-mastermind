@@ -15,7 +15,7 @@ class VmwareServiceSerializer(structure_serializers.ServiceOptionsSerializer):
         secret_fields = ("backend_url", "username", "password")
 
     backend_url = serializers.CharField(
-        max_length=200, label=_("VMware auth URL"), validators=[BackendURLValidator]
+        max_length=200, label=_("VMware auth URL"), validators=[BackendURLValidator()]
     )
 
     username = serializers.CharField(max_length=100, label=_("VMware user username"))
