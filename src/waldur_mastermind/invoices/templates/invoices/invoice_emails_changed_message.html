@@ -1,0 +1,21 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Invoice recipients changed for {{ organization_name }}</title>
+</head>
+<body>
+<p>
+    Hello,
+    <br/>
+    the addresses that receive invoices for {{ organization_name }} have been changed{% if changed_by %} by {{ changed_by }}{% endif %}.
+</p>
+<p>
+    Before: {% if old_recipients %}{{ old_recipients|join:", " }}{% else %}organization owners{% endif %}
+    <br/>
+    Now: {% if new_recipients %}{{ new_recipients|join:", " }}{% else %}organization owners{% endif %}
+</p>
+<p>
+    If you did not expect this change, <a href="{{ link }}">review the organization's contact settings</a>.
+</p>
+</body>
+</html>

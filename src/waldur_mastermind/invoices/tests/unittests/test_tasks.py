@@ -1,12 +1,18 @@
 from datetime import timedelta
 
 from ddt import data, ddt
+from django.conf import settings
 from django.core import mail
+from django.core.cache import cache
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
+from rest_framework import test
 
+from waldur_core.core import views as core_views
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models, tasks
@@ -101,6 +107,108 @@ class NotificationTest(TestCase):
         self.assertTrue(filename.endswith(".pdf"))
         self.assertEqual(mimetype, "application/pdf")
         self.assertTrue(content.startswith(b"%PDF-"))
+
+    def test_invoice_emails_replace_owners(self):
+        structure_factories.NotificationFactory(key="invoices.notification")
+        self.fixture.customer.invoice_emails = (
+            "billing@example.com, finance@example.com,"
+        )
+        self.fixture.customer.save()
+
+        tasks.send_invoice_notification(self.invoice.uuid)
+
+        recipients = sorted(address for m in mail.outbox for address in m.to)
+        self.assertEqual(recipients, ["billing@example.com", "finance@example.com"])
+
+    def test_repeated_invoice_emails_get_one_copy(self):
+        structure_factories.NotificationFactory(key="invoices.notification")
+        self.fixture.customer.invoice_emails = "billing@example.com,Billing@Example.com"
+        self.fixture.customer.save()
+
+        tasks.send_invoice_notification(self.invoice.uuid)
+
+        self.assertEqual(
+            [address for m in mail.outbox for address in m.to],
+            ["billing@example.com"],
+        )
+
+    def test_owners_receive_invoice_when_invoice_emails_empty(self):
+        structure_factories.NotificationFactory(key="invoices.notification")
+
+        tasks.send_invoice_notification(self.invoice.uuid)
+
+        self.assertEqual(
+            [address for m in mail.outbox for address in m.to],
+            [self.fixture.owner.email],
+        )
+
+
+@override_settings(task_always_eager=True)
+class InvoiceEmailsChangedNotificationTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.owner = self.fixture.owner
+        self.customer = self.fixture.customer
+        structure_factories.NotificationFactory(key="invoices.invoice_emails_changed")
+        self.url = reverse("customer-contact", kwargs={"uuid": self.customer.uuid.hex})
+
+    def update_invoice_emails(self, value):
+        self.client.force_authenticate(self.fixture.staff)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.url, {"invoice_emails": value})
+        self.assertEqual(response.status_code, 200, response.data)
+
+    def test_owners_are_told_when_invoice_emails_change(self):
+        self.update_invoice_emails("billing@example.com")
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, [self.owner.email])
+        self.assertIn("billing@example.com", message.body)
+        self.assertIn(self.fixture.staff.full_name, message.body)
+
+    def test_owners_are_told_when_invoice_emails_are_cleared(self):
+        structure_models.Customer.objects.filter(pk=self.customer.pk).update(
+            invoice_emails="billing@example.com"
+        )
+
+        self.update_invoice_emails("")
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("organization owners", mail.outbox[0].body)
+
+    def test_no_mail_when_list_is_only_reformatted(self):
+        structure_models.Customer.objects.filter(pk=self.customer.pk).update(
+            invoice_emails="billing@example.com"
+        )
+
+        self.update_invoice_emails(" billing@example.com, ")
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_no_mail_when_other_contact_fields_change(self):
+        self.client.force_authenticate(self.fixture.staff)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(self.url, {"phone_number": "+372000000"})
+
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class InvoicesPublicSettingsTest(TestCase):
+    def setUp(self):
+        cache.delete("API_CONFIGURATION")
+
+    def tearDown(self):
+        cache.delete("API_CONFIGURATION")
+
+    def test_send_customer_invoices_is_public(self):
+        invoices_settings = {**settings.WALDUR_INVOICES, "SEND_CUSTOMER_INVOICES": True}
+        with override_settings(WALDUR_INVOICES=invoices_settings):
+            public_settings = core_views.get_public_settings()
+
+        self.assertEqual(
+            public_settings["WALDUR_INVOICES"], {"SEND_CUSTOMER_INVOICES": True}
+        )
 
 
 @override_settings(TIME_ZONE="Europe/Tallinn")

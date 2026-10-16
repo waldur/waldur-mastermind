@@ -18,6 +18,12 @@ class InvoiceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.invoices.refresh_vat_rates_when_enabled",
         )
 
+        signals.post_save.connect(
+            handlers.notify_owners_about_invoice_emails_change,
+            sender=structure_models.Customer,
+            dispatch_uid="waldur_mastermind.invoices.notify_owners_about_invoice_emails_change",
+        )
+
         signals.pre_save.connect(
             handlers.set_tax_percent_on_invoice_creation,
             sender=models.Invoice,

@@ -1,6 +1,7 @@
 from unittest import mock
 
 from ddt import data, ddt
+from django.core import mail
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -270,3 +271,19 @@ class ProfileNotificationTest(test.APITestCase):
         with freeze_time("2020-01-01"):
             result = utils.get_upcoming_ends_of_fixed_payment_profiles()
             self.assertEqual(len(result), 1)
+
+    def test_upcoming_end_goes_to_invoice_emails(self):
+        structure_factories.NotificationFactory(
+            key="invoices.upcoming_ends_notification"
+        )
+        organization = self.profile.organization
+        organization.invoice_emails = "billing@example.com"
+        organization.save()
+
+        with freeze_time("2020-01-01"):
+            tasks.send_notifications_about_upcoming_ends()
+
+        self.assertEqual(
+            [address for m in mail.outbox for address in m.to],
+            ["billing@example.com"],
+        )

@@ -1,0 +1,1 @@
+Invoice recipients changed for {{ organization_name }}

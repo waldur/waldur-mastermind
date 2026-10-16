@@ -8,11 +8,14 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from waldur_core.core import middleware
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.middleware import get_event_context
+from waldur_core.media.validators import parse_email_list
 from waldur_core.structure.models import Project
-from waldur_mastermind.invoices import ledger, models, vat
+from waldur_mastermind.invoices import ledger, models, tasks, vat
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
@@ -140,6 +143,29 @@ def update_invoice_item_on_project_name_update(sender, instance: Project, **kwar
     for item in models.InvoiceItem.objects.filter(query).only("pk"):
         item.project_name = project.name
         item.save(update_fields=["project_name"])
+
+
+def notify_owners_about_invoice_emails_change(
+    sender, instance, created=False, **kwargs
+):
+    """Owners stop getting invoices once invoice emails are set, so tell them."""
+    if created or middleware.get_skip_side_effects():
+        return
+    if not instance.tracker.has_changed("invoice_emails"):
+        return
+    old_value = instance.tracker.previous("invoice_emails") or ""
+    if parse_email_list(old_value) == parse_email_list(instance.invoice_emails):
+        return
+
+    # The event context is filled for every authenticated API request,
+    # whichever way the user authenticated.
+    context = get_event_context() or {}
+    changed_by = context.get("user_full_name") or context.get("user_username")
+    transaction.on_commit(
+        lambda: tasks.send_invoice_emails_changed_notification.delay(
+            instance.uuid.hex, old_value, changed_by
+        )
+    )
 
 
 def emit_invoice_created_event(sender, instance: Invoice, created=False, **kwargs):

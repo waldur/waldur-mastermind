@@ -570,6 +570,7 @@ class Command(BaseCommand):
                     "sponsor_number": customer.sponsor_number,
                     "access_subnets": customer.access_subnets,
                     "notification_emails": customer.notification_emails,
+                    "invoice_emails": customer.invoice_emails,
                     "display_billing_info_in_projects": customer.display_billing_info_in_projects,
                     "grace_period_days": customer.grace_period_days,
                     "bank_name": customer.bank_name,

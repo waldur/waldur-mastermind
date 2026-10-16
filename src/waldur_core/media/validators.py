@@ -140,18 +140,25 @@ DocumentValidator = FileTypeValidator(
 )
 
 
+def parse_email_list(value) -> list[str]:
+    """Split a comma-separated email list, dropping blanks and repeats.
+
+    Repeats are compared case-insensitively, since mail providers treat the
+    address that way; the first spelling is kept.
+    """
+    emails = {}
+    for entry in str(value or "").split(","):
+        email = entry.strip()
+        if email:
+            emails.setdefault(email.lower(), email)
+    return list(emails.values())
+
+
 def validate_notification_emails(value):
     if not value:
         return value
     try:
-        value_str = str(value).strip()
-        emails = []
-        for email_str in value_str.split(","):
-            email = email_str.strip()
-            if email:
-                emails.append(email)
-
-        for email in emails:
+        for email in parse_email_list(value):
             try:
                 validate_email(email)
             except ValidationError:

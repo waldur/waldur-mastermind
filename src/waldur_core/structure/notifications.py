@@ -358,19 +358,40 @@ class InvoiceNotificationContext(BaseModel):
     )
 
 
+class InvoiceEmailsChangedContext(BaseModel):
+    organization_name: str = Field(
+        description="The name of the organization whose invoice recipients changed."
+    )
+    old_recipients: list[str] = Field(
+        description="Invoice email addresses before the change; empty means the owners."
+    )
+    new_recipients: list[str] = Field(
+        description="Invoice email addresses after the change; empty means the owners."
+    )
+    changed_by: str | None = Field(
+        default=None, description="Full name or email of the user who made the change."
+    )
+    link: str = Field(description="A URL to the organization's settings in the portal.")
+
+
 class InvoiceSection(NotificationSection):
     class Meta:
         key = "invoices"
 
     notification = Notification(
         key="notification",
-        description="Sent to organization owners with a new invoice. Includes the invoice as a PDF attachment.",
+        description="Sent with a new invoice to the organization's invoice emails, or to its owners when none are set. Includes the invoice as a PDF attachment.",
         context_model=InvoiceNotificationContext,
     )
     upcoming_ends_notification = Notification(
         key="upcoming_ends_notification",
         description="Notifies organization owners about an upcoming fixed-price contract ending.",
         context_model=UpcomingEndsNotificationContext,
+    )
+    invoice_emails_changed = Notification(
+        key="invoice_emails_changed",
+        description="Tells organization owners that the addresses receiving the organization's invoices have changed.",
+        context_model=InvoiceEmailsChangedContext,
     )
 
 
