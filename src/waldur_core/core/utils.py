@@ -628,7 +628,10 @@ class QuietSession(requests.Session):
 
 
 def format_homeport_link(format_str="", **kwargs):
-    link = config.HOMEPORT_URL + format_str
+    # HOMEPORT_URL is typed in by an operator, with or without the trailing
+    # slash, and some paths start with one: glued together as they are, the
+    # link lost its slash or got two.
+    link = config.HOMEPORT_URL.rstrip("/") + "/" + format_str.lstrip("/")
     return link.format(**kwargs)
 
 

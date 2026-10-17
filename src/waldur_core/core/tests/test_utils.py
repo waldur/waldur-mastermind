@@ -3,6 +3,7 @@ import warnings
 from unittest import mock
 
 import requests
+from constance.test import override_config
 from django.http import HttpRequest
 from django.test import TestCase
 from urllib3.exceptions import InsecureRequestWarning
@@ -11,11 +12,32 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import (
     QuietSession,
     chunked_queryset,
+    format_homeport_link,
     get_ip_address,
     ip_in_networks,
     merge_access_subnets,
     normalize_ip_address,
 )
+
+
+class FormatHomeportLinkTest(TestCase):
+    @override_config(HOMEPORT_URL="https://portal.example.com")
+    def test_adds_the_slash_a_bare_url_lacks(self):
+        self.assertEqual(
+            format_homeport_link("support/issue/{uuid}/", uuid="abc"),
+            "https://portal.example.com/support/issue/abc/",
+        )
+
+    @override_config(HOMEPORT_URL="https://portal.example.com/")
+    def test_keeps_one_slash_when_the_path_starts_with_one(self):
+        self.assertEqual(
+            format_homeport_link("/projects/{uuid}/", uuid="abc"),
+            "https://portal.example.com/projects/abc/",
+        )
+
+    @override_config(HOMEPORT_URL="https://portal.example.com")
+    def test_without_a_path_is_the_portal_root(self):
+        self.assertEqual(format_homeport_link(), "https://portal.example.com/")
 
 
 class GetIpAddressTest(TestCase):
