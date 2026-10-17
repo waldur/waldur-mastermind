@@ -5,6 +5,7 @@ ask whether the bot is running without loading the bot's crypto.
 """
 
 import json
+import logging
 import secrets
 import time
 from datetime import timedelta
@@ -15,6 +16,8 @@ from django.db.models.functions import Now
 from django.utils import timezone
 
 from waldur_mastermind.matrix_chat import models
+
+logger = logging.getLogger(__name__)
 
 # The holder renews the lease well within its lifetime and stops as soon as a
 # renewal fails, so a lease that ran out means its holder is gone or stuck.
@@ -119,18 +122,64 @@ def save_access_token(identity, token, homeserver_url):
     identity.save(update_fields=["access_token", "access_token_homeserver", "modified"])
 
 
-def enqueue(room, body, reply_to=""):
+def enqueue(room, body, reply_to="", thread_root="", extra_content=None):
     """Queue ``body`` for the bot to post in ``room``.
 
     A reply to an event is queued once: a command the bot sees again after a
-    restart is not answered twice.
+    restart is not answered twice. ``extra_content`` is merged into the
+    message's content as it is sent.
     """
+    fields = {
+        "body": body,
+        "thread_root": thread_root or "",
+        "extra_content": extra_content or {},
+    }
     if reply_to:
-        message, _ = models.MatrixOutboxMessage.objects.get_or_create(
-            room=room, reply_to=reply_to, defaults={"body": body}
+        message, created = models.MatrixOutboxMessage.objects.get_or_create(
+            room=room, reply_to=reply_to, defaults=fields
         )
+        if not created and _is_claim(message):
+            # The command was claimed while it was being answered: this is
+            # its answer.
+            models.MatrixOutboxMessage.objects.filter(
+                pk=message.pk, body="", state=models.OutboxStates.SENT
+            ).update(state=models.OutboxStates.PENDING, **fields)
+            message.refresh_from_db()
         return message
-    return models.MatrixOutboxMessage.objects.create(room=room, body=body)
+    return models.MatrixOutboxMessage.objects.create(room=room, **fields)
+
+
+def _is_claim(message):
+    return (
+        message.body == ""
+        and message.state == models.OutboxStates.SENT
+        and message.sent_at is None
+    )
+
+
+@transaction.atomic
+def claim_reply(room, reply_to):
+    """Claim the answer to the command ``reply_to``, within the room's reply
+    limit; False if it was answered already or the room is over its limit.
+
+    The claim counts towards the limit as a reply does, and is checked and
+    made under a lock on the room, so commands answered side by side cannot
+    all pass the check. It is never posted: :func:`enqueue` with the same
+    ``reply_to`` turns it into the answer, and a command the bot answers
+    itself (a draft's preview) leaves it as it is.
+    """
+    models.MatrixRoom.objects.select_for_update().filter(pk=room.pk).first()
+    if models.MatrixOutboxMessage.objects.filter(room=room, reply_to=reply_to).exists():
+        return False
+    if not may_reply(room):
+        logger.warning(
+            "Too many commands in %s; leaving %s unanswered", room.room_id, reply_to
+        )
+        return False
+    models.MatrixOutboxMessage.objects.create(
+        room=room, reply_to=reply_to, body="", state=models.OutboxStates.SENT
+    )
+    return True
 
 
 def wait_until_sent(message, timeout_seconds):

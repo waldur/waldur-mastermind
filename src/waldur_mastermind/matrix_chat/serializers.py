@@ -10,7 +10,7 @@ from rest_framework.exceptions import PermissionDenied
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure.models import Project
 
-from . import models, recovery_keys, room_provisioning
+from . import matrix_client, models, recovery_keys, room_provisioning, tickets
 from .models import CryptoLeaseKinds
 
 # Matrix appservice registration regexes are built by string interpolation into
@@ -145,6 +145,10 @@ class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
     members_count = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
     current_user_membership_state = serializers.SerializerMethodField()
+    bot_user_id = serializers.SerializerMethodField(
+        help_text="The Matrix user ID of Waldur's bot in the room: only its "
+        "events carry Waldur's blocks."
+    )
 
     class Meta:
         model = models.MatrixRoom
@@ -164,6 +168,7 @@ class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
             "members_count",
             "members",
             "current_user_membership_state",
+            "bot_user_id",
             "created",
             "modified",
         )
@@ -203,6 +208,9 @@ class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
         if obj.project and obj.project.customer:
             return obj.project.customer.name
         return None
+
+    def get_bot_user_id(self, obj) -> str:
+        return matrix_client.get_bot_user_id()
 
     @extend_schema_field(serializers.IntegerField())
     def get_members_count(self, obj):
@@ -513,3 +521,103 @@ class LiveKitOverviewResponseSerializer(serializers.Serializer):
     rooms = LiveKitRoomSummarySerializer(many=True)
     totals = LiveKitTotalsSerializer()
     livekit_url = serializers.CharField()
+
+
+class MatrixTicketDraftSerializer(serializers.Serializer):
+    """A support ticket draft made by the ``!ticket`` bot command, as its
+    requester sees it: what the drawer shows and the support form starts from.
+
+    The draft's content is erased once it is no longer pending, so the text
+    fields are blank then; a sent draft names its issue.
+    """
+
+    uuid = serializers.CharField(read_only=True)
+    state = serializers.ChoiceField(
+        choices=[choice for choice, _ in models.TicketDraftStates.CHOICES],
+        read_only=True,
+    )
+    title = serializers.CharField(read_only=True, allow_blank=True)
+    description = serializers.CharField(read_only=True, allow_blank=True)
+    request_type = serializers.CharField(read_only=True, allow_blank=True)
+    priority = serializers.CharField(read_only=True, allow_blank=True)
+    project_uuid = serializers.CharField(read_only=True)
+    project_name = serializers.CharField(read_only=True)
+    customer_uuid = serializers.CharField(read_only=True)
+    customer_name = serializers.CharField(read_only=True)
+    resource_uuid = serializers.CharField(read_only=True, allow_null=True)
+    resource_name = serializers.CharField(read_only=True, allow_blank=True)
+    resource_offering_name = serializers.CharField(read_only=True, allow_blank=True)
+    helpdesk = serializers.CharField(read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True)
+    issue_uuid = serializers.CharField(read_only=True, allow_null=True)
+    issue_key = serializers.CharField(read_only=True, allow_null=True)
+    issue_url = serializers.CharField(read_only=True, allow_null=True)
+
+    def to_representation(self, instance):
+        draft_fields = tickets.stored_fields(instance)
+        project = instance.room.project
+        state = instance.state
+        if state == models.TicketDraftStates.PENDING and instance.is_expired:
+            state = models.TicketDraftStates.EXPIRED
+        issue = instance.issue
+        return super().to_representation(
+            {
+                "uuid": instance.uuid.hex,
+                "state": state,
+                "title": draft_fields.get("title", ""),
+                "description": draft_fields.get("description", ""),
+                "request_type": draft_fields.get("type", ""),
+                "priority": draft_fields.get("priority", ""),
+                "project_uuid": project.uuid.hex,
+                "project_name": project.name,
+                "customer_uuid": project.customer.uuid.hex,
+                "customer_name": project.customer.name,
+                "resource_uuid": draft_fields.get("resource_uuid") or None,
+                "resource_name": draft_fields.get("resource_name", ""),
+                "resource_offering_name": draft_fields.get(
+                    "resource_offering_name", ""
+                ),
+                "helpdesk": tickets.helpdesk_label(),
+                "expires_at": instance.expires_at,
+                "issue_uuid": issue.uuid.hex if issue else None,
+                "issue_key": (issue.key or None) if issue else None,
+                "issue_url": tickets.issue_url(issue) if issue else None,
+            }
+        )
+
+
+class MatrixTicketDraftCreateIssueSerializer(serializers.Serializer):
+    summary = serializers.CharField(
+        required=False, help_text="Replaces the draft's title."
+    )
+    description = serializers.CharField(
+        required=False, help_text="Replaces the draft's description."
+    )
+    type = serializers.CharField(
+        required=False, help_text="Replaces the draft's request type."
+    )
+    resource_uuid = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Replaces the draft's resource: one of the room's project, "
+        "or blank or null for none.",
+    )
+
+
+class MatrixTicketDraftIssueSerializer(serializers.Serializer):
+    issue_uuid = serializers.CharField()
+    issue_key = serializers.CharField(allow_blank=True)
+    issue_url = serializers.CharField()
+
+
+class MatrixBotCommandSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text="As typed after `!`, e.g. `ticket send`.")
+    description = serializers.CharField()
+    hint = serializers.CharField(
+        allow_blank=True, help_text="Arguments: `[optional]`, `<required>`."
+    )
+    available = serializers.BooleanField()
+    reason = serializers.CharField(
+        allow_blank=True, help_text="Why the command is not available; blank if it is."
+    )

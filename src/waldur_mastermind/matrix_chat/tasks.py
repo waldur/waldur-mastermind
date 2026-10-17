@@ -1,4 +1,5 @@
 import base64
+import dataclasses
 import logging
 from datetime import timedelta
 
@@ -16,11 +17,14 @@ from waldur_core.permissions.models import UserRole
 
 from . import (
     bot_state,
+    commands,
     formatting,
     history_backfill,
     livekit_client,
     matrix_client,
     models,
+    project_facts,
+    tickets,
 )
 
 User = get_user_model()
@@ -1309,67 +1313,37 @@ def _get_project_for_room(room_id):
     return matrix_room.project
 
 
-ORDER_STATE_LABELS = {
-    1: "pending-consumer",
-    2: "executing",
-    3: "done",
-    4: "erred",
-    5: "canceled",
-    6: "rejected",
-    7: "pending-provider",
-}
+ORDER_STATE_LABELS = project_facts.ORDER_STATE_LABELS
 
 
 def _cmd_help(room_id, sender, event_id):
     """Return help text listing available commands."""
-    return (
-        "**Available commands:**\n\n"
-        "- `!help` — Show this help message\n"
-        "- `!status` — Show project resource status summary\n"
-        "- `!orders` — Show last 5 orders for this project\n"
-        "- `!members` — List room members and their roles"
-    )
+    lines = []
+    for command in commands.COMMANDS:
+        usage = f"!{command.name} {command.hint}".strip()
+        lines.append(f"- `{usage}` — {command.description}")
+    return "**Available commands:**\n\n" + "\n".join(lines)
 
 
 def _cmd_status(room_id, sender, event_id):
     """Surface project health: errored resources, pending approvals, in-flight ops."""
-    from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
-    from waldur_mastermind.marketplace.models import Order, Resource
-
     project = _get_project_for_room(room_id)
     if not project:
         return "This room is not linked to a project."
 
-    errored_qs = Resource.objects.filter(project=project, state=ResourceStates.ERRED)
-    errored_total = errored_qs.count()
-    errored_names = list(errored_qs.values_list("name", flat=True)[:5])
-
-    pending_approval = Order.objects.filter(
-        project=project,
-        state__in=[OrderStates.PENDING_CONSUMER, OrderStates.PENDING_PROVIDER],
-    ).count()
-
-    in_flight_states = [
-        (ResourceStates.CREATING, "creating"),
-        (ResourceStates.UPDATING, "updating"),
-        (ResourceStates.TERMINATING, "terminating"),
-    ]
-    in_flight_counts = {
-        label: Resource.objects.filter(project=project, state=state).count()
-        for state, label in in_flight_states
-    }
+    facts = project_facts.status(project)
 
     lines = []
-    if errored_total:
-        shown = ", ".join(formatting.code_span(name) for name in errored_names)
-        if errored_total > len(errored_names):
-            shown += f", +{errored_total - len(errored_names)} more"
-        noun = "resource" if errored_total == 1 else "resources"
-        lines.append(f"- **{errored_total} {noun} errored:** {shown}")
-    if pending_approval:
-        noun = "order" if pending_approval == 1 else "orders"
-        lines.append(f"- **{pending_approval} {noun}** pending approval")
-    for label, count in in_flight_counts.items():
+    if facts.errored_total:
+        shown = ", ".join(formatting.code_span(name) for name in facts.errored_names)
+        if facts.errored_total > len(facts.errored_names):
+            shown += f", +{facts.errored_total - len(facts.errored_names)} more"
+        noun = "resource" if facts.errored_total == 1 else "resources"
+        lines.append(f"- **{facts.errored_total} {noun} errored:** {shown}")
+    if facts.pending_approval:
+        noun = "order" if facts.pending_approval == 1 else "orders"
+        lines.append(f"- **{facts.pending_approval} {noun}** pending approval")
+    for label, count in facts.in_flight.items():
         if count:
             lines.append(f"- {count} {label}")
 
@@ -1382,13 +1356,11 @@ def _cmd_status(room_id, sender, event_id):
 
 def _cmd_orders(room_id, sender, event_id):
     """Show last 5 orders for the linked project."""
-    from waldur_mastermind.marketplace.models import Order
-
     project = _get_project_for_room(room_id)
     if not project:
         return "This room is not linked to a project."
 
-    orders = Order.objects.filter(project=project).order_by("-created")[:5]
+    orders = project_facts.recent_orders(project)
     if not orders:
         return f"**{formatting.escape_markdown(project.name)}**: no orders."
 
@@ -1396,7 +1368,7 @@ def _cmd_orders(room_id, sender, event_id):
         f"**{formatting.escape_markdown(project.name)}** — last {len(orders)} orders:\n"
     ]
     for o in orders:
-        state_label = ORDER_STATE_LABELS.get(o.state, f"unknown({o.state})")
+        state_label = project_facts.order_state_label(o)
         resource_name = o.resource.name if o.resource else "N/A"
         lines.append(
             f"- `{state_label}` · {o.type} · {formatting.code_span(resource_name)} · "
@@ -1436,44 +1408,59 @@ COMMAND_HANDLERS = {
 }
 
 
-def _sender_has_project_access(sender, room_id):
-    """Confirm a Matrix sender maps to a Waldur user with an active project role.
+ACCESS_DENIED_REPLY = commands.NO_ACCESS
 
-    Bot commands (`!status`/`!orders`/`!members`) expose project-scoped data,
-    so federated rooms — or any room with non-Waldur participants — must not
-    leak it. Returns the Waldur User on success, None otherwise.
+
+@dataclasses.dataclass(frozen=True)
+class Command:
+    """A ``!command`` as a member sent it.
+
+    ``args`` is what follows the command's name. ``thread_root`` is the thread
+    it was sent in and ``reply_to`` the event it replies to, if any: a reply
+    to a command goes into the same thread.
     """
-    try:
-        profile = models.MatrixUserProfile.objects.select_related("user").get(
-            matrix_user_id=sender
-        )
-    except models.MatrixUserProfile.DoesNotExist:
-        return None
-    user = profile.user
-    if not user.is_active:
-        return None
 
-    try:
-        room = models.MatrixRoom.objects.get(
-            room_id=room_id, state=models.RoomStates.ACTIVE
-        )
-    except models.MatrixRoom.DoesNotExist:
-        return None
-    project = room.project
-    if not project:
-        return None
-
-    if not models.has_room_role(user, room):
-        return None
-    return user
+    name: str
+    # Out of its repr: error reports show the repr of frame locals.
+    args: str = dataclasses.field(default="", repr=False)
+    thread_root: str = ""
+    reply_to: str = ""
 
 
-ACCESS_DENIED_REPLY = "You don't have access to this room's project in Waldur."
+def parse_command(body, content=None, bot_user_id=None):
+    """The command in a message's ``body``; ``content`` is the event's content,
+    for the thread or reply it belongs to, and for a structured invocation
+    (MSC4391), which wins over the text when it mentions ``bot_user_id``."""
+    structured = commands.invocation_text(content, bot_user_id)
+    text = (
+        structured
+        if structured is not None
+        else matrix_client.strip_reply_fallback(body, content).strip()[1:]
+    )
+    parts = text.split(None, 1)
+    name = parts[0].lower() if parts else ""
+    args = parts[1].strip() if len(parts) > 1 else ""
+    thread_root = reply_to = ""
+    relates_to = content.get("m.relates_to") if isinstance(content, dict) else None
+    if isinstance(relates_to, dict):
+        if relates_to.get("rel_type") == "m.thread" and isinstance(
+            relates_to.get("event_id"), str
+        ):
+            thread_root = relates_to["event_id"]
+        in_reply_to = relates_to.get("m.in_reply_to")
+        # In a thread, a client without threads sees a reply to the latest
+        # message: that is no reply the member chose.
+        if (
+            isinstance(in_reply_to, dict)
+            and isinstance(in_reply_to.get("event_id"), str)
+            and not (thread_root and relates_to.get("is_falling_back"))
+        ):
+            reply_to = in_reply_to["event_id"]
+    return Command(name, args, thread_root, reply_to)
 
 
 def _parse_command(body):
-    parts = body.strip()[1:].split(None, 1)
-    return parts[0].lower() if parts else ""
+    return parse_command(body).name
 
 
 def _command_reply(room_id, sender, event_id, command):
@@ -1493,11 +1480,12 @@ def _command_reply(room_id, sender, event_id, command):
         )
 
 
-def answer_command(room_id, sender, event_id, body):
+def answer_command(room_id, sender, event_id, body, content=None):
     """Answer a ``!command`` the bot read in a room, through the outbox.
 
     Commands return project data, so only a sender with a role on the room's
-    project gets an answer; anyone else is told they have no access.
+    project gets an answer; anyone else is told they have no access. A
+    command sent in a thread is answered in that thread.
     """
     if not matrix_client.is_enabled():
         return
@@ -1506,16 +1494,27 @@ def answer_command(room_id, sender, event_id, body):
     ).first()
     if room is None:
         return
-    if not bot_state.may_reply(room):
-        logger.warning(
-            "Too many commands in %s; leaving %s unanswered", room_id, event_id
-        )
+    if not bot_state.claim_reply(room, event_id):
         return
-    if _sender_has_project_access(sender, room_id) is None:
-        reply = ACCESS_DENIED_REPLY
+    command = parse_command(body, content, matrix_client.get_bot_user_id())
+    if command.name == "ticket":
+        # Sending or cancelling a draft; the bot makes drafts itself.
+        reply = tickets.answer(room, sender, event_id, command)
+        if reply is None:
+            return
+    elif reason := commands.room_reason(room) or commands.member_reason(
+        commands.sender_user(sender), room
+    ):
+        reply = reason
     else:
-        reply = _command_reply(room_id, sender, event_id, _parse_command(body))
-    bot_state.enqueue(room, reply, reply_to=event_id)
+        reply = _command_reply(room_id, sender, event_id, command.name)
+    bot_state.enqueue(room, reply, reply_to=event_id, thread_root=command.thread_root)
+
+
+@shared_task(name="waldur_mastermind.matrix_chat.cleanup_expired_ticket_drafts")
+def cleanup_expired_ticket_drafts():
+    """Close support ticket drafts nobody sent or cancelled in time."""
+    return {"status": "success", "closed_count": tickets.cleanup_expired()}
 
 
 # Retention for the idempotency-key table. Old transactions never need to be

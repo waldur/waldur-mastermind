@@ -225,7 +225,11 @@ def write_export_document(writer, header, export_messages):
     writer.write(b"]\n}" if first else b"\n  ]\n}")
 
 
-class ExportError(RuntimeError):
+class HistoryError(RuntimeError):
+    """The room's history cannot be read; the message says why, without content."""
+
+
+class ExportError(HistoryError):
     """The export cannot be completed; the message says why, without content."""
 
 
@@ -284,6 +288,68 @@ def _relation(content):
     if isinstance(reply, dict) and isinstance(reply.get("event_id"), str):
         relation["in_reply_to"] = reply["event_id"]
     return relation or None
+
+
+async def read_json(client, homeserver_url, path, params, version="v3"):
+    """GET a client-API ``path`` as the bot: the answer's JSON object.
+
+    A rate-limited or failed request is asked for once more. Errors say what
+    went wrong by status and code only: the homeserver's own message is not
+    ours to store.
+    """
+    url = f"{homeserver_url}/_matrix/client/{version}/{path}"
+    headers = {"Authorization": f"Bearer {client.access_token}"}
+    for attempt in range(PAGE_ATTEMPTS):
+        try:
+            async with httpx.AsyncClient(timeout=PAGE_TIMEOUT_SECONDS) as http:
+                page_response = await http.get(url, params=params, headers=headers)
+        except httpx.HTTPError as error:
+            raise HistoryError(
+                f"The homeserver could not be reached ({type(error).__name__})."
+            ) from None
+        try:
+            answer = page_response.json()
+        except ValueError:
+            answer = None
+        details = answer if isinstance(answer, dict) else {}
+        if page_response.status_code == 200 and answer is details:
+            return answer
+        retry = (
+            page_response.status_code == 429
+            or details.get("errcode") == "M_LIMIT_EXCEEDED"
+            or page_response.status_code >= 500
+        )
+        if retry and attempt + 1 < PAGE_ATTEMPTS:
+            await asyncio.sleep(_retry_delay(details, page_response.headers))
+            continue
+        errcode = details.get("errcode")
+        code = errcode if isinstance(errcode, str) and errcode.isascii() else ""
+        raise HistoryError(
+            f"Reading the room's history failed: {page_response.status_code} "
+            f"{code[:64]}".strip()
+        )
+
+
+def room_path(room_id, *parts):
+    return "/".join(
+        ["rooms", quote(room_id, safe="")] + [quote(part, safe="") for part in parts]
+    )
+
+
+async def read_page(client, homeserver_url, room_id, start, limit=PAGE_SIZE):
+    """One page of a room's ``/messages`` backwards from ``start``, newest
+    first: ``(raw events, next token)``."""
+    params = {"dir": "b", "limit": limit}
+    if start:
+        params["from"] = start
+    page = await read_json(
+        client, homeserver_url, room_path(room_id, "messages"), params
+    )
+    chunk = page.get("chunk")
+    if not isinstance(chunk, list):
+        raise HistoryError("The homeserver's answer has no events.")
+    end = page.get("end")
+    return chunk, end if isinstance(end, str) else None
 
 
 class RoomExporter:
@@ -424,51 +490,12 @@ class RoomExporter:
         leaves only the result: the export needs the encrypted event too, for
         the device that sent it and for an event whose payload is malformed.
         """
-        params = {"dir": "b", "limit": PAGE_SIZE}
-        if start:
-            params["from"] = start
-        url = (
-            f"{self.homeserver_url}/_matrix/client/v3/rooms/"
-            f"{quote(room_id, safe='')}/messages"
-        )
-        for attempt in range(PAGE_ATTEMPTS):
-            try:
-                async with httpx.AsyncClient(timeout=PAGE_TIMEOUT_SECONDS) as http:
-                    page_response = await http.get(
-                        url, params=params, headers=self._auth()
-                    )
-            except httpx.HTTPError as error:
-                raise ExportError(
-                    f"The homeserver could not be reached ({type(error).__name__})."
-                ) from None
-            try:
-                export_page = page_response.json()
-            except ValueError:
-                export_page = None
-            details = export_page if isinstance(export_page, dict) else {}
-            if page_response.status_code == 200 and export_page is details:
-                break
-            retry = (
-                page_response.status_code == 429
-                or details.get("errcode") == "M_LIMIT_EXCEEDED"
-                or page_response.status_code >= 500
-            )
-            if retry and attempt + 1 < PAGE_ATTEMPTS:
-                await asyncio.sleep(_retry_delay(details, page_response.headers))
-                continue
-            # The homeserver's own message is left out: it is not ours to
-            # store, and the status and code say what went wrong.
-            errcode = details.get("errcode")
-            code = errcode if isinstance(errcode, str) and errcode.isascii() else ""
-            raise ExportError(
-                f"Reading the room's history failed: {page_response.status_code} "
-                f"{code[:64]}".strip()
-            )
-        chunk = export_page.get("chunk")
-        if not isinstance(chunk, list):
-            raise ExportError("The homeserver's answer has no events.")
-        end = export_page.get("end")
-        return chunk, end if isinstance(end, str) else None
+        try:
+            return await read_page(self.client, self.homeserver_url, room_id, start)
+        except ExportError:
+            raise
+        except HistoryError as error:
+            raise ExportError(str(error)) from None
 
     # Each chunk of a working file is encrypted on the event loop as it fills:
     # AES-GCM over 64 KiB takes microseconds, less than reading the page did.

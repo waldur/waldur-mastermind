@@ -50,3 +50,32 @@ ALLOWED_COMPLETION_KEYS = frozenset(
         "tool_choice",
     }
 )
+
+
+def completion_kwargs(backend_type, admin_kwargs, exclude=frozenset()):
+    """The completion settings for ``backend_type``: the provider's defaults,
+    then the keys admins may set from ``admin_kwargs``
+    (AI_ASSISTANT_COMPLETION_KWARGS). ``extra_body`` is merged into the
+    default's rather than replacing it, since it holds provider safety
+    settings. Keys in ``exclude`` are left out of both layers.
+
+    The caller passes the settings in, so that it reads them, once, from the
+    config it is tested with.
+    """
+    kwargs = {
+        key: dict(value) if isinstance(value, dict) else value
+        for key, value in PROVIDER_DEFAULTS.get(backend_type, FALLBACK_DEFAULTS).items()
+        if key not in exclude
+    }
+    for key, value in (admin_kwargs if isinstance(admin_kwargs, dict) else {}).items():
+        if key not in ALLOWED_COMPLETION_KEYS or key in exclude:
+            continue
+        if (
+            key == "extra_body"
+            and isinstance(kwargs.get("extra_body"), dict)
+            and isinstance(value, dict)
+        ):
+            kwargs["extra_body"] = {**kwargs["extra_body"], **value}
+        else:
+            kwargs[key] = value
+    return kwargs

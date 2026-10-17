@@ -52,6 +52,11 @@ class MatrixChatExtension(WaldurExtension):
                 "schedule": crontab(minute="*/10"),
                 "args": (),
             },
+            "waldur-matrix-chat-cleanup-expired-ticket-drafts": {
+                "task": "waldur_mastermind.matrix_chat.cleanup_expired_ticket_drafts",
+                "schedule": crontab(minute="*/5"),
+                "args": (),
+            },
             "waldur-matrix-chat-cleanup-old-history-exports": {
                 "task": "waldur_mastermind.matrix_chat.cleanup_old_history_exports",
                 "schedule": crontab(minute=30, hour=3),

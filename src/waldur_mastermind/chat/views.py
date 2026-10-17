@@ -40,7 +40,7 @@ from waldur_core.core.views import (
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import permissions
-from waldur_mastermind.chat import models, serializers
+from waldur_mastermind.chat import access, models, serializers
 from waldur_mastermind.chat.budget_gate import (
     capacity_exception_handler,
     enforce_global_budget,
@@ -81,26 +81,9 @@ class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
         super().initial(request, *args, **kwargs)
 
         # RBAC: check enabled roles
-        enabled_roles = config.AI_ASSISTANT_ENABLED_ROLES
-        user = request.user
-        if enabled_roles == "disabled":
-            raise rf_exceptions.PermissionDenied(_("AI Assistant is not available."))
-        elif enabled_roles == "staff":
-            if not user.is_staff:
-                raise rf_exceptions.PermissionDenied(
-                    _("AI Assistant is currently available to staff users only.")
-                )
-        elif enabled_roles == "staff_and_support":
-            if not (user.is_staff or user.is_support):
-                raise rf_exceptions.PermissionDenied(
-                    _(
-                        "AI Assistant is currently available to staff and support users only."
-                    )
-                )
-        elif enabled_roles not in ("all", "anonymous"):
-            raise rf_exceptions.PermissionDenied(
-                _("AI Assistant access is not configured correctly.")
-            )
+        refusal = access.role_refusal(request.user)
+        if refusal:
+            raise rf_exceptions.PermissionDenied(refusal)
 
         # Validate additional API settings
         if not config.AI_ASSISTANT_API_URL:
