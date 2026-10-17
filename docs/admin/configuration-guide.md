@@ -3641,6 +3641,22 @@ Include media files when exporting Matrix room history.
 
 Days to keep Matrix room history exports, files included, before they are deleted. Each room's newest completed export is kept regardless of age. Set to 0 or less to keep them forever.
 
+#### MATRIX_TICKET_CONTEXT_MESSAGES
+
+**Type:** <class 'int'>
+
+**Default value:** 20
+
+How many messages the !ticket bot command reads as its context: the latest of its thread, or the replied-to message and those before it.
+
+#### MATRIX_TICKET_DRAFT_TTL_MINUTES
+
+**Type:** <class 'int'>
+
+**Default value:** 15
+
+Minutes a support ticket draft made by the !ticket bot command can be sent before it expires; its content is then erased.
+
 #### MATRIX_USER_REGISTRATION_SECRET
 
 **Type:** secret_field
