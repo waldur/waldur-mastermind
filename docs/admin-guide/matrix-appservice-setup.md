@@ -1,4 +1,4 @@
-# Matrix Chat Integration
+# Matrix chat setup and operations
 
 ## Overview
 
