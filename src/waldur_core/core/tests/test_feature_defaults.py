@@ -19,3 +19,10 @@ class FeatureDefaultsTest(TestCase):
     def test_other_features_default_to_off(self):
         self.assertFalse(features.is_enabled("deployment.enable_cookie_notice"))
         self.assertFalse(get_feature_values()["deployment"]["enable_cookie_notice"])
+
+    def test_openportal_side_features_default_to_on(self):
+        # Existing OpenPortal deployments keep both sides until an admin turns
+        # off the side the portal does not play.
+        values = get_feature_values()
+        self.assertTrue(values["customer"]["show_openportal_remote_projects"])
+        self.assertTrue(values["marketplace"]["show_managed_projects"])

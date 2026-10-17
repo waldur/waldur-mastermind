@@ -60,6 +60,11 @@ class CustomerSection(FeatureSection):
     show_organisation_reporting = Feature(
         "Show the Reporting menu with organisation-scoped reports to organisation owners."
     )
+    show_openportal_remote_projects = Feature(
+        "Show the Remote Projects pages of a portal that sends projects to other "
+        "portals over OpenPortal. Needs the OpenPortal plugin to be enabled.",
+        default=True,
+    )
 
 
 class ProjectSection(FeatureSection):
@@ -242,6 +247,12 @@ class MarketplaceSection(FeatureSection):
 
     display_offering_partitions = Feature(
         "Enable display of offering partitions in UI."
+    )
+    show_managed_projects = Feature(
+        "Show the Managed projects and Project templates pages of a portal that "
+        "receives projects from other portals over OpenPortal. Needs the "
+        "OpenPortal plugin to be enabled.",
+        default=True,
     )
 
     conceal_resource_metadata = Feature(

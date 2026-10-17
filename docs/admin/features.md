@@ -16,6 +16,10 @@ Allows to hide domain field in organization detail.
 
 Enable onboarding functionality.
 
+## customer.show_openportal_remote_projects
+
+Show the Remote Projects pages of a portal that sends projects to other portals over OpenPortal. Needs the OpenPortal plugin to be enabled.
+
 ## customer.show_organisation_reporting
 
 Show the Reporting menu with organisation-scoped reports to organisation owners.
@@ -155,6 +159,10 @@ Show call management: the call-managing organization's workspace, providers' req
 ## marketplace.show_experimental_ui_components
 
 Enabled display of experimental or mocked components in marketplace.
+
+## marketplace.show_managed_projects
+
+Show the Managed projects and Project templates pages of a portal that receives projects from other portals over OpenPortal. Needs the OpenPortal plugin to be enabled.
 
 ## marketplace.show_openstack_duplicate_offerings
 
