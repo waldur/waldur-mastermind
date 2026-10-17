@@ -75,7 +75,18 @@ class TimedSession(keystone_session.Session):
         try:
             response = super().request(url, method, **kwargs)
             status = response.status_code
+            # keystoneauth retries a 401 itself. When that retry mints a new
+            # token, persist it so the next pull does not replay the stale one.
+            self._store_refreshed_token()
             return response
+        except keystoneauth_exceptions.Unauthorized as exc:
+            error = type(exc).__name__
+            status = getattr(exc, "http_status", None) or status
+            response = getattr(exc, "response", None)
+            # Neutron/Nova pass raise_exc=False, so a service 401 is a response,
+            # not this exception. What lands here is a failed Keystone token
+            # fetch (bad password or rejected application credential).
+            raise OpenStackAuthorizationFailed(exc) from exc
         except Exception as exc:
             error = type(exc).__name__
             # keystoneauth raises typed exceptions (e.g. NotFound) that carry
@@ -142,6 +153,27 @@ class TimedSession(keystone_session.Session):
                     },
                 )
 
+    def _store_refreshed_token(self) -> None:
+        session_key = getattr(self, "_waldur_session_key", None)
+        if not session_key:
+            return
+        auth_ref = getattr(self.auth, "auth_ref", None)
+        token = getattr(auth_ref, "auth_token", None)
+        if not token or token == getattr(self, "_waldur_cached_token", None):
+            return
+        logger.info(
+            "OpenStack session re-authenticated after the cached token was rejected; updating the session cache."
+        )
+        cache.set(session_key, get_cached_session(self), SESSION_LIFETIME)
+        self._waldur_cached_token = token
+
+
+def _bind_session_cache(ks_session: TimedSession, session_key: str) -> TimedSession:
+    auth_ref = getattr(ks_session.auth, "auth_ref", None)
+    ks_session._waldur_session_key = session_key
+    ks_session._waldur_cached_token = getattr(auth_ref, "auth_token", None)
+    return ks_session
+
 
 def get_cached_session_key(credentials: dict[str, str]):
     # copy from https://github.com/openstack/keystoneauth/blob/master/keystoneauth1/identity/base.py#L642
@@ -207,39 +239,56 @@ def build_http_session(verify_ssl: bool | str):
     return http_session
 
 
-def recover_cached_session(
-    cached_session: dict[str, str], verify_ssl: bool | str = False
-):
-    auth_state = cached_session.pop("auth_state")
-    auth_method = v3.Token(**cached_session)
-    auth_method.set_auth_state(auth_state)
-    return TimedSession(auth=auth_method, verify=verify_ssl)
+def build_auth(credentials: dict[str, str]):
+    """Keystone auth plugin for these credentials.
 
-
-def create_session(credentials: dict[str, str], verify_ssl: bool | str = False):
+    A recovered session must use this same plugin (password or application
+    credential), not ``v3.Token``. keystoneauth's built-in 401 retry
+    re-authenticates with the plugin it was given; a token plugin can only
+    resubmit the cached token, which is exactly what Keystone has just rejected.
+    """
     credentials = dict(credentials)
     auth_type = credentials.pop("auth_type", "password")
 
     if auth_type == "v3applicationcredential":
-        auth = v3.ApplicationCredential(
+        return v3.ApplicationCredential(
             auth_url=credentials["auth_url"],
             application_credential_id=credentials["username"],
             application_credential_secret=credentials["password"],
         )
-    elif auth_type == "password":
-        auth = v3.Password(**credentials)
-    else:
-        raise OpenStackBackendError(f"Unsupported auth_type: {auth_type}")
+    if auth_type == "password":
+        return v3.Password(**credentials)
+    raise OpenStackBackendError(f"Unsupported auth_type: {auth_type}")
 
+
+def recover_cached_session(
+    cached_session: dict[str, str],
+    credentials: dict[str, str],
+    verify_ssl: bool | str = False,
+):
+    # cache.get miss is None; AttributeError keeps get_keystone_session on the
+    # re-authenticate path. Copy so we do not strip auth_state from the cache.
+    if cached_session is None:
+        raise AttributeError("No cached OpenStack session")
+    auth_state = dict(cached_session).pop("auth_state")
+    auth = build_auth(credentials)
+    auth.set_auth_state(auth_state)
+    return TimedSession(auth=auth, verify=verify_ssl)
+
+
+def create_session(credentials: dict[str, str], verify_ssl: bool | str = False):
     # TimedSession injects the QuietSession transport itself when verify_ssl is off.
     ks_session = TimedSession(
-        auth=auth,
+        auth=build_auth(credentials),
         verify=verify_ssl,
     )
 
     try:
-        # This will eagerly sign in throwing AuthorizationFailure on bad credentials
+        # This will eagerly sign in throwing AuthorizationFailure on bad credentials.
+        # Unauthorized is already mapped to OpenStackAuthorizationFailed by TimedSession.
         ks_session.get_auth_headers()
+    except OpenStackAuthorizationFailed:
+        raise
     except keystone_exceptions.ClientException as e:
         raise OpenStackAuthorizationFailed(e)
 
@@ -281,11 +330,13 @@ def get_keystone_session(settings, tenant=None):
     # try to get session from cache
     try:
         logger.debug("Trying to recover OpenStack session.")
-        recovered_session = recover_cached_session(cached_session, verify_ssl)
+        recovered_session = recover_cached_session(
+            cached_session, credentials, verify_ssl
+        )
         if recovered_session.auth.auth_ref.will_expire_soon(60 * 10):
             cache.delete(session_key)
         else:
-            return recovered_session
+            return _bind_session_cache(recovered_session, session_key)
     except (AttributeError, IndexError, keystoneauth_exceptions.ClientException):
         # A cache miss / expired token is normal operation: we simply
         # re-authenticate below. Log at debug to avoid flooding warnings on
@@ -299,7 +350,7 @@ def get_keystone_session(settings, tenant=None):
     cached_session = get_cached_session(ks_session)
 
     cache.set(session_key, cached_session, SESSION_LIFETIME)
-    return ks_session
+    return _bind_session_cache(ks_session, session_key)
 
 
 def get_keystone_client(session):

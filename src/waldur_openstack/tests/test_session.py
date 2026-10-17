@@ -1,23 +1,37 @@
+import json
 import logging
 from unittest import mock
 
 import pytest
+import requests
 from constance.test.unittest import override_config
 from keystoneauth1 import exceptions as keystoneauth_exceptions
 from keystoneauth1 import session as keystone_session
 from keystoneauth1.identity import v3
 from keystoneauth1.session import TCPKeepAliveAdapter
 
+from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import QuietSession
 from waldur_core.structure.backend import current_backend_action
-from waldur_openstack.exceptions import OpenStackBackendError
+from waldur_openstack.exceptions import (
+    OpenStackAuthorizationFailed,
+    OpenStackBackendError,
+    OpenStackSessionExpired,
+)
 from waldur_openstack.session import (
     PlacementClient,
     TimedSession,
+    cache,
     create_session,
+    get_cached_session,
+    get_cached_session_key,
+    get_keystone_session,
     get_nova_client,
     recover_cached_session,
 )
+from waldur_openstack.tasks import TenantSubresourcesPullTask
+from waldur_openstack.tests import fixtures
 
 CALLS_LOGGER = "waldur_openstack.calls"
 
@@ -545,18 +559,289 @@ class TestSessionTlsWarnings:
         session = create_session(password_credentials, verify_ssl="/path/ca.pem")
         assert not isinstance(session.session, QuietSession)
 
-    @mock.patch("waldur_openstack.session.v3.Token")
+    @mock.patch("waldur_openstack.session.v3.Password")
     def test_recover_cached_session_uses_quiet_transport_when_unverified(
-        self, _mock_token
+        self, _mock_password, password_credentials
     ):
         session = recover_cached_session(
-            {"auth_state": "state", "token": "token"}, verify_ssl=False
+            {"auth_state": "state"}, password_credentials, verify_ssl=False
         )
         self._assert_quiet_transport(session)
+        _mock_password.return_value.set_auth_state.assert_called_once_with("state")
 
-    @mock.patch("waldur_openstack.session.v3.Token")
-    def test_recover_cached_session_plain_transport_when_verified(self, _mock_token):
+    @mock.patch("waldur_openstack.session.v3.Password")
+    def test_recover_cached_session_plain_transport_when_verified(
+        self, _mock_password, password_credentials
+    ):
         session = recover_cached_session(
-            {"auth_state": "state", "token": "token"}, verify_ssl=True
+            {"auth_state": "state"}, password_credentials, verify_ssl=True
         )
         assert not isinstance(session.session, QuietSession)
+
+    @mock.patch("waldur_openstack.session.v3.ApplicationCredential")
+    def test_recover_cached_session_uses_application_credential_plugin(
+        self, mock_app_cred, password_credentials
+    ):
+        password_credentials["auth_type"] = "v3applicationcredential"
+        recover_cached_session(
+            {"auth_state": "state"}, password_credentials, verify_ssl=True
+        )
+        mock_app_cred.return_value.set_auth_state.assert_called_once_with("state")
+        assert not mock_app_cred.call_args.kwargs.get("token")
+
+
+def test_returned_401_is_not_an_authorization_failure(patched_parent_request):
+    """A service 401 is a response when the caller does not ask to raise.
+
+    Neutron and Nova use raise_exc=False. Rewriting that response would hide a
+    rejected call that keystoneauth has already decided not to turn into an
+    exception.
+    """
+    patched_parent_request.return_value = _make_response(
+        401, "https://neutron/v2.0/security-groups"
+    )
+    session = TimedSession()
+
+    response = session.request("/v2.0/security-groups", "GET")
+
+    assert response.status_code == 401
+
+
+def test_not_found_is_not_rewritten_as_an_auth_failure(
+    patched_parent_request,
+):
+    patched_parent_request.side_effect = keystoneauth_exceptions.NotFound(
+        "Could not recognize Fernet token", http_status=404
+    )
+    session = TimedSession()
+
+    with pytest.raises(keystoneauth_exceptions.NotFound):
+        session.request("/v2.0/security-groups", "GET")
+
+
+_STALE_TOKEN_CREDS = {
+    "auth_url": "https://keystone/v3",
+    "username": "u",
+    "password": "pw",
+    "user_domain_name": "d",
+    "project_id": "p",
+    "auth_type": "password",
+}
+_TOKEN_BODY = {
+    "token": {
+        "expires_at": "2099-01-01T00:00:00Z",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "methods": ["password"],
+        "user": {"id": "u", "name": "u", "domain": {"id": "d", "name": "d"}},
+        "project": {"id": "p", "name": "p", "domain": {"id": "d", "name": "d"}},
+        "catalog": [
+            {
+                "type": "network",
+                "name": "neutron",
+                "endpoints": [
+                    {
+                        "interface": "public",
+                        "url": "https://neutron",
+                        "region": "R",
+                        "id": "e",
+                    }
+                ],
+            }
+        ],
+    }
+}
+
+
+def _json_response(code, url, body, headers=None):
+    response = requests.Response()
+    response.status_code = code
+    response.url = url
+    response._content = json.dumps(body).encode()
+    response.headers.update({"Content-Type": "application/json", **(headers or {})})
+    response.request = requests.Request("GET", url).prepare()
+    return response
+
+
+class _KeystoneAndNeutron:
+    """Keystone rejects a stale Fernet token; Neutron accepts only 'fresh'."""
+
+    def __init__(self, password_ok=True):
+        self.calls = []
+        self.password_ok = password_ok
+
+    def __call__(self, _http, method, url, **kwargs):
+        body = json.loads(kwargs.get("data") or "{}")
+        methods = body.get("auth", {}).get("identity", {}).get("methods", [])
+        token = kwargs.get("headers", {}).get("X-Auth-Token")
+        self.calls.append((method, url, methods, token))
+        if url.endswith("/auth/tokens"):
+            if methods == ["token"]:
+                return _json_response(
+                    404,
+                    url,
+                    {
+                        "error": {
+                            "code": 404,
+                            "message": "Could not recognize Fernet token",
+                        }
+                    },
+                )
+            if not self.password_ok:
+                return _json_response(
+                    401,
+                    url,
+                    {
+                        "error": {
+                            "code": 401,
+                            "message": "The request you have made requires authentication.",
+                        }
+                    },
+                )
+            return _json_response(201, url, _TOKEN_BODY, {"X-Subject-Token": "fresh"})
+        if token == "fresh":
+            return _json_response(200, url, {"security_groups": []})
+        return _json_response(401, url, {"error": "unauthorized"})
+
+
+def _openstack_settings():
+    return mock.Mock(
+        domain="d",
+        backend_url="https://keystone/v3",
+        username="u",
+        password="pw",
+        get_option=lambda key, default=None: {"auth_type": "password"}.get(
+            key, default
+        ),
+    )
+
+
+def _tenant():
+    return mock.Mock(backend_id="p", user_username="u", user_password="pw")
+
+
+def _seed_stale_cache(cloud):
+    with mock.patch.object(
+        requests.Session,
+        "request",
+        lambda http, method, url, **kwargs: cloud(http, method, url, **kwargs),
+    ):
+        fresh = create_session(_STALE_TOKEN_CREDS, False)
+    cached = get_cached_session(fresh)
+    cached["auth_state"] = cached["auth_state"].replace('"fresh"', '"stale"')
+    cached["token"] = "stale"
+    cache.set(get_cached_session_key(_STALE_TOKEN_CREDS), cached, 100)
+    cloud.calls.clear()
+
+
+@pytest.mark.django_db
+class TestStaleCachedKeystoneToken:
+    def test_recovered_session_reauthenticates_with_password_and_retries_neutron(
+        self, caplog
+    ):
+        cloud = _KeystoneAndNeutron()
+        _seed_stale_cache(cloud)
+        with mock.patch.object(
+            requests.Session,
+            "request",
+            lambda http, method, url, **kwargs: cloud(http, method, url, **kwargs),
+        ):
+            session = get_keystone_session(_openstack_settings(), tenant=_tenant())
+            assert isinstance(session.auth, v3.Password)
+            with caplog.at_level(logging.INFO, logger="waldur_openstack.session"):
+                response = session.get(
+                    "/v2.0/security-groups",
+                    endpoint_filter={"service_type": "network"},
+                    raise_exc=False,
+                )
+        assert any("re-authenticated" in record.message for record in caplog.records)
+
+        assert response.status_code == 200
+        auth_methods = [
+            call[2] for call in cloud.calls if call[1].endswith("/auth/tokens")
+        ]
+        assert auth_methods == [["password"]]
+        neutron_tokens = [call[3] for call in cloud.calls if "neutron" in call[1]]
+        assert neutron_tokens == ["stale", "fresh"]
+
+    def test_refreshed_token_is_cached_for_the_next_session(self):
+        cloud = _KeystoneAndNeutron()
+        _seed_stale_cache(cloud)
+        with mock.patch.object(
+            requests.Session,
+            "request",
+            lambda http, method, url, **kwargs: cloud(http, method, url, **kwargs),
+        ):
+            session = get_keystone_session(_openstack_settings(), tenant=_tenant())
+            session.get(
+                "/v2.0/security-groups",
+                endpoint_filter={"service_type": "network"},
+                raise_exc=False,
+            )
+            cloud.calls.clear()
+            follow_up = get_keystone_session(_openstack_settings(), tenant=_tenant())
+            response = follow_up.get(
+                "/v2.0/security-groups",
+                endpoint_filter={"service_type": "network"},
+                raise_exc=False,
+            )
+
+        assert response.status_code == 200
+        assert [
+            call[1] for call in cloud.calls if call[1].endswith("/auth/tokens")
+        ] == []
+        assert [call[3] for call in cloud.calls] == ["fresh"]
+
+    def test_rejected_password_is_authorization_failed_not_session_expired(self):
+        cloud = _KeystoneAndNeutron(password_ok=False)
+        with mock.patch.object(
+            requests.Session,
+            "request",
+            lambda http, method, url, **kwargs: cloud(http, method, url, **kwargs),
+        ):
+            with pytest.raises(OpenStackAuthorizationFailed) as exc_info:
+                create_session(_STALE_TOKEN_CREDS, False)
+
+        assert not isinstance(exc_info.value, OpenStackSessionExpired)
+
+    def test_rejected_password_on_a_recovered_session_is_authorization_failed(self):
+        cloud = _KeystoneAndNeutron()
+        _seed_stale_cache(cloud)
+        cloud.password_ok = False
+        with mock.patch.object(
+            requests.Session,
+            "request",
+            lambda http, method, url, **kwargs: cloud(http, method, url, **kwargs),
+        ):
+            session = get_keystone_session(_openstack_settings(), tenant=_tenant())
+            with pytest.raises(OpenStackAuthorizationFailed) as exc_info:
+                session.get(
+                    "/v2.0/security-groups",
+                    endpoint_filter={"service_type": "network"},
+                    raise_exc=False,
+                )
+
+        assert not isinstance(exc_info.value, OpenStackSessionExpired)
+
+
+@pytest.mark.django_db
+class TestTenantPullAuthorizationFailure:
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    def test_subresources_pull_marks_tenant_erred(
+        self, mock_get_session, mock_get_neutron
+    ):
+        fixture = fixtures.OpenStackFixture()
+        tenant = fixture.tenant
+        mock_get_session.return_value = mock.MagicMock()
+        mock_get_neutron.return_value.list_security_groups.side_effect = (
+            OpenStackAuthorizationFailed(
+                "The request you have made requires authentication."
+            )
+        )
+
+        task = TenantSubresourcesPullTask()
+        task.run(core_utils.serialize_instance(tenant))
+
+        tenant.refresh_from_db()
+        assert tenant.state == CoreStates.ERRED
+        assert "authentication" in tenant.error_message
