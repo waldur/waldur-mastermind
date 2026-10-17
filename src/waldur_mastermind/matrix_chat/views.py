@@ -23,6 +23,7 @@ from rest_framework import permissions, status, views
 from rest_framework.decorators import action
 from rest_framework.exceptions import (
     APIException,
+    NotFound,
     PermissionDenied,
     Throttled,
     ValidationError,
@@ -58,7 +59,11 @@ from . import (
     room_provisioning,
     serializers,
     tasks,
+    tickets,
     webhook_errors,
+)
+from . import (
+    commands as bot_commands,
 )
 from .crypto import export_files
 from .managers import (
@@ -227,6 +232,23 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         if page is not None:
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
+
+    @extend_schema(
+        summary="List the bot commands the caller can use in the room",
+        responses={200: serializers.MatrixBotCommandSerializer(many=True)},
+        description="Every bot command, and whether the caller can use it in this "
+        "room now; where not, a short reason. The bot refuses with the same "
+        "checks. `!ticket send` and `!ticket cancel` are available only while the "
+        "caller has an open ticket draft in the room.",
+    )
+    @action(detail=True, methods=["get"], pagination_class=None)
+    def commands(self, request, uuid=None):
+        room = self.get_object()
+        return Response(
+            serializers.MatrixBotCommandSerializer(
+                bot_commands.for_user(room, request.user), many=True
+            ).data
+        )
 
     @extend_schema(
         summary="Force sync room membership with project members",
@@ -535,6 +557,115 @@ class MatrixHistoryExportViewSet(ActionsViewSet):
 
     def get_queryset(self):
         return filter_exports_for_request(super().get_queryset(), self.request)
+
+
+def _api_message(error):
+    """A ticket refusal as API text: it is written for the room, whose
+    Markdown marks commands with backticks."""
+    return str(error).replace("`", "")
+
+
+class MatrixTicketDraftViewSet(ActionsViewSet):
+    """Support ticket drafts the ``!ticket`` bot command made, for the member
+    who asked for each; anyone else gets 404. The requester confirms or
+    cancels as themselves: nothing in the room event is needed, or would do."""
+
+    queryset = models.MatrixTicketDraft.objects.all().order_by("-created")
+    serializer_class = serializers.MatrixTicketDraftSerializer
+    lookup_field = "uuid"
+    permission_classes = [permissions.IsAuthenticated]
+    disabled_actions = ["list", "create", "destroy", "update", "partial_update"]
+
+    def get_queryset(self):
+        if not matrix_client.is_enabled():
+            return models.MatrixTicketDraft.objects.none()
+        # Only drafts of rooms whose project is still there: a deleted
+        # project leaves its room behind, and a draft without one cannot be
+        # sent or shown. Project.objects keeps soft-deleted projects, whose
+        # rooms still resolve.
+        return (
+            super()
+            .get_queryset()
+            .filter(
+                requester=self.request.user,
+                room__content_type=ContentType.objects.get_for_model(Project),
+                room__object_id__in=Project.objects.values("pk"),
+            )
+            .select_related("room", "issue")
+        )
+
+    def get_object(self):
+        # The actions refuse a requester who lost access to the room, so
+        # reading it does too: a card offers nothing that would fail.
+        try:
+            ticket_draft = super().get_object()
+        except Http404:
+            # Django's own message names the model.
+            raise NotFound(tickets.DRAFT_GONE)
+        if bot_commands.member_reason(self.request.user, ticket_draft.room):
+            raise NotFound(tickets.DRAFT_GONE)
+        return ticket_draft
+
+    def _act(self, action_fn):
+        try:
+            return action_fn()
+        except tickets.DraftGone as error:
+            raise NotFound(_api_message(error))
+        except tickets.TicketError as error:
+            exc = APIException(_api_message(error))
+            exc.status_code = status.HTTP_409_CONFLICT
+            raise exc
+
+    @extend_schema(
+        summary="Create the draft's support ticket",
+        request=serializers.MatrixTicketDraftCreateIssueSerializer,
+        responses={201: serializers.MatrixTicketDraftIssueSerializer},
+        description="Create the pending draft's ticket as its requester, through "
+        "the support API, and post its key in the room's thread. The draft is "
+        "then sent: a second call, or one for a cancelled or expired draft, "
+        "gets 404.",
+    )
+    @action(detail=True, methods=["post"])
+    def create_issue(self, request, uuid=None):
+        self.get_object()
+        serializer = serializers.MatrixTicketDraftCreateIssueSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        draft_overrides = serializer.validated_data
+        issue = self._act(
+            lambda: tickets.send(
+                models.MatrixTicketDraft.objects.filter(uuid=uuid),
+                request.user,
+                draft_overrides=dict(draft_overrides),
+                request=request,
+            )
+        )
+        return Response(
+            serializers.MatrixTicketDraftIssueSerializer(
+                {
+                    "issue_uuid": issue.uuid.hex,
+                    "issue_key": issue.key or "",
+                    "issue_url": tickets.issue_url(issue),
+                }
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @extend_schema(
+        summary="Cancel the draft",
+        request=None,
+        responses={204: None},
+    )
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, uuid=None):
+        self.get_object()
+        self._act(
+            lambda: tickets.cancel(
+                models.MatrixTicketDraft.objects.filter(uuid=uuid), request.user
+            )
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class MatrixCredentialsView(views.APIView):

@@ -210,6 +210,7 @@ class EncryptedFieldDiscoveryTest(SimpleTestCase):
                 "matrix_chat.MatrixBotIdentity.cross_signing_seeds",
                 "matrix_chat.MatrixBotIdentity.pickle_key",
                 "matrix_chat.MatrixHistoryExport.data_key",
+                "matrix_chat.MatrixTicketDraft.content",
                 "matrix_chat.MatrixUserProfile.recovery_key",
                 "structure.ServiceSettings.password",
                 "structure.ServiceSettings.token",

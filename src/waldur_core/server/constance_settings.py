@@ -1897,6 +1897,18 @@ CONSTANCE_CONFIG = {
         False,
         "Include media files when exporting Matrix room history.",
     ),
+    "MATRIX_TICKET_CONTEXT_MESSAGES": (
+        20,
+        "How many messages the !ticket bot command reads as its context: the "
+        "latest of its thread, or the replied-to message and those before it.",
+        int,
+    ),
+    "MATRIX_TICKET_DRAFT_TTL_MINUTES": (
+        15,
+        "Minutes a support ticket draft made by the !ticket bot command can be "
+        "sent before it expires; its content is then erased.",
+        int,
+    ),
     "MATRIX_HISTORY_EXPORT_RETENTION_DAYS": (
         90,
         "Days to keep Matrix room history exports, files included, before they "
@@ -2416,6 +2428,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MATRIX_HISTORY_EXPORT_ENABLED",
         "MATRIX_EXPORT_MEDIA",
         "MATRIX_HISTORY_EXPORT_RETENTION_DAYS",
+        "MATRIX_TICKET_CONTEXT_MESSAGES",
+        "MATRIX_TICKET_DRAFT_TTL_MINUTES",
         "MATRIX_USER_REGISTRATION_SECRET",
         "MATRIX_USER_ID_FORMAT",
         "MATRIX_EXTERNAL_LOGIN_METHOD",

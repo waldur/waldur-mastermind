@@ -5,11 +5,7 @@ from constance import config
 from health_check.backends import BaseHealthCheckBackend
 from health_check.exceptions import ServiceUnavailable
 
-from waldur_mastermind.chat.providers import (
-    ALLOWED_COMPLETION_KEYS,
-    FALLBACK_DEFAULTS,
-    PROVIDER_DEFAULTS,
-)
+from waldur_mastermind.chat import providers
 
 logger = logging.getLogger(__name__)
 
@@ -96,23 +92,15 @@ class LLMResponseHealthCheck(BaseHealthCheckBackend):
             # request → token → streamed-response flow.
             # Apply AI_ASSISTANT_COMPLETION_KWARGS so the health check tests the same
             # configuration as production (e.g. reasoning_effort, provider defaults).
-            backend_type = config.AI_ASSISTANT_BACKEND_TYPE
-            completion_kwargs = config.AI_ASSISTANT_COMPLETION_KWARGS
-            if not isinstance(completion_kwargs, dict):
-                completion_kwargs = {}
-
             kwargs = {
                 "model": model,
                 "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
                 "stream": True,
+                **providers.completion_kwargs(
+                    config.AI_ASSISTANT_BACKEND_TYPE,
+                    config.AI_ASSISTANT_COMPLETION_KWARGS,
+                ),
             }
-            for key, value in PROVIDER_DEFAULTS.get(
-                backend_type, FALLBACK_DEFAULTS
-            ).items():
-                kwargs[key] = value
-            for key, value in completion_kwargs.items():
-                if key in ALLOWED_COMPLETION_KEYS:
-                    kwargs[key] = value
 
             client = openai.OpenAI(api_key=token, base_url=url, timeout=10.0)
             content_parts = []

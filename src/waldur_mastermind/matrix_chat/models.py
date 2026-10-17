@@ -485,6 +485,18 @@ class MatrixOutboxMessage(core_models.UuidMixin, TimeStampedModel):
         default="",
         help_text="Event the message replies to; a command is answered once.",
     )
+    thread_root = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Root of the thread the message is posted in, if any.",
+    )
+    extra_content = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text="Further keys of the message's content, such as its msgtype "
+        "or blocks Waldur's own chat renders. Never conversation content.",
+    )
     state = models.CharField(
         max_length=16, choices=OutboxStates.CHOICES, default=OutboxStates.PENDING
     )
@@ -507,3 +519,88 @@ class MatrixOutboxMessage(core_models.UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return f"{self.room} [{self.state}]"
+
+
+class TicketDraftStates:
+    PENDING = "pending"
+    SENT = "sent"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+
+    CHOICES = (
+        (PENDING, "Pending"),
+        (SENT, "Sent"),
+        (CANCELLED, "Cancelled"),
+        (EXPIRED, "Expired"),
+    )
+
+
+class MatrixTicketDraft(core_models.UuidMixin, TimeStampedModel):
+    """A support ticket the bot drafted from a room's conversation.
+
+    It waits for the member who asked for it to send or cancel it. Its content
+    holds a summary of the conversation, so it is stored encrypted, and it is
+    erased when the draft is sent, cancelled or expires; the row stays a while
+    longer, without it, to tell the requester's client what became of the
+    draft.
+    """
+
+    room = models.ForeignKey(
+        MatrixRoom, on_delete=models.CASCADE, related_name="ticket_drafts"
+    )
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    requester_matrix_id = models.CharField(max_length=255)
+    source_event_id = models.CharField(
+        max_length=255, help_text="The command the draft answers."
+    )
+    thread_root = models.CharField(
+        max_length=255, help_text="The thread the draft is discussed in."
+    )
+    preview_event_id = models.CharField(max_length=255, blank=True, default="")
+    content = core_fields.EncryptedTextField(
+        blank=True,
+        default="",
+        help_text="The draft as JSON: title, description, type, resource. "
+        "Erased once the draft is no longer pending.",
+    )
+    state = models.CharField(
+        max_length=16,
+        choices=TicketDraftStates.CHOICES,
+        default=TicketDraftStates.PENDING,
+    )
+    issue = models.ForeignKey(
+        "support.Issue",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        verbose_name = "Matrix ticket draft"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "source_event_id"],
+                name="matrix_ticket_draft_one_per_command",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.room} [{self.uuid.hex}]"
+
+    @property
+    def is_expired(self):
+        return self.expires_at <= timezone.now()
+
+    def close(self, state, issue=None):
+        """Erase the content and record what became of the draft, if it is
+        still pending; whether it was. A draft sent meanwhile stays sent."""
+        closed = MatrixTicketDraft.objects.filter(
+            pk=self.pk, state=TicketDraftStates.PENDING
+        ).update(content="", state=state, issue=issue, modified=timezone.now())
+        if closed:
+            self.content, self.state, self.issue = "", state, issue
+        return bool(closed)

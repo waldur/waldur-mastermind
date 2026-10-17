@@ -3,7 +3,9 @@
 One long-running process (the ``matrix_bot`` management command) signs in as the
 bot on a device of its own, keeps that device's keys in its crypto store, and:
 
-- syncs, so it can decrypt the commands users send it and answer them;
+- syncs, so it can decrypt the commands users send it and answer them, each
+  beside the sync loop, which keeps going while one takes long (``!ticket``
+  waits for a model to write a draft);
 - posts everything Waldur queues in the outbox, encrypted for the room;
 - exports rooms' history, decrypted with the room keys it holds;
 - shares room keys only with devices their owner's identity vouches for;
@@ -38,6 +40,7 @@ from nio import (
     LocalProtocolError,
     MegolmEvent,
     OlmUnverifiedDeviceError,
+    RoomGetStateResponse,
     RoomMessageText,
     RoomPutStateError,
     RoomSendResponse,
@@ -48,11 +51,14 @@ from nio import (
 from waldur_mastermind.matrix_chat import (
     bot_export,
     bot_state,
+    commands,
     history_filler,
+    history_reader,
     matrix_client,
     models,
     recovery_keys,
     tasks,
+    tickets,
 )
 from waldur_mastermind.matrix_chat.crypto import cross_signing, nio_compat
 from waldur_mastermind.matrix_chat.crypto.store import PostgresStore
@@ -106,8 +112,27 @@ EXPORT_POLL_SECONDS = 5
 # messages (an attachment in flight, or its archive while it is saved) is held by
 # one export at a time; see MatrixBot._export_memory.
 EXPORT_SLOTS = 3
+# How often the bot checks that each room describes the commands that work
+# there; a room it has just joined or encrypted is checked at once.
+COMMANDS_CHECK_SECONDS = 60
+# A room whose descriptions could not be written is tried again after this,
+# doubling with each failure up to the maximum.
+COMMANDS_RETRY_SECONDS = 60
+MAX_COMMANDS_RETRY_SECONDS = 6 * 3600
 # Keys are queried for this many users at once.
 KEYS_QUERY_BATCH = 100
+# Commands answered at once; more wait for a slot. Each holds a worker thread.
+# Drafts, which wait for the model, have slots of their own, so they never hold
+# up the quick commands, sending a draft included.
+COMMAND_SLOTS = 4
+DRAFT_SLOTS = 2
+# Commands waiting or running beyond which new ones are dropped, so a flood of
+# them cannot pile up tasks; the room's reply limit refuses most before this.
+MAX_PENDING_COMMANDS = 100
+# Attempts at posting a draft's preview, which goes out directly, not from the
+# outbox: its content holds the conversation's summary.
+PREVIEW_ATTEMPTS = 3
+PREVIEW_RETRY_SECONDS = 5
 # nio loads its store only when it has a store path, which ours doesn't use.
 STORE_PATH = "postgres"
 # Rooms the bot posts into: active ones, and ones being disabled, whose members
@@ -159,6 +184,31 @@ def _db(fn):
         return fn(*args, **kwargs)
 
     return sync_to_async(call, thread_sensitive=True)
+
+
+async def _outcome(job):
+    """What the worker ``job`` returned once it is done; None if it failed."""
+    try:
+        return await job
+    except Exception:  # noqa: BLE001 - its own failure, not the stop's
+        return None
+
+
+def _worker(fn):
+    """Run ``fn`` in a worker thread with a database connection of its own.
+
+    For work that waits on other services (the model writing a draft, a
+    remote helpdesk creating a ticket): in Django's database thread it would
+    hold up every database call of the sync loop and the outbox meanwhile.
+    """
+
+    def call(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            connections.close_all()
+
+    return sync_to_async(call, thread_sensitive=False)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -219,6 +269,14 @@ class MatrixBot:
         )
         # Running exports, by task.
         self._exports = {}
+        # Set when a room may need its command descriptions now.
+        self._describe_now = asyncio.Event()
+        # Commands being answered, and the slots they take.
+        self._commands = set()
+        self._command_slots = asyncio.Semaphore(COMMAND_SLOTS)
+        self._draft_slots = asyncio.Semaphore(DRAFT_SLOTS)
+        # (room, member) of the drafts being made: one at a time for each.
+        self._drafting = set()
         # Held by whichever export holds an attachment in memory or saves its
         # files, so exports running side by side never hold more memory at once
         # than one export does alone.
@@ -581,6 +639,7 @@ class MatrixBot:
             )
         else:
             logger.info("Turned on encryption in %s", room_id)
+            self._describe_now.set()
 
     async def sync_forever(self):
         first = True
@@ -643,17 +702,276 @@ class MatrixBot:
                         event.sender,
                         event.session_id,
                     )
-                elif isinstance(
-                    event, RoomMessageText
-                ) and event.body.strip().startswith("!"):
-                    await _db(tasks.answer_command)(
-                        room_id, event.sender, event.event_id, event.body
+                elif isinstance(event, RoomMessageText) and (
+                    matrix_client.strip_reply_fallback(
+                        event.body, event.source.get("content")
                     )
+                    .strip()
+                    .startswith("!")
+                    or commands.invocation_text(
+                        event.source.get("content"), self.user_id
+                    )
+                ):
+                    self._start_command(room_id, event)
+
+    # Commands.
+
+    def _start_command(self, room_id, command_event):
+        if len(self._commands) >= MAX_PENDING_COMMANDS:
+            logger.warning(
+                "Matrix bot has too many commands pending; dropping %s in %s",
+                command_event.event_id,
+                room_id,
+            )
+            return
+        task = asyncio.create_task(
+            self._answer(room_id, command_event),
+            name=f"command-{command_event.event_id}",
+        )
+        self._commands.add(task)
+        task.add_done_callback(self._commands.discard)
+
+    async def _answer(self, room_id, command_event):
+        """Answer one command, beside the sync loop. A failure is the
+        command's, not the bot's, and is logged by type: its traceback's
+        frames may hold decrypted content."""
+        command_content = command_event.source.get("content") or {}
+        command = tasks.parse_command(command_event.body, command_content, self.user_id)
+        drafting = (room_id, command_event.sender)
+        try:
+            if tickets.wants_draft(command):
+                if drafting in self._drafting:
+                    await _worker(tickets.busy)(
+                        room_id, command_event.event_id, command
+                    )
+                    return
+                self._drafting.add(drafting)
+                try:
+                    async with self._draft_slots:
+                        await self.draft_ticket(room_id, command_event, command)
+                finally:
+                    self._drafting.discard(drafting)
+            else:
+                async with self._command_slots:
+                    await _worker(tasks.answer_command)(
+                        room_id,
+                        command_event.sender,
+                        command_event.event_id,
+                        command_event.body,
+                        command_content,
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            logger.error(
+                "Matrix bot command %s in %s failed: %s",
+                command_event.event_id,
+                room_id,
+                type(error).__name__,
+            )
+
+    async def draft_ticket(self, room_id, command_event, command):
+        """Draft a support ticket from the conversation ``command_event`` is in.
+
+        The bot reads and decrypts the context itself: it alone holds the room
+        keys, and a summary of the conversation must not pass through the
+        broker or the outbox, which keep what they carry in clear.
+        """
+        # Shielded, here and for the draft: a stop cannot stop a worker
+        # thread, which goes on to claim the command or store the draft.
+        starting = asyncio.ensure_future(
+            _worker(tickets.start)(
+                room_id, command_event.sender, command_event.event_id, command
+            )
+        )
+        try:
+            request = await asyncio.shield(starting)
+        except asyncio.CancelledError:
+            request = await _outcome(starting)
+            if request is not None:
+                await _worker(tickets.fail)(request)
+            raise
+        if request is None:
+            return
+        # Nothing is read or asked of the model for a preview that could not
+        # be posted: it would go out in clear.
+        matrix_room = self.client.rooms.get(room_id)
+        if matrix_room is None or not matrix_room.encrypted:
+            logger.warning("Matrix bot will not draft a ticket in %s", room_id)
+            await _worker(tickets.fail)(request)
+            return
+        drafting = None
+        try:
+            reader = history_reader.HistoryReader(
+                self.client, self.homeserver_url, self.user_id
+            )
+            if request.in_thread:
+                history_messages = await reader.thread(
+                    room_id, request.thread_root, request.context_messages
+                )
+            else:
+                history_messages = await reader.before(
+                    room_id,
+                    request.reply_to or request.event_id,
+                    request.context_messages,
+                )
+            drafting = asyncio.ensure_future(
+                _worker(tickets.draft)(request, history_messages)
+            )
+            ticket_preview = await asyncio.shield(drafting)
+        except (bot_export.HistoryError, *TRANSIENT_ERRORS) as error:
+            # A HistoryError says what failed without content; others by type.
+            logger.warning(
+                "Matrix bot could not draft a ticket in %s: %s",
+                room_id,
+                error
+                if isinstance(error, bot_export.HistoryError)
+                else type(error).__name__,
+            )
+            await _worker(tickets.fail)(request)
+            return
+        except asyncio.CancelledError:
+            # The bot is stopping, and will not see the command again. The
+            # outbox tells the requester once the bot is back; a draft the
+            # model was writing is stored meanwhile, and dropped, unseen.
+            if drafting is not None:
+                stored = await _outcome(drafting)
+                if stored is not None:
+                    await _worker(tickets.discard)(stored.draft_uuid)
+            await _worker(tickets.fail)(request)
+            raise
+        except Exception:
+            await _worker(tickets.fail)(request)
+            raise
+        try:
+            event_id = await self._post_preview(room_id, ticket_preview)
+        except asyncio.CancelledError:
+            await _worker(tickets.discard)(ticket_preview.draft_uuid)
+            await _worker(tickets.fail)(request)
+            raise
+        if event_id is None:
+            await _worker(tickets.discard)(ticket_preview.draft_uuid)
+            await _worker(tickets.fail)(request)
+        else:
+            await _worker(tickets.posted)(ticket_preview.draft_uuid, event_id)
+
+    async def _post_preview(self, room_id, preview):
+        matrix_room = self.client.rooms.get(room_id)
+        if matrix_room is None or not matrix_room.encrypted:
+            # nio would send it in clear.
+            logger.warning("Matrix bot will not post a ticket draft in %s", room_id)
+            return None
+        for attempt in range(PREVIEW_ATTEMPTS):
+            async with self._sending:
+                result = await self._send_content(room_id, preview.content)
+            if isinstance(result, RoomSendResponse):
+                return result.event_id
+            logger.warning(
+                "Matrix bot could not post a ticket draft in %s: %s",
+                room_id,
+                type(result).__name__,
+            )
+            if attempt + 1 < PREVIEW_ATTEMPTS:
+                await asyncio.sleep(PREVIEW_RETRY_SECONDS)
+        return None
 
     async def _join_invited_rooms(self, response):
         for room_id in response.rooms.invite:
             if await _db(_is_waldur_room)(room_id):
                 await self.client.join(room_id)
+                self._describe_now.set()
+
+    # Command descriptions, for clients' composers.
+
+    async def describe_commands_forever(self):
+        """Keep each active room's command descriptions (MSC4391 state events)
+        as :mod:`commands` says they should be.
+
+        What the homeserver holds is read once per room and remembered; after
+        that a room is written to only when what it should hold changes: a
+        new room, or the helpdesk switched on or off, which every check sees
+        within ``COMMANDS_CHECK_SECONDS``. A room that fails is left alone for
+        a while, longer after each failure.
+        """
+        await self._synced.wait()
+        described = {}
+        # Room ID: (when to try again, the wait after the next failure).
+        retry = {}
+        while True:
+            await self._renew_lease()
+            # Cleared before the check, not after: a room joined while the
+            # check runs sets it again, and is tried at once.
+            self._describe_now.clear()
+            try:
+                wanted = await _db(commands.rooms_to_describe)()
+                now = time.monotonic()
+                for room_id, descriptions in wanted.items():
+                    if described.get(room_id) == descriptions:
+                        continue
+                    if room_id in retry and retry[room_id][0] > now:
+                        continue
+                    if await self._describe_commands(room_id, descriptions):
+                        described[room_id] = descriptions
+                        retry.pop(room_id, None)
+                    else:
+                        wait = retry.get(room_id, (0, COMMANDS_RETRY_SECONDS))[1]
+                        retry[room_id] = (
+                            now + wait,
+                            min(2 * wait, MAX_COMMANDS_RETRY_SECONDS),
+                        )
+                for room_id in set(described) - set(wanted):
+                    del described[room_id]
+                for room_id in set(retry) - set(wanted):
+                    del retry[room_id]
+            except TRANSIENT_ERRORS as error:
+                logger.warning("Matrix bot could not describe its commands (%s)", error)
+            try:
+                await asyncio.wait_for(
+                    self._describe_now.wait(), COMMANDS_CHECK_SECONDS
+                )
+            except TimeoutError:
+                pass
+            else:
+                # A room just joined or encrypted is tried at once.
+                retry.clear()
+
+    async def _describe_commands(self, room_id, descriptions):
+        """Write the descriptions that differ from the room's state; whether
+        the room now holds them all."""
+        # Not self.client.rooms: it holds only the rooms a sync since the
+        # process started mentioned. A room the bot has not joined yet fails
+        # here, and is tried again at the next check.
+        response = await self.client.room_get_state(room_id)
+        if not isinstance(response, RoomGetStateResponse):
+            logger.warning(
+                "Matrix bot could not read the state of %s: %s",
+                room_id,
+                getattr(response, "message", type(response).__name__),
+            )
+            return False
+        held = {
+            event.get("state_key"): event.get("content") or {}
+            for event in response.events
+            if event.get("type") == commands.COMMAND_DESCRIPTION_EVENT
+        }
+        written = 0
+        for key, content in descriptions.items():
+            if held.get(key, {}) == content:
+                continue
+            put = await self.client.room_put_state(
+                room_id, commands.COMMAND_DESCRIPTION_EVENT, content, state_key=key
+            )
+            if isinstance(put, RoomPutStateError):
+                logger.warning(
+                    "The homeserver refused the bot's command descriptions in %s: %s",
+                    room_id,
+                    put.message,
+                )
+                return False
+            written += 1
+        if written:
+            logger.info("Matrix bot described %d commands in %s", written, room_id)
+        return True
 
     # Outbox.
 
@@ -687,11 +1005,23 @@ class MatrixBot:
             )
             return
         content = matrix_client.build_text_content(
-            message.body, reply_to=message.reply_to or None
+            message.body,
+            reply_to=message.reply_to or None,
+            thread_root=message.thread_root or None,
         )
+        content.update(message.extra_content or {})
+        response = await self._send_content(room.room_id, content)
+        if isinstance(response, RoomSendResponse):
+            await _db(bot_state.mark_sent)(message, response.event_id)
+        else:
+            await _db(bot_state.mark_failed_attempt)(message, response)
+
+    async def _send_content(self, room_id, content):
+        """Send ``content`` into a room, encrypted for the devices judged
+        trustworthy: the response, or the error it failed with."""
         try:
-            response = await self.client.room_send(
-                room.room_id,
+            return await self.client.room_send(
+                room_id,
                 "m.room.message",
                 content,
                 ignore_unverified_devices=False,
@@ -699,21 +1029,15 @@ class MatrixBot:
         except OlmUnverifiedDeviceError as error:
             # A device appeared since the last judgement: judge the room's
             # members again, and retry later.
-            matrix_room = self.client.rooms.get(room.room_id)
+            matrix_room = self.client.rooms.get(room_id)
             users = set(matrix_room.users) if matrix_room else set()
             try:
                 await self.mark_trust(users | {error.device.user_id})
             except TRANSIENT_ERRORS:
                 pass
-            await _db(bot_state.mark_failed_attempt)(message, error)
-            return
+            return error
         except (LocalProtocolError, *TRANSIENT_ERRORS) as error:
-            await _db(bot_state.mark_failed_attempt)(message, error)
-            return
-        if isinstance(response, RoomSendResponse):
-            await _db(bot_state.mark_sent)(message, response.event_id)
-        else:
-            await _db(bot_state.mark_failed_attempt)(message, response)
+            return error
 
     # History for new members.
 
@@ -978,6 +1302,7 @@ class MatrixBot:
             asyncio.create_task(self.drain_outbox_forever(), name="outbox"),
             asyncio.create_task(self.fill_history_forever(), name="history"),
             asyncio.create_task(self.export_forever(), name="exports"),
+            asyncio.create_task(self.describe_commands_forever(), name="commands"),
             asyncio.create_task(self.renew_lease_forever(), name="lease"),
             asyncio.create_task(self.watch_config_forever(), name="config"),
             asyncio.create_task(stop.wait(), name="stop"),
@@ -1001,9 +1326,9 @@ class MatrixBot:
             for part in done:
                 part.result()  # re-raises what stopped it
         finally:
-            for part in parts:
+            for part in [*parts, *self._commands]:
                 part.cancel()
-            await asyncio.gather(*parts, return_exceptions=True)
+            await asyncio.gather(*parts, *self._commands, return_exceptions=True)
             try:
                 await self.history.close()
             except Exception:  # noqa: BLE001 - the client and store still close

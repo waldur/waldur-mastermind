@@ -6,7 +6,7 @@ Waldur integrates with the [Matrix](https://matrix.org/) open communication prot
 
 - **Project chat rooms** — each project can have a dedicated Matrix room
 - **Automatic member sync** — project members are invited to rooms based on their roles
-- **Bot commands** — operational queries (resource status, orders, members) from within the chat
+- **Bot commands** — operational queries (resource status, orders, members) and support ticket drafts from within the chat
 - **History export** — manual, scheduled, or on-deletion export of chat messages and media
 - **Web chat sessions** — Waldur's chat drawer gets short-lived Matrix tokens that live only in the browser's memory
 - **External clients** — optionally, users can sign in to Element or another Matrix client
@@ -1649,12 +1649,126 @@ The endpoint only acknowledges transactions: it records each transaction ID, so 
 
 The bot answers commands posted in an active project room, to senders whose role puts them in the room. Anyone else, staff and support who joined with the Join action included, is told they have no access to the room's project. While chat is switched off, commands go unanswered.
 
+The bot reads commands through its own sync, decrypted, and answers each one beside its sync loop, so a slow command does not hold up the bot's syncing and posting. Quick commands run four at a time, and `!ticket` drafts, which wait for the model, two at a time in slots of their own, so drafts never hold up the quick commands; a member's second `!ticket` in a room is dropped while their first is being drafted. A command sent in a thread is answered in that thread. The bot answers at most 10 commands per room and minute, counted under a lock on the room so commands answered side by side cannot exceed it.
+
 | Command | Description |
 | --- | --- |
 | `!help` | Show available commands |
 | `!status` | Resource status summary for the linked project |
 | `!orders` | Last 5 orders for the project |
 | `!members` | List the room's joined members, each as admin (power level 50 or more) or member |
+| `!ticket [description]` | Draft a support ticket from the conversation; see below |
+| `!ticket send`, `!ticket cancel` | Send or drop the sender's draft: in its thread, or anywhere in the room while they have only one |
+
+**Command menus.** The bot describes its commands in each active project room,
+so clients can offer them in their composer: one state event per command, of
+the unstable type `org.matrix.msc4391.command_description` (MSC4391,
+"Simplified in-room bot commands"), with the state key MSC4391 derives from
+the command and the bot's user ID. Each holds the command's name, description
+and arguments, nothing else: state events are not encrypted. A command that
+cannot work in the room is withdrawn by emptying its event: `!ticket` and its
+subcommands while the helpdesk is off or has no active request type, and every
+command in a room that is not a project's. The bot reads each room's events
+once when it starts, writes only the ones that differ, and checks every minute
+whether what a room should hold changed, so a new room, or the helpdesk being
+switched on or off, reaches the menus within a minute. It also checks at once
+when it joins or encrypts a room. The bot needs the power to send state events,
+which it has as the rooms' administrator. Commands are typed as text
+(`!ticket send`); the bot also takes the structured invocation MSC4391 defines
+(an `org.matrix.msc4391.command` block that mentions the bot), which wins over
+the message's text.
+
+Room state is the same for every member. What one user can use is listed by
+`GET /api/matrix/rooms/{uuid}/commands/`: every command, whether the caller can
+use it there now, and if not why. The bot refuses commands with the same
+checks: the room is active and a project's, the caller has a role that puts
+them in it (staff and support without such a role are refused too), Matrix
+chat is enabled and the bot is running; `!ticket` also needs the helpdesk, the
+caller's email and full name, and a role the support API lets report issues
+for the project (organization owner, or project manager, administrator or
+member), and `!ticket send` and `!ticket cancel` an open draft of the caller's
+in the room.
+
+#### Drafting support tickets
+
+A member sends `!ticket`, optionally with a short description
+(`!ticket VM does not boot since the update`), in a thread or as a reply. The
+bot drafts a ticket from the conversation, posts the draft in the thread, and
+creates it as that member once they confirm.
+
+- **When it answers.** The helpdesk is enabled (`WALDUR_SUPPORT_ENABLED`, and at
+  least one active request type), the room is active and belongs to a project,
+  the sender has a role that puts them in the room and lets them report issues
+  for the project, and their Waldur profile has an email address and a full
+  name. Otherwise the bot replies with the reason.
+- **What it reads.** In a thread, the thread's root and its latest
+  `MATRIX_TICKET_CONTEXT_MESSAGES` messages. As a reply, the replied-to message
+  and the messages before it, as many in all; as a plain message, the messages
+  before the command. Without a thread, that can include messages sent before
+  the requester joined the room, as the room's history sharing already shows
+  them. Commands, the bot's own messages
+  and messages the bot has no key for are left out; an edit replaces what its
+  sender wrote first. The bot reads and decrypts them itself, as it does for
+  history exports: they never pass through Celery's broker or the outbox.
+- **Project data.** Fetched by code, never by the model, and limited to what
+  every member of the room can see: the project and organization names, the
+  project's resources and their states, erred resources, recent erred or
+  pending orders, and the resources the conversation names. No costs, invoices
+  or credits.
+- **Who writes it.** With the AI assistant enabled (`AI_ASSISTANT_ENABLED`, its
+  API settings, and `AI_ASSISTANT_ENABLED_ROLES` admitting the requester), the
+  configured model writes the title and description and suggests a request type,
+  a priority and the affected resource. The model has no tools. The request
+  counts against the requester's token quota and the site-wide budget, and the
+  assistant's input guards apply: personal data the guards find is redacted
+  before the conversation reaches the model, and a conversation that looks like
+  an attempt to instruct it is not sent to it. When the assistant is off, not
+  available to the requester, over quota or unreachable, or its answer has no
+  description, the bot builds a plain draft from the quoted messages and the
+  project facts instead. The guards'
+  redaction applies to a plain draft too.
+- **The preview.** Posted in the thread as an `m.notice`. Its HTML body shows
+  the draft, states which helpdesk the ticket goes to and that a summary of the
+  conversation will be sent there, and explains `!ticket send` and
+  `!ticket cancel`. What the model wrote is shown as plain text, so its links are
+  not links. Waldur's chat drawer renders the draft from blocks under the
+  content key `com.waldur.assistant.blocks` as a card with **Create ticket**,
+  **Edit** and **Cancel draft**; **Edit** opens the support request form with
+  the draft filled in. Every member of the room reads the event, so it carries nothing
+  that confirms a draft. The drawer trusts blocks only from the room's bot,
+  whose Matrix ID the room API returns as `bot_user_id`, and shows the
+  requester's card from `GET /api/matrix/ticket-drafts/{uuid}/`, which answers
+  the requester only: the draft, and its state (pending, sent, cancelled or
+  expired, with the issue once sent).
+- **Confirming.** Only the member who asked can send, cancel or edit the draft:
+  `!ticket send` or `!ticket cancel` in the thread, or anywhere in the room
+  while it is their only open draft there (with several, the bot asks them to
+  reply to the one they mean), or the drawer, which calls
+  `POST /api/matrix/ticket-drafts/{uuid}/create_issue/` or `.../cancel/` as that
+  member. A confirmation from anyone else, or for a draft already sent,
+  cancelled or expired, creates nothing. The ticket is created through the support API's
+  own serializer and create path, as if the member had filed it: they are its
+  caller, the room's project is its project, the resource is set when exactly
+  one was identified, and the active support backend and its description
+  template apply as they do to any ticket. A priority the model suggested is a
+  line of the description, as only staff and support set a ticket's priority.
+  The bot then posts the ticket's key and link in the thread, with whatever the
+  member changed in **Edit** (title, description, request type, resource), so
+  the card shows the ticket as it went out: the draft's own text is erased once
+  it is sent. Those changes are read by the room, like the draft was.
+- **Storage.** The draft (`MatrixTicketDraft`) is stored encrypted under
+  `FIELD_ENCRYPTION_KEY`. Its content is erased when it is sent or cancelled,
+  and when it expires after `MATRIX_TICKET_DRAFT_TTL_MINUTES`; expiry is checked
+  on use and every five minutes by a periodic task, which also tells the thread.
+  The row, without content, records what became of the draft and is deleted
+  seven days later. A new `!ticket` from the same member in the same thread
+  replaces their earlier draft, and the bot posts that the earlier one was
+  cancelled, so its card closes. Nothing of the conversation is logged.
+
+What leaves Waldur: the conversation excerpt and project facts go to the AI
+assistant's inference service when it writes the draft, and the ticket, with
+its summary of the conversation, goes to the active support backend once the
+member sends it.
 
 ## Configuration Reference
 
@@ -1679,6 +1793,8 @@ packaged deployment, the Setup wizard sets most of them.
 | `MATRIX_HISTORY_EXPORT_ENABLED` | `False` | Enable periodic and on-deletion exports |
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
 | `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` | `90` | Days to keep history exports, files included; each room's newest completed export is kept; `0` or less keeps them forever |
+| `MATRIX_TICKET_CONTEXT_MESSAGES` | `20` | Messages `!ticket` reads: the latest of its thread, or the replied-to message and those before it |
+| `MATRIX_TICKET_DRAFT_TTL_MINUTES` | `15` | Minutes a `!ticket` draft can be sent before it expires; its content is then erased, and the row is kept 7 days |
 | `MATRIX_USER_REGISTRATION_SECRET` | `""` | **Wiring.** The homeserver's registration token, and with zero-touch setup also its `registration_shared_secret`. See [Registration secret](#registration-secret) |
 | `MATRIX_LIVEKIT_KEY`, `MATRIX_LIVEKIT_SECRET` | `""` | **Wiring.** LiveKit API key and secret; see [Calls](#calls) |
 | `MATRIX_LIVEKIT_URL` | `""` | **Wiring.** Internal LiveKit URL; blank falls back to `http://livekit:7880` |
@@ -1701,7 +1817,8 @@ The Matrix chat UI is gated on the project feature flag `project.show_matrix_cha
 | `MatrixHistoryExport` | A chat history export with state, message/media counts, and file references. |
 | `MatrixAppserviceTransaction` | Idempotency record for processed webhook transactions. |
 | `MatrixBotIdentity` | The bot's own device: its ID, the key its crypto store (schema `matrix_bot`) is pickled under, its cross-signing seeds and an access token that does not expire. The secrets are encrypted under `FIELD_ENCRYPTION_KEY`, or `SECRET_KEY` while it is unset; see `docs/field-encryption.md`. |
-| `MatrixOutboxMessage` | A message queued for the bot to post, encrypted, into a room. Everything Waldur posts as the bot, notifications and command replies, goes through it, as only the bot holds the room keys. |
+| `MatrixOutboxMessage` | A message queued for the bot to post, encrypted, into a room. Everything Waldur posts as the bot, notifications and command replies, goes through it, as only the bot holds the room keys. The one exception is a `!ticket` draft's preview, which the bot posts itself because it holds a summary of the conversation. |
+| `MatrixTicketDraft` | A support ticket draft made by `!ticket`: its content encrypted while it waits for its requester to send or cancel it, its state, its expiry, and its issue once sent. The content is erased when it stops being pending. |
 
 ## Troubleshooting
 

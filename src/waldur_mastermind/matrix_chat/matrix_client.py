@@ -599,7 +599,7 @@ def render_markdown(body: str) -> str:
     return clean_html(_MARKDOWN.render(body).strip())
 
 
-def build_text_content(body, msgtype="m.text", reply_to=None):
+def build_text_content(body, msgtype="m.text", reply_to=None, thread_root=None):
     """Build an `m.room.message` content dict.
 
     `body` stays the plaintext (markdown) fallback for clients without HTML
@@ -611,9 +611,49 @@ def build_text_content(body, msgtype="m.text", reply_to=None):
     if html:
         content["format"] = "org.matrix.custom.html"
         content["formatted_body"] = html
-    if reply_to:
-        content["m.relates_to"] = {"m.in_reply_to": {"event_id": reply_to}}
+    relation = build_relation(reply_to=reply_to, thread_root=thread_root)
+    if relation:
+        content["m.relates_to"] = relation
     return content
+
+
+def build_relation(reply_to=None, thread_root=None):
+    """The ``m.relates_to`` of a reply, in a thread or not.
+
+    A message in a thread also names the event it replies to, falling back to
+    a plain reply for clients without threads (``is_falling_back`` tells the
+    others it is not a quoted reply).
+    """
+    if thread_root:
+        return {
+            "rel_type": "m.thread",
+            "event_id": thread_root,
+            "is_falling_back": True,
+            "m.in_reply_to": {"event_id": reply_to or thread_root},
+        }
+    if reply_to:
+        return {"m.in_reply_to": {"event_id": reply_to}}
+    return None
+
+
+def strip_reply_fallback(plaintext, decrypted_content):
+    """``plaintext`` without the ``> `` lines a reply's fallback quotes its
+    parent in, for clients that still send one; any other body as it is.
+
+    The names are ones error reports scrub (``waldur_core.logging.sentry``):
+    this runs on every message the bot reads.
+    """
+    relates_to = (
+        decrypted_content.get("m.relates_to")
+        if isinstance(decrypted_content, dict)
+        else None
+    )
+    if not isinstance(relates_to, dict) or "m.in_reply_to" not in relates_to:
+        return plaintext
+    plaintext_lines = plaintext.split("\n")
+    while plaintext_lines and plaintext_lines[0].startswith(">"):
+        plaintext_lines.pop(0)
+    return "\n".join(plaintext_lines).lstrip("\n")
 
 
 def _build_media_message(event):

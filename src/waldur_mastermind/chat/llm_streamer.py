@@ -12,16 +12,12 @@ from django.db.models import Max
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 
-from waldur_mastermind.chat import models
+from waldur_mastermind.chat import models, providers
 from waldur_mastermind.chat.block_schemas import blocks_to_text, clean_answer_blocks
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser
 from waldur_mastermind.chat.prompts.rejection import TITLE_GENERATION_PROMPT
-from waldur_mastermind.chat.providers import (
-    ALLOWED_COMPLETION_KEYS,
-    FALLBACK_DEFAULTS,
-    PROVIDER_DEFAULTS,
-)
+from waldur_mastermind.chat.providers import ALLOWED_COMPLETION_KEYS
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -373,30 +369,14 @@ class LLMStreamer:
             "stream_options": {"include_usage": True},
         }
 
-        # Layer 1: provider defaults
-        provider_kwargs = PROVIDER_DEFAULTS.get(backend_type, FALLBACK_DEFAULTS)
-        for key, value in provider_kwargs.items():
-            kwargs[key] = value
-
-        # Layer 2: admin overrides (allowlisted keys only)
+        # Provider defaults, then admin overrides (allowlisted keys only)
         ignored_keys = set(completion_kwargs.keys()) - ALLOWED_COMPLETION_KEYS
         if ignored_keys:
             logger.warning(
                 "AI_ASSISTANT_COMPLETION_KWARGS contains protected keys that will be ignored: %s",
                 ignored_keys,
             )
-        for key, value in completion_kwargs.items():
-            if key not in ALLOWED_COMPLETION_KEYS:
-                continue
-            # Deep-merge extra_body so provider safety settings aren't wiped out
-            if (
-                key == "extra_body"
-                and isinstance(kwargs.get("extra_body"), dict)
-                and isinstance(value, dict)
-            ):
-                kwargs["extra_body"] = {**kwargs["extra_body"], **value}
-            else:
-                kwargs[key] = value
+        kwargs.update(providers.completion_kwargs(backend_type, completion_kwargs))
 
         if include_tools and tools:
             kwargs["tools"] = tools

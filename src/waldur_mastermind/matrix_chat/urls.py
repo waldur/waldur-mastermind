@@ -10,6 +10,11 @@ def register_in(router):
         basename="matrix-room",
     )
     router.register(
+        r"matrix/ticket-drafts",
+        views.MatrixTicketDraftViewSet,
+        basename="matrix-ticket-draft",
+    )
+    router.register(
         r"matrix/exports",
         views.MatrixHistoryExportViewSet,
         basename="matrix-export",
