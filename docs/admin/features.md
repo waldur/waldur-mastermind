@@ -22,11 +22,11 @@ Show the Remote Projects pages of a portal that sends projects to other portals 
 
 ## customer.show_organisation_reporting
 
-Show the Reporting menu with organisation-scoped reports to organisation owners.
+Show the Reporting menu with organization-scoped reports to organization owners.
 
 ## customer.show_permission_reviews
 
-Allows to show permission reviews tab and popups for organisations.
+Allows to show permission reviews tab and popups for organizations.
 
 ## customer.show_project_digest
 
@@ -94,7 +94,7 @@ List calls that are run outside Waldur: each call links to an external URL where
 
 ## marketplace.catalogue_only
 
-Run the marketplace as a catalogue: offerings can be browsed but not ordered, order lists and pricing are hidden, and anonymous visitors land on the marketplace instead of the login page.
+Run the marketplace as a catalog: offerings can be browsed but not ordered, order lists and pricing are hidden, and anonymous visitors land on the marketplace instead of the login page.
 
 ## marketplace.conceal_audit_log_from_end_users
 

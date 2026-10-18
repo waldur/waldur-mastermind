@@ -2005,7 +2005,7 @@ Impact field name
 
 **Type:** str
 
-Organisation field name
+Organization field name
 
 #### ATLASSIAN_RESOLUTION_SLA_FIELD
 
@@ -2119,7 +2119,7 @@ Toggler for mapping between waldur user and service desk agents.
 
 **Type:** secret_field
 
-Shared secret expected in the X-Webhook-Secret header of inbound JIRA webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behaviour). Configure your JIRA automation/webhook to send the same value to enable authentication.
+Shared secret expected in the X-Webhook-Secret header of inbound JIRA webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behavior). Configure your JIRA automation/webhook to send the same value to enable authentication.
 
 ### Zammad settings
 
@@ -2177,7 +2177,7 @@ Time in minutes. Time in minutes while comment deletion is available <https://gi
 
 **Type:** secret_field
 
-Shared secret expected in the X-Webhook-Secret header of inbound Zammad webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behaviour).
+Shared secret expected in the X-Webhook-Secret header of inbound Zammad webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behavior).
 
 ### SMAX settings
 
@@ -2209,7 +2209,7 @@ Authorization password.
 
 **Type:** str
 
-Organisation field name.
+Organization field name.
 
 #### SMAX_PROJECT_FIELD
 
@@ -2269,7 +2269,7 @@ Custom CA certificate (PEM format) used to verify the TLS connection to the SMAX
 
 **Type:** secret_field
 
-Shared secret expected in the X-Webhook-Secret header of inbound SMAX webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behaviour).
+Shared secret expected in the X-Webhook-Secret header of inbound SMAX webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behavior).
 
 ### Proposal settings
 
@@ -2469,7 +2469,7 @@ The message to show when OIDC account creation is blocked for uninvited users. U
 
 **Type:** list_field
 
-Comma-separated list of regular expressions matched against the user email, e.g. '.*@example\.com'. Only has an effect when OIDC_BLOCK_CREATION_OF_UNINVITED_USERS is enabled. When non-empty, a user whose email matches any of the patterns may sign up without an invitation, and existing users must keep matching in order to log in - except staff and support users, users holding at least one unexpired role, users with a pending invitation and users matching an autoprovisioning rule, which are always allowed. Only interactive logins are gated; background identity synchronisation is not. Patterns must match the whole email and are case-insensitive. Note: values are split on commas, so a pattern cannot contain a comma - '{n,m}' quantifiers are not supported, repeat the expression instead.
+Comma-separated list of regular expressions matched against the user email, e.g. '.*@example\.com'. Only has an effect when OIDC_BLOCK_CREATION_OF_UNINVITED_USERS is enabled. When non-empty, a user whose email matches any of the patterns may sign up without an invitation, and existing users must keep matching in order to log in - except staff and support users, users holding at least one unexpired role, users with a pending invitation and users matching an autoprovisioning rule, which are always allowed. Only interactive logins are gated; background identity synchronization is not. Patterns must match the whole email and are case-insensitive. Note: values are split on commas, so a pattern cannot contain a comma - '{n,m}' quantifiers are not supported, repeat the expression instead.
 
 #### OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE
 
@@ -3009,7 +3009,7 @@ Name of the AI Assistant model to use for inference.
 
 **Type:** text_field
 
-Additional instructions injected into the AI Assistant system prompt. Use this for organisation-specific context, terminology, FAQ content, or behavioural guidelines. Supports {assistant_name} and {organization} placeholders. Overridden by the active SystemPrompt record when set.
+Additional instructions injected into the AI Assistant system prompt. Use this for organization-specific context, terminology, FAQ content, or behavioral guidelines. Supports {assistant_name} and {organization} placeholders. Overridden by the active SystemPrompt record when set.
 
 #### AI_ASSISTANT_COMPLETION_KWARGS
 
