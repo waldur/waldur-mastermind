@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
                     "urn",
                     models.CharField(
                         blank=True,
-                        help_text="SRAM global URN: '<organisation>:<co>' or '<organisation>:<co>:<group>'.",
+                        help_text="SRAM global URN: '<organization>:<co>' or '<organization>:<co>:<group>'.",
                         max_length=255,
                     ),
                 ),

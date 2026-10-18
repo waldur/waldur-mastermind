@@ -1151,7 +1151,7 @@ class Migration(migrations.Migration):
                     "widget",
                     models.CharField(
                         blank=True,
-                        help_text="Widget field allows to customise table cell rendering.",
+                        help_text="Widget field allows to customize table cell rendering.",
                         max_length=255,
                         null=True,
                     ),

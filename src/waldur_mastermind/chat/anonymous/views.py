@@ -784,7 +784,7 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
         description=(
             "One row per anonymous conversation (``session_id``) with "
             "aggregate counters, mirroring the authenticated threads table. "
-            "Honours the same filters as the list endpoint. Read a "
+            "Honors the same filters as the list endpoint. Read a "
             "conversation's transcript via ``by-session/{session_id}``."
         ),
         responses={
@@ -813,7 +813,7 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
         summary="Aggregate KPI roll-up",
         description=(
             "Returns aggregate counters and rates for the anonymous "
-            "chat flow. Filters are honoured (date range etc.) so "
+            "chat flow. Filters are honored (date range etc.) so "
             "the same parameters work as on the list endpoint."
         ),
         responses={200: anonymous_serializers.AnonymousChatKpiResponseSerializer},

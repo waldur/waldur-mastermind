@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             field=models.BooleanField(
                 default=False,
                 editable=False,
-                help_text="The order was placed by an automated flow on behalf of the person in created_by, rather than by that person. Proposal allocation sets this: the call review authorised the spend and the accepting call manager is recorded as the consumer reviewer, while created_by only names who the order is for. The end-date and cost-policy termination sweeps set it too when they name the person an allocated resource's creation order was for, recording the system robot as the consumer reviewer. Such an order is not announced as a new order, and is carried out with system authority, since the person named need hold no role on the project.",
+                help_text="The order was placed by an automated flow on behalf of the person in created_by, rather than by that person. Proposal allocation sets this: the call review authorized the spend and the accepting call manager is recorded as the consumer reviewer, while created_by only names who the order is for. The end-date and cost-policy termination sweeps set it too when they name the person an allocated resource's creation order was for, recording the system robot as the consumer reviewer. Such an order is not announced as a new order, and is carried out with system authority, since the person named need hold no role on the project.",
             ),
         ),
     ]

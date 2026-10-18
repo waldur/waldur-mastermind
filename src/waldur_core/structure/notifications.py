@@ -1097,7 +1097,7 @@ class NewReviewSubmittedContext(BaseModel):
     max_score: str = Field(description="The maximum possible score (string '5').")
     submitted_reviews: int = Field(description="Number of reviews already submitted.")
     pending_reviews: int = Field(description="Number of reviews still pending.")
-    rejected_reviews: int = Field(description="Number of rejected/cancelled reviews.")
+    rejected_reviews: int = Field(description="Number of rejected/canceled reviews.")
 
 
 class ReviewRejectedContext(BaseModel):
@@ -1116,15 +1116,15 @@ class ReviewRejectedContext(BaseModel):
     )
     submitted_reviews: int = Field(description="Number of reviews already submitted.")
     pending_reviews: int = Field(description="Number of reviews still pending.")
-    rejected_reviews: int = Field(description="Number of rejected/cancelled reviews.")
+    rejected_reviews: int = Field(description="Number of rejected/canceled reviews.")
 
 
 class ProposalCancelledContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
-    proposal_name: str = Field(description="Name of the cancelled proposal.")
+    proposal_name: str = Field(description="Name of the canceled proposal.")
     call_name: str = Field(description="Name of the call.")
     cancellation_date: Any = Field(description="The date and time of cancellation.")
-    proposal_url: str = Field(description="A URL to the cancelled proposal.")
+    proposal_url: str = Field(description="A URL to the canceled proposal.")
     proposal_creator_name: str = Field(description="Full name of the proposal creator.")
 
 
@@ -1232,7 +1232,7 @@ class ProposalSubmissionDeadlineApproachingContext(BaseModel):
         default=False,
         description=(
             "True when a draft left at the cut-off moves on to the call's next "
-            "round rather than being cancelled."
+            "round rather than being canceled."
         ),
     )
 

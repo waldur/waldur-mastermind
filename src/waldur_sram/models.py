@@ -50,7 +50,7 @@ class SramGroup(TimeStampedModel, core_models.UuidMixin):
     urn = models.CharField(
         max_length=255,
         blank=True,
-        help_text="SRAM global URN: '<organisation>:<co>' or '<organisation>:<co>:<group>'.",
+        help_text="SRAM global URN: '<organization>:<co>' or '<organization>:<co>:<group>'.",
     )
     kind = models.CharField(max_length=16, choices=Kind.choices)
     customer = models.ForeignKey(
@@ -59,7 +59,7 @@ class SramGroup(TimeStampedModel, core_models.UuidMixin):
         null=True,
         blank=True,
         related_name="sram_groups",
-        help_text="Organization mapped from the SRAM organisation in the URN.",
+        help_text="Organization mapped from the SRAM organization in the URN.",
     )
     description = models.TextField(blank=True)
     labels = models.JSONField(default=list, blank=True)

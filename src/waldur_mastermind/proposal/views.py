@@ -335,7 +335,7 @@ class CallManagingOrganisationViewSet(
             )
 
     @extend_schema(
-        description="Return statistics for call managing organisation.",
+        description="Return statistics for call managing organization.",
         request=None,
         responses=serializers.CallManagingOrganisationStatSerializer,
     )
@@ -1148,7 +1148,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(
         summary="Import call configuration",
         description=(
-            "Create a draft call under the given call managing organisation "
+            "Create a draft call under the given call managing organization "
             "from a document produced by export_call. References that cannot "
             "be resolved by name on this portal are skipped and reported in "
             "warnings. The import is atomic."
@@ -3824,7 +3824,7 @@ class ProposalViewSet(
         responses=serializers.AwardedResourceSerializer(many=True),
         description=(
             "List what the allocation decision awards the proposal. Staff, "
-            "support, the call's managers and organisers, and the managers of "
+            "support, the call's managers and organizers, and the managers of "
             "the offerings involved see it at any time; the applicant team once "
             "the decision is released."
         ),
@@ -7293,7 +7293,7 @@ class AssignmentBatchViewSet(ActionsViewSet):
             models.AssignmentBatchStatuses.SENT,
         ]:
             return response.Response(
-                {"error": _("Only draft or sent batches can be cancelled.")},
+                {"error": _("Only draft or sent batches can be canceled.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -7301,7 +7301,7 @@ class AssignmentBatchViewSet(ActionsViewSet):
         batch.save(update_fields=["status"])
 
         return response.Response(
-            {"message": _("Assignment batch cancelled.")},
+            {"message": _("Assignment batch canceled.")},
             status=status.HTTP_200_OK,
         )
 

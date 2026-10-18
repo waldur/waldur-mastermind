@@ -326,7 +326,7 @@ def create_issue(order, description, summary, confirmation_comment=None):
         order.resource.save(update_fields=["state"])
         raise rf_exceptions.ValidationError(
             _(
-                "Delete resource process is cancelled and issue not created "
+                "Delete resource process is canceled and issue not created "
                 "because a caller is inactive."
             )
         )
@@ -481,7 +481,7 @@ def create_issue_about_project_team_changes(project, created_by, summary, descri
             issue.delete()
             raise rf_exceptions.ValidationError(
                 _(
-                    "Delete resource process is cancelled and issue not created "
+                    "Delete resource process is canceled and issue not created "
                     "because a caller is inactive."
                 )
             )

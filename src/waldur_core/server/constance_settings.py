@@ -833,7 +833,7 @@ CONSTANCE_CONFIG = {
     "ATLASSIAN_SUMMARY_TEMPLATE": ("", "Template for issue summary"),
     "ATLASSIAN_AFFECTED_RESOURCE_FIELD": ("", "Affected resource field name"),
     "ATLASSIAN_IMPACT_FIELD": ("Impact", "Impact field name"),
-    "ATLASSIAN_ORGANISATION_FIELD": ("", "Organisation field name"),
+    "ATLASSIAN_ORGANISATION_FIELD": ("", "Organization field name"),
     "ATLASSIAN_RESOLUTION_SLA_FIELD": ("", "Resolution SLA field name"),
     "ATLASSIAN_PROJECT_FIELD": ("", "Project field name"),
     "ATLASSIAN_REPORTER_FIELD": ("Original Reporter", "Reporter field name"),
@@ -858,7 +858,7 @@ CONSTANCE_CONFIG = {
         "Shared secret expected in the X-Webhook-Secret header of inbound "
         "JIRA webhook deliveries. If empty, authentication is not enforced "
         "and the receiver accepts unauthenticated requests (legacy "
-        "behaviour). Configure your JIRA automation/webhook to send the "
+        "behavior). Configure your JIRA automation/webhook to send the "
         "same value to enable authentication.",
         "secret_field",
     ),
@@ -898,7 +898,7 @@ CONSTANCE_CONFIG = {
         "Shared secret expected in the X-Webhook-Secret header of inbound "
         "Zammad webhook deliveries. If empty, authentication is not "
         "enforced and the receiver accepts unauthenticated requests "
-        "(legacy behaviour).",
+        "(legacy behavior).",
         "secret_field",
     ),
     # SMAX settings
@@ -910,7 +910,7 @@ CONSTANCE_CONFIG = {
     "SMAX_TENANT_ID": ("", "User tenant ID."),
     "SMAX_LOGIN": ("", "Authorization login."),
     "SMAX_PASSWORD": ("", "Authorization password.", "secret_field"),
-    "SMAX_ORGANISATION_FIELD": ("", "Organisation field name."),
+    "SMAX_ORGANISATION_FIELD": ("", "Organization field name."),
     "SMAX_PROJECT_FIELD": ("", "Project field name."),
     "SMAX_AFFECTED_RESOURCE_FIELD": ("", "Resource field name."),
     "SMAX_TIMES_TO_PULL": (
@@ -936,7 +936,7 @@ CONSTANCE_CONFIG = {
         "Shared secret expected in the X-Webhook-Secret header of inbound "
         "SMAX webhook deliveries. If empty, authentication is not enforced "
         "and the receiver accepts unauthenticated requests (legacy "
-        "behaviour).",
+        "behavior).",
         "secret_field",
     ),
     # Service accounts
@@ -1256,7 +1256,7 @@ CONSTANCE_CONFIG = {
         "and existing users must keep matching in order to log in - except staff and support users, "
         "users holding at least one unexpired role, users with a pending invitation and users matching "
         "an autoprovisioning rule, which are always allowed. Only interactive logins are gated; "
-        "background identity synchronisation is not. "
+        "background identity synchronization is not. "
         "Patterns must match the whole email and are case-insensitive. "
         "Note: values are split on commas, so a pattern cannot contain a comma - "
         "'{n,m}' quantifiers are not supported, repeat the expression instead.",
@@ -1527,8 +1527,8 @@ CONSTANCE_CONFIG = {
     "AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS": (
         "",
         "Additional instructions injected into the AI Assistant system prompt. "
-        "Use this for organisation-specific context, terminology, FAQ content, "
-        "or behavioural guidelines. Supports {assistant_name} and {organization} "
+        "Use this for organization-specific context, terminology, FAQ content, "
+        "or behavioral guidelines. Supports {assistant_name} and {organization} "
         "placeholders. Overridden by the active SystemPrompt record when set.",
         "text_field",
     ),

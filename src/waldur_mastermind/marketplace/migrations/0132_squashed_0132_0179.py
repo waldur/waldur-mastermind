@@ -410,7 +410,7 @@ class Migration(migrations.Migration):
                     ("filesize", "filesize"),
                     ("attached_instance", "attached_instance"),
                 ],
-                help_text="Widget field allows to customise table cell rendering.",
+                help_text="Widget field allows to customize table cell rendering.",
                 max_length=255,
                 null=True,
             ),

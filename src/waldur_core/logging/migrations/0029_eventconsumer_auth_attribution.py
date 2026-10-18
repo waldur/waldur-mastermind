@@ -61,7 +61,7 @@ class Migration(migrations.Migration):
                     ("self", "self"),
                 ],
                 default="",
-                help_text="Which permission branch authorised the registration (see ConsumerAuthorization).",
+                help_text="Which permission branch authorized the registration (see ConsumerAuthorization).",
                 max_length=32,
             ),
         ),

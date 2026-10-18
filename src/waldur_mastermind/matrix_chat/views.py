@@ -622,7 +622,7 @@ class MatrixTicketDraftViewSet(ActionsViewSet):
         responses={201: serializers.MatrixTicketDraftIssueSerializer},
         description="Create the pending draft's ticket as its requester, through "
         "the support API, and post its key in the room's thread. The draft is "
-        "then sent: a second call, or one for a cancelled or expired draft, "
+        "then sent: a second call, or one for a canceled or expired draft, "
         "gets 404.",
     )
     @action(detail=True, methods=["post"])

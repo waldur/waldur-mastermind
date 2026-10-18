@@ -1,7 +1,6 @@
 import logging
 import uuid
 
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Value
@@ -30,6 +29,7 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from waldur_core.core.models import User
 from waldur_core.core.permissions import IsAdminOrReadOnly, IsStaff
+from waldur_core.core.serializers import get_localized_field_names
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet, count_action
 from waldur_core.logging.enums import EventType
@@ -64,10 +64,8 @@ def get_role_permission_set(role) -> set[str]:
 def get_role_descriptions(role) -> dict[str, str | None]:
     """Snapshot the role's description in every configured language."""
     descriptions = {"description": role.description}
-    for language in settings.LANGUAGE_CHOICES:
-        field = f"description_{language}"
-        if hasattr(role, field):
-            descriptions[field] = getattr(role, field)
+    for field in get_localized_field_names("description"):
+        descriptions[field] = getattr(role, field)
     return descriptions
 
 

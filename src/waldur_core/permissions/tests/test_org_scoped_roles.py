@@ -367,6 +367,15 @@ class RoleCloneEndpointTest(test.APITestCase):
         clone = Role.objects.get(uuid=response.data["uuid"])
         self.assertEqual(clone.description_et, "Liige")
 
+    def test_clone_copies_regional_description(self):
+        self.template.description_en_gb = "Organisation member"
+        self.template.save()
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(self.url, {"customer": self.customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        clone = Role.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(clone.description_en_gb, "Organisation member")
+
     def test_clone_conceals_template_by_default(self):
         self.client.force_authenticate(self.staff)
         response = self.client.post(self.url, {"customer": self.customer.uuid.hex})

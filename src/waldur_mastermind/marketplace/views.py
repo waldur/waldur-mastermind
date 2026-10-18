@@ -817,7 +817,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             "'resolutions', keyed by user UUID — see the 'username_conflicts' "
             "action. The call is refused while any conflict is unresolved, rather "
             "than adopting part of the provider and leaving the rest on the old "
-            "per-offering behaviour."
+            "per-offering behavior."
         ),
         request=serializers.AdoptProviderAccountsSerializer,
         responses={
