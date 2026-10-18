@@ -8,8 +8,10 @@ feature descriptions become its SettingsDescription.ts and
 FeaturesDescription.ts), so a British source string shows British spelling to
 US users and is never converted for British ones.
 
-Checked: gettext strings, the help_text / verbose_name / label / description
-arguments of any call, and the descriptions in constance_settings.py.
+Checked: gettext strings, feature descriptions (Feature("...") and the
+sections' `description = "..."`), the help_text / verbose_name / label /
+description arguments of any call, and the descriptions in
+constance_settings.py.
 Comments, docstrings, identifiers, migrations and tests are not checked.
 
 Usage: python scripts/check_us_spelling.py src/
@@ -22,7 +24,6 @@ import sys
 from pathlib import Path
 
 ISE_STEMS = [
-    "analys",
     "authoris",
     "categoris",
     "centralis",
@@ -48,7 +49,9 @@ ISE_STEMS = [
 ]
 # Only with an inflection: the bare stems also start words spelled the same
 # in both variants (analysis, realistic, specialist, organism).
-ISE_SUFFIX = r"(?:e|ed|es|ing|er|ers|ation|ations|ational)\b"
+ISE_SUFFIX = r"(?:e|ed|es|ing|er|ers|able|ably|ation|ations|ational)\b"
+# "analyses" is also the US plural of "analysis", so it is not a British form.
+YSE_FORM = r"analys(?:e|ed|ing|er|ers|able)\b"
 OTHER_FORMS = [
     r"behaviour",
     r"colour",
@@ -81,6 +84,8 @@ BRITISH = re.compile(
     + ")"
     + ISE_SUFFIX
     + "|"
+    + YSE_FORM
+    + "|"
     + "|".join(OTHER_FORMS)
     + ")",
     re.IGNORECASE,
@@ -99,6 +104,8 @@ GETTEXT_FUNCTIONS = {
     "ngettext_lazy",
     "pgettext",
     "pgettext_lazy",
+    # Feature descriptions become the frontend's FeaturesDescription.ts.
+    "Feature",
 }
 TEXT_KEYWORDS = {
     "help_text",
@@ -125,6 +132,17 @@ def user_visible_strings(tree, is_constance):
             for keyword in node.keywords:
                 if keyword.arg in TEXT_KEYWORDS:
                     yield from string_constants(keyword.value)
+        # Class attributes such as a feature section's Meta.description.
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id in TEXT_KEYWORDS
+                for target in node.targets
+            )
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            yield node.value
         # CONSTANCE_CONFIG entries: (default, "description", ...)
         if (
             is_constance

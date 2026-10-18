@@ -49,7 +49,7 @@ class CustomerSection(FeatureSection):
         "Make payments menu visible for staff users only."
     )
     show_permission_reviews = Feature(
-        "Allows to show permission reviews tab and popups for organisations."
+        "Allows to show permission reviews tab and popups for organizations."
     )
 
     show_banking_data = Feature("Display banking related data under customer profile.")
@@ -58,7 +58,7 @@ class CustomerSection(FeatureSection):
         "Enable display of project digest configuration in organization settings."
     )
     show_organisation_reporting = Feature(
-        "Show the Reporting menu with organisation-scoped reports to organisation owners."
+        "Show the Reporting menu with organization-scoped reports to organization owners."
     )
     show_openportal_remote_projects = Feature(
         "Show the Remote Projects pages of a portal that sends projects to other "
@@ -204,7 +204,7 @@ class MarketplaceSection(FeatureSection):
     lexis_links = Feature("Enabled LEXIS link integrations for offerings.")
 
     catalogue_only = Feature(
-        "Run the marketplace as a catalogue: offerings can be browsed but not "
+        "Run the marketplace as a catalog: offerings can be browsed but not "
         "ordered, order lists and pricing are hidden, and anonymous visitors "
         "land on the marketplace instead of the login page."
     )
