@@ -450,7 +450,7 @@ class EventConsumer(UuidMixin, TimeStampedModel):
         default="",
         choices=ConsumerAuthorization.choices(),
         help_text=_(
-            "Which permission branch authorised the registration "
+            "Which permission branch authorized the registration "
             "(see ConsumerAuthorization)."
         ),
     )

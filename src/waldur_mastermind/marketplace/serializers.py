@@ -1130,7 +1130,7 @@ class AccountOptionsSerializer(serializers.Serializer):
         choices=AccountScopes.CHOICES,
         help_text=(
             "Where accounts are held: 'offering' keeps one account per offering "
-            "(the historical behaviour); 'provider' shares one account per user "
+            "(the historical behavior); 'provider' shares one account per user "
             "across the provider's offerings."
         ),
     )
@@ -18312,7 +18312,7 @@ class ProjectOrderAutoApprovalSerializer(serializers.HyperlinkedModelSerializer)
         if getattr(project, "is_removed", False):
             raise serializers.ValidationError(_("Project is removed."))
         if project.customer.blocked or project.customer.archived:
-            raise serializers.ValidationError(_("Organisation is blocked or archived."))
+            raise serializers.ValidationError(_("Organization is blocked or archived."))
         if (
             self.instance is None
             and models.ProjectOrderAutoApproval.objects.filter(project=project).exists()

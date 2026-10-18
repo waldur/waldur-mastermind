@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -11,6 +10,7 @@ from waldur_core.core.models import User
 from waldur_core.core.serializers import (
     RestrictedSerializerMixin,
     TranslatedModelSerializerMixin,
+    get_localized_field_names,
 )
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions import hygiene
@@ -328,10 +328,8 @@ def clone_role_for_customer(
         # Preserve the template's per-language descriptions (modeltranslation).
         # Skipped when an explicit override is given (it wins for the base field).
         if not description:
-            for lang in settings.LANGUAGE_CHOICES:
-                field = f"description_{lang}"
-                if hasattr(template, field):
-                    setattr(role, field, getattr(template, field))
+            for field in get_localized_field_names("description"):
+                setattr(role, field, getattr(template, field))
         try:
             role.save()
         except DjangoValidationError:

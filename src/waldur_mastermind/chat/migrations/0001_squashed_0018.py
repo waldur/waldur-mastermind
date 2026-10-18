@@ -705,7 +705,7 @@ class Migration(migrations.Migration):
                     "custom_instructions",
                     models.TextField(
                         blank=True,
-                        help_text="Additional instructions injected into the system prompt. Use this for organisation-specific context, terminology, FAQ content, or behavioural guidelines. Supports {assistant_name} and {organization} placeholders.",
+                        help_text="Additional instructions injected into the system prompt. Use this for organization-specific context, terminology, FAQ content, or behavioral guidelines. Supports {assistant_name} and {organization} placeholders.",
                     ),
                 ),
                 (

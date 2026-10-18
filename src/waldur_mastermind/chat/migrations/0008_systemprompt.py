@@ -63,8 +63,8 @@ class Migration(migrations.Migration):
                         blank=True,
                         help_text=(
                             "Additional instructions injected into the system prompt. "
-                            "Use this for organisation-specific context, terminology, "
-                            "FAQ content, or behavioural guidelines. "
+                            "Use this for organization-specific context, terminology, "
+                            "FAQ content, or behavioral guidelines. "
                             "Supports {assistant_name} and {organization} placeholders."
                         ),
                     ),

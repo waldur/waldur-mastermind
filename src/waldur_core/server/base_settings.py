@@ -460,6 +460,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 LANGUAGES = (
     ("en", "English"),
+    ("en-gb", "English (UK)"),
     ("et", "Eesti"),
     ("lt", "Lietuvių"),
     ("lv", "Latviešu"),

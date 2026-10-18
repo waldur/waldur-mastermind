@@ -122,7 +122,7 @@ class CallManagingOrganisation(
         customer_path = "customer"
 
     class Meta:
-        verbose_name = _("Call managing organisation")
+        verbose_name = _("Call managing organization")
 
     def __str__(self):
         return str(self.customer)
@@ -249,7 +249,7 @@ class Call(
             "carry. That person is who a helpdesk ticket is raised for and "
             "who Waldur's order mail is addressed to; reading the ticket in "
             "Waldur also needs a role on the project. The call review still "
-            "authorises the spend, and the orders are still carried out with "
+            "authorizes the spend, and the orders are still carried out with "
             "system authority."
         ),
     )
@@ -262,7 +262,7 @@ class Call(
         help_text=(
             "The person orders are attributed to when the author is set to a "
             "named contact. Useful for routing a whole call to a shared "
-            "mailbox. Must hold a role on this call or on the organisation "
+            "mailbox. Must hold a role on this call or on the organization "
             "managing it."
         ),
     )
@@ -283,8 +283,8 @@ class Call(
         default=True,
         help_text=(
             "Whether a draft still open when its round's cut-off passes moves "
-            "on to the call's next round instead of being cancelled. Without a "
-            "later round the draft is cancelled either way."
+            "on to the call's next round instead of being canceled. Without a "
+            "later round the draft is canceled either way."
         ),
     )
 

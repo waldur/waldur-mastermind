@@ -2,8 +2,8 @@ from django.db import migrations, models
 
 HELP_TEXT = (
     "Whether a draft still open when its round's cut-off passes moves on to "
-    "the call's next round instead of being cancelled. Without a later round "
-    "the draft is cancelled either way."
+    "the call's next round instead of being canceled. Without a later round "
+    "the draft is canceled either way."
 )
 
 

@@ -450,7 +450,7 @@ class Migration(migrations.Migration):
                             ("running", "Running"),
                             ("completed", "Completed"),
                             ("communicated", "Communicated"),
-                            ("cancelled", "Cancelled"),
+                            ("cancelled", "Canceled"),
                         ],
                         default="pending",
                         help_text="The current status of the job.",
@@ -503,12 +503,12 @@ class Migration(migrations.Migration):
                     "customer",
                     models.ForeignKey(
                         blank=True,
-                        help_text="The organisation that this project class belongs to.",
+                        help_text="The organization that this project class belongs to.",
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="op-projectclass-organisation+",
                         to="structure.customer",
-                        verbose_name="organisation",
+                        verbose_name="organization",
                     ),
                 ),
                 (
@@ -555,7 +555,7 @@ class Migration(migrations.Migration):
                     "provider",
                     models.ForeignKey(
                         blank=True,
-                        help_text="The organisation that owns this project class.",
+                        help_text="The organization that owns this project class.",
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="op-projectclass-provider+",

@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
             name="customer",
             field=models.ForeignKey(
                 blank=True,
-                help_text="Organization mapped from the SRAM organisation in the URN.",
+                help_text="Organization mapped from the SRAM organization in the URN.",
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
                 related_name="sram_groups",

@@ -23,6 +23,8 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from modeltranslation.manager import get_translatable_fields_for_model
+from modeltranslation.settings import AVAILABLE_LANGUAGES
+from modeltranslation.utils import build_localized_fieldname
 from rest_framework import serializers
 from rest_framework import serializers as rf_serializers
 from rest_framework.fields import Field, ReadOnlyField, empty, lazy_format
@@ -822,6 +824,22 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 setattr(config, name, new)
 
 
+def get_localized_field_names(field_name: str) -> list[str]:
+    """
+    The per-language columns modeltranslation adds for a translated field, one
+    for every language in LANGUAGES: description_en, ..., description_en_gb.
+    Built by modeltranslation itself, because a regional code (en-gb) is not
+    a valid part of a field name.
+
+    Kept out of core.utils: the settings modules import that, and
+    modeltranslation.settings reads LANGUAGES once, when first imported.
+    """
+    return [
+        build_localized_fieldname(field_name, language)
+        for language in AVAILABLE_LANGUAGES
+    ]
+
+
 class TranslatedModelSerializerMixin(serializers.ModelSerializer):
     def get_field_names(self, declared_fields, info):
         fields = list(super().get_field_names(declared_fields, info))
@@ -833,8 +851,7 @@ class TranslatedModelSerializerMixin(serializers.ModelSerializer):
         for field_name in fields:
             all_fields.append(field_name)
             if field_name in trans_fields:
-                for language_name in django_settings.LANGUAGE_CHOICES:
-                    all_fields.append(f"{field_name}_{language_name}")
+                all_fields.extend(get_localized_field_names(field_name))
         return all_fields
 
 
@@ -1181,7 +1198,7 @@ class CeleryStatsResponseSerializer(serializers.Serializer):
         child=serializers.ListField(child=serializers.CharField()),
         read_only=True,
         allow_null=True,
-        help_text="IDs of revoked (cancelled) tasks per worker. Keys are worker names, values are lists of task IDs.",
+        help_text="IDs of revoked (canceled) tasks per worker. Keys are worker names, values are lists of task IDs.",
     )
     query_task = serializers.DictField(
         read_only=True,

@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
                     ("specific_user", "Named contact"),
                 ],
                 default="applicant",
-                help_text="Whose name the orders placed when this call grants resources carry. That person is who a helpdesk ticket is raised for and who Waldur's order mail is addressed to; reading the ticket in Waldur also needs a role on the project. The call review still authorises the spend, and the orders are still carried out with system authority.",
+                help_text="Whose name the orders placed when this call grants resources carry. That person is who a helpdesk ticket is raised for and who Waldur's order mail is addressed to; reading the ticket in Waldur also needs a role on the project. The call review still authorizes the spend, and the orders are still carried out with system authority.",
                 max_length=20,
             ),
         ),
@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
             name="order_author_user",
             field=models.ForeignKey(
                 blank=True,
-                help_text="The person orders are attributed to when the author is set to a named contact. Useful for routing a whole call to a shared mailbox. Must hold a role on this call or on the organisation managing it.",
+                help_text="The person orders are attributed to when the author is set to a named contact. Useful for routing a whole call to a shared mailbox. Must hold a role on this call or on the organization managing it.",
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
                 related_name="+",

@@ -32,7 +32,7 @@ class ListCallsTool(BaseTool):
             category=ToolCategory.PROPOSALS_RESEARCHER,
             description=(
                 "Browse calls visible to the current user, optionally filtered "
-                "by call state, round status, managing organisation, or free-text "
+                "by call state, round status, managing organization, or free-text "
                 "search. Use for general browsing — for matchmaking against a "
                 "research project use find_matching_calls."
             ),

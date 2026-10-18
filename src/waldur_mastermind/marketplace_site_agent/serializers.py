@@ -607,7 +607,7 @@ class AgentConnectionInfoSerializer(serializers.Serializer):
         choices=logging_enums.ConsumerAuthorization.choices(include_blank=True),
         read_only=True,
         allow_null=True,
-        help_text="Permission branch that authorised the registration",
+        help_text="Permission branch that authorized the registration",
     )
     delivery_blocked_reason = serializers.CharField(
         read_only=True,

@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterModelOptions(
             name="callmanagingorganisation",
-            options={"verbose_name": "Call managing organisation"},
+            options={"verbose_name": "Call managing organization"},
         ),
         migrations.AddField(
             model_name="call",

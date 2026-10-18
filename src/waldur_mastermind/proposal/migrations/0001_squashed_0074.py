@@ -301,7 +301,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                "verbose_name": "Call managing organisation",
+                "verbose_name": "Call managing organization",
             },
         ),
         migrations.AddField(

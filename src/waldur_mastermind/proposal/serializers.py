@@ -1971,7 +1971,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
         allow_null=True,
         help_text=(
             "The person orders are attributed to when the author is a named "
-            "contact. Must hold a role on this call or on the organisation "
+            "contact. Must hold a role on this call or on the organization "
             "managing it."
         ),
     )
@@ -2100,7 +2100,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             # exist. It still says what a usable answer looks like.
             contact.error_messages["does_not_exist"] = _(
                 "No such user, or they hold no role on this call or on the "
-                "organisation managing it."
+                "organization managing it."
             )
         return fields
 
@@ -4853,7 +4853,7 @@ class CallImportParametersSerializer(serializers.Serializer):
     manager = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.CallManagingOrganisation.objects.all(),
-        help_text="Call managing organisation that will own the imported call.",
+        help_text="Call managing organization that will own the imported call.",
     )
     name = serializers.CharField(
         max_length=models.Call._meta.get_field("name").max_length,

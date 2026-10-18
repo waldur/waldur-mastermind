@@ -1504,7 +1504,7 @@ class Job(models.Model):
         RUNNING = "running", _("Running")
         COMPLETED = "completed", _("Completed")
         COMMUNICATED = "communicated", _("Communicated")
-        CANCELLED = "cancelled", _("Cancelled")
+        CANCELLED = "cancelled", _("Canceled")
 
     state = models.CharField(
         max_length=20,
@@ -1581,7 +1581,7 @@ class ProjectTemplate(core_models.UuidMixin, models.Model):
         null=True,
         related_name="op-projectclass-provider+",
         verbose_name=_("provider"),
-        help_text=_("The organisation that owns this project class."),
+        help_text=_("The organization that owns this project class."),
     )
 
     # The name of the portal (PortalIdentifier) that is allowed to create
@@ -1608,8 +1608,8 @@ class ProjectTemplate(core_models.UuidMixin, models.Model):
         blank=True,
         null=True,
         related_name="op-projectclass-organisation+",
-        verbose_name=_("organisation"),
-        help_text=_("The organisation that this project class belongs to."),
+        verbose_name=_("organization"),
+        help_text=_("The organization that this project class belongs to."),
     )
 
     # The shortname naming scheme for projects created in this class

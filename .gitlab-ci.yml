@@ -127,6 +127,14 @@ Check TransactionTestCase usage:
   script:
     - python scripts/analyze_transaction_test_cases.py --ci --baseline 0
 
+Check US spelling:
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
+  stage: test
+  interruptible: true
+  <<: *source_analysis_rules
+  script:
+    - python scripts/check_us_spelling.py src/
+
 Check Action decorators:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test

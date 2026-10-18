@@ -490,6 +490,26 @@ class RoleDefinitionEventTest(test.APITestCase):
             events[0].context["new_descriptions"]["description_en"], "Audited role"
         )
 
+    def test_regional_and_late_added_language_descriptions_are_saved(self):
+        # en-gb is stored as description_en_gb. mk was added to LANGUAGES but
+        # not to LANGUAGE_CHOICES, and used to be dropped from the request.
+        role = self.create_role()
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(role, "update_descriptions"),
+            {"description_en_gb": "Organisation auditor", "description_mk": "Ревизор"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        role.refresh_from_db()
+        self.assertEqual(role.description_en_gb, "Organisation auditor")
+        self.assertEqual(role.description_mk, "Ревизор")
+        events = self.get_events(EventType.ROLE_DEFINITION_UPDATED)
+        self.assertEqual(
+            events[0].context["new_descriptions"]["description_en_gb"],
+            "Organisation auditor",
+        )
+
     def test_role_deletion_is_logged(self):
         role = self.create_role()
         role_name = role.name

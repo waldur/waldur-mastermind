@@ -426,7 +426,7 @@ class CategoryColumn(
         blank=True,
         null=True,
         max_length=255,
-        help_text=_("Widget field allows to customise table cell rendering."),
+        help_text=_("Widget field allows to customize table cell rendering."),
         choices=CategoryColumnWidget.CHOICES,
     )
 
@@ -3007,7 +3007,7 @@ class Order(
         help_text=(
             "The order was placed by an automated flow on behalf of the "
             "person in created_by, rather than by that person. Proposal "
-            "allocation sets this: the call review authorised the spend and "
+            "allocation sets this: the call review authorized the spend and "
             "the accepting call manager is recorded as the consumer "
             "reviewer, while created_by only names who the order is for. "
             "The end-date and cost-policy termination sweeps set it too "
