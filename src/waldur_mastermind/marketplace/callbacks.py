@@ -511,6 +511,14 @@ def resource_erred_on_backend(resource: models.Resource, validate=False):
     )
 
 
+def resource_recovered_on_backend(resource: models.Resource, validate=False):
+    if resource.state != ResourceStates.ERRED:
+        return
+
+    resource.set_state_ok()
+    resource.save(update_fields=["state"])
+
+
 def set_order_state(resource: models.Resource, order_type, new_state, validate=False):
     try:
         order = models.Order.objects.get(
@@ -557,6 +565,7 @@ StateRouter = {
     (CoreStates.DELETING, CoreStates.ERRED): resource_deletion_failed,
     (CoreStates.DELETION_SCHEDULED, CoreStates.ERRED): resource_deletion_failed,
     (CoreStates.OK, CoreStates.ERRED): resource_erred_on_backend,
+    (CoreStates.ERRED, CoreStates.OK): resource_recovered_on_backend,
 }
 
 
