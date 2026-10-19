@@ -6,6 +6,7 @@ from django.db.models import Q
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
+from waldur_mastermind.marketplace.exceptions import PolicyException
 
 from . import models, tasks
 from .models import ProjectEstimatedCostPolicy
@@ -489,88 +490,51 @@ def _existing_total(items_qs, policy):
     return sum(item.total for item in items)
 
 
-def _check_project_policies(resource, cost):
-    """Mirror ProjectEstimatedCostPolicy.is_triggered with `cost` added."""
-    from waldur_mastermind.invoices import compensations as invoices_compensation
-    from waldur_mastermind.marketplace.exceptions import PolicyException
+def _block_if_policies_would_fire(policies, resource, cost, scope_label):
+    """Refuse the resource if any of `policies` would fire with `cost` added.
 
-    project = resource.project
+    Asks the policy itself (`would_trigger`) rather than keeping a copy of its
+    gates here: the copy compared the stored credit balance after the policy
+    moved to the live one, and let resources through while it was fired. One
+    MonthlyCompensation simulation is shared by every policy of the customer.
+    """
+    offering = getattr(resource, "offering", None)
+    compensation = None
+    for policy in policies:
+        if compensation is None and policy.uses_credit_compensation:
+            compensation = policy._new_compensation()
+        if policy.would_trigger(cost, offering, compensation):
+            raise PolicyException(
+                f"Creation of new resources in this {scope_label} is prohibited "
+                f"by {policy}. With the resource's cost ({cost or 0:.2f}) added, the "
+                f"policy's cost would be over its limit ({policy.limit_cost})."
+            )
+
+
+def _check_project_policies(resource, cost):
+    """Refuse the resource if a project policy would fire with `cost` added."""
     # Resource-scoped policies govern an existing resource and never block the
     # creation of other resources, so they are excluded from the creation gate.
     policies = models.ProjectEstimatedCostPolicy.objects.filter(
-        scope=project, actions__contains=_BLOCKING_ACTION, resource__isnull=True
+        scope=resource.project,
+        actions__contains=_BLOCKING_ACTION,
+        resource__isnull=True,
     )
-    for policy in policies:
-        items_qs = invoices_models.InvoiceItem.objects.filter(project=project)
-        existing = _existing_total(items_qs, policy)
-        if policy.use_credit:
-            compensation = invoices_compensation.MonthlyCompensation(
-                project.customer
-            ).get_project_compensation(project)
-        else:
-            compensation = 0
-        projected = existing + cost
-        if projected - compensation <= policy.limit_cost:
-            continue
-        # Above the limit: credit may still cover the overage (unless the policy
-        # is configured to ignore credit).
-        if policy.use_credit:
-            project_credit = invoices_models.ProjectCredit.objects.filter(
-                project=project
-            ).first()
-            if project_credit:
-                if project_credit.value > policy.limit_cost:
-                    continue
-            else:
-                customer_credit = invoices_models.CustomerCredit.objects.filter(
-                    customer=project.customer
-                ).first()
-                if customer_credit and customer_credit.value > policy.limit_cost:
-                    continue
-        raise PolicyException(
-            f"Creation of new resources in this project is prohibited by {policy}. "
-            f"Projected cost ({projected - compensation}) would exceed "
-            f"limit ({policy.limit_cost})."
-        )
+    _block_if_policies_would_fire(policies, resource, cost, "project")
 
 
 def _check_customer_policies(resource, cost):
-    """Mirror CustomerEstimatedCostPolicy.is_triggered with `cost` added."""
-    from waldur_mastermind.invoices import compensations as invoices_compensation
-    from waldur_mastermind.marketplace.exceptions import PolicyException
-
-    customer = resource.project.customer
+    """Refuse the resource if an organization policy would fire with `cost`
+    added."""
     policies = models.CustomerEstimatedCostPolicy.objects.filter(
-        scope=customer, actions__contains=_BLOCKING_ACTION
+        scope=resource.project.customer, actions__contains=_BLOCKING_ACTION
     )
-    for policy in policies:
-        items_qs = invoices_models.InvoiceItem.objects.filter(
-            invoice__customer=customer
-        )
-        existing = _existing_total(items_qs, policy)
-        compensation = invoices_compensation.MonthlyCompensation(
-            customer
-        ).total_compensation
-        projected = existing + cost
-        if projected - compensation <= policy.limit_cost:
-            continue
-        customer_credit = invoices_models.CustomerCredit.objects.filter(
-            customer=customer
-        ).first()
-        if customer_credit and customer_credit.value > policy.limit_cost:
-            continue
-        raise PolicyException(
-            f"Creation of new resources in this organization is prohibited by {policy}. "
-            f"Projected cost ({projected - compensation}) would exceed "
-            f"limit ({policy.limit_cost})."
-        )
+    _block_if_policies_would_fire(policies, resource, cost, "organization")
 
 
 def _check_offering_policies(resource, cost):
     """Mirror OfferingEstimatedCostPolicy.is_triggered with `cost` added.
     Offering policies don't apply compensation or credit shortcuts."""
-    from waldur_mastermind.marketplace.exceptions import PolicyException
-
     offering = resource.offering
     customer = resource.project.customer
     policies = models.OfferingEstimatedCostPolicy.objects.filter(
