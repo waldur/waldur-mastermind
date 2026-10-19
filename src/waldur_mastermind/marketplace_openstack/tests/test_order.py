@@ -9,6 +9,7 @@ from rest_framework.request import Request
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.structure.tasks import BackgroundPullTask
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -558,6 +559,55 @@ class InstanceCreateTest(test.APITestCase):
 
         order.resource.refresh_from_db()
         self.assertEqual(order.resource.state, ResourceStates.ERRED)
+
+    def test_resource_recovers_when_instance_recovers_on_backend(self):
+        order = self.trigger_instance_creation()
+        instance = order.resource.scope
+        instance.begin_creating()
+        instance.save()
+        instance.set_ok()
+        instance.save()
+
+        instance.set_erred()
+        instance.save()
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.state, ResourceStates.ERRED)
+
+        BackgroundPullTask().on_pull_success(instance)
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.state, ResourceStates.OK)
+
+    def test_failed_create_order_stays_erred_when_instance_recovers(self):
+        order = self.trigger_instance_creation()
+        instance = order.resource.scope
+        instance.begin_creating()
+        instance.save()
+        instance.set_erred()
+        instance.save()
+
+        BackgroundPullTask().on_pull_success(instance)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.ERRED)
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.state, ResourceStates.OK)
+
+    def test_updating_resource_is_left_alone_when_instance_recovers(self):
+        order = self.trigger_instance_creation()
+        instance = order.resource.scope
+        openstack_models.Instance.objects.filter(pk=instance.pk).update(
+            state=CoreStates.ERRED
+        )
+        marketplace_models.Resource.objects.filter(pk=order.resource.pk).update(
+            state=ResourceStates.UPDATING
+        )
+
+        BackgroundPullTask().on_pull_success(
+            openstack_models.Instance.objects.get(pk=instance.pk)
+        )
+
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.state, ResourceStates.UPDATING)
 
     def test_instance_state_is_synchronized_when_it_is_switched_from_scheduled_to_erred(
         self,
