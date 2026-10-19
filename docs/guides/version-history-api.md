@@ -24,6 +24,7 @@ The following models have version history endpoints:
 | Model | Endpoint | Description |
 |-------|----------|-------------|
 | Customer | `/api/customers/{uuid}/history/` | Organization accounts |
+| Project | `/api/projects/{uuid}/history/` | Projects, including soft-deleted ones |
 | User | `/api/users/{uuid}/history/` | User accounts |
 | SSH Key | `/api/keys/{uuid}/history/` | SSH public keys |
 | Offering | `/api/marketplace-provider-offerings/{uuid}/history/` | Service offerings |
@@ -226,6 +227,28 @@ Tracked fields include:
 - `contact_details`, `email`
 - `registration_code`, `agreement_number`
 - `country`, `vat_code`
+
+### Projects
+
+Every save that changes a project field records a version, wherever the save
+comes from: the REST API (update, `move_project`, `recover`, `set_slug`,
+`update_affiliation`), soft deletion, end-date change approval, openportal sync
+and management commands. Bulk queryset updates bypass model saves and record
+nothing - `import_structure --update-existing` is one. The comment names the
+changed fields, for example `Changed: end_date, slug`, and the revision is
+credited to the requesting user (the impersonator, under impersonation). A save
+that changes only `modified`, `termination_metadata` or `end_date_updated_at`
+records nothing.
+
+Tracked fields include:
+
+- `name`, `description`, `slug`, `customer`
+- `start_date`, `end_date`, `end_date_requested_by`, `grace_period_days`
+- `max_service_accounts`, `staff_notes`, `is_removed`
+
+Soft-deleted projects keep their history and remain reachable by UUID.
+Projects that existed before version history was enabled carry a single
+`Initial version (backfill)` entry as their baseline.
 
 ### Users
 

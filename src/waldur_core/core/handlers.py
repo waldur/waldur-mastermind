@@ -161,15 +161,27 @@ def _create_revision_on_update(instance: User, created: bool):
     if not changed_fields:
         return
 
+    annotations = []
+    change_source = getattr(instance, "_change_source", None)
+    if change_source:
+        annotations.append(f"source: {change_source}")
+    create_change_revision(instance, changed_fields, annotations)
+
+
+def create_change_revision(instance, changed_fields, annotations=()):
+    """Snapshot an instance in a revision of its own, naming what changed.
+
+    Shared by the handlers that record history centrally on post_save rather
+    than per call site. The revision is credited to the request's actor (see
+    _get_revision_actor); outside a request it has no author and the comment
+    alone describes it.
+    """
     with reversion.create_revision():
         reversion.add_to_revision(instance)
         author, impersonation = _get_revision_actor()
         if author is not None:
             reversion.set_user(author)
-        annotations = []
-        change_source = getattr(instance, "_change_source", None)
-        if change_source:
-            annotations.append(f"source: {change_source}")
+        annotations = list(annotations)
         if impersonation:
             annotations.append(impersonation)
         comment = "Changed: {}".format(", ".join(changed_fields))

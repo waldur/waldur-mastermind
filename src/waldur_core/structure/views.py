@@ -914,6 +914,7 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
 class ProjectViewSet(
     checklist_mixins.UserChecklistMixin,
     UserRoleMixin,
+    core_views.HistoryViewSetMixin,
     core_mixins.EagerLoadMixin,
     core_views.ActionsViewSet,
 ):
@@ -1198,8 +1199,6 @@ class ProjectViewSet(
                         }
                     )
 
-            # Recorded by the project_update_succeeded event; Project has no
-            # reversion history.
             project.slug = new_slug
             project.save()
         return Response({"status": _("Project slug has been changed.")})

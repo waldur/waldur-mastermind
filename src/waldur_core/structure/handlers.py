@@ -1,5 +1,6 @@
 import logging
 
+import reversion
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Sum
@@ -8,6 +9,7 @@ from django.utils import timezone
 from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates, ReviewStates
+from waldur_core.core.handlers import create_change_revision
 from waldur_core.core.models import ChangeEmailRequest, StateMixin
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -183,6 +185,8 @@ def log_project_save(sender, instance: Project, created=False, **kwargs):
         changed_fields.pop(
             "termination_metadata", None
         )  # Exclude JSON field from logging
+        # Stamped by Project.save whenever end_date changes, which is logged.
+        changed_fields.pop("end_date_updated_at", None)
         if not changed_fields:
             return
 
@@ -198,6 +202,56 @@ def log_project_save(sender, instance: Project, created=False, **kwargs):
             event_context={"project": instance},
             scopes=[instance, instance.customer],
         )
+
+
+# Fields that change without the project changing in a way worth a snapshot.
+# They are still captured inside every snapshot - they just never open one.
+# termination_metadata is bookkeeping for recovery, written alongside the soft
+# delete that is recorded on its own; end_date_updated_at is stamped by
+# Project.save on every end_date change, which names the change already. Both
+# are excluded from the event log too.
+REVISION_IGNORED_PROJECT_FIELDS = {
+    "end_date_updated_at",
+    "modified",
+    "termination_metadata",
+}
+
+
+def create_project_revision_on_update(
+    sender, instance: Project, created=False, update_fields=None, **kwargs
+):
+    """Snapshot a project whenever a field other than the ignored ones changes.
+
+    Projects are written from the REST API, moves, soft delete and recovery,
+    end-date and grace-period handling, marketplace views, openportal sync and
+    management commands. An explicit revision block at each call site would miss
+    most of them, so - as for users in core.handlers - history is recorded
+    centrally here from the FieldTracker that log_project_save also reads.
+    """
+    if created:
+        # create_initial_revision already snapshots the newly created row.
+        return
+    if reversion.is_active():
+        # Already inside an explicit revision block, which owns the snapshot:
+        # reversion's own post_save receiver adds the instance to it, so one
+        # change never yields two versions.
+        return
+
+    # The tracker reports foreign keys by attname (customer_id); name them as
+    # the model and the API do.
+    field_names = {field.attname: field.name for field in Project._meta.concrete_fields}
+    changed_fields = {
+        field_names.get(attname, attname) for attname in instance.tracker.changed()
+    }
+    if update_fields is not None:
+        # An in-memory change left out of update_fields was not written.
+        saved_fields = {field_names.get(name, name) for name in update_fields}
+        changed_fields &= saved_fields
+    changed_fields -= REVISION_IGNORED_PROJECT_FIELDS
+    if not changed_fields:
+        return
+
+    create_change_revision(instance, sorted(changed_fields))
 
 
 def log_project_delete(sender, instance: Project, **kwargs):
