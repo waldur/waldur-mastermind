@@ -1145,14 +1145,22 @@ class Project(
     id: int
 
     def save(self, *args, **kwargs):
-        end_date_changed = not self._state.adding and self.tracker.has_changed(
-            "end_date"
-        )
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            update_fields = set(update_fields)
+            kwargs["update_fields"] = update_fields
+        if (
+            not self._state.adding
+            and self.tracker.has_changed("end_date")
+            and (update_fields is None or "end_date" in update_fields)
+        ):
+            # Assigned before the save rather than by a follow-up update(), so
+            # that post_save receivers - the version history snapshot among
+            # them - see the timestamp that belongs with the new end date.
+            self.end_date_updated_at = timezone.now()
+            if update_fields is not None:
+                update_fields.add("end_date_updated_at")
         super().save(*args, **kwargs)
-        if end_date_changed:
-            Project.objects.filter(pk=self.pk).update(
-                end_date_updated_at=timezone.now()
-            )
 
     def generate_slug(self):
         if self.customer and self.customer.project_slug_template:
@@ -1842,6 +1850,7 @@ class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
 
 
 reversion.register(Customer)
+reversion.register(Project)
 
 
 class ExternalLink(

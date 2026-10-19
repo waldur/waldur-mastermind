@@ -72,6 +72,18 @@ class StructureConfig(AppConfig):
             dispatch_uid="waldur_core.structure.handlers.log_project_save",
         )
 
+        signals.post_save.connect(
+            create_initial_revision,
+            sender=Project,
+            dispatch_uid="waldur_core.structure.create_initial_revision_Project",
+        )
+
+        signals.post_save.connect(
+            handlers.create_project_revision_on_update,
+            sender=Project,
+            dispatch_uid="waldur_core.structure.handlers.create_project_revision_on_update",
+        )
+
         signals.post_delete.connect(
             handlers.log_project_delete,
             sender=Project,
