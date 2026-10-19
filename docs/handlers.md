@@ -51,6 +51,7 @@ td:nth-child(4) {
 | `create_initial_revision` | `Django Signal (post_save)` | `core.SshPublicKey` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `core.NotificationTemplate` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `structure.Customer` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `structure.Project` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `invoices.Invoice` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `marketplace.Resource` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `marketplace.Offering` | Create an initial reversion snapshot when an object is first created. |
@@ -58,6 +59,7 @@ td:nth-child(4) {
 | `create_notification_about_permission_request_has_been_rejected` | `Django Signal (post_save)` | `users.PermissionRequest` | Notify the requester when their permission request has been rejected. |
 | `create_notification_about_permission_request_has_been_submitted` | `Django Signal (post_save)` | `users.PermissionRequest` | Send a notification when a permission request has been submitted. |
 | `create_project_metadata_completion` | `Django Signal (post_save)` | `structure.Project` | Create ChecklistCompletion for project metadata when a project is created. |
+| `create_project_revision_on_update` | `Django Signal (post_save)` | `structure.Project` | Snapshot a project whenever a field other than the ignored ones changes. |
 | `create_revision_on_update` | `Django Signal (post_save)` | `core.User` | Snapshot a user whenever an audited field actually changes. See |
 | `deactivate_user_if_no_roles` | `Custom Signal (role_revoked)` | `—` | Deactivate a user if they no longer have any active roles. |
 | `delete_error_message` | `Custom Signal (post_transition)` | `structure.ServiceSettings` | Delete error message if instance state changed from erred |
@@ -839,11 +841,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 760
+Total unique handlers found: 762
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 349 handlers
+- **waldur_core**: 351 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 350 handlers
