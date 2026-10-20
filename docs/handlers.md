@@ -44,7 +44,6 @@ td:nth-child(4) {
 | `change_users_quota` | `Custom Signal (role_revoked)` | `—` | Update the user count quota for a customer when a user's role is changed. |
 | `cleanup_event_consumer_queue` | `Django Signal (pre_delete)` | `logging.EventConsumer` | Tear down the RabbitMQ queue + user when an EventConsumer is deleted. |
 | `cleanup_rabbitmq_queue_on_delete` | `Django Signal (pre_delete)` | `logging.EventSubscriptionQueue` | Delete the corresponding RabbitMQ queue when an EventSubscriptionQueue record is deleted. |
-| `constance_updated` | `Custom Signal (config_updated)` | `—` | Clear the API configuration cache when a Constance setting is updated. |
 | `create_auth_token` | `Django Signal (post_save)` | `core.User` | Create a token for a new user. |
 | `create_existing_projects_completions` | `Django Signal (post_save)` | `structure.Customer` | Create ChecklistCompletion for existing projects when customer checklist is updated. |
 | `create_initial_revision` | `Django Signal (post_save)` | `core.User` | Create an initial reversion snapshot when an object is first created. |
@@ -294,6 +293,7 @@ td:nth-child(4) {
 | `log_user_locked_out` | `Custom Signal (user_locked_out)` | `—` | Emit a user_blocked event when django-axes locks out a username/IP. |
 | `log_user_save` | `Django Signal (post_save)` | `core.User` | Log user creation, update, and activation/deactivation events. |
 | `log_verification_deleted` | `Django Signal (pre_delete)` | `onboarding.OnboardingVerification` | Log when an onboarding verification is deleted. |
+| `mark_table_exists` | `Unknown Signal` | `—` | No description |
 | `on_role_granted` | `Custom Signal (role_granted)` | `—` | No description |
 | `on_role_revoked` | `Custom Signal (role_revoked)` | `—` | No description |
 | `permissions_request_approved` | `Custom Signal (permissions_request_approved)` | `users.PermissionRequest` | Send a notification when a permission request has been approved. |
@@ -380,6 +380,7 @@ td:nth-child(4) {
 | `scrub_logged_request` | `Custom Signal (bind_extra_request_finished_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
 | `scrub_logged_request` | `Custom Signal (bind_extra_request_failed_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
 | `set_default_token_lifetime` | `Django Signal (post_save)` | `core.User` | Set the default token lifetime for a new user. |
+| `setting_updated` | `Custom Signal (setting_updated)` | `—` | Clear the API configuration cache when a setting is updated. |
 | `stash_customer_slug` | `Django Signal (pre_save)` | `structure.Customer` | Remember the persisted slug before save so the change can be detected. |
 | `update_customer_users_count` | `Custom Signal (recalculate_quotas)` | `—` | Update the user count for all customers. |
 | `update_resource_start_time` | `Django Signal (post_save)` | `waldur_aws.Instance` | Update the start time of a resource when its runtime state changes. |
@@ -634,7 +635,7 @@ td:nth-child(4) {
 | `reconcile_offering_profile_on_roles_changed` | `Django Signal (m2m_changed)` | `OfferingProfile_roles` | When OfferingProfile.roles M2M changes, schedule reconciliation |
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.CustomerCredit` | Write ledger rows for every credit value change, organization or project. |
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.ProjectCredit` | Write ledger rows for every credit value change, organization or project. |
-| `refresh_vat_rates_when_enabled` | `Custom Signal (config_updated)` | `—` | Without rates, pending invoices cannot get VAT until the next month. |
+| `refresh_vat_rates_when_enabled` | `Custom Signal (setting_updated)` | `—` | Without rates, pending invoices cannot get VAT until the next month. |
 | `refund_project_credit_on_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `release_grace_pauses_when_project_end_date_changes` | `Django Signal (post_save)` | `structure.Project` | Lift grace-period pauses once a project's end date moves it out of the grace period. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Mark the deleted POSIX id consumer's identity as released. |
@@ -841,11 +842,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 762
+Total unique handlers found: 763
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 351 handlers
+- **waldur_core**: 352 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 350 handlers

@@ -8,6 +8,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ReviewerChecklistMixin`](#reviewerchecklistmixin) | `waldur_core.checklist.mixins` | Mixin for ViewSets that provide checklist review functionality to reviewers |
 | [`UserChecklistMixin`](#userchecklistmixin) | `waldur_core.checklist.mixins` | Mixin for ViewSets that provide checklist functionality to end users |
 | [`LatestAnswerTestMixin`](#latestanswertestmixin) | `waldur_core.checklist.tests.test_latest_answers` | No description available |
+| [`ConstanceTableMixin`](#constancetablemixin) | `waldur_core.configuration.tests.utils` | Gives a test django-constance's settings table |
 | [`CopyButtonMixin`](#copybuttonmixin) | `waldur_core.core.admin` | Mixin to add copy-to-clipboard functionality to form fields in Django admin |
 | [`ExcludedFieldsAdminMixin`](#excludedfieldsadminmixin) | `waldur_core.core.admin` | This mixin allows to toggle display of fields in Django model admin according... |
 | [`ExtraActionsMixin`](#extraactionsmixin) | `waldur_core.core.admin` | Allows to add extra actions to admin list page |
@@ -219,6 +220,17 @@ Default permissions are IsAdminUser but should be overridden with app-specific p
 **Module:** `waldur_core.checklist.tests.test_latest_answers`
 
 **Description:** No description available.
+
+### ConstanceTableMixin
+
+**Module:** `waldur_core.configuration.tests.utils`
+
+**Description:**
+
+Gives a test django-constance's settings table.
+
+Migrations written against it run on databases that have it. The table is
+created inside the test's transaction and goes away with it.
 
 ### CopyButtonMixin
 

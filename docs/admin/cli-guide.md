@@ -502,7 +502,7 @@ Delete permissions from DB which are no longer in code.
 
 ## dump_constance_settings
 
-Dump all settings stored in django-constance to a YAML file.
+Dump all settings that can be changed at runtime to a YAML file.
   This includes all settings, even those with file/image values.
 
   Usage:
@@ -1501,9 +1501,9 @@ options:
   --dry-run             Report what would be re-encrypted without writing
                         anything
   --encrypt-plaintext-settings
-                        Also encrypt secret Constance settings stored in
-                        clear, e.g. saved by a pod of an older release during
-                        a rolling upgrade
+                        Also encrypt secret settings stored in clear, e.g.
+                        saved by a pod of an older release during a rolling
+                        upgrade
 
 ```
 
