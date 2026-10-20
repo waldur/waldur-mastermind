@@ -288,7 +288,7 @@ When a grace period is used, the effective date for zeroing credits is always th
 
 #### Cost Policies and Compensation
 
-`waldur_mastermind.policy`'s `ProjectEstimatedCostPolicy` and `CustomerEstimatedCostPolicy` (`src/waldur_mastermind/policy/models.py`) net cost against credit in two independent steps inside `is_triggered()`, not one combined comparison:
+`waldur_mastermind.policy`'s `ProjectEstimatedCostPolicy` and `CustomerEstimatedCostPolicy` (`src/waldur_mastermind/policy/models.py`) net cost against credit in two independent steps inside `evaluate()` (`EstimatedCostPolicyMixin._credit_gates`), not one combined comparison. `is_triggered()` is `evaluate().triggered`; see [Decision record](#decision-record) for what else an evaluation reports.
 
 ```mermaid
 graph TD
@@ -301,9 +301,9 @@ graph TD
     D -->|Yes, balance depleted| F
 ```
 
-**Gate 1** sums every `InvoiceItem` for the project/customer across the policy's rolling window (1/3/12 months, or all months for Total) via `EstimatedCostPolicyMixin._is_triggered` -- cost items and compensation items together, unfiltered by type, since a compensation item is just a negative-priced row on the same invoice. For a month whose invoice has already been finalized -- including one `rebill_historical_usage` has just corrected -- this sum is entirely real, persisted data. There's no simulation involved in reading it. It opens when that net cost is strictly greater than `limit_cost`.
+**Gate 1** sums every `InvoiceItem` for the project/customer across the policy's rolling window (1/3/12 months, or all months for Total) via `EstimatedCostPolicyMixin._evaluated_cost` -- cost items and compensation items together, unfiltered by type, since a compensation item is just a negative-priced row on the same invoice. For a month whose invoice has already been finalized -- including one `rebill_historical_usage` has just corrected -- this sum is entirely real, persisted data. There's no simulation involved in reading it. It opens when that net cost is strictly greater than `limit_cost`.
 
-On top of that sum, `is_triggered()` additionally subtracts the credit the customer's *current, still-mutable* invoice will still draw (`_pending_compensation`). That comes from a `MonthlyCompensation(customer, restore_written=True)` simulation, re-run in memory on every evaluation and never saved (it refuses to `save()`). It has no bearing on any past month already reflected in the sum above.
+On top of that sum, the evaluation additionally subtracts the credit the customer's *current, still-mutable* invoice will still draw (`_pending_compensation`). That comes from a `MonthlyCompensation(customer, restore_written=True)` simulation, re-run in memory on every evaluation and never saved (it refuses to `save()`). It has no bearing on any past month already reflected in the sum above.
 
 **Gate 2** compares the **live** credit balance, not the stored `CustomerCredit.value` / `ProjectCredit.value`. The stored value only falls when the month's compensations are written at the month-end run, so mid-month it still contains everything this month's usage has already consumed; comparing it held every credit-funded policy back until the 1st. The live balance comes from the same simulation (`_live_credit_balance()`):
 
@@ -322,7 +322,37 @@ With period Total and earlier uncovered cost already above `limit_cost`, gate 1 
 
 Verified example, from `scripts/simulate_rebill_historical_usage.py`'s scenario B: a resource billed 500 node-hours (1,425), fully compensated at finalization time from a 3,000 project credit (1,575 left over). A correction raises the reported usage to 3,000 node-hours (8,550) -- the credit correction aborts (7,125 needed, only 1,575 available), so the compensation item stays at its old value. Gate 1 for that project: 8,550 − 1,425 = 7,125, against a `limit_cost` of 3,000 -- opens. Gate 2: the live project credit balance -- with no usage in the current month, the stored 1,575 -- is also below 3,000 -- opens too.
 
-See `EstimatedCostPolicyMixin._is_triggered` / `_live_balance` and `ProjectEstimatedCostPolicy.is_triggered` / `CustomerEstimatedCostPolicy.is_triggered` / `_live_credit_balance` in `src/waldur_mastermind/policy/models.py`, and `MonthlyCompensation._restore_written_draw` in `src/waldur_mastermind/invoices/compensations.py`, for the exact implementation.
+##### Decision record
+
+`evaluate()` returns a `PolicyDecision` (`src/waldur_mastermind/policy/structures.py`) naming the check that decided the evaluation and the figures it used:
+
+| Field | Meaning |
+|-------|---------|
+| `triggered` | Whether the policy fires |
+| `gate` | Which check decided (see below) |
+| `evaluated_cost` | The cost compared against `limit_cost`, net of `credit_deduction` |
+| `credit_deduction` | The credit the current month will still draw that is not yet written as compensation items (`_pending_compensation`); compensation already written is part of the window's invoice total |
+| `limit_cost`, `period`, `use_credit` | The policy settings it was judged on |
+| `credit_value_compared` | The live balance gate 2 compared (after the new resource's draw, in a creation check), or empty when gate 2 did not run |
+
+| Gate | Fires | When |
+|------|-------|------|
+| `cost_below_limit` | No | Gate 1: the cost net of credit is at or below `limit_cost` |
+| `held_by_project_credit` | No | Cost over the limit, but the project allocation's live balance -- the lower of the two -- is above it |
+| `held_by_customer_credit` | No | Cost over the limit, but the organization credit's live balance -- the lower of the two, or the only credit -- is above it |
+| `credit_exhausted` | Yes | A credit applies and the live balance compared is at or below `limit_cost`. A project allocation whose organization credit does not exist compares 0: it cannot be drawn |
+| `no_credit` | Yes | Cost over the limit and no credit applies: no credit exists, or an offering policy, which spans many customers |
+| `credit_ignored` | Yes | Cost over the limit on a project policy with `use_credit=False` |
+
+For a project with a `ProjectCredit`, the gate names whichever live balance is lower and therefore binding; the organization credit is named on a tie and when it does not exist (`_live_credit_balance_with_source`).
+
+The decision of the policy's own evaluation is kept on the instance as `policy.decision`. The immediate actions and resets that an evaluation runs -- from `utils._evaluate_policies` and from the policy serializer's `save()` -- run on that instance, and `_get_cost_policy_context` (`policy_actions.py`) adds the decision's fields to the action's event context: `triggered`, `gate`, `evaluated_cost`, `credit_deduction`, `limit_cost`, `period`, `use_credit`, `credit_value_compared`. A `request_*` event therefore shows the figures that fired it, and a `reset_*` event the figures that reset it, rather than balances re-read afterwards. The older `credit_balance` / `project_credit_balance` keys -- stored balances read at the time of the event -- stay for compatibility. The "A policy %s has fired / has not fired" log lines carry the same fields. Actions run without a preceding evaluation of the instance -- threshold actions from the invoice-item handler, resets when a policy is deleted -- carry only the older keys.
+
+The resource-creation check (`_check_project_policies` / `_check_customer_policies` in `policy/handlers.py`) calls `would_trigger(cost, offering)`, which is `evaluate(cost, offering).triggered` (that hypothetical decision is not kept as `policy.decision`): the same gates with the new resource's cost added, its credit draw taken off the live balance and, for an organization policy, off gate 1 only beyond what the minimal-consumption tail already absorbs (`_deduction_increase`). When the credit absorbs the whole added cost, gate 1 closes again and the decision reads `cost_below_limit`, with the balance left after the draw in `credit_value_compared`. Offering policies are not evaluated this way -- their cost spans many customers and applies only to some -- so `evaluate()` with an added cost raises for them, and `_check_offering_policies` keeps its own check.
+
+The kept decision is a snapshot: it stays on the instance until the next own evaluation replaces it, so code that runs an action later on the same instance should evaluate first.
+
+See `EstimatedCostPolicyMixin.evaluate` / `_credit_gates` / `_live_balance` and `ProjectEstimatedCostPolicy` / `CustomerEstimatedCostPolicy._live_credit_balance_with_source` in `src/waldur_mastermind/policy/models.py`, and `MonthlyCompensation._restore_written_draw` in `src/waldur_mastermind/invoices/compensations.py`, for the exact implementation.
 
 ### Configuration
 

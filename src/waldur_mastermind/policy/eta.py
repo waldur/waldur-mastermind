@@ -157,7 +157,7 @@ def project_eta_days(
     limit = _decimal(limit_cost)
     current = _decimal(current_cost)
 
-    # Strictly greater, to agree with `_is_triggered`. A cost that has exactly
+    # Strictly greater, to agree with `EstimatedCostPolicyMixin.evaluate`. A cost that has exactly
     # reached the limit has not crossed it.
     cost_crossed = current > limit
     if cost_crossed and credit_limit_days == 0:

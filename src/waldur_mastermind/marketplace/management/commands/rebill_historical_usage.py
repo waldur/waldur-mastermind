@@ -456,9 +456,10 @@ class Command(BaseCommand):
             # sees the corrected numbers -- for dry-run, including every prior
             # resource-period's corrections in this same run, before the
             # outer rollback in handle() discards all of them together.
-            # is_triggered() itself has no side effects (it neither writes
-            # has_fired nor fires any action), so evaluating it here is safe
-            # in both modes.
+            # Evaluating a policy has no database side effects (it neither
+            # writes has_fired nor fires any action; it only keeps the decision
+            # on the in-memory instance), so evaluating it here is safe in
+            # both modes.
             self._report_policy_impact(resource, policies_before, dry_run)
         return True
 
@@ -541,7 +542,7 @@ class Command(BaseCommand):
             invoice_items, deduction = policy._cost_inputs(compensation)
             cost_total = policy._scoped_cost(invoice_items)
             net_cost = policy._evaluated_cost(invoice_items, deduction)
-            # Match _is_triggered's strict `>`: cost exactly on limit_cost is
+            # Match evaluate()'s strict `>`: cost exactly on limit_cost is
             # not triggered, so gate 1 must read closed there too.
             gate1 = "open" if net_cost > policy.limit_cost else "closed"
 
@@ -561,7 +562,9 @@ class Command(BaseCommand):
                 gate2 = "open" if credit_balance <= policy.limit_cost else "closed"
                 credit_note = f" credit_balance={credit_balance} (gate 2: {gate2})"
 
-            now_triggered = policy.is_triggered()
+            # The same simulation, so the verdict cannot disagree with the
+            # gate figures printed above.
+            now_triggered = policy.evaluate(compensation=compensation).triggered
             changed = was_fired != now_triggered
             verdict = ""
             if changed:
