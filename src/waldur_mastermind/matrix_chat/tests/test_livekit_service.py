@@ -4,12 +4,12 @@ from unittest import mock
 import httpx
 import jwt
 import respx
-from constance.test import override_config
 from django.core.cache import cache
 from django.test import RequestFactory
 from rest_framework import status, test
 from rest_framework.throttling import ScopedRateThrottle
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import (
     handlers,

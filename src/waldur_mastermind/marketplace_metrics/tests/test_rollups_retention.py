@@ -1,10 +1,10 @@
 import datetime
 from decimal import Decimal
 
-from constance.test import override_config
 from django.test import TestCase
 from freezegun import freeze_time
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_metrics import enums, models, retention, rollups

@@ -1,13 +1,13 @@
 import logging
 from datetime import datetime
 
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.template import Context, Template
 from django.template.loader import get_template
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import SshPublicKey
 from waldur_core.permissions.models import UserRole

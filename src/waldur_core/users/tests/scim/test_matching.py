@@ -1,12 +1,12 @@
 """Configurable matching of inbound SCIM users to existing accounts."""
 
-from constance.test.unittest import override_config
 from django.test import TestCase
 from rest_framework import status, test
 
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_auth_social.models import IdentityProvider
 from waldur_auth_social.utils import create_or_update_oauth_user
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.scim.server import matching

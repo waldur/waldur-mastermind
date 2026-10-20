@@ -3,7 +3,6 @@ import re
 from collections import defaultdict
 from datetime import datetime
 
-from constance import config
 from cryptography.hazmat.primitives.serialization import load_ssh_public_key
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -24,6 +23,7 @@ from rest_framework.authtoken import models as authtoken_models
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.models import Checklist, ChecklistCompletion
 from waldur_core.checklist.utils import serialize_completion_answers
+from waldur_core.configuration import config
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers

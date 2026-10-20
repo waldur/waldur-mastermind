@@ -2,10 +2,10 @@ import os
 import shutil
 
 import yaml
-from constance import LazyConfig, settings
 from django.core.files.storage import default_storage
 from django.core.management.base import BaseCommand
 
+from waldur_core.configuration import config, registry
 from waldur_core.core import logos
 
 WHITELABELING_LOGOS = logos.LOGO_MAP.keys()
@@ -13,7 +13,7 @@ WHITELABELING_LOGOS = logos.LOGO_MAP.keys()
 
 class Command(BaseCommand):
     help = """
-    Dump all settings stored in django-constance to a YAML file.
+    Dump all settings that can be changed at runtime to a YAML file.
     This includes all settings, even those with file/image values.
 
     Usage:
@@ -48,7 +48,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        config = LazyConfig()
         output_file = options["output_file"]
         include_secrets = options["include_secrets"]
         include_defaults = options["include_defaults"]
@@ -65,7 +64,7 @@ class Command(BaseCommand):
         all_settings = {}
         exported_files = []
 
-        for name, options_tuple in settings.CONFIG.items():
+        for name, options_tuple in registry.definitions().items():
             # Get current value
             value = getattr(config, name)
 
@@ -162,7 +161,7 @@ class Command(BaseCommand):
             )
 
             # Print statistics
-            total_settings = len(settings.CONFIG)
+            total_settings = len(registry.definitions())
             skipped_defaults = (
                 total_settings - len(sorted_settings) if not include_defaults else 0
             )

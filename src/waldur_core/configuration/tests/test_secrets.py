@@ -1,16 +1,13 @@
-import importlib
 from io import StringIO
 
-from constance import config
-from constance.codecs import dumps, loads
-from constance.models import Constance
 from cryptography.fernet import Fernet
-from django.apps import apps
 from django.core.management import call_command
 from django.test import RequestFactory, TestCase
 from django.test.utils import override_settings
 
-from waldur_core.core import constance_backend, encryption, views
+from waldur_core.configuration import config, registry, secrets
+from waldur_core.configuration.models import Setting
+from waldur_core.core import encryption
 from waldur_mastermind.matrix_chat import views as matrix_views
 
 OLD_KEY = Fernet.generate_key().decode()
@@ -20,38 +17,36 @@ LOST_KEY = Fernet.generate_key().decode()
 SECRET = "MATRIX_APPSERVICE_AS_TOKEN"
 PLAIN = "SITE_NAME"
 
-migration = importlib.import_module(
-    "waldur_core.core.migrations.0053_encrypt_constance_secrets"
-)
-
 
 def stored(key):
-    return loads(Constance.objects.get(key=key).value)
+    return Setting.objects.get(key=key).value
 
 
 def store_raw(key, value):
-    Constance.objects.update_or_create(key=key, defaults={"value": dumps(value)})
+    Setting.objects.update_or_create(
+        key=key, defaults={"value": value, "source": "migration"}
+    )
 
 
 class SecretKeysTest(TestCase):
     def test_secret_keys_are_the_secret_fields(self):
-        keys = constance_backend.secret_keys()
+        keys = registry.secret_keys()
         self.assertIn(SECRET, keys)
         self.assertIn("MATRIX_APPSERVICE_HS_TOKEN", keys)
         self.assertNotIn(PLAIN, keys)
 
 
-class EncryptedDatabaseBackendTest(TestCase):
+class SecretSettingTest(TestCase):
     def test_secret_is_stored_encrypted_and_read_back_in_clear(self):
         config.MATRIX_APPSERVICE_AS_TOKEN = "as-secret"
 
         self.assertTrue(encryption.is_encrypted(stored(SECRET)))
-        self.assertNotIn("as-secret", Constance.objects.get(key=SECRET).value)
+        self.assertNotIn("as-secret", stored(SECRET))
         self.assertEqual(config.MATRIX_APPSERVICE_AS_TOKEN, "as-secret")
 
     def test_unset_secret_reads_as_its_default(self):
         # Several checks treat an empty secret as "not configured, skip".
-        self.assertFalse(Constance.objects.filter(key=SECRET).exists())
+        self.assertFalse(Setting.objects.filter(key=SECRET).exists())
         self.assertEqual(config.MATRIX_APPSERVICE_AS_TOKEN, "")
 
     def test_non_secret_is_stored_in_clear(self):
@@ -76,7 +71,7 @@ class EncryptedDatabaseBackendTest(TestCase):
     def test_settings_api_values_are_decrypted(self):
         config.MATRIX_APPSERVICE_AS_TOKEN = "as-secret"
 
-        self.assertEqual(views._safe_get_constance_values()[SECRET], "as-secret")
+        self.assertEqual(Setting.objects.values_with_defaults()[SECRET], "as-secret")
 
     def test_plaintext_left_by_an_older_release_is_still_readable(self):
         store_raw(SECRET, "legacy-plain")
@@ -100,7 +95,7 @@ class EncryptedDatabaseBackendTest(TestCase):
             self.assertEqual(config.SITE_NAME, "Portal")
             self.assertEqual(
                 config.MATRIX_APPSERVICE_AS_TOKEN,
-                constance_backend.undecryptable_value(SECRET),
+                secrets.undecryptable_value(SECRET),
             )
 
     def test_undecryptable_secret_never_reads_as_its_ciphertext(self):
@@ -150,40 +145,7 @@ class EncryptedDatabaseBackendTest(TestCase):
             self.assertFalse(matrix_views._is_from_homeserver(request))
 
 
-class EncryptConstanceSecretsMigrationTest(TestCase):
-    def test_encrypts_plaintext_secrets_once(self):
-        store_raw(SECRET, "legacy-plain")
-        store_raw(PLAIN, "Portal")
-
-        migration.encrypt_secrets(apps, None)
-        first = stored(SECRET)
-        migration.encrypt_secrets(apps, None)
-
-        self.assertTrue(encryption.is_encrypted(first))
-        self.assertEqual(stored(SECRET), first)
-        self.assertEqual(stored(PLAIN), "Portal")
-        self.assertEqual(config.MATRIX_APPSERVICE_AS_TOKEN, "legacy-plain")
-
-    def test_reverse_keeps_a_secret_it_cannot_decrypt(self):
-        with override_settings(
-            FIELD_ENCRYPTION_KEY=LOST_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
-        ):
-            config.MATRIX_APPSERVICE_AS_TOKEN = "gone"
-        before = stored(SECRET)
-
-        migration.decrypt_secrets(apps, None)
-
-        self.assertEqual(stored(SECRET), before)
-
-    def test_reverse_restores_plaintext(self):
-        config.MATRIX_APPSERVICE_AS_TOKEN = "as-secret"
-
-        migration.decrypt_secrets(apps, None)
-
-        self.assertEqual(stored(SECRET), "as-secret")
-
-
-class ReencryptConstanceSecretsTest(TestCase):
+class ReencryptSecretSettingsTest(TestCase):
     def test_secrets_rotate_to_the_new_key(self):
         with override_settings(
             FIELD_ENCRYPTION_KEY=OLD_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]

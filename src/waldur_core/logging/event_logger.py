@@ -7,10 +7,10 @@ import time
 from decimal import Decimal
 
 import structlog
-from constance import config
 from django.core.cache import cache
 from django.dispatch import Signal
 
+from waldur_core.configuration import config
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.logging import models
 from waldur_core.logging.enums import (

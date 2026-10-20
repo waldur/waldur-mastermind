@@ -1,8 +1,8 @@
-from constance.test.unittest import override_config
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions import tasks
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole

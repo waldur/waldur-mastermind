@@ -2,15 +2,14 @@
 
 import json
 
-from constance import settings as constance_settings
-from constance.codecs import dumps, loads
-from constance.models import Constance
 from cryptography.fernet import InvalidToken
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 
-from waldur_core.core import constance_backend, encryption, fields
+from waldur_core.configuration import registry
+from waldur_core.configuration.models import Setting
+from waldur_core.core import encryption, fields
 
 
 def _concrete_fields(field_classes):
@@ -63,7 +62,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--encrypt-plaintext-settings",
             action="store_true",
-            help="Also encrypt secret Constance settings stored in clear, e.g. "
+            help="Also encrypt secret settings stored in clear, e.g. "
             "saved by a pod of an older release during a rolling upgrade",
         )
 
@@ -76,7 +75,7 @@ class Command(BaseCommand):
             self._process_scalar(model, field)
         for model, field in encrypted_json_fields():
             self._process_json(model, field)
-        self._process_constance_secrets()
+        self._process_setting_secrets()
 
         verb = "would re-encrypt" if self.dry_run else "re-encrypted"
         self.stdout.write(self.style.SUCCESS(f"{verb} {self.totals['rotated']} row(s)"))
@@ -216,25 +215,24 @@ class Command(BaseCommand):
                 self.totals["rotated"] += 1
                 self._write(model, pk, field, result)
 
-    def _process_constance_secrets(self):
-        prefix = constance_settings.DATABASE_PREFIX
-        keys = [f"{prefix}{key}" for key in constance_backend.secret_keys()]
-        for row in Constance.objects.filter(key__in=keys).order_by("key"):
-            value = loads(row.value)
+    def _process_setting_secrets(self):
+        keys = registry.secret_keys()
+        for row in Setting.objects.filter(key__in=keys).order_by("key"):
+            value = row.value
             if not isinstance(value, str) or not value:
                 continue
             if not encryption.is_encrypted(value):
                 if not self.encrypt_plaintext_settings:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Constance {row.key} is not encrypted; run with "
+                            f"Setting {row.key} is not encrypted; run with "
                             "--encrypt-plaintext-settings to encrypt it"
                         )
                     )
                     continue
                 self.totals["rotated"] += 1
                 if not self.dry_run:
-                    row.value = dumps(encryption.encrypt_value(value))
+                    row.value = encryption.encrypt_value(value)
                     row.save(update_fields=["value"])
                 continue
             try:
@@ -243,12 +241,11 @@ class Command(BaseCommand):
                 self.totals["undecryptable"] += 1
                 self.stdout.write(
                     self.style.ERROR(
-                        f"Constance {row.key}: undecryptable, left untouched"
+                        f"Setting {row.key}: undecryptable, left untouched"
                     )
                 )
                 continue
             self.totals["rotated"] += 1
             if not self.dry_run:
-                # save() rather than update(): Constance clears its cache on save.
-                row.value = dumps(rotated)
+                row.value = rotated
                 row.save(update_fields=["value"])

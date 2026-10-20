@@ -1,6 +1,6 @@
-from constance.test.unittest import override_config
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory

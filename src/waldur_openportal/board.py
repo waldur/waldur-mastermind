@@ -4,10 +4,10 @@ import logging
 from datetime import date, timedelta
 
 import openportal
-from constance import config as constance_config
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
+from waldur_core.configuration import config as constance_config
 from waldur_core.core.enums import ReviewStates
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models

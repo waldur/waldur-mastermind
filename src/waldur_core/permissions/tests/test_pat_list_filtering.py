@@ -7,12 +7,12 @@ the queryset narrowing applied by ``PATScopeListFilter``.
 
 from datetime import timedelta
 
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import PersonalAccessToken
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.tests import factories as structure_factories

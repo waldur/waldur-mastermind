@@ -2,7 +2,6 @@ import ipaddress
 import logging
 import re
 
-from constance import config
 from cryptography import x509
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat import backends as hazmat_backends
@@ -13,6 +12,7 @@ from django.core.validators import URLValidator
 from django.utils.deconstruct import deconstructible
 from django.utils.translation import gettext_lazy as _
 
+from waldur_core.configuration import config
 from waldur_core.core import exceptions
 from waldur_core.core.countries import ISO_3166_1
 from waldur_core.core.enums import GENDER_CHOICES, CoreStates

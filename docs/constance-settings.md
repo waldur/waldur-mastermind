@@ -118,6 +118,21 @@ Use `dict_field` for complex settings. In the UI, this will be rendered with a J
 ),
 ```
 
+## Where a value comes from
+
+Each stored value records who wrote it last, in `Setting.source`, with `updated_by` and `source_detail` where they apply. A setting without a row reads as its default.
+
+| Source | Written by |
+|---|---|
+| `api` | A person, through `POST /api/override-settings/` or another endpoint that changes settings. `updated_by` holds them. |
+| `admin` | A person, through the Django admin settings page. `updated_by` holds them. |
+| `deployment` | The deployment's configuration: `override_constance_settings` and `init_matrix_settings`, run by the Helm or Compose init job. `source_detail` holds the file or command. Re-applied on every deploy, which records an unchanged value as `deployment` too; a file applied with `--if-unset` (`languages.yaml`) only seeds settings without a value. |
+| `cli` | An operator running a management command, such as `set_constance_image`, `set_login_logo_language` or `import_structure`. |
+| `application` | Waldur itself, with no person acting, such as a refreshed eduTEAMS token or the telemetry deployment ID. |
+| `migration` | A data migration, such as the copy out of django-constance in `configuration.0002`. |
+
+The admin page and the API write only values that changed, so re-submitting a form does not claim the settings it did not change.
+
 ## Frontend Integration
 
 Settings are automatically exported to the frontend via:

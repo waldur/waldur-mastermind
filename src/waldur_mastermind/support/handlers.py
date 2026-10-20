@@ -1,7 +1,7 @@
-from constance import config
 from django.conf import settings
 from django.db import transaction
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType

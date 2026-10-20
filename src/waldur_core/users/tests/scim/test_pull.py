@@ -3,12 +3,12 @@
 from io import StringIO
 from unittest import mock
 
-from constance.test.unittest import override_config
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.scim.pull import service as pull_service
 from waldur_core.users.tests.scim.conftest import make_staff_token

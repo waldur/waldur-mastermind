@@ -6,9 +6,9 @@ renders the key only when a value is given, so "unset" is the default path,
 not an edge case.
 """
 
-from constance.test import override_config
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.passkeys import policy, services
 from waldur_core.passkeys.tests.authenticator import SoftwareAuthenticator

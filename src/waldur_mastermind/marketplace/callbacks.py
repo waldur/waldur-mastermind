@@ -1,12 +1,12 @@
 import logging
 
-from constance import config
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType

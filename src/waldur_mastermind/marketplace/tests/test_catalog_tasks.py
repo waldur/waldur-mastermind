@@ -10,11 +10,11 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
-from constance.test.unittest import override_config
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.marketplace.models import (
     OfferingSoftwareCatalog,
     SoftwareCatalog,

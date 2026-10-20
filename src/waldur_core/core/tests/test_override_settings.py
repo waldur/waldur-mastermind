@@ -1,17 +1,17 @@
 import re
 from datetime import timedelta
 
-from constance.test.unittest import override_config
 from django.conf import settings
 from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework import status, test
 
-from waldur_core.core.constance_backend import (
+from waldur_core.configuration.registry import secret_keys
+from waldur_core.configuration.secrets import (
     is_constance_secret,
     redact_constance_secrets,
-    secret_keys,
 )
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import PersonalAccessToken
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.tests.factories import UserFactory

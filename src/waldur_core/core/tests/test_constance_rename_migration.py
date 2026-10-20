@@ -8,8 +8,10 @@ already exist (constance auto-creates them on first access).
 from django.db import connection
 from django.test import TestCase
 
+from waldur_core.configuration.tests.utils import ConstanceTableMixin
 
-class ConstanceRenameTest(TestCase):
+
+class ConstanceRenameTest(ConstanceTableMixin, TestCase):
     """Test the rename logic from migration 0025."""
 
     def _execute(self, sql, params=None):

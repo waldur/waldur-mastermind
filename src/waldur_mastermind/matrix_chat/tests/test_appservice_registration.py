@@ -9,14 +9,14 @@ from unittest import mock
 import httpx
 import respx
 import yaml
-from constance import config
-from constance.test import override_config
 from cryptography.fernet import Fernet
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 from django.test.utils import override_settings
 
+from waldur_core.configuration import config
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging.tests.test_sentry_scrubbing import _send
 from waldur_mastermind.matrix_chat import appservice_registration, models
 

@@ -15,11 +15,11 @@ import json
 import math
 import uuid as uuid_lib
 
-from constance import config
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
+from waldur_core.configuration import config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission_on_any_source
 from waldur_mastermind.marketplace import models as marketplace_models

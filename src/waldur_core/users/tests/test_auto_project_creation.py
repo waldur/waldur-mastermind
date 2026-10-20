@@ -2,10 +2,10 @@
 Test for auto project creation functionality in group invitations
 """
 
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.models import Role
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories

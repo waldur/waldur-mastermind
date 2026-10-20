@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-from constance.test import override_config
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.reverse import reverse
@@ -15,6 +14,7 @@ from waldur_auth_social.utils import (
     remove_user_from_isd,
     update_user_attributes_from_source,
 )
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.core.user_attributes import ALL_PROFILE_ATTRIBUTES
 from waldur_core.structure.tests import factories as structure_factories

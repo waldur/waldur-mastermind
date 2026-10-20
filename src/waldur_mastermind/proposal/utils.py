@@ -5,7 +5,6 @@ from collections import Counter
 from collections.abc import Callable
 from typing import cast
 
-from constance import config
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -13,6 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.models import NAME_LENGTH

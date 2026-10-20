@@ -3,11 +3,11 @@ from datetime import timedelta
 
 import openai
 from celery import shared_task
-from constance import config
 from django.db import transaction
 from django.db.models import Exists, Max, OuterRef, Q
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous.judge import (
     build_intent_rubric,

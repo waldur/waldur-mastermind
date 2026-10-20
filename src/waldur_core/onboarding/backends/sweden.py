@@ -8,8 +8,8 @@ import logging
 from typing import Any, cast
 
 import requests
-from constance import config
 
+from waldur_core.configuration import config
 from waldur_core.onboarding import enums
 
 from .base import (

@@ -1,12 +1,12 @@
 from unittest import mock
 
-from constance.test import override_config
 from django.conf import settings
 from django.db import connection
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import vies

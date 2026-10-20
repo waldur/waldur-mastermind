@@ -1,10 +1,12 @@
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa import tasks

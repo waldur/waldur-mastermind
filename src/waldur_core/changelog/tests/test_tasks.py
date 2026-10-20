@@ -1,10 +1,10 @@
 from unittest import mock
 
-from constance.test.unittest import override_config
 from rest_framework import test
 
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.changelog.tasks import compute_changelog_impact
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 
 

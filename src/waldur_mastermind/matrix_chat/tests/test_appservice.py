@@ -8,8 +8,6 @@ from unittest import mock
 
 import sentry_sdk
 import yaml
-from constance import config
-from constance.test import override_config
 from django.core.cache import cache
 from django.core.management import call_command
 from django.test import override_settings
@@ -19,6 +17,9 @@ from rest_framework import status, test
 from rest_framework.throttling import ScopedRateThrottle
 from sentry_sdk.transport import Transport
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging import sentry
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import UserFactory
@@ -513,6 +514,14 @@ class AppserviceSetupTest(test.APITestCase):
         self.assertIn("sender_localpart", response.data)
         self.assertIn("webhook_url", response.data)
 
+    def test_setup_records_the_staff_user_as_the_writer(self, mock_ensure):
+        self.client.force_authenticate(self.staff)
+        self.client.post(SETUP_URL, data={}, format="json")
+
+        row = Setting.objects.get(key="MATRIX_APPSERVICE_AS_TOKEN")
+        self.assertEqual(row.source, Source.API)
+        self.assertEqual(row.updated_by, self.staff)
+
     def test_non_staff_gets_403(self, mock_ensure):
         self.client.force_authenticate(self.non_staff)
         response = self.client.post(SETUP_URL, data={}, format="json")
@@ -784,7 +793,7 @@ class AppserviceSetupFirstRunTest(test.APITestCase):
         self.assertIn("registration_yaml", response.data)
 
         # All three prereqs are now persisted to Constance.
-        from constance import config as live_config
+        from waldur_core.configuration import config as live_config
 
         self.assertEqual(
             live_config.MATRIX_HOMESERVER_URL, "https://matrix.example.com"
@@ -808,7 +817,7 @@ class AppserviceSetupFirstRunTest(test.APITestCase):
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-            from constance import config as live_config
+            from waldur_core.configuration import config as live_config
 
             # URL was not in the request body — the override-managed value is preserved.
             self.assertEqual(
@@ -839,7 +848,7 @@ class AppserviceSetupFirstRunTest(test.APITestCase):
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
             self.assertIn("MATRIX_HOMESERVER_URL", str(response.data))
 
-            from constance import config as live_config
+            from waldur_core.configuration import config as live_config
 
             self.assertEqual(
                 live_config.MATRIX_HOMESERVER_URL,
@@ -962,7 +971,7 @@ class AppserviceSetupFirstRunTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        from constance import config as live_config
+        from waldur_core.configuration import config as live_config
 
         self.assertEqual(
             live_config.MATRIX_HOMESERVER_URL, "http://tuwunel.internal:6167"

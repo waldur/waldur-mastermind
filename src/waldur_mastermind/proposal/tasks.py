@@ -3,11 +3,11 @@ from datetime import timedelta
 from typing import Any, cast
 
 from celery import shared_task
-from constance import config
 from django.db import transaction
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.service_access import names_calls
 from waldur_core.logging import event_logger

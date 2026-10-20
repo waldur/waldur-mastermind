@@ -1,7 +1,7 @@
-from constance.test.unittest import override_config
 from rest_framework import test
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.serializers import OfferingCreateSerializer
 

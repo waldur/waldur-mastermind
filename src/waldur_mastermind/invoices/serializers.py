@@ -1,7 +1,6 @@
 import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from constance import config
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import F, Sum
@@ -9,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 
+from waldur_core.configuration import config
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils

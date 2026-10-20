@@ -1,4 +1,3 @@
-from constance import config
 from django.conf import settings
 from django.conf.urls import include
 from django.contrib import admin
@@ -6,6 +5,7 @@ from django.urls import path, re_path
 
 from waldur_core.changelog import views as changelog_views
 from waldur_core.checklist import urls as checklist_urls
+from waldur_core.configuration import config
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP

@@ -3,11 +3,11 @@ import warnings
 from unittest import mock
 
 import requests
-from constance.test import override_config
 from django.http import HttpRequest
 from django.test import TestCase
 from urllib3.exceptions import InsecureRequestWarning
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.core.utils import (
     QuietSession,

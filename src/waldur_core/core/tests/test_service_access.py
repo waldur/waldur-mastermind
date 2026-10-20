@@ -1,6 +1,6 @@
-from constance.test import override_config
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.service_access import get_service_access_mode, names_calls
 
 

@@ -37,10 +37,10 @@ os.environ.setdefault(
 )
 django.setup()
 
-from constance import config  # noqa: E402
 from django.contrib.auth import get_user_model  # noqa: E402
 from django.core.management import call_command  # noqa: E402
 
+from waldur_core.configuration import config  # noqa: E402
 from waldur_mastermind.chat.block_schemas import clean_answer_blocks  # noqa: E402
 from waldur_mastermind.chat.context_assembler import build_context  # noqa: E402
 from waldur_mastermind.chat.llm_streamer import LLMStreamer  # noqa: E402

@@ -1,6 +1,6 @@
-from constance.test.unittest import override_config
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.basic import BasicBackend
 from waldur_mastermind.support.enums import IssueStatusTypes

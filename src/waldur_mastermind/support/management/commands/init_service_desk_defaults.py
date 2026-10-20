@@ -1,7 +1,7 @@
-from constance import config
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from waldur_core.configuration import config
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendType
 from waldur_mastermind.support.enums import ISSUE_STATUS_TYPE_CHOICES

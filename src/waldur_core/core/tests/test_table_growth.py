@@ -1,13 +1,13 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
-from constance.test import override_config
 from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import DailyTableSizeHistory
 from waldur_core.core.tasks import check_table_growth_alerts, sample_table_sizes
 from waldur_core.structure.tests import fixtures

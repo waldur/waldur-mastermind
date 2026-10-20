@@ -1,10 +1,10 @@
 import functools
 from dataclasses import dataclass
 
-from constance import config
 from requests import exceptions as requests_exceptions
 from zammad_py import ZammadAPI
 
+from waldur_core.configuration import config
 from waldur_core.core.clean_html import clean_html
 from waldur_core.structure.exceptions import ServiceBackendError
 

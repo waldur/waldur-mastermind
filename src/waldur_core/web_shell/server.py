@@ -30,13 +30,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from aiohttp import WSMsgType, web
-from constance import config
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import CommandError
 from django.db import close_old_connections
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration import config
 from waldur_core.web_shell import assets, tickets
 
 # The child execs immediately after pty.fork(), so the usual hazard of forking

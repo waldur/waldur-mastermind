@@ -1,5 +1,7 @@
 from django.db import migrations
 
+from waldur_core.configuration.migration_utils import write_setting
+
 # core.Feature keys the mode is derived from.
 CALL_ONLY = "marketplace.call_only"
 CALL_MANAGEMENT = "marketplace.show_call_management_functionality"
@@ -18,12 +20,9 @@ def derive_mode(apps, schema_editor):
         call management on               -> both
         neither                          -> marketplace  (no calls nav today)
 
-    Constance stores values outside the ORM, so this writes through its own
-    backend rather than a model. Nothing to reverse: the setting simply falls
-    back to its "both" default.
+    Written to whichever settings table this database has at this point.
+    Nothing to reverse: the setting simply falls back to its "both" default.
     """
-    from constance import config
-
     Feature = apps.get_model("core", "Feature")
     flags = {
         f.key: f.value
@@ -37,14 +36,13 @@ def derive_mode(apps, schema_editor):
     else:
         mode = "marketplace"
 
-    config.SERVICE_ACCESS_MODE = mode
+    write_setting(schema_editor.connection, "SERVICE_ACCESS_MODE", mode)
 
 
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0257_drop_resource_api_key_fingerprint"),
         ("core", "0040_personalaccesstoken_allowed_networks"),
-        ("constance", "0003_drop_pickle"),
     ]
 
     operations = [

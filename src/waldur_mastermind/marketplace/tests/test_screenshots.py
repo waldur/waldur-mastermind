@@ -1,9 +1,9 @@
 from unittest import mock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole

@@ -4,9 +4,9 @@ import logging
 import uuid
 
 from celery import shared_task
-from constance import config
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core.utils import get_fake_context, get_system_robot
 from waldur_core.structure import models as structure_models
 from waldur_kubernetes import backend as kubernetes_backend

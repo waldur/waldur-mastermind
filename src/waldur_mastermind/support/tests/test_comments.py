@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
 from django.utils import timezone
@@ -8,6 +7,7 @@ from freezegun import freeze_time
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import backend, models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend

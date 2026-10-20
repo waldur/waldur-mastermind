@@ -1,10 +1,12 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from constance.test.unittest import override_config as override_constance_config
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.models import (

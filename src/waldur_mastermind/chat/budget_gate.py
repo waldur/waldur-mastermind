@@ -4,7 +4,6 @@
 
 from datetime import datetime, timedelta
 
-from constance import config
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -12,6 +11,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
 from rest_framework.views import exception_handler as drf_exception_handler
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat.models import GlobalAssistantBudget
 
 

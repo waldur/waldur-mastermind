@@ -3,12 +3,12 @@ import hashlib
 import pathlib
 from datetime import timedelta
 
-from constance.test import override_config
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import PersonalAccessToken, User
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.tests import fixtures

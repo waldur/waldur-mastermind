@@ -1,11 +1,11 @@
 import logging
 
 from celery import shared_task
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.core.utils import chunked_queryset

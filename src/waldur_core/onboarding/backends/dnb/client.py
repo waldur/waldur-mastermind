@@ -20,7 +20,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 import requests
-from constance import config
+
+from waldur_core.configuration import config
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
-from constance import config
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from waldur_core.configuration import config
 from waldur_core.users.scim.server.exceptions import ScimError
 from waldur_sram import models, rules
 from waldur_sram.views import apply_group

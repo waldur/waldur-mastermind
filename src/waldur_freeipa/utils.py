@@ -1,5 +1,6 @@
-from constance import config
 from django.core.cache import cache
+
+from waldur_core.configuration import config
 
 QUOTA_NAME = "freeipa_quota"
 

@@ -22,7 +22,6 @@ there is no legacy fallback.
 
 import logging
 
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -30,6 +29,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from waldur_core.configuration import config
 from waldur_core.core.exceptions import IncorrectStateException
 
 from . import models

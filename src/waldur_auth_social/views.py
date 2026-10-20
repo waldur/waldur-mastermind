@@ -5,7 +5,6 @@ import secrets
 from urllib.parse import urlencode
 
 import requests
-from constance import config
 from django.conf import settings
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -38,6 +37,7 @@ from waldur_auth_social.utils import (
     remove_user_from_isd,
     validate_and_get_redirect_url,
 )
+from waldur_core.configuration import config
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
 from waldur_core.core.models import TokenExchangeCode, User

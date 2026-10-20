@@ -5,7 +5,6 @@ from collections import Counter
 from datetime import datetime, timedelta
 from typing import cast
 
-from constance import config
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import (
@@ -37,6 +36,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
+from waldur_core.configuration import config
 from waldur_core.core import validators as core_validators
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.models import User

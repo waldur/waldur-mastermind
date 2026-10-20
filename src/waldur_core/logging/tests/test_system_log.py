@@ -4,11 +4,11 @@ import os
 import sys
 from unittest import mock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging.log import DatabaseLogHandler
 from waldur_core.logging.tests.factories import SystemLogFactory
 from waldur_core.structure.tests import fixtures as structure_fixtures

@@ -8,12 +8,12 @@ are the first line of defense for the model invariants the spec calls out.
 import threading
 from datetime import timedelta
 
-from constance.test import override_config
 from django.db import connection, transaction
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.chat.anonymous.models import (
     AnonymousChatBudget,
     AnonymousChatFeedback,

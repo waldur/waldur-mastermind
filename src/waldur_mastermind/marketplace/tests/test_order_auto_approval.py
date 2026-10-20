@@ -2,10 +2,10 @@ import datetime
 from decimal import Decimal
 from unittest import mock
 
-from constance.test.unittest import override_config
 from django.utils import timezone
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole

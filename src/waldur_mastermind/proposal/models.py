@@ -3,7 +3,6 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Literal, cast
 
-from constance import config as constance_config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
@@ -21,6 +20,7 @@ from rest_framework.exceptions import ValidationError
 import waldur_core.media.mixins
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
+from waldur_core.configuration import config as constance_config
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.mixins import PermissionMixin

@@ -4,12 +4,12 @@ from unittest import mock
 
 import pytest
 import requests
-from constance.test.unittest import override_config
 from keystoneauth1 import exceptions as keystoneauth_exceptions
 from keystoneauth1 import session as keystone_session
 from keystoneauth1.identity import v3
 from keystoneauth1.session import TCPKeepAliveAdapter
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import QuietSession

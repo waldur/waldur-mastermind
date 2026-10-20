@@ -1,9 +1,11 @@
 from datetime import timedelta
 
-from constance.test import override_config as override_constance_config
 from django.utils import timezone
 from rest_framework import test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat import tasks
 from waldur_mastermind.chat.anonymous import models as anonymous_models

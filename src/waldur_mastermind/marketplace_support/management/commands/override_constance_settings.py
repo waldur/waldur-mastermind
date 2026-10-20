@@ -1,14 +1,14 @@
 import os
 
 import yaml
-from constance.models import Constance
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration.models import Setting, Source
+from waldur_core.configuration.secrets import is_constance_secret
 from waldur_core.core import logos
-from waldur_core.core.constance_backend import is_constance_secret
 from waldur_core.core.serializers import ConstanceSettingsSerializer
 
 WHITELABELING_LOGOS = logos.LOGO_MAP.keys()
@@ -56,14 +56,14 @@ class Command(BaseCommand):
     def drop_already_set(self, constance_settings):
         """Keep only the settings that have never been stored.
 
-        django-constance writes a row the first time a setting is given a value,
-        whether by this command or by an administrator in the UI, and falls back
-        to the code default while no row exists. So the presence of a row is
-        what separates "nobody has ever chosen" from "somebody chose this" —
-        and the latter is not ours to overwrite on every container start.
+        A setting has a row once it is given a value, whether by this command
+        or by an administrator in the UI, and reads as the code default while
+        no row exists. So the presence of a row is what separates "nobody has
+        ever chosen" from "somebody chose this" — and the latter is not ours to
+        overwrite on every container start.
         """
         already_set = set(
-            Constance.objects.filter(key__in=constance_settings).values_list(
+            Setting.objects.filter(key__in=constance_settings).values_list(
                 "key", flat=True
             )
         )
@@ -125,7 +125,11 @@ class Command(BaseCommand):
 
             serializer = ConstanceSettingsSerializer(data=constance_settings)
             if serializer.is_valid():
-                serializer.save()
+                serializer.save(
+                    source=Source.DEPLOYMENT,
+                    source_detail=os.path.basename(options["constance_settings_file"]),
+                    restamp_unchanged=True,
+                )
 
             # Show error messages for broken fields
             for name, error in settings_to_delete.items():

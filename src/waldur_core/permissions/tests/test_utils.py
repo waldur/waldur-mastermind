@@ -1,13 +1,13 @@
 import datetime
 from unittest.mock import Mock
 
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import exceptions, test
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions import models, utils
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole

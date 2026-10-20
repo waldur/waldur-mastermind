@@ -90,6 +90,14 @@ class SettingsMetadataTypeTest(test.APITestCase):
 
 
 class SettingsFieldsetsTest(test.APITestCase):
+    def test_every_key_is_in_a_fieldset(self):
+        # The admin page renders fieldsets only; a key left out would post no
+        # value and be reset on every save.
+        in_fieldsets = {
+            key for keys in settings.CONSTANCE_CONFIG_FIELDSETS.values() for key in keys
+        }
+        self.assertEqual(set(settings.CONSTANCE_CONFIG) - in_fieldsets, set())
+
     def test_each_key_belongs_to_one_fieldset(self):
         seen = {}
         for title, keys in settings.CONSTANCE_CONFIG_FIELDSETS.items():

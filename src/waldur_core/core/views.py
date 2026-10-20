@@ -8,11 +8,6 @@ from urllib.parse import urlencode
 
 import requests
 import reversion
-from constance import config
-from constance import settings as constance_settings
-from constance.codecs import loads as constance_loads
-from constance.models import Constance
-from constance.utils import get_values as constance_get_values
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
@@ -52,7 +47,10 @@ from waldur_core.changelog.utils import (
     get_latest_version,
     get_pending_versions,
 )
-from waldur_core.core import WaldurExtension, constance_backend, models, permissions
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
+from waldur_core.configuration.secrets import redact_constance_secrets
+from waldur_core.core import WaldurExtension, models, permissions
 from waldur_core.core.authentication import (
     OIDC_AUTHENTICATION_METHODS,
     AuthenticationMethod,
@@ -602,43 +600,6 @@ def get_feature_values():
     }
 
 
-def _safe_get_constance_values():
-    """Get constance values, handling corrupt NULL entries gracefully.
-
-    When a constance setting has a NULL value in the database,
-    constance raises a TypeError during JSON deserialization.
-    This wrapper catches the error, logs the corrupt keys,
-    and returns None for those settings.
-    """
-    try:
-        return constance_get_values()
-    except TypeError:
-        prefix = constance_settings.DATABASE_PREFIX
-        secret_keys = constance_backend.secret_keys()
-        values = {}
-        for key, options in constance_settings.CONFIG.items():
-            default_value = options[0]
-            prefixed_key = f"{prefix}{key}"
-            try:
-                entry = Constance.objects.filter(key=prefixed_key).first()
-                if entry is not None:
-                    value = constance_loads(entry.value)
-                    if key in secret_keys:
-                        value = constance_backend.decrypt_secret(key, value)
-                    values[key] = value
-                else:
-                    values[key] = default_value
-            except (TypeError, ValueError):
-                logger.warning(
-                    "Constance setting '%s' has a corrupt (NULL) value in the "
-                    "database, returning None. To fix, re-save this setting "
-                    "via the admin panel or API.",
-                    key,
-                )
-                values[key] = None
-        return values
-
-
 def get_constance_plugin_settings(all_constance_values, plugin, fields):
     plugin_settings = {}
     if not all_constance_values:
@@ -703,7 +664,7 @@ def get_public_settings(request=None):
                 public_settings[settings_name][s] = v
 
     constance_settings = {}
-    all_constance_values = _safe_get_constance_values() if request else {}
+    all_constance_values = Setting.objects.values_with_defaults() if request else {}
     if request:
         for key, value in all_constance_values.items():
             if key in settings.PUBLIC_CONSTANCE_SETTINGS and not key.startswith(
@@ -822,9 +783,9 @@ def _parse_bracket_notation(data):
     methods=["GET"],
     summary="Get all overridable settings",
     description=(
-        "Returns all settings that can be overridden in the database via the "
-        "Constance backend. Staff receive every value. Support users receive "
-        "the same keys, with secret_field values blanked."
+        "Returns all settings that can be overridden in the database. Staff "
+        "receive every value. Support users receive the same keys, with "
+        "secret_field values blanked."
     ),
     request=None,
     responses={status.HTTP_200_OK: ConstanceSettingsSerializer},
@@ -832,7 +793,7 @@ def _parse_bracket_notation(data):
 @extend_schema(
     methods=["POST"],
     summary="Update overridable settings",
-    description="Updates one or more settings in the database via the Constance backend. Requires staff permissions. Support users cannot update settings.",
+    description="Updates one or more settings in the database. Requires staff permissions. Support users cannot update settings.",
     request=ConstanceSettingsSerializer,
     responses={status.HTTP_200_OK: None},
     examples=[
@@ -851,9 +812,9 @@ def _parse_bracket_notation(data):
 @permission_classes((IsStaffWriterOrSupportReader,))
 def override_db_settings(request):
     if request.method == "GET":
-        values = _safe_get_constance_values()
+        values = Setting.objects.values_with_defaults()
         if not can_read_constance_secrets(request):
-            values = constance_backend.redact_constance_secrets(values)
+            values = redact_constance_secrets(values)
         return Response(values)
 
     # Parse bracket notation keys for nested dict fields (e.g., multilingual images)
@@ -861,7 +822,7 @@ def override_db_settings(request):
 
     serializer = ConstanceSettingsSerializer(data=data)
     serializer.is_valid(raise_exception=True)
-    serializer.save()
+    serializer.save(source=Source.API, user=request.user)
     cache.delete("API_CONFIGURATION")
     return Response(status=status.HTTP_200_OK)
 
@@ -2285,14 +2246,14 @@ class FeatureMetadataView(APIView):
 
 
 class SettingsMetadataView(APIView):
-    """Provides settings metadata from Django Constance configuration."""
+    """Provides metadata of the settings that can be changed at runtime."""
 
     permission_classes = []
     authentication_classes = []
 
     @extend_schema(
         summary="Get overridable settings metadata",
-        description="Retrieves metadata for all settings that can be configured via the Constance backend. This includes setting keys, human-readable descriptions, default values, and types. This endpoint is publicly accessible.",
+        description="Retrieves metadata for all settings that can be changed at runtime. This includes setting keys, human-readable descriptions, default values, and types. This endpoint is publicly accessible.",
         responses={200: SettingsMetadataResponseSerializer},
     )
     def get(self, request):

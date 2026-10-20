@@ -1,11 +1,11 @@
 import logging
 
 import requests
-from constance import config
 from django.conf import settings
 from django.core.cache import cache
 from packaging.version import InvalidVersion, Version
 
+from waldur_core.configuration import config
 from waldur_core.core.models import Feature
 
 logger = logging.getLogger(__name__)

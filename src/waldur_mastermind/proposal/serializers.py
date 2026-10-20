@@ -3,7 +3,6 @@ import re
 from datetime import datetime
 
 import yaml
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -20,6 +19,7 @@ from rest_framework.reverse import reverse
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
+from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.models import DESCRIPTION_LENGTH

@@ -4,7 +4,6 @@ from functools import partial
 from typing import Any
 
 import httpx
-from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
@@ -18,6 +17,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
+from waldur_core.configuration import config
 from waldur_core.core import encryption
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates

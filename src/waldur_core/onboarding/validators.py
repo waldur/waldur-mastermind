@@ -8,9 +8,9 @@ easy extension to additional countries.
 
 from datetime import timedelta
 
-from constance import config
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 
 from . import enums

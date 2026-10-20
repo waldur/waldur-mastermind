@@ -1,10 +1,10 @@
 from datetime import timedelta
 
-from constance.test import override_config
 from django.test import RequestFactory
 from django.utils import timezone
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import PersonalAccessToken
 from waldur_core.logging.middleware import (
     CaptureEventContextMiddleware,

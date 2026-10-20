@@ -12,7 +12,6 @@ import dateutil.parser
 import requests
 from atlassian import ServiceDesk
 from atlassian.errors import ApiError, ApiNotFoundError, ApiPermissionError
-from constance import config
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
@@ -21,6 +20,7 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from requests.auth import AuthBase
 
+from waldur_core.configuration import config
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.structure.exceptions import ServiceBackendError

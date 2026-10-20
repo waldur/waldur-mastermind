@@ -9,7 +9,6 @@ per-offering lookup anywhere in the serializers therefore shows up as growth
 between a one-row and a four-row page.
 """
 
-from constance.test import override_config
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
@@ -17,6 +16,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole

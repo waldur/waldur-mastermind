@@ -4,8 +4,9 @@ One check for every caller: the chat API, and features of other apps that ask
 the assistant's model on a user's behalf (the Matrix bot's ``!ticket``).
 """
 
-from constance import config
 from django.utils.translation import gettext_lazy as _
+
+from waldur_core.configuration import config
 
 
 def role_refusal(user):

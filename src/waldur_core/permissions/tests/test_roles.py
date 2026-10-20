@@ -1,7 +1,7 @@
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions import models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum

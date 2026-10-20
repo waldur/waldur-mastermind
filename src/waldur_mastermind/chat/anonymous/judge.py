@@ -9,9 +9,9 @@ from dataclasses import dataclass
 
 import httpx
 import openai
-from constance import config
 from django.contrib.auth.models import AnonymousUser
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat.tools.marketplace.helpers import (
     offerings_queryset_for,
     strip_html_to_text,

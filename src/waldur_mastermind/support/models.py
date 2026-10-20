@@ -2,7 +2,6 @@ import logging
 import re
 from typing import cast
 
-from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -15,6 +14,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
 
+from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.validators import validate_name, validate_template_syntax

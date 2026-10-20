@@ -23,11 +23,11 @@ waldur/waldur-mastermind#340.
 import logging
 from dataclasses import dataclass
 
-from constance import config
 from django.apps import apps
 from django.core.cache import cache
 from django.db import transaction
 
+from waldur_core.configuration import config
 from waldur_core.logging.enums import EVENT_GROUP_MAPPING, EventGroup
 
 logger = logging.getLogger(__name__)

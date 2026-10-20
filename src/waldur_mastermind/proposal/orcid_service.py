@@ -20,9 +20,9 @@ from typing import Any
 from urllib.parse import urlencode
 
 import requests
-from constance import config
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_mastermind.proposal.enums import (
     PublicationVenueTypes,
     ReviewerAffiliationTypes,
@@ -826,7 +826,7 @@ def fetch_publication_by_doi(doi: str) -> dict[str, Any] | None:
     Raises:
         ORCIDAPIError: If API request fails.
     """
-    from constance import config
+    from waldur_core.configuration import config
 
     # Clean up DOI
     doi = doi.strip()

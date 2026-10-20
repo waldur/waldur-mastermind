@@ -24,9 +24,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from constance import config
 from django.core.exceptions import ValidationError
 
+from waldur_core.configuration import config
 from waldur_core.core.models import SshPublicKey
 from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.users.scim.server.exceptions import ScimError

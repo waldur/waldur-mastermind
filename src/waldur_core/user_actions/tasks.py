@@ -2,11 +2,11 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
-from constance import config
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 
 from . import models, providers

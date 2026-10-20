@@ -6,6 +6,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.configuration.models import Setting, Source
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.waldur_arrow import models
@@ -233,8 +234,7 @@ class PauseResumeSyncTest(test.APITestCase):
         settings.refresh_from_db()
         self.assertTrue(settings.sync_enabled)
 
-    @mock.patch("waldur_mastermind.waldur_arrow.views.config")
-    def test_pause_global_sync(self, mock_config):
+    def test_pause_global_sync(self):
         response = self.client.post(
             "/api/admin/arrow/billing-syncs/pause_sync/",
             {"pause_global": True},
@@ -242,6 +242,10 @@ class PauseResumeSyncTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("global", response.data["paused"])
+        row = Setting.objects.get(key="ARROW_CONSUMPTION_SYNC_ENABLED")
+        self.assertIs(row.value, False)
+        self.assertEqual(row.source, Source.API)
+        self.assertEqual(row.updated_by, self.fixture.user)
 
     def test_pause_specific_settings(self):
         settings = self.fixture.arrow_settings

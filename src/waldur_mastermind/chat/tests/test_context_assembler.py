@@ -1,13 +1,15 @@
 import json
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.exceptions import PermissionDenied
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.context_assembler import build_context
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession

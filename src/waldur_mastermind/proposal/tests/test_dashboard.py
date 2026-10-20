@@ -1,11 +1,11 @@
 import datetime
 
-from constance.test.unittest import override_config
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.user_actions.providers import DASHBOARD_LIST_LIMIT
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import factories, fixtures

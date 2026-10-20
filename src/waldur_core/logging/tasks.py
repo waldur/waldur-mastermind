@@ -4,11 +4,11 @@ from datetime import timedelta
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.logging import backend, models, utils
 from waldur_core.logging.circuit_breaker import stomp_circuit_breaker

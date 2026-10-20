@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.db.models.query import QuerySet
@@ -10,6 +9,7 @@ from django.utils import timezone
 from rest_framework import exceptions
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config
 from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.models import User, UserDetailsMatchMixin
 

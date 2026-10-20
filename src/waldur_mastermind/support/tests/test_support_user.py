@@ -1,10 +1,10 @@
 from unittest import mock
 
-# Updated to use atlassian-python-api instead of deprecated jira library
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from rest_framework import status
 
+# Updated to use atlassian-python-api instead of deprecated jira library
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendType

@@ -16,11 +16,11 @@ import dataclasses
 import hashlib
 import types
 
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config
 from waldur_core.structure.models import Project
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import serializers as support_serializers

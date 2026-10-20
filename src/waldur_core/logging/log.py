@@ -10,7 +10,8 @@ import time
 import traceback
 
 from celery import current_app
-from constance import config
+
+from waldur_core.configuration import config
 
 
 class EventFormatter(logging.Formatter):

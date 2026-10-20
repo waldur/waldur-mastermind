@@ -4,7 +4,6 @@ from unittest import mock
 # Mock objects for testing - will be replaced with proper mocks
 from unittest.mock import MagicMock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
 
@@ -12,6 +11,7 @@ from django.conf import settings
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.serializers import clone_role_for_customer

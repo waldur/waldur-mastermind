@@ -58,7 +58,7 @@ def get_rp_name() -> str:
     # Imported here rather than at module scope: this module is imported from
     # waldur_core.core.authentication, which loads long before Constance is
     # usable, and touching config at import time would break startup.
-    from constance import config
+    from waldur_core.configuration import config
 
     return config.SITE_NAME or "Waldur"
 

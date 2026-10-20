@@ -1,20 +1,16 @@
 import os
-import unittest
 from io import StringIO
 from unittest import mock
 
-from constance import config
-from constance import settings as constance_settings
-from constance.codecs import dumps
-from constance.models import Constance
-from constance.test import override_config
 from cryptography.fernet import Fernet
-from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 from django.test.utils import override_settings
 
+from waldur_core.configuration import config, registry
+from waldur_core.configuration.models import Setting
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.matrix_chat.management.commands import init_matrix_settings
 from waldur_mastermind.matrix_chat.management.commands.init_matrix_settings import (
     DEPLOYMENT_ONLY,
@@ -22,16 +18,12 @@ from waldur_mastermind.matrix_chat.management.commands.init_matrix_settings impo
     UNDECRYPTABLE_PREFIX,
 )
 
-ENCRYPTED_BACKEND = "waldur_core.core.constance_backend.EncryptedDatabaseBackend"
-encrypted_at_rest = unittest.skipUnless(
-    settings.CONSTANCE_BACKEND == ENCRYPTED_BACKEND,
-    "Constance secrets are not encrypted at rest on this branch",
-)
-
 
 def _store_raw(key, value):
-    """Write a row as the backend would, bypassing its set()."""
-    Constance.objects.update_or_create(key=key, defaults={"value": dumps(value)})
+    """Write a row directly, bypassing Setting.objects.set()."""
+    Setting.objects.update_or_create(
+        key=key, defaults={"value": value, "source": "migration"}
+    )
 
 
 class InitMatrixSettingsTest(TestCase):
@@ -59,7 +51,7 @@ class InitMatrixSettingsTest(TestCase):
         return out.getvalue()
 
     def _stored_rows(self):
-        return list(Constance.objects.order_by("key").values_list("key", "value"))
+        return list(Setting.objects.order_by("key").values_list("key", "value"))
 
     def _assert_refused_without_writing(self, env, *expected_in_message):
         before = self._stored_rows()
@@ -78,18 +70,17 @@ class InitMatrixSettingsTest(TestCase):
             self.assertEqual(getattr(config, key), value)
 
     def test_matrix_is_enabled_even_though_the_packagers_do_not_pass_the_flag(self):
-        self.assertFalse(Constance.objects.filter(key="MATRIX_ENABLED").exists())
+        self.assertFalse(Setting.objects.filter(key="MATRIX_ENABLED").exists())
 
         self._call()
 
         self.assertTrue(config.MATRIX_ENABLED)
 
     def test_matrix_is_enabled_even_if_something_already_read_the_flag(self):
-        """Reading a constance setting that has no row stores its default, and
-        signal handlers and periodic tasks read this flag long before the
-        packagers' seeding Job runs. A stored False is no sign of a choice."""
+        """Signal handlers and periodic tasks read this flag long before the
+        packagers' seeding Job runs. Reading it is no sign of a choice."""
         self.assertFalse(config.MATRIX_ENABLED)
-        self.assertTrue(Constance.objects.filter(key="MATRIX_ENABLED").exists())
+        self.assertFalse(Setting.objects.filter(key="MATRIX_ENABLED").exists())
 
         self._call()
 
@@ -218,7 +209,7 @@ class InitMatrixSettingsTest(TestCase):
         value may be logged."""
         with (
             mock.patch.dict(
-                constance_settings.CONFIG,
+                registry.definitions(),
                 {"MATRIX_FUTURE_CREDENTIAL": ("", "A secret.", "secret_field")},
             ),
             mock.patch.object(
@@ -239,7 +230,7 @@ class InitMatrixSettingsTest(TestCase):
         variables. A Constance setting that came to share such a name must not
         have the credential written into the database."""
         with mock.patch.dict(
-            constance_settings.CONFIG,
+            registry.definitions(),
             {
                 "MATRIX_ADMIN_TOKEN": ("", "Hypothetical.", "secret_field"),
                 "MATRIX_BOOTSTRAP_PASSWORD": ("", "Hypothetical.", "secret_field"),
@@ -254,7 +245,7 @@ class InitMatrixSettingsTest(TestCase):
             )
 
             self.assertFalse(
-                Constance.objects.filter(
+                Setting.objects.filter(
                     key__in=["MATRIX_ADMIN_TOKEN", "MATRIX_BOOTSTRAP_PASSWORD"]
                 ).exists()
             )
@@ -264,7 +255,7 @@ class InitMatrixSettingsTest(TestCase):
     def test_every_seedable_setting_exists(self):
         """A renamed setting would otherwise drop out of seeding silently."""
         self.assertEqual(
-            [key for key in SEEDABLE if key not in constance_settings.CONFIG], []
+            [key for key in SEEDABLE if key not in registry.definitions()], []
         )
 
     def test_deployment_credentials_are_never_seedable(self):
@@ -276,7 +267,7 @@ class InitMatrixSettingsTest(TestCase):
         than an operator finding the variable they set has no effect."""
         unclassified = sorted(
             key
-            for key in constance_settings.CONFIG
+            for key in registry.definitions()
             if key.startswith("MATRIX_")
             and key not in SEEDABLE
             and key != "MATRIX_TOKENS_MANAGED_BY"
@@ -408,7 +399,6 @@ class InitMatrixSettingsTest(TestCase):
         self.assertEqual(config.MATRIX_APPSERVICE_AS_TOKEN, "as-token-value")
         self.assertEqual(config.MATRIX_APPSERVICE_HS_TOKEN, "hs-token-value")
 
-    @encrypted_at_rest
     def test_a_token_stored_under_a_lost_key_is_refused(self):
         with override_settings(
             FIELD_ENCRYPTION_KEY=Fernet.generate_key().decode(),
@@ -427,7 +417,6 @@ class InitMatrixSettingsTest(TestCase):
             "cannot be decrypted with any configured FIELD_ENCRYPTION_KEY",
         )
 
-    @encrypted_at_rest
     def test_seeded_secrets_are_stored_as_ciphertext(self):
         self._call()
 
@@ -436,7 +425,7 @@ class InitMatrixSettingsTest(TestCase):
             "MATRIX_APPSERVICE_HS_TOKEN",
             "MATRIX_USER_REGISTRATION_SECRET",
         ):
-            row = Constance.objects.get(key=key).value
+            row = Setting.objects.get(key=key).value
             self.assertNotIn(self.ENV[key], row)
             self.assertEqual(getattr(config, key), self.ENV[key])
 

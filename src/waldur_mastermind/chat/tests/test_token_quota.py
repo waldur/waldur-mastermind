@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.serializers import TokenQuotaUsageResponseSerializer

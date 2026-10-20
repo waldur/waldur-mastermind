@@ -4,7 +4,6 @@ import uuid
 from decimal import Decimal
 from unittest import mock
 
-from constance.test.unittest import override_config
 from dateutil.relativedelta import relativedelta
 from ddt import data, ddt, unpack
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -13,6 +12,7 @@ from freezegun import freeze_time
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.utils import month_start
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum

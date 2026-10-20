@@ -6,7 +6,6 @@ from uuid import uuid4
 import httpx
 import jwt
 import respx
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -17,6 +16,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.tests.helpers import create_pat, override_waldur_core_settings

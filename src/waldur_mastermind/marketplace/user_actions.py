@@ -2,7 +2,6 @@ import logging
 from datetime import timedelta
 from typing import Any
 
-from constance import config
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -10,6 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
+from waldur_core.configuration import config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission

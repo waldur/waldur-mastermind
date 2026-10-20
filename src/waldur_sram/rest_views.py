@@ -1,10 +1,10 @@
-from constance import config
 from django_filters import rest_framework as django_filters
 from drf_spectacular.utils import extend_schema
 from rest_framework import exceptions, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
+from waldur_core.configuration import config
 from waldur_core.core import filters as core_filters
 from waldur_core.core.permissions import IsStaff
 from waldur_core.core.views import ActionsViewSet

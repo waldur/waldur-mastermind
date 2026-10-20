@@ -10,10 +10,10 @@ left in place, never rotated — rotating would silently invalidate the key the 
 is configured with.
 """
 
-from constance import config
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import BasePermission
 
+from waldur_core.configuration import config
 from waldur_core.core.authentication import (
     ImpersonationAuthentication,
     parse_token_from_request,

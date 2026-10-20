@@ -11,12 +11,12 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import httpx
-from constance import config
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 from markdown_it import MarkdownIt
 
+from waldur_core.configuration import config
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum

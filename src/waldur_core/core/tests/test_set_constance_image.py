@@ -3,11 +3,11 @@ import shutil
 import tempfile
 from io import StringIO
 
-from constance import config
-from constance.models import Constance
 from django.core.management import call_command
 from django.test import TestCase
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting
 from waldur_core.media.utils import dummy_image
 
 
@@ -37,8 +37,8 @@ class SetConstanceImageCommandTest(TestCase):
 
         self.assertIn("is not a valid Constance setting", output.getvalue())
 
-    def test_value_stored_unencoded_by_earlier_version_is_replaced(self):
-        Constance.objects.create(key="SIDEBAR_LOGO", value="old_logo.png")
+    def test_existing_value_is_replaced(self):
+        Setting.objects.create(key="SIDEBAR_LOGO", value="old_logo.png", source="cli")
 
         call_command(
             "set_constance_image", "SIDEBAR_LOGO", self.image_path, stdout=StringIO()

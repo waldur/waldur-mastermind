@@ -2,10 +2,10 @@ import logging
 from datetime import timedelta
 from functools import cached_property
 
-from constance import config
 from django.core.cache import cache
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_mastermind.support import models
 
 from . import SupportBackend, SupportBackendError, build_backend_id

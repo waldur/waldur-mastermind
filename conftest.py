@@ -1,5 +1,6 @@
 import pytest
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import TEAM_VIEW_PERMISSIONS
 from waldur_core.permissions.models import RoleManager
 
@@ -23,6 +24,21 @@ def pytest_configure(config):
         "vcsim: requires a running vCenter simulator (vcsim). "
         "Opt-in via -m vcsim; the sharded unit suite skips by default.",
     )
+    config.addinivalue_line(
+        "markers",
+        "override_config(**settings): override runtime settings for the test, "
+        "including setUp and tearDown of unittest-style tests",
+    )
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    marker = item.get_closest_marker("override_config")
+    if marker is None:
+        yield
+        return
+    with override_config(**marker.kwargs):
+        yield
 
 
 @pytest.fixture(autouse=True)

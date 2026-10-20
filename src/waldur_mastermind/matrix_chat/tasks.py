@@ -5,7 +5,6 @@ from datetime import timedelta
 
 import httpx
 from celery import shared_task
-from constance import config
 from django.contrib.auth import get_user_model
 from django.core.files.base import File
 from django.db import transaction
@@ -13,6 +12,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from django_fsm import TransitionNotAllowed
 
+from waldur_core.configuration import config
 from waldur_core.permissions.models import UserRole
 
 from . import (

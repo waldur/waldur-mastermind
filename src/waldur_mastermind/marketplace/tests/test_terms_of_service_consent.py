@@ -3,7 +3,6 @@ from datetime import timedelta
 from unittest import mock
 from uuid import uuid4
 
-from constance.test.unittest import override_config as override_constance_config
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db.utils import IntegrityError
@@ -14,6 +13,9 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -2736,9 +2738,9 @@ class OfferingUsersViewSetPerformanceTest(APITestCase):
 
         # Warm up ContentType cache and constance config so that
         # one-time lookups don't inflate query counts in tests.
-        from constance import config as constance_config
         from django.contrib.contenttypes.models import ContentType
 
+        from waldur_core.configuration import config as constance_config
         from waldur_core.structure.models import Customer, Project
         from waldur_mastermind.proposal.models import Call, CallManagingOrganisation
 

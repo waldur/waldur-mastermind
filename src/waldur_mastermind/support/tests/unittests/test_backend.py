@@ -4,11 +4,11 @@ from io import BytesIO
 from unittest import mock, skip
 
 import responses
-from constance.test.unittest import override_config
 from django.core.cache import cache
 from django.test import TestCase
 from freezegun import freeze_time
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models

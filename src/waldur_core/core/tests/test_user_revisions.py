@@ -1,7 +1,6 @@
 from importlib import import_module
 from unittest import mock
 
-from constance.test import override_config
 from django.apps import apps as global_apps
 from django.conf import settings
 from django.db import connection
@@ -13,6 +12,7 @@ from rest_framework import test
 from rest_framework.authtoken.models import Token
 from reversion.models import Revision, Version
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import handlers as core_handlers
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks

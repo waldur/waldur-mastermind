@@ -1,11 +1,11 @@
 import json
 from unittest import mock
 
-from constance.test import override_config
 from ddt import data, ddt, unpack
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging import enums as logging_enums

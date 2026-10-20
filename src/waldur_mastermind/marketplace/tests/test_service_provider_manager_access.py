@@ -1,10 +1,10 @@
 """A service provider manager holds their role on the ServiceProvider, not on its
 customer. Provider-side reads must accept that scope, not only a customer role."""
 
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,

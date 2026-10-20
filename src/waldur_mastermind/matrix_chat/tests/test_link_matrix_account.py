@@ -4,10 +4,10 @@ from unittest import mock
 
 import httpx
 import respx
-from constance.test import override_config
 from django.core.management import CommandError, call_command
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import matrix_client, models
 

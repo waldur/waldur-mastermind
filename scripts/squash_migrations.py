@@ -725,16 +725,20 @@ def squash_range(app: str, start: str | None, end: str | None) -> str:
 # ------------------------------------------------------------------ schema compare
 
 
-# Tables whose rows are not a product of the schema. constance rows appear lazily
-# on any config read; the others are seeded by data migrations on `migrate` and by
+# Tables whose rows are not a product of the schema: seeded by data migrations on
+# `migrate` (configuration_setting holds the settings they derive) and by
 # import_roles / load_notifications on every deployment path afterwards.
 SEEDED_TABLES = (
     "django_migrations",
-    "constance_constance",
+    "configuration_setting",
     "core_notification",
     "permissions_role",
     "permissions_rolepermission",
 )
+
+# Tables left out entirely. Upgraded databases keep django-constance's table,
+# which a fresh install never has.
+IGNORED_TABLES = ("django_migrations", "constance_constance")
 
 
 def snapshot_db(alias: str = "default") -> list[str]:
@@ -765,7 +769,7 @@ def snapshot_db(alias: str = "default") -> list[str]:
             nullable,
             default,
         ) in cursor.fetchall():
-            if table == "django_migrations":
+            if table in IGNORED_TABLES:
                 continue
             default = re.sub(
                 r"nextval\('[^']+'::regclass\)", "nextval(<seq>)", default or ""
@@ -778,13 +782,21 @@ def snapshot_db(alias: str = "default") -> list[str]:
             "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
         )
         for (table,) in cursor.fetchall():
-            if table in SEEDED_TABLES:
+            if table in SEEDED_TABLES or table in IGNORED_TABLES:
                 continue
-            if table == "django_content_type":
+            if table in ("django_content_type", "auth_permission"):
                 # Data migrations leave content types of since-removed models
-                # behind (get_or_create while remapping scopes); only the live
-                # ones are a post_migrate product both paths must agree on.
-                cursor.execute("SELECT app_label, model FROM django_content_type")
+                # behind (get_or_create while remapping scopes), and an upgraded
+                # database keeps those of removed apps with their permissions;
+                # only the live ones are a post_migrate product both paths must
+                # agree on.
+                if table == "django_content_type":
+                    cursor.execute("SELECT app_label, model FROM django_content_type")
+                else:
+                    cursor.execute(
+                        "SELECT ct.app_label, ct.model FROM auth_permission p "
+                        "JOIN django_content_type ct ON ct.id = p.content_type_id"
+                    )
                 live = sum(
                     1
                     for app_label, model in cursor.fetchall()
@@ -799,7 +811,7 @@ def snapshot_db(alias: str = "default") -> list[str]:
             "SELECT tablename, indexdef FROM pg_indexes WHERE schemaname = 'public'"
         )
         for table, indexdef in cursor.fetchall():
-            if table == "django_migrations":
+            if table in IGNORED_TABLES:
                 continue
             indexdef = re.sub(
                 r"^CREATE (UNIQUE )?INDEX \S+ ON ", r"CREATE \1INDEX ON ", indexdef
@@ -811,7 +823,7 @@ def snapshot_db(alias: str = "default") -> list[str]:
                WHERE n.nspname = 'public'"""
         )
         for table, contype, definition in cursor.fetchall():
-            if str(table) == "django_migrations":
+            if str(table) in IGNORED_TABLES:
                 continue
             lines.append(f"constraint {table} {contype} {definition}")
         cursor.execute(

@@ -1,8 +1,7 @@
 import importlib
 import logging
 
-from constance import config
-
+from waldur_core.configuration import config
 from waldur_mastermind.support import models
 
 logger = logging.getLogger(__name__)

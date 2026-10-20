@@ -12,7 +12,6 @@ from celery.app.task import _reprtask
 from celery.local import Proxy
 from celery.result import AsyncResult
 from celery.worker.request import Request
-from constance import config
 from django.core.cache import cache
 from django.core.management import call_command
 from django.db import IntegrityError, OperationalError, close_old_connections
@@ -22,6 +21,7 @@ from django.utils import timezone
 from django_fsm import FSMFieldMixin, TransitionNotAllowed
 from model_utils.fields import AutoLastModifiedField
 
+from waldur_core.configuration import config
 from waldur_core.core import models, utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import RuntimeStateException

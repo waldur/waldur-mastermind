@@ -4,9 +4,9 @@ Utility functions for user data access logging.
 
 import logging
 
-from constance import config
 from django.db import transaction
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 
 logger = logging.getLogger(__name__)

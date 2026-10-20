@@ -3,13 +3,14 @@ from datetime import date
 from decimal import Decimal
 from difflib import SequenceMatcher
 
-from constance import config
 from django.db import transaction
 from django.db.models import Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
 from waldur_core.core import views as core_views
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -1870,7 +1871,12 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
 
         if pause_global:
             # Pause global sync via Constance
-            config.ARROW_CONSUMPTION_SYNC_ENABLED = False
+            Setting.objects.set(
+                "ARROW_CONSUMPTION_SYNC_ENABLED",
+                False,
+                source=Source.API,
+                user=request.user,
+            )
             result["paused"].append("global")
 
         if settings_uuid:
@@ -1921,7 +1927,12 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
 
         if pause_global:
             # Resume global sync via Constance
-            config.ARROW_CONSUMPTION_SYNC_ENABLED = True
+            Setting.objects.set(
+                "ARROW_CONSUMPTION_SYNC_ENABLED",
+                True,
+                source=Source.API,
+                user=request.user,
+            )
             result["resumed"].append("global")
 
         if settings_uuid:

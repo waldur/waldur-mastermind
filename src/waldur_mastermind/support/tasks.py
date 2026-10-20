@@ -5,7 +5,6 @@ from datetime import timedelta
 from smtplib import SMTPException
 
 from celery import shared_task
-from constance import config
 from django.core import signing
 from django.db.models import Q
 from django.template import Context, Template
@@ -13,6 +12,7 @@ from django.template.loader import get_template
 from django.utils import timezone
 from markdownify import markdownify
 
+from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import broadcast_mail, text2html

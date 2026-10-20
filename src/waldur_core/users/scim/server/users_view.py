@@ -11,7 +11,6 @@ Deactivation (``active=false`` or DELETE) is routed through
 
 from __future__ import annotations
 
-from constance import config
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -22,6 +21,7 @@ from waldur_auth_social.utils import (
     remove_user_from_isd,
     update_user_attributes_from_source,
 )
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.users.scim.server import matching
 from waldur_core.users.scim.server.auth import (

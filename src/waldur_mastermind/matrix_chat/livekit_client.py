@@ -14,7 +14,8 @@ import time
 
 import httpx
 import jwt
-from constance import config
+
+from waldur_core.configuration import config
 
 logger = logging.getLogger(__name__)
 

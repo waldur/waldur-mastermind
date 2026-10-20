@@ -1,8 +1,8 @@
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db.models import Q
 
+from waldur_core.configuration import config
 from waldur_core.core import managers as core_managers
 from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like

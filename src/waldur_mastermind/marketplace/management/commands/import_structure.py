@@ -23,6 +23,7 @@ from waldur_core.checklist.models import (
     QuestionDependency,
     QuestionOption,
 )
+from waldur_core.configuration.models import Source
 from waldur_core.core import encryption
 from waldur_core.core.features import FEATURES
 from waldur_core.core.middleware import skip_side_effects
@@ -7884,7 +7885,9 @@ class Command(BaseCommand):
             if serializer.is_valid():
                 if not self.dry_run:
                     with transaction.atomic():
-                        serializer.save()
+                        serializer.save(
+                            source=Source.CLI, source_detail="import_structure"
+                        )
 
                 for key in normalized_settings:
                     # Count each setting as updated (constance always overwrites)
@@ -7909,7 +7912,9 @@ class Command(BaseCommand):
                     if retry_serializer.is_valid():
                         if not self.dry_run:
                             with transaction.atomic():
-                                retry_serializer.save()
+                                retry_serializer.save(
+                                    source=Source.CLI, source_detail="import_structure"
+                                )
 
                         for key in valid_settings:
                             self.stats["constance_settings"]["updated"] += 1

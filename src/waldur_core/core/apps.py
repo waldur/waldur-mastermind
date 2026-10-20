@@ -1,7 +1,8 @@
-from constance import signals as constance_signals
 from django.apps import AppConfig
 from django.db.models import signals
 from django_fsm import signals as fsm_signals
+
+from waldur_core.configuration.signals import setting_updated
 
 
 class CoreConfig(AppConfig):
@@ -128,7 +129,10 @@ class CoreConfig(AppConfig):
             dispatch_uid="waldur_core.core.handlers.log_user_locked_out",
         )
 
-        constance_signals.config_updated.connect(handlers.constance_updated)
+        setting_updated.connect(
+            handlers.setting_updated,
+            dispatch_uid="waldur_core.core.handlers.setting_updated",
+        )
 
         for index, model in enumerate(StateMixin.get_all_models()):
             fsm_signals.post_transition.connect(

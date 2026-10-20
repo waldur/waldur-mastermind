@@ -1,12 +1,12 @@
 from unittest import mock
 
 import responses
-from constance import config
-from constance.test.unittest import override_config
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
 from waldur_auth_social import tasks, utils
+from waldur_core.configuration import config
+from waldur_core.configuration.testing import override_config
 
 EDUTEAMS_SETTINGS = {
     "REMOTE_EDUTEAMS_REFRESH_TOKEN": "settings_refresh_token",

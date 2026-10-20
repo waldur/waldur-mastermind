@@ -9,10 +9,10 @@ from dataclasses import dataclass, field
 from html import unescape
 
 import requests
-from constance import config
 from requests import exceptions as requests_exceptions
 from rest_framework import status
 
+from waldur_core.configuration import config
 from waldur_core.structure.exceptions import ServiceBackendError
 
 logger = logging.getLogger(__name__)

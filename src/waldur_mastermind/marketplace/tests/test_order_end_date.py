@@ -1,12 +1,14 @@
 import datetime
 
-from constance.test.unittest import override_config as override_constance_config
 from dateutil.relativedelta import relativedelta
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_mastermind.marketplace import models, serializers, signals

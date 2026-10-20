@@ -2,8 +2,7 @@ import logging
 import re
 import unicodedata
 
-from constance import config
-
+from waldur_core.configuration import config
 from waldur_mastermind.chat.input_guards.base import (
     BaseDetector,
     DetectionAction,

@@ -1835,7 +1835,7 @@ class ImportStructureCommandTest(TestCase):
 
     def test_user_activation_sync_after_import(self):
         """Test that user activation status is synced after import."""
-        from constance.test.unittest import override_config
+        from waldur_core.configuration.testing import override_config
 
         # Create test data with minimal structure
         users_data = [

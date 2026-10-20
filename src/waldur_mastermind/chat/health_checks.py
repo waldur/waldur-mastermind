@@ -1,10 +1,10 @@
 import logging
 
 import openai
-from constance import config
 from health_check.backends import BaseHealthCheckBackend
 from health_check.exceptions import ServiceUnavailable
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat import providers
 
 logger = logging.getLogger(__name__)

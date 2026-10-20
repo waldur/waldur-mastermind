@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test import TestCase
@@ -12,6 +11,7 @@ from waldur_autoprovisioning.reconciliation import (
     reconcile_autoprovisioned_roles,
 )
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import CustomerRoleConcealment, UserRole

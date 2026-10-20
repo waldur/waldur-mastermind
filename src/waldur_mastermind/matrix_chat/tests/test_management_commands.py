@@ -1,12 +1,12 @@
 from io import StringIO
 from unittest import mock
 
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.models import Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import models

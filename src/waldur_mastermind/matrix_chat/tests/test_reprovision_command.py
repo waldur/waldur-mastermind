@@ -1,11 +1,11 @@
 from io import StringIO
 from unittest import mock
 
-from constance.test import override_config
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.matrix_chat import models
 from waldur_mastermind.matrix_chat.tests import fixtures
 

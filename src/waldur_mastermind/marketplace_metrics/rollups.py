@@ -9,9 +9,10 @@ retries correct without any bookkeeping.
 
 import datetime
 
-from constance import config
 from django.db import connection
 from django.utils import timezone
+
+from waldur_core.configuration import config
 
 from . import enums, models, retention
 

@@ -14,10 +14,13 @@ enforced (backward compatible). Setting any of the secrets switches
 that receiver into authenticated mode.
 """
 
-from constance.test.unittest import override_config as override_constance_config
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 
 
 class _BaseWebhookAuthCases:

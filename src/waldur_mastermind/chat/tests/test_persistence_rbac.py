@@ -3,12 +3,14 @@ import uuid
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
-from constance.test.unittest import override_config as override_constance_config
 from django.db.models import Max
 from django.urls import reverse
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.llm_streamer import LLMStreamer

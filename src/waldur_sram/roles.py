@@ -20,10 +20,10 @@ from __future__ import annotations
 import logging
 import re
 
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config
 from waldur_core.permissions.models import Role, RoleAvailability, UserRole
 from waldur_core.permissions.utils import (
     add_user,

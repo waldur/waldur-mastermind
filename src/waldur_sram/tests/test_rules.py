@@ -1,10 +1,10 @@
 from io import StringIO
 
-from constance.test.unittest import override_config
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from rest_framework import status
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.models import UserRole

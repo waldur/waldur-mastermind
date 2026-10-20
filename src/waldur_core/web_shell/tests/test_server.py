@@ -3,12 +3,12 @@ import os
 from types import SimpleNamespace
 from unittest import mock
 
-from constance.test import override_config
 from django.conf import settings
 from django.db import OperationalError
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.web_shell import server, tickets
 

@@ -17,9 +17,9 @@ import html
 import re
 
 import nh3
-from constance import config
 from django.contrib.auth.models import AnonymousUser
 
+from waldur_core.configuration import config
 from waldur_mastermind.marketplace import models as marketplace_models
 
 _WHITESPACE_RE = re.compile(r"\s+")

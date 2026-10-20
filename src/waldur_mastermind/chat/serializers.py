@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from constance import config
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from waldur_core.configuration import config
 from waldur_core.core import serializers as core_serializers
 from waldur_mastermind.chat import models
 from waldur_mastermind.chat.block_schemas import BLOCK_KINDS, BlockSerializer

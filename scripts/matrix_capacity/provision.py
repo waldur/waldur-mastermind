@@ -32,10 +32,10 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "waldur_core.server.settings")
 django.setup()
 
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Customer, Project

@@ -10,9 +10,9 @@ import datetime
 import json
 from unittest import mock
 
-from constance.test import override_config
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import SshPublicKey
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.fixtures import ProjectRole

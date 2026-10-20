@@ -10,7 +10,6 @@ from urllib.parse import quote
 
 import httpx
 import yaml
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.http import FileResponse, Http404, StreamingHttpResponse
@@ -31,6 +30,8 @@ from rest_framework.exceptions import (
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.auth_utils import (
     AUTH_METHOD_SESSION,
@@ -1420,6 +1421,9 @@ class MatrixAppserviceSetupView(views.APIView):
         as_token = secrets.token_hex(32)
         hs_token = secrets.token_hex(32)
 
+        def save_setting(key, value):
+            Setting.objects.set(key, value, source=Source.API, user=request.user)
+
         with transaction.atomic():
             # Persist any prerequisite fields the caller provided. Each key is
             # only written when the request supplied a non-empty value —
@@ -1427,11 +1431,11 @@ class MatrixAppserviceSetupView(views.APIView):
             for request_key, constance_key in constance_keys.items():
                 value = serializer.validated_data.get(request_key)
                 if value and not getattr(config, constance_key):
-                    setattr(config, constance_key, value)
-            setattr(config, "MATRIX_APPSERVICE_AS_TOKEN", as_token)
-            setattr(config, "MATRIX_APPSERVICE_HS_TOKEN", hs_token)
+                    save_setting(constance_key, value)
+            save_setting("MATRIX_APPSERVICE_AS_TOKEN", as_token)
+            save_setting("MATRIX_APPSERVICE_HS_TOKEN", hs_token)
             if serializer.validated_data.get("sender_localpart"):
-                setattr(config, "MATRIX_APPSERVICE_SENDER_LOCALPART", sender_localpart)
+                save_setting("MATRIX_APPSERVICE_SENDER_LOCALPART", sender_localpart)
 
         # registration["url"] must be the base Waldur URL — the homeserver
         # appends MATRIX_APPSERVICE_WEBHOOK_PATH to it when delivering events.

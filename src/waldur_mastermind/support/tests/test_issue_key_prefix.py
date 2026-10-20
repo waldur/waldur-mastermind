@@ -1,7 +1,8 @@
-from constance.test.unittest import override_config
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.configuration.forms import SettingsForm
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support.backend import build_backend_id
 from waldur_mastermind.support.backend.basic import BasicBackend
@@ -133,11 +134,7 @@ class IssueKeyPrefixAdminFormTest(TestCase):
     support tasks do not catch."""
 
     def submit(self, value):
-        from constance.forms import ConstanceForm
-
-        form = ConstanceForm(
-            initial={}, data={"WALDUR_SUPPORT_ISSUE_KEY_PREFIX": value}
-        )
+        form = SettingsForm(data={"WALDUR_SUPPORT_ISSUE_KEY_PREFIX": value})
         form.is_valid()
         return form.errors.get("WALDUR_SUPPORT_ISSUE_KEY_PREFIX")
 

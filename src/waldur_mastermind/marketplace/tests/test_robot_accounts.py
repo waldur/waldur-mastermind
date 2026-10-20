@@ -1,12 +1,12 @@
 from unittest import mock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import get_ssh_key_fingerprints
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum

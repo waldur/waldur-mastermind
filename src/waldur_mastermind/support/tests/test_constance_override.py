@@ -4,10 +4,11 @@ import tempfile
 from io import StringIO
 
 import yaml
-from constance import config
 from django.core.management import call_command
 from django.test import TestCase
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
 from waldur_core.media.utils import dummy_image
 
 
@@ -290,6 +291,17 @@ class SeedOnlyIfUnsetTest(SettingsFileMixin, TestCase):
         call_command("override_constance_settings", settings_file, stdout=StringIO())
 
         self.assertEqual(config.LANGUAGE_CHOICES, "en,et")
+
+    def test_an_unchanged_value_is_recorded_as_the_deployments(self):
+        Setting.objects.set("SITE_NAME", "Portal", source=Source.MIGRATION)
+        settings_file = self.create_settings_file({"SITE_NAME": "Portal"})
+
+        call_command("override_constance_settings", settings_file, stdout=StringIO())
+
+        row = Setting.objects.get(key="SITE_NAME")
+        self.assertEqual(row.value, "Portal")
+        self.assertEqual(row.source, Source.DEPLOYMENT)
+        self.assertEqual(row.source_detail, "settings.yaml")
 
     def test_settings_are_considered_one_by_one(self):
         self.seed({"LANGUAGE_CHOICES": "en,et"})

@@ -14,9 +14,8 @@ Architecture:
 - Effective fields = intersection of both
 """
 
-from constance import config
-
 from waldur_auth_social.const import WRITABLE_USER_FIELDS
+from waldur_core.configuration import config
 
 # Core attributes that are always enabled and cannot be disabled
 CORE_USER_ATTRIBUTES = frozenset(

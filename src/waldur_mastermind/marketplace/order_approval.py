@@ -1,12 +1,12 @@
 import logging
 from decimal import Decimal
 
-from constance import config
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from waldur_core.configuration import config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_mastermind.marketplace import (

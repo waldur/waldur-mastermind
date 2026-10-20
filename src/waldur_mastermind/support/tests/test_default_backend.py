@@ -1,6 +1,6 @@
-from constance import config
 from django.test import TestCase
 
+from waldur_core.configuration import config
 from waldur_mastermind.support.backend import SupportBackendType, get_active_backend
 from waldur_mastermind.support.backend.basic import BasicBackend
 

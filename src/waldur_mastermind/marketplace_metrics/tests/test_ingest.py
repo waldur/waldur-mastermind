@@ -2,12 +2,12 @@ import datetime
 from decimal import Decimal
 from unittest import mock
 
-from constance.test import override_config
 from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.throttling import ScopedRateThrottle
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_core.structure.tests import factories as structure_factories

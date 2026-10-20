@@ -3,12 +3,12 @@ from collections import defaultdict
 from datetime import timedelta
 
 from celery import shared_task
-from constance import config as constance_config
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils import timezone, translation
 from django.utils.translation import gettext as _
 
+from waldur_core.configuration import config as constance_config
 from waldur_core.core.utils import chunked_queryset
 
 logger = logging.getLogger(__name__)
