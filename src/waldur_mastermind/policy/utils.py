@@ -91,13 +91,10 @@ def _evaluate_policies(policies, reconcile_already_fired=False):
 
             policy.refresh_from_db()
 
-            extra = ""
-            if hasattr(policy, "limit_cost"):
-                extra = f" limit_cost={policy.limit_cost}"
             logger.info(
                 "A policy %s has fired.%s",
                 policy.uuid.hex,
-                extra,
+                _decision_log_suffix(policy),
             )
 
             for action in policy.get_immediate_actions():
@@ -119,8 +116,9 @@ def _evaluate_policies(policies, reconcile_already_fired=False):
 
             policy.refresh_from_db()
             logger.info(
-                "A policy %s has not fired.",
+                "A policy %s has not fired.%s",
                 policy.uuid.hex,
+                _decision_log_suffix(policy),
             )
 
             logger.info("Resetting immediate actions")
@@ -142,6 +140,20 @@ def _evaluate_policies(policies, reconcile_already_fired=False):
                         reset_method.__name__,
                     )
                     reset_method(policy)
+
+
+def _decision_log_suffix(policy) -> str:
+    """The gate and figures behind an estimated-cost policy's evaluation, for
+    the fired / not fired log lines; `refresh_from_db` keeps the `decision`
+    attribute `evaluate` set. Other policies log the limit when they have one."""
+    decision = getattr(policy, "decision", None)
+    if decision is not None:
+        return "".join(
+            f" {key}={value}" for key, value in decision.as_event_context().items()
+        )
+    if hasattr(policy, "limit_cost"):
+        return f" limit_cost={policy.limit_cost}"
+    return ""
 
 
 def _reconcile_idempotent_actions(policy):

@@ -123,8 +123,85 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
     #: applies; the scoped policies below override it.
     uses_credit_compensation = False
 
-    def _is_triggered(self, invoice_items, compensation=0):
-        return self._evaluated_cost(invoice_items, compensation) > self.limit_cost
+    #: The gate a triggered policy reports when it takes no credit into
+    #: account. An offering policy spans many customers, so it has no credit at
+    #: all; a project policy with `use_credit=False` ignores the credit it has.
+    uncredited_gate = structures.PolicyGates.NO_CREDIT
+
+    #: Whether `evaluate` / `would_trigger` can price in a resource about to be
+    #: created. False for offering policies: their cost spans many customers
+    #: and applies only to some of them, which the added-cost path does not
+    #: model, so `_check_offering_policies` keeps its own check.
+    supports_added_cost = True
+
+    def is_triggered(self):
+        return self.evaluate().triggered
+
+    def would_trigger(self, added_cost=0, offering=None, compensation=None) -> bool:
+        """Whether the policy fires with `added_cost` more invoiced on
+        `offering`; see `evaluate`."""
+        return self.evaluate(added_cost, offering, compensation).triggered
+
+    def evaluate(
+        self, added_cost=0, offering=None, compensation=None
+    ) -> structures.PolicyDecision:
+        """Evaluate the policy and record why it fires or not.
+
+        With nothing added this is the policy's own evaluation. The
+        resource-creation check passes the new resource's cost and offering, so
+        it asks the same question through the same code. `compensation` lets a
+        caller checking several policies of one customer share a single
+        MonthlyCompensation simulation.
+
+        The policy's own evaluation (nothing added) is also kept on the
+        instance as `decision`, so the actions it runs can put the figures that
+        decided it into their events. A hypothetical with `added_cost` is not
+        kept: it describes a resource that may never exist.
+
+        The kept decision is a snapshot of this evaluation, not live state: it
+        stays on the instance until the next own evaluation replaces it, so an
+        action run later on the same instance without re-evaluating would
+        report these figures. Evaluate first when that matters.
+        """
+        added_cost = decimal.Decimal(added_cost or 0)
+        if added_cost and not self.supports_added_cost:
+            raise NotImplementedError(
+                f"{type(self).__name__} cannot evaluate an added cost; "
+                "its resource-creation check is in policy/handlers.py."
+            )
+        if self.uses_credit_compensation:
+            decision = self._credit_gates(
+                compensation or self._new_compensation(), added_cost, offering
+            )
+        else:
+            invoice_items, deduction = self._cost_inputs()
+            cost = self._evaluated_cost(invoice_items, deduction) + added_cost
+            triggered = cost > self.limit_cost
+            decision = self._decision(
+                triggered,
+                self.uncredited_gate
+                if triggered
+                else structures.PolicyGates.COST_BELOW_LIMIT,
+                cost,
+                deduction,
+            )
+        if not added_cost:
+            self.decision = decision
+        return decision
+
+    def _decision(
+        self, triggered, gate, cost, deduction, credit_value=None
+    ) -> structures.PolicyDecision:
+        return structures.PolicyDecision(
+            triggered=triggered,
+            gate=gate,
+            evaluated_cost=decimal.Decimal(cost),
+            credit_deduction=decimal.Decimal(deduction),
+            limit_cost=self.limit_cost,
+            period=self.period,
+            use_credit=self.uses_credit_compensation,
+            credit_value_compared=credit_value,
+        )
 
     def _evaluated_cost(self, invoice_items, compensation=0) -> decimal.Decimal:
         """The cost this policy compares against ``limit_cost``.
@@ -224,8 +301,15 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
 
     def _live_credit_balance(self, compensation=None) -> decimal.Decimal | None:
         """The live balance Gate 2 compares against `limit_cost`, or None when
-        no credit applies. Overridden per scope."""
-        return None
+        no credit applies."""
+        return self._live_credit_balance_with_source(compensation)[0]
+
+    def _live_credit_balance_with_source(
+        self, compensation=None
+    ) -> tuple[decimal.Decimal | None, str | None]:
+        """The live balance and which credit it is (`CreditSources`), or
+        (None, None) when no credit applies. Overridden per scope."""
+        return None, None
 
     @staticmethod
     def _added_cost_draw(
@@ -255,15 +339,16 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
 
     def _credit_gates(
         self, compensation, added_cost=decimal.Decimal(0), offering=None
-    ) -> bool:
+    ) -> structures.PolicyDecision:
         """Both credit gates, with `added_cost` more invoiced on `offering`.
 
-        With nothing added this is `is_triggered`. The resource-creation check
-        asks the same question with the new resource's cost added, so the two
-        cannot drift apart again: a separate copy kept comparing the stored
-        balance after the policy moved to the live one, and let resources
-        through while the policy was already fired.
+        With nothing added this is the policy's own evaluation. The
+        resource-creation check asks the same question with the new resource's
+        cost added, so the two cannot drift apart again: a separate copy kept
+        comparing the stored balance after the policy moved to the live one,
+        and let resources through while the policy was already fired.
         """
+        gates = structures.PolicyGates
         invoice_items, deduction = self._cost_inputs(compensation)
 
         # Gate 1: cost over the window, net of credit. Any draw on the added
@@ -271,20 +356,37 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         # under it after.
         cost = self._evaluated_cost(invoice_items, deduction) + added_cost
         if cost <= self.limit_cost:
-            return False
+            return self._decision(False, gates.COST_BELOW_LIMIT, cost, deduction)
 
         # Gate 2: the policy still waits while the credit balance stays above
         # the limit — the live balance, net of what this month's usage has
         # already consumed, not the stored one, which only falls at month end
         # (see `_live_balance`).
-        balance = self._live_credit_balance(compensation)
+        balance, source = self._live_credit_balance_with_source(compensation)
         if balance is None:
-            return True
+            return self._decision(True, gates.NO_CREDIT, cost, deduction)
         draw = self._added_cost_draw(added_cost, balance, offering, compensation)
-        if cost - self._deduction_increase(draw, compensation) <= self.limit_cost:
-            return False
+        increase = self._deduction_increase(draw, compensation)
+        cost -= increase
+        deduction += increase
         # The live balance counts usage only, so it falls by the whole draw.
-        return balance - draw <= self.limit_cost
+        remaining = balance - draw
+        if cost <= self.limit_cost:
+            # Only an added cost gets here: the credit absorbs it and gate 1
+            # closes again. Gate 2 did read the balance, so report it.
+            return self._decision(
+                False, gates.COST_BELOW_LIMIT, cost, deduction, remaining
+            )
+        if remaining <= self.limit_cost:
+            return self._decision(
+                True, gates.CREDIT_EXHAUSTED, cost, deduction, remaining
+            )
+        held = (
+            gates.HELD_BY_PROJECT_CREDIT
+            if source == structures.CreditSources.PROJECT
+            else gates.HELD_BY_CUSTOMER_CREDIT
+        )
+        return self._decision(False, held, cost, deduction, remaining)
 
     @staticmethod
     def _eligible_items(invoice_items):
@@ -494,6 +596,8 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
     # existing policies.
     use_credit = models.BooleanField(default=True)
 
+    uncredited_gate = structures.PolicyGates.CREDIT_IGNORED
+
     @property
     def uses_credit_compensation(self) -> bool:
         return self.use_credit
@@ -544,10 +648,16 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
             self.scope.customer, restore_written=True
         )
 
-    def _live_credit_balance(self, compensation=None) -> decimal.Decimal | None:
+    def _live_credit_balance_with_source(
+        self, compensation=None
+    ) -> tuple[decimal.Decimal | None, str | None]:
         """If a ProjectCredit exists, it defines the budget for this project,
         drawable only while the organization credit funding it lasts
-        (ProjectCredit.spendable_value). Otherwise the CustomerCredit."""
+        (ProjectCredit.spendable_value). Otherwise the CustomerCredit.
+
+        The source is whichever of the two is the lower, binding balance; the
+        organization credit binds on a tie, and when it does not exist at all."""
+        sources = structures.CreditSources
         project = self.scope
         compensation = compensation or self._new_compensation()
         customer_credit = invoices_models.CustomerCredit.objects.filter(
@@ -567,31 +677,19 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
             project=project
         ).first()
         if not project_credit:
-            return customer_balance
+            if customer_balance is None:
+                return None, None
+            return customer_balance, sources.CUSTOMER
         project_balance = self._live_balance(
             project_credit.value,
             compensation.get_project_usage_draw(project),
             compensation.get_project_restored_draw(project),
         )
         if customer_balance is None:
-            return decimal.Decimal(0)
-        return min(project_balance, customer_balance)
-
-    def is_triggered(self):
-        return self.would_trigger()
-
-    def would_trigger(self, added_cost=0, offering=None, compensation=None) -> bool:
-        """Whether the policy fires with `added_cost` more invoiced on
-        `offering`; with nothing added, whether it fires now. `compensation`
-        lets a caller checking several policies of one customer share a single
-        MonthlyCompensation simulation."""
-        added_cost = decimal.Decimal(added_cost or 0)
-        if not self.use_credit:
-            cost = self._evaluated_cost(*self._cost_inputs()) + added_cost
-            return cost > self.limit_cost
-        return self._credit_gates(
-            compensation or self._new_compensation(), added_cost, offering
-        )
+            return decimal.Decimal(0), sources.CUSTOMER
+        if project_balance < customer_balance:
+            return project_balance, sources.PROJECT
+        return customer_balance, sources.CUSTOMER
 
     class Meta:
         verbose_name_plural = "Project estimated cost policies"
@@ -655,19 +753,22 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
             self.scope, restore_written=True
         )
 
-    def _live_credit_balance(self, compensation=None) -> decimal.Decimal | None:
+    def _live_credit_balance_with_source(
+        self, compensation=None
+    ) -> tuple[decimal.Decimal | None, str | None]:
         customer = self.scope
         customer_credit = invoices_models.CustomerCredit.objects.filter(
             customer=customer
         ).first()
         if not customer_credit:
-            return None
+            return None, None
         compensation = compensation or self._new_compensation()
-        return self._live_balance(
+        balance = self._live_balance(
             customer_credit.value,
             compensation.customer_usage_draw,
             compensation.customer_restored_draw,
         )
+        return balance, structures.CreditSources.CUSTOMER
 
     def _deduction_increase(self, draw, compensation) -> decimal.Decimal:
         """`total_compensation`, which this policy deducts, includes the
@@ -676,19 +777,6 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
         part of the draw the tail does not absorb lowers the cost. Project
         compensation counts usage items only and needs no such adjustment."""
         return max(decimal.Decimal(0), draw - decimal.Decimal(compensation.tail))
-
-    def is_triggered(self):
-        return self.would_trigger()
-
-    def would_trigger(self, added_cost=0, offering=None, compensation=None) -> bool:
-        """Whether the policy fires with `added_cost` more invoiced on
-        `offering`; with nothing added, whether it fires now. See
-        `ProjectEstimatedCostPolicy.would_trigger` for `compensation`."""
-        return self._credit_gates(
-            compensation or self._new_compensation(),
-            decimal.Decimal(added_cost or 0),
-            offering,
-        )
 
     class Meta:
         verbose_name_plural = "Customer estimated cost policies"
@@ -760,6 +848,8 @@ class OfferingPolicy(Policy):
 
 
 class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
+    supports_added_cost = False
+
     def _cost_inputs(self, compensation=None):
         """An offering policy spans many customers, so no single customer's
         credit applies: the deduction is always zero and `compensation` is
@@ -786,9 +876,6 @@ class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
 
     def get_current_cost(self, compensation=None) -> decimal.Decimal:
         return self._evaluated_cost(*self._cost_inputs(compensation))
-
-    def is_triggered(self):
-        return self._is_triggered(*self._cost_inputs())
 
     class Meta:
         verbose_name_plural = "Offering estimated cost policies"

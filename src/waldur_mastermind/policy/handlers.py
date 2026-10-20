@@ -478,7 +478,7 @@ def _period_query(policy):
 
 def _existing_total(items_qs, policy):
     """Sum invoice item totals matching the policy period, mirroring
-    ``EstimatedCostPolicyMixin._is_triggered``."""
+    ``EstimatedCostPolicyMixin._evaluated_cost``."""
     from waldur_core.structure.models import Customer
 
     active_customers = Customer.objects.filter(blocked=False, archived=False)

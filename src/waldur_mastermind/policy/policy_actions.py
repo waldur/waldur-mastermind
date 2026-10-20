@@ -57,6 +57,14 @@ def _get_cost_policy_context(policy):
         if customer_credit:
             ctx["credit_balance"] = int(customer_credit.value)
 
+    # The balances above are re-read now and can contradict what fired the
+    # action; the decision carries the figures the evaluation actually used.
+    # Absent when the action runs without a preceding evaluation of this
+    # instance, so the keys above stay as they were.
+    decision = getattr(policy, "decision", None)
+    if decision is not None:
+        ctx.update(decision.as_event_context())
+
     return ctx
 
 
