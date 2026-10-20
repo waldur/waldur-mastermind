@@ -1,8 +1,8 @@
 import os
 
-from constance import config
 from django.core.management.base import BaseCommand, CommandError
 
+from waldur_core.configuration import config
 from waldur_mastermind.matrix_chat import appservice_registration
 from waldur_mastermind.matrix_chat.appservice_registration import (
     AppserviceRegistrationError,

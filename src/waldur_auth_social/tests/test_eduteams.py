@@ -1,12 +1,12 @@
 from unittest import mock
 
 import responses
-from constance.test import override_config
 from django.core.cache import cache
 from django.test import override_settings
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.tests import factories as structure_factories

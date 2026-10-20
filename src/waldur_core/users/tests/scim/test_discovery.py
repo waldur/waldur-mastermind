@@ -1,7 +1,8 @@
 """Smoke tests for the SCIM 2.0 discovery endpoints (RFC 7644 §4)."""
 
-from constance.test.unittest import override_config
 from rest_framework import status, test
+
+from waldur_core.configuration.testing import override_config
 
 
 class ScimDiscoveryTest(test.APITestCase):

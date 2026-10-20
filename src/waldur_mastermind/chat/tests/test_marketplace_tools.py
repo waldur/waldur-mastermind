@@ -1,9 +1,9 @@
 import time
 
-from constance.test import override_config
 from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.marketplace.compare_offerings import (

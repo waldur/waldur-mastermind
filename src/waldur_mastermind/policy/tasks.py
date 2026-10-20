@@ -482,7 +482,7 @@ def cleanup_slurm_evaluation_logs():
     """Delete SLURM policy evaluation log entries older than the configured retention period."""
     from datetime import timedelta
 
-    from constance import config
+    from waldur_core.configuration import config
 
     retention_days = config.SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS
     cutoff_date = timezone.now() - timedelta(days=retention_days)

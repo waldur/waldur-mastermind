@@ -1,9 +1,9 @@
 """Per-call configuration of the Project details fields (#291)."""
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import ProposalFieldStates

@@ -1,7 +1,7 @@
-from constance import config
 from django.db import connection
 from rest_framework import serializers
 
+from waldur_core.configuration import config
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 

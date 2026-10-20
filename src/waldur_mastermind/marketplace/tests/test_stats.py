@@ -1,6 +1,5 @@
 import datetime
 
-from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
@@ -9,6 +8,9 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole

@@ -1,6 +1,6 @@
-from constance.test import override_config
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.marketplace.enums import OfferingStates
 
 from . import factories, fixtures

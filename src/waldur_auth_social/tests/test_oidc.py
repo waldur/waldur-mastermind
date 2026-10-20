@@ -3,7 +3,6 @@ from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
 import responses
-from constance.test.unittest import override_config
 from django.contrib.sessions.models import Session
 from django.core.cache import cache
 from django.utils import timezone
@@ -27,6 +26,7 @@ from waldur_auth_social.views import (
     OIDC_STATE_KEY,
 )
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event

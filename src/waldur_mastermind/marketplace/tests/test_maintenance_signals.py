@@ -1,7 +1,7 @@
-from constance.test.unittest import override_config
 from django.test import TransactionTestCase
 from django.utils import timezone
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.marketplace.enums import (
     ImpactLevel,
     MaintenanceState,

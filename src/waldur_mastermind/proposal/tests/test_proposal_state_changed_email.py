@@ -8,12 +8,12 @@ the mail agrees with the UI that produced it.
 import datetime
 import re
 
-from constance.test import override_config
 from ddt import data, ddt
 from django.core import mail
 from django.test import TestCase
 from django.utils import timezone
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import Notification
 from waldur_mastermind.proposal import tasks
 from waldur_mastermind.proposal.enums import ProposalStates

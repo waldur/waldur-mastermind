@@ -1,4 +1,3 @@
-from constance import config
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
@@ -14,6 +13,7 @@ from drf_spectacular.utils import (
 from rest_framework import decorators, exceptions, permissions, status, views
 from rest_framework.response import Response
 
+from waldur_core.configuration import config
 from waldur_core.core import views as core_views
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.permissions.enums import PermissionEnum

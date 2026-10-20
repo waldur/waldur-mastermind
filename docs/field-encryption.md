@@ -39,28 +39,20 @@ encrypted fields is queried by value.
 
 ## Secret settings
 
-Constance settings declared with the `secret_field` type, such as
+Settings declared with the `secret_field` type, such as
 `MATRIX_APPSERVICE_AS_TOKEN` or the support-desk and webhook secrets, are stored
-encrypted in `constance_constance` by `waldur_core.core.constance_backend`.
+encrypted in `configuration_setting` (`waldur_core.configuration.secrets`).
 `config.<KEY>` still returns plaintext, and so does the settings API for staff.
 
-- Migration `core/0053_encrypt_constance_secrets` encrypts the values an earlier
-  release stored in clear. Reversing it writes them back in clear, into the
-  database and every backup taken afterwards.
+- Migration `configuration/0002_import_constance_settings` copies the settings out
+  of django-constance's table and encrypts any secret stored in clear.
 - `reencrypt_fields` rotates them with the encrypted columns and reports any
-  still in clear. A pod of the previous release still running during a rolling
-  upgrade saves secrets in clear; `reencrypt_fields --encrypt-plaintext-settings`
-  encrypts those.
-- To roll back to a release without this backend, run `waldur migrate core 0052`
-  first: the older release would use the stored ciphertext as the secret.
+  still in clear; `reencrypt_fields --encrypt-plaintext-settings` encrypts those.
 - An empty secret stays empty. A secret no configured key can decrypt reads as an
   unguessable value, never as its ciphertext (which a database dump holds) and
   never as empty (which some checks take as "no secret"), and an error is logged
   once per process. It stays unusable until the key is restored or the setting is
   set again.
-
-This is an interim measure until Constance is replaced by an in-house settings
-store, which is expected to encrypt secret settings itself.
 
 ## Which JSON values are encrypted
 

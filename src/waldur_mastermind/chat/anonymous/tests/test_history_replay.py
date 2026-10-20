@@ -7,9 +7,9 @@ and confirmed-injection turns are excluded the same way the auth path
 excludes them in ``context_assembler._get_thread_messages``.
 """
 
-from constance.test import override_config
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous.helpers import build_session_history
 

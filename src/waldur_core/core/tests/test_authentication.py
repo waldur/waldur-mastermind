@@ -4,8 +4,6 @@ import httpx
 import jwt
 import respx
 from axes.signals import user_locked_out
-from constance import config
-from constance.test.unittest import override_config
 from django.conf import settings
 from django.contrib.auth import SESSION_KEY as AUTH_USER_SESSION_KEY
 from django.core.cache import cache
@@ -17,6 +15,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration import config
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.authentication import (
     AUTHENTICATION_METHOD_KEY,
     DEFAULT_TOKEN_UPDATE_INTERVAL,

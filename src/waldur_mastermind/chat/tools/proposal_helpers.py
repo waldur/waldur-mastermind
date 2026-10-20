@@ -1,6 +1,6 @@
 """Shared helpers for proposal-related AI Assistant tools."""
 
-from constance import config
+from waldur_core.configuration import config
 
 
 def get_homeport_url() -> str:

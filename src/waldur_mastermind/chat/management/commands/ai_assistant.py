@@ -6,12 +6,12 @@ import time
 from pathlib import Path
 from textwrap import dedent
 
-from constance import config
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.chat.anonymous.helpers import build_anonymous_messages
 from waldur_mastermind.chat.context_assembler import (

@@ -8,7 +8,6 @@ from pathlib import Path
 from uuid import UUID
 
 import typst
-from constance import config
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import F, QuerySet, Sum
@@ -17,6 +16,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
 

@@ -13,11 +13,13 @@ here we only exercise the anon-specific guards and persistence.
 
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.test import SimpleTestCase
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous.helpers import compute_feedback_token
 from waldur_mastermind.chat.anonymous.views import _extract_offering_uuids

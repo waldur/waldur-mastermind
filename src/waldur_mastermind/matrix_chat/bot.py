@@ -31,7 +31,6 @@ import aiohttp
 import httpx
 import vodozemac
 from asgiref.sync import sync_to_async
-from constance import config
 from django.db import connections
 from nio import (
     AsyncClient,
@@ -48,6 +47,7 @@ from nio import (
     SyncResponse,
 )
 
+from waldur_core.configuration import config
 from waldur_mastermind.matrix_chat import (
     bot_export,
     bot_state,

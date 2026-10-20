@@ -5,7 +5,6 @@ from enum import StrEnum
 import httpx
 import jwt
 import reversion
-from constance import config
 from django.conf import settings
 from django.contrib.auth import SESSION_KEY as AUTH_USER_SESSION_KEY
 from django.core.cache import cache
@@ -31,6 +30,7 @@ from rest_framework.exceptions import AuthenticationFailed
 
 import waldur_core.core.middleware
 import waldur_core.logging.middleware
+from waldur_core.configuration import config
 from waldur_core.core import models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import is_uuid_like

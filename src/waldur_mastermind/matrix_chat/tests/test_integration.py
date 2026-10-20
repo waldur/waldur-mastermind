@@ -17,11 +17,11 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import matrix_client, models, tasks
 

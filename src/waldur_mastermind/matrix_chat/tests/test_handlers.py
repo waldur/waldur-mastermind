@@ -3,12 +3,12 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole

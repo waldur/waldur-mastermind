@@ -7,8 +7,8 @@ import time
 
 import openportal
 from celery import shared_task
-from constance import config as constance_config
 
+from waldur_core.configuration import config as constance_config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User

@@ -1,9 +1,9 @@
 from unittest import mock
 
 import jwt
-from constance.test import override_config
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import (
     livekit_client,

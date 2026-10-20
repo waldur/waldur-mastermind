@@ -1,7 +1,7 @@
-from constance import config
 from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_mastermind.matrix_chat import matrix_client
 from waldur_mastermind.matrix_chat.models import MatrixUserProfile

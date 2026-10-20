@@ -1,6 +1,6 @@
-from constance.test.unittest import override_config
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories

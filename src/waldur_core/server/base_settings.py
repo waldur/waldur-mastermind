@@ -49,6 +49,7 @@ INSTALLED_APPS = (
     "django.contrib.postgres",
     "waldur_core.landing",
     "waldur_core.core",
+    "waldur_core.configuration",
     "waldur_core.permissions",
     "waldur_core.quotas",
     "waldur_core.structure",
@@ -77,7 +78,6 @@ INSTALLED_APPS = (
     # Note: We use waldur_core.core.health_checks.CeleryWorkersHealthCheck instead of
     # health_check.contrib.celery_ping for better performance (connection pooling + targeted pings)
     "netfields",
-    "constance",
     "drf_spectacular",
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405

@@ -2,10 +2,11 @@ from unittest import mock
 
 import pytest
 import responses
-from constance import config
-from constance.test.unittest import override_config
 from rest_framework import status, test
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support.backend import SupportBackendType
 from waldur_mastermind.support.backend.atlassian import ClientCredentialsAuth
@@ -523,12 +524,15 @@ class TestAtlassianSettingsDiscoveryViewSet(test.APITestCase):
         assert response.data["saved"] is True
 
         # Verify settings were saved
-        from constance import config
+        from waldur_core.configuration import config
 
         assert config.ATLASSIAN_API_URL == "https://test.atlassian.net"
         assert config.ATLASSIAN_EMAIL == "test@example.com"
         assert config.ATLASSIAN_TOKEN == "test-token"
         assert config.ATLASSIAN_PROJECT_ID == "SD"
+        row = Setting.objects.get(key="ATLASSIAN_PROJECT_ID")
+        assert row.source == Source.API
+        assert row.updated_by == self.staff_user
 
     OAUTH2_CREDENTIALS = {
         "api_url": "https://test.atlassian.net",

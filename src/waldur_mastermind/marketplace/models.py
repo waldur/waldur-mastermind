@@ -5,7 +5,6 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
 
-from constance import config as constance_config
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -34,6 +33,7 @@ from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
 import waldur_core.media.mixins
+from waldur_core.configuration import config as constance_config
 from waldur_core.core import fields as core_fields
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models

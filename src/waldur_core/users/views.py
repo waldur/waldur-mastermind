@@ -1,7 +1,6 @@
 from typing import cast
 from uuid import UUID
 
-from constance import config
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -14,6 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from waldur_core.configuration import config
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators

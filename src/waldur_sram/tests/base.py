@@ -3,10 +3,10 @@
 import json
 import urllib.parse
 
-from constance.test.unittest import override_config
 from rest_framework import test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_sram.tests import payloads
 

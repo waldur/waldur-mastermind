@@ -284,11 +284,6 @@ REPORTING_SCREEN_CHOICES = [
 
 DEFAULT_ENABLED_REPORTING_SCREENS = [key for key, _ in REPORTING_SCREEN_CHOICES]
 
-# Encrypts secret_field values at rest; see waldur_core.core.constance_backend.
-CONSTANCE_BACKEND = "waldur_core.core.constance_backend.EncryptedDatabaseBackend"
-CONSTANCE_DBS = "default"
-CONSTANCE_SUPERUSER_ONLY = False
-CONSTANCE_IGNORE_ADMIN_VERSION_CHECK = True
 CONSTANCE_ADDITIONAL_FIELDS = {
     "image_field": ["django.forms.ImageField", {"required": False}],
     "email_field": ["django.forms.EmailField", {"required": False}],

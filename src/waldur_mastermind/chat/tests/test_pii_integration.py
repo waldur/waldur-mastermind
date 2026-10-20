@@ -1,10 +1,12 @@
 import json
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.input_guards.service import _reset_for_testing
 from waldur_mastermind.chat.models import Message

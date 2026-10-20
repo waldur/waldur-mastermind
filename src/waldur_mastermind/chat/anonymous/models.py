@@ -3,7 +3,6 @@
 import logging
 import uuid
 
-from constance import config
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import connection, models
@@ -12,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.fields import AutoCreatedField, AutoLastModifiedField
 from model_utils.models import TimeStampedModel
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat.block_schemas import blocks_to_text
 from waldur_mastermind.chat.enums import FeedbackCategory
 

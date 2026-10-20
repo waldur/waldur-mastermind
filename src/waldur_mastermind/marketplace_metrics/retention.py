@@ -3,10 +3,11 @@
 import datetime
 import logging
 
-from constance import config
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
+
+from waldur_core.configuration import config
 
 from . import enums, models
 

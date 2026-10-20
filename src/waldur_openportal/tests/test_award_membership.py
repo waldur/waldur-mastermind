@@ -2,10 +2,10 @@ import json
 from unittest import mock
 
 import openportal
-from constance.test.unittest import override_config
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_openportal.board import OpenPortalBoard
 
 IDENTIFIER = "someproject.someportal"

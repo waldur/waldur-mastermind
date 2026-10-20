@@ -4,11 +4,11 @@ from decimal import Decimal
 from unittest import mock
 
 import pypdf
-from constance.test import override_config
 from django.core import mail
 from django.test import TestCase, override_settings
 from freezegun import freeze_time
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models, tasks, utils

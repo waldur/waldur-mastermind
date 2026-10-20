@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 from unittest import mock
 
-from constance.test import override_config
 from django.db import connection, transaction
 from django.test import TestCase
 from django.urls import reverse
@@ -11,6 +10,7 @@ from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.exceptions import PermissionDenied
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging import sentry
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.chat import models as chat_models

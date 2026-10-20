@@ -9,9 +9,12 @@ feedback HMAC secret to every anonymous caller.
 
 import json
 
-from constance.test.unittest import override_config as override_constance_config
 from django.core.cache import cache
 from rest_framework import status, test
+
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 
 
 class AnonymousConfigurationExposureTest(test.APITestCase):

@@ -15,10 +15,12 @@ the same atomic block, etc).
 
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.input_guards.base import (
     DetectionAction,

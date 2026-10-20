@@ -3,10 +3,10 @@ from unittest import mock
 
 import httpx
 import respx
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates

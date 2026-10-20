@@ -6,7 +6,6 @@ import decimal
 import logging
 
 import requests
-from constance import config
 from django.conf import settings
 from django.db import models as django_models
 from django.db import transaction
@@ -15,6 +14,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from lxml import etree
 
+from waldur_core.configuration import config
 from waldur_core.structure import vies
 from waldur_core.structure.models import Customer
 from waldur_core.structure.vies import EU_COUNTRIES, EU_SERVICE_CODES, ISO_CODES

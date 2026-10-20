@@ -12,7 +12,6 @@ import httpx
 import reversion
 import tomli_w
 import yaml
-from constance import config
 from cryptography.fernet import InvalidToken
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
@@ -83,6 +82,7 @@ from rest_framework.serializers import Serializer
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
+from waldur_core.configuration import config
 from waldur_core.core import encryption
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models

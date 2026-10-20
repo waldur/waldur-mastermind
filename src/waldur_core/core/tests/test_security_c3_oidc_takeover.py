@@ -18,13 +18,13 @@ change can be reviewed and reverted if it turns out to be a takeover.
 import httpx
 import jwt
 import respx
-from constance import config
-from constance.test.unittest import override_config
 from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 from reversion.models import Version
 
+from waldur_core.configuration import config
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 
 VALID_PAYLOAD = {"exp": 9999999999, "username": "victim", "sub": "att-sub"}

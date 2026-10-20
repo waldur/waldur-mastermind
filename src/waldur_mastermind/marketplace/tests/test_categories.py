@@ -1,7 +1,7 @@
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models

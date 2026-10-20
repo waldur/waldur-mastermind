@@ -2,7 +2,6 @@ import logging
 from datetime import timedelta
 from enum import IntEnum
 
-from constance import config
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.core.validators import MinValueValidator
@@ -11,6 +10,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
+from waldur_core.configuration import config
 from waldur_core.core.models import DescribableMixin, NameMixin, User, UuidMixin
 from waldur_mastermind.chat.block_schemas import blocks_to_text
 from waldur_mastermind.chat.enums import FeedbackCategory

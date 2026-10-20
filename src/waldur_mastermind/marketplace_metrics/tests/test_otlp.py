@@ -1,13 +1,13 @@
 import datetime
 import gzip
 
-from constance.test import override_config
 from django.utils import timezone
 from google.protobuf import json_format
 from opentelemetry.proto.collector.metrics.v1 import metrics_service_pb2
 from opentelemetry.proto.metrics.v1 import metrics_pb2
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories

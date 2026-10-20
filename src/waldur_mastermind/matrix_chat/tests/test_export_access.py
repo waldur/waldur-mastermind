@@ -1,7 +1,6 @@
 from datetime import timedelta
 from unittest import mock
 
-from constance.test import override_config
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
@@ -11,6 +10,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import Token
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole

@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-from constance import config
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -15,6 +14,7 @@ from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.mixins import UserChecklistMixin
+from waldur_core.configuration import config
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views

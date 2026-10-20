@@ -1,12 +1,12 @@
 from datetime import timedelta
 from unittest import mock
 
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories

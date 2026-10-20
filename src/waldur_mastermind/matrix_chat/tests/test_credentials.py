@@ -2,9 +2,9 @@ import json
 from unittest import mock
 
 import httpx
-from constance.test import override_config
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import models
 from waldur_mastermind.matrix_chat.matrix_client import MatrixClientError

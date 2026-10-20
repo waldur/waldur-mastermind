@@ -16,12 +16,14 @@ import json
 from datetime import timedelta
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat import tasks
 from waldur_mastermind.chat.anonymous import judge

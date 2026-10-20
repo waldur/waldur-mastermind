@@ -1,12 +1,12 @@
 from unittest import mock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import override_settings
 from rest_framework import status
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum

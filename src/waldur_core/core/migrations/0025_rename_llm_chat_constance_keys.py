@@ -1,5 +1,7 @@
 from django.db import migrations
 
+from waldur_core.configuration.migration_utils import CONSTANCE_TABLE, table_exists
+
 RENAMES = [
     ("LLM_CHAT_ENABLED", "AI_ASSISTANT_ENABLED"),
     ("LLM_CHAT_ENABLED_ROLES", "AI_ASSISTANT_ENABLED_ROLES"),
@@ -18,6 +20,8 @@ RENAMES = [
 
 
 def rename_forward(apps, schema_editor):
+    if not table_exists(schema_editor.connection, CONSTANCE_TABLE):
+        return
     for old_key, new_key in RENAMES:
         # Delete any pre-existing new key to avoid unique constraint violation
         # (constance may auto-create keys before the migration runs)
@@ -34,7 +38,6 @@ def rename_forward(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("core", "0024_remove_constance_site_logo"),
-        ("constance", "0003_drop_pickle"),
     ]
 
     operations = [

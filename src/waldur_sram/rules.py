@@ -20,12 +20,12 @@ import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import DatabaseError, connection, transaction
 from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import add_user, validate_role_grant

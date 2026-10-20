@@ -11,7 +11,6 @@ import re
 import uuid as _uuid
 from datetime import timedelta
 
-from constance import config
 from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.http import StreamingHttpResponse
@@ -24,6 +23,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from waldur_core.configuration import config
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.exceptions import ExtensionDisabled
 from waldur_core.core.utils import get_ip_address

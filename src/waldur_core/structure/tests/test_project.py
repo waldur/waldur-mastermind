@@ -3,7 +3,6 @@ import uuid
 from datetime import timedelta
 from unittest import mock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.test import TransactionTestCase
@@ -12,6 +11,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image

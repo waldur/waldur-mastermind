@@ -1,9 +1,9 @@
 from unittest import mock
 
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_mastermind.marketplace.models import Order
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories

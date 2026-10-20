@@ -1,10 +1,10 @@
 import logging
 
 from celery import shared_task
-from constance import config
 from django.core.exceptions import ObjectDoesNotExist
 from python_freeipa import exceptions as freeipa_exceptions
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 
 from . import models, utils

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 
-from constance import config
 from django.db import IntegrityError, transaction
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -25,6 +24,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from waldur_auth_social.utils import remove_user_from_isd
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.users.scim.server import matching
 from waldur_core.users.scim.server.auth import (

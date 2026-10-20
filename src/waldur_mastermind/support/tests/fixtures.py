@@ -1,6 +1,6 @@
-from constance import config
 from django.utils.functional import cached_property
 
+from waldur_core.configuration import config
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
 from . import factories

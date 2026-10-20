@@ -500,8 +500,8 @@ def log_user_locked_out(sender, username=None, ip_address=None, request=None, **
     emit_user_blocked_event(username, ip_address, dedup_timeout)
 
 
-def constance_updated(sender, key, old_value, new_value, **kwargs):
-    """Clear the API configuration cache when a Constance setting is updated."""
+def setting_updated(sender, key, old_value, new_value, **kwargs):
+    """Clear the API configuration cache when a setting is updated."""
     cache.delete("API_CONFIGURATION")
 
 

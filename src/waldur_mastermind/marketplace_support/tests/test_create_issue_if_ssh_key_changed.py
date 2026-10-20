@@ -1,8 +1,8 @@
 from unittest import mock
 
-from constance.test import override_config
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import SshPublicKeyFactory, UserFactory
 from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING, ResourceStates

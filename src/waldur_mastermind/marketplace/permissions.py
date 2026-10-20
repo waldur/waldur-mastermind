@@ -1,9 +1,9 @@
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
+from waldur_core.configuration import config
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole

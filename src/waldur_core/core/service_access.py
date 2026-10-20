@@ -5,7 +5,7 @@ Navigation and applicant-facing wording only — the API serves the same data in
 every mode.
 """
 
-from constance import config
+from waldur_core.configuration import config
 
 BOTH = "both"
 CALLS_ONLY = "calls"

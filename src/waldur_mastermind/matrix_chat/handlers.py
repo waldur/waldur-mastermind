@@ -1,12 +1,12 @@
 import logging
 
-from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
 from django_fsm import TransitionNotAllowed
 
+from waldur_core.configuration import config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.server.middleware import is_public_cors_path

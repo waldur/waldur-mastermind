@@ -8,7 +8,6 @@ from itertools import product
 from unittest import mock
 
 import reversion
-from constance.test.unittest import override_config
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -25,6 +24,7 @@ from rest_framework import status, test
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.pagination import RESULT_COUNT_HEADER

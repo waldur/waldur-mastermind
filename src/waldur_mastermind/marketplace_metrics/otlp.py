@@ -10,11 +10,12 @@ import datetime
 import decimal
 import zlib
 
-from constance import config
 from google.protobuf import json_format
 from google.protobuf.message import DecodeError
 from opentelemetry.proto.collector.metrics.v1 import metrics_service_pb2
 from opentelemetry.proto.metrics.v1 import metrics_pb2
+
+from waldur_core.configuration import config
 
 from . import ingest
 

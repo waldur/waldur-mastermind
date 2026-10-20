@@ -3,7 +3,6 @@ from unittest import mock
 
 import httpx
 import respx
-from constance.test import override_config
 from django.test import TestCase
 from nio import (
     CallHangupEvent,
@@ -19,6 +18,7 @@ from nio import (
     StickerEvent,
 )
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories

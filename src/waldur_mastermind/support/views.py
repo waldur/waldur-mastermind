@@ -2,7 +2,6 @@ import hmac
 import logging
 from datetime import date, datetime
 
-from constance import config
 from django.conf import settings as django_settings
 from django.core.cache import cache
 from django.db import transaction
@@ -26,6 +25,8 @@ from rest_framework import (
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
@@ -2244,12 +2245,15 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
 
         data = serializer.validated_data
 
+        def save_setting(key, value):
+            Setting.objects.set(key, value, source=Source.API, user=request.user)
+
         # Save settings to constance
         try:
             # URL and options; a Cloud site URL is stored as its API gateway URL
             # when the credentials need it.
-            setattr(config, "ATLASSIAN_API_URL", service.api_url)
-            setattr(config, "ATLASSIAN_VERIFY_SSL", data.get("verify_ssl", True))
+            save_setting("ATLASSIAN_API_URL", service.api_url)
+            save_setting("ATLASSIAN_VERIFY_SSL", data.get("verify_ssl", True))
 
             # Store the chosen method's credentials and clear every other one.
             # The backend picks the first method it finds configured (OAuth 2.0
@@ -2257,13 +2261,12 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
             chosen = ATLASSIAN_CREDENTIAL_SETTINGS[data["auth_method"]]
             for setting in ATLASSIAN_CREDENTIAL_KEYS:
                 field = chosen.get(setting)
-                setattr(config, setting, data[field] if field else "")
+                save_setting(setting, data[field] if field else "")
 
             # Project settings
-            setattr(config, "ATLASSIAN_PROJECT_ID", data["project_id"])
-            setattr(config, "ATLASSIAN_USE_OLD_API", data.get("use_old_api", False))
-            setattr(
-                config,
+            save_setting("ATLASSIAN_PROJECT_ID", data["project_id"])
+            save_setting("ATLASSIAN_USE_OLD_API", data.get("use_old_api", False))
+            save_setting(
                 "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED",
                 data.get("custom_field_mapping_enabled", True),
             )
@@ -2280,52 +2283,43 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
 
             # Optional field mappings
             if data.get("reporter_field"):
-                setattr(config, "ATLASSIAN_REPORTER_FIELD", data["reporter_field"])
+                save_setting("ATLASSIAN_REPORTER_FIELD", data["reporter_field"])
             if data.get("impact_field"):
-                setattr(config, "ATLASSIAN_IMPACT_FIELD", data["impact_field"])
+                save_setting("ATLASSIAN_IMPACT_FIELD", data["impact_field"])
             if data.get("organisation_field"):
-                setattr(
-                    config, "ATLASSIAN_ORGANISATION_FIELD", data["organisation_field"]
-                )
+                save_setting("ATLASSIAN_ORGANISATION_FIELD", data["organisation_field"])
             if data.get("project_field"):
-                setattr(config, "ATLASSIAN_PROJECT_FIELD", data["project_field"])
+                save_setting("ATLASSIAN_PROJECT_FIELD", data["project_field"])
             if data.get("affected_resource_field"):
-                setattr(
-                    config,
+                save_setting(
                     "ATLASSIAN_AFFECTED_RESOURCE_FIELD",
                     data["affected_resource_field"],
                 )
             if data.get("caller_field"):
-                setattr(config, "ATLASSIAN_CALLER_FIELD", data["caller_field"])
+                save_setting("ATLASSIAN_CALLER_FIELD", data["caller_field"])
             if data.get("template_field"):
-                setattr(config, "ATLASSIAN_TEMPLATE_FIELD", data["template_field"])
+                save_setting("ATLASSIAN_TEMPLATE_FIELD", data["template_field"])
             if data.get("sla_field"):
-                setattr(config, "ATLASSIAN_SLA_FIELD", data["sla_field"])
+                save_setting("ATLASSIAN_SLA_FIELD", data["sla_field"])
             if data.get("resolution_sla_field"):
-                setattr(
-                    config,
+                save_setting(
                     "ATLASSIAN_RESOLUTION_SLA_FIELD",
                     data["resolution_sla_field"],
                 )
             if data.get("satisfaction_field"):
-                setattr(
-                    config, "ATLASSIAN_SATISFACTION_FIELD", data["satisfaction_field"]
-                )
+                save_setting("ATLASSIAN_SATISFACTION_FIELD", data["satisfaction_field"])
             if data.get("request_feedback_field"):
-                setattr(
-                    config,
+                save_setting(
                     "ATLASSIAN_REQUEST_FEEDBACK_FIELD",
                     data["request_feedback_field"],
                 )
             if data.get("waldur_backend_id_field"):
-                setattr(
-                    config,
+                save_setting(
                     "ATLASSIAN_WALDUR_BACKEND_ID_FIELD",
                     data["waldur_backend_id_field"],
                 )
             if data.get("default_offering_issue_type"):
-                setattr(
-                    config,
+                save_setting(
                     "ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE",
                     data["default_offering_issue_type"],
                 )

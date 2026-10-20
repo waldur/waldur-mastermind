@@ -1,9 +1,9 @@
 from unittest import mock
 
 import python_freeipa.exceptions
-from constance.test.unittest import override_config
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_freeipa import models

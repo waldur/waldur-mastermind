@@ -8,12 +8,12 @@ import hmac
 import logging
 from types import SimpleNamespace
 
-from constance import config
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from django.contrib.auth.models import AnonymousUser
 from django.db import DatabaseError
 from django.db.models import Q
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous.catalog import build_catalog_summary
 from waldur_mastermind.chat.anonymous.persona import ANONYMOUS_SYSTEM_PROMPT

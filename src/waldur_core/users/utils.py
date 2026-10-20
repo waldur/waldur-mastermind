@@ -3,7 +3,6 @@ import logging
 from typing import Any
 
 import requests
-from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.signing import BadSignature, TimestampSigner
@@ -12,6 +11,7 @@ from django.db.models import Q
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import serializers
 
+from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates

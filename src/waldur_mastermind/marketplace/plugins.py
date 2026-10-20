@@ -1,10 +1,11 @@
 import logging
 from dataclasses import dataclass
 
-from constance import config
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import utils as db_utils
+
+from waldur_core.configuration import config
 
 
 @dataclass

@@ -2,10 +2,10 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.core.utils import chunks
 from waldur_core.permissions.models import UserRole

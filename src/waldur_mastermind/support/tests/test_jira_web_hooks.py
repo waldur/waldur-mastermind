@@ -4,13 +4,15 @@ import unittest
 from io import BytesIO
 from unittest import mock
 
-# Remove jira import - using atlassian-python-api instead
-from constance.test.unittest import override_config as override_constance_config
 from django.core import mail
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
+# Remove jira import - using atlassian-python-api instead
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_mastermind.support.backend import SupportBackendType
 from waldur_mastermind.support.backend.atlassian import (

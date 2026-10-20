@@ -47,12 +47,12 @@ CELERY_TASK_ALWAYS_EAGER = True
 # Disable DRF throttling so the matrix doesn't get 429-ed on rapid POSTs.
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405
 
-# Constance in memory, seeded from the environment. The validation database
+# Settings in memory, seeded from the environment. The validation database
 # is reloaded from demo presets, so config kept in it is neither durable nor
 # reviewable — and a token written to a settings-selected database is one
 # that can be written to the wrong one. Nothing here is read from or
 # persisted to any database.
-CONSTANCE_BACKEND = "constance.backends.memory.MemoryBackend"
+CONFIGURATION_IN_MEMORY = True
 
 
 def _constance_default(key, value):

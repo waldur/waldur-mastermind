@@ -1,7 +1,6 @@
 import json
 
 import django_filters
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Count,
@@ -22,6 +21,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.checklist import models as checklist_models
+from waldur_core.configuration import config
 from waldur_core.core import filters as core_filters
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.filters import (

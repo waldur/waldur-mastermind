@@ -19,7 +19,6 @@ from string import Template
 from typing import cast
 
 import httpx
-from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -49,6 +48,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers, status
 from rest_framework.response import Response
 
+from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils

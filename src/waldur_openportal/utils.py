@@ -5,9 +5,9 @@ import json
 import logging
 import re
 
-from constance import config
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.models import Role

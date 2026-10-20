@@ -9,9 +9,9 @@ queue running on a staff session from one on a scoped PAT.
 
 from unittest import mock
 
-from constance.test import override_config
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging import models as logging_models

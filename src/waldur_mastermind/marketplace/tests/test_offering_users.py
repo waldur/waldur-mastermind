@@ -2,7 +2,6 @@ import json
 import logging
 from unittest import mock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
@@ -13,6 +12,7 @@ from rest_framework.reverse import reverse
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.enums import QuestionTypes
 from waldur_core.checklist.tests.factories import ChecklistFactory, QuestionFactory
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (

@@ -55,7 +55,7 @@ Enable the backend in *Admin → Constance → Affiliates → AFFILIATES_ENABLED
 programmatically:
 
 ```python
-from constance import config
+from waldur_core.configuration import config
 config.AFFILIATES_ENABLED = True
 ```
 

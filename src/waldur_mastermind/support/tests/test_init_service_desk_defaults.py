@@ -1,10 +1,10 @@
 from io import StringIO
 
-from constance.test.unittest import override_config
 from django.core.management import call_command
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models
 from waldur_mastermind.support.enums import IssueStatusTypes

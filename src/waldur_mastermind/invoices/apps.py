@@ -1,6 +1,7 @@
-from constance import signals as constance_signals
 from django.apps import AppConfig
 from django.db.models import signals
+
+from waldur_core.configuration.signals import setting_updated
 
 
 class InvoiceConfig(AppConfig):
@@ -13,7 +14,7 @@ class InvoiceConfig(AppConfig):
 
         from . import handlers, models
 
-        constance_signals.config_updated.connect(
+        setting_updated.connect(
             handlers.refresh_vat_rates_when_enabled,
             dispatch_uid="waldur_mastermind.invoices.refresh_vat_rates_when_enabled",
         )

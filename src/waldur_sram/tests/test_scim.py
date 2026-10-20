@@ -1,9 +1,9 @@
 import json
 
-from constance.test.unittest import override_config
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.utils import add_user

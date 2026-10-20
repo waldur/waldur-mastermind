@@ -1,6 +1,6 @@
-from constance import config
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
+from waldur_core.configuration import config
 from waldur_core.core.exceptions import IncompleteProfileException
 from waldur_core.core.user_attributes import get_user_missing_mandatory_attributes
 from waldur_core.permissions.utils import check_pat_staff_scope, check_pat_support_scope

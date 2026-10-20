@@ -5,9 +5,9 @@ from io import StringIO
 
 import python_freeipa
 import python_freeipa.exceptions
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 
+from waldur_core.configuration import config
 from waldur_core.permissions.models import UserRole
 from waldur_core.quotas import models as quota_models
 from waldur_core.structure import models as structure_models

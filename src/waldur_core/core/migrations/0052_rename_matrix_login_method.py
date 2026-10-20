@@ -2,6 +2,8 @@ import json
 
 from django.db import migrations
 
+from waldur_core.configuration.migration_utils import CONSTANCE_TABLE, table_exists
+
 OLD_KEY = "MATRIX_LOGIN_METHOD"
 NEW_KEY = "MATRIX_EXTERNAL_LOGIN_METHOD"
 METHODS = {"none", "password", "oidc"}
@@ -22,6 +24,8 @@ def _encode(value):
 
 
 def rename_login_method(apps, schema_editor):
+    if not table_exists(schema_editor.connection, CONSTANCE_TABLE):
+        return
     with schema_editor.connection.cursor() as cursor:
         cursor.execute(
             "DELETE FROM constance_constance WHERE key = ANY(%s)", [REMOVED_KEYS]
@@ -48,7 +52,6 @@ def rename_login_method(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("core", "0051_telemetry_opt_out"),
-        ("constance", "0003_drop_pickle"),
     ]
 
     operations = [

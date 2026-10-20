@@ -1,7 +1,6 @@
 import datetime
 from unittest import mock
 
-from constance.test.unittest import override_config
 from ddt import data, ddt, unpack
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -9,6 +8,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION

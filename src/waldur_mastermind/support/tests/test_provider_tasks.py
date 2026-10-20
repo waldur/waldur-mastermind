@@ -1,11 +1,11 @@
 from datetime import timedelta
 from unittest import mock
 
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models, tasks

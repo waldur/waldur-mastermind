@@ -1,6 +1,6 @@
-from constance.test.unittest import override_config
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.enums import PermissionEnum

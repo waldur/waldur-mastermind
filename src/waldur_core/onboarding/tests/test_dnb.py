@@ -1,8 +1,8 @@
 from unittest import mock
 
-from constance.test import override_config
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.onboarding.backends.base import ErrorCode, ValidationRequest
 from waldur_core.onboarding.backends.dnb import client as dnb_client_module
 from waldur_core.onboarding.backends.dnb.client import (

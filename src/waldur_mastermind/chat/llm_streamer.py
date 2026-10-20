@@ -5,13 +5,13 @@ import threading
 import time
 
 import httpx
-from constance import config
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import connections, transaction
 from django.db.models import Max
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat import models, providers
 from waldur_mastermind.chat.block_schemas import blocks_to_text, clean_answer_blocks
 from waldur_mastermind.chat.models import TokenQuota

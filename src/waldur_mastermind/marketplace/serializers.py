@@ -12,7 +12,6 @@ from typing import Literal, cast
 
 import jwt
 import regex
-from constance import config
 from dateutil.parser import parse as parse_datetime
 from dateutil.relativedelta import relativedelta
 from django import forms
@@ -49,6 +48,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
+from waldur_core.configuration import config
 from waldur_core.core import encryption
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers

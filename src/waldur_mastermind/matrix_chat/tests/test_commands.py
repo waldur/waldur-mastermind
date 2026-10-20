@@ -6,7 +6,6 @@ from datetime import timedelta
 from unittest import mock
 
 from asgiref.sync import async_to_sync
-from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.test import SimpleTestCase, TestCase
@@ -20,6 +19,7 @@ from nio import (
 )
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.matrix_chat import (

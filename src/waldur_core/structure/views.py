@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 
 import reversion
-from constance import config as constance_config
 from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -38,6 +37,7 @@ from waldur_core.checklist import mixins as checklist_mixins
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.models import Answer, ChecklistCompletion, Question
 from waldur_core.checklist.utils import latest_answers_by_question
+from waldur_core.configuration import config as constance_config
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions

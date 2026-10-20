@@ -14,11 +14,11 @@ six hours stale, and neither has an object to hang the model's mandatory
 
 from typing import Any
 
-from constance import config
 from django.contrib.auth import get_user_model
 from django.db.models import Case, F, IntegerField, Value, When
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core.fields import StringUUID
 
 from . import models

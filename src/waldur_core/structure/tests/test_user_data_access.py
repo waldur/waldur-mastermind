@@ -2,9 +2,9 @@
 Tests for user data access visibility endpoint.
 """
 
-from constance.test.unittest import override_config
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 

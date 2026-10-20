@@ -8,12 +8,12 @@ the media route itself, with the same policy as the API.
 belong to the same row, so one rule covers both.
 """
 
-from constance.test import override_config
 from ddt import data, ddt
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import Token
 from waldur_core.media import models as media_models
 from waldur_core.permissions.enums import PermissionEnum

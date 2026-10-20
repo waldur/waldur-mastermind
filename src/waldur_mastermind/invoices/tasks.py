@@ -4,13 +4,13 @@ from csv import DictWriter
 from io import StringIO
 
 from celery import shared_task
-from constance import config
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType

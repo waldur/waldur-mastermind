@@ -1,9 +1,9 @@
 """Compact catalog of public marketplace offerings injected into the
 anonymous chat system prompt."""
 
-from constance import config
 from django.contrib.auth.models import AnonymousUser
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat.tools.marketplace.helpers import (
     cap_text,
     offering_country,

@@ -1,7 +1,6 @@
 import logging
 
 import django_filters
-from constance import config
 from django.contrib.postgres.search import SearchQuery
 from django.db import transaction
 from django.db.models import (
@@ -30,6 +29,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from waldur_core.configuration import config
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.models import User

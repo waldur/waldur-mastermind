@@ -19,7 +19,6 @@ from urllib.parse import urlsplit
 import jwt
 import requests
 import textile
-from constance import config
 from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.conf import settings
@@ -42,6 +41,7 @@ from rest_framework.serializers import ValidationError
 from rest_framework.settings import api_settings
 from ua_parser import user_agent_parser
 
+from waldur_core.configuration import config
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 logger = logging.getLogger(__name__)

@@ -9,11 +9,11 @@ approval system can take the decision instead.
 from datetime import timedelta
 from unittest import mock
 
-from constance.test import override_config
 from django.core import mail
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.enums import ReviewStates
 from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.permissions.enums import PermissionEnum

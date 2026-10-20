@@ -1,7 +1,6 @@
 from unittest.mock import Mock, patch
 
 import requests
-from constance.test import override_config
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -10,6 +9,7 @@ from rest_framework.test import APITestCase
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.configuration.testing import override_config
 from waldur_core.onboarding import enums, models
 from waldur_core.onboarding.backends.base import ErrorCode, ValidationRequest
 from waldur_core.onboarding.backends.estonia import EstonianAriregisterBackend

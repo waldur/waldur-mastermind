@@ -1,12 +1,12 @@
 from io import StringIO
 
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.management import call_command
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.logging.models import EmailHook, Event
 from waldur_core.logging.tasks import process_event

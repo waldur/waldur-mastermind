@@ -1,7 +1,7 @@
-from constance.test.unittest import override_config
 from django.core import mail
 from django.test import TestCase, override_settings
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.basic import BasicBackend

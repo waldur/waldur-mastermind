@@ -428,7 +428,7 @@ token after a `TOKEN ` marker, and `sed` keeps only that, whatever else
 ```bash
 TOKEN=$(waldur shell -c '
 import hashlib, hmac, secrets, httpx
-from constance import config
+from waldur_core.configuration import config
 user, password = "temp-admin-" + secrets.token_hex(4), secrets.token_hex(32)
 homeserver = httpx.Client(base_url=config.MATRIX_HOMESERVER_URL)
 nonce = homeserver.get("/_synapse/admin/v1/register").raise_for_status().json()["nonce"]
@@ -456,7 +456,7 @@ behind:
 printf '%s\n' "$TOKEN" | waldur shell -c '
 import secrets, sys, time, httpx
 from urllib.parse import quote
-from constance import config
+from waldur_core.configuration import config
 homeserver = httpx.Client(base_url=config.MATRIX_HOMESERVER_URL, headers={
     "Authorization": "Bearer " + sys.stdin.readline().strip()})
 me = homeserver.get("/_matrix/client/v3/account/whoami").raise_for_status().json()["user_id"]
@@ -1327,7 +1327,7 @@ accounts and devices created after the backup are gone, and:
   ```bash
   waldur shell <<'EOF'
   import httpx
-  from constance import config
+  from waldur_core.configuration import config
   from django.db import transaction
   from django.utils.dateparse import parse_datetime
   from waldur_mastermind.matrix_chat import models, tasks
@@ -1435,7 +1435,7 @@ database does not have.
 waldur shell <<'EOF'
 import httpx
 from urllib.parse import quote
-from constance import config
+from waldur_core.configuration import config
 from waldur_mastermind.matrix_chat import matrix_client, models, tasks
 
 for profile in models.MatrixUserProfile.objects.filter(user__is_active=False).select_related("user"):

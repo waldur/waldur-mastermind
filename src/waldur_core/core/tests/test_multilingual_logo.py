@@ -4,13 +4,13 @@ import tempfile
 from io import StringIO
 from unittest import mock
 
-from constance import config
-from constance.models import Constance
 from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests.factories import UserFactory
 
@@ -90,7 +90,7 @@ class SetLoginLogoLanguageCommandTest(TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         # Clean up any existing setting
-        Constance.objects.filter(key="LOGIN_LOGO_MULTILINGUAL").delete()
+        Setting.objects.filter(key="LOGIN_LOGO_MULTILINGUAL").delete()
 
     def tearDown(self):
         import shutil
@@ -208,7 +208,7 @@ class SetLoginLogoLanguageCommandTest(TestCase):
             et_image,
         )
 
-        setting = Constance.objects.get(key="LOGIN_LOGO_MULTILINGUAL")
+        setting = Setting.objects.get(key="LOGIN_LOGO_MULTILINGUAL")
         self.assertIn("de", setting.value)
         self.assertIn("et", setting.value)
 
@@ -235,7 +235,7 @@ class MultilingualLogoRestApiTest(test.APITestCase):
         self.url = "/api/override-settings/"
         self.staff = UserFactory(is_staff=True)
         # Clean up any existing setting
-        Constance.objects.filter(key="LOGIN_LOGO_MULTILINGUAL").delete()
+        Setting.objects.filter(key="LOGIN_LOGO_MULTILINGUAL").delete()
 
     def test_staff_can_set_multilingual_logo_dict(self):
         """Staff can set LOGIN_LOGO_MULTILINGUAL via REST API."""
@@ -306,7 +306,7 @@ class MultilingualLogoBinaryUploadTest(test.APITestCase):
         self.url = "/api/override-settings/"
         self.staff = UserFactory(is_staff=True)
         # Clean up any existing setting
-        Constance.objects.filter(key="LOGIN_LOGO_MULTILINGUAL").delete()
+        Setting.objects.filter(key="LOGIN_LOGO_MULTILINGUAL").delete()
 
     def test_staff_can_upload_language_specific_logo_binary(self):
         """Staff can upload binary images for language-specific logos."""
@@ -391,7 +391,7 @@ class SingleLogoFileUploadTest(test.APITestCase):
         self.url = "/api/override-settings/"
         self.staff = UserFactory(is_staff=True)
         # Clean up any existing settings
-        Constance.objects.filter(
+        Setting.objects.filter(
             key__in=["SIDEBAR_LOGO_DARK", "SIDEBAR_LOGO", "LOGIN_LOGO"]
         ).delete()
 

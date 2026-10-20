@@ -5,11 +5,11 @@ import logging
 import mimetypes
 import os
 
-from constance import config
 from django.core.files.base import ContentFile
 from django.utils.timezone import now
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User as WaldurUser
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.zammad_utils import (

@@ -3,13 +3,13 @@ import textwrap
 from typing import cast
 
 import yaml
-from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
 from rest_framework import serializers
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import SshPublicKey, User

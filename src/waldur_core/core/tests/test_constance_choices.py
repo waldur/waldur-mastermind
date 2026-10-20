@@ -2,7 +2,7 @@ from django import forms
 from django.test import TestCase
 from rest_framework import status, test
 
-from waldur_core.core.constance_admin import WaldurConstanceForm
+from waldur_core.configuration.forms import SettingsForm
 from waldur_core.structure.tests.factories import UserFactory
 
 
@@ -10,7 +10,7 @@ class ConstanceAdminFormChoicesTest(TestCase):
     """Verify admin form injects CONSTANCE_CONFIG_CHOICES into dropdown fields."""
 
     def setUp(self):
-        self.form = WaldurConstanceForm(initial={})
+        self.form = SettingsForm(initial={})
 
     def test_choice_field_has_configured_choices(self):
         field = self.form.fields["LOGIN_PAGE_LAYOUT"]

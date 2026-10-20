@@ -596,15 +596,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-constance"
-version = "4.3.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/88/c7/ce27c5aac4f3283e88e4d8a5d6f8743c4952bccc56c7c474e2b08ef1ad36/django_constance-4.3.4.tar.gz", hash = "sha256:30d1b325f636177c708cce63abbde7015593f5c60b2bc0b0e2eebe8c36e2ce59", size = 175428, upload-time = "2025-11-12T10:43:01.098Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/f0/bd5d63ad23ca97ff3445c11c6cf2dbeb52336bbecb7c4692cc9d75a24c92/django_constance-4.3.4-py3-none-any.whl", hash = "sha256:598f8c967a675fe2c7fe3688510ac8302e1b6df2141d01b8d29577532a8241db", size = 64411, upload-time = "2025-11-12T10:42:59.198Z" },
-]
-
-[[package]]
 name = "django-cors-headers"
 version = "4.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3277,7 +3268,6 @@ dependencies = [
     { name = "django" },
     { name = "django-auth-ldap" },
     { name = "django-axes" },
-    { name = "django-constance" },
     { name = "django-cors-headers" },
     { name = "django-filter" },
     { name = "django-fsm" },
@@ -3375,7 +3365,6 @@ requires-dist = [
     { name = "django", specifier = ">=6.0.4,<7.0" },
     { name = "django-auth-ldap", specifier = ">=5.2.0,<6.0.0" },
     { name = "django-axes", specifier = ">=8.0.0,<9.0.0" },
-    { name = "django-constance", specifier = ">=4.0.0,<5.0.0" },
     { name = "django-cors-headers", specifier = ">=4.5.0,<5.0.0" },
     { name = "django-filter", specifier = "==24.3" },
     { name = "django-fsm", specifier = "==2.8.1" },

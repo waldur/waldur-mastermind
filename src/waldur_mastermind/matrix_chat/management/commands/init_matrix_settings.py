@@ -1,11 +1,12 @@
 import os
 from urllib.parse import urlsplit, urlunsplit
 
-from constance import settings as constance_settings
-from constance.utils import get_values_for_keys
 from django.core.management.base import BaseCommand, CommandError
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.configuration import config, registry
+from waldur_core.configuration.models import Source
+from waldur_core.configuration.secrets import UNDECRYPTABLE_PREFIX
 from waldur_core.core.serializers import ConstanceSettingsSerializer
 from waldur_mastermind.matrix_chat.serializers import (
     validate_homeserver_domain,
@@ -33,11 +34,6 @@ MATRIX_VALIDATORS = {
 APPSERVICE_TOKENS = ("MATRIX_APPSERVICE_AS_TOKEN", "MATRIX_APPSERVICE_HS_TOKEN")
 
 SENSITIVE_KEY_SUFFIXES = ("TOKEN", "SECRET", "PASSWORD", "KEY")
-
-# What the encrypted Constance backend returns for a secret that no configured
-# FIELD_ENCRYPTION_KEY decrypts: a random value with this prefix, non-empty so
-# no check takes it for "unset". Must match UNDECRYPTABLE_PREFIX there.
-UNDECRYPTABLE_PREFIX = "undecryptable:"
 
 
 # The Constance settings a deployment may seed, by name. An explicit list rather
@@ -77,15 +73,13 @@ DEPLOYMENT_ONLY = ("MATRIX_BOOTSTRAP_PASSWORD", "MATRIX_ADMIN_TOKEN")
 
 def managed_keys():
     """Every Constance setting this command is willing to seed."""
-    return sorted(k for k in SEEDABLE if k in constance_settings.CONFIG)
+    return sorted(k for k in SEEDABLE if registry.has(k))
 
 
 def is_sensitive(key):
     # The suffixes alone are not enough: a secret setting added to SEEDABLE
     # under a name that does not say so would be logged.
-    options = constance_settings.CONFIG[key]
-    is_secret_field = len(options) > 2 and options[2] == "secret_field"
-    return is_secret_field or key.endswith(SENSITIVE_KEY_SUFFIXES)
+    return registry.is_secret(key) or key.endswith(SENSITIVE_KEY_SUFFIXES)
 
 
 def without_userinfo(value):
@@ -192,10 +186,10 @@ class Command(BaseCommand):
                 "integration." % ", ".join(missing)
             )
 
-        # Read through the backend rather than `config`, whose attribute access
-        # stores the default on a miss: a refusal must write nothing, and a
-        # stored default would be indistinguishable from someone's choice.
-        stored = get_values_for_keys(["MATRIX_TOKENS_MANAGED_BY", *APPSERVICE_TOKENS])
+        stored = {
+            key: getattr(config, key)
+            for key in ("MATRIX_TOKENS_MANAGED_BY", *APPSERVICE_TOKENS)
+        }
 
         supplied = {key: os.environ[key] for key in managed_keys() if key in os.environ}
         # The packagers render this Job only when chat is switched on in their
@@ -203,8 +197,8 @@ class Command(BaseCommand):
         # seed a complete configuration and leave chat invisible. Only the
         # first seeding gets the default, though, so an administrator who
         # switched chat off does not have it switched back on by the next
-        # routine deploy. Whether MATRIX_ENABLED has a row cannot tell the first
-        # seeding apart, because any read of it stores one. The marker alone
+        # routine deploy. Whether MATRIX_ENABLED has a value cannot tell the
+        # first seeding apart: an administrator may have set it. The marker alone
         # cannot either: an administrator who clears it to hand the tokens back
         # leaves it blank too, and would find chat switched on again. A fresh
         # install has neither the marker nor any appservice token stored.
@@ -225,7 +219,11 @@ class Command(BaseCommand):
         # Compared after validation, which trims the values, so a Secret
         # rendered with a trailing newline still matches what it holds.
         self.refuse_to_replace_hand_configured_tokens(stored, serializer.validated_data)
-        serializer.save()
+        serializer.save(
+            source=Source.DEPLOYMENT,
+            source_detail="init_matrix_settings",
+            restamp_unchanged=True,
+        )
 
         for key in sorted(supplied):
             value = serializer.validated_data[key]

@@ -5,7 +5,6 @@ import re
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping
 
-from constance import LazyConfig, settings
 from django import forms
 from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
@@ -30,6 +29,8 @@ from rest_framework import serializers as rf_serializers
 from rest_framework.fields import Field, ReadOnlyField, empty, lazy_format
 from rest_framework.serializers import ListSerializer
 
+from waldur_core.configuration import config, registry
+from waldur_core.configuration.models import Setting
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
@@ -50,7 +51,6 @@ from waldur_mastermind.common.serializers import StringListSerializer
 from . import fields as core_fields
 
 logger = logging.getLogger(__name__)
-config = LazyConfig()
 
 
 class DictField(forms.CharField):
@@ -685,11 +685,11 @@ issue_key_prefix_validator = RegexValidator(
 class ConstanceSettingsSerializer(serializers.Serializer):
     def get_fields(self):
         fields = OrderedDict()
-        for name, options in settings.CONFIG.items():
+        for name, options in registry.definitions().items():
             default = options[0]
             if len(options) >= 3:
                 config_type = options[2]
-                if config_type not in settings.ADDITIONAL_FIELDS and not isinstance(
+                if config_type not in registry.additional_fields() and not isinstance(
                     default, config_type if isinstance(config_type, type) else str
                 ):
                     raise ImproperlyConfigured(
@@ -797,14 +797,23 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         validate_access_email_patterns(value)
         return value
 
-    def save(self):
-        for name in self.validated_data.keys():
-            # Skip fields that are not present in initial data which are sent via request
-            if name not in self.initial_data:
-                continue
+    def save(self, *, source, source_detail="", user=None, restamp_unchanged=False):
+        """Write the submitted settings whose value differs from the current one.
+
+        With ``restamp_unchanged`` an unchanged value is written too when its
+        row records another source, so that settings a deployment re-applies
+        are recorded as the deployment's. Forms leave it off: they submit
+        every setting, and would otherwise claim all of them.
+        """
+        # Skip fields that are not present in initial data which are sent via request
+        names = [name for name in self.validated_data if name in self.initial_data]
+        stamped = Setting.objects.sources(*names) if restamp_unchanged else {}
+        for name in names:
             current = getattr(config, name)
             new = self.validated_data[name]
-            if current != new:
+            if current != new or (
+                restamp_unchanged and stamped.get(name) != (source, source_detail)
+            ):
                 # Handle single image file
                 if hasattr(new, "name"):
                     new = default_storage.save(new.name, new)
@@ -821,7 +830,13 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                     new = processed
                 if isinstance(new, set):
                     new = list(new)
-                setattr(config, name, new)
+                Setting.objects.set(
+                    name,
+                    new,
+                    source=source,
+                    source_detail=source_detail,
+                    user=user,
+                )
 
 
 def get_localized_field_names(field_name: str) -> list[str]:

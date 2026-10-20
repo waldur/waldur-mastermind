@@ -4,11 +4,11 @@ import os
 import tempfile
 from enum import Enum
 
-from constance import config
 from docker.errors import ContainerError, DockerException
 from rest_framework import serializers as rf_serializers
 
 import docker
+from waldur_core.configuration import config
 from waldur_kubernetes import backend as kubernetes_backend
 
 from . import serializers
@@ -137,7 +137,7 @@ def construct_k8s_job_spec(image, command, volume_name, config_map_name, environ
 def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
     """
     This function expects that Kubernetes config file located in path
-    from constance config 'K8S_CONFIG_PATH' value
+    from the K8S_CONFIG_PATH setting
     """
     env = kwargs["environment"]
     job_name = f"job-{env['ORDER_UUID']}"

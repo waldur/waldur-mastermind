@@ -12,11 +12,11 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from celery import shared_task
-from constance import config
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoices_models

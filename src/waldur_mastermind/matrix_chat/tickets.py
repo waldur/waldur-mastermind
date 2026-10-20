@@ -37,7 +37,6 @@ import threading
 from datetime import timedelta
 
 import httpx
-from constance import config
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
@@ -47,6 +46,7 @@ from django.utils import timezone
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.request import Request
 
+from waldur_core.configuration import config
 from waldur_core.core.utils import format_homeport_link
 from waldur_mastermind.chat import access as chat_access
 from waldur_mastermind.chat import models as chat_models

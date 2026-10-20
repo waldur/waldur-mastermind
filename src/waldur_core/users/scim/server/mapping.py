@@ -13,8 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from constance import config
-
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.users.scim.server.ssh_keys import serialize_ssh_keys
 

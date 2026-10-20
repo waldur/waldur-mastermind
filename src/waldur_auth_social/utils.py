@@ -7,7 +7,6 @@ from typing import cast
 from urllib.parse import urlparse
 
 import requests
-from constance import config
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -26,6 +25,7 @@ from waldur_auth_social.const import (
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
 from waldur_autoprovisioning.models import Rule
+from waldur_core.configuration import config
 from waldur_core.core import signals as core_signals
 from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.models import SshPublicKey, User

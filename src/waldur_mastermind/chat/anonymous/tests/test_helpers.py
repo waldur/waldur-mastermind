@@ -3,11 +3,11 @@
 from unittest import mock
 
 import pytest
-from constance.test import override_config
 from django.db import DatabaseError, connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.anonymous import helpers
 from waldur_mastermind.chat.anonymous.helpers import (

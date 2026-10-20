@@ -1,8 +1,8 @@
 from unittest import mock
 
-from constance.test.unittest import override_config
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_mastermind.chat import health_checks
 
 

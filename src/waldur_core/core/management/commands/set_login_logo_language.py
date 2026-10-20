@@ -1,8 +1,10 @@
 import os
 
-from constance import config
 from django.core.files.storage import default_storage
 from django.core.management import BaseCommand
+
+from waldur_core.configuration import config
+from waldur_core.configuration.models import Setting, Source
 
 
 class Command(BaseCommand):
@@ -87,6 +89,11 @@ class Command(BaseCommand):
         )
 
     def _save_multilingual_setting(self, value):
-        """Write through config so config_updated fires and clears the cached
-        public settings."""
-        config.LOGIN_LOGO_MULTILINGUAL = value
+        """Write through the store so setting_updated fires and clears the
+        cached public settings."""
+        Setting.objects.set(
+            "LOGIN_LOGO_MULTILINGUAL",
+            value,
+            source=Source.CLI,
+            source_detail="set_login_logo_language",
+        )

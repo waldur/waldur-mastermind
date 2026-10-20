@@ -1,12 +1,13 @@
 import importlib
 import json
 
-from constance.test import override_config
 from django.apps import apps
 from django.db import connection
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
+from waldur_core.configuration.tests.utils import ConstanceTableMixin
 from waldur_core.structure.tests.factories import UserFactory
 
 migration = importlib.import_module(
@@ -18,7 +19,7 @@ def stored(value):
     return json.dumps({"__type__": "default", "__value__": value})
 
 
-class RenameMatrixLoginMethodMigrationTest(TestCase):
+class RenameMatrixLoginMethodMigrationTest(ConstanceTableMixin, TestCase):
     def _set(self, key, value):
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM constance_constance WHERE key = %s", [key])

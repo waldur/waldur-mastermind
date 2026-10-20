@@ -2,11 +2,11 @@
 
 from datetime import timedelta
 
-from constance.test.unittest import override_config
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.tests.scim.conftest import make_staff_token

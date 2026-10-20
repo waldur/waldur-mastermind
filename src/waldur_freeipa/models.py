@@ -1,7 +1,6 @@
 import re
 from typing import cast
 
-from constance import config
 from django.conf import settings
 from django.core import exceptions, validators
 from django.db import models
@@ -10,6 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.tracker import FieldInstanceTracker
 
+from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 
 

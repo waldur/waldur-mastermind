@@ -3,7 +3,6 @@ import decimal
 from unittest import mock
 
 import requests
-from constance.test import override_config
 from django.conf import settings
 from django.core.management import call_command
 from django.test import override_settings
@@ -11,6 +10,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework.test import APITestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure import vies
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import handlers, models, tasks, vat

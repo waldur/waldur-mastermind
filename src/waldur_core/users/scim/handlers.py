@@ -1,7 +1,8 @@
 """Signal handlers for SCIM integration."""
 
-from constance import config
 from django.db import transaction
+
+from waldur_core.configuration import config
 
 
 def schedule_user_sync(sender, instance, **kwargs):

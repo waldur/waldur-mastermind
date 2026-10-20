@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}{{ form.non_field_errors }}{% endif %}
+    {% for title, fields in fieldsets %}
+    <fieldset class="module aligned">
+      <h2>{{ title }}</h2>
+      {% for field in fields %}
+      <div class="form-row{% if field.errors %} errors{% endif %}">
+        {{ field.errors }}
+        <div>
+          <label for="{{ field.id_for_label }}"><code>{{ field.name }}</code></label>
+          {{ field }}
+          {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </fieldset>
+    {% endfor %}
+    {% if can_change %}
+    <div class="submit-row">
+      <input type="submit" value="{% translate 'Save' %}" class="default">
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

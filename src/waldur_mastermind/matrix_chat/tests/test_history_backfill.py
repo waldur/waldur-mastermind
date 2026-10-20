@@ -6,7 +6,6 @@ from unittest import mock
 
 import vodozemac
 from asgiref.sync import async_to_sync
-from constance.test import override_config
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
@@ -25,6 +24,7 @@ from nio.crypto import (
 )
 from rest_framework import test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.matrix_chat import (

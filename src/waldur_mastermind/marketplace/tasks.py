@@ -11,7 +11,6 @@ from typing import cast
 import httpx
 import requests
 from celery import shared_task
-from constance import config
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -23,6 +22,7 @@ from rest_framework import status
 
 from waldur_core import _get_version
 from waldur_core.checklist import models as checklist_models
+from waldur_core.configuration import config
 from waldur_core.core import features as core_features
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils

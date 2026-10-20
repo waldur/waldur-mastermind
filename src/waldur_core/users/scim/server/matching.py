@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import re
 
-from constance import config
 from django.core.exceptions import FieldDoesNotExist
 from django.db.models import CharField, EmailField, TextField
 
+from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.core.user_attributes import get_enabled_profile_attributes
 from waldur_core.users.scim.server.exceptions import ScimError

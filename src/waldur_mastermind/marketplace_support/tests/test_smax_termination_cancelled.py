@@ -2,10 +2,12 @@
 
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models

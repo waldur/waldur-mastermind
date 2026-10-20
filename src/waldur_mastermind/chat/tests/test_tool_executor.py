@@ -1,11 +1,13 @@
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.chat.tools.account.display_user_resources import (

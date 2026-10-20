@@ -2,12 +2,12 @@
 
 from datetime import timedelta
 
-from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import CustomerRoleConcealment, UserRole
 from waldur_core.permissions.utils import add_user

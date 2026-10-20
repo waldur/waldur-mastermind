@@ -8,7 +8,6 @@ from urllib.parse import urlsplit
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v3 import client as cinder_client
-from constance import config
 from django.core.cache import cache
 from glanceclient import exc as glance_exceptions
 from glanceclient.v2 import client as glance_client
@@ -23,6 +22,7 @@ from novaclient import client as nova_client
 from novaclient import exceptions as nova_exceptions
 from novaclient.v2 import client as nova2_client
 
+from waldur_core.configuration import config
 from waldur_core.core.utils import QuietSession
 from waldur_core.structure.backend import current_backend_action
 from waldur_openstack.exceptions import (

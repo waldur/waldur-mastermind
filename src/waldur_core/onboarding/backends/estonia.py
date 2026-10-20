@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import requests
-from constance import config
 
+from waldur_core.configuration import config
 from waldur_core.onboarding import enums
 
 from .base import (

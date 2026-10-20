@@ -1,32 +1,23 @@
 import os
 
-from constance import config
-from constance.codecs import loads
-from constance.models import Constance
-from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.management import BaseCommand
 from django.utils.translation import gettext as _
 
-
-def drop_unencoded_value(setting_key):
-    """Earlier versions of this command stored the bare file name, which the
-    codec cannot decode, and Constance decodes the old value on every write."""
-    row = Constance.objects.filter(key=setting_key).first()
-    if row is None or row.value is None:
-        return
-    try:
-        loads(row.value)
-    except ValueError:
-        row.delete()
+from waldur_core.configuration import registry
+from waldur_core.configuration.models import Setting, Source
 
 
 def make_constance_file_value(image_path, setting_key):
     with open(image_path, "rb") as image_content:
         filename = os.path.basename(image_path)
         path = default_storage.save(filename, image_content)
-    drop_unencoded_value(setting_key)
-    setattr(config, setting_key, os.path.split(path)[1])
+    Setting.objects.set(
+        setting_key,
+        os.path.split(path)[1],
+        source=Source.CLI,
+        source_detail="set_constance_image",
+    )
 
 
 class Command(BaseCommand):
@@ -49,14 +40,13 @@ class Command(BaseCommand):
         setting_key = options["key"]
         path = options["path"]
 
-        if setting_key not in settings.CONSTANCE_CONFIG:
+        if not registry.has(setting_key):
             self.stdout.write(
                 self.style.ERROR(f"{setting_key} is not a valid Constance setting")
             )
             return
 
-        definition = settings.CONSTANCE_CONFIG[setting_key]
-        if len(definition) < 3 or definition[2] != "image_field":
+        if registry.field_type(setting_key) != "image_field":
             self.stdout.write(
                 self.style.ERROR(f"{setting_key} is not an image setting")
             )

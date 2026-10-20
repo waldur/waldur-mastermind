@@ -1,9 +1,9 @@
 from unittest import mock
 from unittest.mock import Mock
 
-from constance.test import override_config
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.onboarding.backends.austria import AustriaRegisterBackend
 from waldur_core.onboarding.backends.base import ValidationRequest
 

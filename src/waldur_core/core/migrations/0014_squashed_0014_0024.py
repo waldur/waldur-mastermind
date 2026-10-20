@@ -32,7 +32,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("core", "0013_alter_user_phone_number"),
-        ("constance", "0003_drop_pickle"),
     ]
 
     operations = [

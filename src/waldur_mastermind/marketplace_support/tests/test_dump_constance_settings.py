@@ -4,18 +4,17 @@ from io import StringIO
 from unittest.mock import patch
 
 import yaml
-from constance import LazyConfig
-from constance import settings as constance_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
 
+from waldur_core.configuration import config, registry
 from waldur_core.core import logos
 
 
 class DumpConstanceSettingsCommandTest(TestCase):
     def setUp(self):
-        self.config = LazyConfig()
+        self.config = config
         # Store original values for cleanup
         self.original_values = {}
         self.test_settings = [
@@ -249,7 +248,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
         list_settings = []
         dict_settings = []
 
-        for name, options in constance_settings.CONFIG.items():
+        for name, options in registry.definitions().items():
             if len(options) >= 3:
                 config_type = options[2]
                 if config_type == "list_field":

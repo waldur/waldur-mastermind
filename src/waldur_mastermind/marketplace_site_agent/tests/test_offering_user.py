@@ -1,10 +1,12 @@
 import tomllib
 from unittest import mock
 
-from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from rest_framework import test
 
+from waldur_core.configuration.testing import (
+    override_config as override_constance_config,
+)
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.fixtures import ProjectRole

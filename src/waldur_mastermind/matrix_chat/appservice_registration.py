@@ -56,10 +56,10 @@ from urllib.parse import quote
 
 import httpx
 import yaml
-from constance import config
 from rest_framework.exceptions import ValidationError
 
-from waldur_core.core.constance_backend import UNDECRYPTABLE_PREFIX
+from waldur_core.configuration import config
+from waldur_core.configuration.secrets import UNDECRYPTABLE_PREFIX
 from waldur_mastermind.matrix_chat import models, serializers
 
 logger = logging.getLogger(__name__)

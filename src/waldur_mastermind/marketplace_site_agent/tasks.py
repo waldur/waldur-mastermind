@@ -2,11 +2,11 @@ import datetime
 import logging
 
 from celery import shared_task
-from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Max
 from django.utils import timezone
 
+from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import PersonalAccessToken
 from waldur_core.logging import backend as logging_backend

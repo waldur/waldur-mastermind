@@ -2,10 +2,10 @@ import logging
 import mimetypes
 import os
 
-from constance import config
 from django.core.files.base import ContentFile
 from django.template import Context, Template
 
+from waldur_core.configuration import config
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User as WaldurUser
 from waldur_core.core.utils import text2html
