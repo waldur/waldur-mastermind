@@ -56,6 +56,19 @@ single key cannot be limited, and a leaked key can only be rotated. So a key may
 carry an **assignee**, and then only that person (plus staff and support) can
 reveal it.
 
+**A resource under per-key management starts with no keys.** Where the offering
+manages keys one by one (`enable_api_key_provisioning`, below) and the agent's
+backend can mint a key on request, the agent provisions none. A key can be
+requested at any time there, so a replacement is created, clients move to it, and
+the old key is deleted. The default pair would only be two shared keys with no
+assignee and no limits, which any member of the resource's project or
+organization can reveal. Its users request their own keys instead. A restored
+resource follows the same rule. Its key rows were deleted when it terminated, so
+it comes back with none. Existing resources keep the keys they have when the option is turned
+on or off. Wherever either condition does not hold, the pair stays, as on a
+backend without per-key commands such as ceph-s3. The agent decides this, so
+Waldur's API and models are unchanged.
+
 **The assignee can rotate their own key.** Whoever is trusted with a key's value
 is trusted to replace it, so a person who suspects their key has leaked does not
 have to find a manager while it stays live. Nothing else follows from being the
@@ -350,7 +363,7 @@ sequenceDiagram
 
 Rotation never touches the other keys, so a consumer authenticating with a
 sibling key keeps working throughout — that is what makes it zero-downtime, and
-why two keys are provisioned.
+why two keys are provisioned where keys are not managed one by one.
 
 Commands (observable type `resource_api_key_rotation` — the name predates the
 other commands and agents subscribe to it by name) carry a **slim** payload:
