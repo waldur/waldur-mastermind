@@ -5877,6 +5877,9 @@ class ResourceApiKey(
 
     States = ResourceApiKeyStates
     Actions = ResourceApiKeyActions
+    # Alone in allowed_models, it stands for every model, including ones the
+    # offering adds later.
+    ALL_MODELS = "*"
 
     resource = models.ForeignKey(
         to=Resource, on_delete=models.CASCADE, related_name="api_keys"
@@ -5925,9 +5928,11 @@ class ResourceApiKey(
         ),
     )
     allowed_models = models.JSONField(
-        null=True,
+        default=list,
         blank=True,
-        help_text=_("Models this key may call; null allows every model."),
+        help_text=_(
+            'Models this key may call: ["*"] for every model, an empty list for none.'
+        ),
     )
     current_usages = models.JSONField(
         null=True,
@@ -5951,6 +5956,13 @@ class ResourceApiKey(
             "Waldur paused the key because its usage reached a limit. Such a key "
             "is resumed automatically once its usage is under its limits again: "
             "in a new month, or when a limit is raised."
+        ),
+    )
+    models_outdated = models.BooleanField(
+        default=False,
+        help_text=_(
+            "The resource's model selection changed while the key could not take "
+            "an update. Waldur sends one once the key settles."
         ),
     )
 

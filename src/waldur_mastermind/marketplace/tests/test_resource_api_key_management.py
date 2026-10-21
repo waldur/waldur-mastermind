@@ -5,6 +5,7 @@ import datetime
 from importlib import import_module
 from unittest import mock
 
+from django.db import connection
 from django.db.migrations.loader import MigrationLoader
 from django.test import override_settings
 from rest_framework import status, test
@@ -31,6 +32,10 @@ NEXT_MONTH = (THIS_MONTH + datetime.timedelta(days=31)).replace(day=1)
 migration = import_module(
     "waldur_mastermind.marketplace.migrations.0302_resource_api_key_backfill"
 )
+all_models_migration = import_module(
+    "waldur_mastermind.marketplace.migrations.0308_resource_api_key_all_models"
+)
+ALL_MODELS = [models.ResourceApiKey.ALL_MODELS]
 
 
 def list_url(action=None):
@@ -119,7 +124,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
         self.assertIsNone(key.user)
         self.assertIsNone(key.limits)
-        self.assertIsNone(key.allowed_models)
+        self.assertEqual(key.allowed_models, [])
 
     def test_several_requests_can_wait_for_a_client_id_at_once(self):
         for _ in range(2):
@@ -490,6 +495,134 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.put(detail_url(self.key), {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class ModelListTest(ApiKeyManagementTestBase):
+    """A key's model list is never null: ``["*"]`` is every model, ``[]`` none."""
+
+    def setUp(self):
+        super().setUp()
+        self.offering.resource_options = {
+            "options": {"models": {"choices": ["llama-3", "mistral"]}}
+        }
+        self.offering.save()
+
+    def request(self, **body):
+        return self.post(
+            self.fixture.owner, list_url(), {"resource": self.resource.uuid.hex, **body}
+        )
+
+    def patch(self, key, data):
+        self.client.force_authenticate(self.fixture.owner)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.patch(detail_url(key), data, format="json")
+        return response, prepare
+
+    def test_each_form_is_stored_returned_and_sent_as_given(self):
+        for allowed_models in (ALL_MODELS, [], ["llama-3", "mistral"]):
+            with self.subTest(allowed_models):
+                response, prepare = self.request(allowed_models=allowed_models)
+                self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+                self.assertEqual(response.data["allowed_models"], allowed_models)
+                key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
+                self.assertEqual(key.allowed_models, allowed_models)
+                self.assertEqual(
+                    self.published_payload(prepare)["allowed_models"], allowed_models
+                )
+
+    def test_a_request_without_a_model_list_gets_no_models(self):
+        response, prepare = self.request()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["allowed_models"], [])
+        key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(key.allowed_models, [])
+        self.assertEqual(self.published_payload(prepare)["allowed_models"], [])
+
+    def test_every_model_cannot_be_combined_with_a_model(self):
+        for allowed_models in (["*", "llama-3"], ["llama-3", "*"], ["*", "*"]):
+            with self.subTest(allowed_models):
+                response, prepare = self.request(allowed_models=allowed_models)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("allowed_models", response.data)
+                prepare.assert_not_called()
+                response, prepare = self.patch(
+                    self.key, {"allowed_models": allowed_models}
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                prepare.assert_not_called()
+
+    def test_null_is_refused(self):
+        response, prepare = self.request(allowed_models=None)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allowed_models", response.data)
+        prepare.assert_not_called()
+
+        response, prepare = self.patch(self.key, {"allowed_models": None})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allowed_models", response.data)
+        prepare.assert_not_called()
+
+    def test_an_edit_without_a_model_list_keeps_it(self):
+        self.key.allowed_models = ["mistral"]
+        self.key.save()
+        response, prepare = self.patch(self.key, {"limits": {"tokens": 50}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["allowed_models"], ["mistral"])
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.allowed_models, ["mistral"])
+        self.assertEqual(self.published_payload(prepare)["allowed_models"], ["mistral"])
+
+    def test_an_edit_can_take_every_model_away_and_give_them_back(self):
+        self.key.allowed_models = ALL_MODELS
+        self.key.save()
+        for allowed_models in ([], ALL_MODELS):
+            with self.subTest(allowed_models):
+                response, prepare = self.patch(
+                    self.key, {"allowed_models": allowed_models}
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["allowed_models"], allowed_models)
+                self.assertEqual(
+                    self.published_payload(prepare)["allowed_models"], allowed_models
+                )
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.allowed_models, allowed_models)
+                self.key.set_ok()
+                self.key.save()
+
+    def test_a_key_reported_without_a_request_may_call_every_model(self):
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            list_url("report-created"),
+            {
+                "resource": self.resource.uuid.hex,
+                "client_id": "cid-9",
+                "api_key": "sk-new",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["allowed_models"], ALL_MODELS)
+        key = self.resource.api_keys.get(client_id="cid-9")
+        self.assertEqual(key.allowed_models, ALL_MODELS)
+
+    def test_a_report_for_a_key_already_held_leaves_its_models_alone(self):
+        self.key.allowed_models = ["mistral"]
+        self.key.save()
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            list_url("report-created"),
+            {
+                "resource": self.resource.uuid.hex,
+                "client_id": self.key.client_id,
+                "api_key": "sk-new",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.allowed_models, ["mistral"])
 
 
 class AssigneeRevealTest(ApiKeyManagementTestBase):
@@ -1388,6 +1521,22 @@ class CommandEnumTest(test.APITestCase):
             utils.publish_api_key_event(key, "explode")
         prepare.assert_not_called()
 
+    def test_a_resource_without_a_model_selection_leaves_the_key_list_as_stored(self):
+        # The list sent is the effective one (test_resource_model_selection); a
+        # resource whose offering has no model selection narrows nothing.
+        for allowed_models in (ALL_MODELS, [], ["llama-3"]):
+            key = models.ResourceApiKey.objects.create(
+                resource=factories.ResourceFactory(), allowed_models=allowed_models
+            )
+            for action in Actions.CARRY_SETTINGS:
+                with (
+                    self.subTest(allowed_models=allowed_models, action=action),
+                    mock.patch(PREPARE, return_value=[]) as prepare,
+                ):
+                    utils.publish_api_key_event(key, action)
+                    payload = prepare.call_args.args[1]
+                    self.assertEqual(payload["allowed_models"], allowed_models)
+
     def test_settings_travel_only_with_commands_that_configure_the_key(self):
         key = models.ResourceApiKey.objects.create(
             resource=factories.ResourceFactory(),
@@ -1411,6 +1560,7 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         self.offering.save()
         self.key.user = self.fixture.admin
         self.key.limits = {"tokens": 5}
+        self.key.allowed_models = ALL_MODELS
         self.key.save()
 
     def test_managed_fields_are_null(self):
@@ -1580,3 +1730,83 @@ class MigrationTest(test.APITestCase):
         self.assertEqual(stored.issued_at, stored.modified)
         awaited.refresh_from_db()
         self.assertIsNone(awaited.issued_at)
+
+    def nullable_model_lists(self):
+        # The column no longer takes null; the migration ran while it still did.
+        # Before any key exists: Postgres refuses to alter a table with rows the
+        # open transaction wrote.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "ALTER TABLE marketplace_resourceapikey "
+                "ALTER COLUMN allowed_models DROP NOT NULL"
+            )
+
+    def set_null(self, *keys):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE marketplace_resourceapikey SET allowed_models = NULL "
+                "WHERE id = ANY(%s)",
+                [[key.pk for key in keys]],
+            )
+
+    def test_a_key_without_a_model_list_keeps_calling_every_model(self):
+        self.nullable_model_lists()
+        resource = factories.ResourceFactory()
+        unrestricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-1", state=States.OK
+        )
+        deleted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-2", state=States.DELETED
+        )
+        restricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-3", allowed_models=["mistral"]
+        )
+        self.set_null(unrestricted, deleted)
+        apps = MigrationLoader(None).project_state().apps
+        all_models_migration.null_to_all_models(apps, None)
+
+        for key in (unrestricted, deleted):
+            key.refresh_from_db()
+            self.assertEqual(key.allowed_models, ALL_MODELS)
+        restricted.refresh_from_db()
+        self.assertEqual(restricted.allowed_models, ["mistral"])
+
+    def test_reversed_every_model_is_null_again(self):
+        self.nullable_model_lists()
+        resource = factories.ResourceFactory()
+        unrestricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-1", allowed_models=ALL_MODELS
+        )
+        restricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-2", allowed_models=["mistral"]
+        )
+        apps = MigrationLoader(None).project_state().apps
+        all_models_migration.all_models_to_null(apps, None)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT allowed_models IS NULL FROM marketplace_resourceapikey "
+                "WHERE id = %s",
+                [unrestricted.pk],
+            )
+            self.assertTrue(cursor.fetchone()[0])
+        restricted.refresh_from_db()
+        self.assertEqual(restricted.allowed_models, ["mistral"])
+
+    def test_reversing_refuses_while_a_key_may_call_no_model(self):
+        # The earlier code reads an empty list as every model, so rolling back
+        # would let this key call every one.
+        self.nullable_model_lists()
+        resource = factories.ResourceFactory()
+        no_models = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-1", allowed_models=[]
+        )
+        unrestricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-2", allowed_models=ALL_MODELS
+        )
+        apps = MigrationLoader(None).project_state().apps
+        with self.assertRaisesMessage(RuntimeError, no_models.uuid.hex):
+            all_models_migration.all_models_to_null(apps, None)
+
+        unrestricted.refresh_from_db()
+        self.assertEqual(unrestricted.allowed_models, ALL_MODELS)

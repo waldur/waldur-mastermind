@@ -59,6 +59,16 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.send_resource_state_change_to_message_queue",
         )
         signals.post_save.connect(
+            handlers.update_api_keys_when_offering_models_change,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.update_api_keys_when_offering_models_change",
+        )
+        signals.post_save.connect(
+            handlers.update_api_keys_on_resource_models_change,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.update_api_keys_on_resource_models_change",
+        )
+        signals.post_save.connect(
             handlers.send_end_date_change_request_to_message_queue,
             sender=models.ResourceEndDateChangeRequest,
             dispatch_uid="waldur_mastermind.marketplace.send_end_date_change_request_to_message_queue",
