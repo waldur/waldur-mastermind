@@ -5370,7 +5370,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
     )
 
     security_groups = OpenStackNestedSecurityGroupSerializer(many=True, required=False)
-    server_group = OpenStackNestedServerGroupSerializer()
+    server_group = OpenStackNestedServerGroupSerializer(allow_null=True)
     ports = OpenStackNestedPortSerializer(many=True, required=True)
     floating_ips = OpenStackNestedFloatingIPSerializer(
         many=True, read_only=True, source="attached_floating_ips"
