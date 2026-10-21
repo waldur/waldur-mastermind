@@ -2,13 +2,16 @@ from unittest import mock
 
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models
-from waldur_mastermind.support.backend import SupportBackendType
+from waldur_mastermind.support.backend import SupportBackendError, SupportBackendType
+from waldur_mastermind.support.backend.email_backend import EmailSupportBackend
 from waldur_mastermind.support.tests import base, factories, fixtures
 
 
@@ -54,8 +57,8 @@ class ProviderHelpdeskBaseTest(test.APITestCase):
         # Every backend that permits updates persists them from update_issue
         # (BasicBackend and EmailSupportBackend both end in issue.save()), and
         # the views rely on that rather than saving behind the backend's back.
-        self.mock_get_active_backend().update_issue.side_effect = (
-            lambda issue: issue.save()
+        self.mock_get_active_backend().update_issue.side_effect = lambda issue: (
+            issue.save()
         )
         self.mock_get_active_backend().summary_max_length = 255
         self.mock_get_active_backend().pull_support_users = mock.MagicMock()
@@ -520,12 +523,39 @@ class ProviderTicketCommentTest(ProviderHelpdeskBaseTest):
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_provider_comment_calls_backend_create_comment(self):
+    def test_provider_comment_uses_provider_backend_not_global(self):
+        # Regression for issue #94: a comment on a provider-routed ticket must
+        # go to that provider's own helpdesk backend (here the built-in basic
+        # desk), never the operator's globally configured backend.
         self.client.force_authenticate(self.owner)
         url = _provider_ticket_url(self.child_issue, action="comment")
         data = {"description": "Test backend call"}
-        self.client.post(url, data, format="json")
-        self.mock_get_active_backend().create_comment.assert_called_once()
+        response = self.client.post(url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.mock_get_active_backend().create_comment.assert_not_called()
+        comment = models.Comment.objects.get(issue=self.child_issue)
+        # The provider's basic backend handled it and stamped a backend id.
+        self.assertTrue(comment.backend_id)
+
+    def test_provider_comment_backend_failure_returns_clean_error(self):
+        # Regression for issue #94: when the ticket's backend fails to accept
+        # the comment, the caller gets a clean 400, not a raw 500, and no
+        # orphan comment is left behind.
+        self.client.force_authenticate(self.owner)
+        url = _provider_ticket_url(self.child_issue, action="comment")
+        failing = mock.Mock()
+        failing.create_comment.side_effect = ServiceBackendError(
+            "Site temporarily unavailable"
+        )
+        with mock.patch(
+            "waldur_mastermind.support.backend.get_backend_for_provider",
+            return_value=failing,
+        ):
+            response = self.client.post(url, {"description": "note"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(models.Comment.objects.filter(issue=self.child_issue).exists())
 
     def test_comment_returns_uuid_and_description(self):
         self.client.force_authenticate(self.owner)
@@ -536,6 +566,127 @@ class ProviderTicketCommentTest(ProviderHelpdeskBaseTest):
         self.assertIn("uuid", response.data)
         self.assertIn("description", response.data)
         self.assertEqual(response.data["description"], "Check response shape")
+
+
+class IssueCommentProviderRoutingTest(ProviderHelpdeskBaseTest):
+    """IssueViewSet.comment must route to the ticket's own backend (issue #94).
+
+    This is the path the reporter hit: an organization owner commenting on a
+    provider-routed ticket via POST /api/support-issues/{uuid}/comment/.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.parent_issue = factories.IssueFactory(backend_id="WLD-700")
+        # Raised against the caller's own organization and commented on by its
+        # owner -- the reported setup -- which also exercises _comment_permission
+        # rather than the staff short-circuit.
+        self.child_issue = factories.IssueFactory(
+            parent_issue=self.parent_issue,
+            provider_helpdesk=self.helpdesk,
+            customer=self.fixture.customer,
+            backend_id="WLD-701",
+            status="Open",
+        )
+
+    def _comment_url(self):
+        return factories.IssueFactory.get_url(self.child_issue, action="comment")
+
+    def test_comment_on_provider_child_uses_provider_backend(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self._comment_url(), {"description": "hello"})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.mock_get_active_backend().create_comment.assert_not_called()
+        comment = models.Comment.objects.get(issue=self.child_issue)
+        self.assertTrue(comment.backend_id)
+
+    def test_comment_backend_failure_returns_clean_error(self):
+        self.client.force_authenticate(self.fixture.owner)
+        failing = mock.Mock()
+        failing.comment_create_is_available.return_value = True
+        failing.create_comment.side_effect = SupportBackendError(
+            "Site temporarily unavailable"
+        )
+        with mock.patch(
+            "waldur_mastermind.support.backend.get_backend_for_provider",
+            return_value=failing,
+        ):
+            response = self.client.post(self._comment_url(), {"description": "hello"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(models.Comment.objects.filter(issue=self.child_issue).exists())
+
+
+class IssueCommentAvailabilityFlagTest(ProviderHelpdeskBaseTest):
+    """The add_comment/add_attachment flags must follow the ticket's own
+    backend, matching the comment validator.
+
+    Otherwise a routed child whose provider desk (basic) has closed the ticket
+    still advertises commenting as available -- because the global Atlassian
+    backend says so -- and the UI offers a comment box whose POST is then
+    rejected with "Creating is not available."
+    """
+
+    def setUp(self):
+        super().setUp()
+        parent = factories.IssueFactory(backend_id="WLD-800")
+        self.resolved_child = factories.IssueFactory(
+            parent_issue=parent,
+            provider_helpdesk=self.helpdesk,
+            backend_id="WLD-801",
+            resolution_date=timezone.now(),
+        )
+
+    def test_flags_follow_provider_backend_not_global(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.IssueFactory.get_url(self.resolved_child))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        # The provider desk is basic and the ticket is closed, so neither is
+        # available -- even though the mocked global backend reports both True.
+        self.assertFalse(response.data["add_comment_is_available"])
+        self.assertFalse(response.data["add_attachment_is_available"])
+
+
+class EmailProviderCommentTest(test.APITestCase):
+    """EmailSupportBackend.create_comment must not email a provider their own
+    reply.
+
+    ``ProviderTicketViewSet.comment`` is the provider's own staff replying;
+    before comments were routed to the provider backend, the global backend
+    handled this and sent nothing. The notification goes to the provider team,
+    which is who the agent is -- so skip it when the author is an active
+    support user of that desk, while still stamping the comment locally.
+    """
+
+    def setUp(self):
+        self.helpdesk = factories.ProviderHelpdeskFactory(
+            backend_type=models.ProviderHelpdesk.BackendTypes.EMAIL,
+            notification_email="desk@example.com",
+        )
+        self.backend = EmailSupportBackend.from_settings({}, self.helpdesk)
+        self.issue = factories.IssueFactory(provider_helpdesk=self.helpdesk)
+
+    @mock.patch("waldur_mastermind.support.backend.email_backend.broadcast_mail")
+    def test_customer_comment_emails_the_provider(self, mock_mail):
+        comment = factories.CommentFactory(issue=self.issue)
+        self.backend.create_comment(comment)
+        mock_mail.assert_called_once()
+
+    @mock.patch("waldur_mastermind.support.backend.email_backend.broadcast_mail")
+    def test_provider_agent_reply_sends_no_email(self, mock_mail):
+        agent = factories.SupportUserFactory()
+        factories.ProviderSupportUserFactory(
+            provider_helpdesk=self.helpdesk, user=agent.user, is_active=True
+        )
+        comment = factories.CommentFactory(
+            issue=self.issue, author=agent, backend_id=""
+        )
+        self.backend.create_comment(comment)
+        mock_mail.assert_not_called()
+        # The comment is still recorded locally with a backend id.
+        comment.refresh_from_db()
+        self.assertTrue(comment.backend_id)
 
 
 class ProviderTicketResolveTest(ProviderHelpdeskBaseTest):
