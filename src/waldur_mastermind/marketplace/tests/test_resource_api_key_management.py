@@ -185,6 +185,53 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def request_for(self, user):
+        return self.post(
+            self.fixture.owner,
+            list_url(),
+            {"resource": self.resource.uuid.hex, "user": user.uuid.hex},
+        )
+
+    def test_a_person_holds_one_key_per_resource(self):
+        self.key.user = self.fixture.admin
+        self.key.save()
+        response, prepare = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("cid-1", str(response.data["user"]))
+        prepare.assert_not_called()
+        self.assertEqual(self.resource.api_keys.count(), 1)
+
+    def test_a_requested_key_holds_its_assignee_too(self):
+        self.make_key("", state=States.CREATING, user=self.fixture.admin)
+        response, prepare = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        prepare.assert_not_called()
+
+    def test_a_key_being_deleted_still_holds_its_assignee(self):
+        # Its delete may yet fail and leave it serving.
+        self.key.user = self.fixture.admin
+        self.key.state = States.DELETING
+        self.key.save()
+        response, _ = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_deleted_key_frees_its_assignee(self):
+        self.key.user = self.fixture.admin
+        self.key.state = States.DELETED
+        self.key.save()
+        response, _ = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_a_key_on_another_resource_does_not_count(self):
+        other = factories.ResourceFactory(
+            project=self.fixture.project, offering=self.offering
+        )
+        models.ResourceApiKey.objects.create(
+            resource=other, client_id="cid-9", state=States.OK, user=self.fixture.admin
+        )
+        response, _ = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_limits_must_name_offering_components(self):
         response, _ = self.post(
             self.fixture.owner,
@@ -414,6 +461,27 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.assertEqual(self.key.user, self.fixture.admin)
         self.assertEqual(self.key.pending_action, Actions.UPDATE)
         self.assertEqual(self.published_payload(prepare)["limits"], {"tokens": 50})
+
+    def test_an_assignee_who_holds_another_key_cannot_take_this_one(self):
+        self.make_key("cid-2", user=self.fixture.admin)
+        response, prepare = self.patch(
+            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("cid-2", str(response.data["user"]))
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.user)
+
+    def test_editing_a_key_keeps_its_own_assignee(self):
+        self.key.user = self.fixture.admin
+        self.key.save()
+        response, _ = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"user": self.fixture.admin.uuid.hex, "limits": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_agent_acknowledges_an_update(self):
         self.key.set_updating(Actions.UPDATE)

@@ -116,13 +116,42 @@ def _lock(api_key: models.ResourceApiKey) -> models.ResourceApiKey:
 
 
 def _lock_resource(resource: models.Resource) -> models.Resource:
-    """Lock the resource, so its model selection holds until the key is saved.
+    """Lock the resource; taken before any of its keys.
 
-    A change to the selection writes the resource row and then looks for its
-    keys; a key created under this lock is either seen by it or created after
-    it, with the new selection.
+    It serializes assignments on one resource, and holds the resource's model
+    selection until the key is saved: a change to the selection writes the
+    resource row and then looks for its keys, so a key created under this lock
+    is either seen by it or created after it, with the new selection.
     """
     return models.Resource.objects.select_for_update().get(pk=resource.pk)
+
+
+def require_free_assignee(
+    resource: models.Resource, user, api_key: models.ResourceApiKey | None = None
+) -> None:
+    """Refuse to assign someone a second key on one resource.
+
+    A person holds at most one key per resource: the backend ties their own
+    use of the resource, such as chat, to the key assigned to them, and two
+    keys would leave it two answers. A key holds its assignee until it is
+    Deleted; one still being deleted may yet fail and stay. Keys on other
+    resources do not count. Called with the resource locked.
+    """
+    if user is None:
+        return
+    held = resource.api_keys.filter(user=user).exclude(state=States.DELETED)
+    if api_key is not None:
+        held = held.exclude(pk=api_key.pk)
+    other = held.first()
+    if other is not None:
+        name = other.client_id or "a requested key"
+        raise ValidationError(
+            {
+                "user": f"{user.full_name or user.username} already holds an API "
+                f"key on this resource ({name}). A person holds at most one key "
+                f"per resource: unassign or delete that key first."
+            }
+        )
 
 
 def request_key(resource: models.Resource, actor, **settings) -> models.ResourceApiKey:
@@ -131,6 +160,7 @@ def request_key(resource: models.Resource, actor, **settings) -> models.Resource
     with transaction.atomic():
         resource = _lock_resource(resource)
         require_resource_live(resource)
+        require_free_assignee(resource, settings.get("user"))
         api_key = models.ResourceApiKey.objects.create(
             resource=resource,
             state=States.CREATING,
@@ -282,11 +312,13 @@ def update_settings(
     the resume command carries them. An Erred key takes new limits and models
     only when its failed command was an update: the edit is then the retry. An
     assignee change is Waldur's alone and applies in any state short of
-    deletion. A limit raised above the usage of a key Waldur paused for it
-    resumes the key.
+    deletion, to someone who holds no other key on the resource. A limit raised
+    above the usage of a key Waldur paused for it resumes the key.
     """
     require_resource_live(api_key.resource)
     with transaction.atomic():
+        if changes.get("user") is not None:
+            _lock_resource(api_key.resource)
         api_key = _lock(api_key)
         if api_key.state in (States.DELETING, States.DELETED):
             raise IncorrectStateException(
@@ -297,6 +329,8 @@ def update_settings(
             for field, value in changes.items()
             if getattr(api_key, field) != value
         }
+        if "user" in changes:
+            require_free_assignee(api_key.resource, changes["user"], api_key)
         if not changes.keys() & AGENT_SETTINGS or api_key.state == States.PAUSED:
             if changes:
                 # No command, so no new state: ``modified`` is left alone, as
