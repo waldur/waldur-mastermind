@@ -1,3 +1,5 @@
+from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import PermissionDenied
 from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -54,6 +56,19 @@ class GetUserOverviewToolTest(TestCase):
         self.assertIn(ToolName.GET_USER_OVERVIEW, STAFF_TOOLS)
         self.assertIn(ToolName.GET_USER_OVERVIEW, SUPPORT_TOOLS)
         self.assertNotIn(ToolName.GET_USER_OVERVIEW, END_USER_TOOLS)
+
+    def test_end_user_is_denied(self):
+        with self.assertRaises(PermissionDenied):
+            self.tool.execute(self.fixture.owner, {"user_email": self.target.email})
+
+    def test_anonymous_is_denied(self):
+        with self.assertRaises(PermissionDenied):
+            self.tool.execute(AnonymousUser(), {"user_email": self.target.email})
+
+    def test_support_is_allowed(self):
+        support = structure_factories.UserFactory(is_support=True)
+        result = self.tool.execute(support, {"user_email": self.target.email})
+        self.assertEqual(result["type"], "success")
 
     def test_requires_user_email(self):
         result = self.tool.execute(self.staff, {})

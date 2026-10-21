@@ -15,6 +15,7 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Customer, Project
+from waldur_mastermind.marketplace.models import Resource
 
 
 def sum_invoice_item_totals(items) -> Decimal:
@@ -72,6 +73,14 @@ def user_accessible_customers(user) -> QuerySet:
 def user_accessible_projects(user) -> QuerySet:
     """Projects the user can see."""
     return filter_queryset_for_user(Project.objects.all(), user)
+
+
+def user_consumer_resources(user) -> QuerySet:
+    """Resources the user can see as a consumer, as in the REST consumer list."""
+    # filter_for_service_consumer returns every resource to anonymous users.
+    if not user.is_authenticated:
+        return Resource.objects.none()
+    return Resource.objects.all().filter_for_service_consumer(user)
 
 
 # Role priority for the "which role to surface on a serializer" decision.

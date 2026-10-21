@@ -45,6 +45,19 @@ class ToolName(Enum):
     # required detail is missing and cannot be answered by another tool.
     ASK_USER = "ask_user"
 
+    @classmethod
+    def parse(cls, name: "str | ToolName") -> "ToolName | None":
+        """The member for ``name``, or ``None`` if it is not a tool name.
+
+        The LLM API returns tool calls as plain strings.
+        """
+        if isinstance(name, cls):
+            return name
+        try:
+            return cls(name)
+        except ValueError:
+            return None
+
 
 class ToolCategory(str, Enum):
     """Functional grouping used by ``search_tools`` for batched fetches.

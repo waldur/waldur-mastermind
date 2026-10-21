@@ -1,9 +1,9 @@
 import logging
 
+from django.core.exceptions import PermissionDenied
 from django.db.models import Avg, Count, Q, StdDev
 from django.utils import timezone
 
-from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
@@ -15,6 +15,7 @@ from waldur_mastermind.proposal.models import (
     Proposal,
     Review,
 )
+from waldur_mastermind.proposal.permissions import calls_managed_by
 
 logger = logging.getLogger(__name__)
 
@@ -71,17 +72,14 @@ class CallInsightsTool(BaseTool):
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        if not user.is_staff:
-            accessible_calls = filter_queryset_for_user(Call.objects.all(), user)
-            if not accessible_calls.exists():
-                return {
-                    "type": "error",
-                    "summary": "You don't have permission to view call insights.",
-                    "ui_component": "markdown",
-                    "ui_data": {
-                        "c": "Call insights are available to staff and call managers only."
-                    },
-                }
+        if user.is_staff:
+            call_qs = Call.objects.all()
+        else:
+            # Not filter_queryset_for_user: it returns every call to support
+            # users and also lets reviewers and organisation owners through.
+            call_qs = calls_managed_by(user)
+            if not call_qs.exists():
+                raise PermissionDenied
 
         call_uuid = (arguments.get("uuid") or "").strip()
         call_name = (arguments.get("name") or "").strip()
@@ -93,11 +91,6 @@ class CallInsightsTool(BaseTool):
             }
 
         now = timezone.now()
-
-        if user.is_staff:
-            call_qs = Call.objects.all()
-        else:
-            call_qs = filter_queryset_for_user(Call.objects.all(), user)
 
         if call_uuid or call_name:
             if call_uuid:

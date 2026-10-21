@@ -1,7 +1,9 @@
+from django.core.exceptions import PermissionDenied
 from django.test import TestCase
 
 from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposals_researcher.guide_proposal import (
     GuideProposalTool,
@@ -21,6 +23,8 @@ from waldur_mastermind.chat.tools.tool_sets import (
     STAFF_TOOLS,
     SUPPORT_TOOLS,
 )
+from waldur_mastermind.proposal.enums import CallStates
+from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 
 
@@ -319,6 +323,40 @@ class CallInsightsToolExecuteTest(TestCase):
             self.fixture.staff, {"name": "definitely-not-a-call"}
         )
         self.assertEqual(result["type"], "error")
+
+    def test_support_is_denied(self):
+        support = structure_factories.UserFactory(is_support=True)
+        with self.assertRaises(PermissionDenied):
+            self.tool.execute(support, {})
+
+    def test_call_manager_sees_own_call(self):
+        result = self.tool.execute(self.fixture.call_manager, {})
+        self.assertEqual(result["type"], "success")
+        insights = result["data"]["insights"]
+        self.assertEqual([i["call_uuid"] for i in insights], [str(self.call.uuid)])
+
+    def test_call_organizer_sees_organisation_calls(self):
+        result = self.tool.execute(self.fixture.call_organizer_user, {})
+        self.assertEqual(result["type"], "success")
+        insights = result["data"]["insights"]
+        self.assertEqual([i["call_uuid"] for i in insights], [str(self.call.uuid)])
+
+    def test_support_call_manager_sees_only_managed_calls(self):
+        other_call = proposal_factories.CallFactory(state=CallStates.ACTIVE)
+        user = self.fixture.call_manager
+        user.is_support = True
+        user.save()
+
+        result = self.tool.execute(user, {})
+        insights = result["data"]["insights"]
+        self.assertEqual([i["call_uuid"] for i in insights], [str(self.call.uuid)])
+
+        result = self.tool.execute(user, {"uuid": str(other_call.uuid)})
+        self.assertEqual(result["type"], "error")
+
+    def test_reviewer_is_denied(self):
+        with self.assertRaises(PermissionDenied):
+            self.tool.execute(self.fixture.reviewer_1, {})
 
 
 class ReviewAssistantToolExecuteTest(TestCase):

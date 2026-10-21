@@ -115,3 +115,11 @@ def get_tool_set_for_user(user) -> list[ToolName]:
     if user.is_support:
         return SUPPORT_TOOLS
     return END_USER_TOOLS
+
+
+def is_tool_permitted(user, tool_name: str | ToolName) -> bool:
+    """Return True if ``tool_name`` is in the tool set for ``user``'s role.
+
+    Unknown names are never permitted.
+    """
+    return ToolName.parse(tool_name) in get_tool_set_for_user(user)

@@ -5,6 +5,7 @@ import logging
 from waldur_mastermind.chat.tools.account.helpers import (
     name_search_filter,
     user_accessible_projects,
+    user_consumer_resources,
     validate_uuid,
 )
 from waldur_mastermind.chat.tools.base import (
@@ -15,7 +16,6 @@ from waldur_mastermind.chat.tools.base import (
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace.models import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class GetProjectResourcesTool(BaseTool):
                     "summary": f"Invalid UUID for {arg_name}: {value}",
                 }
 
-        qs = Resource.objects.all().filter_for_service_consumer(user)
+        qs = user_consumer_resources(user)
 
         if project_uuid or project_name:
             scoped_projects = user_accessible_projects(user)
