@@ -98,10 +98,11 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `pending_action` | the command in flight (`ResourceApiKeyActions`: `create`, `rotate`, `pause`, `resume`, `delete`, `update`); blank once settled, kept on `Erred` to show which command failed |
 | `user` | optional assignee; only they can reveal the key |
 | `limits` | optional per-component limits, keyed by component type; zero means no limit |
-| `allowed_models` | optional model allowlist; null allows every model |
+| `allowed_models` | the models the key may call, never null: `["*"]` for every model, `[]` for none, or a list of names ([below](#model-lists)) |
 | `current_usages` | per-component usage in `usage_period`, as last reported by the agent |
 | `usage_period` | the month `current_usages` covers (its first day); usage of an earlier month counts against no limit |
 | `paused_by_limit` | Waldur paused the key because its usage reached a limit; such a key is resumed automatically once under its limits again |
+| `models_outdated` | the resource's model selection changed while the key could not take an `update`; Waldur sends one once the key settles ([below](#resource-selection)) |
 | `error_message` | agent-reported failure detail when `Erred` |
 | `modified` | `TimeStampedModel`; the time the key last changed state or settings — the agent's sweep reads it as "in this state since". Usage reports do not touch it |
 
@@ -121,6 +122,114 @@ an optional `client_id`; a backend with a stable identifier omits it. A value
 already held by another key of the same resource — a deleted one included — is
 rejected: usage is attributed by `client_id`, so a deleted key's identifier is
 never handed out again.
+
+### Model lists {#model-lists}
+
+A key's `allowed_models` has three forms, and so has its resource's selection
+([below](#resource-selection)):
+
+| Value | Meaning on a key | Meaning on a resource |
+| --- | --- | --- |
+| `["*"]` | every model its resource allows | every model of the offering, including ones it adds later |
+| `[]` | no model: the key cannot call anything | no model: none of its keys can call anything |
+| `["a", "b"]` | those models | those models |
+
+"Every model" has a value of its own so that an empty list can mean what it
+looks like. With null or an empty list standing for every model, the selection
+that looked most restrictive was the least restrictive one, and a key limited to
+a model the provider later retired could be widened to all of them by saving it
+with nothing ticked.
+
+- `*` means every model only as the sole entry; next to another entry it is
+  refused. It is not a pattern: `provider/*` is just a model name.
+- A key's names must be among those its resource allows: the resource's own
+  names, or the offering's `resource_options.options.models.choices` when the
+  resource is on every model (any name, when the offering lists none). A name
+  the offering no longer lists is allowed by no resource.
+- A request that leaves `allowed_models` out creates a key with `[]`; an edit that
+  leaves it out does not change it. Null is refused.
+- A key the agent reports on its own (`report_created`) was never restricted at
+  the backend, so it is stored as `["*"]`. Keys that existed before the list
+  became non-null were migrated from null to `["*"]`.
+- On an offering without `enable_api_key_provisioning` the field reads as null,
+  like every governance field.
+
+A backend that cannot restrict a key's models has to refuse every list but
+`["*"]`, the empty one included, so that Waldur never shows "No models" for a
+key that can call all of them. The Envoy AI Gateway plugin does, so on Envoy a
+resource has to stay on every model: any narrower effective list errs the key.
+Removing a model from the offering's choices drops it from every effective
+list that names it, but `["*"]` names nothing: a key whose effective list is
+`["*"]`, and every key on Envoy, can call a retired model for as long as the
+backend serves it. The provider has to remove it from the backend too.
+
+#### The resource's selection {#resource-selection}
+
+A resource option named `models` of type `select_string_multi` is the resource's
+model selection, on any offering: it takes `["*"]`, a new resource starts on it,
+and an empty one means none. Under `enable_api_key_provisioning` it narrows
+every key of the resource; without it, it narrows nothing, but an offering that
+turns key management on later finds its resources already on every model. When
+selections start or stop narrowing — key management is turned on, or the option
+becomes or stops being a multiple choice — or the provider adds or removes a
+model in the option's choices, every key whose effective list changes with it
+is sent an `update`. Turning key management off sends nothing:
+its keys take no governed command. A single-choice `models` option has no room
+for `*` and narrows nothing.
+
+- **Effective list.** Waldur stores a key's list as chosen and sends the agent
+  the effective one: the resource's selection, then the key's, less any model
+  the offering no longer lists. Every model stays `["*"]`.
+
+  | Resource | Key | Sent |
+  | --- | --- | --- |
+  | `["*"]` | `["*"]` | `["*"]` |
+  | `["a", "b"]` | `["*"]` | `["a", "b"]` |
+  | `["a", "b"]` | `["b", "c"]` | `["b"]` |
+  | `[]` | anything | `[]` |
+  | `["*"]` | `["a", "c"]`, with `c` no longer listed | `["a"]` |
+
+  The key listing carries both: `allowed_models` is the key's own list,
+  `effective_models` the one a command carries. A sweep that replays a command
+  from the listing sends `effective_models`. A key keeps names its resource has
+  since stopped allowing, or the offering stopped listing, and an edit may send
+  them back unchanged; it cannot add new ones. A model the provider lists again
+  is sent again to the keys that kept it.
+- **Values.** Resource-option validation (`update_options`,
+  `update_options_direct`, and the provider's `new_options` at approval)
+  accepts a lone `*` although it is not among the option's choices, and refuses
+  it next to a name.
+- **New resources** are on `["*"]` unless the order chose a selection. Resources
+  that had no selection, or an empty one, were migrated to `["*"]`, since an
+  empty selection used to leave their keys every model. An offering that lists
+  an "All models" entry among its own choices should drop it; resources holding
+  it have to be switched to every model by hand.
+- **A key the agent reports** on its own (`report_created`) is stored as
+  `["*"]`; when its resource allows fewer models, Waldur sends it an `update`
+  with them at once.
+- **A change** to the selection, by any path that saves the resource's options,
+  sends an `update` for every key whose effective list it changes. Requesting
+  and reporting a key lock the resource row, so a key created while the
+  selection changes is either seen by the change or created with the new one.
+  A paused key's `resume` carries the new list instead, and a deleted one needs
+  none. A key that cannot take a command — one is in flight, or its last one
+  failed — is marked `models_outdated`; once it settles `OK`, Waldur sends the
+  `update`, unless a command carrying its settings (`create`, `update`,
+  `resume`) went first. The hourly `send_outdated_api_key_models` task sends
+  any settled key still marked.
+- **Rollout.** A site agent that predates `effective_models` replays a stuck
+  command with the key's own `allowed_models`, which is wider than what Waldur
+  sent when the resource is narrowed. Upgrade agents before narrowing resources.
+  Keys the upgrade finds applied wider than their resource now allows — until
+  then a selection narrowed only the portal's dialogs, and a model the offering
+  stopped listing was still sent — are marked
+  `models_outdated` by a migration and sent their effective list by the hourly
+  task. On Envoy those keys then err, within the hour: put such resources on
+  every model before upgrading, by clearing their selection, which the
+  migration then turns into `["*"]`.
+  The migration rewrites resources, not pending orders: an option order placed
+  before it with an empty `models` meant every model, and now means none. Check
+  pending option orders of such offerings when upgrading.
 
 ### States
 
@@ -238,10 +347,11 @@ why two keys are provisioned.
 Commands (observable type `resource_api_key_rotation` — the name predates the
 other commands and agents subscribe to it by name) carry a **slim** payload:
 resource/key identifiers, `client_id`, and `action`, never key material.
-`create`, `update` and `resume` also carry the key's `limits` and
-`allowed_models`, so settings edited while a key was paused are applied when it
-resumes. The key only ever travels agent → Waldur, in the `report_created` /
-`set_key` request body (TLS), and is encrypted on receipt. When a resource is
+`create`, `update` and `resume` also carry the key's `limits` and its effective
+`allowed_models` ([the resource's selection](#resource-selection)), so settings
+edited while a key was paused are applied when it resumes. The key only ever
+travels agent → Waldur, in the `report_created` / `set_key` request body (TLS),
+and is encrypted on receipt. When a resource is
 terminated, its remaining key rows — deleted ones included — are deleted by the
 termination callback.
 
@@ -276,9 +386,9 @@ Consumer side. The actions marked *governance* need the offering's
 `enable_api_key_provisioning`; without it they return 400.
 
 - `GET /` and `GET /{uuid}/` — list/retrieve status (`client_id`, state,
-  `pending_action`, `modified`, error message, assignee, limits, models, usage — no
-  secret). Visible to resource project/customer members and the provider
-  organization.
+  `pending_action`, `modified`, error message, assignee, limits, models as chosen
+  and effective, usage — no secret). Visible to resource project/customer
+  members and the provider organization.
 - `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
   URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access —
   a member of the resource's project or its customer, plus staff/support; a
@@ -298,8 +408,10 @@ Consumer side. The actions marked *governance* need the offering's
   allowed_models?}`. Creates a `Creating` row and the `create` command; Waldur
   generates nothing. The assignee must be a member of the resource's project (an
   organization role alone is not enough), limits must name offering components,
-  and models must be among the offering's
-  `resource_options.options.models.choices` when it lists any.
+  and models must be among those the resource allows. `["*"]`, which stands for
+  every model the resource allows, is always accepted, and a request without
+  `allowed_models` creates a key with `[]`, no model
+  ([model lists](#model-lists)).
 - `PATCH /{uuid}/` *(governance)* — change `user`, `limits`, `allowed_models`. An
   assignee change is Waldur's alone, but audited as
   `marketplace_resource_api_key_updated`, since it decides who may reveal the
@@ -365,9 +477,10 @@ flight still settles if the provider switches governance off.
 **Reconciliation sweep contract.** A command is published once; if the agent
 misses it, the key waits in its transitional state. An agent that re-drives keys
 stuck in `Updating` (listing `state=Updating&modified_before=…`) must replay the
-command named by `pending_action`, not assume a rotation: `Updating` also covers
-`pause`, `resume` and `update`, and a rotation replayed over a lost pause would
-install a new secret that `set_key` then refuses. Keys stuck in `Creating` and
+command named by `pending_action` with the key's `effective_models`, not assume
+a rotation: `Updating` also covers `pause`, `resume` and `update`, and a
+rotation replayed over a lost pause would install a new secret that `set_key`
+then refuses. Keys stuck in `Creating` and
 `Deleting` are found the same way; a replayed `create` that lands after the
 original one is refused by `set_key` and withdrawn by the agent. A sweep written
 before this change must be updated before an offering turns on

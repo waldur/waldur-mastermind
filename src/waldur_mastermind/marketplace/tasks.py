@@ -128,6 +128,12 @@ def resume_api_keys_under_limit():
     resource_api_keys.resume_keys_under_limit()
 
 
+@shared_task(name="waldur_mastermind.marketplace.send_outdated_api_key_models")
+def send_outdated_api_key_models():
+    """Send settled API keys the models their resource changed meanwhile."""
+    resource_api_keys.send_outdated_keys_models()
+
+
 def process_order_on_commit(order: models.Order, user):
     serialized_order = core_utils.serialize_instance(order)
     serialized_user = core_utils.serialize_instance(user)

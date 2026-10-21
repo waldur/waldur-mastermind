@@ -35,6 +35,7 @@ from waldur_core.users.scim import tasks as scim_tasks
 from waldur_core.users.tasks import process_invitation
 from waldur_freeipa.models import Profile
 from waldur_mastermind.common.utils import price_has_changed
+from waldur_mastermind.marketplace import model_lists, resource_api_keys
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
@@ -3831,6 +3832,56 @@ def send_end_date_change_request_to_message_queue(
     )
     if messages:
         transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
+
+
+def update_api_keys_on_resource_models_change(
+    sender, instance: Resource, created=False, **kwargs
+):
+    """Send a resource's keys the models its changed selection leaves them."""
+    if created or not instance.tracker.has_changed("options"):
+        return
+    offering = instance.offering
+    before = model_lists.allowed(
+        offering.plugin_options,
+        offering.resource_options,
+        instance.tracker.previous("options"),
+    )
+    resource_api_keys.resource_models_changed(
+        instance, before, model_lists.offered_models(offering)
+    )
+
+
+def update_api_keys_when_offering_models_change(
+    sender, instance: Offering, created=False, **kwargs
+):
+    """Send keys their effective models when the offering changes them: key
+    management is turned on, the models option becomes or stops being a
+    multiple choice, or models are added to or removed from its choices.
+    Turning key management off sends nothing: its keys take no governed command.
+    """
+    if (
+        created
+        or not instance.plugin_options.get("enable_api_key_provisioning")
+        or not (
+            instance.tracker.has_changed("plugin_options")
+            or instance.tracker.has_changed("resource_options")
+        )
+    ):
+        return
+    plugin_options = instance.tracker.previous("plugin_options")
+    resource_options = instance.tracker.previous("resource_options")
+    if (
+        not (plugin_options or {}).get("enable_api_key_provisioning")
+        or model_lists.narrows(plugin_options, resource_options)
+        != model_lists.narrows_keys(instance)
+        or not model_lists.same_choices(
+            model_lists.offered(resource_options),
+            model_lists.offered_models(instance),
+        )
+    ):
+        resource_api_keys.offering_models_changed(
+            instance, plugin_options, resource_options
+        )
 
 
 def send_resource_state_change_to_message_queue(
