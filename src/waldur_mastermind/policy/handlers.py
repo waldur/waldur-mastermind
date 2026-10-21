@@ -8,8 +8,9 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 from waldur_mastermind.marketplace.exceptions import PolicyException
 
-from . import models, tasks
+from . import models, tasks, utils
 from .models import ProjectEstimatedCostPolicy
+from .structures import EvaluationTriggers
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,14 @@ def _project_fast_debounce_seconds(project_id):
     return _get_fast_debounce_seconds() if has_fast_policy else None
 
 
-def _debounced_call(task, args, cache_key, debounce_seconds=None):
+def _debounced_call(
+    task,
+    args,
+    cache_key,
+    debounce_seconds=None,
+    trigger=None,
+    trigger_object_uuid=None,
+):
     """Schedule a debounced Celery task call.
 
     Uses cache.add() (atomic SETNX) to ensure only one task is scheduled
@@ -101,12 +109,18 @@ def _debounced_call(task, args, cache_key, debounce_seconds=None):
 
     ``debounce_seconds`` overrides the default window for a single call;
     callers pass the fast interval for policies that must act promptly.
+
+    ``trigger`` / ``trigger_object_uuid`` are put into the event context while
+    the task is published, so ``celeryconf.pass_event_context`` carries them,
+    with the request user, to the worker. The task's arguments stay the same,
+    so old and new workers both run it during a rolling deploy.
     """
     if debounce_seconds is None:
         debounce_seconds = _get_debounce_seconds()
     if debounce_seconds <= 0:
         # Debounce disabled — dispatch immediately (used in tests).
-        task.delay(*args)
+        with utils.evaluation_event_context(trigger, trigger_object_uuid):
+            task.delay(*args)
         return
 
     def _publish() -> None:
@@ -119,7 +133,8 @@ def _debounced_call(task, args, cache_key, debounce_seconds=None):
             debounce_seconds,
         )
         try:
-            task.apply_async(args=list(args), countdown=debounce_seconds)
+            with utils.evaluation_event_context(trigger, trigger_object_uuid):
+                task.apply_async(args=list(args), countdown=debounce_seconds)
         except Exception:  # noqa: BLE001
             # Release the claim so the next trigger retries rather than being
             # dropped against a key that guards a task which was never enqueued.
@@ -134,13 +149,27 @@ def _debounced_call(task, args, cache_key, debounce_seconds=None):
     transaction.on_commit(_publish)
 
 
-def _debounced_evaluate(policy_path, filters, cache_key, debounce_seconds=None):
-    """Debounced dispatch of ``evaluate_policies_async`` — convenience wrapper."""
+def _debounced_evaluate(
+    policy_path,
+    filters,
+    cache_key,
+    debounce_seconds=None,
+    trigger=None,
+    trigger_object=None,
+):
+    """Debounced dispatch of ``evaluate_policies_async`` — convenience wrapper.
+
+    What started the evaluation travels to the task in the event context (see
+    ``_debounced_call``). Debouncing keeps the first dispatch in the window:
+    triggers coalesced into it are evaluated, but the events name the first.
+    """
     _debounced_call(
         tasks.evaluate_policies_async,
         (policy_path, filters),
         cache_key,
         debounce_seconds=debounce_seconds,
+        trigger=trigger,
+        trigger_object_uuid=utils.uuid_hex(trigger_object),
     )
 
 
@@ -165,6 +194,8 @@ def customer_estimated_cost_policy_trigger_handler(
         _CUSTOMER_POLICY_PATH,
         {"scope_id": customer_id},
         f"cost_policy_debounce:customer:{customer_id}",
+        trigger=EvaluationTriggers.INVOICE_ITEM_SAVED,
+        trigger_object=invoice_item,
     )
 
 
@@ -179,10 +210,12 @@ def project_estimated_cost_policy_trigger_handler(
         {"scope_id": project_id},
         f"cost_policy_debounce:project:{project_id}",
         debounce_seconds=_project_fast_debounce_seconds(project_id),
+        trigger=EvaluationTriggers.INVOICE_ITEM_SAVED,
+        trigger_object=invoice_item,
     )
 
 
-def get_offering_trigger_handler(klass_path):
+def get_offering_trigger_handler(klass_path, trigger):
     def handler(sender, instance, created=False, **kwargs):
         resource = instance.resource
         if not resource:
@@ -194,13 +227,15 @@ def get_offering_trigger_handler(klass_path):
             klass_path,
             {"scope_id": offering_id},
             f"cost_policy_debounce:{klass_path}:offering:{offering_id}",
+            trigger=trigger,
+            trigger_object=instance,
         )
 
     return handler
 
 
 offering_usage_policy_trigger_handler = get_offering_trigger_handler(
-    _OFFERING_USAGE_POLICY_PATH,
+    _OFFERING_USAGE_POLICY_PATH, EvaluationTriggers.USAGE_REPORTED
 )
 
 
@@ -231,11 +266,13 @@ def slurm_periodic_usage_policy_trigger_handler(
         tasks.evaluate_slurm_resource_policy,
         (str(resource.uuid),),
         f"slurm_policy_debounce:resource:{resource.uuid.hex}",
+        trigger=EvaluationTriggers.USAGE_REPORTED,
+        trigger_object_uuid=utils.uuid_hex(component_usage),
     )
 
 
 offering_estimated_cost_policy_trigger_handler = get_offering_trigger_handler(
-    _OFFERING_ESTIMATED_COST_POLICY_PATH,
+    _OFFERING_ESTIMATED_COST_POLICY_PATH, EvaluationTriggers.INVOICE_ITEM_SAVED
 )
 
 
@@ -258,6 +295,8 @@ def customer_component_usage_policy_trigger_handler(
         },
         f"cost_policy_debounce:{_CUSTOMER_COMPONENT_USAGE_POLICY_PATH}"
         f":customer:{customer_id}:component:{component_id}",
+        trigger=EvaluationTriggers.USAGE_REPORTED,
+        trigger_object=usage,
     )
 
 
@@ -322,7 +361,14 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
                         ):
                             continue
 
-                    action.method(policy, created)
+                    # Inside an evaluation (an action saving the resource), the
+                    # evaluation's trigger is kept.
+                    with utils.evaluation_event_context(
+                        EvaluationTriggers.RESOURCE_SAVED,
+                        utils.uuid_hex(observable_object),
+                        keep_existing=True,
+                    ):
+                        action.method(policy, created)
                     logger.info(
                         "%s action has been triggered for %s. Policy UUID: %s",
                         action.method.__name__,
@@ -352,11 +398,15 @@ def customer_credit_changed_handler(
         _CUSTOMER_POLICY_PATH,
         {"scope_id": customer_id},
         f"cost_policy_debounce:customer:{customer_id}",
+        trigger=EvaluationTriggers.CREDIT_CHANGED,
+        trigger_object=customer_credit,
     )
     _debounced_evaluate(
         _PROJECT_POLICY_PATH,
         {"scope__customer_id": customer_id},
         f"cost_policy_debounce:projects_of_customer:{customer_id}",
+        trigger=EvaluationTriggers.CREDIT_CHANGED,
+        trigger_object=customer_credit,
     )
 
 
@@ -379,6 +429,8 @@ def project_credit_changed_handler(
         {"scope_id": project_id},
         f"cost_policy_debounce:project:{project_id}",
         debounce_seconds=_project_fast_debounce_seconds(project_id),
+        trigger=EvaluationTriggers.CREDIT_CHANGED,
+        trigger_object=project_credit,
     )
 
 
@@ -403,6 +455,12 @@ def customer_credit_offerings_list_changed_handler(
             _CUSTOMER_POLICY_PATH,
             {"scope_id": cid},
             f"cost_policy_debounce:customer:{cid}",
+            trigger=EvaluationTriggers.CREDIT_CHANGED,
+            # The credit whose offerings changed; on a reverse change (from
+            # the offering side) several credits can be affected.
+            trigger_object=instance
+            if isinstance(instance, invoices_models.CustomerCredit)
+            else None,
         )
 
 
@@ -419,25 +477,33 @@ def run_reset_actions_upon_cost_policy_deletion(
     """
     policy: models.ProjectEstimatedCostPolicy = instance
 
+    # Everything here, the event context included, stays inside the guard: a
+    # failure must only be logged, never abort the delete this runs for.
     try:
-        actions = policy.get_immediate_actions()
-        for action in actions:
-            reset_method = action.reset_method
-            if reset_method:
-                logger.info(
-                    "Running immediate action reset method %s for policy %s (UUID: %s)",
-                    reset_method.__name__,
-                    policy.scope.name if policy.scope else "unknown",
-                    policy.uuid.hex,
-                )
-                try:
-                    reset_method(policy)
-                except Exception as e:
-                    logger.exception(
-                        "Failed to execute reset method %s: %s",
+        policy_uuid = utils.uuid_hex(policy)
+        # Like the reset a policy save runs (serializers.PolicySerializer.save):
+        # the robot acts, and the person who deleted the policy is the initiator.
+        with utils.system_actor_event_context(
+            EvaluationTriggers.POLICY_DELETED, policy_uuid
+        ):
+            actions = policy.get_immediate_actions()
+            for action in actions:
+                reset_method = action.reset_method
+                if reset_method:
+                    logger.info(
+                        "Running immediate action reset method %s for policy %s (UUID: %s)",
                         reset_method.__name__,
-                        str(e),
+                        policy.scope.name if policy.scope else "unknown",
+                        policy_uuid,
                     )
+                    try:
+                        reset_method(policy)
+                    except Exception as e:
+                        logger.exception(
+                            "Failed to execute reset method %s: %s",
+                            reset_method.__name__,
+                            str(e),
+                        )
     except Exception as e:
         logger.exception(
             "Failed to run reset actions for policy %s: %s",
