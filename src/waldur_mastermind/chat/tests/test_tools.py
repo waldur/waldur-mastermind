@@ -55,6 +55,13 @@ class ToolNameEnumTest(TestCase):
         with self.assertRaises(ValueError):
             ToolName("bogus")
 
+    def test_parse_accepts_member_and_string(self):
+        self.assertIs(ToolName.parse(ToolName.ASK_USER), ToolName.ASK_USER)
+        self.assertIs(ToolName.parse("ask_user"), ToolName.ASK_USER)
+
+    def test_parse_returns_none_for_unknown_name(self):
+        self.assertIsNone(ToolName.parse("bogus"))
+
 
 class ToolRegistryTest(TestCase):
     def test_show_user_resources_is_registered(self):

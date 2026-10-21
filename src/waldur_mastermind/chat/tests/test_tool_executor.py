@@ -13,7 +13,13 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.chat.tools.account.display_user_resources import (
     DisplayUserResourcesTool,
 )
+from waldur_mastermind.chat.tools.account.get_user_overview import (
+    GetUserOverviewTool,
+)
 from waldur_mastermind.chat.tools.executor import ToolExecutor
+from waldur_mastermind.chat.tools.proposals_reviewer.call_insights import (
+    CallInsightsTool,
+)
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     OfferingStates,
@@ -376,6 +382,50 @@ class ToolExecutorErrorHandlingTest(ToolExecutorBaseTest):
         self.assertEqual(result["type"], "error")
         self.assertEqual(result["error"], "Internal error")
         self.assertIn("error occurred", result["summary"].lower())
+
+
+class ToolExecutorToolSetTest(ToolExecutorBaseTest):
+    def test_end_user_cannot_run_staff_and_support_tool(self):
+        with mock.patch.object(GetUserOverviewTool, "execute") as tool_execute:
+            result = self.tool_executor.execute_tool(
+                "get_user_overview", {"user_email": self.fixture.owner.email}
+            )
+
+        tool_execute.assert_not_called()
+        self.assertEqual(result["type"], "error")
+        self.assertEqual(result["error"], "Permission denied")
+
+    def test_support_cannot_run_staff_only_tool(self):
+        support = structure_factories.UserFactory(is_support=True)
+        with mock.patch.object(CallInsightsTool, "execute") as tool_execute:
+            result = ToolExecutor(support).execute_tool("call_insights", {})
+
+        tool_execute.assert_not_called()
+        self.assertEqual(result["error"], "Permission denied")
+
+    def test_staff_can_run_staff_and_support_tool(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        result = ToolExecutor(staff).execute_tool(
+            "get_user_overview", {"user_email": self.fixture.owner.email}
+        )
+
+        self.assertEqual(result["type"], "success")
+
+    def test_anonymous_cannot_run_authenticated_tool(self):
+        result = ToolExecutor(None).execute_tool("list_projects", {})
+
+        self.assertEqual(result["error"], "Permission denied")
+
+    def test_forbidden_tool_is_denied_before_input_guards(self):
+        with mock.patch(
+            "waldur_mastermind.chat.tools.executor.get_detection_service"
+        ) as detection_service:
+            result = self.tool_executor.execute_tool(
+                "get_user_overview", {"user_email": self.fixture.owner.email}
+            )
+
+        detection_service.assert_not_called()
+        self.assertEqual(result["error"], "Permission denied")
 
 
 class ToolExecutorAnonymousUserTest(test.APITestCase):

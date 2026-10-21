@@ -24,6 +24,7 @@ from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import (
     ANONYMOUS_TOOLS,
     get_tool_set_for_user,
+    is_tool_permitted,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,10 +108,9 @@ def validate_tool_call(tool_name, user):
     """Validates that the user is authenticated, the tool exists, and the
     tool is in the caller's role-permitted set.
 
-    The per-user tool-set check is the authorisation boundary for the
-    HTTP execute endpoint: without it, any authenticated end user could
-    invoke staff/support-only tools (e.g. ``get_user_overview``) directly,
-    bypassing the LLM-side filter applied via ``get_tool_set_for_user``.
+    ``ToolExecutor`` enforces the same tool-set check for every caller;
+    this pre-check exists so the HTTP execute endpoint answers 401/400/403
+    instead of a generic 422 tool error.
     """
     if not user or not user.is_authenticated:
         raise rf_exceptions.NotAuthenticated()
@@ -123,12 +123,7 @@ def validate_tool_call(tool_name, user):
             }
         )
 
-    permitted = get_tool_set_for_user(user)
-    try:
-        tool_enum = ToolName(tool_name)
-    except ValueError:
-        tool_enum = None
-    if tool_enum is None or tool_enum not in permitted:
+    if not is_tool_permitted(user, tool_name):
         raise rf_exceptions.PermissionDenied(
             _("Tool '%(tool_name)s' is not available for your role.")
             % {"tool_name": tool_name}
@@ -354,12 +349,7 @@ class LLMStreamer:
         # enforced: we never offer a tool outside the user's tool_set.
         permitted = {t.value for t in user_tools}
         exposed_names = self._enabled_tool_names & permitted
-        exposed_enums = []
-        for raw in exposed_names:
-            try:
-                exposed_enums.append(ToolName(raw))
-            except ValueError:
-                continue
+        exposed_enums = [tool for raw in exposed_names if (tool := ToolName.parse(raw))]
         tools = tool_registry.get_openai_tools(exposed_enums)
 
         kwargs = {

@@ -3,12 +3,15 @@
 import logging
 from datetime import date
 
-from waldur_mastermind.chat.tools.account.helpers import validate_uuid
+from waldur_mastermind.chat.tools.account.helpers import (
+    user_consumer_resources,
+    validate_uuid,
+)
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace.models import ComponentUsage, Resource
+from waldur_mastermind.marketplace.models import ComponentUsage
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +80,7 @@ class GetResourceUsageTool(BaseTool):
                 "summary": f"Invalid UUID for resource_uuid: {resource_uuid}",
             }
 
-        qs = (
-            Resource.objects.all()
-            .filter_for_service_consumer(user)
-            .select_related("offering", "project", "plan")
-        )
+        qs = user_consumer_resources(user).select_related("offering", "project", "plan")
         if resource_uuid:
             resource = qs.filter(uuid=resource_uuid).first()
         else:

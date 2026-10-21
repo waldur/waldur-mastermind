@@ -1,8 +1,14 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.contrib.auth.models import AnonymousUser
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.models import Role
+from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.chat.tools.account.explain_resource_paused_reason import (
     ExplainResourcePausedReasonTool,
@@ -238,6 +244,32 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         resource = self._make_resource(name="Hidden VM", paused=True)
         result = self.tool.execute(other.member, {"resource_uuid": str(resource.uuid)})
         self.assertEqual(result["type"], "error")
+
+    def test_project_role_without_list_resources_returns_not_found(self):
+        resource = self._make_resource(name="Listed VM", paused=True)
+        user = self.fixture.admin
+        ProjectRole.ADMIN.delete_permission(PermissionEnum.LIST_RESOURCES)
+        result = self.tool.execute(user, {"resource_uuid": str(resource.uuid)})
+        self.assertEqual(result["type"], "error")
+
+    def test_anonymous_returns_not_found(self):
+        resource = self._make_resource(name="Public VM", paused=True)
+        result = self.tool.execute(
+            AnonymousUser(), {"resource_uuid": str(resource.uuid)}
+        )
+        self.assertEqual(result["type"], "error")
+
+    def test_direct_resource_role_can_explain(self):
+        resource = self._make_resource(name="Shared VM", paused=True)
+        role = Role.objects.create(
+            name="resource_viewer",
+            content_type=ContentType.objects.get_for_model(resource),
+            is_system_role=False,
+        )
+        user = UserFactory()
+        resource.add_user(user, role)
+        result = self.tool.execute(user, {"resource_uuid": str(resource.uuid)})
+        self.assertEqual(result["type"], "success")
 
     def test_disambiguate_by_project_name(self):
         # Two resources with the same name in different projects.
