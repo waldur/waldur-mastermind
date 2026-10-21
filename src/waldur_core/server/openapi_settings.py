@@ -30,6 +30,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
+    SpendingLimitPeriods,
     SwitchBillingModes,
 )
 from waldur_mastermind.marketplace_metrics import enums as metrics_enums
@@ -185,6 +186,8 @@ SPECTACULAR_SETTINGS = {
         "InjectionSeverityEnum": SeverityLevel.choices(),
         "FeedbackCategoryEnum": FeedbackCategory.choices,
         "GrowthPeriodEnum": ["weekly", "monthly"],
+        # Shared by the spending limit status of resources and of API keys.
+        "SpendingLimitPeriodEnum": SpendingLimitPeriods.CHOICES,
         "PolicyPeriodEnum": (
             (1, "Total"),
             (2, "1 month"),

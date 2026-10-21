@@ -217,6 +217,7 @@ from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
 from . import (
+    api_key_spending_limits,
     filters,
     log,
     models,
@@ -4595,6 +4596,9 @@ class ProviderOfferingViewSet(
                     f"Updated Resource {resource.uuid}: spending limits of "
                     f"{old_component_type} moved to {new_component_type}"
                 )
+        api_key_spending_limits.rename_component_type(
+            offering, old_component_type, new_component_type
+        )
 
         # 2. Update InvoiceItem details for historical billing data
         invoice_items_updated = 0
@@ -16678,6 +16682,19 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        if self.action in ("list", "retrieve"):
+            # The daily usage the key's limit status reads, in one query for
+            # the page.
+            qs = qs.prefetch_related(
+                Prefetch(
+                    "daily_usages",
+                    queryset=models.ResourceApiKeyDailyUsage.objects.filter(
+                        date__gte=api_key_spending_limits.window_start(
+                            spending_limits.utc_today()
+                        )
+                    ),
+                )
+            )
         # A deleted key is kept for the usage it reported, but a listing shows
         # it only when asked for by state.
         if self.action == "list" and models.ResourceApiKey.States.DELETED not in (
@@ -17129,10 +17146,12 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     @extend_schema(
         summary="Report API key usage",
         description="Used by the site agent to report a key's usage so far in a "
-        "month, per component type. Merged into the key's usage for that month; "
-        "a later month replaces it, and an earlier one is refused. A key whose "
-        "usage reaches its limit is paused, and a key paused for its limit is resumed "
-        "once under it again. Accepted for a deleted key too.",
+        "month, per component type, and its usage per day. A month report is "
+        "merged into the key's usage for that month; a later month replaces it, "
+        "and an earlier one is refused. A date reported again replaces its "
+        "amount, and the month's usage of a component with daily amounts is their "
+        "sum. A key whose usage reaches a limit is paused, and a key paused for "
+        "its limit is resumed once under it again. Accepted for a deleted key too.",
         request=serializers.ResourceApiKeyUsageSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
     )
@@ -17146,9 +17165,10 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         api_key = resource_api_keys.record_usage(
             obj,
-            serializer.validated_data["usages"],
+            serializer.validated_data.get("usages"),
             serializer.validated_data.get("billing_period")
             or models.ResourceApiKey.current_period(),
+            serializer.validated_data.get("daily_usages") or (),
         )
         return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
 

@@ -163,6 +163,12 @@ one `spending_limit_status` entry per component and period:
 
 Status is computed only for resources that have spending limits.
 
+## API keys
+
+A resource's API keys take limits of the same shape, per component and period,
+each capped by the resource's limit for the period; a reached key limit pauses
+that key alone. See [Resource API keys](resource-api-keys.md#limits).
+
 ## Code map
 
 | Concern | Where |

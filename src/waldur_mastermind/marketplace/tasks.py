@@ -150,12 +150,23 @@ def lift_reset_spending_limit_restrictions():
 
 @shared_task(name="waldur_mastermind.marketplace.resume_api_keys_under_limit")
 def resume_api_keys_under_limit():
-    """Resume the API keys Waldur paused for a limit once a new month resets it.
+    """Resume the API keys Waldur paused for a limit once they are under it again.
 
     The per-key counterpart of ``re_evaluate_usage_limit_restrictions``: a usage
-    report resumes such a key on its own, but a new month may begin without one.
+    report resumes such a key on its own, but a period may reset without one.
     """
     resource_api_keys.resume_keys_under_limit()
+
+
+@shared_task(name="waldur_mastermind.marketplace.resume_api_keys_after_limit_reset")
+def resume_api_keys_after_limit_reset():
+    """Resume the API keys whose limits have reset since Waldur paused them.
+
+    The per-key counterpart of ``lift_reset_spending_limit_restrictions``: runs
+    every few minutes, so a key paused by a daily limit comes back close to
+    midnight UTC rather than on the hourly check.
+    """
+    resource_api_keys.resume_keys_under_limit(reset_only=True)
 
 
 def process_order_on_commit(order: models.Order, user):

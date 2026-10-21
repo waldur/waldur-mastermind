@@ -86,7 +86,7 @@ def resets_at(period: str, day: datetime.date) -> datetime.datetime:
     return datetime.datetime.combine(end, datetime.time.min, datetime.UTC)
 
 
-def _amount(value, label) -> Decimal:
+def parse_amount(value, label) -> Decimal:
     """``value`` as a non-negative amount with at most two decimal places."""
     if isinstance(value, bool) or not isinstance(value, int | float | str | Decimal):
         raise serializers.ValidationError(_("%s must be a number.") % label)
@@ -108,13 +108,13 @@ def _amount(value, label) -> Decimal:
     return amount
 
 
-def _json_number(amount: Decimal) -> int | float:
+def json_number(amount: Decimal) -> int | float:
     if amount == amount.to_integral_value():
         return int(amount)
     return float(amount)
 
 
-def _validate_order(amounts: dict, label: str):
+def validate_order(amounts: dict, label: str):
     """A shorter period's amount may not exceed a longer one's."""
     present = [period for period in PERIODS if period in amounts]
     for shorter, longer in zip(present, present[1:]):
@@ -172,7 +172,7 @@ def validate_component_periods(value, billing_type: str) -> dict:
         entry = {}
         for key in BOUND_KEYS:
             if bounds.get(key) is not None:
-                entry[key] = _amount(
+                entry[key] = parse_amount(
                     bounds[key],
                     _("The %(period)s %(key)s") % {"period": period, "key": key},
                 )
@@ -183,7 +183,7 @@ def validate_component_periods(value, billing_type: str) -> dict:
                 )
         cleaned[period] = entry
 
-    _validate_order(
+    validate_order(
         {
             period: entry["default"]
             for period, entry in cleaned.items()
@@ -192,7 +192,7 @@ def validate_component_periods(value, billing_type: str) -> dict:
         _("Defaults"),
     )
     return {
-        period: {key: _json_number(amount) for key, amount in entry.items()}
+        period: {key: json_number(amount) for key, amount in entry.items()}
         for period, entry in cleaned.items()
     }
 
@@ -266,7 +266,7 @@ def validate_resource_limits(value, offering, plan) -> dict:
                         }
                     }
                 )
-            amount = _amount(raw, _("The %s limit") % period)
+            amount = parse_amount(raw, _("The %s limit") % period)
             maximum = (offered[period] or {}).get("maximum")
             if maximum is not None and amount > Decimal(str(maximum)):
                 raise serializers.ValidationError(
@@ -279,12 +279,12 @@ def validate_resource_limits(value, offering, plan) -> dict:
                 )
             amounts[period] = amount
         try:
-            _validate_order(amounts, _("Limits"))
+            validate_order(amounts, _("Limits"))
         except serializers.ValidationError as error:
             raise serializers.ValidationError({component_type: error.detail})
         if amounts:
             cleaned[component_type] = {
-                period: _json_number(amounts[period])
+                period: json_number(amounts[period])
                 for period in PERIODS
                 if period in amounts
             }

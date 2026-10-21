@@ -172,6 +172,7 @@ from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
 from . import (
+    api_key_spending_limits,
     billing_mode,
     daily_usage,
     derived_limits,
@@ -8519,7 +8520,7 @@ class ResourceListSerializer(serializers.ListSerializer):
         return super().to_representation(resources)
 
 
-class SpendingLimitStatusSerializer(serializers.Serializer):
+class SpendingLimitUsageSerializer(serializers.Serializer):
     component_type = serializers.CharField()
     period = serializers.ChoiceField(choices=SpendingLimitPeriods.CHOICES)
     limit = serializers.FloatField()
@@ -8528,6 +8529,9 @@ class SpendingLimitStatusSerializer(serializers.Serializer):
         help_text="When the current period ends and its usage starts from zero."
     )
     reached = serializers.BooleanField()
+
+
+class SpendingLimitStatusSerializer(SpendingLimitUsageSerializer):
     last_reported_at = serializers.DateTimeField(
         allow_null=True, help_text="When usage of the component was last reported."
     )
@@ -9651,6 +9655,17 @@ class ResourceBackendMetadataSerializer(serializers.ModelSerializer):
         fields = ("backend_metadata",)
 
 
+class ComponentDailyUsageItemSerializer(serializers.Serializer):
+    type = serializers.CharField(help_text="Type of the usage-based component")
+    date = serializers.DateField(help_text="UTC date the amount was used on")
+    amount = serializers.DecimalField(
+        decimal_places=2,
+        max_digits=20,
+        min_value=0,
+        help_text="Usage on that date. Replaces the amount reported for it before.",
+    )
+
+
 class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     """Non-secret view of a resource API key — safe for listing/polling."""
 
@@ -9661,10 +9676,13 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     # the portal has to see it to offer the one and not the other.
     MANAGED_FIELDS = (
         "limits",
+        "spending_limits",
+        "spending_limit_status",
         "allowed_models",
         "current_usages",
         "usage_period",
         "paused_by_limit",
+        "limit_resumes_at",
     )
 
     resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
@@ -9680,8 +9698,19 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     limits = serializers.DictField(
-        child=LimitValueField(), allow_null=True, read_only=True
+        child=LimitValueField(),
+        source="monthly_limits",
+        allow_null=True,
+        read_only=True,
+        help_text="The month limits of spending_limits, per component type, for "
+        "clients that know only monthly limits.",
     )
+    spending_limits = SpendingLimitsField(
+        allow_null=True,
+        read_only=True,
+        help_text="Limits per component type and period.",
+    )
+    spending_limit_status = serializers.SerializerMethodField()
     allowed_models = serializers.ListField(
         child=serializers.CharField(), allow_null=True, read_only=True
     )
@@ -9690,6 +9719,7 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     )
     usage_period = serializers.DateField(allow_null=True, read_only=True)
     paused_by_limit = serializers.BooleanField(allow_null=True, read_only=True)
+    limit_resumes_at = serializers.DateTimeField(allow_null=True, read_only=True)
 
     class Meta:
         model = models.ResourceApiKey
@@ -9706,11 +9736,23 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
             "user_uuid",
             "user_full_name",
             "limits",
+            "spending_limits",
+            "spending_limit_status",
             "allowed_models",
             "current_usages",
             "usage_period",
             "paused_by_limit",
+            "limit_resumes_at",
         )
+
+    @extend_schema_field(SpendingLimitUsageSerializer(many=True, allow_null=True))
+    def get_spending_limit_status(self, api_key: models.ResourceApiKey):
+        """Each limit of the key with its usage so far, reset time and whether it is reached."""
+        if not api_key.is_managed:
+            return None
+        return SpendingLimitUsageSerializer(
+            api_key_spending_limits.get_status(api_key), many=True
+        ).data
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -9724,7 +9766,9 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
     """The per-key settings shared by requesting and editing a key.
 
     Every setting is optional. An empty limit map or model list is stored as null:
-    the key then follows the resource.
+    the key then follows the resource. ``spending_limits`` sets the limits of
+    every period; ``limits`` is the flat monthly shape key limits had before they
+    had periods, and replaces only the month limits.
     """
 
     user = serializers.SlugRelatedField(
@@ -9738,7 +9782,17 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
         child=LimitValueField(min_value=0),
         required=False,
         allow_null=True,
-        help_text="Limits per component type; zero or absent means no limit.",
+        help_text="Month limits per component type; zero or absent means no "
+        "month limit. Replaces the month limits of spending_limits and keeps the "
+        "other periods. Not together with spending_limits.",
+    )
+    spending_limits = SpendingLimitsField(
+        required=False,
+        allow_null=True,
+        help_text="Limits per component type and period, replacing the key's "
+        "limits; a null amount clears that period's limit. A period other than "
+        "month must be offered on the component, and a limit may not exceed the "
+        "resource's spending limit for the same period.",
     )
     allowed_models = serializers.ListField(
         child=serializers.CharField(),
@@ -9750,6 +9804,29 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
     def get_resource(self, attrs) -> models.Resource:
         raise NotImplementedError
 
+    def _validate_limits(self, attrs, resource, errors):
+        """Turn ``limits`` or ``spending_limits`` into the key's new spending limits."""
+        current = self.instance.spending_limits if self.instance else None
+        if "limits" in attrs:
+            field = "limits"
+            if "spending_limits" in attrs:
+                errors[field] = _("Set limits or spending_limits, not both.")
+                return
+            value = api_key_spending_limits.with_monthly_limits(
+                current, attrs.pop("limits")
+            )
+        elif "spending_limits" in attrs:
+            field = "spending_limits"
+            value = attrs["spending_limits"]
+        else:
+            return
+        try:
+            attrs["spending_limits"] = api_key_spending_limits.validate_key_limits(
+                value, resource, current
+            )
+        except serializers.ValidationError as error:
+            errors[field] = error.detail
+
     def validate(self, attrs):
         resource = self.get_resource(attrs)
         errors = {}
@@ -9760,14 +9837,7 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
             errors["user"] = _(
                 "The assignee must be a member of the resource's project."
             )
-        if "limits" in attrs:
-            attrs["limits"] = attrs["limits"] or None
-            component_types = set(
-                resource.offering.components.values_list("type", flat=True)
-            )
-            unknown = sorted(set(attrs["limits"] or {}) - component_types)
-            if unknown:
-                errors["limits"] = _("Unknown components: %s.") % ", ".join(unknown)
+        self._validate_limits(attrs, resource, errors)
         if "allowed_models" in attrs:
             allowed_models = attrs["allowed_models"] or None
             attrs["allowed_models"] = allowed_models
@@ -9810,16 +9880,26 @@ class ResourceApiKeyUpdateSerializer(ResourceApiKeySettingsSerializer):
 
 
 class ResourceApiKeyUsageSerializer(serializers.Serializer):
-    """Agent push: a key's usage per component type in one month."""
+    """Agent push: a key's usage per component type in one month, per day, or both."""
 
     usages = serializers.DictField(
         child=LimitValueField(min_value=0),
-        help_text="The key's usage so far in billing_period, per component type.",
+        required=False,
+        help_text="The key's usage so far in billing_period, per component type. "
+        "Rejected for a component that has daily amounts in that month.",
+    )
+    daily_usages = ComponentDailyUsageItemSerializer(
+        many=True,
+        required=False,
+        help_text="The key's usage per UTC date and component type; a date "
+        "reported again replaces its amount. The month's usage of a component "
+        "with daily amounts is their sum. Needed for limits other than month.",
     )
     billing_period = serializers.DateField(
         required=False,
-        help_text="Any day of the month the usage belongs to; the current month "
-        "when omitted. Limits are monthly, so a later month starts them afresh.",
+        help_text="Any day of the month usages belongs to; the current month "
+        "when omitted. Only the latest month is kept, so a later month starts "
+        "afresh.",
     )
 
     def validate_billing_period(self, value):
@@ -9828,18 +9908,49 @@ class ResourceApiKeyUsageSerializer(serializers.Serializer):
             raise serializers.ValidationError(_("Usage cannot be reported ahead."))
         return period
 
-    def validate_usages(self, usages):
-        component_types = set(
+    def _component_types(self):
+        return set(
             self.context["api_key"].resource.offering.components.values_list(
                 "type", flat=True
             )
         )
-        unknown = sorted(set(usages) - component_types)
+
+    def validate_usages(self, usages):
+        unknown = sorted(set(usages) - self._component_types())
         if unknown:
             raise serializers.ValidationError(
                 _("Unknown components: %s.") % ", ".join(unknown)
             )
         return usages
+
+    def validate_daily_usages(self, daily_usages):
+        unknown = sorted(
+            {item["type"] for item in daily_usages} - self._component_types()
+        )
+        if unknown:
+            raise serializers.ValidationError(
+                _("Unknown components: %s.") % ", ".join(unknown)
+            )
+        today = spending_limits.utc_today()
+        seen = set()
+        for item in daily_usages:
+            if item["date"] > today:
+                raise serializers.ValidationError(
+                    _("Usage cannot be reported ahead: %s.") % item["date"]
+                )
+            key = (item["type"], item["date"])
+            if key in seen:
+                raise serializers.ValidationError(
+                    _("%(type)s is reported twice for %(date)s.")
+                    % {"type": item["type"], "date": item["date"]}
+                )
+            seen.add(key)
+        return daily_usages
+
+    def validate(self, attrs):
+        if "usages" not in attrs and not attrs.get("daily_usages"):
+            raise serializers.ValidationError(_("Report usages, daily_usages or both."))
+        return attrs
 
 
 class ResourceApiKeyUsageTotalsSerializer(serializers.Serializer):
@@ -11062,17 +11173,6 @@ class ComponentUsageItemSerializer(serializers.Serializer):
             )
 
         return attrs
-
-
-class ComponentDailyUsageItemSerializer(serializers.Serializer):
-    type = serializers.CharField(help_text="Type of the usage-based component")
-    date = serializers.DateField(help_text="UTC date the amount was used on")
-    amount = serializers.DecimalField(
-        decimal_places=2,
-        max_digits=20,
-        min_value=0,
-        help_text="Usage on that date. Replaces the amount reported for it before.",
-    )
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):

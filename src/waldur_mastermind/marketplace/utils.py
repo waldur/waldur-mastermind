@@ -7220,7 +7220,10 @@ def publish_api_key_event(api_key: models.ResourceApiKey, action: str) -> bool:
         "action": action,
     }
     if action in ResourceApiKeyActions.CARRY_SETTINGS:
-        payload["limits"] = api_key.limits
+        # limits carries the month limits alone, in the flat shape agents that
+        # know only monthly limits read; spending_limits carries every period.
+        payload["limits"] = api_key.monthly_limits
+        payload["spending_limits"] = api_key.spending_limits
         payload["allowed_models"] = api_key.allowed_models
     # The observable type predates the other commands; agents subscribe to it by
     # name, so it keeps its rotation-era name.

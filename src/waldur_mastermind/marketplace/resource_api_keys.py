@@ -9,10 +9,11 @@ the key Erred with the command still recorded; the key then accepts only that
 command again (a retry) or a delete, so a retry can never silently stand in for
 a different command.
 
-Per-key limits are monthly and enforced here, not at the gateway: a usage report
-that reaches a limit issues a ``pause`` for that key alone, and Waldur resumes the
-key once its usage is under its limits again — in a new month, or when a limit is
-raised. See docs/resource-api-keys.md.
+Per-key limits are per calendar period (see ``api_key_spending_limits``) and
+enforced here, not at the gateway: a usage report that reaches a limit issues a
+``pause`` for that key alone, and Waldur resumes the key once its usage is under
+its limits again — when the period resets, or when a limit is raised. See
+docs/resource-api-keys.md.
 """
 
 import datetime
@@ -24,7 +25,13 @@ from django_fsm import TransitionNotAllowed
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.exceptions import IncorrectStateException
-from waldur_mastermind.marketplace import log, models, utils
+from waldur_mastermind.marketplace import (
+    api_key_spending_limits,
+    log,
+    models,
+    spending_limits,
+    utils,
+)
 from waldur_mastermind.marketplace.enums import (
     ResourceApiKeyActions,
     ResourceApiKeyStates,
@@ -48,7 +55,7 @@ _START = {
 }
 
 # Settings the agent applies at the backend. The assignee is Waldur's alone.
-AGENT_SETTINGS = frozenset({"limits", "allowed_models"})
+AGENT_SETTINGS = frozenset({"spending_limits", "allowed_models"})
 
 # Commands every key-carrying backend accepts, governed or not. Rotation
 # predates governance; a resume must stay possible for a key that was paused
@@ -313,15 +320,93 @@ def record_created_key(
     return api_key
 
 
-def record_usage(
-    api_key: models.ResourceApiKey, usages: dict, period: datetime.date
-) -> models.ResourceApiKey:
-    """Store a key's usage in a month, and pause or resume it against its limits.
+def _record_month(api_key, usages: dict, period: datetime.date, daily_usages):
+    """Merge a month's usage so far into the key, refusing what days already cover."""
+    if api_key.usage_period and period < api_key.usage_period:
+        raise IncorrectStateException(
+            f"The API key already holds its usage for "
+            f"{api_key.usage_period:%Y-%m}; {period:%Y-%m} can no longer be "
+            f"reported."
+        )
+    # The month figure of a component with daily amounts is their sum, and the
+    # next daily report would overwrite a month total sent beside them.
+    with_days = api_key_spending_limits.types_with_days(api_key, period) | {
+        item["type"] for item in daily_usages if item["date"].replace(day=1) == period
+    }
+    covered = sorted(with_days & set(usages))
+    if covered:
+        raise ValidationError(
+            {
+                "usages": f"{', '.join(covered)} has daily amounts in "
+                f"{period:%Y-%m}; report its usage per day."
+            }
+        )
+    if period == api_key.usage_period:
+        usages = {**(api_key.current_usages or {}), **usages}
+    api_key.current_usages = usages
+    api_key.usage_period = period
 
-    The agent reports each month's usage so far, so a report for the month the
-    key already holds merges per component, and one for a later month replaces
-    it: limits start afresh every month. Only the latest month is kept, so a
-    report for an earlier one is refused.
+
+def _record_days(api_key, daily_usages):
+    """Store a key's usage per day, and derive its month figure from the days.
+
+    An agent that switches to daily reporting mid-month must report every day
+    of the month so far, as for a resource's daily usage: the days replace the
+    month total from then on. The month figure never drops within the month
+    all the same, so a month total reported before the first daily amounts
+    stays as a floor and a limit it reached does not reopen before the days
+    catch up. The figure is not billed, so a day corrected downwards counting
+    until the month turns errs on the side of the limit.
+    """
+    api_key_spending_limits.record_days(api_key, daily_usages)
+    months = {item["date"].replace(day=1) for item in daily_usages}
+    latest = max(months)
+    if not api_key.usage_period or latest > api_key.usage_period:
+        api_key.current_usages = {}
+        api_key.usage_period = latest
+    # Days of a month before the one the key holds still count for the limits
+    # of the periods they fall in; only the latest month's figure is kept.
+    if api_key.usage_period in months:
+        current = api_key.current_usages or {}
+        api_key.current_usages = {
+            **current,
+            **{
+                component_type: max(current.get(component_type, 0), total)
+                for component_type, total in api_key_spending_limits.month_from_days(
+                    api_key, api_key.usage_period
+                ).items()
+            },
+        }
+
+
+def _move_resume_time(api_key: models.ResourceApiKey, reached: list[dict]) -> None:
+    """Keep ``limit_resumes_at`` at the reset of the limits that still hold the key.
+
+    Saved without touching ``modified``, which the agent's sweep reads as the
+    time the key entered its current state.
+    """
+    resumes_at = spending_limits.resumes_at(reached)
+    if api_key.limit_resumes_at != resumes_at:
+        api_key.limit_resumes_at = resumes_at
+        models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
+            limit_resumes_at=resumes_at
+        )
+
+
+def record_usage(
+    api_key: models.ResourceApiKey,
+    usages: dict | None,
+    period: datetime.date,
+    daily_usages=(),
+) -> models.ResourceApiKey:
+    """Store a key's usage, and pause or resume it against its limits.
+
+    ``usages``, unless None, is the usage so far in the month ``period``: a
+    report for the month the key already holds merges per component, and one for
+    a later month replaces it. Only the latest month is kept, so a report for an earlier one
+    is refused. ``daily_usages`` are amounts per UTC date; a date reported again
+    replaces its amount, and the month figure of a component with daily amounts
+    is their sum.
 
     Accepted in any state, a deleted key's included: its usage up to the
     deletion still counts. The report leaves ``modified`` alone, which the
@@ -329,24 +414,18 @@ def record_usage(
     """
     with transaction.atomic():
         api_key = _lock(api_key)
-        if api_key.usage_period and period < api_key.usage_period:
-            raise IncorrectStateException(
-                f"The API key already holds its usage for "
-                f"{api_key.usage_period:%Y-%m}; {period:%Y-%m} can no longer be "
-                f"reported."
-            )
-        if period == api_key.usage_period:
-            usages = {**(api_key.current_usages or {}), **usages}
-        api_key.current_usages = usages
-        api_key.usage_period = period
+        if usages is not None:
+            _record_month(api_key, usages, period, daily_usages)
+        if daily_usages:
+            _record_days(api_key, daily_usages)
         models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
-            current_usages=api_key.current_usages, usage_period=period
+            current_usages=api_key.current_usages, usage_period=api_key.usage_period
         )
-        exceeded = api_key.exceeded_limits()
+        reached = api_key_spending_limits.reached_limits(api_key)
         # Only a settled key of a live resource: a command in flight is left to
         # finish, and the next report checks again.
         if (
-            exceeded
+            reached
             and api_key.state == States.OK
             and not api_key.pending_action
             and is_resource_live(api_key.resource)
@@ -354,10 +433,15 @@ def record_usage(
             api_key = issue_command(
                 api_key,
                 Actions.PAUSE,
-                reason=f"Its usage reached the limit for {', '.join(exceeded)}.",
+                reason=f"Its usage reached the {spending_limits.describe(reached)}.",
                 paused_by_limit=True,
+                limit_resumes_at=spending_limits.resumes_at(reached),
             )
-        elif not exceeded:
+        elif reached and api_key.paused_by_limit:
+            # A longer limit reached since the pause holds the key past the
+            # reset of the one that paused it.
+            _move_resume_time(api_key, reached)
+        elif not reached:
             api_key = resume_if_under_limit(api_key)
     return api_key
 
@@ -365,9 +449,10 @@ def record_usage(
 def resume_if_under_limit(api_key: models.ResourceApiKey) -> models.ResourceApiKey:
     """Resume a key Waldur paused for its limit once its usage is under it again.
 
-    That happens in a new month, since limits are monthly, or when a limit is raised
-    or removed. A key paused by a person is left alone, and so is one with a
-    command in flight: the pause has to have settled first.
+    That happens when the period of every reached limit resets, or when a limit
+    is raised or removed. A key paused by a person is left alone, and so is one
+    with a command in flight: the pause has to have settled first. A key still
+    over a limit gets the time that limit resets as its ``limit_resumes_at``.
     """
     with transaction.atomic():
         api_key = _lock(api_key)
@@ -376,25 +461,32 @@ def resume_if_under_limit(api_key: models.ResourceApiKey) -> models.ResourceApiK
             and api_key.paused_by_limit
             and not api_key.pending_action
             and is_resource_live(api_key.resource)
-            and not api_key.exceeded_limits()
         ):
-            api_key = issue_command(
-                api_key,
-                Actions.RESUME,
-                reason="Its usage is under its limit again.",
-            )
+            reached = api_key_spending_limits.reached_limits(api_key)
+            if reached:
+                _move_resume_time(api_key, reached)
+            else:
+                api_key = issue_command(
+                    api_key,
+                    Actions.RESUME,
+                    reason="Its usage is under its limit again.",
+                )
     return api_key
 
 
-def resume_keys_under_limit() -> None:
+def resume_keys_under_limit(reset_only=False) -> None:
     """Resume every key paused for its limit whose usage is under it again.
 
-    A usage report resumes such a key on its own, but when a month begins no
-    report may come for a while: this catches the month turning.
+    A usage report resumes such a key on its own, but when a period resets no
+    report may come for a while: this catches the reset. ``reset_only`` checks
+    only the keys whose ``limit_resumes_at`` has passed.
     """
-    for api_key in models.ResourceApiKey.objects.filter(
+    keys = models.ResourceApiKey.objects.filter(
         state=States.PAUSED, paused_by_limit=True, pending_action=""
-    ):
+    )
+    if reset_only:
+        keys = keys.filter(limit_resumes_at__lte=timezone.now())
+    for api_key in keys:
         # One key failing to resume must not keep the others paused.
         try:
             resume_if_under_limit(api_key)
