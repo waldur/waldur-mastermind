@@ -287,17 +287,36 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         raise rf_exceptions.PermissionDenied()
 
     def _comment_create_is_available_validator(issue):
-        if not backend.get_active_backend().comment_create_is_available(issue):
+        if not backend.get_backend_for_issue(issue).comment_create_is_available(issue):
             raise ValidationError("Creating is not available.")
 
     @extend_schema(responses={status.HTTP_201_CREATED: serializers.CommentSerializer})
     @decorators.action(detail=True, methods=["post"])
     def comment(self, request, uuid=None):
+        issue = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        with transaction.atomic():
-            comment = serializer.save()
-            backend.get_active_backend().create_comment(comment)
+        try:
+            with transaction.atomic():
+                comment = serializer.save()
+                # Push to the backend that owns the ticket: a provider-routed
+                # ticket has its own helpdesk backend, not the operator's global
+                backend.get_backend_for_issue(issue).create_comment(comment)
+        except (
+            backend.SupportBackendError,
+            structure_exceptions.ServiceBackendError,
+        ) as e:
+            logger.warning(
+                "Failed to submit comment for issue %s to its support backend: %s",
+                issue.uuid.hex,
+                e,
+            )
+            raise rf_exceptions.ValidationError(
+                _(
+                    "Unable to submit the comment to the support system. "
+                    "Please try again later."
+                )
+            )
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     comment_serializer_class = serializers.CommentSerializer
@@ -821,17 +840,34 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         ser = serializers.ProviderCommentSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
 
-        support_user, _ = models.SupportUser.objects.get_or_create_from_user(
+        support_user, _created = models.SupportUser.objects.get_or_create_from_user(
             request.user
         )
-        with transaction.atomic():
-            comment = models.Comment.objects.create(
-                issue=issue,
-                author=support_user,
-                description=ser.validated_data["description"],
-                is_public=ser.validated_data.get("is_public", True),
+        try:
+            with transaction.atomic():
+                comment = models.Comment.objects.create(
+                    issue=issue,
+                    author=support_user,
+                    description=ser.validated_data["description"],
+                    is_public=ser.validated_data.get("is_public", True),
+                )
+                backend.get_backend_for_issue(issue).create_comment(comment)
+        except (
+            backend.SupportBackendError,
+            structure_exceptions.ServiceBackendError,
+        ) as e:
+            logger.warning(
+                "Failed to submit comment for provider ticket %s to its support "
+                "backend: %s",
+                issue.uuid.hex,
+                e,
             )
-            backend.get_active_backend().create_comment(comment)
+            raise rf_exceptions.ValidationError(
+                _(
+                    "Unable to submit the comment to the support system. "
+                    "Please try again later."
+                )
+            )
 
         return response.Response(
             {"uuid": comment.uuid.hex, "description": comment.description},
