@@ -2,6 +2,7 @@ import datetime
 import decimal
 import logging
 
+import reversion
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core import exceptions
@@ -1988,3 +1989,13 @@ class SlurmPolicyEvaluationLog(core_models.UuidMixin, TimeStampedModel):
             f"Evaluation of {self.resource} against policy {self.policy} "
             f"at {self.evaluated_at}: {self.usage_percentage:.1f}% usage"
         )
+
+
+# The estimated-cost policies keep a version history, so who changed a limit,
+# period, credit handling or actions, and when, can be traced (#602). Versions
+# are written by the REST API's create and update (CreateReversionMixin /
+# UpdateReversionMixin on their viewsets); evaluation saves of `has_fired` run
+# outside any revision block and add none.
+reversion.register(ProjectEstimatedCostPolicy)
+reversion.register(CustomerEstimatedCostPolicy)
+reversion.register(OfferingEstimatedCostPolicy)
