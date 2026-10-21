@@ -28,6 +28,7 @@ from waldur_mastermind.policy.policy_actions import (
 
 from . import models
 from .models import LIMIT_PERIOD_TO_POLICY_PERIOD
+from .structures import EvaluationTriggers
 from .utils import system_actor_event_context
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,10 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
                     # Attribute the policy-driven events (and the resource saves
                     # they trigger) to the system robot rather than the user whose
                     # request saved the policy.
-                    with system_actor_event_context():
+                    with system_actor_event_context(
+                        trigger=EvaluationTriggers.POLICY_SAVED,
+                        trigger_object_uuid=policy.uuid.hex,
+                    ):
                         for action in policy.get_immediate_actions():
                             action.method(policy)
                             logger.info(
@@ -163,7 +167,10 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
 
                 # Execute reset actions after transaction commit
                 def execute_reset_actions():
-                    with system_actor_event_context():
+                    with system_actor_event_context(
+                        trigger=EvaluationTriggers.POLICY_SAVED,
+                        trigger_object_uuid=policy.uuid.hex,
+                    ):
                         for action in policy.get_all_actions():
                             if action.reset_method:
                                 action.reset_method(policy)

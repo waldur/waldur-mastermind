@@ -27,6 +27,24 @@ class PolicyGates:
     CREDIT_IGNORED = "credit_ignored"
 
 
+class EvaluationTriggers:
+    """What started a policy evaluation, recorded as `trigger` on the events it
+    emits."""
+
+    POLICY_SAVED = "policy_saved"
+    # Not an evaluation: a deleted policy's actions being reset.
+    POLICY_DELETED = "policy_deleted"
+    INVOICE_ITEM_SAVED = "invoice_item_saved"
+    CREDIT_CHANGED = "credit_changed"
+    USAGE_REPORTED = "usage_reported"
+    PERIODIC_SWEEP = "periodic_sweep"
+    # The sweep re-applying an already-fired policy's idempotent actions.
+    RECONCILE = "reconcile"
+    # Not an evaluation: the threshold actions of an already-fired policy, run
+    # when an observed resource is saved.
+    RESOURCE_SAVED = "resource_saved"
+
+
 class CreditSources:
     """The balance Gate 2 compared: a project allocation or the organization
     credit, whichever is lower."""
