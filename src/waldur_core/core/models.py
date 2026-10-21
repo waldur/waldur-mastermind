@@ -1590,6 +1590,9 @@ class DailyTableSizeHistory(models.Model):
         return f"{self.table_name} ({self.date})"
 
 
+PAT_PREFIX = "w_"
+
+
 class PersonalAccessToken(UuidMixin, NameMixin, TimeStampedModel):
     """Named, scoped, time-limited token for programmatic API access.
 
@@ -1633,7 +1636,7 @@ class PersonalAccessToken(UuidMixin, NameMixin, TimeStampedModel):
         """
         ts = int(expires_at.timestamp())
         raw = secrets.token_urlsafe(32)  # 256 bits
-        full_token = f"w_{ts}_{raw}"
+        full_token = f"{PAT_PREFIX}{ts}_{raw}"
         prefix = full_token[:8]
         token_hash = hashlib.sha256(full_token.encode()).hexdigest()
         return full_token, prefix, token_hash
