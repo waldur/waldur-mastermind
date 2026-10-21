@@ -1085,6 +1085,23 @@ options:
 
 Run the Matrix bot: Waldur's encrypted member of every Waldur room. It answers commands and posts everything Waldur sends as the bot. Run exactly one; a second process refuses to start while the first holds the bot's lease. Until the homeserver and appservice are configured it waits, and when they change it starts over with the new settings.
 
+## mcp_server
+
+Serve the remote MCP endpoint (/mcp) and /health. The endpoint answers 404 while the MCP_ENABLED setting is off.
+
+```bash
+
+usage: waldur mcp_server [--host HOST] [--port PORT] [--db-threads DB_THREADS]
+
+options:
+  --host HOST
+  --port PORT
+  --db-threads DB_THREADS
+                        Threads that run database calls; each holds one
+                        connection.
+
+```
+
 ## migrate_fresh
 
 Create the schema of an empty database from the models and record all migrations as applied.
