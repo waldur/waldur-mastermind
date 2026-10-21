@@ -28,7 +28,7 @@ dependencies = [
   "docker==7.1.0",
   "lxml>=6.1.0",
   "openportal>=0.91.0",
-  "Pillow>=12.2.0,<13.0.0",
+  "Pillow>=13.0.0,<14.0.0",
   # Was pinned to git main in August 2025 because the ISO data in the then-latest
   # release (24.6.1) was stale. Upstream released 26.2.16 in February 2026, which
   # carries that data, so the git dependency is no longer needed.
