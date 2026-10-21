@@ -112,6 +112,13 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.evaluate_usage_limit_on_daily_usage_report,
+            sender=models.ComponentDailyUsage,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "evaluate_usage_limit_on_daily_usage_report",
+        )
+
+        signals.post_save.connect(
             handlers.evaluate_usage_limit_on_component_change,
             sender=models.OfferingComponent,
             dispatch_uid="waldur_mastermind.marketplace."

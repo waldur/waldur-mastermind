@@ -54,6 +54,7 @@ from waldur_mastermind.marketplace.maintenance_utils import (
     MaintenanceAnnouncementTemplate,
 )
 from waldur_mastermind.marketplace.models import (
+    ComponentDailyUsage,
     ComponentUsage,
     Offering,
     OfferingComponent,
@@ -868,18 +869,41 @@ def evaluate_usage_limit_on_usage_report(
     """
     if not (created or instance.tracker.has_changed("usage")):
         return
-    # Only limit-based components drive the restriction; a usage report against
-    # any other component cannot change the outcome.
     component = instance.component
-    if component.billing_type != BillingTypes.LIMIT:
+    resource = instance.resource
+    if component.billing_type == BillingTypes.LIMIT:
+        # The limit is the per-resource limit when set, otherwise the
+        # component's limit_amount. Without any limit the outcome cannot change.
+        if not marketplace_utils.get_effective_component_limit(resource, component):
+            return
+    elif component.billing_type == BillingTypes.USAGE:
+        # A usage-based component restricts only through its spending limits.
+        if not (resource.spending_limits or {}).get(component.type):
+            return
+    else:
+        return
+    _schedule_usage_limit_evaluation(resource)
+
+
+def evaluate_usage_limit_on_daily_usage_report(
+    sender, instance: ComponentDailyUsage, created=False, **kwargs
+):
+    """Re-evaluate a resource with spending limits when a day's usage changes.
+
+    The month row derived from the days is saved too, but moving usage between
+    days changes a day or week figure without changing the month.
+    """
+    if not (created or instance.tracker.has_changed("usage")):
         return
     resource = instance.resource
+    if not (resource.spending_limits or {}).get(instance.component.type):
+        return
+    _schedule_usage_limit_evaluation(resource)
+
+
+def _schedule_usage_limit_evaluation(resource: Resource):
     action = resource.offering.plugin_options.get("action_on_usage_limit")
     if action not in (UsageLimitAction.PAUSE, UsageLimitAction.DOWNSCALE):
-        return
-    # The limit is the per-resource limit when set, otherwise the component's
-    # limit_amount. Without any limit the outcome cannot change.
-    if not marketplace_utils.get_effective_component_limit(resource, component):
         return
 
     # Local import mirrors the existing tasks imports in this module (avoids the
@@ -1232,7 +1256,9 @@ def offering_component_has_been_created_or_updated(
             for field in instance.tracker.changed()
         ]
         if changes:
-            diff = ", ".join(changes)
+            # The message is a format template, and a JSON field's value
+            # (spending_limit_periods) prints with braces.
+            diff = ", ".join(changes).replace("{", "{{").replace("}", "}}")
             event_logger.emit(
                 f"Offering component {instance.name} has been updated. Details: {diff}.",
                 event_type=EventType.MARKETPLACE_OFFERING_COMPONENT_UPDATED,
