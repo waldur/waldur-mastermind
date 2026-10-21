@@ -16,7 +16,10 @@ from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.serializers import clone_role_for_customer
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.tests.factories import ResourceFactory
+from waldur_mastermind.marketplace.tests.factories import (
+    OfferingFactory,
+    ResourceFactory,
+)
 from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.handlers import get_issue_scopes
@@ -388,6 +391,44 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertFalse(
             models.Issue.objects.filter(summary=payload["summary"]).exists()
         )
+
+    def test_caller_can_follow_request_opened_about_an_offering(self):
+        # Someone outside the provider's organization opens a request about its
+        # offering. The offering alone routes the request to the provider, and
+        # the request stays unscoped, so its caller can still read it.
+        offering = OfferingFactory(customer=structure_factories.CustomerFactory())
+        self.client.force_authenticate(self.fixture.user)
+        payload = self._get_valid_payload(
+            offering=offering.uuid.hex, is_reported_manually=True
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        issue = models.Issue.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(issue.offering, offering)
+        self.assertIsNone(issue.customer)
+        response = self.client.get(response.data["url"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_offering_does_not_let_caller_scope_request_to_its_provider(self):
+        # A request scoped to an organization is visible only by the roles held
+        # there, so one scoped to the provider would be hidden from a caller
+        # outside it. Referencing the provider's offering grants no exception.
+        provider = structure_factories.CustomerFactory()
+        offering = OfferingFactory(customer=provider)
+        self.client.force_authenticate(self.fixture.user)
+        payload = self._get_valid_payload(
+            customer=structure_factories.CustomerFactory.get_url(provider),
+            offering=offering.uuid.hex,
+            is_reported_manually=True,
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("customer", response.data)
+        self.assertFalse(models.Issue.objects.filter(customer=provider).exists())
 
     @data("staff", "global_support", "owner", "admin", "manager")
     def test_user_with_access_to_project_can_create_project_issue(self, user):
