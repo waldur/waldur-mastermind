@@ -88,6 +88,21 @@ resources. The check runs with the resource row locked, so two concurrent
 assignments cannot both pass; there is no database constraint, so keys assigned
 before the rule keep their assignees until someone edits them.
 
+**A key changes hands by rotation.** Where the offering manages keys, setting,
+changing or clearing the assignee of a key that holds a secret rotates it. The
+previous assignee may have revealed the old value — and so may any member of the
+project while the key was unassigned — and the backend charges a key's use and
+ties chat to whoever holds it now, so keeping the secret would let the old holder
+spend against the new holder's limit. The old secret stops working once the
+agent acknowledges the rotation, and the new assignee reveals the new value.
+Limits and models set in the same edit are saved on the key and carried by the
+`rotate` command. A key changes hands only from `OK`, or from `Erred` after a
+failed rotation (the rotation is then retried with the new assignee). A paused
+key, or one with another command in flight or failed, refuses the edit with 400
+on `user`: resume it, wait for the command, or retry it first. A key that holds
+no secret yet (a pending request) and any key of an offering without key
+management just take the new assignee, with no command.
+
 **Limits are enforced by Waldur, not the gateway.** The Envoy backend's
 `set_resource_limits` is a no-op by design: limits are enforced by Waldur (report
 → pause → block). A per-key limit works the same way — reported per-key usage that
@@ -379,9 +394,11 @@ why two keys are provisioned where keys are not managed one by one.
 Commands (observable type `resource_api_key_rotation` — the name predates the
 other commands and agents subscribe to it by name) carry a **slim** payload:
 resource/key identifiers, `client_id`, and `action`, never key material.
-`create`, `update` and `resume` also carry the key's `limits` and its effective
-`allowed_models` ([the resource's selection](#resource-selection)), so settings
-edited while a key was paused are applied when it resumes. The key only ever
+`create`, `rotate`, `update` and `resume` also carry the key's `limits` and its
+effective `allowed_models` ([the resource's selection](#resource-selection)), so
+settings edited while a key was paused are applied when it resumes, and a key
+rotated because it changed hands keeps the settings Waldur has for it. Agents
+from before `rotate` carried them ignore them and keep the backend's. The key only ever
 travels agent → Waldur, in the `report_created` / `set_key` request body (TLS),
 and is encrypted on receipt. When a resource is
 terminated, its remaining key rows — deleted ones included — are deleted by the
@@ -451,11 +468,18 @@ Consumer side. The actions marked *governance* need the offering's
   `allowed_models` creates a key with `[]`, no model
   ([model lists](#model-lists)).
 - `PATCH /{uuid}/` *(governance)* — change `user`, `limits`, `allowed_models`. A
-  new assignee must not hold another key on the resource. An
-  assignee change is Waldur's alone, but audited as
-  `marketplace_resource_api_key_updated`, since it decides who may reveal the
-  key. A change to limits or models is the `update` command — or, on a paused key,
-  is stored and sent with its `resume`. Unassigning (`{"user": null}`) needs no
+  new assignee must not hold another key on the resource. An assignee change on
+  a key that holds a secret is the `rotate` command, carrying any limits and
+  models set with it (see **A key changes hands by rotation** above); refused
+  with 400 on `user` for a paused key or one with another command pending or
+  failed. On a key with no secret yet, or without key management, it is
+  Waldur's alone, but audited as `marketplace_resource_api_key_updated`, since
+  it decides who may reveal the key. Once it commits, a site-agent offering's agent is sent a `user_role` sync
+  message for the key's resource (`resource_uuid` set), so a backend that ties a
+  person's own use of the resource to their key — LiteLLM's chat follows it —
+  applies the new assignee without waiting for an unrelated membership event.
+  Otherwise a change to limits or models is the `update` command — or, on a
+  paused key, is stored and sent with its `resume`. Unassigning (`{"user": null}`) needs no
   governance: reveal still honours an assignee set while governance was on, and
   only this lets someone other than staff lift it.
 - `POST /{uuid}/pause/` *(governance)* — the `pause` command.

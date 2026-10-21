@@ -36,7 +36,7 @@ from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
 )
-from waldur_mastermind.marketplace import log, model_lists, models, utils
+from waldur_mastermind.marketplace import log, model_lists, models, signals, utils
 from waldur_mastermind.marketplace.enums import (
     ResourceApiKeyActions,
     ResourceApiKeyStates,
@@ -286,8 +286,10 @@ def issue_command(
             )
         for field, value in updates.items():
             setattr(api_key, field, value)
-        if action in Actions.CARRY_SETTINGS:
-            # The command carries the effective list as it is now.
+        if action in Actions.CARRY_SETTINGS and action != Actions.ROTATE:
+            # The command carries the effective list as it is now. A rotation
+            # carries it too, but an agent older than that ignores it, so a key
+            # marked is still sent an update once the rotation settles.
             api_key.models_outdated = False
         api_key.save()
     if cancel:
@@ -310,10 +312,19 @@ def update_settings(
 
     The agent only hears about limits and models, and not while the key is paused:
     the resume command carries them. An Erred key takes new limits and models
-    only when its failed command was an update: the edit is then the retry. An
-    assignee change is Waldur's alone and applies in any state short of
-    deletion, to someone who holds no other key on the resource. A limit raised
-    above the usage of a key Waldur paused for it resumes the key.
+    only when its failed command was an update: the edit is then the retry. A
+    limit raised above the usage of a key Waldur paused for it resumes the key.
+
+    An assignee may be given only to someone who holds no other key on the
+    resource. Where the offering manages keys, a key that holds a secret
+    changes hands only by a rotation: the previous assignee, or any project
+    member while the key was unassigned, may have revealed the old secret, and
+    the backend ties chat and spending to whoever holds the key now. The
+    rotation carries whatever limits and models the same edit sets. A paused
+    key, or one with another command in flight or failed, has to be resumed,
+    settled or retried first. A key that holds no secret yet, and any key of
+    an offering without key management, just takes the new assignee. Once
+    committed the change is announced with ``resource_api_key_assignee_changed``.
     """
     require_resource_live(api_key.resource)
     with transaction.atomic():
@@ -329,9 +340,19 @@ def update_settings(
             for field, value in changes.items()
             if getattr(api_key, field) != value
         }
+        rotate = "user" in changes and _changes_hands_by_rotation(api_key)
         if "user" in changes:
             require_free_assignee(api_key.resource, changes["user"], api_key)
-        if not changes.keys() & AGENT_SETTINGS or api_key.state == States.PAUSED:
+        if rotate:
+            _require_rotatable_for_assignee(api_key)
+            api_key = issue_command(
+                api_key,
+                Actions.ROTATE,
+                actor,
+                reason="Its assignee changed.",
+                **changes,
+            )
+        elif not changes.keys() & AGENT_SETTINGS or api_key.state == States.PAUSED:
             if changes:
                 # No command, so no new state: ``modified`` is left alone, as
                 # the agent's sweep reads it as the time the key entered its
@@ -346,8 +367,79 @@ def update_settings(
                 )
                 if changes.keys() & AGENT_SETTINGS:
                     api_key = resume_if_under_limit(api_key)
-            return api_key
-        return issue_command(api_key, Actions.UPDATE, actor, **changes)
+        else:
+            api_key = issue_command(api_key, Actions.UPDATE, actor, **changes)
+        if "user" in changes:
+            _announce_assignee_change(api_key)
+        return api_key
+
+
+def _changes_hands_by_rotation(api_key: models.ResourceApiKey) -> bool:
+    """Whether a new assignee for the key takes a rotation.
+
+    Only a key whose backend holds a secret has one to replace, and only an
+    offering that manages keys ties its use to the assignee. Without key
+    management an assignee change stays a record in Waldur, as unassigning
+    there always was.
+    """
+    return bool(api_key.client_id) and api_key.is_managed
+
+
+def _require_rotatable_for_assignee(api_key: models.ResourceApiKey) -> None:
+    """Refuse an assignee change the key cannot rotate for now.
+
+    Called with the key locked. A rotation would bring a paused key back, and
+    would replace a command in flight or one that failed without it ever being
+    carried out; a failed rotation is simply retried with the new assignee.
+    """
+    if api_key.state == States.PAUSED:
+        message = (
+            "The API key is paused. Its assignee changes by rotating it, so "
+            "resume the key first."
+        )
+    elif api_key.state == States.ERRED:
+        failed = failed_command(api_key)
+        if failed == Actions.ROTATE:
+            return
+        message = (
+            f"The API key's {failed} failed. Its assignee changes by rotating "
+            f"it, so retry the {failed} or delete the key first."
+        )
+    elif api_key.pending_action:
+        message = (
+            f"The API key is busy: its {api_key.pending_action} has not been "
+            f"acknowledged yet. Its assignee changes by rotating it, so wait "
+            f"for the {api_key.pending_action} to finish first."
+        )
+    else:
+        return
+    raise ValidationError({"user": message})
+
+
+def _announce_assignee_change(api_key: models.ResourceApiKey) -> None:
+    """Announce a key's new assignee once the change commits.
+
+    A backend may tie its own use of the resource, such as chat, to the key's
+    assignee. It learns of a new one only in a membership pass, and no command
+    on the key starts one. Called only once the edit has been applied, so an
+    edit refused on the way announces nothing.
+    """
+    transaction.on_commit(lambda: _send_assignee_change(api_key))
+
+
+def _send_assignee_change(api_key: models.ResourceApiKey) -> None:
+    # The edit has committed: a receiver failing, such as on a broker outage,
+    # must not turn it into an error.
+    for receiver, result in signals.resource_api_key_assignee_changed.send_robust(
+        sender=models.ResourceApiKey, api_key=api_key
+    ):
+        if isinstance(result, Exception):
+            logger.error(
+                "Could not announce the new assignee of API key %s to %s",
+                api_key.uuid,
+                getattr(receiver, "__qualname__", receiver),
+                exc_info=result,
+            )
 
 
 def acknowledge(
