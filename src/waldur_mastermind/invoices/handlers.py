@@ -381,6 +381,9 @@ def log_project_credit(sender, instance: ProjectCredit, created=False, **kwargs)
         return
 
     credit = instance
+    # The project too, so the project's audit log (events filtered by scope)
+    # shows changes to its own credit, as it does the compensation draws on it.
+    scopes = [credit.project.customer, credit.project]
 
     if created:
         event_logger.emit(
@@ -391,7 +394,7 @@ def log_project_credit(sender, instance: ProjectCredit, created=False, **kwargs)
                 "customer": credit.project.customer,
                 "project": credit.project,
             },
-            scopes=[credit.project.customer],
+            scopes=scopes,
         )
     elif credit.tracker.has_changed("value"):
         event_logger.emit(
@@ -403,7 +406,7 @@ def log_project_credit(sender, instance: ProjectCredit, created=False, **kwargs)
                 "customer": credit.project.customer,
                 "project": credit.project,
             },
-            scopes=[credit.project.customer],
+            scopes=scopes,
         )
 
 
@@ -535,8 +538,11 @@ def refund_project_credit_on_project_removal(sender, instance: Project, **kwargs
                     "new_value": 0,
                     "old_value": old_value,
                     "customer": project.customer,
+                    "project": project,
                 },
-                scopes=[project.customer],
+                # The project's own credit history ends here; see
+                # log_project_credit for why the project is a scope.
+                scopes=[project.customer, project],
             )
 
 

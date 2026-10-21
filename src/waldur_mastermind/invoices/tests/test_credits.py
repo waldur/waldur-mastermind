@@ -13,6 +13,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
+from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import Role
 from waldur_core.structure.models import Customer
@@ -313,6 +314,19 @@ class ProjectCreditRetrieveTest(test.APITestCase):
         self.assertFalse(response.data["is_limited_by_organization_credit"])
 
 
+def project_audit_log_event_types(client, user, project):
+    """Event types the project's audit log shows `user`, queried the way
+    Homeport does: by `scope`, which reads the event feed rather than the
+    event's context, through the same visibility checks a real reader gets."""
+    client.force_authenticate(user)
+    response = client.get(
+        logging_factories.EventFactory.get_list_url(),
+        {"scope": structure_factories.ProjectFactory.get_url(project)},
+    )
+    assert response.status_code == status.HTTP_200_OK, response.data
+    return {event["event_type"] for event in response.data}
+
+
 @ddt
 class ProjectCreditCreateTest(test.APITestCase):
     def setUp(self):
@@ -336,6 +350,17 @@ class ProjectCreditCreateTest(test.APITestCase):
             logging_models.Event.objects.filter(
                 event_type="create_of_project_credit_by_staff"
             ).exists()
+        )
+
+    @data("owner", "manager")
+    def test_created_credit_is_in_the_project_audit_log(self, reader):
+        self.create_credit("staff")
+
+        self.assertIn(
+            "create_of_project_credit_by_staff",
+            project_audit_log_event_types(
+                self.client, getattr(self.fixture, reader), self.fixture.project
+            ),
         )
 
     @data("global_support", "manager", "admin", "user")
@@ -363,6 +388,17 @@ class ProjectCreditUpdateTest(test.APITestCase):
             logging_models.Event.objects.filter(
                 event_type="update_of_project_credit_by_staff"
             ).exists()
+        )
+
+    @data("owner", "manager")
+    def test_updated_credit_is_in_the_project_audit_log(self, reader):
+        self.update_credit("staff")
+
+        self.assertIn(
+            "update_of_project_credit_by_staff",
+            project_audit_log_event_types(
+                self.client, getattr(self.fixture, reader), self.fixture.project
+            ),
         )
 
     @data("user")
@@ -443,6 +479,29 @@ class ProjectCreditDeleteTest(test.APITestCase):
         self.project_credit.project.delete()
         self.customer_credit.refresh_from_db()
         self.assertEqual(self.customer_credit.value, 100)
+
+    def test_credit_zeroed_on_project_removal_is_filed_on_the_project(self):
+        # The last entry of the project's credit history. A removed project
+        # cannot be looked up as a `scope` through the API any more, so the
+        # feed rows are checked directly.
+        self.project_credit.value = 10
+        self.project_credit.save()
+        project = self.project_credit.project
+
+        project.delete()
+
+        event = logging_models.Event.objects.get(
+            event_type="automatic_credit_adjustment",
+            message="Project credit has been set to 0 on project removal.",
+        )
+        self.assertEqual(event.context["project_uuid"], project.uuid.hex)
+        self.assertTrue(
+            logging_models.Feed.objects.filter(
+                event=event,
+                content_type=ContentType.objects.get_for_model(project),
+                object_id=project.id,
+            ).exists()
+        )
 
 
 @ddt
