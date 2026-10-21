@@ -14,6 +14,10 @@ that reaches a limit issues a ``pause`` for that key alone, and Waldur resumes t
 key once its usage is under its limits again — in a new month, or when a limit is
 raised.
 
+Commands are issued by whoever manages the resource's users. A key's assignee,
+the one person trusted with its value, may also replace that value: rotate the
+key, or retry a rotation of it that failed.
+
 A key's models are narrowed by its resource's selection and by what the offering
 still lists (``model_lists``), so a change to either is an ``update`` for every
 key whose effective list it changes. See docs/resource-api-keys.md.
@@ -25,9 +29,13 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 from django_fsm import TransitionNotAllowed
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_mastermind.marketplace import log, model_lists, models, utils
 from waldur_mastermind.marketplace.enums import (
     ResourceApiKeyActions,
@@ -88,6 +96,21 @@ def require_managed(resource: models.Resource) -> None:
         )
 
 
+def is_acting_assignee(api_key: models.ResourceApiKey, user) -> bool:
+    """Whether ``user`` is the key's assignee and may still act as one.
+
+    Held to what reveal holds the assignee to: still connected to the
+    resource's project or organization, and not a minimal-visibility viewer.
+    """
+    if not api_key.user_id or api_key.user_id != user.id:
+        return False
+    resource = api_key.resource
+    return (
+        resource.project_id in get_connected_projects(user)
+        or resource.project.customer_id in get_connected_customers(user)
+    ) and not utils.is_resource_project_only_viewer(user, resource)
+
+
 def _lock(api_key: models.ResourceApiKey) -> models.ResourceApiKey:
     return models.ResourceApiKey.objects.select_for_update().get(pk=api_key.pk)
 
@@ -133,6 +156,7 @@ def issue_command(
     action: str | None,
     actor=None,
     reason="",
+    assignee_only=False,
     **updates,
 ) -> models.ResourceApiKey:
     """Start a command on a key and publish it to the agent.
@@ -143,6 +167,13 @@ def issue_command(
     the same lock. ``updates`` are saved with the transition — the settings an
     update command carries. Without an actor the command is Waldur's own (a limit
     was reached, or the key is back under it).
+
+    ``assignee_only`` says the actor was admitted for being the key's assignee
+    and nothing more. Such an actor may only rotate the key, never in place of
+    another command that failed, and not a settled key that is over a limit
+    the offering enforces. All of it is settled under the lock: a retry names
+    its command there, and the key may have been reassigned since the actor
+    was admitted.
 
     Deleting a requested key that has no client_id yet publishes nothing: the
     backend holds nothing to revoke, so the key is Deleted at once, even while
@@ -175,6 +206,35 @@ def issue_command(
                 f"The API key is busy: its {api_key.pending_action} has not "
                 f"been acknowledged yet."
             )
+        if assignee_only:
+            if api_key.user_id != actor.id:
+                raise PermissionDenied()
+            # Once governance is off, a rotation may stand in for a governed
+            # command that failed. That is a manager's call: it would bring
+            # back a key whose pause or deletion failed.
+            stands_in = (
+                api_key.state == States.ERRED
+                and failed_command(api_key) != Actions.ROTATE
+            )
+            if action != Actions.ROTATE or stands_in:
+                raise PermissionDenied(
+                    "The assignee of an API key can only rotate it, or retry a "
+                    "rotation of it that failed."
+                )
+            # A usage report pauses only a settled key, so a rotation in flight
+            # holds the limit pause off. Whoever the limit is set for must not
+            # be able to keep one in flight. Nothing is held off where limits
+            # are not enforced, or for an Erred key, which is never paused for
+            # its limit: retrying its rotation is what settles it.
+            if (
+                api_key.state == States.OK
+                and api_key.is_managed
+                and api_key.exceeded_limits()
+            ):
+                raise IncorrectStateException(
+                    "The API key has reached its limit; its assignee cannot "
+                    "rotate it until it is under the limit again."
+                )
         if action not in UNGOVERNED:
             require_managed(api_key.resource)
         # A requested key whose creation failed never reached the backend under
@@ -287,6 +347,7 @@ def acknowledge(
         for field, value in updates.items():
             setattr(api_key, field, value)
         api_key.save()
+        api_key = _pause_if_over_limit(api_key)
     return send_outdated_models(api_key)
 
 
@@ -339,6 +400,7 @@ def record_created_key(
         api_key.pending_action = ""
         api_key.error_message = ""
         api_key.save()
+        api_key = _pause_if_over_limit(api_key)
     return send_outdated_models(api_key)
 
 
@@ -371,23 +433,35 @@ def record_usage(
         models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
             current_usages=api_key.current_usages, usage_period=period
         )
-        exceeded = api_key.exceeded_limits()
-        # Only a settled key of a live resource: a command in flight is left to
-        # finish, and the next report checks again.
-        if (
-            exceeded
-            and api_key.state == States.OK
-            and not api_key.pending_action
-            and is_resource_live(api_key.resource)
-        ):
-            api_key = issue_command(
-                api_key,
-                Actions.PAUSE,
-                reason=f"Its usage reached the limit for {', '.join(exceeded)}.",
-                paused_by_limit=True,
-            )
-        elif not exceeded:
+        if api_key.exceeded_limits():
+            api_key = _pause_if_over_limit(api_key)
+        else:
             api_key = resume_if_under_limit(api_key)
+    return api_key
+
+
+def _pause_if_over_limit(api_key: models.ResourceApiKey) -> models.ResourceApiKey:
+    """Pause a settled key whose usage has reached one of its limits.
+
+    Called with the key locked. Only a settled key of a live resource: a
+    command in flight is left to finish, and whatever settles it checks again —
+    the next usage report, or the agent's acknowledgement, so a key that
+    reached its limit while a rotation was in flight cannot settle unpaused.
+    """
+    exceeded = api_key.exceeded_limits()
+    if (
+        exceeded
+        and api_key.is_managed
+        and api_key.state == States.OK
+        and not api_key.pending_action
+        and is_resource_live(api_key.resource)
+    ):
+        api_key = issue_command(
+            api_key,
+            Actions.PAUSE,
+            reason=f"Its usage reached the limit for {', '.join(exceeded)}.",
+            paused_by_limit=True,
+        )
     return api_key
 
 
