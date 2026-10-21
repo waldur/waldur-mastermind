@@ -56,6 +56,14 @@ single key cannot be limited, and a leaked key can only be rotated. So a key may
 carry an **assignee**, and then only that person (plus staff and support) can
 reveal it.
 
+**The assignee can rotate their own key.** Whoever is trusted with a key's value
+is trusted to replace it, so a person who suspects their key has leaked does not
+have to find a manager while it stays live. Nothing else follows from being the
+assignee: pausing, resuming, deleting and editing the key stay with whoever
+manages the resource's users. A separate permission for this was considered and
+dropped — it would be one more thing for a project to grant, to the one person
+who already holds the secret.
+
 **Limits are enforced by Waldur, not the gateway.** The Envoy backend's
 `set_resource_limits` is a no-op by design: limits are enforced by Waldur (report
 → pause → block). A per-key limit works the same way — reported per-key usage that
@@ -96,7 +104,7 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `issued_at` | when the agent last stored a value: the key's creation or its latest rotation. Unlike `modified`, a pause, resume or edit leaves it alone, so it is the age of the value in use |
 | `state` | FSM, aligned to resource states (below) |
 | `pending_action` | the command in flight (`ResourceApiKeyActions`: `create`, `rotate`, `pause`, `resume`, `delete`, `update`); blank once settled, kept on `Erred` to show which command failed |
-| `user` | optional assignee; only they can reveal the key |
+| `user` | optional assignee; only they can reveal the key, and they can rotate it |
 | `limits` | optional per-component limits, keyed by component type; zero means no limit |
 | `allowed_models` | the models the key may call, never null: `["*"]` for every model, `[]` for none, or a list of names ([below](#model-lists)) |
 | `current_usages` | per-component usage in `usage_period`, as last reported by the agent |
@@ -358,8 +366,10 @@ termination callback.
 **Limits.** The agent reports each key's usage so far in a month with
 `report_usage`. When a key is `OK`, has no command in flight and its usage this
 month reaches a non-zero limit, Waldur issues a `pause` for that key alone, marks
-it `paused_by_limit` and audit-logs it as automatic. The resource and its other
-keys keep serving. An `Erred` key is not paused automatically — its failed
+it `paused_by_limit` and audit-logs it as automatic. A key over its limit while
+a command is in flight is checked again when the agent acknowledges that
+command: if it settles `OK`, it is paused at once rather than serving until the
+next report. The resource and its other keys keep serving. An `Erred` key is not paused automatically — its failed
 command needs a person to retry it first.
 
 Waldur resumes a key it paused for its limit, again audit-logged as automatic, as
@@ -370,8 +380,8 @@ soon as its usage is under every limit again:
 - the hourly `resume_api_keys_under_limit` task, for a month that begins before
   the agent reports anything for it.
 
-A resume by hand clears the mark: if the key is still over its limit, the next
-report pauses it again. A key a person paused is never resumed automatically.
+A resume by hand clears the mark, but does not override the limit: if the key is
+still over it, it is paused again once the agent acknowledges the resume. A key a person paused is never resumed automatically.
 
 ## API
 
@@ -398,12 +408,15 @@ Consumer side. The actions marked *governance* need the offering's
   `OK` key is revealed — a transitional or paused key's stored value may not
   match the gateway. **Audited** — each reveal emits the
   `marketplace_resource_api_key_revealed` event identifying the key.
-- `POST /{uuid}/rotate/` — the `rotate` command. Available on every backend.
+- `POST /{uuid}/rotate/` — the `rotate` command. Available on every backend,
+  and to the key's assignee as well as to whoever holds `RESOURCE.MANAGE_USERS`.
 - `POST /{uuid}/resume/` — the `resume` command. Available on every backend
   too, so a key paused before the provider switched governance off can come
   back.
 - `POST /{uuid}/retry/` — re-sends the command that left the key `Erred`
-  (`pending_action`); governed unless that command is `rotate` or `resume`.
+  (`pending_action`); governed unless that command is `rotate` or `resume`. The
+  key's assignee can retry a failed `rotate`; a retry of any other command is
+  refused to them with `403`.
 - `POST /` *(governance)* — request a key: `{resource, user?, limits?,
   allowed_models?}`. Creates a `Creating` row and the `create` command; Waldur
   generates nothing. The assignee must be a member of the resource's project (an
@@ -426,9 +439,45 @@ Consumer side. The actions marked *governance* need the offering's
 - `GET /usage_totals/?resource_uuid=` — the resource's reported key usage this
   month, summed per component, deleted keys included.
 
-Every command is gated on `RESOURCE.MANAGE_USERS` (project or customer scope),
-refused while the resource is terminating/terminated or while the key already
-has an unacknowledged command, and emits an audit event when it is issued:
+Every command is gated on `RESOURCE.MANAGE_USERS` (project or customer scope).
+`rotate`, and a `retry` of a failed rotation, also admit the key's **assignee**
+without that permission, under the conditions `reveal` holds them to: still a
+member of the resource's project or its customer, and not a minimal-visibility
+viewer. An assignee who no longer reaches the key at all — they left the
+project and hold no role on its customer — gets `404`, since the key is not
+listed for them; one who still lists it some other way (through the provider
+organization, or as global support) gets `403`. Whether the caller is still the
+assignee, and which command a retry repeats, are checked with the key locked, so
+a key reassigned meanwhile is refused. An unassigned key gives ordinary members
+nothing: it is rotated by a manager.
+
+Three things stay closed to the assignee:
+
+- Their rotation never stands in for another command that failed. Once
+  governance is off a manager may rotate a key whose `pause` failed, but for
+  the assignee that would undo a pause meant for them, so it is refused with
+  `403`.
+- They cannot rotate an `OK` key whose usage this month has reached one of its
+  limits (`409`). A usage report pauses only a settled key, so a rotation in
+  flight would hold the limit pause off for the very person the limit is set
+  for. A manager can still rotate it, and the key is paused once the agent
+  acknowledges the rotation.
+  This holds only where limits are enforced: not once governance is off, and
+  not for a retry of a failed rotation, since an `Erred` key is not paused for
+  its limit and the retry is what settles it.
+- A [personal access token](personal-access-tokens.md) cannot act as the
+  assignee: its scopes delegate role permissions, and being a key's assignee is
+  not one, so a token limited to reading would otherwise be able to replace the
+  key.
+
+A rotation in flight also makes the key refuse a manager's `pause` or delete
+until the agent acknowledges it. Each rotation is audited, and unassigning the
+key — accepted mid-command — ends an assignee's rotations.
+
+Every command is refused while the resource is terminating/terminated or while
+the key already has an unacknowledged command, and emits an audit event naming
+whoever issued it — a manager, the assignee, or Waldur itself for a limit pause
+or resume:
 `marketplace_resource_api_key_requested`, `_rotated`, `_paused`, `_resumed`,
 `_updated` or `_deleted`. Those events read as requested ("Pause of API key … has
 been requested by …"), since the agent has not carried the command out yet; an
