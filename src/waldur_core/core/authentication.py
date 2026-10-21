@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from collections.abc import Callable
 from enum import StrEnum
 
 import httpx
@@ -284,76 +285,22 @@ class PATAuthentication(BaseAuthentication):
             return None
 
         # Only handle tokens with the w_ prefix
-        if not raw_token.startswith("w_"):
+        if not raw_token.startswith(models.PAT_PREFIX):
             return None
 
-        # Quick expiry pre-check from embedded timestamp (w_<ts>_<random>)
-        parts = raw_token.split("_", 2)
-        if len(parts) == 3:
-            try:
-                if int(parts[1]) < int(timezone.now().timestamp()):
-                    raise AuthenticationFailed("Invalid token.")
-            except (ValueError, OverflowError):
-                pass
-
-        # Global kill-switch
-        if not config.PAT_ENABLED:
+        # Resolved here from the ingress-provided header — the same resolver
+        # AccessSubnet, marketplace filters and the audit trail use. The ingress
+        # is the trust boundary for X-Forwarded-For, mirroring its
+        # whitelistSourceRange.
+        result = authenticate_personal_access_token(
+            raw_token, core_utils.get_ip_address(request)
+        )
+        if result is None:
             return None
 
-        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-
-        try:
-            pat = models.PersonalAccessToken.objects.select_related("user").get(
-                token_hash=token_hash
-            )
-        except models.PersonalAccessToken.DoesNotExist:
-            raise AuthenticationFailed("Invalid token.")
-
-        # Resolve the client address once, from the ingress-provided header —
-        # the same resolver AccessSubnet, marketplace filters and the audit
-        # trail use. The ingress is the trust boundary for X-Forwarded-For,
-        # mirroring its whitelistSourceRange. Normalise it: get_ip_address
-        # returns the raw, client-controlled header, and the value flows on
-        # into event-message .format() templates, cache keys and last_used_ip
-        # (an inet column). Anything unparseable becomes None and fails closed.
-        client_ip = core_utils.normalize_ip_address(core_utils.get_ip_address(request))
-
-        # A known token presented after it should no longer work is a credential
-        # replay signal, so each rejection is audited (debounced per token,
-        # reason and IP). The token-not-found branch above is deliberately not
-        # audited: with no token record there is nothing to debounce on, so it
-        # would be an unbounded log-flood vector.
-        if not pat.is_active:
-            self._emit_authentication_rejected(pat, "revoked", client_ip)
-            raise AuthenticationFailed("Invalid token.")
-
-        if not pat.user.is_active:
-            self._emit_authentication_rejected(pat, "user_inactive", client_ip)
-            raise AuthenticationFailed("Invalid token.")
-
-        if not pat.user.can_use_personal_access_tokens:
-            self._emit_authentication_rejected(pat, "permission_revoked", client_ip)
-            raise AuthenticationFailed("Invalid token.")
-
-        if pat.is_expired:
-            raise AuthenticationFailed("Invalid token.")
-
-        # This block must stay above _update_usage: a denied request must not
-        # record attacker-controlled state (use_count, last_used_ip), and must
-        # not be able to burn the pat_usage debounce key that suppresses the
-        # owner's genuine PAT_USED_FROM_NEW_IP alert.
-        if pat.allowed_networks:
-            if not core_utils.ip_in_networks(client_ip, pat.allowed_networks):
-                self._emit_access_denied(pat, client_ip)
-                # Deliberately the same generic message as every other failure
-                # branch — the response must not confirm the token is valid.
-                raise AuthenticationFailed("Invalid token.")
-
-        # Update usage stats with batched writes (debounce via cache)
-        self._update_usage(pat, client_ip)
-
-        set_user_context(pat.user, skip_token_check=True)
-        return (pat.user, pat)
+        user, pat = result
+        set_user_context(user, skip_token_check=True)
+        return (user, pat)
 
     # Human-readable reason for each known-token rejection audited by
     # _emit_authentication_rejected. The key is also stored verbatim in the
@@ -362,6 +309,13 @@ class PATAuthentication(BaseAuthentication):
         "revoked": "the token has been revoked",
         "user_inactive": "the owner account is inactive",
         "permission_revoked": "the owner may no longer use personal access tokens",
+        "mcp_entity_bound": "the MCP server does not accept entity-bound tokens",
+        "mcp_staff_access_missing": (
+            "the MCP server requires STAFF.ACCESS on a staff account's token"
+        ),
+        "mcp_support_access_missing": (
+            "the MCP server requires SUPPORT.ACCESS on a support account's token"
+        ),
     }
 
     @staticmethod
@@ -531,6 +485,90 @@ class PATAuthentication(BaseAuthentication):
             use_count=F("use_count") + 1,
         )
         cache.set(cache_key, True, timeout=600)  # 10 min debounce
+
+
+def authenticate_personal_access_token(
+    raw_token: str,
+    client_ip: str | None,
+    authorize: Callable[[models.PersonalAccessToken, str | None], None] | None = None,
+) -> tuple[models.User, models.PersonalAccessToken] | None:
+    """Validate a raw ``w_...`` token presented from ``client_ip``.
+
+    Returns ``(user, pat)``, or None while PATs are disabled. Raises
+    AuthenticationFailed for every rejection. Needs no request, so the MCP
+    server shares the exact checks, audit events and usage tracking of REST.
+
+    ``authorize(pat, client_ip)`` adds caller-specific checks. It runs before
+    usage is recorded and rejects by raising AuthenticationFailed.
+    """
+    # Quick expiry pre-check from embedded timestamp (w_<ts>_<random>)
+    parts = raw_token.split("_", 2)
+    if len(parts) == 3:
+        try:
+            if int(parts[1]) < int(timezone.now().timestamp()):
+                raise AuthenticationFailed("Invalid token.")
+        except (ValueError, OverflowError):
+            pass
+
+    # Global kill-switch
+    if not config.PAT_ENABLED:
+        return None
+
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    try:
+        pat = models.PersonalAccessToken.objects.select_related("user").get(
+            token_hash=token_hash
+        )
+    except models.PersonalAccessToken.DoesNotExist:
+        raise AuthenticationFailed("Invalid token.")
+
+    # Normalise the address: callers pass the raw, client-controlled header,
+    # and the value flows on into event-message .format() templates, cache
+    # keys and last_used_ip (an inet column). Anything unparseable becomes
+    # None and fails closed.
+    client_ip = core_utils.normalize_ip_address(client_ip)
+
+    # A known token presented after it should no longer work is a credential
+    # replay signal, so each rejection is audited (debounced per token,
+    # reason and IP). The token-not-found branch above is deliberately not
+    # audited: with no token record there is nothing to debounce on, so it
+    # would be an unbounded log-flood vector.
+    if not pat.is_active:
+        PATAuthentication._emit_authentication_rejected(pat, "revoked", client_ip)
+        raise AuthenticationFailed("Invalid token.")
+
+    if not pat.user.is_active:
+        PATAuthentication._emit_authentication_rejected(pat, "user_inactive", client_ip)
+        raise AuthenticationFailed("Invalid token.")
+
+    if not pat.user.can_use_personal_access_tokens:
+        PATAuthentication._emit_authentication_rejected(
+            pat, "permission_revoked", client_ip
+        )
+        raise AuthenticationFailed("Invalid token.")
+
+    if pat.is_expired:
+        raise AuthenticationFailed("Invalid token.")
+
+    # This block must stay above _update_usage: a denied request must not
+    # record attacker-controlled state (use_count, last_used_ip), and must
+    # not be able to burn the pat_usage debounce key that suppresses the
+    # owner's genuine PAT_USED_FROM_NEW_IP alert.
+    if pat.allowed_networks:
+        if not core_utils.ip_in_networks(client_ip, pat.allowed_networks):
+            PATAuthentication._emit_access_denied(pat, client_ip)
+            # Deliberately the same generic message as every other failure
+            # branch — the response must not confirm the token is valid.
+            raise AuthenticationFailed("Invalid token.")
+
+    if authorize:
+        authorize(pat, client_ip)
+
+    # Update usage stats with batched writes (debounce via cache)
+    PATAuthentication._update_usage(pat, client_ip)
+
+    return (pat.user, pat)
 
 
 class OIDCAuthentication(BaseAuthentication):

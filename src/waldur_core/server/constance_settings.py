@@ -1995,6 +1995,12 @@ CONSTANCE_CONFIG = {
         "rejections. Bounds the event table against a caller who holds one "
         "valid token and rotates source addresses.",
     ),
+    # MCP server
+    "MCP_ENABLED": (
+        False,
+        "Serve the remote MCP endpoint (/mcp) from the `waldur mcp_server` "
+        "process, so AI agent clients can act as the signed-in user.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -2441,6 +2447,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "PAT_MAX_ACL_ENTRIES",
         "PAT_MAX_AUDIT_EVENTS_PER_HOUR",
     ),
+    "MCP server": ("MCP_ENABLED",),
     "Site Agent Logs": ("SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY",),
 }
 
@@ -2543,6 +2550,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "ENABLED_REPORTING_SCREENS",
     # Personal Access Tokens
     "PAT_ENABLED",
+    "MCP_ENABLED",
     "ONLY_ONE_PROJECT_MANAGER",
     "INVITATION_DISABLE_MULTIPLE_ROLES",
 )

@@ -89,6 +89,9 @@ dependencies = [
   "regex>=2024.11.6",
   "opentelemetry-proto>=1.37,<2",
   "typst>=0.15",
+  "fastmcp-slim[server]==4.1.1",
+  "starlette>=1.9",
+  "uvicorn>=0.54",
 ]
 
 [project.urls]
@@ -123,6 +126,7 @@ waldur_marketplace_remote = "waldur_mastermind.marketplace_remote.extension:Mark
 waldur_marketplace_promotions = "waldur_mastermind.promotions.extension:MarketplacePromotionsExtension"
 waldur_marketplace_chat = "waldur_mastermind.chat.extension:MarketplaceChatExtension"
 waldur_matrix_chat = "waldur_mastermind.matrix_chat.extension:MatrixChatExtension"
+waldur_mcp = "waldur_mastermind.mcp.extension:MCPExtension"
 waldur_openportal = "waldur_openportal.extension:OpenPortalExtension"
 waldur_openstack = "waldur_openstack.extension:OpenStackExtension"
 waldur_openstack_tenant = "waldur_openstack_tenant.extension:OpenStackTenantExtension"
