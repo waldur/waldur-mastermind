@@ -13,6 +13,7 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.structure import signals as structure_signals
         from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace import signals as marketplace_signals
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_site_agent import (
             executors,
@@ -93,4 +94,9 @@ class MarketplaceSlurmConfig(AppConfig):
         structure_signals.project_moved.connect(
             handlers.send_resource_messages_on_project_move,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_resource_messages_on_project_move",
+        )
+
+        marketplace_signals.resource_api_key_assignee_changed.connect(
+            handlers.send_resource_user_sync_on_api_key_assignee_change,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_resource_user_sync_on_api_key_assignee_change",
         )

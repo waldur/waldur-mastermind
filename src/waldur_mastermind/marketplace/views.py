@@ -16697,9 +16697,13 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         summary="Edit an API key",
         description="Changes the key's assignee, limits or model allowlist. A change "
         "to limits or models is sent to the site agent as an update command, "
-        "unless the key is paused: resuming it applies them. Only on offerings "
-        "with enable_api_key_provisioning, except for unassigning the key "
-        '({"user": null}).',
+        "unless the key is paused: resuming it applies them. A change of assignee "
+        "(setting, changing or clearing it) on a key that holds a secret rotates "
+        "the key instead, carrying any limits and models set with it: the old "
+        "secret stops working and the new assignee reveals the new one. A paused "
+        "key, or one with another command pending or failed, refuses it. Only on "
+        "offerings with enable_api_key_provisioning, except for unassigning the "
+        'key ({"user": null}).',
         request=serializers.ResourceApiKeyUpdateSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
     )

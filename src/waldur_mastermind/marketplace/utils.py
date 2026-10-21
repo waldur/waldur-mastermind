@@ -7150,7 +7150,12 @@ def publish_api_key_event(api_key: models.ResourceApiKey, action: str) -> bool:
         "client_id": api_key.client_id,
         "action": action,
     }
-    if action in ResourceApiKeyActions.CARRY_SETTINGS:
+    # Without key management the key's settings are not shown or applied, so a
+    # rotation there does not carry them either.
+    carries_settings = action in ResourceApiKeyActions.CARRY_SETTINGS and (
+        action != ResourceApiKeyActions.ROTATE or api_key.is_managed
+    )
+    if carries_settings:
         payload["limits"] = api_key.limits
         # The key's list narrowed by its resource's: the agent applies what the
         # key can call, not what it chose.
