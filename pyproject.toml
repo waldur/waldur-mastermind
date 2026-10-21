@@ -244,5 +244,5 @@ dev = [
     "django-stubs-ext>=5.2.2,<6.0.0",
     "libcst>=1.8.6",
     "memray>=1.19.3",
-    "pypdf>=6.19.0",
+    "pypdf>=6.20.1",
 ]
