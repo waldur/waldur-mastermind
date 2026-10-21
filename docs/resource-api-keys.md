@@ -77,6 +77,17 @@ manages the resource's users. A separate permission for this was considered and
 dropped — it would be one more thing for a project to grant, to the one person
 who already holds the secret.
 
+**One key per person.** A person is the assignee of at most one key on a
+resource; a request or an edit that would hand them a second is refused with
+400, naming the key they hold. A backend ties a person's own use of the
+resource to the key assigned to them — LiteLLM's chat follows it and bills it —
+and two keys would leave that two answers. A key holds its assignee until it is
+`Deleted`: one still `Deleting` may yet fail and stay in service. Keys on other
+resources do not count, so someone can hold one key on each of several
+resources. The check runs with the resource row locked, so two concurrent
+assignments cannot both pass; there is no database constraint, so keys assigned
+before the rule keep their assignees until someone edits them.
+
 **Limits are enforced by Waldur, not the gateway.** The Envoy backend's
 `set_resource_limits` is a no-op by design: limits are enforced by Waldur (report
 → pause → block). A per-key limit works the same way — reported per-key usage that
@@ -117,7 +128,7 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `issued_at` | when the agent last stored a value: the key's creation or its latest rotation. Unlike `modified`, a pause, resume or edit leaves it alone, so it is the age of the value in use |
 | `state` | FSM, aligned to resource states (below) |
 | `pending_action` | the command in flight (`ResourceApiKeyActions`: `create`, `rotate`, `pause`, `resume`, `delete`, `update`); blank once settled, kept on `Erred` to show which command failed |
-| `user` | optional assignee; only they can reveal the key, and they can rotate it |
+| `user` | optional assignee; only they can reveal the key, and they can rotate it. A person is the assignee of at most one key per resource that is not `Deleted` |
 | `limits` | optional per-component limits, keyed by component type; zero means no limit |
 | `allowed_models` | the models the key may call, never null: `["*"]` for every model, `[]` for none, or a list of names ([below](#model-lists)) |
 | `current_usages` | per-component usage in `usage_period`, as last reported by the agent |
@@ -433,12 +444,14 @@ Consumer side. The actions marked *governance* need the offering's
 - `POST /` *(governance)* — request a key: `{resource, user?, limits?,
   allowed_models?}`. Creates a `Creating` row and the `create` command; Waldur
   generates nothing. The assignee must be a member of the resource's project (an
-  organization role alone is not enough), limits must name offering components,
+  organization role alone is not enough) and must not already hold a key on the
+  resource (see **One key per person** above), limits must name offering components,
   and models must be among those the resource allows. `["*"]`, which stands for
   every model the resource allows, is always accepted, and a request without
   `allowed_models` creates a key with `[]`, no model
   ([model lists](#model-lists)).
-- `PATCH /{uuid}/` *(governance)* — change `user`, `limits`, `allowed_models`. An
+- `PATCH /{uuid}/` *(governance)* — change `user`, `limits`, `allowed_models`. A
+  new assignee must not hold another key on the resource. An
   assignee change is Waldur's alone, but audited as
   `marketplace_resource_api_key_updated`, since it decides who may reveal the
   key. A change to limits or models is the `update` command — or, on a paused key,
