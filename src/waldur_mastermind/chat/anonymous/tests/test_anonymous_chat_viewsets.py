@@ -366,6 +366,52 @@ class KpiClarificationCountTest(test.APITestCase):
         self.assertIsNone(body["clarification_rate"])
 
 
+class KpiNoResultSearchTest(test.APITestCase):
+    """Completed searches that surfaced no offerings are the catalog-gap
+    signal. Failed searches and turns that never searched must not count,
+    and rows predating outcome tracking (null) are excluded entirely.
+    """
+
+    def setUp(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+        self.kpi_url = reverse("anonymous-chat-interaction-kpi")
+        _make_interaction(session_id="s1", search_outcome="empty")
+        _make_interaction(
+            session_id="s1",
+            search_outcome="found",
+            offering_uuids=["u1", "u2"],
+            result_count=2,
+        )
+        _make_interaction(session_id="s1", search_outcome="failed")
+        _make_interaction(
+            session_id="s2",
+            search_outcome="not_searched",
+            assistant_blocks=[_tool_block("ask_user")],
+        )
+        # Legacy row from before outcome tracking.
+        _make_interaction(session_id="s3")
+
+    def test_counts_only_completed_searches_without_results(self):
+        body = self.client.get(self.kpi_url).data
+        self.assertEqual(body["searches_total"], 3)
+        self.assertEqual(body["no_result_searches_total"], 1)
+        self.assertAlmostEqual(body["no_result_rate"], 1 / 3)
+
+    def test_rate_is_null_without_searches(self):
+        anonymous_models.AnonymousChatInteraction.objects.all().delete()
+        _make_interaction(
+            session_id="s2",
+            search_outcome="not_searched",
+            assistant_blocks=[_tool_block("ask_user")],
+        )
+        body = self.client.get(self.kpi_url).data
+        self.assertEqual(body["interactions_total"], 1)
+        self.assertEqual(body["searches_total"], 0)
+        self.assertEqual(body["no_result_searches_total"], 0)
+        self.assertIsNone(body["no_result_rate"])
+
+
 class ActionDecoratorPresenceTest(SimpleTestCase):
     """Quick sanity: the three @action methods on the interaction
     ViewSet are actually registered as DRF actions (not plain methods).

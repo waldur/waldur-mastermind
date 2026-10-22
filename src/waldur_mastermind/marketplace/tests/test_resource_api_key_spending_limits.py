@@ -28,7 +28,7 @@ from waldur_mastermind.marketplace.tests.test_resource_api_key_management import
 )
 
 migration = import_module(
-    "waldur_mastermind.marketplace.migrations.0314_resource_api_key_monthly_limits"
+    "waldur_mastermind.marketplace.migrations.0315_resource_api_key_monthly_limits"
 )
 
 # A Wednesday; its week started on Monday 19 October.

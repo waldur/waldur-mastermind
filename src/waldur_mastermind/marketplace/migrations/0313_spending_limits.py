@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     dependencies = [
         (
             "marketplace",
-            "0307_category_description_en_gb_category_title_en_gb_and_more",
+            "0312_resource_api_key_models_outdated_backfill",
         ),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

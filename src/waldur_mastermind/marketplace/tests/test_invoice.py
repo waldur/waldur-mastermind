@@ -12,6 +12,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import (
     LimitPeriodProcessor,
@@ -140,6 +141,42 @@ class TotalLimitTest(test.APITestCase):
         self.assertEqual(items.count(), 2)
         self.assertTrue(items.last().unit_price < 0)
         self.assertEqual(items.last().quantity, 5)
+
+    def _bill_november_from_credit(self):
+        # November's month-end run writes a credit compensation for the
+        # limit item; it copies the item's details, component type included.
+        invoices_factories.CustomerCreditFactory(
+            customer=self.resource.project.customer, value=100000
+        )
+        with freeze_time("2020-12-01 00:10"):
+            create_monthly_invoices()
+        self.assertTrue(self.get_invoice_items().filter(credit__isnull=False).exists())
+
+    def test_limit_increase_after_credit_compensation_bills_added_quantity(self):
+        self._bill_november_from_credit()
+
+        with freeze_time("2020-12-10"):
+            self.resource.limits[self.component.type] = 20
+            self.resource.save()
+
+        items = self.get_invoice_items(year=2020, month=12)
+        self.assertEqual(items.count(), 1)
+        self.assertTrue(items.get().unit_price > 0)
+        self.assertEqual(items.get().quantity, 10)
+
+    def test_limit_decrease_after_credit_compensation_returns_removed_quantity(
+        self,
+    ):
+        self._bill_november_from_credit()
+
+        with freeze_time("2020-12-10"):
+            self.resource.limits[self.component.type] = 5
+            self.resource.save()
+
+        items = self.get_invoice_items(year=2020, month=12)
+        self.assertEqual(items.count(), 1)
+        self.assertTrue(items.get().unit_price < 0)
+        self.assertEqual(items.get().quantity, 5)
 
     def test_fractional_limit_change_with_billing_history_is_billed(self):
         # set_limits stores the JSON payload as-is, so a fractional value
