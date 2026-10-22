@@ -7,6 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0308_spending_limits"),
+        ("marketplace", "0312_resource_api_key_models_outdated_backfill"),
     ]
 
     operations = [
