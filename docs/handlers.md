@@ -523,7 +523,7 @@ td:nth-child(4) {
 | `create_resource_plan_period_when_resource_is_created` | `Django Signal (post_save)` | `marketplace.Resource` | Create a resource plan period when a resource is created. |
 | `create_screenshot_thumbnail` | `Django Signal (post_save)` | `marketplace.Screenshot` | Create a thumbnail for a screenshot. |
 | `customer_credit_changed_handler` | `Django Signal (post_save)` | `invoices.CustomerCredit` | Handle customer credit value changes and evaluate related policies. |
-| `customer_credit_offerings_list_changed_handler` | `Django Signal (m2m_changed)` | `CustomerCredit_offerings` | No description |
+| `customer_credit_offerings_list_changed_handler` | `Django Signal (m2m_changed)` | `CustomerCredit_offerings` | Re-evaluate the cost policies of the organizations owning the credits |
 | `customer_estimated_cost_policy_trigger_handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Evaluate customer cost policies when invoice items are updated. |
 | `delete_checklist_completion` | `Django Signal (pre_delete)` | `proposal.Proposal` | Remove checklist completion tracking when proposal is deleted. |
 | `delete_expired_project_if_every_resource_has_been_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Schedule deletion of an expired project once its last resource is terminated. |
