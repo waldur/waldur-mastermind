@@ -1116,7 +1116,7 @@ class ProjectRoleKeyManagementTest(ApiKeyManagementTestBase):
 
     def reset_key(self, state=States.OK):
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            state=state, pending_action="", user=None, limits={}
+            state=state, pending_action="", user=None, spending_limits=None
         )
         self.key.refresh_from_db()
 

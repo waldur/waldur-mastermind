@@ -206,7 +206,7 @@ class LimitsValidationTest(KeySpendingLimitsTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_only_a_user_who_manages_resource_users_changes_limits(self):
+    def test_only_a_user_who_manages_the_keys_changes_limits(self):
         response, prepare = self.patch(
             {"spending_limits": {"token_cost": {"day": 10}}}, user=self.fixture.member
         )
@@ -216,7 +216,9 @@ class LimitsValidationTest(KeySpendingLimitsTestBase):
         self.assertIsNone(self.key.spending_limits)
 
     def test_a_project_role_with_the_permission_may(self):
-        ProjectRole.MANAGER.add_permission(PermissionEnum.MANAGE_RESOURCE_USERS)
+        ProjectRole.MANAGER.add_permission(
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
+        )
         response, _ = self.patch(
             {"spending_limits": {"token_cost": {"day": 10}}}, user=self.fixture.manager
         )
