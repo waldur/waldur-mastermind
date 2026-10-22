@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
     # Kept apart from 0309: these UPDATEs queue deferred FK trigger events, and
     # Postgres then refuses the indexes 0309 creates in the same transaction.
     dependencies = [
-        ("marketplace", "0313_resource_api_key_spending_limits"),
+        ("marketplace", "0314_resource_api_key_spending_limits"),
     ]
 
     operations = [
