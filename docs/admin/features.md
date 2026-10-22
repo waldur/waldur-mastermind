@@ -22,7 +22,7 @@ Show the Remote Projects pages of a portal that sends projects to other portals 
 
 ## customer.show_organisation_reporting
 
-Show the Reporting menu with organization-scoped reports to organization owners.
+Show the Reporting menu with organization-scoped reports to users with the CUSTOMER.VIEW_REPORTING permission on the organization.
 
 ## customer.show_permission_reviews
 

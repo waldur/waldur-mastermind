@@ -226,6 +226,16 @@ MERGE_COVERAGE: dict[str, CoverageEntry] = _entries(
         area=AREA_BILLING_HISTORY,
     ),
     E(
+        "marketplace.ComponentDailyUsage.component",
+        REPOINT_DEDUPE,
+        "Per-day usage follows the resource, so the month rows derived from "
+        "it and day/week spending limits keep counting it; unique per "
+        "(resource, component, date).",
+        phase=HISTORY,
+        unique_with=("resource", "date"),
+        area=AREA_BILLING_HISTORY,
+    ),
+    E(
         "marketplace.ComponentUsageMonthly.component",
         RECOMPUTE,
         "Per-component monthly summary derived from usages, limits and invoice "
@@ -277,6 +287,17 @@ MERGE_COVERAGE: dict[str, CoverageEntry] = _entries(
     ),
     E(
         "marketplace.Resource.limits",
+        REPOINT,
+        "Keyed by component type; renamed via component_mapping.",
+        kind=JSON_KEYS,
+        phase=RESOURCES,
+        offering_path="offering",
+        rename=COMPONENT_TYPES,
+        resource_path="pk",
+        area=AREA_RESOURCES_AND_ORDERS,
+    ),
+    E(
+        "marketplace.Resource.spending_limits",
         REPOINT,
         "Keyed by component type; renamed via component_mapping.",
         kind=JSON_KEYS,

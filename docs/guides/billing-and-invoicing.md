@@ -352,6 +352,24 @@ The resource-creation check (`_check_project_policies` / `_check_customer_polici
 
 The kept decision is a snapshot: it stays on the instance until the next own evaluation replaces it, so code that runs an action later on the same instance should evaluate first.
 
+##### Trigger status in the API
+
+The cost-policy endpoints (`marketplace-project-estimated-cost-policies`, `-customer-`, `-offering-`) serve the current decision as `trigger_status`, so a client can say why a policy over its limit is not firing without re-deriving the gates:
+
+```json
+"trigger_status": {
+  "gate": "held_by_project_credit",
+  "triggered": false,
+  "credit_value_compared": "2850.00"
+}
+```
+
+`EstimatedCostPolicySerializer.get_trigger_status` calls the policy's own `evaluate()` with the response's shared per-customer `MonthlyCompensation` (the one `current_cost` and `eta_days` use), so listing many policies of one customer runs one simulation, and `triggered` always equals `is_triggered()`. The evaluation is kept per policy for the response (`_decision_for`), and `current_cost` reads its `evaluated_cost` instead of aggregating the invoices again; a `?field=` selection without `trigger_status` skips the evaluation, and `current_cost` then takes the cheaper path without the credit-balance queries. `triggered` is the evaluation now, while `has_fired` is the stored state of the last evaluation that ran actions; the two differ until the next one.
+
+The API sends no sentence: `gate` is the `PolicyGateEnum` in the schema, and clients word the explanation themselves, in the user's language, from `gate`, `current_cost`, `limit_cost` and `credit_value_compared`.
+
+Project policies are listed by project roles too, so the organization's figures follow the rule `ProjectCreditSerializer` applies: staff, support, organization owners and roles with `CUSTOMER.VIEW_ACCOUNTING` see them; for anyone else `customer_credit` is left out, and `credit_value_compared` is null when the balance compared is the organization's (`PolicyDecision.credit_source`). The gate itself stays visible. Project credit stays visible to project roles, as on `ProjectCredit`.
+
 ##### What started an evaluation, and who
 
 Every event an evaluation's actions emit also records why the evaluation ran. `system_actor_event_context` (`policy/utils.py`) puts these fields into the event context, so they reach every event emitted within the evaluation, including the resource-save events its actions cause:

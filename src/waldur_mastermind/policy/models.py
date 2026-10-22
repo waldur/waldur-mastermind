@@ -191,7 +191,7 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         return decision
 
     def _decision(
-        self, triggered, gate, cost, deduction, credit_value=None
+        self, triggered, gate, cost, deduction, credit_value=None, credit_source=None
     ) -> structures.PolicyDecision:
         return structures.PolicyDecision(
             triggered=triggered,
@@ -202,6 +202,7 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
             period=self.period,
             use_credit=self.uses_credit_compensation,
             credit_value_compared=credit_value,
+            credit_source=credit_source,
         )
 
     def _evaluated_cost(self, invoice_items, compensation=0) -> decimal.Decimal:
@@ -376,18 +377,18 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
             # Only an added cost gets here: the credit absorbs it and gate 1
             # closes again. Gate 2 did read the balance, so report it.
             return self._decision(
-                False, gates.COST_BELOW_LIMIT, cost, deduction, remaining
+                False, gates.COST_BELOW_LIMIT, cost, deduction, remaining, source
             )
         if remaining <= self.limit_cost:
             return self._decision(
-                True, gates.CREDIT_EXHAUSTED, cost, deduction, remaining
+                True, gates.CREDIT_EXHAUSTED, cost, deduction, remaining, source
             )
         held = (
             gates.HELD_BY_PROJECT_CREDIT
             if source == structures.CreditSources.PROJECT
             else gates.HELD_BY_CUSTOMER_CREDIT
         )
-        return self._decision(False, held, cost, deduction, remaining)
+        return self._decision(False, held, cost, deduction, remaining, source)
 
     @staticmethod
     def _eligible_items(invoice_items):

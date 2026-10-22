@@ -125,6 +125,9 @@ usage = factories.ComponentUsageFactory(
 - `amount` is the usage value (not `usage`)
 - `date` is automatically set to the current time - you don't need to provide it
 - `description` and `recurring` are optional fields
+- Usage-based components may instead be reported per UTC date in
+  `daily_usages`; the month's row is then the sum of its days. See
+  [Spending Limits](spending-limits.md#reporting-usage-per-day).
 
 ### 4. Via Utility Function
 

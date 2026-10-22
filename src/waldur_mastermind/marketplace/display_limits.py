@@ -87,9 +87,23 @@ def validate_resource_options(options):
         targets[component_type] = name
 
 
-def validate_components(resource_options, usage_types):
-    """Each display limit has to name a usage-based component of the offering."""
+def validate_components(resource_options, usage_types, capped_types=()):
+    """Each display limit has to name a usage-based component of the offering.
+
+    ``capped_types`` are components customers set spending limits on: a quota
+    shown as their limit would compete with the customer's own.
+    """
     for component_type, name in display_limit_options(resource_options).items():
+        if component_type in capped_types:
+            raise serializers.ValidationError(
+                {
+                    "resource_options": _(
+                        "Option %(name)s refers to %(component)s, which takes "
+                        "spending limits."
+                    )
+                    % {"name": name, "component": component_type}
+                }
+            )
         if component_type not in usage_types:
             raise serializers.ValidationError(
                 {

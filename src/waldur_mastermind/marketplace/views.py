@@ -218,6 +218,7 @@ from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
 from . import (
+    api_key_spending_limits,
     filters,
     log,
     models,
@@ -232,6 +233,7 @@ from . import (
     project_groups,
     resource_api_keys,
     serializers,
+    spending_limits,
     tasks,
     utils,
 )
@@ -4569,7 +4571,7 @@ class ProviderOfferingViewSet(
     ):
         """
         Migrate connected objects when component type changes.
-        Updates Resource limits and InvoiceItem details.
+        Updates Resource limits and spending limits, and InvoiceItem details.
         """
         # 1. Update Resource limits for resources of this offering
         resources_updated = 0
@@ -4584,6 +4586,20 @@ class ProviderOfferingViewSet(
                 logger.info(
                     f"Updated Resource {resource.uuid}: {old_component_type}={old_value} -> {new_component_type}={old_value}"
                 )
+            # Spending limits are keyed by type too; left behind, they would
+            # silently stop being enforced.
+            if old_component_type in (resource.spending_limits or {}):
+                resource.spending_limits[new_component_type] = (
+                    resource.spending_limits.pop(old_component_type)
+                )
+                resource.save(update_fields=["spending_limits"])
+                logger.info(
+                    f"Updated Resource {resource.uuid}: spending limits of "
+                    f"{old_component_type} moved to {new_component_type}"
+                )
+        api_key_spending_limits.rename_component_type(
+            offering, old_component_type, new_component_type
+        )
 
         # 2. Update InvoiceItem details for historical billing data
         invoice_items_updated = 0
@@ -10143,6 +10159,56 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         )
 
     @extend_schema(
+        summary="Set resource spending limits",
+        description="Replaces the spending limits of the resource's usage-based "
+        "components at once, with no order or provider approval. Each value must "
+        "be within the provider's maximum. The usage-limit restriction is "
+        "re-evaluated immediately.",
+        request=serializers.ResourceSpendingLimitsSerializer,
+        responses=serializers.ResourceSpendingLimitsSerializer,
+        examples=[
+            OpenApiExample(
+                "Daily and monthly limits",
+                value={"spending_limits": {"token_cost": {"day": 20, "month": 300}}},
+            )
+        ],
+    )
+    @action(detail=True, methods=["post"])
+    def set_spending_limits(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            resource = models.Resource.objects.select_for_update().get(pk=resource.pk)
+            if resource.state not in spending_limits.EDITABLE_STATES:
+                raise ValidationError(
+                    _("Spending limits cannot be changed in the current state.")
+                )
+            limits = spending_limits.validate_resource_limits(
+                serializer.validated_data["spending_limits"],
+                resource.offering,
+                resource.plan,
+            )
+            old_limits = resource.spending_limits
+            if limits != old_limits:
+                resource.spending_limits = limits
+                resource.save(update_fields=["spending_limits"])
+                log.log_resource_spending_limits_updated(resource, old_limits, limits)
+
+        utils.evaluate_usage_limit_restriction(resource)
+        return Response({"spending_limits": limits})
+
+    set_spending_limits_serializer_class = serializers.ResourceSpendingLimitsSerializer
+    set_spending_limits_permissions = [
+        permissions.check_tos_consent_permission,
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            ["project", "project.customer"],
+        ),
+    ]
+
+    @extend_schema(
         summary="Reallocate resource limits",
         description="Creates marketplace orders to reallocate limits from source resource to target resources.",
         request=serializers.ResourceReallocateLimitsSerializer,
@@ -11630,10 +11696,23 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         - If a `plan_period` is provided, the usage is associated with that period.
         - If only a `resource` is provided, the system will determine the correct plan period based on the current date.
         - If a usage record for the same resource, component, and billing period already exists, it will be updated. Otherwise, a new record is created.
+        - Usage-based components may be reported per UTC date in `daily_usages`. Each date replaces its previous amount, and the month's usage becomes the sum of its days. A month total for a month that has daily amounts is rejected. Day and week spending limits need daily amounts.
         """,
         request=serializers.ComponentUsageCreateSerializer,
         responses={status.HTTP_201_CREATED: None},
         examples=[
+            OpenApiExample(
+                "Report usage per day",
+                summary="Example of reporting two days of a usage-based component.",
+                value={
+                    "resource": "a1b2c3d4e5f678901234567890abcdef",
+                    "usages": [],
+                    "daily_usages": [
+                        {"type": "token_cost", "date": "2026-10-19", "amount": 18},
+                        {"type": "token_cost", "date": "2026-10-20", "amount": 20},
+                    ],
+                },
+            ),
             OpenApiExample(
                 "Report usage for multiple components",
                 summary="Example of reporting usage for 'cpu' and 'ram' components.",
@@ -11653,7 +11732,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
                         },
                     ],
                 },
-            )
+            ),
         ],
     )
     @extend_schema(responses={status.HTTP_201_CREATED: None})
@@ -16629,6 +16708,19 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        if self.action in ("list", "retrieve"):
+            # The daily usage the key's limit status reads, in one query for
+            # the page.
+            qs = qs.prefetch_related(
+                Prefetch(
+                    "daily_usages",
+                    queryset=models.ResourceApiKeyDailyUsage.objects.filter(
+                        date__gte=api_key_spending_limits.window_start(
+                            spending_limits.utc_today()
+                        )
+                    ),
+                )
+            )
         # A deleted key is kept for the usage it reported, but a listing shows
         # it only when asked for by state.
         if self.action == "list" and models.ResourceApiKey.States.DELETED not in (
@@ -17100,10 +17192,12 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     @extend_schema(
         summary="Report API key usage",
         description="Used by the site agent to report a key's usage so far in a "
-        "month, per component type. Merged into the key's usage for that month; "
-        "a later month replaces it, and an earlier one is refused. A key whose "
-        "usage reaches its limit is paused, and a key paused for its limit is resumed "
-        "once under it again. Accepted for a deleted key too.",
+        "month, per component type, and its usage per day. A month report is "
+        "merged into the key's usage for that month; a later month replaces it, "
+        "and an earlier one is refused. A date reported again replaces its "
+        "amount, and the month's usage of a component with daily amounts is their "
+        "sum. A key whose usage reaches a limit is paused, and a key paused for "
+        "its limit is resumed once under it again. Accepted for a deleted key too.",
         request=serializers.ResourceApiKeyUsageSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
     )
@@ -17117,9 +17211,10 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         api_key = resource_api_keys.record_usage(
             obj,
-            serializer.validated_data["usages"],
+            serializer.validated_data.get("usages"),
             serializer.validated_data.get("billing_period")
             or models.ResourceApiKey.current_period(),
+            serializer.validated_data.get("daily_usages") or (),
         )
         return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
 

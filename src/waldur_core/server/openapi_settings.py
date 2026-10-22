@@ -30,10 +30,12 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
+    SpendingLimitPeriods,
     SwitchBillingModes,
 )
 from waldur_mastermind.marketplace_metrics import enums as metrics_enums
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
+from waldur_mastermind.policy.structures import PolicyGates
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS_CHOICES,
     AssignmentBatchStatuses,
@@ -90,6 +92,8 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
         "MetricKindEnum": metrics_enums.MetricKinds.CHOICES,
+        # trigger_status.gate would otherwise be a bare GateEnum in the SDK.
+        "PolicyGateEnum": PolicyGates.CHOICES,
         # Shared by the Constance setting and the credentials response, so the
         # SDK gets one named type instead of a generic MethodEnum.
         "MatrixExternalLoginMethodEnum": MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES,
@@ -185,6 +189,8 @@ SPECTACULAR_SETTINGS = {
         "InjectionSeverityEnum": SeverityLevel.choices(),
         "FeedbackCategoryEnum": FeedbackCategory.choices,
         "GrowthPeriodEnum": ["weekly", "monthly"],
+        # Shared by the spending limit status of resources and of API keys.
+        "SpendingLimitPeriodEnum": SpendingLimitPeriods.CHOICES,
         "PolicyPeriodEnum": (
             (1, "Total"),
             (2, "1 month"),

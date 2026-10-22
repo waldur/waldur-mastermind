@@ -251,6 +251,12 @@ class PermissionEnum(StrEnum):
     # does not enforce it yet: those reads are open to any organization role.
     VIEW_CUSTOMER_ACCOUNTING = "CUSTOMER.VIEW_ACCOUNTING"
 
+    # Reporting visibility (the organization-scoped reports under Reporting).
+    # HomePort gates the menu and routes on it, together with the
+    # customer.show_organisation_reporting feature. The API does not enforce
+    # it: the report endpoints return what the role's list permissions allow.
+    VIEW_CUSTOMER_REPORTING = "CUSTOMER.VIEW_REPORTING"
+
     ACCEPT_REQUESTED_OFFERING = "OFFERING.ACCEPT_CALL_REQUEST"
     APPROVE_AND_REJECT_PROPOSALS = "CALL.APPROVE_AND_REJECT_PROPOSALS"
     CLOSE_ROUNDS = "CALL.CLOSE_ROUNDS"
