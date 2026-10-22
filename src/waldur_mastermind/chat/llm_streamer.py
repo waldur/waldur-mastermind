@@ -194,6 +194,12 @@ class LLMStreamer:
         # only record that the model reached for the tool at all. The
         # validation harness scores `forbidden_tools` against it.
         self.rejected_tool_calls: list[dict] = []
+        # What each search_offerings call returned, across ALL rounds
+        # (self.tool_calls is reset per round). Persisted blocks can't
+        # carry this: an errored search and an empty one both render as
+        # nothing. The anonymous finalizer collapses it into the turn's
+        # search outcome.
+        self.search_results: list[dict] = []
         self.user = user
         self.input_tokens = None
         self.output_tokens = None
@@ -1107,6 +1113,13 @@ class LLMStreamer:
                 },
             )
             result = tool_executor.execute_tool(tool_name, arguments)
+            if tool_name == ToolName.SEARCH_OFFERINGS.value:
+                self.search_results.append(
+                    {
+                        "type": result.get("type"),
+                        "total": (result.get("data") or {}).get("total") or 0,
+                    }
+                )
             tool_block = self.parser.parse_tool_result(result)
 
             # Store result for DB persistence (None for hidden errors)

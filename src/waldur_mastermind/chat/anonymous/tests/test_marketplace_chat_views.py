@@ -24,9 +24,12 @@ from waldur_mastermind.chat.anonymous.views import _extract_offering_uuids
 from waldur_mastermind.chat.models import GlobalAssistantBudget
 from waldur_mastermind.chat.tests.utils import (
     SYNC_THREAD_PATCH,
+    _make_chunk,
     _make_content_chunk,
+    _make_tool_call_delta,
     _make_usage_chunk,
     _mock_openai_client,
+    _mock_openai_client_multi,
     _SynchronousThread,
 )
 from waldur_mastermind.marketplace.enums import OfferingStates
@@ -649,3 +652,118 @@ class ExtractOfferingUuidsTest(SimpleTestCase):
     def test_falls_back_to_structured_data(self):
         blocks = [{"key": "tool", "result": {"data": {"uuid": "abc-123"}}}]
         self.assertEqual(_extract_offering_uuids(blocks), ["abc-123"])
+
+
+@mock.patch(SYNC_THREAD_PATCH, _SynchronousThread)
+class SearchOutcomePersistenceTest(test.APITestCase):
+    """The turn's search outcome is derived from what each search call
+    actually returned at execute time. result_count can't carry this:
+    it counts offering links rendered anywhere in the turn, so it reads
+    0 for a search that errored just as for one that found nothing.
+    """
+
+    def setUp(self):
+        self.url = reverse("marketplace-chat-stream")
+        _seed_offering(name="Quantum Simulator")
+
+    def _stream(self, mock_openai_cls, rounds):
+        mock_openai_cls.return_value = _mock_openai_client_multi(rounds)
+        response = self.client.post(
+            self.url,
+            data={"input": "find me a simulator", "session_id": "session-abc"},
+        )
+        b"".join(response.streaming_content)
+        return anonymous_models.AnonymousChatInteraction.objects.get()
+
+    def _search_round(self, keyword):
+        return [
+            _make_chunk(
+                tool_calls=[
+                    _make_tool_call_delta(0, name="search_offerings", call_id="call_1")
+                ]
+            ),
+            _make_chunk(
+                tool_calls=[
+                    _make_tool_call_delta(0, arguments='{"keyword": "%s"}' % keyword)
+                ]
+            ),
+        ]
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE)
+    def test_search_with_results_persists_found(self, mock_openai_cls):
+        interaction = self._stream(
+            mock_openai_cls,
+            [self._search_round("Quantum"), [_make_content_chunk("Here you go.")]],
+        )
+        self.assertEqual(interaction.search_outcome, "found")
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE)
+    def test_search_finding_nothing_persists_empty(self, mock_openai_cls):
+        interaction = self._stream(
+            mock_openai_cls,
+            [
+                self._search_round("zzz-matches-nothing"),
+                [_make_content_chunk("Nothing matched.")],
+            ],
+        )
+        self.assertEqual(interaction.search_outcome, "empty")
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE)
+    def test_blocked_search_persists_failed(self, mock_openai_cls):
+        # The exact shape search_offerings returns when anonymous browsing
+        # is switched off mid-session — previously indistinguishable from
+        # a genuine empty search.
+        with mock.patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
+        ) as mock_exec:
+            mock_exec.return_value = {
+                "type": "error",
+                "summary": "Marketplace browsing is currently disabled.",
+            }
+            interaction = self._stream(
+                mock_openai_cls,
+                [self._search_round("Quantum"), [_make_content_chunk("Sorry.")]],
+            )
+        self.assertEqual(interaction.search_outcome, "failed")
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE)
+    def test_turn_without_search_persists_not_searched(self, mock_openai_cls):
+        interaction = self._stream(
+            mock_openai_cls, [[_make_content_chunk("What do you need?")]]
+        )
+        self.assertEqual(interaction.search_outcome, "not_searched")
+
+
+class DeriveSearchOutcomeTest(SimpleTestCase):
+    """Precedence: a search that surfaced offerings beats an empty one
+    (a retry that hits means the turn found something), and a genuine
+    empty search beats a failed call — only an all-failed turn counts
+    as failed.
+    """
+
+    def test_precedence(self):
+        from waldur_mastermind.chat.anonymous.views import _derive_search_outcome
+
+        self.assertEqual(_derive_search_outcome([]), "not_searched")
+        self.assertEqual(
+            _derive_search_outcome([{"type": "success", "total": 0}]), "empty"
+        )
+        self.assertEqual(
+            _derive_search_outcome([{"type": "error", "total": 0}]), "failed"
+        )
+        self.assertEqual(
+            _derive_search_outcome(
+                [{"type": "success", "total": 0}, {"type": "success", "total": 3}]
+            ),
+            "found",
+        )
+        self.assertEqual(
+            _derive_search_outcome(
+                [{"type": "error", "total": 0}, {"type": "success", "total": 0}]
+            ),
+            "empty",
+        )
