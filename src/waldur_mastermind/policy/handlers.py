@@ -437,18 +437,43 @@ def project_credit_changed_handler(
 def customer_credit_offerings_list_changed_handler(
     sender, instance, action, reverse, model, pk_set, **kwargs
 ):
+    """Re-evaluate the cost policies of the organizations owning the credits
+    whose offering list changed: what a credit pays for changed, so the cost
+    after credit of the organization and of its projects did.
+
+    Forward (`credit.offerings`), `instance` is the credit. Reverse
+    (`offering.customercredit_set`), `instance` is the offering and `pk_set`
+    holds credit pks. A reverse clear passes no pks and the links are gone by
+    `post_clear`, so `pre_clear` notes the credits' organizations first.
+    """
+    if reverse and action == "pre_clear":
+        instance._cleared_credit_customer_ids = list(
+            instance.customercredit_set.values_list("customer_id", flat=True)
+        )
+        return
     if action not in ("post_add", "post_remove", "post_clear"):
         return
-    if pk_set is None:
+    if pk_set is not None and not pk_set:
+        # Nothing was linked or unlinked, e.g. adding an offering already there.
+        return
+    if not reverse:
         customer_ids = [instance.customer_id]
+    elif pk_set is None:
+        customer_ids = instance.__dict__.pop("_cleared_credit_customer_ids", [])
     else:
         customer_ids = list(
-            invoices_models.CustomerCredit.objects.filter(
-                offerings__pk__in=list(pk_set),
-            ).values_list("customer_id", flat=True)
+            invoices_models.CustomerCredit.objects.filter(pk__in=pk_set).values_list(
+                "customer_id", flat=True
+            )
         )
-    # Per-customer dispatch with a cache key shared by
-    # ``customer_estimated_cost_policy_trigger_handler`` so credit edits and
+    # The credit whose offerings changed; on a reverse change (from the
+    # offering side) several credits can be affected.
+    trigger_object = (
+        instance if isinstance(instance, invoices_models.CustomerCredit) else None
+    )
+    # Per-customer dispatch with the cache keys `customer_credit_changed_handler`
+    # uses, the customer one also shared by
+    # ``customer_estimated_cost_policy_trigger_handler``, so credit edits and
     # invoice-item saves dedupe with each other inside the debounce window.
     for cid in customer_ids:
         _debounced_evaluate(
@@ -456,11 +481,16 @@ def customer_credit_offerings_list_changed_handler(
             {"scope_id": cid},
             f"cost_policy_debounce:customer:{cid}",
             trigger=EvaluationTriggers.CREDIT_CHANGED,
-            # The credit whose offerings changed; on a reverse change (from
-            # the offering side) several credits can be affected.
-            trigger_object=instance
-            if isinstance(instance, invoices_models.CustomerCredit)
-            else None,
+            trigger_object=trigger_object,
+        )
+        # Project policies draw on the same credit through the organization's
+        # compensation, which counts only the offerings the credit covers.
+        _debounced_evaluate(
+            _PROJECT_POLICY_PATH,
+            {"scope__customer_id": cid},
+            f"cost_policy_debounce:projects_of_customer:{cid}",
+            trigger=EvaluationTriggers.CREDIT_CHANGED,
+            trigger_object=trigger_object,
         )
 
 
