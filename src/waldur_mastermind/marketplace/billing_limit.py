@@ -204,9 +204,14 @@ class LimitPeriodProcessor:
         # quantity, so they must not participate in the already-billed total.
         # has_key (not details__is_discount=True) because exclude() on a JSON
         # value would also drop rows where the key is absent entirely.
+        # Credit compensations copy the details of the item they offset, so
+        # they match the component type too; a quantity-1 negative line each,
+        # they read as one unit given back and put every later change one
+        # unit off. They are credit, not billed quantity: `credit` marks them.
         related_invoice_items = invoice_models.InvoiceItem.objects.filter(
             resource=resource,
             details__offering_component_type=component_type,
+            credit__isnull=True,
         ).exclude(details__has_key="is_discount")
         if not related_invoice_items.exists():
             # For TOTAL period components, if no previous billing exists,
