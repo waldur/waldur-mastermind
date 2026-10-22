@@ -16560,8 +16560,10 @@ PROVIDER_API_KEY_SOURCES = [
     "offering.customer.serviceprovider",
 ]
 
-# Scopes, relative to the resource, at which RESOURCE.MANAGE_USERS lets a
-# consumer request and govern the resource's API keys.
+# Scopes, relative to the resource, at which RESOURCE.MANAGE_CONSUMER_API_KEY
+# lets a consumer request and govern the resource's API keys: the organization
+# owner holds it on the customer, project managers and administrators on the
+# project.
 CONSUMER_API_KEY_SOURCES = ["project", "project.customer"]
 
 
@@ -16676,7 +16678,7 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
             raise ValidationError({"resource": error.detail})
         if not has_permission_on_any_source(
             request,
-            PermissionEnum.MANAGE_RESOURCE_USERS,
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY,
             resource,
             CONSUMER_API_KEY_SOURCES,
         ):
@@ -16785,11 +16787,11 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     def _command(self, request, action_name, message):
         # Whether the command needs governance is decided with the key locked:
         # a retry only knows its command then. So is whether an assignee who
-        # does not manage the resource's users may issue it.
+        # does not manage the resource's API keys may issue it.
         obj = self.get_object()
         manages = has_permission_on_any_source(
             request,
-            PermissionEnum.MANAGE_RESOURCE_USERS,
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY,
             obj.resource,
             CONSUMER_API_KEY_SOURCES,
         )
@@ -16802,7 +16804,7 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         summary="Rotate an API key",
         description="Asks the site agent to replace this key's value at the "
         "backend. The other keys are untouched (zero downtime). Available to "
-        "whoever manages the resource's users and to the key's assignee.",
+        "whoever manages the resource's API keys and to the key's assignee.",
         request=None,
         responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
@@ -16877,12 +16879,12 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     consumer_command_permissions = [
         permission_factory(
-            PermissionEnum.MANAGE_RESOURCE_USERS,
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY,
             [f"resource.{source}" for source in CONSUMER_API_KEY_SOURCES],
         )
     ]
     # The assignee holds the key's value, so may replace it without managing
-    # the resource's users.
+    # the resource's API keys.
     rotation_permissions = [
         any_permission(check_api_key_assignee, *consumer_command_permissions)
     ]

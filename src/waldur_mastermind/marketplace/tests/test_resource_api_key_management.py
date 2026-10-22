@@ -17,7 +17,8 @@ from waldur_core.core import encryption
 from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models, resource_api_keys, tasks, utils
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
@@ -63,7 +64,9 @@ class ApiKeyManagementTestBase(test.APITestCase):
         self.offering.plugin_options = {"enable_api_key_provisioning": True}
         self.offering.save()
         factories.OfferingComponentFactory(offering=self.offering, type="tokens")
-        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_USERS)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
+        )
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_API_KEY)
         self.key = self.make_key("cid-1")
 
@@ -139,7 +142,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
 
     def test_member_without_permission_cannot_request(self):
         response, prepare = self.post(
-            self.fixture.admin, list_url(), {"resource": self.resource.uuid.hex}
+            self.fixture.member, list_url(), {"resource": self.resource.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         prepare.assert_not_called()
@@ -410,7 +413,7 @@ class CancelRequestTest(ApiKeyManagementTestBase):
         requested = models.ResourceApiKey.objects.create(
             resource=self.resource, pending_action=Actions.CREATE
         )
-        self.client.force_authenticate(self.fixture.admin)
+        self.client.force_authenticate(self.fixture.member)
         response = self.client.delete(detail_url(requested))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         requested.refresh_from_db()
@@ -632,7 +635,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
 
     def test_member_without_permission_cannot_edit(self):
         response, _ = self.patch(
-            self.fixture.admin, self.key, {"limits": {"tokens": 50}}
+            self.fixture.member, self.key, {"limits": {"tokens": 50}}
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -817,8 +820,8 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
 
     def setUp(self):
         super().setUp()
-        # A project member without RESOURCE.MANAGE_USERS.
-        self.assignee = self.fixture.admin
+        # A project member: the role does not manage the resource's API keys.
+        self.assignee = self.fixture.member
         self.key.user = self.assignee
         self.key.save()
 
@@ -895,15 +898,13 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         self.assertEqual(self.key.pending_action, "")
 
     def test_a_member_who_is_not_the_assignee_cannot_rotate_or_retry(self):
-        response, prepare = self.post(
-            self.fixture.manager, detail_url(self.key, "rotate")
-        )
+        other = structure_factories.UserFactory()
+        self.fixture.project.add_user(other, ProjectRole.MEMBER)
+        response, prepare = self.post(other, detail_url(self.key, "rotate"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         prepare.assert_not_called()
         self.fail_command(lambda key: key.set_updating())
-        response, prepare = self.post(
-            self.fixture.manager, detail_url(self.key, "retry")
-        )
+        response, prepare = self.post(other, detail_url(self.key, "retry"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         prepare.assert_not_called()
 
@@ -1064,6 +1065,177 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         prepare.assert_not_called()
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.OK)
+
+
+class ProjectRoleKeyManagementTest(ApiKeyManagementTestBase):
+    """Project managers and administrators govern the resource's keys, as they
+    govern the resource itself; a project member does not."""
+
+    def setUp(self):
+        super().setUp()
+        # As permissions.yaml grants it.
+        for role in (ProjectRole.ADMIN, ProjectRole.MANAGER):
+            role.add_permission(PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY)
+
+    def managers(self):
+        return (
+            ("manager", self.fixture.manager),
+            ("admin", self.fixture.admin),
+        )
+
+    def patch(self, user, data):
+        self.client.force_authenticate(user)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.patch(detail_url(self.key), data, format="json")
+        return response, prepare
+
+    def delete(self, user):
+        self.client.force_authenticate(user)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.delete(detail_url(self.key))
+        return response, prepare
+
+    def reset_key(self, state=States.OK):
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            state=state, pending_action="", user=None, limits={}
+        )
+        self.key.refresh_from_db()
+
+    def test_project_roles_can_request_a_key(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                response, prepare = self.post(
+                    user,
+                    list_url(),
+                    {"resource": self.resource.uuid.hex, "user": user.uuid.hex},
+                )
+                self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.CREATE
+                )
+
+    def test_project_roles_can_edit_a_key(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.reset_key()
+                response, prepare = self.patch(user, {"limits": {"tokens": 50}})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.UPDATE
+                )
+
+    def test_project_roles_can_assign_a_key(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.reset_key()
+                response, _ = self.patch(user, {"user": self.fixture.member.uuid.hex})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.user, self.fixture.member)
+
+    def test_project_roles_can_issue_every_command(self):
+        cases = (
+            ("pause", States.OK, Actions.PAUSE),
+            ("resume", States.PAUSED, Actions.RESUME),
+            ("rotate", States.OK, Actions.ROTATE),
+        )
+        for name, user in self.managers():
+            for action, state, command in cases:
+                with self.subTest(role=name, action=action):
+                    self.reset_key(state)
+                    response, prepare = self.post(user, detail_url(self.key, action))
+                    self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+                    self.assertEqual(self.published_payload(prepare)["action"], command)
+
+    def test_project_roles_can_retry_a_failed_command(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.reset_key()
+                self.key.set_pausing()
+                self.key.set_erred()
+                self.key.save()
+                response, prepare = self.post(user, detail_url(self.key, "retry"))
+                self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.PAUSE
+                )
+
+    def test_project_roles_can_delete_a_key(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.reset_key()
+                response, prepare = self.delete(user)
+                self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.DELETE
+                )
+
+    def test_a_project_member_can_do_none_of_it(self):
+        member = self.fixture.member
+        calls = (
+            (
+                "request",
+                lambda: self.post(
+                    member, list_url(), {"resource": self.resource.uuid.hex}
+                ),
+            ),
+            ("edit", lambda: self.patch(member, {"limits": {"tokens": 50}})),
+            (
+                "assign",
+                lambda: self.patch(member, {"user": self.fixture.member.uuid.hex}),
+            ),
+            ("pause", lambda: self.post(member, detail_url(self.key, "pause"))),
+            ("rotate", lambda: self.post(member, detail_url(self.key, "rotate"))),
+            ("delete", lambda: self.delete(member)),
+        )
+        for action, call in calls:
+            with self.subTest(action):
+                response, prepare = call()
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                prepare.assert_not_called()
+        self.reset_key(States.PAUSED)
+        response, prepare = self.post(member, detail_url(self.key, "resume"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+        self.reset_key()
+        self.key.set_pausing()
+        self.key.set_erred()
+        self.key.save()
+        response, prepare = self.post(member, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_project_roles_of_another_project_cannot_reach_the_keys(self):
+        # The permission is held on the project, not on its customer.
+        other = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        for role in (ProjectRole.MANAGER, ProjectRole.ADMIN):
+            with self.subTest(role.name):
+                user = structure_factories.UserFactory()
+                other.add_user(user, role)
+                response, prepare = self.post(user, detail_url(self.key, "pause"))
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+                response, prepare = self.post(
+                    user, list_url(), {"resource": self.resource.uuid.hex}
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                prepare.assert_not_called()
+
+    def test_reveal_is_unchanged(self):
+        # Managing a key is not reading it: an assigned key is still revealed
+        # to its assignee alone.
+        self.key.user = self.fixture.member
+        self.key.save()
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.client.force_authenticate(user)
+                response = self.client.get(detail_url(self.key, "reveal"))
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class PauseResumeDeleteTest(ApiKeyManagementTestBase):

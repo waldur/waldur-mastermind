@@ -32,7 +32,9 @@ class ApiKeyAssigneeResyncTest(test.APITestCase):
         self.owner = self.fixture.owner
         self.admin = self.fixture.admin
         self.manager = self.fixture.manager
-        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_USERS)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
+        )
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_API_KEY)
         self.key = models.ResourceApiKey.objects.create(
             resource=self.resource,

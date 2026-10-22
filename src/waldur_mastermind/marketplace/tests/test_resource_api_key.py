@@ -91,7 +91,9 @@ class ConsumerApiKeyTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
-        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_USERS)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
+        )
         self.key = models.ResourceApiKey.objects.create(
             resource=self.resource,
             client_id="cid-1",
@@ -242,7 +244,9 @@ class ProviderApiKeyTest(test.APITestCase):
         self.assertEqual(self.resource.api_keys.count(), 2)
 
     def test_consumer_cannot_report_created(self):
-        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_USERS)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
+        )
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(
             list_url("report-created"),

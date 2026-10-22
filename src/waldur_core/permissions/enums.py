@@ -155,6 +155,10 @@ class PermissionEnum(StrEnum):
     SUBMIT_RESOURCE_REPORT = "RESOURCE.SUBMIT_REPORT"
     SET_RESOURCE_BACKEND_METADATA = "RESOURCE.SET_BACKEND_METADATA"
     MANAGE_RESOURCE_API_KEY = "RESOURCE.MANAGE_API_KEY"
+    # The consumer side of a resource's API keys: request, edit, assign, pause,
+    # resume, rotate, retry and delete them. MANAGE_RESOURCE_API_KEY above is
+    # the provider side, the site agent reporting what it did.
+    MANAGE_RESOURCE_CONSUMER_API_KEY = "RESOURCE.MANAGE_CONSUMER_API_KEY"
     SET_RESOURCE_STATE = "RESOURCE.SET_STATE"
     UPDATE_RESOURCE_OPTIONS = "RESOURCE.UPDATE_OPTIONS"
     ACCEPT_BOOKING_REQUEST = "RESOURCE.ACCEPT_BOOKING_REQUEST"
