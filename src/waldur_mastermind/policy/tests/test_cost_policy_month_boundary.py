@@ -580,3 +580,116 @@ class CustomerCreditOfferingsListDebounceTest(test.APITestCase):
                 1,
                 f"Credit-edit + invoice-item save must dedupe; got {publishes}",
             )
+
+
+@override_settings(task_always_eager=True, WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120)
+@freeze_time("2026-04-01")
+class CustomerCreditOfferingsListScopeTest(test.APITestCase):
+    """A change to a credit's offering list re-evaluates the organizations
+    owning the changed credits, from whichever side the link is edited.
+
+    `m2m_changed` hands the forward side the credit and offering pks, the
+    reverse side the offering and credit pks, and neither side any pks on
+    clear; the handler resolved every case as if it were a forward add."""
+
+    def setUp(self):
+        cache.clear()
+        self.offering = marketplace_factories.OfferingFactory()
+        self.credit = invoices_factories.CustomerCreditFactory()
+        # Another organization's credit covering the same offering: a change to
+        # `self.credit` is none of its business.
+        self.other_credit = invoices_factories.CustomerCreditFactory()
+        self.other_credit.offerings.add(self.offering)
+
+    def _dispatched_customers(self, change):
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            with self.captureOnCommitCallbacks(execute=True):
+                change()
+            customer_publishes = _publishes_for(
+                apply_async, delay, _CUSTOMER_POLICY_PATH
+            )
+            project_publishes = _publishes_for(apply_async, delay, _PROJECT_POLICY_PATH)
+        # Debounced on the per-customer keys, so a list of distinct ids also
+        # shows each organization was dispatched at most once.
+        customers = [
+            (c.kwargs.get("args") or c.args)[1]["scope_id"]
+            for _, c in customer_publishes
+        ]
+        project_customers = [
+            (c.kwargs.get("args") or c.args)[1]["scope__customer_id"]
+            for _, c in project_publishes
+        ]
+        # The organization's project policies draw on the same credit, so they
+        # are re-evaluated for exactly the same organizations.
+        self.assertCountEqual(project_customers, customers)
+        return customers
+
+    def test_forward_add_evaluates_only_the_credits_organization(self):
+        customers = self._dispatched_customers(
+            lambda: self.credit.offerings.add(self.offering)
+        )
+
+        self.assertEqual(customers, [self.credit.customer_id])
+
+    def test_forward_remove_evaluates_the_credits_organization(self):
+        self.credit.offerings.add(self.offering)
+
+        customers = self._dispatched_customers(
+            lambda: self.credit.offerings.remove(self.offering)
+        )
+
+        self.assertEqual(customers, [self.credit.customer_id])
+
+    def test_forward_clear_evaluates_the_credits_organization(self):
+        self.credit.offerings.add(self.offering)
+
+        customers = self._dispatched_customers(self.credit.offerings.clear)
+
+        self.assertEqual(customers, [self.credit.customer_id])
+
+    def test_adding_an_already_linked_offering_evaluates_nothing(self):
+        self.credit.offerings.add(self.offering)
+
+        customers = self._dispatched_customers(
+            lambda: self.credit.offerings.add(self.offering)
+        )
+
+        self.assertEqual(customers, [])
+
+    def test_reverse_add_evaluates_the_added_credits_organizations(self):
+        third_credit = invoices_factories.CustomerCreditFactory()
+
+        customers = self._dispatched_customers(
+            lambda: self.offering.customercredit_set.add(self.credit, third_credit)
+        )
+
+        self.assertCountEqual(
+            customers, [self.credit.customer_id, third_credit.customer_id]
+        )
+
+    def test_reverse_remove_evaluates_the_removed_credits_organization(self):
+        self.credit.offerings.add(self.offering)
+
+        customers = self._dispatched_customers(
+            lambda: self.offering.customercredit_set.remove(self.credit)
+        )
+
+        self.assertEqual(customers, [self.credit.customer_id])
+
+    def test_reverse_clear_evaluates_the_organizations_that_lost_the_offering(self):
+        self.credit.offerings.add(self.offering)
+
+        customers = self._dispatched_customers(self.offering.customercredit_set.clear)
+
+        self.assertCountEqual(
+            customers, [self.credit.customer_id, self.other_credit.customer_id]
+        )
+        self.assertNotIn(self.offering.customer_id, customers)
