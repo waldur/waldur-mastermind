@@ -527,3 +527,158 @@ class GracePeriodPauseAdoptionTest(GracePeriodPauseBaseTest):
         self.adopt()
 
         self.assertFalse(self.resource.paused_by_grace_period)
+
+
+@freeze_time(IN_GRACE)
+class UsageLimitUnderAutomaticPauseTest(GracePeriodPauseBaseTest):
+    """A resource over its usage limit while another automatic reason pauses it."""
+
+    def setUp(self):
+        super().setUp()
+        self.offering.plugin_options = {
+            "supports_pausing": True,
+            "action_on_usage_limit": "pause",
+        }
+        self.offering.save()
+
+    def over_gpu_limit(self):
+        gpu = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="gpu",
+            billing_type=BillingTypes.LIMIT,
+            limit_amount=10,
+        )
+        factories.ComponentUsageFactory(
+            resource=self.resource,
+            component=gpu,
+            usage=10,
+            date=datetime.datetime(2020, 1, 15),
+            billing_period=datetime.date(2020, 1, 1),
+        )
+        return gpu
+
+    def over_day_spending_limit(self):
+        token_cost = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="token_cost",
+            billing_type=BillingTypes.USAGE,
+            spending_limit_periods={"day": {"default": 5}},
+        )
+        factories.PlanComponentFactory(
+            plan=self.resource.plan, component=token_cost, price=1
+        )
+        self.resource.spending_limits = {"token_cost": {"day": 5}}
+        self.resource.save(update_fields=["spending_limits"])
+        models.ComponentDailyUsage.objects.create(
+            resource=self.resource,
+            component=token_cost,
+            date=datetime.date(2020, 1, 15),
+            usage=5,
+        )
+
+    def evaluate(self):
+        utils.evaluate_usage_limit_restriction(self.resource)
+        self.resource.refresh_from_db()
+
+    def test_grace_pause_over_a_component_limit_is_marked(self):
+        self.over_gpu_limit()
+        self.assertTrue(utils.pause_for_project_grace(self.resource))
+
+        self.evaluate()
+
+        self.assertTrue(self.resource.paused)
+        self.assertEqual(self.resource.usage_limit_restriction, "paused")
+
+    def test_release_of_grace_keeps_a_resource_over_its_limit_paused(self):
+        self.over_gpu_limit()
+        utils.pause_for_project_grace(self.resource)
+        self.evaluate()
+
+        self.extend_end_date()
+
+        self.assertTrue(self.resource.paused)
+        self.assertFalse(self.resource.paused_by_grace_period)
+        self.assertEqual(self.resource.usage_limit_restriction, "paused")
+
+    def test_hourly_re_evaluation_keeps_it_paused_after_the_release(self):
+        self.over_gpu_limit()
+        utils.pause_for_project_grace(self.resource)
+        self.evaluate()
+        self.extend_end_date()
+
+        tasks.re_evaluate_usage_limit_restrictions()
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+        self.assertEqual(self.resource.usage_limit_restriction, "paused")
+
+    def test_hourly_re_evaluation_lifts_it_once_usage_is_under_after_the_release(self):
+        gpu = self.over_gpu_limit()
+        utils.pause_for_project_grace(self.resource)
+        self.evaluate()
+        self.extend_end_date()
+        models.ComponentUsage.objects.filter(component=gpu).update(usage=5)
+
+        tasks.re_evaluate_usage_limit_restrictions()
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.paused)
+        self.assertEqual(self.resource.usage_limit_restriction, "")
+
+    def test_lift_leaves_the_grace_pause_while_the_grace_period_holds(self):
+        gpu = self.over_gpu_limit()
+        utils.pause_for_project_grace(self.resource)
+        self.evaluate()
+        models.ComponentUsage.objects.filter(component=gpu).update(usage=5)
+
+        self.evaluate()
+
+        self.assertTrue(self.resource.paused)
+        self.assertTrue(self.resource.paused_by_grace_period)
+
+    def test_release_of_grace_keeps_a_resource_over_a_spending_limit_paused(self):
+        self.over_day_spending_limit()
+        utils.pause_for_project_grace(self.resource)
+        self.evaluate()
+        self.assertEqual(self.resource.usage_limit_restriction, "paused")
+        self.assertIsNotNone(self.resource.usage_limit_resumes_at)
+
+        self.extend_end_date()
+
+        self.assertTrue(self.resource.paused)
+        self.assertEqual(self.resource.usage_limit_restriction, "paused")
+
+    def test_reset_lift_leaves_the_grace_pause_of_a_spending_limit(self):
+        self.over_day_spending_limit()
+        utils.pause_for_project_grace(self.resource)
+        self.evaluate()
+
+        with freeze_time("2020-01-16 00:03"):
+            tasks.lift_reset_spending_limit_restrictions()
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+        self.assertTrue(self.resource.paused_by_grace_period)
+
+    def test_cost_policy_pause_over_a_component_limit_is_marked(self):
+        self.over_gpu_limit()
+        policy_factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project, actions="request_pausing", has_fired=True
+        )
+        self.resource.paused = True
+        self.resource.save(update_fields=["paused"])
+
+        self.evaluate()
+
+        self.assertTrue(self.resource.paused)
+        self.assertEqual(self.resource.usage_limit_restriction, "paused")
+
+    def test_manual_pause_over_a_component_limit_is_not_marked(self):
+        self.over_gpu_limit()
+        self.resource.paused = True
+        self.resource.save(update_fields=["paused"])
+
+        self.evaluate()
+
+        self.assertTrue(self.resource.paused)
+        self.assertEqual(self.resource.usage_limit_restriction, "")

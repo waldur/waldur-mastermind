@@ -133,12 +133,15 @@ resources, and every five minutes for resources whose
 - `Resource.usage_limit_resumes_at` is when every reached spending limit has
   reset. It is empty while a limit-based component's own limit is also
   reached, because that one lifts on its own period's rollover.
-- Restrictions applied by hand, by the project grace period or by a cost policy
-  before a limit is reached are never taken over or lifted here
-  (`Resource.usage_limit_restriction` records which restriction this mechanism
-  applied). A pause this mechanism applied is also kept past the reset while the
-  project grace period or a registered keeper (`utils.PAUSE_KEEPERS`, such as a
-  cost policy that fired since) still wants it. Downscaling has no such keepers.
+- A restriction applied by hand before a limit is reached is never taken over
+  or lifted here (`Resource.usage_limit_restriction` records which restriction
+  this mechanism applied). A pause set by the project grace period
+  (`paused_by_grace_period`) or held by a registered keeper
+  (`utils.PAUSE_KEEPERS`, such as a firing cost policy) is marked as this
+  mechanism's too once a limit is reached, so releasing the other reason leaves
+  the resource paused while it is over the limit. Either way the pause is kept
+  past the reset while the grace period or a keeper still wants it. Downscaling
+  has no such keepers.
 - Usage is checked when it is reported, so spending can go over a limit between
   two reports. The order form says so.
 - A limit stays in force if the provider later stops offering its period. It is
