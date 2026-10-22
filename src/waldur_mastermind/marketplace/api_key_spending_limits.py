@@ -24,7 +24,7 @@ limit resets, and ``resource_api_keys.resume_keys_under_limit`` resumes it then.
 """
 
 import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_UP, Decimal, InvalidOperation
 
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
@@ -60,7 +60,8 @@ def with_monthly_limits(current: dict | None, monthly: dict | None) -> dict:
 
     ``monthly`` is the flat ``{component_type: amount}`` shape key limits had
     before they had periods, where zero means no limit. The other periods are
-    kept.
+    kept. Its amounts are rounded up to the cent, since that shape always took
+    any number; one the key holds already is kept as it is.
     """
     result = {
         component_type: {
@@ -70,10 +71,37 @@ def with_monthly_limits(current: dict | None, monthly: dict | None) -> dict:
     }
     for component_type, amount in (monthly or {}).items():
         if amount:
-            result.setdefault(component_type, {})[MONTH] = amount
+            held = ((current or {}).get(component_type) or {}).get(MONTH)
+            result.setdefault(component_type, {})[MONTH] = _to_cents(amount, held)
     return {
         component_type: periods for component_type, periods in result.items() if periods
     }
+
+
+def _to_cents(raw, held):
+    """``raw`` rounded up to the cent, unless it is ``held`` or not a number.
+
+    Rounding up keeps a positive limit above 0, and against usage reported in
+    cents it is reached at the same amount as the unrounded one. Anything that
+    is not a number is left for the validation to refuse.
+    """
+    if (
+        _is_held(raw, held)
+        or isinstance(raw, bool)
+        or not isinstance(raw, int | float | str)
+    ):
+        return raw
+    try:
+        amount = Decimal(str(raw).strip())
+    except InvalidOperation:
+        return raw
+    if not amount.is_finite() or abs(amount) >= spending_limits.MAX_AMOUNT:
+        return raw
+    return spending_limits.json_number(
+        amount.quantize(
+            Decimal(1).scaleb(-spending_limits.DECIMAL_PLACES), rounding=ROUND_UP
+        )
+    )
 
 
 def _is_held(raw, held) -> bool:

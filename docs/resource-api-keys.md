@@ -521,7 +521,9 @@ Consumer side. The actions marked *governance* need the offering's
   `allowed_models`. `spending_limits` replaces every limit of the key, and a null
   amount clears its period. `limits`, the flat monthly shape
   (`{component_type: amount}`, zero meaning no limit), is still accepted in its
-  place: it replaces the month limits and keeps the other periods. A request
+  place: it replaces the month limits and keeps the other periods. Its amounts
+  are rounded up to the cent, where `spending_limits` refuses more than two
+  decimal places; an amount the key already holds is kept as it is. A request
   that sends both is refused with 400. A
   new assignee must not hold another key on the resource. An assignee change on
   a key that holds a secret is the `rotate` command, carrying any limits and
@@ -622,12 +624,15 @@ organization, but reading a value is not: `reveal` stays consumer-side only.
   omitted). A report for the month the key holds is merged into
   `current_usages`; one for a later month replaces it. Only the latest month is
   kept, so a report for an earlier one is refused with `409`, and one for a
-  future month with `400`. `daily_usages` are amounts per UTC date; a date
-  reported again replaces its amount, a future date or the same component and
-  date twice is refused with `400`, and days of a month before the one the key
-  holds count for the limits of the periods they fall in, not for its month
-  figure. Once a component has daily amounts
-  in a month, a month total for it is refused with `400`. May trigger a limit
+  future month with `400`. `daily_usages` are amounts per UTC date with at most
+  two decimal places, as for a resource's daily usage (`usages` takes any
+  number), so an agent must round sub-cent amounts to the cent before sending
+  them. A date reported again replaces its amount, a future date or the same
+  component and date twice is refused with `400`, and days of a month before
+  the one the key holds count for the limits of the periods they fall in, not
+  for its month figure. Once a component has daily amounts in a month, a month
+  total for it is refused with `400`. A report is accepted or refused whole: one
+  bad daily item refuses the `usages` sent with it too. May trigger a limit
   pause, or the resume of a key paused for its limit. Accepted for a deleted
   key, so usage up to the deletion still counts.
 

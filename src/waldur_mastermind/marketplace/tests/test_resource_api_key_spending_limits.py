@@ -194,6 +194,20 @@ class LimitsValidationTest(KeySpendingLimitsTestBase):
             self.key.spending_limits, {"token_cost": {"day": 10, "month": 200}}
         )
 
+    def test_monthly_limits_are_rounded_up_to_the_cent(self):
+        # The flat shape took any number before key limits had periods.
+        response, _ = self.patch({"limits": {"tokens": 12.345, "token_cost": 0.004}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(
+            self.key.spending_limits,
+            {"tokens": {"month": 12.35}, "token_cost": {"month": 0.01}},
+        )
+
+    def test_spending_limits_still_refuse_more_than_two_decimals(self):
+        response, _ = self.patch({"spending_limits": {"tokens": {"month": 12.345}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_monthly_limits_follow_the_ordering_rule(self):
         self.set_limits(day=10, month=100)
         response, _ = self.patch({"limits": {"token_cost": 5}})
