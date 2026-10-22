@@ -465,6 +465,17 @@ def get_permission_scope_types(permission: str) -> tuple[str, ...] | None:
     return tuple(scopes)
 
 
+# Labels written by hand where the generated one is ambiguous. The role editor
+# lists RESOURCE.MANAGE_CONSUMER_API_KEY next to RESOURCE.MANAGE_API_KEY, the
+# provider side, and the generated "Manage consumer api key for resource" does
+# not tell an admin which side it is.
+PERMISSION_LABELS = {
+    PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY.value: (
+        "Manage API keys of resources used by the project or organization"
+    ),
+}
+
+
 def generate_permission_description():
     # Group permissions by category (based on prefix before the dot)
     categories = {}
@@ -484,7 +495,9 @@ def generate_permission_description():
             categories[display_category] = []
 
         # Create a human-readable label
-        label = create_readable_label(category, action)
+        label = PERMISSION_LABELS.get(perm.value) or create_readable_label(
+            category, action
+        )
 
         categories[display_category].append(
             {
