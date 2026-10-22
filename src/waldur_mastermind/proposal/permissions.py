@@ -346,6 +346,29 @@ def user_can_view_held_decision(user, proposal):
     return user.is_support or user_can_manage_held_decision(user, proposal)
 
 
+def calls_managed_by(user):
+    """Calls the user holds CALL.UPDATE on, on the call or its managing organisation.
+
+    Unlike ``filter_queryset_for_user``, being staff or support grants nothing
+    here, and listing a call (reviewers, organisation owners) is not managing it.
+    """
+    if not user.is_authenticated or not user.is_active:
+        return proposal_models.Call.objects.none()
+    managed_calls = get_scope_ids(
+        user,
+        ContentType.objects.get_for_model(proposal_models.Call),
+        permission=PermissionEnum.UPDATE_CALL,
+    )
+    organised_calls = get_scope_ids(
+        user,
+        ContentType.objects.get_for_model(proposal_models.CallManagingOrganisation),
+        permission=PermissionEnum.UPDATE_CALL,
+    )
+    return proposal_models.Call.objects.filter(
+        Q(id__in=managed_calls) | Q(manager_id__in=organised_calls)
+    )
+
+
 def proposals_with_held_decisions_hidden_from(user):
     """Proposals whose round still withholds its results from the user.
 

@@ -192,6 +192,34 @@ a project credit's organization-wide figures (`customer_credit`,
 that grant `CUSTOMER.VIEW_ACCOUNTING` on the organization, and hidden from
 everyone else.
 
+## Reporting visibility
+
+`CUSTOMER.VIEW_REPORTING` (`PermissionEnum.VIEW_CUSTOMER_REPORTING`) decides
+which organizations a user sees under Reporting in HomePort. The user gets the
+Reporting menu and the organization-scoped reports (Organization summary,
+Quotas, Usage, Usage by user, Project detail) for every organization where one
+of their roles grants it. The `customer.show_organisation_reporting` feature
+must be on as well. Staff and global support users see all reports without it.
+
+`permissions.yaml` grants it to `CUSTOMER.OWNER` and `CUSTOMER.READER`.
+`import_roles` adds it to those roles on the next deployment. Clones of the
+owner made after the upgrade copy it; clones that already exist need it
+granted in the role editor. Other roles get it in the role editor or in
+`permissions-override.yaml`.
+
+The API does not enforce the permission. The report endpoints return what the
+role can already list, so a role given `CUSTOMER.VIEW_REPORTING` also needs
+`PROJECT.LIST` and `RESOURCE.LIST`. Without them the Organization summary and
+Project detail reports are empty. `CUSTOMER.SUPPORT`, for example, has neither:
+
+```yaml
+- role: CUSTOMER.SUPPORT
+  add_permissions:
+    - CUSTOMER.VIEW_REPORTING
+    - PROJECT.LIST
+    - RESOURCE.LIST
+```
+
 ## Slug permissions
 
 Site agents name backend accounts after slugs: a SLURM account from the resource

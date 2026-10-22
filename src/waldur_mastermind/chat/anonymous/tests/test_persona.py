@@ -95,6 +95,41 @@ class AnonymousPromptContentTest(SimpleTestCase):
         self.assertIn("No filler phrases", ANONYMOUS_SYSTEM_PROMPT)
 
 
+class AnonymousPromptAccessGuidanceTest(SimpleTestCase):
+    """Access guidance: point users at the right route, never act for them."""
+
+    def test_access_guidance_section_present(self):
+        # The offering page (request flow on this platform) and a
+        # published access link (the provider's own platform) are
+        # different routes; the prompt must tell the assistant to say
+        # which one it is sending the user to.
+        self.assertIn("=== ACCESS GUIDANCE ===", ANONYMOUS_SYSTEM_PROMPT)
+        self.assertIn("Two routes exist", ANONYMOUS_SYSTEM_PROMPT)
+
+    def test_approval_deferred_to_offering_data(self):
+        # Some offerings auto-approve orders (remote offerings with
+        # auto_approve_remote_orders, script offerings, provider-side
+        # users), so the prompt must not claim approval is always a
+        # manual provider review — it relays offering data instead.
+        self.assertIn(
+            "offering data states and defer the rest to the provider",
+            ANONYMOUS_SYSTEM_PROMPT,
+        )
+        self.assertNotIn("not automatically", ANONYMOUS_SYSTEM_PROMPT)
+
+    def test_never_submits_requests(self):
+        # The assistant must never claim to submit or track a request
+        # on the user's behalf.
+        self.assertIn("never submit, track, or approve", ANONYMOUS_SYSTEM_PROMPT)
+
+    def test_no_invented_process(self):
+        # An offering without published access details gets a pointer to
+        # its page, not a made-up approval workflow.
+        self.assertIn(
+            "workflow the offering data does not state", ANONYMOUS_SYSTEM_PROMPT
+        )
+
+
 class AnonymousPromptClarificationTest(SimpleTestCase):
     """Discovery-dialogue rules: clarify only on ambiguity, never fabricate eligibility."""
 

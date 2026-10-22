@@ -1,3 +1,4 @@
+from django.contrib.auth.models import AnonymousUser
 from django.db.models import Q
 from django.test import TestCase
 
@@ -9,10 +10,12 @@ from waldur_mastermind.chat.tools.account.helpers import (
     name_search_filter,
     user_accessible_customers,
     user_accessible_projects,
+    user_consumer_resources,
     user_role_on_customer,
     user_role_on_project,
     validate_uuid,
 )
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class ValidateUuidTest(TestCase):
@@ -75,6 +78,14 @@ class UserScopingTest(TestCase):
     def test_unrelated_user_does_not_see_project(self):
         stranger = structure_factories.UserFactory()
         self.assertNotIn(self.fixture.project, user_accessible_projects(stranger))
+
+    def test_project_member_sees_consumer_resource(self):
+        resource = marketplace_factories.ResourceFactory(project=self.fixture.project)
+        self.assertIn(resource, user_consumer_resources(self.fixture.member))
+
+    def test_anonymous_sees_no_consumer_resources(self):
+        marketplace_factories.ResourceFactory(project=self.fixture.project)
+        self.assertFalse(user_consumer_resources(AnonymousUser()).exists())
 
 
 class RoleLookupTest(TestCase):

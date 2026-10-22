@@ -195,6 +195,13 @@ class AnonymousChatBudget(TimeStampedModel):
         return getattr(self, usage_field) >= cap
 
 
+class SearchOutcome(models.TextChoices):
+    NOT_SEARCHED = "not_searched", "Not searched"
+    FOUND = "found", "Found offerings"
+    EMPTY = "empty", "Found nothing"
+    FAILED = "failed", "Search failed"
+
+
 class AnonymousChatInteraction(models.Model):
     """Anon-path twin of ``chat.Message``. ``assistant_blocks`` mirrors ``Message.blocks`` shape
     so the anonymous view can assemble LLM context from the DB on subsequent turns.
@@ -204,6 +211,20 @@ class AnonymousChatInteraction(models.Model):
 
     offering_uuids = models.JSONField(default=list)
     result_count = models.PositiveIntegerField(default=0)
+
+    # What the turn's catalog searches actually returned, decided at stream
+    # finalization from per-call results. result_count can't express this:
+    # it counts offering links rendered anywhere in the turn (built for
+    # click attribution), so an errored search and a search that found
+    # nothing both read 0 there. Null = row predates outcome tracking and
+    # is excluded from the KPIs.
+    search_outcome = models.CharField(
+        max_length=16,
+        choices=SearchOutcome.choices,
+        null=True,
+        blank=True,
+        default=None,
+    )
 
     # Per-turn usage, mirroring Message.input_tokens/output_tokens on the
     # authenticated side. The budget counters these also feed are collapsed to a

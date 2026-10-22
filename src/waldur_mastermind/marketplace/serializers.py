@@ -177,6 +177,7 @@ from . import (
     derived_limits,
     display_limits,
     log,
+    model_lists,
     models,
     permissions,
     plugins,
@@ -6901,8 +6902,12 @@ class BaseItemSerializer(
 
         if offering.options:
             attributes = validate_options(
-                offering.options.get("options", {}), attrs.get("attributes")
+                model_lists.selection_options(
+                    offering, offering.options.get("options", {})
+                ),
+                attrs.get("attributes"),
             )
+            model_lists.validate_selection(offering, attributes)
             if "attributes" in attrs:
                 attrs["attributes"] = attributes
             limits = utils.apply_derived_limits(
@@ -7098,7 +7103,12 @@ class OrderUpdateSerializer(BaseOrderSerializer):
                 # pattern) and store them transformed. Required options are
                 # not enforced, as an edit may send only some values.
                 attrs["attributes"] = validate_options(
-                    options, attrs["attributes"], optional=True
+                    model_lists.selection_options(self.instance.offering, options),
+                    attrs["attributes"],
+                    optional=True,
+                )
+                model_lists.validate_selection(
+                    self.instance.offering, attrs["attributes"]
                 )
             else:
                 attrs["attributes"] = strip_non_input_options(
@@ -7210,8 +7220,12 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
             current_options = (order.resource.options if order.resource else None) or {}
             hidden = get_hidden_options(options, {**current_options, **new_options})
             attributes["new_options"] = validate_options(
-                options, new_options, optional=True, hidden=hidden
+                model_lists.selection_options(order.offering, options),
+                new_options,
+                optional=True,
+                hidden=hidden,
             )
+            model_lists.validate_selection(order.offering, new_options)
             # new_options carries the resource's full option set, so check only
             # what changes: a value the resource already held, even one it
             # shares with another resource from before the option was made
@@ -7239,8 +7253,12 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
                     options, {**(order.attributes or {}), **attributes}
                 )
                 attributes = validate_options(
-                    options, attributes, optional=True, hidden=hidden
+                    model_lists.selection_options(order.offering, options),
+                    attributes,
+                    optional=True,
+                    hidden=hidden,
                 )
+                model_lists.validate_selection(order.offering, attributes)
             self._validate_unique_create_values(order, attributes)
         return attributes
 
@@ -7894,11 +7912,14 @@ class OrderCreateSerializer(
         )
         resource.options = strip_hidden_options(
             resource_options,
-            {
-                key: attributes[key]
-                for key in resource_options.keys()
-                if key in attributes
-            },
+            model_lists.with_default_selection(
+                validated_data["offering"],
+                {
+                    key: attributes[key]
+                    for key in resource_options.keys()
+                    if key in attributes
+                },
+            ),
         )
 
         resource.save()
@@ -9662,6 +9683,7 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     MANAGED_FIELDS = (
         "limits",
         "allowed_models",
+        "effective_models",
         "current_usages",
         "usage_period",
         "paused_by_limit",
@@ -9683,7 +9705,16 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
         child=LimitValueField(), allow_null=True, read_only=True
     )
     allowed_models = serializers.ListField(
-        child=serializers.CharField(), allow_null=True, read_only=True
+        child=serializers.CharField(),
+        allow_null=True,
+        read_only=True,
+        help_text="The key's own model list, as chosen.",
+    )
+    # What a command carries, so the agent's sweep replays the list a command
+    # would have sent.
+    effective_models = serializers.SerializerMethodField(
+        help_text="The models the key can call: the resource's selection, then "
+        "the key's list. The site agent applies this one."
     )
     current_usages = serializers.DictField(
         child=LimitValueField(), allow_null=True, read_only=True
@@ -9707,10 +9738,17 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
             "user_full_name",
             "limits",
             "allowed_models",
+            "effective_models",
             "current_usages",
             "usage_period",
             "paused_by_limit",
         )
+
+    @extend_schema_field(
+        serializers.ListField(child=serializers.CharField(), allow_null=True)
+    )
+    def get_effective_models(self, instance) -> list[str] | None:
+        return model_lists.effective_models(instance)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -9723,8 +9761,9 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
 class ResourceApiKeySettingsSerializer(serializers.Serializer):
     """The per-key settings shared by requesting and editing a key.
 
-    Every setting is optional. An empty limit map or model list is stored as null:
-    the key then follows the resource.
+    Every setting is optional. An empty limit map is stored as null: the key then
+    has no limit of its own. A model list is stored as sent: ``["*"]`` is every
+    model and an empty list is none.
     """
 
     user = serializers.SlugRelatedField(
@@ -9743,12 +9782,16 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
     allowed_models = serializers.ListField(
         child=serializers.CharField(),
         required=False,
-        allow_null=True,
-        help_text="Models the key may call; empty or absent allows every model.",
+        help_text='Models the key may call: ["*"] for every model, an empty list '
+        "for none. Absent, a new key gets none and an edited one keeps its list.",
     )
 
     def get_resource(self, attrs) -> models.Resource:
         raise NotImplementedError
+
+    def get_kept_models(self) -> list[str]:
+        """Models the key holds already, which it may keep."""
+        return []
 
     def validate(self, attrs):
         resource = self.get_resource(attrs)
@@ -9769,23 +9812,28 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
             if unknown:
                 errors["limits"] = _("Unknown components: %s.") % ", ".join(unknown)
         if "allowed_models" in attrs:
-            allowed_models = attrs["allowed_models"] or None
-            attrs["allowed_models"] = allowed_models
-            # When the offering lists its models, a key may only narrow that list.
-            choices = (
-                (resource.offering.resource_options or {})
-                .get("options", {})
-                .get("models", {})
-                .get("choices")
-            )
-            if allowed_models and len(set(allowed_models)) != len(allowed_models):
+            allowed_models = attrs["allowed_models"]
+            all_models = models.ResourceApiKey.ALL_MODELS
+            if len(set(allowed_models)) != len(allowed_models):
                 errors["allowed_models"] = _("Models must not repeat.")
-            elif allowed_models and isinstance(choices, list):
-                unknown = sorted(set(allowed_models) - set(choices))
-                if unknown:
-                    errors["allowed_models"] = _("Unknown models: %s.") % ", ".join(
-                        unknown
+            elif all_models in allowed_models:
+                # Every model the resource allows, so exempt from its selection,
+                # and not a pattern that combines with names: it means every
+                # model only on its own.
+                if len(allowed_models) > 1:
+                    errors["allowed_models"] = (
+                        _("%s stands for every model and must be the only entry.")
+                        % all_models
                     )
+            else:
+                # A key may only narrow what its resource allows.
+                disallowed = model_lists.disallowed_models(
+                    resource, allowed_models, self.get_kept_models()
+                )
+                if disallowed:
+                    errors["allowed_models"] = _(
+                        "The resource does not allow these models: %s."
+                    ) % ", ".join(disallowed)
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
@@ -9807,6 +9855,9 @@ class ResourceApiKeyUpdateSerializer(ResourceApiKeySettingsSerializer):
 
     def get_resource(self, attrs):
         return self.instance.resource
+
+    def get_kept_models(self):
+        return self.instance.allowed_models
 
 
 class ResourceApiKeyUsageSerializer(serializers.Serializer):
@@ -10479,7 +10530,13 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
         hidden = get_hidden_options(options, {**(self.instance.options or {}), **attrs})
         # Store the values as validate_options returns them, transformed, and
         # check those for uniqueness, as they are what other resources hold.
-        attrs = validate_options(options, attrs, optional=True, hidden=hidden)
+        attrs = validate_options(
+            model_lists.selection_options(resource.offering, options),
+            attrs,
+            optional=True,
+            hidden=hidden,
+        )
+        model_lists.validate_selection(resource.offering, attrs)
         self._validate_unique_options(attrs)
         return strip_hidden_options(
             options, {**(self.instance.options or {}), **attrs}, hidden
@@ -10524,7 +10581,12 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         with transaction.atomic():
             self.lock_and_validate_unique_options()
-            return super().update(instance, validated_data)
+            # Saved over the row as it is under the lock: a change to the model
+            # selection is told to the resource's keys by comparing it with the
+            # stored one, which a concurrent update may have changed since the
+            # instance was read.
+            locked = models.Resource.objects.select_for_update().get(pk=instance.pk)
+            return super().update(locked, validated_data)
 
 
 class ResourceOfferingSerializer(serializers.ModelSerializer):

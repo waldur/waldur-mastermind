@@ -1,7 +1,7 @@
 from rest_framework import status, test
 
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack import models, views
+from waldur_openstack import models, serializers, views
 from waldur_openstack.tests._instance_data import get_instance_data
 
 from . import factories, fixtures
@@ -31,6 +31,19 @@ class InstanceServerGroupTest(test.APITestCase):
         expected = getattr(self.server_group, "name")
         actual = response.data["server_group"]["name"]
         self.assertEqual(expected, actual)
+
+    def test_instance_without_server_group_returns_null(self):
+        self.instance.server_group = None
+        self.instance.save()
+
+        response = self.client.get(factories.InstanceFactory.get_url(self.instance))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["server_group"])
+
+    def test_server_group_is_nullable_in_schema(self):
+        # Generated SDK clients only accept null when the schema declares it.
+        field = serializers.OpenStackInstanceSerializer._declared_fields["server_group"]
+        self.assertTrue(field.allow_null)
 
     def test_add_instance_with_server_group(self):
         data = get_instance_data(self.fixture)

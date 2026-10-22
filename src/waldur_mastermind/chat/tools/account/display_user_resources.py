@@ -1,11 +1,11 @@
 import logging
 import uuid as uuid_module
 
+from waldur_mastermind.chat.tools.account.helpers import user_consumer_resources
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace.models import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ class DisplayUserResourcesTool(BaseTool):
         frontend calls) so the number referenced in narration matches what the
         user actually sees in the rendered resource_list.
         """
-        qs = Resource.objects.all().filter_for_service_consumer(user)
+        qs = user_consumer_resources(user)
 
         project_uuid = arguments.get("project_uuid")
         if project_uuid:

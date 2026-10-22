@@ -361,6 +361,25 @@ class IssueSerializer(
         """
         return backend.get_active_backend()
 
+    def _backend_for(self, issue):
+        """The backend that owns a ticket -- the provider's helpdesk backend
+        for a routed ticket, otherwise the operator's active backend.
+
+        Availability flags have to answer the same backend the comment/
+        attachment validators do (``get_backend_for_issue``); asking the global
+        backend instead let a routed child advertise commenting the provider's
+        desk would reject. One backend is cached per ``provider_helpdesk_id``
+        (and the active backend reused for operator tickets) so a list view
+        does not build one per row.
+        """
+        if not issue.provider_helpdesk_id:
+            return self._active_backend
+        cache = self.__dict__.setdefault("_provider_backend_cache", {})
+        key = issue.provider_helpdesk_id
+        if key not in cache:
+            cache[key] = backend.get_backend_for_provider(issue.provider_helpdesk)
+        return cache[key]
+
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_available_statuses(self, obj: models.Issue) -> list[str]:
         # An issue routed to a provider helpdesk belongs to that provider: its
@@ -372,10 +391,10 @@ class IssueSerializer(
         return self._active_backend.get_available_statuses(obj)
 
     def get_add_comment_is_available(self, obj: models.Issue) -> bool:
-        return backend.get_active_backend().comment_create_is_available(obj)
+        return self._backend_for(obj).comment_create_is_available(obj)
 
     def get_add_attachment_is_available(self, obj: models.Issue) -> bool:
-        return backend.get_active_backend().attachment_create_is_available(obj)
+        return self._backend_for(obj).attachment_create_is_available(obj)
 
     def get_is_routed(self, obj: models.Issue) -> bool:
         # Consume the prefetch cache (see IssueViewSet.get_queryset).

@@ -676,6 +676,7 @@ td:nth-child(4) {
 | `send_resource_messages_on_project_move` | `Custom Signal (project_moved)` | `—` | Push a RESOURCE message for every active site-agent resource in a moved project. |
 | `send_resource_state_change_to_message_queue` | `Django Signal (post_save)` | `marketplace.Resource` | Emit a resource event on creation and every state transition. |
 | `send_resource_update_message_to_queue` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
+| `send_resource_user_sync_on_api_key_assignee_change` | `Custom Signal (resource_api_key_assignee_changed)` | `—` | Ask the agent to sync the users of a resource whose key changed hands. |
 | `send_role_granted_message_to_queue` | `Custom Signal (role_granted)` | `—` | No description |
 | `send_role_revoked_message_to_queue` | `Custom Signal (role_revoked)` | `—` | No description |
 | `send_user_attribute_update_message` | `Django Signal (post_save)` | `core.User` | Publish OFFERING_USER events when User profile attributes change. |
@@ -734,6 +735,8 @@ td:nth-child(4) {
 | `trigger_scim_sync_on_offering_user_ok` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Trigger SCIM entitlements synchronization when OfferingUser transitions to OK with username. |
 | `trigger_scim_sync_on_resource_ok` | `Django Signal (post_save)` | `marketplace.Resource` | Trigger SCIM entitlements synchronization when resource transitions to OK. |
 | `trigger_user_action_recalculation_on_order_state_change` | `Django Signal (post_save)` | `marketplace.Order` | Trigger immediate UserAction recalculation when Order state changes. |
+| `update_api_keys_on_resource_models_change` | `Django Signal (post_save)` | `marketplace.Resource` | Send a resource's keys the models its changed selection leaves them. |
+| `update_api_keys_when_offering_models_change` | `Django Signal (post_save)` | `marketplace.Offering` | Send keys their effective models when the offering changes them: key |
 | `update_argocd_secret_when_resource_options_changed` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `update_cache_when_invoice_item_is_deleted` | `Django Signal (post_delete)` | `invoices.InvoiceItem` | No description |
 | `update_cache_when_invoice_item_is_updated` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
@@ -842,14 +845,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 763
+Total unique handlers found: 766
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 352 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 350 handlers
+- **waldur_mastermind**: 353 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers

@@ -3749,6 +3749,14 @@ Maximum number of network ACL entries per personal access token.
 
 Maximum audit events a single personal access token may generate per hour, counted separately for source-address changes and for rejections. Bounds the event table against a caller who holds one valid token and rotates source addresses.
 
+### MCP server
+
+#### MCP_ENABLED
+
+**Type:** bool
+
+Serve the remote MCP endpoint (/mcp) from the `waldur mcp_server` process, so AI agent clients can act as the signed-in user.
+
 ### Site Agent Logs
 
 #### SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY
