@@ -8,7 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import test
 
 from waldur_core.core.tests.helpers import create_pat
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import PERMISSION_DESCRIPTION, PermissionEnum
 from waldur_core.permissions.models import Role, RolePermission
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests.factories import UserFactory
@@ -33,6 +33,23 @@ class ConsumerApiKeyPermissionTest(test.APITestCase):
         holders = {name for name, permissions in roles.items() if NEW in permissions}
         self.assertEqual(
             holders, {"CUSTOMER.OWNER", "PROJECT.ADMIN", "PROJECT.MANAGER"}
+        )
+
+    def test_its_label_names_the_consumer_side(self):
+        # The role editor lists it next to RESOURCE.MANAGE_API_KEY, the
+        # provider side; the label has to say which side it is.
+        labels = {
+            option["value"]: option["label"]
+            for group in PERMISSION_DESCRIPTION
+            for option in group["options"]
+        }
+        self.assertEqual(
+            labels[NEW],
+            "Manage API keys of resources used by the project or organization",
+        )
+        self.assertEqual(
+            labels[PermissionEnum.MANAGE_RESOURCE_API_KEY.value],
+            "Manage api key for resource",
         )
 
 

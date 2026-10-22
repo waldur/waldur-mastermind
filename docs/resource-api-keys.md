@@ -375,8 +375,8 @@ sequenceDiagram
     A->>B: overwrite that client_id only
     A->>W: POST set_key (new value)  -- state OK
     Note over M,B: Request a key
-    M->>W: POST keys/ {resource, user, limits}  -- Creating (create)
-    W->>Q: command (key id, limits, models)
+    M->>W: POST keys/ {resource, user, spending_limits}  -- Creating (create)
+    W->>Q: command (key id, spending_limits, limits, models)
     A->>B: write a new Secret entry
     A->>W: POST set_key (value, client_id)  -- state OK
     Note over M,B: Pause a key
@@ -396,12 +396,14 @@ why two keys are provisioned where keys are not managed one by one.
 Commands (observable type `resource_api_key_rotation` — the name predates the
 other commands and agents subscribe to it by name) carry a **slim** payload:
 resource/key identifiers, `client_id`, and `action`, never key material.
-`create`, `rotate`, `update` and `resume` also carry the key's
+`create`, `update` and `resume` also carry the key's
 `spending_limits`, its `limits` (the month limits alone, `{component_type:
 amount}`, the shape an agent that knows only monthly limits reads) and its
 effective `allowed_models` ([the resource's selection](#resource-selection)), so
-settings edited while a key was paused are applied when it resumes, and a
-rotated key keeps the settings Waldur has for it. Agents
+settings edited while a key was paused are applied when it resumes. `rotate`
+carries them too under key management, so a rotated key keeps the settings
+Waldur has for it. Without key management Waldur neither shows nor applies a
+key's settings, so a `rotate` there carries none. Agents
 from before `rotate` carried them ignore them and keep the backend's. The key only ever
 travels agent → Waldur, in the `report_created` / `set_key` request body (TLS),
 and is encrypted on receipt. When a resource is
@@ -518,7 +520,8 @@ Consumer side. The actions marked *governance* need the offering's
   `spending_limits` replaces every limit of the key, and a null amount clears its
   period. `limits`, the flat monthly shape (`{component_type: amount}`, zero
   meaning no limit), is still accepted in its place: it replaces the month limits
-  and keeps the other periods. The change is the `update` command — or, on a
+  and keeps the other periods; a request that sends both is refused with 400.
+  The change is the `update` command — or, on a
   paused key, is stored, audited as `marketplace_resource_api_key_updated` and
   sent with its `resume`. An edit that names `user`, `null` included, is refused
   with 400 on `user` on every offering, with or without key management: the key
@@ -552,11 +555,12 @@ Three things stay closed to the assignee:
   governance is off a manager may rotate a key whose `pause` failed, but for
   the assignee that would undo a pause meant for them, so it is refused with
   `403`.
-- They cannot rotate an `OK` key whose usage this month has reached one of its
-  limits (`409`). A usage report pauses only a settled key, so a rotation in
-  flight would hold the limit pause off for the very person the limit is set
-  for. A manager can still rotate it, and the key is paused once the agent
-  acknowledges the rotation.
+- They cannot rotate an `OK` key whose usage has reached any one of its
+  limits, whatever its period — day, week, month, quarter or year (`409`). A
+  usage report pauses only a settled key, so a rotation in flight would hold
+  the limit pause off for the very person the limit is set for. A manager can
+  still rotate it, and the key is paused once the agent acknowledges the
+  rotation.
   This holds only where limits are enforced: not once governance is off, and
   not for a retry of a failed rotation, since an `Erred` key is not paused for
   its limit and the retry is what settles it.
