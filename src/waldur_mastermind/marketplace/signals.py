@@ -16,7 +16,3 @@ resource_deletion_succeeded = Signal()
 # Sent before a new resource is created to allow validation by other modules
 # Receivers can raise PolicyException to prevent creation
 resource_creation_validation = Signal()
-
-# providing_args=['api_key']
-# Sent once a change of a resource API key's assignee has been committed
-resource_api_key_assignee_changed = Signal()

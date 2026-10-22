@@ -107,8 +107,8 @@ def log_resource_api_key_command(
 
     A command is logged when it is issued, before the agent has carried it out,
     so it reads as requested; its failure is logged separately. ``applied`` is
-    for a change Waldur makes on its own, which is done at once: an assignee
-    change, or deleting a key that was never created.
+    for a change Waldur makes on its own, which is done at once: an edit of a
+    paused key, stored for its resume, or deleting a key that was never created.
     """
     resource = api_key.resource
     noun, event_type = _API_KEY_COMMAND_EVENTS[action]

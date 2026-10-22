@@ -302,19 +302,3 @@ def send_resource_messages_on_project_move(
             old_customer,
             new_customer,
         )
-
-
-def send_resource_user_sync_on_api_key_assignee_change(
-    sender, api_key: marketplace_models.ResourceApiKey, **kwargs
-):
-    """Ask the agent to sync the users of a resource whose key changed hands.
-
-    A backend can tie a person's own use of the resource to the key assigned to
-    them (the LiteLLM plugin's chat follows it), and applies assignees in its
-    membership pass. An agent on STOMP runs that pass for a resource only when a
-    message names it, so without this a reassignment waits for an unrelated one.
-    Sent after the change commits, so the agent reads the new assignee.
-    """
-    if get_skip_side_effects():
-        return
-    utils.push_resource_user_role_sync_message(api_key.resource)

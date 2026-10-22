@@ -78,30 +78,29 @@ dropped — it would be one more thing for a project to grant, to the one person
 who already holds the secret.
 
 **One key per person.** A person is the assignee of at most one key on a
-resource; a request or an edit that would hand them a second is refused with
-400, naming the key they hold. A backend ties a person's own use of the
+resource; a request that would hand them a second is refused with 400, naming
+the key they hold. A backend ties a person's own use of the
 resource to the key assigned to them — LiteLLM's chat follows it and bills it —
 and two keys would leave that two answers. A key holds its assignee until it is
 `Deleted`: one still `Deleting` may yet fail and stay in service. Keys on other
 resources do not count, so someone can hold one key on each of several
 resources. The check runs with the resource row locked, so two concurrent
-assignments cannot both pass; there is no database constraint, so keys assigned
-before the rule keep their assignees until someone edits them.
+requests cannot both pass; there is no database constraint, so keys assigned
+before the rule keep their assignees.
 
-**A key changes hands by rotation.** Where the offering manages keys, setting,
-changing or clearing the assignee of a key that holds a secret rotates it. The
-previous assignee may have revealed the old value — and so may any member of the
-project while the key was unassigned — and the backend charges a key's use and
-ties chat to whoever holds it now, so keeping the secret would let the old holder
-spend against the new holder's limit. The old secret stops working once the
-agent acknowledges the rotation, and the new assignee reveals the new value.
-Limits and models set in the same edit are saved on the key and carried by the
-`rotate` command. A key changes hands only from `OK`, or from `Erred` after a
-failed rotation (the rotation is then retried with the new assignee). A paused
-key, or one with another command in flight or failed, refuses the edit with 400
-on `user`: resume it, wait for the command, or retry it first. A key that holds
-no secret yet (a pending request) and any key of an offering without key
-management just take the new assignee, with no command.
+**A key's assignee is fixed when the key is requested.** It stays until the key
+is deleted, and no edit sets, changes or clears it. A key changes hands by
+requesting a key for the new holder and deleting the old one, and someone who
+left the project is cut off by deleting their key. The key's limits and its usage
+so far this month belong to the key, not to whoever holds it, so a key that
+changed hands would charge one person's spending to another's allowance and
+report it as theirs. Unassigning would also hand a still-working secret to
+everyone who can reveal the resource's unassigned keys. An unassigned key stays
+shared: to give someone a personal key, request one for them. Without key
+management a key can be neither requested nor deleted, so an assignee set while
+it was on stays, and a manager can still rotate the key. An edit could change
+the assignee in 8.1.3, so one that still names `user` is refused with 400 rather
+than silently dropped.
 
 **Limits are enforced by Waldur, not the gateway.** The Envoy backend's
 `set_resource_limits` is a no-op by design: limits are enforced by Waldur (report
@@ -143,7 +142,7 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `issued_at` | when the agent last stored a value: the key's creation or its latest rotation. Unlike `modified`, a pause, resume or edit leaves it alone, so it is the age of the value in use |
 | `state` | FSM, aligned to resource states (below) |
 | `pending_action` | the command in flight (`ResourceApiKeyActions`: `create`, `rotate`, `pause`, `resume`, `delete`, `update`); blank once settled, kept on `Erred` to show which command failed |
-| `user` | optional assignee; only they can reveal the key, and they can rotate it. A person is the assignee of at most one key per resource that is not `Deleted` |
+| `user` | optional assignee, set when the key is requested and never changed; only they can reveal the key, and they can rotate it. A person is the assignee of at most one key per resource that is not `Deleted` |
 | `limits` | optional per-component limits, keyed by component type; zero means no limit |
 | `allowed_models` | the models the key may call, never null: `["*"]` for every model, `[]` for none, or a list of names ([below](#model-lists)) |
 | `current_usages` | per-component usage in `usage_period`, as last reported by the agent |
@@ -396,8 +395,8 @@ other commands and agents subscribe to it by name) carry a **slim** payload:
 resource/key identifiers, `client_id`, and `action`, never key material.
 `create`, `rotate`, `update` and `resume` also carry the key's `limits` and its
 effective `allowed_models` ([the resource's selection](#resource-selection)), so
-settings edited while a key was paused are applied when it resumes, and a key
-rotated because it changed hands keeps the settings Waldur has for it. Agents
+settings edited while a key was paused are applied when it resumes, and a
+rotated key keeps the settings Waldur has for it. Agents
 from before `rotate` carried them ignore them and keep the backend's. The key only ever
 travels agent → Waldur, in the `report_created` / `set_key` request body (TLS),
 and is encrypted on receipt. When a resource is
@@ -467,21 +466,13 @@ Consumer side. The actions marked *governance* need the offering's
   every model the resource allows, is always accepted, and a request without
   `allowed_models` creates a key with `[]`, no model
   ([model lists](#model-lists)).
-- `PATCH /{uuid}/` *(governance)* — change `user`, `limits`, `allowed_models`. A
-  new assignee must not hold another key on the resource. An assignee change on
-  a key that holds a secret is the `rotate` command, carrying any limits and
-  models set with it (see **A key changes hands by rotation** above); refused
-  with 400 on `user` for a paused key or one with another command pending or
-  failed. On a key with no secret yet, or without key management, it is
-  Waldur's alone, but audited as `marketplace_resource_api_key_updated`, since
-  it decides who may reveal the key. Once it commits, a site-agent offering's agent is sent a `user_role` sync
-  message for the key's resource (`resource_uuid` set), so a backend that ties a
-  person's own use of the resource to their key — LiteLLM's chat follows it —
-  applies the new assignee without waiting for an unrelated membership event.
-  Otherwise a change to limits or models is the `update` command — or, on a
-  paused key, is stored and sent with its `resume`. Unassigning (`{"user": null}`) needs no
-  governance: reveal still honours an assignee set while governance was on, and
-  only this lets someone other than staff lift it.
+- `PATCH /{uuid}/` *(governance)* — change `limits`, `allowed_models`. The
+  change is the `update` command — or, on a paused key, is stored, audited as
+  `marketplace_resource_api_key_updated` and sent with its `resume`. An edit
+  that names `user`, `null` included, is refused with 400 on `user` on every
+  offering, with or without key management: the key is left as it was, and
+  nothing is published or audited (see **A key's assignee is fixed when the key
+  is requested** above).
 - `POST /{uuid}/pause/` *(governance)* — the `pause` command.
 - `DELETE /{uuid}/` *(governance)* — the `delete` command; `202`, since the key
   is gone only once the agent acknowledges. A requested key with no `client_id`
@@ -496,10 +487,9 @@ member of the resource's project or its customer, and not a minimal-visibility
 viewer. An assignee who no longer reaches the key at all — they left the
 project and hold no role on its customer — gets `404`, since the key is not
 listed for them; one who still lists it some other way (through the provider
-organization, or as global support) gets `403`. Whether the caller is still the
-assignee, and which command a retry repeats, are checked with the key locked, so
-a key reassigned meanwhile is refused. An unassigned key gives ordinary members
-nothing: it is rotated by a manager.
+organization, or as global support) gets `403`. Whether the caller is the
+assignee, and which command a retry repeats, are checked with the key locked. An
+unassigned key gives ordinary members nothing: it is rotated by a manager.
 
 Three things stay closed to the assignee:
 
@@ -521,8 +511,8 @@ Three things stay closed to the assignee:
   key.
 
 A rotation in flight also makes the key refuse a manager's `pause` or delete
-until the agent acknowledges it. Each rotation is audited, and unassigning the
-key — accepted mid-command — ends an assignee's rotations.
+until the agent acknowledges it. Each rotation is audited, and deleting the key
+ends its assignee's rotations.
 
 Every command is refused while the resource is terminating/terminated or while
 the key already has an unacknowledged command, and emits an audit event naming

@@ -18,7 +18,13 @@ from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_mastermind.marketplace import models, resource_api_keys, tasks, utils
+from waldur_mastermind.marketplace import (
+    models,
+    resource_api_keys,
+    serializers,
+    tasks,
+    utils,
+)
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
@@ -178,12 +184,6 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("user", response.data)
         prepare.assert_not_called()
-
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(
-            detail_url(self.key), {"user": self.fixture.owner.uuid.hex}, format="json"
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def request_for(self, user):
         return self.post(
@@ -427,139 +427,53 @@ class KeySettingsTest(ApiKeyManagementTestBase):
             response = self.client.patch(detail_url(key), data, format="json")
         return response, prepare
 
-    def assert_rotated(self, prepare, user):
-        self.key.refresh_from_db()
-        self.assertEqual(self.key.user, user)
-        self.assertEqual(self.key.state, States.UPDATING)
-        self.assertEqual(self.key.pending_action, Actions.ROTATE)
+    def test_an_assignee_cannot_be_edited(self):
+        # A key changes hands by requesting one for the new holder and
+        # deleting the old one, so the edit is refused, not dropped.
+        self.key.user = self.fixture.admin
+        self.key.save()
+        for user in (
+            self.fixture.manager.uuid.hex,
+            self.fixture.admin.uuid.hex,
+            None,
+        ):
+            with self.subTest(user=user):
+                with mock.patch(
+                    "waldur_mastermind.marketplace.resource_api_keys.log."
+                    "log_resource_api_key_command"
+                ) as log_command:
+                    response, prepare = self.patch(
+                        self.fixture.owner,
+                        self.key,
+                        {"user": user, "limits": {"tokens": 50}},
+                    )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(
+                    "Request a key for the new holder", str(response.data["user"])
+                )
+                prepare.assert_not_called()
+                log_command.assert_not_called()
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.user, self.fixture.admin)
+                self.assertIsNone(self.key.limits)
+                self.assertEqual(self.key.state, States.OK)
+                self.assertEqual(self.key.pending_action, "")
+
+    def test_an_edit_offers_no_assignee(self):
+        self.assertNotIn("user", serializers.ResourceApiKeyUpdateSerializer().fields)
+        self.assertIn("user", serializers.ResourceApiKeyCreateSerializer().fields)
+
+    def test_an_edit_of_limits_is_an_update(self):
+        response, prepare = self.patch(
+            self.fixture.owner, self.key, {"limits": {"tokens": 50}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         payload = self.published_payload(prepare)
-        self.assertEqual(payload["action"], Actions.ROTATE)
-        return payload
-
-    def test_assigning_a_key_rotates_it(self):
-        # Any project member could reveal the unassigned key.
-        self.key.limits = {"tokens": 50}
-        self.key.allowed_models = ["*"]
-        self.key.save()
-        response, prepare = self.patch(
-            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        payload = self.assert_rotated(prepare, self.fixture.admin)
+        self.assertEqual(payload["action"], Actions.UPDATE)
         self.assertEqual(payload["limits"], {"tokens": 50})
-        self.assertEqual(
-            payload["allowed_models"],
-            resource_api_keys.model_lists.effective_models(self.key),
-        )
-
-    def test_reassigning_a_key_rotates_it(self):
-        self.key.user = self.fixture.manager
-        self.key.save()
-        response, prepare = self.patch(
-            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        payload = self.assert_rotated(prepare, self.fixture.admin)
-        self.assertIn("limits", payload)
-        self.assertIn("allowed_models", payload)
-
-    def test_unassigning_a_key_rotates_it(self):
-        self.key.user = self.fixture.admin
-        self.key.save()
-        response, prepare = self.patch(self.fixture.owner, self.key, {"user": None})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assert_rotated(prepare, None)
-
-    def test_assignee_and_limits_change_together_in_one_rotation(self):
-        response, prepare = self.patch(
-            self.fixture.owner,
-            self.key,
-            {"user": self.fixture.admin.uuid.hex, "limits": {"tokens": 50}},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        payload = self.assert_rotated(prepare, self.fixture.admin)
-        self.assertEqual(payload["limits"], {"tokens": 50})
-        self.assertEqual(self.key.limits, {"tokens": 50})
-
-    def test_a_rotation_settling_over_the_limit_pauses_the_key(self):
-        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
-            current_usages={"tokens": 9},
-            usage_period=THIS_MONTH,
-        )
-        response, _ = self.patch(
-            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response, prepare = self.post(
-            self.fixture.offering_owner,
-            detail_url(self.key, "set-key"),
-            {"api_key": "sk-rotated"},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
-
-    def test_a_paused_key_cannot_change_hands(self):
-        self.key.state = States.PAUSED
-        self.key.save()
-        response, prepare = self.patch(
-            self.fixture.owner,
-            self.key,
-            {"user": self.fixture.admin.uuid.hex, "limits": {"tokens": 50}},
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("resume the key first", str(response.data["user"]))
-        prepare.assert_not_called()
         self.key.refresh_from_db()
-        self.assertIsNone(self.key.user)
-        self.assertIsNone(self.key.limits)
-        self.assertEqual(self.key.state, States.PAUSED)
-
-    def test_a_key_with_a_command_in_flight_cannot_change_hands(self):
-        self.key.set_updating(Actions.UPDATE)
-        self.key.save()
-        response, prepare = self.patch(
-            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("update has not been acknowledged", str(response.data["user"]))
-        prepare.assert_not_called()
-        self.key.refresh_from_db()
-        self.assertIsNone(self.key.user)
-
-    def test_without_key_management_an_unassign_is_not_a_command(self):
-        self.key.user = self.fixture.admin
-        self.key.save()
-        self.offering.plugin_options = {}
-        self.offering.save()
-        response, prepare = self.patch(self.fixture.owner, self.key, {"user": None})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        prepare.assert_not_called()
-        self.key.refresh_from_db()
-        self.assertIsNone(self.key.user)
-        self.assertEqual(self.key.state, States.OK)
-        self.assertEqual(self.key.pending_action, "")
-
-    def test_an_assignee_who_holds_another_key_cannot_take_this_one(self):
-        self.make_key("cid-2", user=self.fixture.admin)
-        response, prepare = self.patch(
-            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("cid-2", str(response.data["user"]))
-        prepare.assert_not_called()
-        self.key.refresh_from_db()
-        self.assertIsNone(self.key.user)
-
-    def test_editing_a_key_keeps_its_own_assignee(self):
-        self.key.user = self.fixture.admin
-        self.key.save()
-        response, _ = self.patch(
-            self.fixture.owner,
-            self.key,
-            {"user": self.fixture.admin.uuid.hex, "limits": {"tokens": 50}},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.pending_action, Actions.UPDATE)
 
     def test_agent_acknowledges_an_update(self):
         self.key.set_updating(Actions.UPDATE)
@@ -596,26 +510,24 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_assigning_a_requested_key_is_audited_but_leaves_modified_alone(self):
-        # A key with no secret yet has nothing to rotate. The agent's sweep
-        # reads modified as "in this state since"; an edit that sends no
-        # command must not hide a key stuck mid-command.
-        self.key = self.make_key(
-            "", state=States.CREATING, pending_action=Actions.CREATE
-        )
+    def test_editing_a_paused_key_is_audited_but_leaves_modified_alone(self):
+        # The agent's sweep reads modified as "in this state since"; an edit
+        # that sends no command must not make a key look freshly paused.
+        self.key.state = States.PAUSED
+        self.key.save()
         before = self.key.modified
         with mock.patch(
             "waldur_mastermind.marketplace.resource_api_keys.log."
             "log_resource_api_key_command"
         ) as log_command:
             response, prepare = self.patch(
-                self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
+                self.fixture.owner, self.key, {"limits": {"tokens": 50}}
             )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         prepare.assert_not_called()
         self.key.refresh_from_db()
-        self.assertEqual(self.key.user, self.fixture.admin)
-        self.assertEqual(self.key.pending_action, Actions.CREATE)
+        self.assertEqual(self.key.limits, {"tokens": 50})
+        self.assertEqual(self.key.state, States.PAUSED)
         self.assertEqual(self.key.modified, before)
         log_command.assert_called_once_with(
             mock.ANY, Actions.UPDATE, self.fixture.owner, applied=True
@@ -640,7 +552,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.key.state = States.DELETED
         self.key.save()
         response, _ = self.patch(
-            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
+            self.fixture.owner, self.key, {"limits": {"tokens": 50}}
         )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
@@ -884,12 +796,10 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         self.client.force_authenticate(self.assignee)
         response = self.client.delete(detail_url(self.key))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        for changes in ({"limits": {"tokens": 50}}, {"user": None}):
-            with self.subTest(changes=changes):
-                response = self.client.patch(
-                    detail_url(self.key), changes, format="json"
-                )
-                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.patch(
+            detail_url(self.key), {"limits": {"tokens": 50}}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.key.refresh_from_db()
         self.assertEqual(self.key.user, self.assignee)
         self.assertEqual(self.key.pending_action, "")
@@ -1049,7 +959,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         prepare.assert_not_called()
 
-    def test_a_key_reassigned_meanwhile_is_refused_under_its_lock(self):
+    def test_the_assignee_is_checked_again_under_the_lock(self):
         # The gate admitted the assignee on the row it read; the command is
         # decided on the row it locks.
         stale = models.ResourceApiKey.objects.get(pk=self.key.pk)
@@ -1285,37 +1195,6 @@ class RetryTest(ApiKeyManagementTestBase):
             )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(self.published_payload(prepare)["limits"], {"tokens": 50})
-
-    def test_an_assignee_change_retries_a_failed_rotation(self):
-        self.fail(lambda key: key.set_updating())
-        self.client.force_authenticate(self.fixture.owner)
-        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
-            response = self.client.patch(
-                detail_url(self.key),
-                {"user": self.fixture.admin.uuid.hex},
-                format="json",
-            )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
-        self.key.refresh_from_db()
-        self.assertEqual(self.key.state, States.UPDATING)
-        self.assertEqual(self.key.user, self.fixture.admin)
-
-    def test_an_assignee_change_cannot_replace_another_failed_command(self):
-        self.fail(lambda key: key.set_pausing())
-        self.client.force_authenticate(self.fixture.owner)
-        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
-            response = self.client.patch(
-                detail_url(self.key),
-                {"user": self.fixture.admin.uuid.hex},
-                format="json",
-            )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("retry the pause", str(response.data["user"]))
-        prepare.assert_not_called()
-        self.key.refresh_from_db()
-        self.assertEqual(self.key.state, States.ERRED)
-        self.assertIsNone(self.key.user)
 
     def test_a_failed_key_can_be_deleted(self):
         self.fail(lambda key: key.set_pausing())
@@ -1897,37 +1776,6 @@ class AuditTest(ApiKeyManagementTestBase):
         self.assertIn("Pause of API key cid-1", events[0][0])
         self.assertIn("gateway down", events[0][0])
 
-    def test_an_assignee_change_reads_as_a_rotation_for_it(self):
-        self.client.force_authenticate(self.fixture.owner)
-
-        def patch():
-            with mock.patch(PREPARE, return_value=MESSAGES), mock.patch(PUBLISH):
-                self.client.patch(
-                    detail_url(self.key),
-                    {"user": self.fixture.admin.uuid.hex},
-                    format="json",
-                )
-
-        events = self.emitted(patch)
-        self.assertEqual(len(events), 1)
-        self.assertIn("Rotation of API key cid-1", events[0][0])
-        self.assertIn("Its assignee changed.", events[0][0])
-
-    def test_assigning_a_requested_key_reads_as_done(self):
-        self.key = self.make_key(
-            "", state=States.CREATING, pending_action=Actions.CREATE
-        )
-        self.client.force_authenticate(self.fixture.owner)
-        events = self.emitted(
-            lambda: self.client.patch(
-                detail_url(self.key),
-                {"user": self.fixture.admin.uuid.hex},
-                format="json",
-            )
-        )
-        self.assertEqual(len(events), 1)
-        self.assertIn("has been updated by", events[0][0])
-
     def test_request_and_delete_emit_their_events(self):
         events = self.emitted(
             lambda: self.post(
@@ -2219,27 +2067,21 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
                 )
                 self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-    def test_the_assignee_can_still_be_removed(self):
-        # Reveal still honours the assignee, so without this only staff could
-        # hand the key back to the project.
+    def test_the_assignee_can_be_neither_removed_nor_set(self):
+        # Without key management a key can be neither requested nor deleted,
+        # but the assignee is refused the same way, not with governance.
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(
-            detail_url(self.key), {"user": None}, format="json"
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.key.refresh_from_db()
-        self.assertIsNone(self.key.user)
-
-    def test_an_assignee_cannot_be_set(self):
-        self.key.user = None
-        self.key.save()
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(
-            detail_url(self.key), {"user": self.fixture.admin.uuid.hex}, format="json"
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.key.refresh_from_db()
-        self.assertIsNone(self.key.user)
+        for user in (None, self.fixture.manager.uuid.hex):
+            with self.subTest(user=user):
+                response = self.client.patch(
+                    detail_url(self.key), {"user": user}, format="json"
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(
+                    "Request a key for the new holder", str(response.data["user"])
+                )
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.user, self.fixture.admin)
 
     def test_an_assignee_still_restricts_reveal(self):
         # Switching the capability off hides the assignee but must not hand a
