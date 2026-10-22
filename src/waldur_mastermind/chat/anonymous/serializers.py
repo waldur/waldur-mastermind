@@ -213,6 +213,27 @@ class AnonymousChatKpiResponseSerializer(serializers.Serializer):
             "no interactions."
         ),
     )
+    searches_total = serializers.IntegerField(
+        help_text=(
+            "Interactions where the assistant searched the catalog "
+            "(found, empty or failed). Rows predating outcome tracking "
+            "are excluded."
+        )
+    )
+    no_result_searches_total = serializers.IntegerField(
+        help_text=(
+            "Search interactions that completed and surfaced no offerings "
+            "— the signal for catalog gaps and over-restrictive requests. "
+            "Failed searches are not counted."
+        )
+    )
+    no_result_rate = serializers.FloatField(
+        allow_null=True,
+        help_text=(
+            "no_result_searches_total / searches_total; null when no "
+            "interaction searched."
+        ),
+    )
     input_tokens_total = serializers.IntegerField(
         help_text=(
             "Prompt tokens summed over the filtered turns. Turns recorded "

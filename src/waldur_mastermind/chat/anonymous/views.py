@@ -55,6 +55,7 @@ from waldur_mastermind.chat.input_guards import (
 )
 from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.models import GlobalAssistantBudget, TokenQuota
+from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
     is_public_marketplace_enabled,
 )
@@ -157,6 +158,24 @@ def _format_ndjson(data: dict) -> str:
     return f"{json.dumps(data, separators=(',', ':'))}\n"
 
 
+def _derive_search_outcome(search_results: list[dict]) -> str:
+    """Collapse per-call search results into one turn-level outcome.
+
+    Precedence: a search that surfaced offerings beats an empty one (a
+    retry that hits means the turn found something), and a genuine empty
+    search beats a failed call — only an all-failed turn reports as
+    failed.
+    """
+    if not search_results:
+        return anonymous_models.SearchOutcome.NOT_SEARCHED
+    successes = [r for r in search_results if r.get("type") == "success"]
+    if any(r.get("total") for r in successes):
+        return anonymous_models.SearchOutcome.FOUND
+    if successes:
+        return anonymous_models.SearchOutcome.EMPTY
+    return anonymous_models.SearchOutcome.FAILED
+
+
 def _wrap_stream_with_anon_finalization(
     streamer: LLMStreamer,
     interaction: anonymous_models.AnonymousChatInteraction,
@@ -193,6 +212,9 @@ def _wrap_stream_with_anon_finalization(
                     streamer.accumulated_blocks or []
                 )
                 interaction_locked.result_count = len(interaction_locked.offering_uuids)
+                interaction_locked.search_outcome = _derive_search_outcome(
+                    streamer.search_results
+                )
                 interaction_locked.last_active_at = timezone.now()
                 # Kept per-turn: the budget counters below collapse input and
                 # output into one total, so the split survives only on the row.
@@ -207,6 +229,7 @@ def _wrap_stream_with_anon_finalization(
                         "assistant_blocks",
                         "offering_uuids",
                         "result_count",
+                        "search_outcome",
                         "last_active_at",
                         "input_tokens",
                         "output_tokens",
@@ -852,9 +875,26 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
                 "uuid",
                 filter=Q(
                     assistant_blocks__contains=[
-                        {"key": "tool", "tool": {"name": "ask_user"}}
+                        {"key": "tool", "tool": {"name": ToolName.ASK_USER.value}}
                     ]
                 ),
+            ),
+            # search_outcome is written at stream finalization from what each
+            # search call actually returned; null rows predate the column and
+            # stay out of both counts.
+            searches_total=Count(
+                "uuid",
+                filter=Q(
+                    search_outcome__in=(
+                        anonymous_models.SearchOutcome.FOUND,
+                        anonymous_models.SearchOutcome.EMPTY,
+                        anonymous_models.SearchOutcome.FAILED,
+                    )
+                ),
+            ),
+            no_result_searches_total=Count(
+                "uuid",
+                filter=Q(search_outcome=anonymous_models.SearchOutcome.EMPTY),
             ),
         )
 
@@ -871,6 +911,8 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             (clicks_total / interactions_total) if interactions_total else None
         )
         clarification_requests_total = agg["clarification_requests_total"] or 0
+        searches_total = agg["searches_total"] or 0
+        no_result_searches_total = agg["no_result_searches_total"] or 0
 
         payload = {
             "interactions_total": interactions_total,
@@ -887,6 +929,14 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
                 (clarification_requests_total / interactions_total)
                 if interactions_total
                 else None
+            ),
+            "searches_total": searches_total,
+            "no_result_searches_total": no_result_searches_total,
+            # Over searches, not interactions: "how often does searching
+            # find nothing" is the catalog-gap signal, and clarification
+            # turns would only dilute it.
+            "no_result_rate": (
+                (no_result_searches_total / searches_total) if searches_total else None
             ),
             # Null on an empty set, and on turns predating token capture.
             "input_tokens_total": agg["input_tokens_total"] or 0,
