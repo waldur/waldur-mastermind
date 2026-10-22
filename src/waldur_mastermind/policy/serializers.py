@@ -13,8 +13,11 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.invoices import compensations as invoices_compensations
@@ -28,7 +31,7 @@ from waldur_mastermind.policy.policy_actions import (
 
 from . import models
 from .models import LIMIT_PERIOD_TO_POLICY_PERIOD
-from .structures import EvaluationTriggers
+from .structures import CreditSources, EvaluationTriggers, PolicyGates
 from .utils import system_actor_event_context
 
 logger = logging.getLogger(__name__)
@@ -211,6 +214,30 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class PolicyTriggerStatusSerializer(serializers.Serializer):
+    """Whether an estimated-cost policy fires right now, and why."""
+
+    gate = serializers.ChoiceField(
+        choices=PolicyGates.CHOICES,
+        help_text=(
+            "Which check decided. Not firing: cost_below_limit (current_cost is at or below limit_cost); held_by_project_credit / held_by_customer_credit (current_cost is over the limit, but that credit's live balance, credit_value_compared, is above it; for a project with its own allocation the lower of the two binds). Firing: credit_exhausted (current_cost is over the limit and credit_value_compared is at or below it); no_credit (current_cost is over the limit and no credit applies); credit_ignored (current_cost is over the limit and the policy does not take credit into account). Clients word the explanation themselves from this value and those figures."
+        ),
+    )
+    triggered = serializers.BooleanField(
+        help_text=(
+            "Whether the policy fires on the current figures. This is the evaluation now; has_fired is the stored state of the last evaluation that ran its actions, and the two can differ until the next one."
+        )
+    )
+    credit_value_compared = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        allow_null=True,
+        help_text=(
+            "The live credit balance compared against limit_cost; null when the credit was not checked (cost_below_limit, no_credit, credit_ignored), and on a project policy when it is the organization's balance and the user may not view the organization's accounting."
+        ),
+    )
+
+
 class EstimatedCostPolicySerializer(
     core_serializers.RestrictedSerializerMixin, PolicySerializer
 ):
@@ -218,6 +245,7 @@ class EstimatedCostPolicySerializer(
     current_cost = serializers.SerializerMethodField()
     eta_days = serializers.SerializerMethodField()
     eta_date = serializers.SerializerMethodField()
+    trigger_status = serializers.SerializerMethodField()
 
     class Meta(PolicySerializer.Meta):
         fields = PolicySerializer.Meta.fields + (
@@ -227,7 +255,27 @@ class EstimatedCostPolicySerializer(
             "current_cost",
             "eta_days",
             "eta_date",
+            "trigger_status",
         )
+
+    @extend_schema_field(PolicyTriggerStatusSerializer)
+    def get_trigger_status(self, instance) -> dict:
+        """Whether the policy fires right now, and which check decided.
+
+        Built from the policy's own `evaluate()`, so it cannot disagree with
+        `is_triggered()`; clients should not derive the gate from current_cost
+        and the credit fields themselves. The evaluation is shared with
+        current_cost (see `_decision_for`), and skipped by a `?field=` that
+        leaves this out.
+        """
+        decision = self._decision_for(instance)
+        return PolicyTriggerStatusSerializer(
+            {
+                "gate": decision.gate,
+                "triggered": decision.triggered,
+                "credit_value_compared": decision.credit_value_compared,
+            }
+        ).data
 
     @extend_schema_field(
         serializers.DecimalField(
@@ -246,6 +294,12 @@ class EstimatedCostPolicySerializer(
         server can simulate the latter. Pass `?field=` without `current_cost`
         to skip the simulation on requests that do not need it.
         """
+        # trigger_status evaluates the policy anyway, and the evaluated cost is
+        # this figure, so read it from there instead of aggregating the
+        # invoices twice. Without trigger_status, skip the credit-balance
+        # queries the evaluation would add.
+        if "trigger_status" in self.fields:
+            return self._decision_for(instance).evaluated_cost
         # Building a MonthlyCompensation costs two queries before it is asked
         # anything, so skip it for policies that deduct no credit.
         compensation = (
@@ -300,6 +354,19 @@ class EstimatedCostPolicySerializer(
         if eta_days is None:
             return None
         return datetime.date.today() + datetime.timedelta(days=eta_days)
+
+    def _decision_for(self, instance):
+        """The policy's own evaluation, once per policy per response."""
+        cache = self.context.setdefault("_policy_decision_cache", {})
+        key = (type(instance).__name__, instance.pk)
+        if key not in cache:
+            compensation = (
+                self._compensation_for(instance)
+                if instance.uses_credit_compensation
+                else None
+            )
+            cache[key] = instance.evaluate(compensation=compensation)
+        return cache[key]
 
     def _compensation_for(self, instance):
         """One MonthlyCompensation per customer, shared across the response."
@@ -390,6 +457,40 @@ class ProjectEstimatedCostPolicySerializer(
             )
 
         return attrs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or user.is_staff or user.is_support:
+            return data
+
+        # Project roles can list project policies, but the organization's
+        # credit describes the whole organization, so it stays with owners and
+        # with roles that may view its accounting, as on ProjectCredit
+        # (invoices.serializers.ProjectCreditSerializer).
+        customer = instance.scope.customer
+        cache = self.context.setdefault("_owner_access_cache", {})
+        if customer.id not in cache:
+            cache[customer.id] = structure_permissions._has_owner_access(
+                user, customer
+            ) or has_permission(
+                request, PermissionEnum.VIEW_CUSTOMER_ACCOUNTING, customer
+            )
+        if cache[customer.id]:
+            return data
+
+        data.pop("customer_credit", None)
+        trigger_status = data.get("trigger_status")
+        if (
+            trigger_status
+            and self._decision_for(instance).credit_source == CreditSources.CUSTOMER
+        ):
+            # The live organization balance would also reveal what the whole
+            # organization has used this month.
+            trigger_status["credit_value_compared"] = None
+        return data
 
     def get_project_credit(self, instance) -> str | None:
         project = cast(structure_models.Project, instance.scope)

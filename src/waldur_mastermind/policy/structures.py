@@ -26,6 +26,15 @@ class PolicyGates:
     NO_CREDIT = "no_credit"
     CREDIT_IGNORED = "credit_ignored"
 
+    CHOICES = (
+        (COST_BELOW_LIMIT, "Cost below limit"),
+        (HELD_BY_PROJECT_CREDIT, "Held by project credit"),
+        (HELD_BY_CUSTOMER_CREDIT, "Held by organization credit"),
+        (CREDIT_EXHAUSTED, "Credit exhausted"),
+        (NO_CREDIT, "No credit"),
+        (CREDIT_IGNORED, "Credit ignored"),
+    )
+
 
 class EvaluationTriggers:
     """What started a policy evaluation, recorded as `trigger` on the events it
@@ -72,6 +81,10 @@ class PolicyDecision:
     use_credit: bool
     #: The live credit balance Gate 2 compared; None when Gate 2 did not run.
     credit_value_compared: decimal.Decimal | None = None
+    #: Whose balance `credit_value_compared` is (a `CreditSources` value), so
+    #: the API can withhold an organization balance from project roles. Not
+    #: part of the event context.
+    credit_source: str | None = None
 
     def as_event_context(self) -> dict:
         def amount(value):

@@ -34,6 +34,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace_metrics import enums as metrics_enums
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
+from waldur_mastermind.policy.structures import PolicyGates
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS_CHOICES,
     AssignmentBatchStatuses,
@@ -90,6 +91,8 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
         "MetricKindEnum": metrics_enums.MetricKinds.CHOICES,
+        # trigger_status.gate would otherwise be a bare GateEnum in the SDK.
+        "PolicyGateEnum": PolicyGates.CHOICES,
         # Shared by the Constance setting and the credentials response, so the
         # SDK gets one named type instead of a generic MethodEnum.
         "MatrixExternalLoginMethodEnum": MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES,
