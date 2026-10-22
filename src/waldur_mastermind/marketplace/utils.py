@@ -2288,9 +2288,10 @@ def evaluate_usage_limit_restriction(resource):
     (``pause`` or ``downscale``). When the current-period reported usage of any
     component reaches or exceeds that component's ``limit_amount``, the matching
     flag (``paused`` or ``downscaled``) is set; when usage falls back below every
-    limit, a restriction previously applied here is lifted. Restrictions applied
-    for other reasons (manual, grace period, budget policy) are never touched —
-    tracked via ``Resource.usage_limit_restriction``.
+    limit, a restriction previously applied here is lifted. A restriction
+    applied by hand is never touched, and a pause the grace period or a cost
+    policy holds is never lifted here — tracked via
+    ``Resource.usage_limit_restriction``.
 
     A reached spending limit of a usage-based component restricts the resource
     the same way. While spending limits alone hold the restriction,
@@ -2319,10 +2320,17 @@ def evaluate_usage_limit_restriction(resource):
         # component's restriction lifts on the hourly re-evaluation.
         resumes_at = None if limit_over else spending_limits.resumes_at(reached)
 
-        if over_limit and not locked.usage_limit_restriction and getattr(locked, flag):
-            # Already restricted for another reason (by hand, a cost policy,
-            # the grace period). Marking it would make the automatic lift,
-            # which runs at every daily reset, undo that restriction.
+        if (
+            over_limit
+            and not locked.usage_limit_restriction
+            and getattr(locked, flag)
+            and not _automatic_pause_holds(locked, flag)
+        ):
+            # Already restricted by hand. Marking it would make the automatic
+            # lift, which runs at every daily reset, undo that restriction.
+            # A pause the grace period or a cost policy holds is marked: the
+            # lift below leaves it to them, and their own release then keeps
+            # the resource paused while it is over the limit.
             return
         if over_limit and locked.usage_limit_restriction != flag:
             update_fields = {flag, "usage_limit_restriction", "usage_limit_resumes_at"}
@@ -2372,6 +2380,21 @@ def evaluate_usage_limit_restriction(resource):
         elif locked.usage_limit_resumes_at is not None:
             locked.usage_limit_resumes_at = None
             locked.save(update_fields=["usage_limit_resumes_at"])
+
+
+def _automatic_pause_holds(resource, flag) -> bool:
+    """Whether the grace period or a registered keeper set ``resource``'s pause.
+
+    Such a pause is lifted by its own mechanism, which leaves the resource
+    paused while a usage-limit restriction is marked on it. The grace period is
+    known by its marker rather than by the project's state, so a pause set by
+    hand during the grace period still counts as manual.
+    """
+    if flag != "paused":
+        return False
+    return resource.paused_by_grace_period or any(
+        keeper(resource) for keeper in PAUSE_KEEPERS
+    )
 
 
 def is_held_by_project_grace(resource) -> bool:
