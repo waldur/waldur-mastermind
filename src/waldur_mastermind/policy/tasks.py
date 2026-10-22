@@ -21,7 +21,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.policy import models
 
-from . import utils
+from . import structures, utils
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,11 @@ logger = logging.getLogger(__name__)
 @shared_task(name="waldur_mastermind.policy.evaluate_policies_async")
 def evaluate_policies_async(policy_class_path, filters):
     """Evaluate policies matching the given filters in a background task.
+
+    What started the evaluation and who arrive in the event context
+    `celeryconf` carries over from the dispatching request (see
+    `handlers._debounced_evaluate`), not as arguments, so the signature stays
+    the one every worker version accepts.
 
     Args:
         policy_class_path: Dotted path to the policy model class,
@@ -467,7 +472,11 @@ def check_polices():
         if klass._meta.abstract:
             continue
 
-        utils.evaluate_policies(klass.objects.all(), reconcile_already_fired=True)
+        utils.evaluate_policies(
+            klass.objects.all(),
+            reconcile_already_fired=True,
+            trigger=structures.EvaluationTriggers.PERIODIC_SWEEP,
+        )
 
 
 @shared_task(name="waldur_mastermind.policy.notify_external_user")

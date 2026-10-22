@@ -10,6 +10,7 @@ from waldur_mastermind.chat.input_guards import (
     get_detection_service,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.chat.tools.tool_sets import is_tool_permitted
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,10 @@ class ToolExecutor:
 
     Responsibilities:
     - Injection detection on tool arguments (fail-closed)
+    - Role check: only tools in the caller's tool set run, whatever the origin
+      of the call (chat, REST execute endpoint, MCP). Callers must run tools
+      through here, never ``tool.execute`` directly: not every tool repeats
+      the check itself.
     - Dispatch to registered tools via tool_registry
     - Consistent error handling (permission denied, unexpected exceptions)
     """
@@ -46,10 +51,6 @@ class ToolExecutor:
             extra={**log_extra, "tool_name": tool_name, "arguments": arguments},
         )
 
-        injection_block = self._check_injection(tool_name, arguments)
-        if injection_block:
-            return injection_block
-
         try:
             tool = tool_registry.get(tool_name)
             if not tool:
@@ -62,6 +63,15 @@ class ToolExecutor:
                     "error": error_msg,
                     "summary": error_msg,
                 }
+
+            # Before the guards, so a forbidden call is a plain denial, not
+            # an injection block with an audit event.
+            if not is_tool_permitted(self.user, tool_name):
+                raise PermissionDenied
+
+            injection_block = self._check_injection(tool_name, arguments)
+            if injection_block:
+                return injection_block
 
             return tool.execute(self.user, arguments)
 

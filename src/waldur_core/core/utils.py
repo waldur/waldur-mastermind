@@ -668,11 +668,20 @@ def get_ip_address(request: HttpRequest) -> str | None:
     """
     Correct IP address is expected as first element of HTTP_X_FORWARDED_FOR or REMOTE_ADDR
     """
-    if "HTTP_X_FORWARDED_FOR" in request.META:
-        return request.META["HTTP_X_FORWARDED_FOR"].split(",")[0].strip()
-    elif "REMOTE_ADDR" in request.META:
-        return request.META["REMOTE_ADDR"]
-    return None
+    return resolve_client_ip(
+        request.META.get("HTTP_X_FORWARDED_FOR"), request.META.get("REMOTE_ADDR")
+    )
+
+
+def resolve_client_ip(forwarded_for: str | None, remote_addr: str | None) -> str | None:
+    """The first X-Forwarded-For hop when the header is present, else the peer.
+
+    Shared by every entry point (REST, the MCP server) so a network ACL is
+    evaluated the same way whichever one a token is presented to.
+    """
+    if forwarded_for is not None:
+        return forwarded_for.split(",")[0].strip()
+    return remote_addr
 
 
 def _strip_port(value: str) -> str:

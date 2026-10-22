@@ -1,6 +1,7 @@
 import django_filters
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
+from django.db.models.fields.json import KT
 from django_filters.widgets import BooleanWidget
 from drf_spectacular.plumbing import build_parameter_type
 from drf_spectacular.utils import OpenApiParameter
@@ -13,6 +14,7 @@ from waldur_core.core.mixins import ScopeMixin
 from waldur_core.core.models import User
 from waldur_core.logging import models, utils
 from waldur_core.logging.event_logger import expand_event_groups
+from waldur_core.structure import models as structure_models
 
 
 class BaseHookFilter(django_filters.FilterSet):
@@ -86,11 +88,43 @@ class EventFilter(django_filters.FilterSet):
         model = models.Event
         fields = []
 
+    @staticmethod
+    def _named_or_filed_on(queryset, model, key, value):
+        """Events whose context names the object, or that are filed on its feed.
+
+        Not every event filed on a feed carries the object's UUID in its
+        context (a cost policy's actions, `role_granted`), yet `?scope=` lists
+        them, so the UUID filter matches the feed too.
+
+        Both halves pick event ids through an index and are joined with UNION;
+        keep it that way. `context ->> key` (KT) is what the `log_event_proj` /
+        `log_event_org` expression indexes cover, while the plain
+        `context__key` lookup compiles to `->` and scans the table. And an OR
+        of the two conditions cannot use either index, so it scans the table
+        too.
+        """
+        named = (
+            models.Event.objects.alias(named_uuid=KT(f"context__{key}"))
+            .filter(named_uuid=value.hex)
+            .order_by()
+            .values("pk")
+        )
+        filed = models.Feed.objects.filter(
+            content_type=ContentType.objects.get_for_model(model),
+            object_id__in=model.objects.filter(uuid=value).values("pk"),
+        ).values("event_id")
+        return queryset.filter(pk__in=named.union(filed))
+
     def filter_customer_uuid(self, queryset, name, value):
-        return queryset.filter(context__customer_uuid=value.hex)
+        return self._named_or_filed_on(
+            queryset, structure_models.Customer, "customer_uuid", value
+        )
 
     def filter_project_uuid(self, queryset, name, value):
-        return queryset.filter(context__project_uuid=value.hex)
+        # Project.objects includes removed projects, whose events stay listed.
+        return self._named_or_filed_on(
+            queryset, structure_models.Project, "project_uuid", value
+        )
 
     def filter_user_uuid(self, queryset, name, value):
         return queryset.filter(context__user_uuid=value.hex)

@@ -4,6 +4,7 @@ import logging
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.utils import timezone
 
@@ -16,6 +17,7 @@ from waldur_mastermind.chat.tools.account.helpers import (
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.chat.tools.tool_sets import is_tool_permitted
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.models import Order, Resource
 
@@ -58,6 +60,9 @@ class GetUserOverviewTool(BaseTool):
         )
 
     def execute(self, user, arguments: dict) -> dict:
+        if not is_tool_permitted(user, ToolName.GET_USER_OVERVIEW):
+            raise PermissionDenied
+
         email = (arguments.get("user_email") or "").strip()
         if not email:
             return {

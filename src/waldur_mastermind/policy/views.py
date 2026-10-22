@@ -10,7 +10,12 @@ from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.views import ActionsViewSet
+from waldur_core.core.views import (
+    ActionsViewSet,
+    CreateReversionMixin,
+    HistoryViewSetMixin,
+    UpdateReversionMixin,
+)
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import filters as structure_filters
@@ -113,7 +118,13 @@ class PolicyEventsMixin:
         self.emit_policy_event(instance, EventType.POLICY_DELETED, "deleted")
 
 
-class ProjectEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
+class ProjectEstimatedCostPolicyViewSet(
+    HistoryViewSetMixin,
+    CreateReversionMixin,
+    UpdateReversionMixin,
+    PolicyEventsMixin,
+    ActionsViewSet,
+):
     queryset = (
         models.ProjectEstimatedCostPolicy.objects.all()
         .select_related("scope", "scope__customer", "created_by")
@@ -152,7 +163,13 @@ class ProjectEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class CustomerEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
+class CustomerEstimatedCostPolicyViewSet(
+    HistoryViewSetMixin,
+    CreateReversionMixin,
+    UpdateReversionMixin,
+    PolicyEventsMixin,
+    ActionsViewSet,
+):
     queryset = (
         models.CustomerEstimatedCostPolicy.objects.all()
         .select_related("scope", "created_by")
@@ -176,7 +193,13 @@ class CustomerEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class OfferingEstimatedCostPolicyViewSet(PolicyEventsMixin, ActionsViewSet):
+class OfferingEstimatedCostPolicyViewSet(
+    HistoryViewSetMixin,
+    CreateReversionMixin,
+    UpdateReversionMixin,
+    PolicyEventsMixin,
+    ActionsViewSet,
+):
     queryset = models.OfferingEstimatedCostPolicy.objects.all().order_by("-created")
     serializer_class = serializers.OfferingEstimatedCostPolicySerializer
     filter_backends = [

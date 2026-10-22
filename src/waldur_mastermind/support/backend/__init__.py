@@ -268,3 +268,16 @@ def get_backend_for_provider(provider_helpdesk) -> SupportBackend:
         return SmaxServiceBackend.from_settings(settings_dict)
     else:
         raise SupportBackendError(f"Unknown provider backend type: {backend_type}")
+
+
+def get_backend_for_issue(issue) -> "SupportBackend":
+    """Resolve the backend that owns an issue.
+
+    A ticket routed to a provider helpdesk is handled by that provider's own
+    backend (often the built-in basic desk), not the operator's globally
+    configured one. Everything else -- operator tickets and the parents of
+    routed ones -- goes to the active backend.
+    """
+    if issue.provider_helpdesk_id:
+        return get_backend_for_provider(issue.provider_helpdesk)
+    return get_active_backend()

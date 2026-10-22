@@ -90,6 +90,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.mixins import EagerLoadMixin
@@ -16658,14 +16659,37 @@ def check_provider_api_key_permissions(request, view, obj=None):
         raise PermissionDenied()
 
 
+def check_api_key_assignee(request, view, api_key=None):
+    """Admit the key's assignee, who is already trusted with its value.
+
+    This is the gate alone. What the assignee may then do with the key is
+    settled under its lock, in resource_api_keys.issue_command.
+
+    Closed to a personal access token: its scopes delegate role permissions,
+    and being a key's assignee is not one a token could be limited to.
+    """
+    if (
+        not api_key
+        or is_pat_auth(request.auth)
+        or not resource_api_keys.is_acting_assignee(api_key, request.user)
+    ):
+        raise PermissionDenied()
+
+
+# Scoped to the key itself: ActionsPermission and any_permission hand the
+# object only to checks that carry sources.
+check_api_key_assignee.sources = ["*"]
+
+
 class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     """Manage the API keys a site-agent resource exposes.
 
     A resource owns many keys. The site agent generates each key, applies it to
     the backend, then reports it here (encrypted). Members reveal keys; managers
     rotate them and, where the offering supports it, request, edit, pause,
-    resume and delete them. Portal actions are commands — the agent does the
-    backend change and reports back through the provider actions.
+    resume and delete them. The assignee of a key can rotate it too. Portal
+    actions are commands — the agent does the backend change and reports back
+    through the provider actions.
     """
 
     queryset = models.ResourceApiKey.objects.select_related(
@@ -16765,9 +16789,13 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         summary="Edit an API key",
         description="Changes the key's assignee, limits or model allowlist. A change "
         "to limits or models is sent to the site agent as an update command, "
-        "unless the key is paused: resuming it applies them. Only on offerings "
-        "with enable_api_key_provisioning, except for unassigning the key "
-        '({"user": null}).',
+        "unless the key is paused: resuming it applies them. A change of assignee "
+        "(setting, changing or clearing it) on a key that holds a secret rotates "
+        "the key instead, carrying any limits and models set with it: the old "
+        "secret stops working and the new assignee reveals the new one. A paused "
+        "key, or one with another command pending or failed, refuses it. Only on "
+        "offerings with enable_api_key_provisioning, except for unassigning the "
+        'key ({"user": null}).',
         request=serializers.ResourceApiKeyUpdateSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
     )
@@ -16848,15 +16876,25 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     def _command(self, request, action_name, message):
         # Whether the command needs governance is decided with the key locked:
-        # a retry only knows its command then.
+        # a retry only knows its command then. So is whether an assignee who
+        # does not manage the resource's users may issue it.
         obj = self.get_object()
-        resource_api_keys.issue_command(obj, action_name, request.user)
+        manages = has_permission_on_any_source(
+            request,
+            PermissionEnum.MANAGE_RESOURCE_USERS,
+            obj.resource,
+            CONSUMER_API_KEY_SOURCES,
+        )
+        resource_api_keys.issue_command(
+            obj, action_name, request.user, assignee_only=not manages
+        )
         return Response({"status": message}, status=status.HTTP_202_ACCEPTED)
 
     @extend_schema(
         summary="Rotate an API key",
         description="Asks the site agent to replace this key's value at the "
-        "backend. The other keys are untouched (zero downtime).",
+        "backend. The other keys are untouched (zero downtime). Available to "
+        "whoever manages the resource's users and to the key's assignee.",
         request=None,
         responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
@@ -16920,7 +16958,8 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         summary="Retry a failed API key command",
         description="Sends the command that left the key Erred to the site agent "
         "again, with the key's current limits and models. An Erred key accepts only "
-        "this, the same command, or a delete.",
+        "this, the same command, or a delete. The key's assignee can retry a "
+        "failed rotation, and no other command.",
         request=None,
         responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
@@ -16934,8 +16973,13 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
             [f"resource.{source}" for source in CONSUMER_API_KEY_SOURCES],
         )
     ]
-    rotate_permissions = consumer_command_permissions
-    retry_permissions = consumer_command_permissions
+    # The assignee holds the key's value, so may replace it without managing
+    # the resource's users.
+    rotation_permissions = [
+        any_permission(check_api_key_assignee, *consumer_command_permissions)
+    ]
+    rotate_permissions = rotation_permissions
+    retry_permissions = rotation_permissions
     pause_permissions = consumer_command_permissions
     resume_permissions = consumer_command_permissions
     destroy_permissions = consumer_command_permissions

@@ -352,6 +352,56 @@ The resource-creation check (`_check_project_policies` / `_check_customer_polici
 
 The kept decision is a snapshot: it stays on the instance until the next own evaluation replaces it, so code that runs an action later on the same instance should evaluate first.
 
+##### Trigger status in the API
+
+The cost-policy endpoints (`marketplace-project-estimated-cost-policies`, `-customer-`, `-offering-`) serve the current decision as `trigger_status`, so a client can say why a policy over its limit is not firing without re-deriving the gates:
+
+```json
+"trigger_status": {
+  "gate": "held_by_project_credit",
+  "triggered": false,
+  "credit_value_compared": "2850.00"
+}
+```
+
+`EstimatedCostPolicySerializer.get_trigger_status` calls the policy's own `evaluate()` with the response's shared per-customer `MonthlyCompensation` (the one `current_cost` and `eta_days` use), so listing many policies of one customer runs one simulation, and `triggered` always equals `is_triggered()`. The evaluation is kept per policy for the response (`_decision_for`), and `current_cost` reads its `evaluated_cost` instead of aggregating the invoices again; a `?field=` selection without `trigger_status` skips the evaluation, and `current_cost` then takes the cheaper path without the credit-balance queries. `triggered` is the evaluation now, while `has_fired` is the stored state of the last evaluation that ran actions; the two differ until the next one.
+
+The API sends no sentence: `gate` is the `PolicyGateEnum` in the schema, and clients word the explanation themselves, in the user's language, from `gate`, `current_cost`, `limit_cost` and `credit_value_compared`.
+
+Project policies are listed by project roles too, so the organization's figures follow the rule `ProjectCreditSerializer` applies: staff, support, organization owners and roles with `CUSTOMER.VIEW_ACCOUNTING` see them; for anyone else `customer_credit` is left out, and `credit_value_compared` is null when the balance compared is the organization's (`PolicyDecision.credit_source`). The gate itself stays visible. Project credit stays visible to project roles, as on `ProjectCredit`.
+
+##### What started an evaluation, and who
+
+Every event an evaluation's actions emit also records why the evaluation ran. `system_actor_event_context` (`policy/utils.py`) puts these fields into the event context, so they reach every event emitted within the evaluation, including the resource-save events its actions cause:
+
+| Field | Meaning |
+|-------|---------|
+| `trigger` | What started it (`EvaluationTriggers` in `policy/structures.py`, see below) |
+| `trigger_object_uuid` | The object behind the trigger: the invoice item, credit, component usage, policy or resource; absent for the periodic sweep |
+| `initiated_by_uuid`, `initiated_by_username` | The person whose action started it; absent when nobody did, for example the sweep, a usage report from a site agent outside a request, or a background job that runs as a robot account (`ROBOT_USERNAMES`: `system_robot`, `openportal_robot`), which is never recorded as an initiator. Under impersonation the impersonator is the initiator, as for revisions |
+| `initiated_as_username` | Under impersonation only: the account the initiator was acting as |
+
+The event's own `user_*` fields stay the system robot whenever a person is replaced, so the robot is still recorded as the actor; the `initiated_by_*` fields keep the person.
+
+A new trigger replaces the old one and its object together, so a context that still carries an earlier trigger's object never lends it to an unrelated evaluation. The initiator is the person acting now when there is one; a recorded initiator only carries over while the events are a robot's.
+
+Celery copies the event context into every task published while an evaluation runs, its fields included, so the events of the work an evaluation sets off (an order it creates, say) still say what started it. Whether an evaluation is running *here* is tracked per thread (`utils.in_evaluation`), not read from the context: a task that merely carries an earlier evaluation's fields is not inside it.
+
+| `trigger` | Path |
+|-----------|------|
+| `policy_saved` | The policy serializer's `save()`, when a create or update fires or resets the policy |
+| `invoice_item_saved` | An invoice item saved, through the project, customer and offering cost-policy handlers |
+| `credit_changed` | A `CustomerCredit` or `ProjectCredit` value change, or a change to the credit's offerings |
+| `usage_reported` | A component usage saved, through the offering and customer usage-policy handlers and the SLURM periodic-usage policy dispatch. The SLURM evaluation does not run in `system_actor_event_context`, so its events keep the reporting user as the event user, who is also its `initiated_by_*` |
+| `periodic_sweep` | `check_polices`, the beat task that re-evaluates every policy |
+| `reconcile` | The sweep re-applying an already-fired policy's idempotent actions (`_reconcile_idempotent_actions`) |
+| `resource_saved` | Not an evaluation: an already-fired policy's threshold actions, run when an observed resource is saved. The request user stays the event user, since they are the actor here. Inside an evaluation running in the same thread (an action saving the resource) the evaluation's trigger is kept; in a later task that only carries an earlier evaluation's fields, `resource_saved` replaces them |
+| `policy_deleted` | Not an evaluation: a deleted project cost policy's actions being reset. The robot acts and the person who deleted it is the initiator, as on the `policy_saved` reset path |
+
+A cost evaluation caused by usage billing is reported as `invoice_item_saved`, with the invoice item that billing upserted as its object: the usage report's own handlers dispatch only the usage policies.
+
+The handler-driven evaluations run in Celery, away from the request. `_debounced_call` puts the trigger and the object's UUID into the event context while it publishes the task. `celeryconf.pass_event_context` already carries that context, request user included, to the worker, where `bind_event_context` restores it before the task runs. So `evaluate_policies_async` keeps its `(policy_class_path, filters)` signature, and old and new workers both run it during a rolling deploy. Debouncing keeps the first dispatch in its window: later triggers coalesced into it are evaluated, but the events name the first one. The fired / not fired log lines carry the same fields.
+
 See `EstimatedCostPolicyMixin.evaluate` / `_credit_gates` / `_live_balance` and `ProjectEstimatedCostPolicy` / `CustomerEstimatedCostPolicy._live_credit_balance_with_source` in `src/waldur_mastermind/policy/models.py`, and `MonthlyCompensation._restore_written_draw` in `src/waldur_mastermind/invoices/compensations.py`, for the exact implementation.
 
 ### Configuration

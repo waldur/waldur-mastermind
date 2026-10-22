@@ -56,6 +56,53 @@ single key cannot be limited, and a leaked key can only be rotated. So a key may
 carry an **assignee**, and then only that person (plus staff and support) can
 reveal it.
 
+**A resource under per-key management starts with no keys.** Where the offering
+manages keys one by one (`enable_api_key_provisioning`, below) and the agent's
+backend can mint a key on request, the agent provisions none. A key can be
+requested at any time there, so a replacement is created, clients move to it, and
+the old key is deleted. The default pair would only be two shared keys with no
+assignee and no limits, which any member of the resource's project or
+organization can reveal. Its users request their own keys instead. A restored
+resource follows the same rule. Its key rows were deleted when it terminated, so
+it comes back with none. Existing resources keep the keys they have when the option is turned
+on or off. Wherever either condition does not hold, the pair stays, as on a
+backend without per-key commands such as ceph-s3. The agent decides this, so
+Waldur's API and models are unchanged.
+
+**The assignee can rotate their own key.** Whoever is trusted with a key's value
+is trusted to replace it, so a person who suspects their key has leaked does not
+have to find a manager while it stays live. Nothing else follows from being the
+assignee: pausing, resuming, deleting and editing the key stay with whoever
+manages the resource's users. A separate permission for this was considered and
+dropped — it would be one more thing for a project to grant, to the one person
+who already holds the secret.
+
+**One key per person.** A person is the assignee of at most one key on a
+resource; a request or an edit that would hand them a second is refused with
+400, naming the key they hold. A backend ties a person's own use of the
+resource to the key assigned to them — LiteLLM's chat follows it and bills it —
+and two keys would leave that two answers. A key holds its assignee until it is
+`Deleted`: one still `Deleting` may yet fail and stay in service. Keys on other
+resources do not count, so someone can hold one key on each of several
+resources. The check runs with the resource row locked, so two concurrent
+assignments cannot both pass; there is no database constraint, so keys assigned
+before the rule keep their assignees until someone edits them.
+
+**A key changes hands by rotation.** Where the offering manages keys, setting,
+changing or clearing the assignee of a key that holds a secret rotates it. The
+previous assignee may have revealed the old value — and so may any member of the
+project while the key was unassigned — and the backend charges a key's use and
+ties chat to whoever holds it now, so keeping the secret would let the old holder
+spend against the new holder's limit. The old secret stops working once the
+agent acknowledges the rotation, and the new assignee reveals the new value.
+Limits and models set in the same edit are saved on the key and carried by the
+`rotate` command. A key changes hands only from `OK`, or from `Erred` after a
+failed rotation (the rotation is then retried with the new assignee). A paused
+key, or one with another command in flight or failed, refuses the edit with 400
+on `user`: resume it, wait for the command, or retry it first. A key that holds
+no secret yet (a pending request) and any key of an offering without key
+management just take the new assignee, with no command.
+
 **Limits are enforced by Waldur, not the gateway.** The Envoy backend's
 `set_resource_limits` is a no-op by design: limits are enforced by Waldur (report
 → pause → block). A per-key limit works the same way — reported per-key usage that
@@ -98,13 +145,14 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `issued_at` | when the agent last stored a value: the key's creation or its latest rotation. Unlike `modified`, a pause, resume or edit leaves it alone, so it is the age of the value in use |
 | `state` | FSM, aligned to resource states (below) |
 | `pending_action` | the command in flight (`ResourceApiKeyActions`: `create`, `rotate`, `pause`, `resume`, `delete`, `update`); blank once settled, kept on `Erred` to show which command failed |
-| `user` | optional assignee; only they can reveal the key |
+| `user` | optional assignee; only they can reveal the key, and they can rotate it. A person is the assignee of at most one key per resource that is not `Deleted` |
 | `spending_limits` | optional limits per component type and period, `{component_type: {period: amount}}` (see [Limits](#limits)) |
-| `allowed_models` | optional model allowlist; null allows every model |
+| `allowed_models` | the models the key may call, never null: `["*"]` for every model, `[]` for none, or a list of names ([below](#model-lists)) |
 | `current_usages` | per-component usage in `usage_period`, as last reported by the agent; for a component reported per day, the sum of its days |
 | `usage_period` | the month `current_usages` covers (its first day); usage of an earlier month counts against no month limit |
 | `paused_by_limit` | Waldur paused the key because its usage reached a limit; such a key is resumed automatically once under its limits again |
 | `limit_resumes_at` | when every limit that paused the key resets, so that it resumes without a usage report |
+| `models_outdated` | the resource's model selection changed while the key could not take an `update`; Waldur sends one once the key settles ([below](#resource-selection)) |
 | `error_message` | agent-reported failure detail when `Erred` |
 | `modified` | `TimeStampedModel`; the time the key last changed state or settings — the agent's sweep reads it as "in this state since". Usage reports do not touch it |
 
@@ -124,6 +172,114 @@ an optional `client_id`; a backend with a stable identifier omits it. A value
 already held by another key of the same resource — a deleted one included — is
 rejected: usage is attributed by `client_id`, so a deleted key's identifier is
 never handed out again.
+
+### Model lists {#model-lists}
+
+A key's `allowed_models` has three forms, and so has its resource's selection
+([below](#resource-selection)):
+
+| Value | Meaning on a key | Meaning on a resource |
+| --- | --- | --- |
+| `["*"]` | every model its resource allows | every model of the offering, including ones it adds later |
+| `[]` | no model: the key cannot call anything | no model: none of its keys can call anything |
+| `["a", "b"]` | those models | those models |
+
+"Every model" has a value of its own so that an empty list can mean what it
+looks like. With null or an empty list standing for every model, the selection
+that looked most restrictive was the least restrictive one, and a key limited to
+a model the provider later retired could be widened to all of them by saving it
+with nothing ticked.
+
+- `*` means every model only as the sole entry; next to another entry it is
+  refused. It is not a pattern: `provider/*` is just a model name.
+- A key's names must be among those its resource allows: the resource's own
+  names, or the offering's `resource_options.options.models.choices` when the
+  resource is on every model (any name, when the offering lists none). A name
+  the offering no longer lists is allowed by no resource.
+- A request that leaves `allowed_models` out creates a key with `[]`; an edit that
+  leaves it out does not change it. Null is refused.
+- A key the agent reports on its own (`report_created`) was never restricted at
+  the backend, so it is stored as `["*"]`. Keys that existed before the list
+  became non-null were migrated from null to `["*"]`.
+- On an offering without `enable_api_key_provisioning` the field reads as null,
+  like every governance field.
+
+A backend that cannot restrict a key's models has to refuse every list but
+`["*"]`, the empty one included, so that Waldur never shows "No models" for a
+key that can call all of them. The Envoy AI Gateway plugin does, so on Envoy a
+resource has to stay on every model: any narrower effective list errs the key.
+Removing a model from the offering's choices drops it from every effective
+list that names it, but `["*"]` names nothing: a key whose effective list is
+`["*"]`, and every key on Envoy, can call a retired model for as long as the
+backend serves it. The provider has to remove it from the backend too.
+
+#### The resource's selection {#resource-selection}
+
+A resource option named `models` of type `select_string_multi` is the resource's
+model selection, on any offering: it takes `["*"]`, a new resource starts on it,
+and an empty one means none. Under `enable_api_key_provisioning` it narrows
+every key of the resource; without it, it narrows nothing, but an offering that
+turns key management on later finds its resources already on every model. When
+selections start or stop narrowing — key management is turned on, or the option
+becomes or stops being a multiple choice — or the provider adds or removes a
+model in the option's choices, every key whose effective list changes with it
+is sent an `update`. Turning key management off sends nothing:
+its keys take no governed command. A single-choice `models` option has no room
+for `*` and narrows nothing.
+
+- **Effective list.** Waldur stores a key's list as chosen and sends the agent
+  the effective one: the resource's selection, then the key's, less any model
+  the offering no longer lists. Every model stays `["*"]`.
+
+  | Resource | Key | Sent |
+  | --- | --- | --- |
+  | `["*"]` | `["*"]` | `["*"]` |
+  | `["a", "b"]` | `["*"]` | `["a", "b"]` |
+  | `["a", "b"]` | `["b", "c"]` | `["b"]` |
+  | `[]` | anything | `[]` |
+  | `["*"]` | `["a", "c"]`, with `c` no longer listed | `["a"]` |
+
+  The key listing carries both: `allowed_models` is the key's own list,
+  `effective_models` the one a command carries. A sweep that replays a command
+  from the listing sends `effective_models`. A key keeps names its resource has
+  since stopped allowing, or the offering stopped listing, and an edit may send
+  them back unchanged; it cannot add new ones. A model the provider lists again
+  is sent again to the keys that kept it.
+- **Values.** Resource-option validation (`update_options`,
+  `update_options_direct`, and the provider's `new_options` at approval)
+  accepts a lone `*` although it is not among the option's choices, and refuses
+  it next to a name.
+- **New resources** are on `["*"]` unless the order chose a selection. Resources
+  that had no selection, or an empty one, were migrated to `["*"]`, since an
+  empty selection used to leave their keys every model. An offering that lists
+  an "All models" entry among its own choices should drop it; resources holding
+  it have to be switched to every model by hand.
+- **A key the agent reports** on its own (`report_created`) is stored as
+  `["*"]`; when its resource allows fewer models, Waldur sends it an `update`
+  with them at once.
+- **A change** to the selection, by any path that saves the resource's options,
+  sends an `update` for every key whose effective list it changes. Requesting
+  and reporting a key lock the resource row, so a key created while the
+  selection changes is either seen by the change or created with the new one.
+  A paused key's `resume` carries the new list instead, and a deleted one needs
+  none. A key that cannot take a command — one is in flight, or its last one
+  failed — is marked `models_outdated`; once it settles `OK`, Waldur sends the
+  `update`, unless a command carrying its settings (`create`, `update`,
+  `resume`) went first. The hourly `send_outdated_api_key_models` task sends
+  any settled key still marked.
+- **Rollout.** A site agent that predates `effective_models` replays a stuck
+  command with the key's own `allowed_models`, which is wider than what Waldur
+  sent when the resource is narrowed. Upgrade agents before narrowing resources.
+  Keys the upgrade finds applied wider than their resource now allows — until
+  then a selection narrowed only the portal's dialogs, and a model the offering
+  stopped listing was still sent — are marked
+  `models_outdated` by a migration and sent their effective list by the hourly
+  task. On Envoy those keys then err, within the hour: put such resources on
+  every model before upgrading, by clearing their selection, which the
+  migration then turns into `["*"]`.
+  The migration rewrites resources, not pending orders: an option order placed
+  before it with an empty `models` meant every model, and now means none. Check
+  pending option orders of such offerings when upgrading.
 
 ### States
 
@@ -236,16 +392,20 @@ sequenceDiagram
 
 Rotation never touches the other keys, so a consumer authenticating with a
 sibling key keeps working throughout — that is what makes it zero-downtime, and
-why two keys are provisioned.
+why two keys are provisioned where keys are not managed one by one.
 
 Commands (observable type `resource_api_key_rotation` — the name predates the
 other commands and agents subscribe to it by name) carry a **slim** payload:
 resource/key identifiers, `client_id`, and `action`, never key material.
-`create`, `update` and `resume` also carry the key's `spending_limits`, its
-`limits` (the month limits alone, `{component_type: amount}`, the shape an agent
-that knows only monthly limits reads) and `allowed_models`, so settings edited
-while a key was paused are applied when it resumes. The key only ever travels agent → Waldur, in the `report_created` /
-`set_key` request body (TLS), and is encrypted on receipt. When a resource is
+`create`, `rotate`, `update` and `resume` also carry the key's
+`spending_limits`, its `limits` (the month limits alone, `{component_type:
+amount}`, the shape an agent that knows only monthly limits reads) and its
+effective `allowed_models` ([the resource's selection](#resource-selection)), so
+settings edited while a key was paused are applied when it resumes, and a key
+rotated because it changed hands keeps the settings Waldur has for it. Agents
+from before `rotate` carried them ignore them and keep the backend's. The key only ever
+travels agent → Waldur, in the `report_created` / `set_key` request body (TLS),
+and is encrypted on receipt. When a resource is
 terminated, its remaining key rows — deleted ones included — are deleted by the
 termination callback.
 
@@ -289,9 +449,11 @@ a day corrected downwards counts as reported until the month turns.
 its usage to a limit, Waldur issues a `pause` for that key alone, marks it
 `paused_by_limit`, records in `limit_resumes_at` when every reached limit resets,
 and audit-logs it as automatic, naming the limits ("Its usage reached the day
-limit of token_cost."). The resource and its other keys keep serving. An `Erred`
-key is not paused automatically — its failed command needs a person to retry it
-first. A limit reached later while the key is paused moves `limit_resumes_at`.
+limit of token_cost."). The resource and its other keys keep serving. A key over a limit
+while a command is in flight is checked again when the agent acknowledges that
+command: if it settles `OK`, it is paused at once rather than serving until the
+next report. An `Erred` key is not paused automatically — its failed command
+needs a person to retry it first. A limit reached later while the key is paused moves `limit_resumes_at`.
 
 Waldur resumes a key it paused for its limit, again audit-logged as automatic, as
 soon as its usage is under every limit again:
@@ -304,8 +466,8 @@ soon as its usage is under every limit again:
 - the hourly `resume_api_keys_under_limit` task, which checks every key paused
   for its limit, `limit_resumes_at` or not.
 
-A resume by hand clears the mark: if the key is still over its limit, the next
-report pauses it again. A key a person paused is never resumed automatically.
+A resume by hand clears the mark, but does not override the limit: if the key is
+still over it, it is paused again once the agent acknowledges the resume. A key a person paused is never resumed automatically.
 
 ## API
 
@@ -320,9 +482,10 @@ Consumer side. The actions marked *governance* need the offering's
 `enable_api_key_provisioning`; without it they return 400.
 
 - `GET /` and `GET /{uuid}/` — list/retrieve status (`client_id`, state,
-  `pending_action`, `modified`, error message, assignee, limits, models, usage — no
-  secret). `spending_limit_status` lists each limit with `used`, `limit`,
-  `resets_at` and `reached`, and `limits` the month limits alone. Visible to resource project/customer members and the provider
+  `pending_action`, `modified`, error message, assignee, limits, models as chosen
+  and effective, usage — no secret). `spending_limit_status` lists each limit
+  with `used`, `limit`, `resets_at` and `reached`, and `limits` the month limits
+  alone. Visible to resource project/customer members and the provider
   organization.
 - `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
   URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access —
@@ -333,27 +496,41 @@ Consumer side. The actions marked *governance* need the offering's
   `OK` key is revealed — a transitional or paused key's stored value may not
   match the gateway. **Audited** — each reveal emits the
   `marketplace_resource_api_key_revealed` event identifying the key.
-- `POST /{uuid}/rotate/` — the `rotate` command. Available on every backend.
+- `POST /{uuid}/rotate/` — the `rotate` command. Available on every backend,
+  and to the key's assignee as well as to whoever holds `RESOURCE.MANAGE_USERS`.
 - `POST /{uuid}/resume/` — the `resume` command. Available on every backend
   too, so a key paused before the provider switched governance off can come
   back.
 - `POST /{uuid}/retry/` — re-sends the command that left the key `Erred`
-  (`pending_action`); governed unless that command is `rotate` or `resume`.
+  (`pending_action`); governed unless that command is `rotate` or `resume`. The
+  key's assignee can retry a failed `rotate`; a retry of any other command is
+  refused to them with `403`.
 - `POST /` *(governance)* — request a key: `{resource, user?, spending_limits?,
   allowed_models?}`. Creates a `Creating` row and the `create` command; Waldur
   generates nothing. The assignee must be a member of the resource's project (an
-  organization role alone is not enough), limits follow [Limits](#limits), and
-  models must be among the offering's `resource_options.options.models.choices`
-  when it lists any.
+  organization role alone is not enough) and must not already hold a key on the
+  resource (see **One key per person** above), limits follow [Limits](#limits),
+  and models must be among those the resource allows. `["*"]`, which stands for
+  every model the resource allows, is always accepted, and a request without
+  `allowed_models` creates a key with `[]`, no model
+  ([model lists](#model-lists)).
 - `PATCH /{uuid}/` *(governance)* — change `user`, `spending_limits`,
   `allowed_models`. `spending_limits` replaces every limit of the key, and a null
   amount clears its period. `limits`, the flat monthly shape
   (`{component_type: amount}`, zero meaning no limit), is still accepted in its
-  place: it replaces the month limits and keeps the other periods. An
-  assignee change is Waldur's alone, but audited as
-  `marketplace_resource_api_key_updated`, since it decides who may reveal the
-  key. A change to limits or models is the `update` command — or, on a paused key,
-  is stored and sent with its `resume`. Unassigning (`{"user": null}`) needs no
+  place: it replaces the month limits and keeps the other periods. A
+  new assignee must not hold another key on the resource. An assignee change on
+  a key that holds a secret is the `rotate` command, carrying any limits and
+  models set with it (see **A key changes hands by rotation** above); refused
+  with 400 on `user` for a paused key or one with another command pending or
+  failed. On a key with no secret yet, or without key management, it is
+  Waldur's alone, but audited as `marketplace_resource_api_key_updated`, since
+  it decides who may reveal the key. Once it commits, a site-agent offering's agent is sent a `user_role` sync
+  message for the key's resource (`resource_uuid` set), so a backend that ties a
+  person's own use of the resource to their key — LiteLLM's chat follows it —
+  applies the new assignee without waiting for an unrelated membership event.
+  Otherwise a change to limits or models is the `update` command — or, on a
+  paused key, is stored and sent with its `resume`. Unassigning (`{"user": null}`) needs no
   governance: reveal still honours an assignee set while governance was on, and
   only this lets someone other than staff lift it.
 - `POST /{uuid}/pause/` *(governance)* — the `pause` command.
@@ -363,9 +540,45 @@ Consumer side. The actions marked *governance* need the offering's
 - `GET /usage_totals/?resource_uuid=` — the resource's reported key usage this
   month, summed per component, deleted keys included.
 
-Every command is gated on `RESOURCE.MANAGE_USERS` (project or customer scope),
-refused while the resource is terminating/terminated or while the key already
-has an unacknowledged command, and emits an audit event when it is issued:
+Every command is gated on `RESOURCE.MANAGE_USERS` (project or customer scope).
+`rotate`, and a `retry` of a failed rotation, also admit the key's **assignee**
+without that permission, under the conditions `reveal` holds them to: still a
+member of the resource's project or its customer, and not a minimal-visibility
+viewer. An assignee who no longer reaches the key at all — they left the
+project and hold no role on its customer — gets `404`, since the key is not
+listed for them; one who still lists it some other way (through the provider
+organization, or as global support) gets `403`. Whether the caller is still the
+assignee, and which command a retry repeats, are checked with the key locked, so
+a key reassigned meanwhile is refused. An unassigned key gives ordinary members
+nothing: it is rotated by a manager.
+
+Three things stay closed to the assignee:
+
+- Their rotation never stands in for another command that failed. Once
+  governance is off a manager may rotate a key whose `pause` failed, but for
+  the assignee that would undo a pause meant for them, so it is refused with
+  `403`.
+- They cannot rotate an `OK` key whose usage this month has reached one of its
+  limits (`409`). A usage report pauses only a settled key, so a rotation in
+  flight would hold the limit pause off for the very person the limit is set
+  for. A manager can still rotate it, and the key is paused once the agent
+  acknowledges the rotation.
+  This holds only where limits are enforced: not once governance is off, and
+  not for a retry of a failed rotation, since an `Erred` key is not paused for
+  its limit and the retry is what settles it.
+- A [personal access token](personal-access-tokens.md) cannot act as the
+  assignee: its scopes delegate role permissions, and being a key's assignee is
+  not one, so a token limited to reading would otherwise be able to replace the
+  key.
+
+A rotation in flight also makes the key refuse a manager's `pause` or delete
+until the agent acknowledges it. Each rotation is audited, and unassigning the
+key — accepted mid-command — ends an assignee's rotations.
+
+Every command is refused while the resource is terminating/terminated or while
+the key already has an unacknowledged command, and emits an audit event naming
+whoever issued it — a manager, the assignee, or Waldur itself for a limit pause
+or resume:
 `marketplace_resource_api_key_requested`, `_rotated`, `_paused`, `_resumed`,
 `_updated` or `_deleted`. Those events read as requested ("Pause of API key … has
 been requested by …"), since the agent has not carried the command out yet; an
@@ -420,9 +633,10 @@ flight still settles if the provider switches governance off.
 **Reconciliation sweep contract.** A command is published once; if the agent
 misses it, the key waits in its transitional state. An agent that re-drives keys
 stuck in `Updating` (listing `state=Updating&modified_before=…`) must replay the
-command named by `pending_action`, not assume a rotation: `Updating` also covers
-`pause`, `resume` and `update`, and a rotation replayed over a lost pause would
-install a new secret that `set_key` then refuses. Keys stuck in `Creating` and
+command named by `pending_action` with the key's `effective_models`, not assume
+a rotation: `Updating` also covers `pause`, `resume` and `update`, and a
+rotation replayed over a lost pause would install a new secret that `set_key`
+then refuses. Keys stuck in `Creating` and
 `Deleting` are found the same way; a replayed `create` that lands after the
 original one is refused by `set_key` and withdrawn by the agent. A sweep written
 before this change must be updated before an offering turns on

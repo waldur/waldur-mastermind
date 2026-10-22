@@ -52,11 +52,26 @@ class EmailSupportBackend(SupportBackend):
     def delete_issue(self, issue):
         return
 
+    def _author_is_provider_agent(self, comment) -> bool:
+        """Is the comment's author an active support user of this desk?
+
+        A provider agent replying through their own desk is the audience of the
+        notification, not a recipient. This is the same membership test the
+        comment permission check uses, so it also covers an agent commenting
+        through ``IssueViewSet.comment``.
+        """
+        user_id = comment.author.user_id
+        if not user_id:
+            return False
+        return self.provider_helpdesk.support_users.filter(
+            user_id=user_id, is_active=True
+        ).exists()
+
     def create_comment(self, comment):
         comment.backend_id = build_backend_id(comment.uuid, "EC")
         comment.save(update_fields=["backend_id"])
 
-        if self.provider_helpdesk:
+        if self.provider_helpdesk and not self._author_is_provider_agent(comment):
             recipients = self.provider_helpdesk.get_notification_emails()
             if recipients:
                 context = {

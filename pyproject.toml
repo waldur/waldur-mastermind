@@ -28,7 +28,7 @@ dependencies = [
   "docker==7.1.0",
   "lxml>=6.1.0",
   "openportal>=0.91.0",
-  "Pillow>=12.2.0,<13.0.0",
+  "Pillow>=13.0.0,<14.0.0",
   # Was pinned to git main in August 2025 because the ISO data in the then-latest
   # release (24.6.1) was stale. Upstream released 26.2.16 in February 2026, which
   # carries that data, so the git dependency is no longer needed.
@@ -89,6 +89,9 @@ dependencies = [
   "regex>=2024.11.6",
   "opentelemetry-proto>=1.37,<2",
   "typst>=0.15",
+  "fastmcp-slim[server]==4.1.1",
+  "starlette>=1.9",
+  "uvicorn>=0.54",
 ]
 
 [project.urls]
@@ -123,6 +126,7 @@ waldur_marketplace_remote = "waldur_mastermind.marketplace_remote.extension:Mark
 waldur_marketplace_promotions = "waldur_mastermind.promotions.extension:MarketplacePromotionsExtension"
 waldur_marketplace_chat = "waldur_mastermind.chat.extension:MarketplaceChatExtension"
 waldur_matrix_chat = "waldur_mastermind.matrix_chat.extension:MatrixChatExtension"
+waldur_mcp = "waldur_mastermind.mcp.extension:MCPExtension"
 waldur_openportal = "waldur_openportal.extension:OpenPortalExtension"
 waldur_openstack = "waldur_openstack.extension:OpenStackExtension"
 waldur_openstack_tenant = "waldur_openstack_tenant.extension:OpenStackTenantExtension"
@@ -240,5 +244,5 @@ dev = [
     "django-stubs-ext>=5.2.2,<6.0.0",
     "libcst>=1.8.6",
     "memray>=1.19.3",
-    "pypdf>=6.19.0",
+    "pypdf>=6.20.1",
 ]

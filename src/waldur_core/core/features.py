@@ -58,7 +58,8 @@ class CustomerSection(FeatureSection):
         "Enable display of project digest configuration in organization settings."
     )
     show_organisation_reporting = Feature(
-        "Show the Reporting menu with organization-scoped reports to organization owners."
+        "Show the Reporting menu with organization-scoped reports to users with "
+        "the CUSTOMER.VIEW_REPORTING permission on the organization."
     )
     show_openportal_remote_projects = Feature(
         "Show the Remote Projects pages of a portal that sends projects to other "

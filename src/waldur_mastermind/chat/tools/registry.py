@@ -62,12 +62,8 @@ class ToolRegistry:
         accepts either a :class:`ToolName` member or the underlying string
         and normalises to the enum. Unknown names return ``None``.
         """
-        if not isinstance(name, ToolName):
-            try:
-                name = ToolName(name)
-            except ValueError:
-                return None
-        return self._tools.get(name)
+        tool_name = ToolName.parse(name)
+        return self._tools.get(tool_name) if tool_name else None
 
     def __contains__(self, name: str | ToolName) -> bool:
         return self.get(name) is not None

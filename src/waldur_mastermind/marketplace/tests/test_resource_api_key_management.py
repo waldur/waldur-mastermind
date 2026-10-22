@@ -5,16 +5,20 @@ import datetime
 from importlib import import_module
 from unittest import mock
 
+from django.db import connection
 from django.db.migrations.loader import MigrationLoader
 from django.test import override_settings
 from rest_framework import status, test
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.reverse import reverse
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import encryption
+from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace import models, resource_api_keys, tasks, utils
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
@@ -31,6 +35,10 @@ NEXT_MONTH = (THIS_MONTH + datetime.timedelta(days=31)).replace(day=1)
 migration = import_module(
     "waldur_mastermind.marketplace.migrations.0302_resource_api_key_backfill"
 )
+all_models_migration = import_module(
+    "waldur_mastermind.marketplace.migrations.0308_resource_api_key_all_models"
+)
+ALL_MODELS = [models.ResourceApiKey.ALL_MODELS]
 
 
 def list_url(action=None):
@@ -119,7 +127,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
         self.assertIsNone(key.user)
         self.assertIsNone(key.spending_limits)
-        self.assertIsNone(key.allowed_models)
+        self.assertEqual(key.allowed_models, [])
 
     def test_several_requests_can_wait_for_a_client_id_at_once(self):
         for _ in range(2):
@@ -176,6 +184,53 @@ class RequestKeyTest(ApiKeyManagementTestBase):
             detail_url(self.key), {"user": self.fixture.owner.uuid.hex}, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def request_for(self, user):
+        return self.post(
+            self.fixture.owner,
+            list_url(),
+            {"resource": self.resource.uuid.hex, "user": user.uuid.hex},
+        )
+
+    def test_a_person_holds_one_key_per_resource(self):
+        self.key.user = self.fixture.admin
+        self.key.save()
+        response, prepare = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("cid-1", str(response.data["user"]))
+        prepare.assert_not_called()
+        self.assertEqual(self.resource.api_keys.count(), 1)
+
+    def test_a_requested_key_holds_its_assignee_too(self):
+        self.make_key("", state=States.CREATING, user=self.fixture.admin)
+        response, prepare = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        prepare.assert_not_called()
+
+    def test_a_key_being_deleted_still_holds_its_assignee(self):
+        # Its delete may yet fail and leave it serving.
+        self.key.user = self.fixture.admin
+        self.key.state = States.DELETING
+        self.key.save()
+        response, _ = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_deleted_key_frees_its_assignee(self):
+        self.key.user = self.fixture.admin
+        self.key.state = States.DELETED
+        self.key.save()
+        response, _ = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_a_key_on_another_resource_does_not_count(self):
+        other = factories.ResourceFactory(
+            project=self.fixture.project, offering=self.offering
+        )
+        models.ResourceApiKey.objects.create(
+            resource=other, client_id="cid-9", state=States.OK, user=self.fixture.admin
+        )
+        response, _ = self.request_for(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_limits_must_name_offering_components(self):
         response, _ = self.post(
@@ -372,15 +427,41 @@ class KeySettingsTest(ApiKeyManagementTestBase):
             response = self.client.patch(detail_url(key), data, format="json")
         return response, prepare
 
-    def test_assignee_change_is_not_a_command(self):
+    def assert_rotated(self, prepare, user):
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.user, user)
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.pending_action, Actions.ROTATE)
+        payload = self.published_payload(prepare)
+        self.assertEqual(payload["action"], Actions.ROTATE)
+        return payload
+
+    def test_assigning_a_key_rotates_it(self):
+        # Any project member could reveal the unassigned key.
+        self.key.spending_limits = {"tokens": {"month": 50}}
+        self.key.allowed_models = ["*"]
+        self.key.save()
         response, prepare = self.patch(
             self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.key.refresh_from_db()
-        self.assertEqual(self.key.user, self.fixture.admin)
-        self.assertEqual(self.key.state, States.OK)
-        prepare.assert_not_called()
+        payload = self.assert_rotated(prepare, self.fixture.admin)
+        self.assertEqual(payload["limits"], {"tokens": 50})
+        self.assertEqual(
+            payload["allowed_models"],
+            resource_api_keys.model_lists.effective_models(self.key),
+        )
+
+    def test_reassigning_a_key_rotates_it(self):
+        self.key.user = self.fixture.manager
+        self.key.save()
+        response, prepare = self.patch(
+            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payload = self.assert_rotated(prepare, self.fixture.admin)
+        self.assertIn("limits", payload)
+        self.assertIn("allowed_models", payload)
 
     def test_limit_change_is_sent_as_an_update_command(self):
         response, prepare = self.patch(
@@ -395,17 +476,103 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.assertEqual(payload["action"], Actions.UPDATE)
         self.assertEqual(payload["limits"], {"tokens": 50})
 
-    def test_assignee_and_limits_change_together(self):
+    def test_unassigning_a_key_rotates_it(self):
+        self.key.user = self.fixture.admin
+        self.key.save()
+        response, prepare = self.patch(self.fixture.owner, self.key, {"user": None})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assert_rotated(prepare, None)
+
+    def test_assignee_and_limits_change_together_in_one_rotation(self):
         response, prepare = self.patch(
             self.fixture.owner,
             self.key,
             {"user": self.fixture.admin.uuid.hex, "limits": {"tokens": 50}},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payload = self.assert_rotated(prepare, self.fixture.admin)
+        self.assertEqual(payload["limits"], {"tokens": 50})
+        self.assertEqual(self.key.spending_limits, {"tokens": {"month": 50}})
+
+    def test_a_rotation_settling_over_the_limit_pauses_the_key(self):
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            spending_limits={"tokens": {"month": 5}},
+            current_usages={"tokens": 9},
+            usage_period=THIS_MONTH,
+        )
+        response, _ = self.patch(
+            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response, prepare = self.post(
+            self.fixture.offering_owner,
+            detail_url(self.key, "set-key"),
+            {"api_key": "sk-rotated"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+
+    def test_a_paused_key_cannot_change_hands(self):
+        self.key.state = States.PAUSED
+        self.key.save()
+        response, prepare = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"user": self.fixture.admin.uuid.hex, "limits": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("resume the key first", str(response.data["user"]))
+        prepare.assert_not_called()
         self.key.refresh_from_db()
-        self.assertEqual(self.key.user, self.fixture.admin)
-        self.assertEqual(self.key.pending_action, Actions.UPDATE)
-        self.assertEqual(self.published_payload(prepare)["limits"], {"tokens": 50})
+        self.assertIsNone(self.key.user)
+        self.assertIsNone(self.key.spending_limits)
+        self.assertEqual(self.key.state, States.PAUSED)
+
+    def test_a_key_with_a_command_in_flight_cannot_change_hands(self):
+        self.key.set_updating(Actions.UPDATE)
+        self.key.save()
+        response, prepare = self.patch(
+            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("update has not been acknowledged", str(response.data["user"]))
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.user)
+
+    def test_without_key_management_an_unassign_is_not_a_command(self):
+        self.key.user = self.fixture.admin
+        self.key.save()
+        self.offering.plugin_options = {}
+        self.offering.save()
+        response, prepare = self.patch(self.fixture.owner, self.key, {"user": None})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.user)
+        self.assertEqual(self.key.state, States.OK)
+        self.assertEqual(self.key.pending_action, "")
+
+    def test_an_assignee_who_holds_another_key_cannot_take_this_one(self):
+        self.make_key("cid-2", user=self.fixture.admin)
+        response, prepare = self.patch(
+            self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("cid-2", str(response.data["user"]))
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.user)
+
+    def test_editing_a_key_keeps_its_own_assignee(self):
+        self.key.user = self.fixture.admin
+        self.key.save()
+        response, _ = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"user": self.fixture.admin.uuid.hex, "limits": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_agent_acknowledges_an_update(self):
         self.key.set_updating(Actions.UPDATE)
@@ -442,22 +609,26 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_an_assignee_change_is_audited_but_leaves_modified_alone(self):
-        # The agent's sweep reads modified as "in this state since"; an edit
-        # that sends no command must not hide a key stuck mid-command.
-        self.key.set_updating()
-        self.key.save()
+    def test_assigning_a_requested_key_is_audited_but_leaves_modified_alone(self):
+        # A key with no secret yet has nothing to rotate. The agent's sweep
+        # reads modified as "in this state since"; an edit that sends no
+        # command must not hide a key stuck mid-command.
+        self.key = self.make_key(
+            "", state=States.CREATING, pending_action=Actions.CREATE
+        )
         before = self.key.modified
         with mock.patch(
             "waldur_mastermind.marketplace.resource_api_keys.log."
             "log_resource_api_key_command"
         ) as log_command:
-            response, _ = self.patch(
+            response, prepare = self.patch(
                 self.fixture.owner, self.key, {"user": self.fixture.admin.uuid.hex}
             )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
         self.key.refresh_from_db()
         self.assertEqual(self.key.user, self.fixture.admin)
+        self.assertEqual(self.key.pending_action, Actions.CREATE)
         self.assertEqual(self.key.modified, before)
         log_command.assert_called_once_with(
             mock.ANY, Actions.UPDATE, self.fixture.owner, applied=True
@@ -492,6 +663,134 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
+class ModelListTest(ApiKeyManagementTestBase):
+    """A key's model list is never null: ``["*"]`` is every model, ``[]`` none."""
+
+    def setUp(self):
+        super().setUp()
+        self.offering.resource_options = {
+            "options": {"models": {"choices": ["llama-3", "mistral"]}}
+        }
+        self.offering.save()
+
+    def request(self, **body):
+        return self.post(
+            self.fixture.owner, list_url(), {"resource": self.resource.uuid.hex, **body}
+        )
+
+    def patch(self, key, data):
+        self.client.force_authenticate(self.fixture.owner)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.patch(detail_url(key), data, format="json")
+        return response, prepare
+
+    def test_each_form_is_stored_returned_and_sent_as_given(self):
+        for allowed_models in (ALL_MODELS, [], ["llama-3", "mistral"]):
+            with self.subTest(allowed_models):
+                response, prepare = self.request(allowed_models=allowed_models)
+                self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+                self.assertEqual(response.data["allowed_models"], allowed_models)
+                key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
+                self.assertEqual(key.allowed_models, allowed_models)
+                self.assertEqual(
+                    self.published_payload(prepare)["allowed_models"], allowed_models
+                )
+
+    def test_a_request_without_a_model_list_gets_no_models(self):
+        response, prepare = self.request()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["allowed_models"], [])
+        key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(key.allowed_models, [])
+        self.assertEqual(self.published_payload(prepare)["allowed_models"], [])
+
+    def test_every_model_cannot_be_combined_with_a_model(self):
+        for allowed_models in (["*", "llama-3"], ["llama-3", "*"], ["*", "*"]):
+            with self.subTest(allowed_models):
+                response, prepare = self.request(allowed_models=allowed_models)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("allowed_models", response.data)
+                prepare.assert_not_called()
+                response, prepare = self.patch(
+                    self.key, {"allowed_models": allowed_models}
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                prepare.assert_not_called()
+
+    def test_null_is_refused(self):
+        response, prepare = self.request(allowed_models=None)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allowed_models", response.data)
+        prepare.assert_not_called()
+
+        response, prepare = self.patch(self.key, {"allowed_models": None})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allowed_models", response.data)
+        prepare.assert_not_called()
+
+    def test_an_edit_without_a_model_list_keeps_it(self):
+        self.key.allowed_models = ["mistral"]
+        self.key.save()
+        response, prepare = self.patch(self.key, {"limits": {"tokens": 50}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["allowed_models"], ["mistral"])
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.allowed_models, ["mistral"])
+        self.assertEqual(self.published_payload(prepare)["allowed_models"], ["mistral"])
+
+    def test_an_edit_can_take_every_model_away_and_give_them_back(self):
+        self.key.allowed_models = ALL_MODELS
+        self.key.save()
+        for allowed_models in ([], ALL_MODELS):
+            with self.subTest(allowed_models):
+                response, prepare = self.patch(
+                    self.key, {"allowed_models": allowed_models}
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["allowed_models"], allowed_models)
+                self.assertEqual(
+                    self.published_payload(prepare)["allowed_models"], allowed_models
+                )
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.allowed_models, allowed_models)
+                self.key.set_ok()
+                self.key.save()
+
+    def test_a_key_reported_without_a_request_may_call_every_model(self):
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            list_url("report-created"),
+            {
+                "resource": self.resource.uuid.hex,
+                "client_id": "cid-9",
+                "api_key": "sk-new",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["allowed_models"], ALL_MODELS)
+        key = self.resource.api_keys.get(client_id="cid-9")
+        self.assertEqual(key.allowed_models, ALL_MODELS)
+
+    def test_a_report_for_a_key_already_held_leaves_its_models_alone(self):
+        self.key.allowed_models = ["mistral"]
+        self.key.save()
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            list_url("report-created"),
+            {
+                "resource": self.resource.uuid.hex,
+                "client_id": self.key.client_id,
+                "api_key": "sk-new",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.allowed_models, ["mistral"])
+
+
 class AssigneeRevealTest(ApiKeyManagementTestBase):
     def setUp(self):
         super().setUp()
@@ -523,6 +822,261 @@ class AssigneeRevealTest(ApiKeyManagementTestBase):
         self.fixture.project.remove_user(self.fixture.admin)
         response = self.reveal(self.fixture.admin)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class AssigneeRotationTest(ApiKeyManagementTestBase):
+    """The assignee is trusted with the key's value, so with replacing it — and
+    with nothing else a manager does to the key."""
+
+    def setUp(self):
+        super().setUp()
+        # A project member without RESOURCE.MANAGE_USERS.
+        self.assignee = self.fixture.admin
+        self.key.user = self.assignee
+        self.key.save()
+
+    def fail_command(self, start, **fields):
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(**fields)
+        self.key.refresh_from_db()
+        start(self.key)
+        self.key.set_erred()
+        self.key.save()
+
+    def test_assignee_can_rotate(self):
+        response, prepare = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.ROTATE)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+
+    def test_assignee_can_retry_a_failed_rotation(self):
+        self.fail_command(lambda key: key.set_updating())
+        response, prepare = self.post(self.assignee, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+
+    def test_assignee_cannot_retry_any_other_command(self):
+        cases = (
+            (States.OK, lambda key: key.set_pausing(), Actions.PAUSE),
+            (States.PAUSED, lambda key: key.set_resuming(), Actions.RESUME),
+            (States.OK, lambda key: key.set_updating(Actions.UPDATE), Actions.UPDATE),
+            (States.OK, lambda key: key.set_deleting(), Actions.DELETE),
+        )
+        for state, start, action in cases:
+            with self.subTest(action):
+                self.fail_command(start, state=state, pending_action="")
+                response, prepare = self.post(
+                    self.assignee, detail_url(self.key, "retry")
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                prepare.assert_not_called()
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.state, States.ERRED)
+                self.assertEqual(self.key.pending_action, action)
+
+    def test_assignee_cannot_retry_a_failed_request(self):
+        self.fail_command(
+            lambda key: None,
+            state=States.CREATING,
+            pending_action=Actions.CREATE,
+            client_id="",
+        )
+        response, prepare = self.post(self.assignee, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_assignee_cannot_pause_resume_delete_or_edit(self):
+        for action, state in (("pause", States.OK), ("resume", States.PAUSED)):
+            with self.subTest(action):
+                models.ResourceApiKey.objects.filter(pk=self.key.pk).update(state=state)
+                response, prepare = self.post(
+                    self.assignee, detail_url(self.key, action)
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                prepare.assert_not_called()
+        self.client.force_authenticate(self.assignee)
+        response = self.client.delete(detail_url(self.key))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        for changes in ({"limits": {"tokens": 50}}, {"user": None}):
+            with self.subTest(changes=changes):
+                response = self.client.patch(
+                    detail_url(self.key), changes, format="json"
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.user, self.assignee)
+        self.assertEqual(self.key.pending_action, "")
+
+    def test_a_member_who_is_not_the_assignee_cannot_rotate_or_retry(self):
+        response, prepare = self.post(
+            self.fixture.manager, detail_url(self.key, "rotate")
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+        self.fail_command(lambda key: key.set_updating())
+        response, prepare = self.post(
+            self.fixture.manager, detail_url(self.key, "retry")
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_a_member_cannot_rotate_an_unassigned_key(self):
+        self.key.user = None
+        self.key.save()
+        response, prepare = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_a_manager_can_still_rotate_an_assigned_key(self):
+        response, _ = self.post(self.fixture.owner, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_an_assignee_who_is_also_a_manager_keeps_every_command(self):
+        self.key.user = self.fixture.owner
+        self.key.save()
+        self.fail_command(lambda key: key.set_pausing())
+        response, _ = self.post(self.fixture.owner, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_an_assignee_who_left_the_project_cannot_rotate(self):
+        self.fixture.project.remove_user(self.assignee)
+        response, prepare = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        prepare.assert_not_called()
+
+    def test_an_assignee_left_with_provider_access_alone_cannot_rotate(self):
+        # The provider organization lists the key, as it reaches the write
+        # actions, but is not on the consumer side of the resource.
+        self.key.user = self.fixture.offering_owner
+        self.key.save()
+        response, prepare = self.post(
+            self.fixture.offering_owner, detail_url(self.key, "rotate")
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_an_assignee_left_with_a_role_on_the_organization_can_rotate(self):
+        # Reveal admits them for it too.
+        self.fixture.project.remove_user(self.assignee)
+        self.fixture.customer.add_user(self.assignee, CustomerRole.SUPPORT)
+        response, _ = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    @override_config(PAT_ENABLED=True)
+    def test_a_personal_access_token_cannot_rotate_as_the_assignee(self):
+        # No scope stands for being the assignee, so a token limited to
+        # reading would otherwise replace the key.
+        self.assignee.can_use_personal_access_tokens = True
+        self.assignee.save(update_fields=["can_use_personal_access_tokens"])
+        _, token = create_pat(
+            self.assignee, scopes=[PermissionEnum.LIST_RESOURCES.value]
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        # The token itself is good: it reads the key it may not rotate.
+        response = self.client.get(detail_url(self.key))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare:
+            response = self.client.post(detail_url(self.key, "rotate"))
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            self.fail_command(lambda key: key.set_updating())
+            response = self.client.post(detail_url(self.key, "retry"))
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_assignee_cannot_rotate_a_key_over_its_limit(self):
+        # A usage report pauses only a settled key, so a rotation in flight
+        # would hold the limit pause off for the one the limit is set for.
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            spending_limits={"tokens": {"month": 5}},
+            current_usages={"tokens": 5},
+            usage_period=THIS_MONTH,
+        )
+        response, prepare = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.OK)
+        response, _ = self.post(self.fixture.owner, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_assignee_can_retry_a_failed_rotation_of_a_key_over_its_limit(self):
+        # An Erred key is never paused for its limit, so the retry holds
+        # nothing off: it is what settles the key for the next report.
+        self.fail_command(
+            lambda key: key.set_updating(),
+            spending_limits={"tokens": {"month": 5}},
+            current_usages={"tokens": 9},
+            usage_period=THIS_MONTH,
+        )
+        response, _ = self.post(self.assignee, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_a_limit_reached_during_a_rotation_pauses_the_key_as_it_settles(self):
+        # A usage report holds off while the rotation is in flight; the
+        # acknowledgement must not then settle the key unpaused.
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            spending_limits={"tokens": {"month": 5}},
+            current_usages={"tokens": 4},
+            usage_period=THIS_MONTH,
+        )
+        response, _ = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        response, prepare = self.post(
+            self.fixture.offering_owner,
+            detail_url(self.key, "report-usage"),
+            {"usages": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
+
+        response, prepare = self.post(
+            self.fixture.offering_owner,
+            detail_url(self.key, "set-key"),
+            {"api_key": "sk-rotated"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertTrue(self.key.paused_by_limit)
+        self.assertEqual(
+            encryption.decrypt_value(self.key.key_ciphertext), "sk-rotated"
+        )
+
+    def test_last_months_usage_does_not_stop_the_assignee(self):
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            spending_limits={"tokens": {"month": 5}},
+            current_usages={"tokens": 9},
+            usage_period=LAST_MONTH,
+        )
+        response, _ = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_a_minimal_visibility_viewer_cannot_rotate(self):
+        with mock.patch(
+            "waldur_mastermind.marketplace.utils.is_resource_project_only_viewer",
+            return_value=True,
+        ):
+            response, prepare = self.post(self.assignee, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_a_key_reassigned_meanwhile_is_refused_under_its_lock(self):
+        # The gate admitted the assignee on the row it read; the command is
+        # decided on the row it locks.
+        stale = models.ResourceApiKey.objects.get(pk=self.key.pk)
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            user=self.fixture.manager
+        )
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare:
+            with self.assertRaises(PermissionDenied):
+                resource_api_keys.issue_command(
+                    stale, Actions.ROTATE, self.assignee, assignee_only=True
+                )
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.OK)
 
 
 class PauseResumeDeleteTest(ApiKeyManagementTestBase):
@@ -748,15 +1302,36 @@ class RetryTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(self.published_payload(prepare)["limits"], {"tokens": 50})
 
-    def test_an_assignee_change_is_still_allowed(self):
+    def test_an_assignee_change_retries_a_failed_rotation(self):
         self.fail(lambda key: key.set_updating())
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(
-            detail_url(self.key), {"user": self.fixture.admin.uuid.hex}, format="json"
-        )
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
+            response = self.client.patch(
+                detail_url(self.key),
+                {"user": self.fixture.admin.uuid.hex},
+                format="json",
+            )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.user, self.fixture.admin)
+
+    def test_an_assignee_change_cannot_replace_another_failed_command(self):
+        self.fail(lambda key: key.set_pausing())
+        self.client.force_authenticate(self.fixture.owner)
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
+            response = self.client.patch(
+                detail_url(self.key),
+                {"user": self.fixture.admin.uuid.hex},
+                format="json",
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("retry the pause", str(response.data["user"]))
+        prepare.assert_not_called()
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.ERRED)
+        self.assertIsNone(self.key.user)
 
     def test_a_failed_key_can_be_deleted(self):
         self.fail(lambda key: key.set_pausing())
@@ -1186,6 +1761,49 @@ class KeyLimitTest(ApiKeyManagementTestBase):
         self.key.refresh_from_db()
         self.assertFalse(self.key.paused_by_limit)
 
+    def test_a_resume_by_hand_over_the_limit_is_paused_again_as_it_settles(self):
+        # A resume by hand does not override the limit.
+        self.pause_for_limit()
+        self.post(self.fixture.owner, detail_url(self.key, "resume"))
+        response, prepare = self.post(
+            self.fixture.offering_owner, detail_url(self.key, "set-ok")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertTrue(self.key.paused_by_limit)
+
+    def test_a_key_under_its_limit_settles_ok(self):
+        self.key.current_usages = {"tokens": 99}
+        self.key.usage_period = THIS_MONTH
+        self.key.set_updating(Actions.UPDATE)
+        self.key.save()
+        response, prepare = self.post(
+            self.fixture.offering_owner, detail_url(self.key, "set-ok")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.OK)
+
+    def test_an_unenforced_limit_lets_the_key_settle_ok(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+        self.key.current_usages = {"tokens": 150}
+        self.key.usage_period = THIS_MONTH
+        self.key.set_updating()
+        self.key.save()
+        response, prepare = self.post(
+            self.fixture.offering_owner,
+            detail_url(self.key, "set-key"),
+            {"api_key": "sk-rotated"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.OK)
+
     def test_the_month_turning_resumes_keys_paused_for_their_limit(self):
         self.pause_for_limit(period=LAST_MONTH)
         over = self.make_key(
@@ -1271,6 +1889,18 @@ class AuditTest(ApiKeyManagementTestBase):
                 # Logged before the agent has done it.
                 self.assertIn("has been requested", events[0][0])
 
+    def test_a_rotation_by_the_assignee_names_them_as_the_actor(self):
+        self.key.user = self.fixture.admin
+        self.key.save()
+        events = self.emitted(
+            lambda: self.post(self.fixture.admin, detail_url(self.key, "rotate"))
+        )
+        self.assertEqual(
+            [event for _, event in events],
+            [EventType.MARKETPLACE_RESOURCE_API_KEY_ROTATED],
+        )
+        self.assertIn(f"requested by {self.fixture.admin}", events[0][0])
+
     def test_a_failure_report_is_audited(self):
         self.key.set_pausing()
         self.key.save()
@@ -1288,7 +1918,26 @@ class AuditTest(ApiKeyManagementTestBase):
         self.assertIn("Pause of API key cid-1", events[0][0])
         self.assertIn("gateway down", events[0][0])
 
-    def test_an_assignee_change_reads_as_done(self):
+    def test_an_assignee_change_reads_as_a_rotation_for_it(self):
+        self.client.force_authenticate(self.fixture.owner)
+
+        def patch():
+            with mock.patch(PREPARE, return_value=MESSAGES), mock.patch(PUBLISH):
+                self.client.patch(
+                    detail_url(self.key),
+                    {"user": self.fixture.admin.uuid.hex},
+                    format="json",
+                )
+
+        events = self.emitted(patch)
+        self.assertEqual(len(events), 1)
+        self.assertIn("Rotation of API key cid-1", events[0][0])
+        self.assertIn("Its assignee changed.", events[0][0])
+
+    def test_assigning_a_requested_key_reads_as_done(self):
+        self.key = self.make_key(
+            "", state=States.CREATING, pending_action=Actions.CREATE
+        )
         self.client.force_authenticate(self.fixture.owner)
         events = self.emitted(
             lambda: self.client.patch(
@@ -1396,9 +2045,33 @@ class CommandEnumTest(test.APITestCase):
             utils.publish_api_key_event(key, "explode")
         prepare.assert_not_called()
 
+    @staticmethod
+    def managed_resource():
+        # A rotation carries settings only where the offering manages keys.
+        resource = factories.ResourceFactory()
+        resource.offering.plugin_options = {"enable_api_key_provisioning": True}
+        resource.offering.save()
+        return resource
+
+    def test_a_resource_without_a_model_selection_leaves_the_key_list_as_stored(self):
+        # The list sent is the effective one (test_resource_model_selection); a
+        # resource whose offering has no model selection narrows nothing.
+        for allowed_models in (ALL_MODELS, [], ["llama-3"]):
+            key = models.ResourceApiKey.objects.create(
+                resource=self.managed_resource(), allowed_models=allowed_models
+            )
+            for action in Actions.CARRY_SETTINGS:
+                with (
+                    self.subTest(allowed_models=allowed_models, action=action),
+                    mock.patch(PREPARE, return_value=[]) as prepare,
+                ):
+                    utils.publish_api_key_event(key, action)
+                    payload = prepare.call_args.args[1]
+                    self.assertEqual(payload["allowed_models"], allowed_models)
+
     def test_settings_travel_only_with_commands_that_configure_the_key(self):
         key = models.ResourceApiKey.objects.create(
-            resource=factories.ResourceFactory(),
+            resource=self.managed_resource(),
             client_id="cid-1",
             spending_limits={"tokens": {"month": 5}},
         )
@@ -1419,6 +2092,7 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         self.offering.save()
         self.key.user = self.fixture.admin
         self.key.spending_limits = {"tokens": {"month": 5}}
+        self.key.allowed_models = ALL_MODELS
         self.key.save()
 
     def test_managed_fields_are_null(self):
@@ -1521,6 +2195,51 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         self.assertEqual(payload["action"], Actions.ROTATE)
         self.assertNotIn("limits", payload)
 
+    def test_the_assignee_can_still_rotate(self):
+        # Rotation is not governance, and the assignee stays the only one who
+        # can reveal the key.
+        response, prepare = self.post(
+            self.fixture.admin, detail_url(self.key, "rotate")
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+
+    def test_a_limit_no_longer_enforced_does_not_stop_the_assignee(self):
+        # Usage is no longer reported and the limit cannot be edited, so a key
+        # that reached it while governance was on would stay shut for good.
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            current_usages={"tokens": 9}, usage_period=THIS_MONTH
+        )
+        response, _ = self.post(self.fixture.admin, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_the_assignee_cannot_rotate_in_place_of_a_failed_governed_command(self):
+        # A manager may let a rotation take a stranded key's failed pause's
+        # place; for the assignee it would undo a pause meant for them.
+        for start in (
+            lambda key: key.set_pausing(),
+            lambda key: key.set_deleting(),
+            lambda key: key.set_updating(Actions.UPDATE),
+        ):
+            models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+                state=States.OK, pending_action=""
+            )
+            self.key.refresh_from_db()
+            start(self.key)
+            failed = self.key.pending_action
+            self.key.set_erred()
+            self.key.save()
+            with self.subTest(failed):
+                response, prepare = self.post(
+                    self.fixture.admin, detail_url(self.key, "rotate")
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                prepare.assert_not_called()
+                response, prepare = self.post(
+                    self.fixture.owner, detail_url(self.key, "rotate")
+                )
+                self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
     def test_the_assignee_can_still_be_removed(self):
         # Reveal still honours the assignee, so without this only staff could
         # hand the key back to the project.
@@ -1588,3 +2307,83 @@ class MigrationTest(test.APITestCase):
         self.assertEqual(stored.issued_at, stored.modified)
         awaited.refresh_from_db()
         self.assertIsNone(awaited.issued_at)
+
+    def nullable_model_lists(self):
+        # The column no longer takes null; the migration ran while it still did.
+        # Before any key exists: Postgres refuses to alter a table with rows the
+        # open transaction wrote.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "ALTER TABLE marketplace_resourceapikey "
+                "ALTER COLUMN allowed_models DROP NOT NULL"
+            )
+
+    def set_null(self, *keys):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE marketplace_resourceapikey SET allowed_models = NULL "
+                "WHERE id = ANY(%s)",
+                [[key.pk for key in keys]],
+            )
+
+    def test_a_key_without_a_model_list_keeps_calling_every_model(self):
+        self.nullable_model_lists()
+        resource = factories.ResourceFactory()
+        unrestricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-1", state=States.OK
+        )
+        deleted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-2", state=States.DELETED
+        )
+        restricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-3", allowed_models=["mistral"]
+        )
+        self.set_null(unrestricted, deleted)
+        apps = MigrationLoader(None).project_state().apps
+        all_models_migration.null_to_all_models(apps, None)
+
+        for key in (unrestricted, deleted):
+            key.refresh_from_db()
+            self.assertEqual(key.allowed_models, ALL_MODELS)
+        restricted.refresh_from_db()
+        self.assertEqual(restricted.allowed_models, ["mistral"])
+
+    def test_reversed_every_model_is_null_again(self):
+        self.nullable_model_lists()
+        resource = factories.ResourceFactory()
+        unrestricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-1", allowed_models=ALL_MODELS
+        )
+        restricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-2", allowed_models=["mistral"]
+        )
+        apps = MigrationLoader(None).project_state().apps
+        all_models_migration.all_models_to_null(apps, None)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT allowed_models IS NULL FROM marketplace_resourceapikey "
+                "WHERE id = %s",
+                [unrestricted.pk],
+            )
+            self.assertTrue(cursor.fetchone()[0])
+        restricted.refresh_from_db()
+        self.assertEqual(restricted.allowed_models, ["mistral"])
+
+    def test_reversing_refuses_while_a_key_may_call_no_model(self):
+        # The earlier code reads an empty list as every model, so rolling back
+        # would let this key call every one.
+        self.nullable_model_lists()
+        resource = factories.ResourceFactory()
+        no_models = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-1", allowed_models=[]
+        )
+        unrestricted = models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-2", allowed_models=ALL_MODELS
+        )
+        apps = MigrationLoader(None).project_state().apps
+        with self.assertRaisesMessage(RuntimeError, no_models.uuid.hex):
+            all_models_migration.all_models_to_null(apps, None)
+
+        unrestricted.refresh_from_db()
+        self.assertEqual(unrestricted.allowed_models, ALL_MODELS)

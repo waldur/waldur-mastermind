@@ -24,7 +24,7 @@ from decimal import Decimal
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import (
     sum_invoice_item_totals,
-    user_accessible_projects,
+    user_consumer_resources,
     validate_uuid,
 )
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
@@ -32,7 +32,6 @@ from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace.models import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +120,7 @@ class ExplainResourcePausedReasonTool(BaseTool):
                 "summary": f"Invalid UUID for resource_uuid: {resource_uuid}",
             }
 
-        # Visible projects gate: a resource is reachable only if its
-        # project is reachable to the caller.
-        accessible_projects = user_accessible_projects(user)
-        qs = Resource.objects.filter(project__in=accessible_projects).select_related(
+        qs = user_consumer_resources(user).select_related(
             "project", "project__customer"
         )
         if resource_uuid:

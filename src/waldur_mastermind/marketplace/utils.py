@@ -110,7 +110,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace_openstack import get_mb_component_types
 
-from . import managers, models, plugins, posix_ids
+from . import managers, model_lists, models, plugins, posix_ids
 from . import project_groups as provider_project_groups
 from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 from .enums import OrderTypes
@@ -746,7 +746,10 @@ def copy_order_options_to_resource(order):
     attributes = order.attributes or {}
     resource.options = strip_hidden_options(
         resource_options,
-        {key: attributes[key] for key in resource_options if key in attributes},
+        model_lists.with_default_selection(
+            order.offering,
+            {key: attributes[key] for key in resource_options if key in attributes},
+        ),
     )
     resource.save(update_fields=["options"])
 
@@ -7219,12 +7222,19 @@ def publish_api_key_event(api_key: models.ResourceApiKey, action: str) -> bool:
         "client_id": api_key.client_id,
         "action": action,
     }
-    if action in ResourceApiKeyActions.CARRY_SETTINGS:
+    # Without key management the key's settings are not shown or applied, so a
+    # rotation there does not carry them either.
+    carries_settings = action in ResourceApiKeyActions.CARRY_SETTINGS and (
+        action != ResourceApiKeyActions.ROTATE or api_key.is_managed
+    )
+    if carries_settings:
         # limits carries the month limits alone, in the flat shape agents that
         # know only monthly limits read; spending_limits carries every period.
         payload["limits"] = api_key.monthly_limits
         payload["spending_limits"] = api_key.spending_limits
-        payload["allowed_models"] = api_key.allowed_models
+        # The key's list narrowed by its resource's: the agent applies what the
+        # key can call, not what it chose.
+        payload["allowed_models"] = model_lists.effective_models(api_key)
     # The observable type predates the other commands; agents subscribe to it by
     # name, so it keeps its rotation-era name.
     messages = prepare_messages(

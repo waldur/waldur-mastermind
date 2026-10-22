@@ -610,8 +610,9 @@ class ResourceApiKeyActions:
 
     # Commands that tell the agent the key's limits and model allowlist. A resume
     # carries them too: settings edited while the key was paused are applied
-    # when it comes back.
-    CARRY_SETTINGS = (CREATE, UPDATE, RESUME)
+    # when it comes back. So does a rotation: a key that changes hands is
+    # rotated, and the same edit may set its limits and models.
+    CARRY_SETTINGS = (CREATE, ROTATE, UPDATE, RESUME)
 
 
 ServiceAccountStatesType = Literal[
