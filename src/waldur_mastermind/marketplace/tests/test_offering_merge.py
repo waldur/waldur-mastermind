@@ -1256,3 +1256,42 @@ class OfferingMergeLimitAllocationTest(TestCase):
                 component=target_components["disk"], billing_period=period
             ).exists()
         )
+
+
+class OfferingMergeSpendingLimitsTest(TwoSupportOfferingsScenario, TestCase):
+    def test_daily_usage_and_spending_limits_follow_the_resource(self):
+        daily = models.ComponentDailyUsage.objects.create(
+            resource=self.resource_b,
+            component=self.b_components["ram"],
+            date=MONTH_START.date(),
+            usage=3,
+        )
+        models.Resource.objects.filter(pk=self.resource_b.pk).update(
+            spending_limits={"ram": {"day": 5}}
+        )
+
+        offering_merge.execute(offering_merge.preview(self.make_merge()))
+
+        daily.refresh_from_db()
+        self.resource_b.refresh_from_db()
+        self.assertEqual(daily.component, self.target_components["memory"])
+        self.assertEqual(self.resource_b.spending_limits, {"memory": {"day": 5}})
+
+    def test_undo_moves_days_reported_since_the_merge_back(self):
+        models.Resource.objects.filter(pk=self.resource_b.pk).update(
+            spending_limits={"ram": {"day": 5}}
+        )
+        merge = offering_merge.execute(offering_merge.preview(self.make_merge()))
+        daily = models.ComponentDailyUsage.objects.create(
+            resource=self.resource_b,
+            component=self.target_components["memory"],
+            date=MONTH_START.date(),
+            usage=3,
+        )
+
+        offering_merge.undo(merge)
+
+        daily.refresh_from_db()
+        self.resource_b.refresh_from_db()
+        self.assertEqual(daily.component, self.b_components["ram"])
+        self.assertEqual(self.resource_b.spending_limits, {"ram": {"day": 5}})

@@ -59,6 +59,21 @@ def log_resource_limit_update_succeeded(resource: models.Resource):
     )
 
 
+def log_resource_spending_limits_updated(
+    resource: models.Resource, old_limits: dict, new_limits: dict
+):
+    event_logger.emit(
+        "Spending limits of resource {resource_name} have been updated.",
+        event_type=EventType.MARKETPLACE_RESOURCE_SPENDING_LIMITS_UPDATED,
+        event_context={
+            "resource": resource,
+            "old_spending_limits": old_limits,
+            "new_spending_limits": new_limits,
+        },
+        scopes=get_resource_scopes(resource),
+    )
+
+
 # What each key command reads as in the audit log, and the event it emits.
 _API_KEY_COMMAND_EVENTS = {
     ResourceApiKeyActions.CREATE: (

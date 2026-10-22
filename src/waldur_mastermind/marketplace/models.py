@@ -76,6 +76,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
+    SpendingLimitPeriods,
     UsageLimitAction,
 )
 from waldur_mastermind.notifications import models as notifications_models
@@ -1448,6 +1449,17 @@ class OfferingComponent(
             "0 keeps the limit integer-only."
         ),
     )
+    # Only meaningful on usage-based components; see marketplace/spending_limits.py.
+    spending_limit_periods = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "Periods for which customers can set a spending limit on this "
+            "usage-based component, each with an optional default and maximum: "
+            '{"day": {"default": 20, "maximum": 100}, "month": {}}. '
+            "Empty when customers cannot set spending limits."
+        ),
+    )
     # unit_factor is for metadata only and is not involved in any computations in Mastermind
     unit_factor = models.IntegerField(
         default=1,
@@ -2192,6 +2204,25 @@ class Resource(
             "because reported usage reached a component limit. Empty when no such "
             "restriction is active. Used so the automatic lift never clears a "
             "restriction that was set for another reason."
+        ),
+    )
+    usage_limit_resumes_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "When the spending limits that restrict the resource reset and the "
+            "restriction lifts. Empty when no spending limit restricts the "
+            "resource, or when a limit-based component's limit does too."
+        ),
+    )
+    spending_limits = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=(
+            "Spending limits on usage-based components, per calendar period: "
+            '{"token_cost": {"day": 20, "month": 300}}. Never billed; reaching '
+            "one applies the offering's action_on_usage_limit."
         ),
     )
     paused_by_grace_period = models.BooleanField(
@@ -3477,6 +3508,48 @@ class ComponentUsage(
 
     def get_log_fields(self):
         return ("uuid", "description", "usage", "date", "resource", "component")
+
+
+class ComponentDailyUsage(TimeStampedModel):
+    """Usage of a usage-based component on one UTC date.
+
+    Written when a provider reports usage per day. For a month that has daily
+    amounts, the month's ``ComponentUsage`` rows are their sum per plan period,
+    so invoicing reads the same rows as for a monthly report. Day and week
+    spending limits are measured here (see ``marketplace/daily_usage.py``).
+    """
+
+    resource = models.ForeignKey(
+        on_delete=models.CASCADE, to=Resource, related_name="daily_usages"
+    )
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent)
+    date = models.DateField()
+    usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
+    modified_by = models.ForeignKey[User](
+        to=User, related_name="+", blank=True, null=True, on_delete=models.SET_NULL
+    )
+
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
+    class Permissions:
+        customer_path = ["resource__project__customer", "resource__offering__customer"]
+        project_path = "resource__project"
+
+        @staticmethod
+        def build_query(user):
+            return filter_by_usage_reporter_permission(user, "resource__")
+
+    class Meta:
+        ordering = ["date", "id"]
+        constraints = [
+            UniqueConstraint(
+                fields=["resource", "component", "date"],
+                name="mp_component_daily_usage_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"resource: {self.resource.name}, component: {self.component.name}, date: {self.date}"
 
 
 class ComponentUsagePollRecord(models.Model):
@@ -5919,12 +5992,13 @@ class ResourceApiKey(
         related_name="resource_api_keys",
         help_text=_("Assignee. When set, only this user can reveal the key."),
     )
-    limits = models.JSONField(
+    spending_limits = models.JSONField(
         null=True,
         blank=True,
         help_text=_(
-            "Per-component limits, keyed by component type. Waldur pauses the key "
-            "once its reported usage reaches one; zero means no limit."
+            "Limits per component type and period, as {component_type: {period: "
+            "amount}}. Waldur pauses the key once its usage in a period reaches "
+            "that period's limit."
         ),
     )
     allowed_models = models.JSONField(
@@ -5955,7 +6029,15 @@ class ResourceApiKey(
         help_text=_(
             "Waldur paused the key because its usage reached a limit. Such a key "
             "is resumed automatically once its usage is under its limits again: "
-            "in a new month, or when a limit is raised."
+            "when the period of the limit resets, or when a limit is raised."
+        ),
+    )
+    limit_resumes_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "When every limit that paused the key has reset, so that it resumes "
+            "without a new usage report."
         ),
     )
     models_outdated = models.BooleanField(
@@ -5992,8 +6074,18 @@ class ResourceApiKey(
 
     @staticmethod
     def current_period() -> datetime.date:
-        """The month limits are counted in: its first day."""
+        """The month current_usages is counted in: its first day."""
         return core_utils.month_start(timezone.now()).date()
+
+    @property
+    def monthly_limits(self) -> dict | None:
+        """The month column of ``spending_limits``, for clients that know only monthly limits."""
+        limits = {
+            component_type: periods[SpendingLimitPeriods.MONTH]
+            for component_type, periods in (self.spending_limits or {}).items()
+            if periods.get(SpendingLimitPeriods.MONTH) is not None
+        }
+        return limits or None
 
     # Every acknowledgement clears pending_action: the command has settled.
 
@@ -6029,6 +6121,7 @@ class ResourceApiKey(
     def set_resuming(self):
         self.pending_action = ResourceApiKeyActions.RESUME
         self.paused_by_limit = False
+        self.limit_resumes_at = None
 
     @transition(
         field=state,
@@ -6038,6 +6131,7 @@ class ResourceApiKey(
     def set_deleting(self):
         self.pending_action = ResourceApiKeyActions.DELETE
         self.paused_by_limit = False
+        self.limit_resumes_at = None
 
     # A requested key the agent has not created yet, or failed to create, has no
     # client_id: nothing at the backend to revoke, so it is dropped without a
@@ -6075,23 +6169,38 @@ class ResourceApiKey(
     def set_erred(self):
         pass
 
-    def exceeded_limits(self) -> list[str]:
-        """Component types whose usage this month has reached this key's limit.
-
-        Limits are monthly, so usage reported for an earlier month counts as none.
-        """
-        if self.usage_period != self.current_period():
-            return []
-        limits = self.limits or {}
-        usages = self.current_usages or {}
-        return sorted(
-            component_type
-            for component_type, limit in limits.items()
-            if limit and usages.get(component_type, 0) >= limit
-        )
-
     def __str__(self) -> str:
         return f"API key {self.client_id or self.uuid.hex} of {self.resource}"
+
+
+class ResourceApiKeyDailyUsage(TimeStampedModel):
+    """A resource API key's usage of one component on one UTC date.
+
+    Written when the site agent reports a key's usage per day. Day, week,
+    quarter and year limits of the key are measured here, and the key's
+    ``current_usages`` for a month that has daily amounts is their sum (see
+    ``marketplace/api_key_spending_limits.py``). Keyed by component type, like
+    the key's own limits and usages.
+    """
+
+    api_key = models.ForeignKey(
+        on_delete=models.CASCADE, to=ResourceApiKey, related_name="daily_usages"
+    )
+    component_type = models.CharField(max_length=50)
+    date = models.DateField()
+    usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
+
+    class Meta:
+        ordering = ["date", "id"]
+        constraints = [
+            UniqueConstraint(
+                fields=["api_key", "component_type", "date"],
+                name="mp_resource_api_key_daily_usage_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.api_key}, {self.component_type}, {self.date}"
 
 
 reversion.register(Screenshot)

@@ -73,7 +73,7 @@ Waldur's API and models are unchanged.
 is trusted to replace it, so a person who suspects their key has leaked does not
 have to find a manager while it stays live. Nothing else follows from being the
 assignee: pausing, resuming, deleting and editing the key stay with whoever
-manages the resource's users. A separate permission for this was considered and
+manages the resource's API keys. A separate permission for this was considered and
 dropped — it would be one more thing for a project to grant, to the one person
 who already holds the secret.
 
@@ -108,10 +108,12 @@ than silently dropped.
 reaches the limit issues a `pause` for that key. Nothing new is pushed to the
 gateway to enforce a limit, and a limit never affects billing.
 
-**Limits are monthly.** A key's usage is counted per month, like a resource's
-usage per billing period, and its limits apply to each month afresh. A key Waldur
-paused for its limit therefore comes back on its own once a new month begins, and
-so it does when the limit is raised; a key a person paused stays paused.
+**Limits are per calendar period.** A key takes the same per-period limits as
+its resource's [spending limits](spending-limits.md) — day, week, month, quarter
+and year, calendar periods in UTC — so a research group can give each member a
+daily and a monthly share of the group's budget. A key Waldur paused for a limit
+comes back on its own once that period resets, and so it does when the limit is
+raised; a key a person paused stays paused.
 
 **Deletion is soft.** A deleted key keeps its row and the usage it reported, so
 the resource's per-component totals for the month do not move when a key goes
@@ -143,11 +145,12 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `state` | FSM, aligned to resource states (below) |
 | `pending_action` | the command in flight (`ResourceApiKeyActions`: `create`, `rotate`, `pause`, `resume`, `delete`, `update`); blank once settled, kept on `Erred` to show which command failed |
 | `user` | optional assignee, set when the key is requested and never changed; only they can reveal the key, and they can rotate it. A person is the assignee of at most one key per resource that is not `Deleted` |
-| `limits` | optional per-component limits, keyed by component type; zero means no limit |
+| `spending_limits` | optional limits per component type and period, `{component_type: {period: amount}}` (see [Limits](#limits)) |
 | `allowed_models` | the models the key may call, never null: `["*"]` for every model, `[]` for none, or a list of names ([below](#model-lists)) |
-| `current_usages` | per-component usage in `usage_period`, as last reported by the agent |
-| `usage_period` | the month `current_usages` covers (its first day); usage of an earlier month counts against no limit |
+| `current_usages` | per-component usage in `usage_period`, as last reported by the agent; for a component reported per day, the sum of its days |
+| `usage_period` | the month `current_usages` covers (its first day); usage of an earlier month counts against no month limit |
 | `paused_by_limit` | Waldur paused the key because its usage reached a limit; such a key is resumed automatically once under its limits again |
+| `limit_resumes_at` | when every limit that paused the key resets, so that it resumes without a usage report |
 | `models_outdated` | the resource's model selection changed while the key could not take an `update`; Waldur sends one once the key settles ([below](#resource-selection)) |
 | `error_message` | agent-reported failure detail when `Erred` |
 | `modified` | `TimeStampedModel`; the time the key last changed state or settings — the agent's sweep reads it as "in this state since". Usage reports do not touch it |
@@ -393,7 +396,9 @@ why two keys are provisioned where keys are not managed one by one.
 Commands (observable type `resource_api_key_rotation` — the name predates the
 other commands and agents subscribe to it by name) carry a **slim** payload:
 resource/key identifiers, `client_id`, and `action`, never key material.
-`create`, `rotate`, `update` and `resume` also carry the key's `limits` and its
+`create`, `rotate`, `update` and `resume` also carry the key's
+`spending_limits`, its `limits` (the month limits alone, `{component_type:
+amount}`, the shape an agent that knows only monthly limits reads) and its
 effective `allowed_models` ([the resource's selection](#resource-selection)), so
 settings edited while a key was paused are applied when it resumes, and a
 rotated key keeps the settings Waldur has for it. Agents
@@ -403,22 +408,62 @@ and is encrypted on receipt. When a resource is
 terminated, its remaining key rows — deleted ones included — are deleted by the
 termination callback.
 
-**Limits.** The agent reports each key's usage so far in a month with
-`report_usage`. When a key is `OK`, has no command in flight and its usage this
-month reaches a non-zero limit, Waldur issues a `pause` for that key alone, marks
-it `paused_by_limit` and audit-logs it as automatic. A key over its limit while
-a command is in flight is checked again when the agent acknowledges that
+### Limits {#limits}
+
+A key's limit for a component is one amount per period:
+
+```json
+{"spending_limits": {"token_cost": {"day": 5, "month": 50}}}
+```
+
+- `month` is available on every component of the offering, as key limits were
+  monthly before they had periods. The other periods are available where the
+  component offers them to resources (`OfferingComponent.spending_limit_periods`,
+  see [spending limits](spending-limits.md)).
+- A key's limit may not exceed the resource's spending limit for the same
+  period, when the resource has one, and a shorter period's limit may not exceed
+  a longer one's.
+- A limit is reached when usage is equal to it or above it. It must be above
+  0, unlike a resource's: in the flat `limits` shape agents and older clients
+  read, 0 means no limit. A key is stopped with a pause instead.
+- An amount the key already holds is accepted again unchanged, even once its
+  period is no longer offered or the resource's limit has dropped below it, so
+  that editing one period never forces a change to another.
+
+**Usage.** The agent reports a key's usage with `report_usage`: its usage so far
+in a month (`usages`), per day (`daily_usages`), or both. The month figure of a
+component reported per day is the sum of its days. Month limits compare that
+figure; day and week sum the days; quarter and year add the month figure to the
+days of the earlier months in the period. A key reported only monthly therefore
+enforces month limits, and counts no earlier month towards a quarter or a year.
+An agent that switches to daily reporting mid-month must report every day of
+the month so far, as for a resource's [daily usage](spending-limits.md): the
+days replace the month total from then on, and a month total for that component
+is refused for the rest of the month. The month figure never drops within a
+month all the same: a month total reported before the first daily amounts stays
+as a floor, so a limit it reached does not reopen before the days catch up, and
+a day corrected downwards counts as reported until the month turns.
+
+**Enforcement.** When a key is `OK`, has no command in flight and a report brings
+its usage to a limit, Waldur issues a `pause` for that key alone, marks it
+`paused_by_limit`, records in `limit_resumes_at` when every reached limit resets,
+and audit-logs it as automatic, naming the limits ("Its usage reached the day
+limit of token_cost."). The resource and its other keys keep serving. A key over a limit
+while a command is in flight is checked again when the agent acknowledges that
 command: if it settles `OK`, it is paused at once rather than serving until the
-next report. The resource and its other keys keep serving. An `Erred` key is not paused automatically — its failed
-command needs a person to retry it first.
+next report. An `Erred` key is not paused automatically — its failed command
+needs a person to retry it first. A limit reached later while the key is paused moves `limit_resumes_at`.
 
 Waldur resumes a key it paused for its limit, again audit-logged as automatic, as
 soon as its usage is under every limit again:
 
-- a usage report for a new month, since limits start afresh each month;
+- within five minutes of `limit_resumes_at`, by the
+  `resume_api_keys_after_limit_reset` task, without a usage report;
+- a usage report that brings it under every limit, such as the first of a new
+  month;
 - a limit raised above the usage, or removed — the `resume` carries the new limits;
-- the hourly `resume_api_keys_under_limit` task, for a month that begins before
-  the agent reports anything for it.
+- the hourly `resume_api_keys_under_limit` task, which checks every key paused
+  for its limit, `limit_resumes_at` or not.
 
 A resume by hand clears the mark, but does not override the limit: if the key is
 still over it, it is paused again once the agent acknowledges the resume. A key a person paused is never resumed automatically.
@@ -437,8 +482,10 @@ Consumer side. The actions marked *governance* need the offering's
 
 - `GET /` and `GET /{uuid}/` — list/retrieve status (`client_id`, state,
   `pending_action`, `modified`, error message, assignee, limits, models as chosen
-  and effective, usage — no secret). Visible to resource project/customer
-  members and the provider organization.
+  and effective, usage — no secret). `spending_limit_status` lists each limit
+  with `used`, `limit`, `resets_at` and `reached`, and `limits` the month limits
+  alone. Visible to resource project/customer members and the provider
+  organization.
 - `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
   URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access —
   a member of the resource's project or its customer, plus staff/support; a
@@ -449,7 +496,8 @@ Consumer side. The actions marked *governance* need the offering's
   match the gateway. **Audited** — each reveal emits the
   `marketplace_resource_api_key_revealed` event identifying the key.
 - `POST /{uuid}/rotate/` — the `rotate` command. Available on every backend,
-  and to the key's assignee as well as to whoever holds `RESOURCE.MANAGE_USERS`.
+  and to the key's assignee as well as to whoever holds
+  `RESOURCE.MANAGE_CONSUMER_API_KEY`.
 - `POST /{uuid}/resume/` — the `resume` command. Available on every backend
   too, so a key paused before the provider switched governance off can come
   back.
@@ -457,22 +505,25 @@ Consumer side. The actions marked *governance* need the offering's
   (`pending_action`); governed unless that command is `rotate` or `resume`. The
   key's assignee can retry a failed `rotate`; a retry of any other command is
   refused to them with `403`.
-- `POST /` *(governance)* — request a key: `{resource, user?, limits?,
+- `POST /` *(governance)* — request a key: `{resource, user?, spending_limits?,
   allowed_models?}`. Creates a `Creating` row and the `create` command; Waldur
   generates nothing. The assignee must be a member of the resource's project (an
   organization role alone is not enough) and must not already hold a key on the
-  resource (see **One key per person** above), limits must name offering components,
+  resource (see **One key per person** above), limits follow [Limits](#limits),
   and models must be among those the resource allows. `["*"]`, which stands for
   every model the resource allows, is always accepted, and a request without
   `allowed_models` creates a key with `[]`, no model
   ([model lists](#model-lists)).
-- `PATCH /{uuid}/` *(governance)* — change `limits`, `allowed_models`. The
-  change is the `update` command — or, on a paused key, is stored, audited as
-  `marketplace_resource_api_key_updated` and sent with its `resume`. An edit
-  that names `user`, `null` included, is refused with 400 on `user` on every
-  offering, with or without key management: the key is left as it was, and
-  nothing is published or audited (see **A key's assignee is fixed when the key
-  is requested** above).
+- `PATCH /{uuid}/` *(governance)* — change `spending_limits`, `allowed_models`.
+  `spending_limits` replaces every limit of the key, and a null amount clears its
+  period. `limits`, the flat monthly shape (`{component_type: amount}`, zero
+  meaning no limit), is still accepted in its place: it replaces the month limits
+  and keeps the other periods. The change is the `update` command — or, on a
+  paused key, is stored, audited as `marketplace_resource_api_key_updated` and
+  sent with its `resume`. An edit that names `user`, `null` included, is refused
+  with 400 on `user` on every offering, with or without key management: the key
+  is left as it was, and nothing is published or audited (see **A key's assignee
+  is fixed when the key is requested** above).
 - `POST /{uuid}/pause/` *(governance)* — the `pause` command.
 - `DELETE /{uuid}/` *(governance)* — the `delete` command; `202`, since the key
   is gone only once the agent acknowledges. A requested key with no `client_id`
@@ -480,7 +531,11 @@ Consumer side. The actions marked *governance* need the offering's
 - `GET /usage_totals/?resource_uuid=` — the resource's reported key usage this
   month, summed per component, deleted keys included.
 
-Every command is gated on `RESOURCE.MANAGE_USERS` (project or customer scope).
+Every command is gated on `RESOURCE.MANAGE_CONSUMER_API_KEY` (project or customer
+scope). `permissions.yaml` grants it to the organization owner, the project
+manager and the project administrator: the two project roles differ on the
+project's team and settings, not on its resources, and every key action is a
+resource action. A project member manages no keys.
 `rotate`, and a `retry` of a failed rotation, also admit the key's **assignee**
 without that permission, under the conditions `reveal` holds them to: still a
 member of the resource's project or its customer, and not a minimal-visibility
@@ -550,14 +605,20 @@ organization, but reading a value is not: `reveal` stays consumer-side only.
 
 - `POST /{uuid}/set_erred/` — the agent reports that a command failed → `Erred`,
   audited as `marketplace_resource_api_key_failed`.
-- `POST /{uuid}/report_usage/` *(governance)* — `{usages: {component_type:
-  value}, billing_period?}`: the key's usage so far in that month (any day of
-  it; the current month when omitted). A report for the month the key holds is
-  merged into `current_usages`; one for a later month replaces it. Only the
-  latest month is kept, so a report for an earlier one is refused with `409`,
-  and one for a future month with `400`. May trigger a limit pause, or the resume
-  of a key paused for its limit. Accepted for a deleted key, so usage up to the
-  deletion still counts.
+- `POST /{uuid}/report_usage/` *(governance)* — `{usages?: {component_type:
+  value}, billing_period?, daily_usages?: [{type, date, amount}]}`. `usages` is
+  the key's usage so far in that month (any day of it; the current month when
+  omitted). A report for the month the key holds is merged into
+  `current_usages`; one for a later month replaces it. Only the latest month is
+  kept, so a report for an earlier one is refused with `409`, and one for a
+  future month with `400`. `daily_usages` are amounts per UTC date; a date
+  reported again replaces its amount, a future date or the same component and
+  date twice is refused with `400`, and days of a month before the one the key
+  holds count for the limits of the periods they fall in, not for its month
+  figure. Once a component has daily amounts
+  in a month, a month total for it is refused with `400`. May trigger a limit
+  pause, or the resume of a key paused for its limit. Accepted for a deleted
+  key, so usage up to the deletion still counts.
 
 The acknowledgements (`set_key`, `set_ok`, `set_paused`, `set_deleted`,
 `set_erred`) are not gated on `enable_api_key_provisioning`: a command already in
@@ -574,6 +635,21 @@ then refuses. Keys stuck in `Creating` and
 original one is refused by `set_key` and withdrawn by the agent. A sweep written
 before this change must be updated before an offering turns on
 `enable_api_key_provisioning`.
+
+### Upgrading from `RESOURCE.MANAGE_USERS`
+
+Until it had its own permission, key management was gated on
+`RESOURCE.MANAGE_USERS`, held by the organization owner alone. A data migration
+gives the new permission to every role that held the old one, and adds it to
+every personal access token scoped to the old one, so a custom role or an
+existing token keeps managing keys. Roles listed in `custom-roles.yaml` are the
+exception: `import_roles` replaces their whole permission set on every
+deployment, so the migration's addition is dropped again. A deployment that
+grants `RESOURCE.MANAGE_USERS` for this purpose, in `custom-roles.yaml` or
+through `permissions-override.yaml`, has to grant
+`RESOURCE.MANAGE_CONSUMER_API_KEY` there instead. Likewise, an override that
+keeps key management from a role with `drop_permissions: [RESOURCE.MANAGE_USERS]`
+has to drop `RESOURCE.MANAGE_CONSUMER_API_KEY` instead, or the role gains it.
 
 ## Encryption at rest {#encryption-at-rest}
 

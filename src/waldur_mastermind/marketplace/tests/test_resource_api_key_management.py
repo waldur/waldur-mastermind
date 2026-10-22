@@ -17,7 +17,8 @@ from waldur_core.core import encryption
 from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import (
     models,
     resource_api_keys,
@@ -69,7 +70,9 @@ class ApiKeyManagementTestBase(test.APITestCase):
         self.offering.plugin_options = {"enable_api_key_provisioning": True}
         self.offering.save()
         factories.OfferingComponentFactory(offering=self.offering, type="tokens")
-        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_USERS)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
+        )
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_API_KEY)
         self.key = self.make_key("cid-1")
 
@@ -132,7 +135,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
         self.assertIsNone(key.user)
-        self.assertIsNone(key.limits)
+        self.assertIsNone(key.spending_limits)
         self.assertEqual(key.allowed_models, [])
 
     def test_several_requests_can_wait_for_a_client_id_at_once(self):
@@ -145,7 +148,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
 
     def test_member_without_permission_cannot_request(self):
         response, prepare = self.post(
-            self.fixture.admin, list_url(), {"resource": self.resource.uuid.hex}
+            self.fixture.member, list_url(), {"resource": self.resource.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         prepare.assert_not_called()
@@ -309,7 +312,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
             resource=self.resource,
             state=States.ERRED,
             pending_action=Actions.CREATE,
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
         )
         response, prepare = self.post(
             self.fixture.owner, detail_url(requested, "retry")
@@ -410,7 +413,7 @@ class CancelRequestTest(ApiKeyManagementTestBase):
         requested = models.ResourceApiKey.objects.create(
             resource=self.resource, pending_action=Actions.CREATE
         )
-        self.client.force_authenticate(self.fixture.admin)
+        self.client.force_authenticate(self.fixture.member)
         response = self.client.delete(detail_url(requested))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         requested.refresh_from_db()
@@ -455,7 +458,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
                 log_command.assert_not_called()
                 self.key.refresh_from_db()
                 self.assertEqual(self.key.user, self.fixture.admin)
-                self.assertIsNone(self.key.limits)
+                self.assertIsNone(self.key.spending_limits)
                 self.assertEqual(self.key.state, States.OK)
                 self.assertEqual(self.key.pending_action, "")
 
@@ -474,6 +477,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.UPDATING)
         self.assertEqual(self.key.pending_action, Actions.UPDATE)
+        self.assertEqual(self.key.spending_limits, {"tokens": {"month": 50}})
 
     def test_agent_acknowledges_an_update(self):
         self.key.set_updating(Actions.UPDATE)
@@ -526,7 +530,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         prepare.assert_not_called()
         self.key.refresh_from_db()
-        self.assertEqual(self.key.limits, {"tokens": 50})
+        self.assertEqual(self.key.spending_limits, {"tokens": {"month": 50}})
         self.assertEqual(self.key.state, States.PAUSED)
         self.assertEqual(self.key.modified, before)
         log_command.assert_called_once_with(
@@ -534,7 +538,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         )
 
     def test_unchanged_settings_are_not_a_command(self):
-        self.key.limits = {"tokens": 50}
+        self.key.spending_limits = {"tokens": {"month": 50}}
         self.key.save()
         response, prepare = self.patch(
             self.fixture.owner, self.key, {"limits": {"tokens": 50}}
@@ -544,7 +548,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
 
     def test_member_without_permission_cannot_edit(self):
         response, _ = self.patch(
-            self.fixture.admin, self.key, {"limits": {"tokens": 50}}
+            self.fixture.member, self.key, {"limits": {"tokens": 50}}
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -729,8 +733,8 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
 
     def setUp(self):
         super().setUp()
-        # A project member without RESOURCE.MANAGE_USERS.
-        self.assignee = self.fixture.admin
+        # A project member: the role does not manage the resource's API keys.
+        self.assignee = self.fixture.member
         self.key.user = self.assignee
         self.key.save()
 
@@ -805,15 +809,13 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         self.assertEqual(self.key.pending_action, "")
 
     def test_a_member_who_is_not_the_assignee_cannot_rotate_or_retry(self):
-        response, prepare = self.post(
-            self.fixture.manager, detail_url(self.key, "rotate")
-        )
+        other = structure_factories.UserFactory()
+        self.fixture.project.add_user(other, ProjectRole.MEMBER)
+        response, prepare = self.post(other, detail_url(self.key, "rotate"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         prepare.assert_not_called()
         self.fail_command(lambda key: key.set_updating())
-        response, prepare = self.post(
-            self.fixture.manager, detail_url(self.key, "retry")
-        )
+        response, prepare = self.post(other, detail_url(self.key, "retry"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         prepare.assert_not_called()
 
@@ -884,7 +886,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         # A usage report pauses only a settled key, so a rotation in flight
         # would hold the limit pause off for the one the limit is set for.
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 5},
             usage_period=THIS_MONTH,
         )
@@ -901,7 +903,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         # nothing off: it is what settles the key for the next report.
         self.fail_command(
             lambda key: key.set_updating(),
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 9},
             usage_period=THIS_MONTH,
         )
@@ -912,7 +914,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         # A usage report holds off while the rotation is in flight; the
         # acknowledgement must not then settle the key unpaused.
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 4},
             usage_period=THIS_MONTH,
         )
@@ -943,7 +945,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
 
     def test_last_months_usage_does_not_stop_the_assignee(self):
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 9},
             usage_period=LAST_MONTH,
         )
@@ -974,6 +976,164 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         prepare.assert_not_called()
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.OK)
+
+
+class ProjectRoleKeyManagementTest(ApiKeyManagementTestBase):
+    """Project managers and administrators govern the resource's keys, as they
+    govern the resource itself; a project member does not."""
+
+    def setUp(self):
+        super().setUp()
+        # As permissions.yaml grants it.
+        for role in (ProjectRole.ADMIN, ProjectRole.MANAGER):
+            role.add_permission(PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY)
+
+    def managers(self):
+        return (
+            ("manager", self.fixture.manager),
+            ("admin", self.fixture.admin),
+        )
+
+    def patch(self, user, data):
+        self.client.force_authenticate(user)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.patch(detail_url(self.key), data, format="json")
+        return response, prepare
+
+    def delete(self, user):
+        self.client.force_authenticate(user)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.delete(detail_url(self.key))
+        return response, prepare
+
+    def reset_key(self, state=States.OK):
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            state=state, pending_action="", user=None, spending_limits=None
+        )
+        self.key.refresh_from_db()
+
+    def test_project_roles_can_request_a_key(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                response, prepare = self.post(
+                    user,
+                    list_url(),
+                    {"resource": self.resource.uuid.hex, "user": user.uuid.hex},
+                )
+                self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.CREATE
+                )
+
+    def test_project_roles_can_edit_a_key(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.reset_key()
+                response, prepare = self.patch(user, {"limits": {"tokens": 50}})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.UPDATE
+                )
+
+    def test_project_roles_can_issue_every_command(self):
+        cases = (
+            ("pause", States.OK, Actions.PAUSE),
+            ("resume", States.PAUSED, Actions.RESUME),
+            ("rotate", States.OK, Actions.ROTATE),
+        )
+        for name, user in self.managers():
+            for action, state, command in cases:
+                with self.subTest(role=name, action=action):
+                    self.reset_key(state)
+                    response, prepare = self.post(user, detail_url(self.key, action))
+                    self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+                    self.assertEqual(self.published_payload(prepare)["action"], command)
+
+    def test_project_roles_can_retry_a_failed_command(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.reset_key()
+                self.key.set_pausing()
+                self.key.set_erred()
+                self.key.save()
+                response, prepare = self.post(user, detail_url(self.key, "retry"))
+                self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.PAUSE
+                )
+
+    def test_project_roles_can_delete_a_key(self):
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.reset_key()
+                response, prepare = self.delete(user)
+                self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+                self.assertEqual(
+                    self.published_payload(prepare)["action"], Actions.DELETE
+                )
+
+    def test_a_project_member_can_do_none_of_it(self):
+        member = self.fixture.member
+        calls = (
+            (
+                "request",
+                lambda: self.post(
+                    member, list_url(), {"resource": self.resource.uuid.hex}
+                ),
+            ),
+            ("edit", lambda: self.patch(member, {"limits": {"tokens": 50}})),
+            ("pause", lambda: self.post(member, detail_url(self.key, "pause"))),
+            ("rotate", lambda: self.post(member, detail_url(self.key, "rotate"))),
+            ("delete", lambda: self.delete(member)),
+        )
+        for action, call in calls:
+            with self.subTest(action):
+                response, prepare = call()
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                prepare.assert_not_called()
+        self.reset_key(States.PAUSED)
+        response, prepare = self.post(member, detail_url(self.key, "resume"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+        self.reset_key()
+        self.key.set_pausing()
+        self.key.set_erred()
+        self.key.save()
+        response, prepare = self.post(member, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        prepare.assert_not_called()
+
+    def test_project_roles_of_another_project_cannot_reach_the_keys(self):
+        # The permission is held on the project, not on its customer.
+        other = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        for role in (ProjectRole.MANAGER, ProjectRole.ADMIN):
+            with self.subTest(role.name):
+                user = structure_factories.UserFactory()
+                other.add_user(user, role)
+                response, prepare = self.post(user, detail_url(self.key, "pause"))
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+                response, prepare = self.post(
+                    user, list_url(), {"resource": self.resource.uuid.hex}
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                prepare.assert_not_called()
+
+    def test_reveal_is_unchanged(self):
+        # Managing a key is not reading it: an assigned key is still revealed
+        # to its assignee alone.
+        self.key.user = self.fixture.member
+        self.key.save()
+        for name, user in self.managers():
+            with self.subTest(name):
+                self.client.force_authenticate(user)
+                response = self.client.get(detail_url(self.key, "reveal"))
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class PauseResumeDeleteTest(ApiKeyManagementTestBase):
@@ -1139,7 +1299,7 @@ class RetryTest(ApiKeyManagementTestBase):
     def test_a_retried_update_carries_the_stored_settings(self):
         self.fail(
             lambda key: key.set_updating(Actions.UPDATE),
-            limits={"tokens": 50},
+            spending_limits={"tokens": {"month": 50}},
             allowed_models=["mistral"],
         )
         response, prepare = self.post(self.fixture.owner, detail_url(self.key, "retry"))
@@ -1183,11 +1343,14 @@ class RetryTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         prepare.assert_not_called()
         self.key.refresh_from_db()
-        self.assertIsNone(self.key.limits)
+        self.assertIsNone(self.key.spending_limits)
         self.assertEqual(self.key.pending_action, Actions.ROTATE)
 
     def test_an_edit_retries_a_failed_update(self):
-        self.fail(lambda key: key.set_updating(Actions.UPDATE), limits={"tokens": 5})
+        self.fail(
+            lambda key: key.set_updating(Actions.UPDATE),
+            spending_limits={"tokens": {"month": 5}},
+        )
         self.client.force_authenticate(self.fixture.owner)
         with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
             response = self.client.patch(
@@ -1475,7 +1638,7 @@ class KeyUsageTest(ApiKeyManagementTestBase):
 class KeyLimitTest(ApiKeyManagementTestBase):
     def setUp(self):
         super().setUp()
-        self.key.limits = {"tokens": 100}
+        self.key.spending_limits = {"tokens": {"month": 100}}
         self.key.save()
         self.sibling = self.make_key("cid-2")
 
@@ -1518,11 +1681,16 @@ class KeyLimitTest(ApiKeyManagementTestBase):
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.OK)
 
-    def test_a_zero_limit_is_no_limit(self):
-        self.key.limits = {"tokens": 0}
-        self.key.save()
-        _, prepare = self.report({"tokens": 5000})
-        prepare.assert_not_called()
+    def test_a_zero_monthly_limit_is_no_limit(self):
+        # The flat monthly shape keeps its meaning: zero sets no limit.
+        self.client.force_authenticate(self.fixture.owner)
+        with mock.patch(PREPARE, return_value=MESSAGES), mock.patch(PUBLISH):
+            response = self.client.patch(
+                detail_url(self.key), {"limits": {"tokens": 0}}, format="json"
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.spending_limits)
 
     def test_a_key_already_paused_is_not_paused_again(self):
         self.key.state = States.PAUSED
@@ -1611,7 +1779,7 @@ class KeyLimitTest(ApiKeyManagementTestBase):
         prepare.assert_not_called()
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.PAUSED)
-        self.assertEqual(self.key.limits, {"tokens": 120})
+        self.assertEqual(self.key.spending_limits, {"tokens": {"month": 120}})
 
     def test_a_resume_by_hand_clears_the_mark(self):
         self.pause_for_limit()
@@ -1668,14 +1836,14 @@ class KeyLimitTest(ApiKeyManagementTestBase):
             "cid-3",
             state=States.PAUSED,
             paused_by_limit=True,
-            limits={"tokens": 100},
+            spending_limits={"tokens": {"month": 100}},
             current_usages={"tokens": 150},
             usage_period=THIS_MONTH,
         )
         by_hand = self.make_key(
             "cid-4",
             state=States.PAUSED,
-            limits={"tokens": 100},
+            spending_limits={"tokens": {"month": 100}},
             current_usages={"tokens": 150},
             usage_period=LAST_MONTH,
         )
@@ -1799,7 +1967,7 @@ class AuditTest(ApiKeyManagementTestBase):
         )
 
     def test_an_automatic_pause_says_why(self):
-        self.key.limits = {"tokens": 10}
+        self.key.spending_limits = {"tokens": {"month": 10}}
         self.key.save()
         events = self.emitted(
             lambda: self.post(
@@ -1812,7 +1980,7 @@ class AuditTest(ApiKeyManagementTestBase):
         message, event_type = events[0]
         self.assertEqual(event_type, EventType.MARKETPLACE_RESOURCE_API_KEY_PAUSED)
         self.assertIn("automatically", message)
-        self.assertIn("limit for tokens", message)
+        self.assertIn("month limit of tokens", message)
 
 
 class ListingTest(ApiKeyManagementTestBase):
@@ -1900,7 +2068,7 @@ class CommandEnumTest(test.APITestCase):
         key = models.ResourceApiKey.objects.create(
             resource=self.managed_resource(),
             client_id="cid-1",
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
         )
         for action in Actions.VALUES:
             with self.subTest(action), mock.patch(PREPARE, return_value=[]) as prepare:
@@ -1918,7 +2086,7 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         self.offering.plugin_options = {}
         self.offering.save()
         self.key.user = self.fixture.admin
-        self.key.limits = {"tokens": 5}
+        self.key.spending_limits = {"tokens": {"month": 5}}
         self.key.allowed_models = ALL_MODELS
         self.key.save()
 
@@ -2109,7 +2277,7 @@ class MigrationTest(test.APITestCase):
         settled.refresh_from_db()
         self.assertEqual(settled.pending_action, "")
         self.assertIsNone(settled.user)
-        self.assertIsNone(settled.limits)
+        self.assertIsNone(settled.spending_limits)
         self.assertEqual(settled.state, States.OK)
         settled.set_updating()  # still rotatable
         rotating.refresh_from_db()

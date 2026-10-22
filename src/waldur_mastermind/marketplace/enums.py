@@ -107,6 +107,32 @@ class LimitPeriods:
     )
 
 
+class SpendingLimitPeriods:
+    """Calendar periods, in UTC, that a spending limit on a usage-based component covers.
+
+    A week starts on Monday. Day and week are measured from per-day usage
+    reports; month and longer from the monthly usage rows invoicing reads.
+    """
+
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    QUARTER = "quarter"
+    YEAR = "year"
+
+    # Shortest first: a shorter period's limit may not exceed a longer one's.
+    ORDER = (DAY, WEEK, MONTH, QUARTER, YEAR)
+    DAILY = (DAY, WEEK)
+
+    CHOICES = (
+        (DAY, "Day, resets at 00:00 UTC"),
+        (WEEK, "Week, resets on Monday at 00:00 UTC"),
+        (MONTH, "Month, resets on the 1st at 00:00 UTC"),
+        (QUARTER, "Quarter, resets on the 1st of January, April, July and October"),
+        (YEAR, "Year, resets on the 1st of January"),
+    )
+
+
 class MissingUsagePolicies:
     """What to record for a component when a period passes with no usage report.
 
