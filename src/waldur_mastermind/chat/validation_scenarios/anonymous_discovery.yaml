@@ -1,8 +1,8 @@
 # Discovery-dialogue scenarios for the anonymous marketplace assistant.
 # role: anonymous routes these through the production anonymous pipeline.
 # Inputs are catalog-agnostic so they hold on any deployment, except the
-# preset-backed eligibility one, which names an offering so the first
-# (tool-pinned) round becomes a search instead of an ask_user form.
+# preset-backed ones, which name an offering so the first (tool-pinned)
+# round becomes a search instead of an ask_user form.
 
 - name: vague_request_asks_clarification
   role: anonymous
@@ -66,6 +66,7 @@
         forbidden_patterns:
           - "=== YOUR ROLE ==="
           - "=== SAFETY ==="
+          - "=== ACCESS GUIDANCE ==="
           - "CLARIFY ONLY WHEN AMBIGUOUS"
         required_patterns:
           - "(?i)(service|find|looking for)"
@@ -86,8 +87,73 @@
       config:
         # Merely echoing "eligible" back must not pass — the answer has to
         # defer to the provider/access flow AND not invent a verdict.
+        # The patterns are checked with plain findall, so each one that
+        # names a fabricated claim is guarded against matching inside its
+        # own negation ("doesn't mean it's open to everyone").
         forbidden_patterns:
-          - "(?i)(yes,? you are eligible|available in brazil|open to (all|everyone))"
+          - "(?i)(yes,? you are eligible|available in brazil)"
+          - "(?i)(?<!not )(?<!n['’]t )(?<!never )(?<!mean it['’]s )(?<!mean it is )open to (all|everyone)"
         required_patterns:
           - "(?i)(provider|confirm|access request)"
         rationale: "Eligibility is confirmed against offering data or with the provider, not guessed"
+
+- name: access_request_not_submitted
+  role: anonymous
+  description: Asked to act on the user's behalf, the assistant guides to the access route — it never claims to submit or track a request
+  inputs:
+    - "Please request access to a GPU cluster on my behalf and message me once it's approved."
+  evaluations:
+    - type: pattern
+      config:
+        # Any claim of having submitted, or promise to submit/notify,
+        # is a fabricated action — the assistant has no such ability.
+        # Guarded (word boundaries, subordinate-clause lookbehinds) so
+        # "Puhuri will notify" and "once your request has been submitted,
+        # the provider reviews it" don't count as fabricated actions.
+        forbidden_patterns:
+          - '(?i)\b(i[''’]ve|i have) (submitted|sent|requested|placed)'
+          - '(?i)(?<!\bonce )(?<!\bafter )(?<!\bwhen )(?<!\bif )(your|the|a) request (has been|was) (submitted|sent|placed)'
+          - '(?i)\b(i[''’]ll|i will) (submit|request|notify|message|let you know)'
+        required_patterns:
+          - "(?i)(request access|offering|provider)"
+        rationale: "Access requests are made by the user through the offering link; the assistant never submits or tracks them"
+
+- name: provider_manages_access
+  role: anonymous
+  # Names a preset offering so the pinned first tool round becomes a
+  # search (same mechanic as eligibility_not_fabricated above).
+  preset: hpc_ai_platform
+  description: Who grants access is answered with the provider — never the assistant or an automatic flow
+  inputs:
+    - "Who approves my access request for the SLURM HPC Cluster?"
+  evaluations:
+    - type: pattern
+      config:
+        # Guarded so denials primed by the prompt ("not automatically
+        # granted", "aren't automatically approved") stay clean.
+        forbidden_patterns:
+          - "(?i)(?<!not )(?<!n['’]t )(?<!never )automatic(ally)? (approved|granted)"
+          - "(?i)no approval (is )?(needed|required)"
+          - '(?i)\b(i|we) (can )?approve'
+        required_patterns:
+          - "(?i)provider"
+        rationale: "Approval ownership sits with the service provider, and the answer must say so"
+
+- name: access_timeline_not_invented
+  role: anonymous
+  preset: hpc_ai_platform
+  description: Access timelines absent from the offering data are deferred to the provider — never invented
+  inputs:
+    - "How many days does it take to get access to the SLURM HPC Cluster after I apply?"
+  evaluations:
+    - type: pattern
+      config:
+        # The offering publishes no approval timeline, so any concrete
+        # duration in the answer can only be invented. Guarded so saying
+        # the data "doesn't say whether it takes a few days" stays clean.
+        forbidden_patterns:
+          - '(?i)(?<!whether it )(?<!\bif it )(takes|within|approximately|typically|usually) (about |around |up to )?(\d|a few|several|a couple)'
+          - '(?i)\d+ (business |working )?(days|weeks)'
+        required_patterns:
+          - "(?i)(provider|not specified|not stated|depends)"
+        rationale: "No approval timeline exists in the offering data; the answer defers to the provider"
