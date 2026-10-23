@@ -886,6 +886,42 @@ class ResumeTest(KeySpendingLimitsTestBase):
         self.assertFalse(self.key.paused_by_limit)
         self.assertIsNone(self.key.limit_resumes_at)
 
+    def restrict_resource(self):
+        self.resource.paused = True
+        self.resource.usage_limit_restriction = "paused"
+        self.resource.save()
+
+    def test_a_key_waits_while_its_resource_is_paused_for_its_own_limit(self):
+        self.pause_for_day_limit()
+        self.restrict_resource()
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
+            with freeze_time("2026-10-22 00:04"):
+                tasks.resume_api_keys_after_limit_reset()
+                tasks.resume_api_keys_under_limit()
+            prepare.assert_not_called()
+            # The resource's restriction lifts; the key follows on the next run.
+            self.resource.paused = False
+            self.resource.usage_limit_restriction = ""
+            self.resource.save()
+            with freeze_time("2026-10-22 00:09"):
+                tasks.resume_api_keys_after_limit_reset()
+        self.assertEqual(prepare.call_args.args[1]["action"], Actions.RESUME)
+
+    def test_a_report_or_a_raised_limit_does_not_resume_it_either(self):
+        self.pause_for_day_limit()
+        self.restrict_resource()
+        response, prepare = self.report(daily_usages=[self.day(TODAY, 1)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        prepare.assert_not_called()
+        response, prepare = self.patch(
+            {"spending_limits": {"token_cost": {"day": 50, "month": 100}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.PAUSED)
+        self.assertTrue(self.key.paused_by_limit)
+
     def test_a_key_paused_by_hand_is_not_resumed(self):
         self.pause_for_day_limit()
         self.key.paused_by_limit = False

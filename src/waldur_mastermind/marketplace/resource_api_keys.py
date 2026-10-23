@@ -83,6 +83,11 @@ def is_resource_live(resource: models.Resource) -> bool:
     )
 
 
+def is_resource_restricted(resource: models.Resource) -> bool:
+    """Whether the resource is paused or downscaled for its own spending limits."""
+    return bool(resource.usage_limit_restriction)
+
+
 def require_resource_live(resource: models.Resource) -> None:
     """Reject key commands on a resource that is not live.
 
@@ -716,6 +721,9 @@ def resume_if_under_limit(api_key: models.ResourceApiKey) -> models.ResourceApiK
     is raised or removed. A key paused by a person is left alone, and so is one
     with a command in flight: the pause has to have settled first. A key still
     over a limit gets the time that limit resets as its ``limit_resumes_at``.
+    So is a key whose resource is restricted for its own spending limits: the
+    resource's usage is over its limit, so none of its keys may spend, and the
+    key resumes once the resource's restriction lifts.
     """
     with transaction.atomic():
         api_key = _lock(api_key)
@@ -724,6 +732,7 @@ def resume_if_under_limit(api_key: models.ResourceApiKey) -> models.ResourceApiK
             and api_key.paused_by_limit
             and not api_key.pending_action
             and is_resource_live(api_key.resource)
+            and not is_resource_restricted(api_key.resource)
         ):
             reached = api_key_spending_limits.reached_limits(api_key)
             if reached:
@@ -742,10 +751,14 @@ def resume_keys_under_limit(reset_only=False) -> None:
 
     A usage report resumes such a key on its own, but when a period resets no
     report may come for a while: this catches the reset. ``reset_only`` checks
-    only the keys whose ``limit_resumes_at`` has passed.
+    only the keys whose ``limit_resumes_at`` has passed. Keys of a resource
+    restricted for its own spending limits wait for that to lift.
     """
     keys = models.ResourceApiKey.objects.filter(
-        state=States.PAUSED, paused_by_limit=True, pending_action=""
+        state=States.PAUSED,
+        paused_by_limit=True,
+        pending_action="",
+        resource__usage_limit_restriction="",
     )
     if reset_only:
         keys = keys.filter(limit_resumes_at__lte=timezone.now())
