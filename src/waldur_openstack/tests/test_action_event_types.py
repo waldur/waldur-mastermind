@@ -81,6 +81,7 @@ class ActionEventTypeLookupTest(SimpleTestCase):
             executors.InstanceRescueExecutor,
             executors.InstanceUnrescueExecutor,
             executors.InstanceUpdateMetadataExecutor,
+            executors.InstanceHardRebootExecutor,
         ):
             for state in ("scheduled", "succeeded", "failed"):
                 with self.subTest(executor=executor_cls.__name__, state=state):
@@ -107,6 +108,12 @@ class ResourceEventGroupMappingTest(SimpleTestCase):
         self.assertIn(EventType.RESOURCE_UNRESCUE_SCHEDULED, types)
         self.assertIn(EventType.RESOURCE_UNRESCUE_SUCCEEDED, types)
         self.assertIn(EventType.RESOURCE_UNRESCUE_FAILED, types)
+
+    def test_hard_reboot_event_types_listed(self):
+        types = EVENT_GROUP_MAPPING[EventGroup.RESOURCES]
+        self.assertIn(EventType.RESOURCE_HARD_REBOOT_SCHEDULED, types)
+        self.assertIn(EventType.RESOURCE_HARD_REBOOT_SUCCEEDED, types)
+        self.assertIn(EventType.RESOURCE_HARD_REBOOT_FAILED, types)
 
     def test_update_metadata_event_types_listed(self):
         types = EVENT_GROUP_MAPPING[EventGroup.RESOURCES]
@@ -157,6 +164,13 @@ class RescueEndpointDoesNotCrashOnEventLogTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.instance.refresh_from_db()
         self.assertEqual(self.instance.action, "Rescue")
+        self.assertEqual(self.instance.state, CoreStates.UPDATE_SCHEDULED)
+
+    def test_hard_reboot_endpoint_returns_202(self):
+        response = self.client.post(self._url("hard_reboot"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.action, "Hard reboot")
         self.assertEqual(self.instance.state, CoreStates.UPDATE_SCHEDULED)
 
     def test_unrescue_endpoint_returns_202(self):

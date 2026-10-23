@@ -1,4 +1,5 @@
 import uuid
+from types import SimpleNamespace
 from unittest import mock
 
 import factory
@@ -21,6 +22,7 @@ from waldur_mastermind.marketplace_openstack.utils import (
 )
 from waldur_openstack import executors, models, views
 from waldur_openstack import tasks as openstack_tasks
+from waldur_openstack.backend import get_instance_runtime_state
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Port
 from waldur_openstack.tasks import LimitedPerTypeThrottleMixin
@@ -2385,6 +2387,110 @@ class InstanceRescueActionTest(test.APITestCase):
 
 
 @ddt
+class InstanceHardRebootActionTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+        self.instance.state = CoreStates.OK
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+        self.url = factories.InstanceFactory.get_url(
+            self.instance, action="hard_reboot"
+        )
+        self.executor = mock.patch(
+            "waldur_openstack.executors.InstanceHardRebootExecutor.execute"
+        ).start()
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
+
+    def hard_reboot(self, state, runtime_state, user="admin"):
+        self.instance.state = state
+        self.instance.runtime_state = runtime_state
+        self.instance.save()
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        return self.client.post(self.url)
+
+    @data(
+        models.Instance.RuntimeStates.ACTIVE,
+        models.Instance.RuntimeStates.ERROR,
+        models.Instance.RuntimeStates.PAUSED,
+        models.Instance.RuntimeStates.SUSPENDED,
+        models.Instance.RuntimeStates.REBOOT,
+    )
+    def test_hard_reboot_is_scheduled(self, runtime_state):
+        response = self.hard_reboot(CoreStates.OK, runtime_state)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.executor.assert_called_once()
+
+    def test_erred_instance_can_be_hard_rebooted(self):
+        response = self.hard_reboot(
+            CoreStates.ERRED, models.Instance.RuntimeStates.ERROR
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.executor.assert_called_once()
+
+    def test_stopped_instance_is_pointed_at_start(self):
+        response = self.hard_reboot(
+            CoreStates.OK, models.Instance.RuntimeStates.SHUTOFF
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("Start it instead", str(response.data))
+        self.executor.assert_not_called()
+
+    def test_erred_stopped_instance_is_not_pointed_at_start(self):
+        # Start refuses an erred instance too, so the hint would mislead.
+        response = self.hard_reboot(
+            CoreStates.ERRED, models.Instance.RuntimeStates.SHUTOFF
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertNotIn("Start it instead", str(response.data))
+        self.executor.assert_not_called()
+
+    @data(
+        # Nova refuses a hard reboot once one has been picked up.
+        models.Instance.RuntimeStates.HARD_REBOOT,
+        models.Instance.RuntimeStates.RESCUE,
+        models.Instance.RuntimeStates.BUILDING,
+        models.Instance.RuntimeStates.VERIFY_RESIZE,
+    )
+    def test_hard_reboot_is_rejected_in_other_runtime_states(self, runtime_state):
+        response = self.hard_reboot(CoreStates.OK, runtime_state)
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.executor.assert_not_called()
+
+    def test_hard_reboot_is_rejected_while_another_action_runs(self):
+        response = self.hard_reboot(
+            CoreStates.UPDATING, models.Instance.RuntimeStates.ACTIVE
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.executor.assert_not_called()
+
+    def test_unrelated_user_cannot_hard_reboot(self):
+        response = self.hard_reboot(
+            CoreStates.OK, models.Instance.RuntimeStates.ACTIVE, user="user"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.executor.assert_not_called()
+
+    def test_project_member_without_power_permission_cannot_hard_reboot(self):
+        response = self.hard_reboot(
+            CoreStates.OK, models.Instance.RuntimeStates.ACTIVE, user="member"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.executor.assert_not_called()
+
+
+@ddt
 class InstanceActionNovaErrorTest(BaseBackendTestCase):
     def setUp(self):
         super().setUp()
@@ -2431,6 +2537,7 @@ class InstanceActionNovaErrorTest(BaseBackendTestCase):
         executors.InstanceStopExecutor,
         executors.InstanceStartExecutor,
         executors.InstanceRestartExecutor,
+        executors.InstanceHardRebootExecutor,
     )
     def test_instance_is_erred_when_nova_fails_the_action(self, executor):
         with self.assertRaises(core_tasks.RuntimeStateException):
@@ -2481,6 +2588,88 @@ class InstanceActionNovaErrorTest(BaseBackendTestCase):
         delete_instance(self.instance, is_async=False)
 
         self.assertFalse(models.Instance.objects.filter(id=self.instance.id).exists())
+
+
+class InstanceHardRebootExecutorTest(BaseBackendTestCase):
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+        self.instance.state = CoreStates.ERRED
+        self.instance.runtime_state = models.Instance.RuntimeStates.ERROR
+        self.fault_message = "Instance failed to spawn"
+        self.instance.error_message = self.fault_message
+        self.instance.backend_id = "VALID_ID"
+        self.instance.save()
+
+    def nova_server(self, status, task_state=None, fault=None):
+        server = SimpleNamespace(status=status)
+        setattr(server, "OS-EXT-STS:task_state", task_state)
+        if fault:
+            server.fault = {"message": fault}
+        return server
+
+    def test_hard_reboot_is_requested_from_nova(self):
+        self.mocked_nova.servers.get.return_value = self.nova_server("ACTIVE")
+
+        executors.InstanceHardRebootExecutor.execute(self.instance, is_async=False)
+
+        self.mocked_nova.servers.reboot.assert_called_once_with(
+            "VALID_ID", reboot_type="HARD"
+        )
+
+    def test_errored_instance_recovers_once_nova_finishes_the_reboot(self):
+        # Nova reports ERROR until the reboot of an errored server finishes.
+        self.mocked_nova.servers.get.side_effect = [
+            self.nova_server("ERROR", "rebooting_hard", self.fault_message),
+            self.nova_server("ERROR", "reboot_started_hard", self.fault_message),
+            self.nova_server("ACTIVE"),
+        ]
+
+        executors.InstanceHardRebootExecutor.execute(self.instance, is_async=False)
+
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.state, CoreStates.OK)
+        self.assertEqual(
+            self.instance.runtime_state, models.Instance.RuntimeStates.ACTIVE
+        )
+        # The fault Nova still shows mid-reboot is the one the reboot cleared.
+        self.assertEqual(self.instance.error_message, "")
+
+    def test_errored_server_being_hard_rebooted_reads_as_hard_reboot(self):
+        server = self.nova_server("ERROR", "reboot_pending_hard", self.fault_message)
+
+        self.assertEqual(
+            get_instance_runtime_state(server),
+            models.Instance.RuntimeStates.HARD_REBOOT,
+        )
+
+    def test_errored_instance_stays_erred_when_the_reboot_fails(self):
+        self.mocked_nova.servers.get.side_effect = [
+            self.nova_server("ERROR", "rebooting_hard", self.fault_message),
+            self.nova_server("ERROR", None, "Failed to reboot"),
+        ]
+
+        with self.assertRaises(core_tasks.RuntimeStateException):
+            executors.InstanceHardRebootExecutor.execute(self.instance, is_async=False)
+
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.state, CoreStates.ERRED)
+        self.assertEqual(
+            self.instance.runtime_state, models.Instance.RuntimeStates.ERROR
+        )
+        self.assertEqual(self.instance.error_message, "Failed to reboot")
+
+    def test_other_tasks_on_an_errored_server_still_report_error(self):
+        self.mocked_nova.servers.get.return_value = self.nova_server(
+            "ERROR", "deleting", self.fault_message
+        )
+
+        self.backend.pull_instance_runtime_state(self.instance)
+
+        self.instance.refresh_from_db()
+        self.assertEqual(
+            self.instance.runtime_state, models.Instance.RuntimeStates.ERROR
+        )
 
 
 class InstanceSetMetadataTest(test.APITestCase):

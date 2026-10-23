@@ -106,6 +106,29 @@ VOLUME_ATTACHMENT_FIELDS = ("instance", "device", "bootable")
 
 INSTANCE_PROVISIONING_STATES = (CoreStates.CREATION_SCHEDULED, CoreStates.CREATING)
 
+# Nova task states (OS-EXT-STS:task_state) of a hard reboot in progress.
+HARD_REBOOT_TASK_STATES = (
+    "rebooting_hard",
+    "reboot_pending_hard",
+    "reboot_started_hard",
+)
+
+
+def get_instance_runtime_state(backend_instance) -> str:
+    """Nova's status of a server, with a hard reboot of an errored one shown.
+
+    Nova keeps reporting ERROR while it hard-reboots an errored server; an
+    active one shows HARD_REBOOT. Report that, so a poll waits for the
+    outcome instead of taking the old ERROR as the result.
+    """
+    if (
+        backend_instance.status == models.Instance.RuntimeStates.ERROR
+        and getattr(backend_instance, "OS-EXT-STS:task_state", None)
+        in HARD_REBOOT_TASK_STATES
+    ):
+        return models.Instance.RuntimeStates.HARD_REBOOT
+    return backend_instance.status
+
 
 def get_volume_pull_fields(volume: models.Volume, fields):
     """
@@ -5930,7 +5953,7 @@ class OpenStackBackend(ServiceBackend):
             key_name=backend_instance.key_name or "",
             start_time=launch_time,
             state=CoreStates.OK,
-            runtime_state=backend_instance.status,
+            runtime_state=get_instance_runtime_state(backend_instance),
             created=created,
             backend_id=backend_instance.id,
             availability_zone=availability_zone,
@@ -7143,6 +7166,20 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
     @log_backend_action()
+    def hard_reboot_instance(self, instance: models.Instance):
+        """Power-cycle the instance without waiting for the guest OS.
+
+        Unlike the soft reboot behind restart_instance, Nova accepts a hard
+        reboot from ERROR, PAUSED, SUSPENDED and during a soft reboot.
+        """
+        session = get_tenant_session(instance.tenant)
+        nova = get_nova_client(session)
+        try:
+            nova.servers.reboot(instance.backend_id, reboot_type="HARD")
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
     def rescue_instance(self, instance: models.Instance, rescue_image_ref: str = None):
         """Put instance into Nova rescue mode.
 
@@ -7203,11 +7240,17 @@ class OpenStackBackend(ServiceBackend):
             backend_instance = nova.servers.get(instance.backend_id)
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
-        if backend_instance.status != instance.runtime_state:
-            instance.runtime_state = backend_instance.status
+        runtime_state = get_instance_runtime_state(backend_instance)
+        if runtime_state != instance.runtime_state:
+            instance.runtime_state = runtime_state
             instance.save(update_fields=["runtime_state"])
 
-        if hasattr(backend_instance, "fault"):
+        # During a hard reboot of an errored server the fault is the one the
+        # reboot is meant to clear, not news.
+        if (
+            hasattr(backend_instance, "fault")
+            and runtime_state == backend_instance.status
+        ):
             error_message = backend_instance.fault["message"]
             if instance.error_message != error_message:
                 instance.error_message = error_message
