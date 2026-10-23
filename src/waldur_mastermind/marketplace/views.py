@@ -16829,9 +16829,11 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Reveal an API key",
-        description="Returns the decrypted key value. Available to users with "
-        "resource access (except minimal-visibility viewers); a key with an "
-        "assignee only to the assignee. Staff and support always. Audit-logged.",
+        description="Returns the decrypted key value. Available to members of "
+        "the resource's project or organization (except minimal-visibility "
+        "viewers); a key with an assignee only to the assignee. Staff and support "
+        "are no exception: staff reveal a key by impersonating a user who may. "
+        "Audit-logged; under impersonation the event names the impersonator.",
         responses={status.HTTP_200_OK: serializers.ResourceApiKeySerializer},
     )
     @action(detail=True, methods=["get"])
@@ -16842,11 +16844,11 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         # Reveal exposes a live secret. The shared queryset also admits the
         # provider org (so the agent can reach the write actions), but a
         # provider-org member must NOT read a consumer's key — restrict reveal to
-        # consumer-side access (project or its customer), plus staff/support.
+        # consumer-side access (project or its customer). Staff and support are
+        # no exception: staff reveal by impersonating a user who may, which the
+        # audit event records.
         if not (
-            user.is_staff
-            or user.is_support
-            or resource.project_id in get_connected_projects(user)
+            resource.project_id in get_connected_projects(user)
             or resource.project.customer_id in get_connected_customers(user)
         ):
             raise PermissionDenied(
@@ -16858,11 +16860,7 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
                 "Minimal-visibility viewers cannot reveal the resource API key."
             )
         # An assigned key is personal: its usage is attributed to the assignee.
-        if (
-            api_key.user_id
-            and api_key.user_id != user.id
-            and not (user.is_staff or user.is_support)
-        ):
+        if api_key.user_id and api_key.user_id != user.id:
             raise PermissionDenied("Only the assignee can reveal this API key.")
         # Only an OK key is guaranteed live at the backend; a transitional key's
         # stored value may not match the gateway.

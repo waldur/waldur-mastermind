@@ -53,8 +53,10 @@ by default — two independent keys are what make rotation zero-downtime, and th
 model the operator reality of primary/standby credentials. On a team-shared
 inference offering that is not enough: usage cannot be attributed to a person, a
 single key cannot be limited, and a leaked key can only be rotated. So a key may
-carry an **assignee**, and then only that person (plus staff and support) can
-reveal it.
+carry an **assignee**, and then only that person can reveal it. Staff and
+support are no exception: a revealed key is a working credential that spends
+against its holder's limit, so neither reads one directly. Staff who need a key
+impersonate a user who may reveal it, and the audit event names them.
 
 **A resource under per-key management starts with no keys.** Where the offering
 manages keys one by one (`enable_api_key_provisioning`, below) and the agent's
@@ -553,13 +555,20 @@ Consumer side. The actions marked *governance* need the offering's
   organization.
 - `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
   URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access —
-  a member of the resource's project or its customer, plus staff/support; a
-  provider-org member (who can reach the write actions) is explicitly excluded,
-  and so are minimal-visibility viewers (as with `backend_metadata`). A key with
-  an assignee is revealed **only to the assignee** (plus staff/support). Only an
-  `OK` key is revealed — a transitional or paused key's stored value may not
-  match the gateway. **Audited** — each reveal emits the
-  `marketplace_resource_api_key_revealed` event identifying the key.
+  a member of the resource's project or its customer; a provider-org member
+  (who can reach the write actions) is explicitly excluded, and so are
+  minimal-visibility viewers (as with `backend_metadata`). A key with an
+  assignee is revealed **only to the assignee**. Staff and support are held to
+  the same rules: outside the resource's project and organization they get
+  `403`, and inside it they reveal what any member could. Staff reveal any
+  other key by impersonating its assignee or, for an unassigned key, a member of
+  the project or its organization. Only an `OK` key is revealed — a transitional
+  or paused key's stored value may not match the gateway. **Audited** — each
+  reveal emits the `marketplace_resource_api_key_revealed` event identifying
+  the key. Under impersonation it reads "… has been revealed to *user*,
+  impersonated by *staff*", and its context carries `user_impersonator_uuid`
+  and `user_impersonator_username`. Staff and support still list every key and
+  read its details, without the secret.
 - `POST /{uuid}/rotate/` — the `rotate` command. Available on every backend,
   and to the key's assignee as well as to whoever holds
   `RESOURCE.MANAGE_CONSUMER_API_KEY`.

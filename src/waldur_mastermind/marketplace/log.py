@@ -1,3 +1,4 @@
+from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace import models
@@ -170,9 +171,18 @@ def log_resource_api_key_command_failed(api_key: models.ResourceApiKey):
 
 
 def log_resource_api_key_revealed(api_key: models.ResourceApiKey, user):
+    """Audit a reveal. Under impersonation the message names the impersonator
+    too; the event context carries ``user_impersonator_*`` from the request."""
     resource = api_key.resource
+    impersonator = getattr(user, "impersonator", None)
+    if impersonator:
+        # ImpersonatedUser's own str appends "impersonator: …", which reads
+        # badly in the resource's event log that its project's members see.
+        revealed_to = f"{User.__str__(user)}, impersonated by {impersonator}"
+    else:
+        revealed_to = str(user)
     event_logger.emit(
-        f"{_api_key_name(api_key)} has been revealed to {user}.",
+        f"{_api_key_name(api_key)} has been revealed to {revealed_to}.",
         event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED,
         event_context={"resource": resource},
         scopes=get_resource_scopes(resource),

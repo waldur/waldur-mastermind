@@ -5,10 +5,12 @@ import datetime
 from importlib import import_module
 from unittest import mock
 
+from django.conf import settings
 from django.db import connection
 from django.db.migrations.loader import MigrationLoader
 from django.test import override_settings
 from rest_framework import status, test
+from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.reverse import reverse
 
@@ -47,6 +49,7 @@ all_models_migration = import_module(
     "waldur_mastermind.marketplace.migrations.0308_resource_api_key_all_models"
 )
 ALL_MODELS = [models.ResourceApiKey.ALL_MODELS]
+IMPERSONATED_USER_HEADER = settings.WALDUR_CORE["REQUEST_HEADER_IMPERSONATED_USER_UUID"]
 
 
 def list_url(action=None):
@@ -720,16 +723,94 @@ class AssigneeRevealTest(ApiKeyManagementTestBase):
                 response = self.reveal(user)
                 self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_staff_and_support_can_reveal(self):
+    def test_staff_and_support_in_the_project_cannot_reveal_another_persons_key(
+        self,
+    ):
         for user in (self.fixture.staff, self.fixture.global_support):
             with self.subTest(user=user):
+                self.fixture.project.add_user(user, ProjectRole.MEMBER)
+                response = self.reveal(user)
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_and_support_in_the_project_reveal_a_key_assigned_to_them(self):
+        for user in (self.fixture.staff, self.fixture.global_support):
+            with self.subTest(user=user):
+                self.fixture.project.add_user(user, ProjectRole.MEMBER)
+                self.key.user = user
+                self.key.save()
                 response = self.reveal(user)
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["api_key"], "sk-cid-1")
 
     def test_an_assignee_who_left_the_project_cannot_reveal(self):
         self.fixture.project.remove_user(self.fixture.admin)
         response = self.reveal(self.fixture.admin)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ImpersonatedRevealTest(ApiKeyManagementTestBase):
+    """Staff reveal a key only by impersonating someone who may. The request
+    goes through the real token authentication: force_authenticate would skip
+    impersonation and its audit fields."""
+
+    def setUp(self):
+        super().setUp()
+        self.key.user = self.fixture.admin
+        self.key.save()
+
+    def reveal_as(self, impersonated):
+        token = Token.objects.get(user=self.fixture.staff)
+        self.client.credentials(
+            **{
+                "HTTP_AUTHORIZATION": f"Token {token.key}",
+                IMPERSONATED_USER_HEADER: impersonated.uuid.hex,
+            }
+        )
+        return self.client.get(detail_url(self.key, "reveal"))
+
+    def test_staff_impersonating_the_assignee_reveal_and_are_named(self):
+        response = self.reveal_as(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["api_key"], "sk-cid-1")
+
+        event = Event.objects.get(
+            event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED
+        )
+        self.assertEqual(
+            event.message,
+            f"API key cid-1 of resource {self.resource.name} has been revealed to "
+            f"{self.fixture.admin}, impersonated by {self.fixture.staff}.",
+        )
+        self.assertEqual(event.context["user_uuid"], self.fixture.admin.uuid.hex)
+        self.assertEqual(
+            event.context["user_impersonator_uuid"], self.fixture.staff.uuid.hex
+        )
+        self.assertEqual(
+            event.context["user_impersonator_username"], self.fixture.staff.username
+        )
+
+    def test_staff_impersonating_another_member_are_refused(self):
+        response = self.reveal_as(self.fixture.manager)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            Event.objects.filter(
+                event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED
+            ).exists()
+        )
+
+    def test_a_reveal_without_impersonation_names_only_the_user(self):
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.get(detail_url(self.key, "reveal"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event = Event.objects.get(
+            event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED
+        )
+        self.assertEqual(
+            event.message,
+            f"API key cid-1 of resource {self.resource.name} has been revealed to "
+            f"{self.fixture.admin}.",
+        )
+        self.assertNotIn("user_impersonator_uuid", event.context)
 
 
 class DeletedAssigneeTest(ApiKeyManagementTestBase):
