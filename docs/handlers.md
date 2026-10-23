@@ -23,6 +23,13 @@ td:nth-child(4) {
 |--------------|-------------|--------|-------------|
 | `update_registration_method` | `Unknown Signal` | `core.User` | Update user's registration method to SAML2. |
 
+## Application: `waldur_auth_social`
+
+| Handler Name | Signal Type | Sender | Description |
+|--------------|-------------|--------|-------------|
+| `forget_oauth_tokens_on_deactivation` | `Django Signal (pre_save)` | `core.User` | Revoke the identity provider tokens of a user being deactivated. |
+| `forget_oauth_tokens_on_deletion` | `Django Signal (pre_delete)` | `core.User` | Revoke them before the row goes; the cascade would only delete them. |
+
 ## Application: `waldur_autoprovisioning`
 
 | Handler Name | Signal Type | Sender | Description |
@@ -547,6 +554,7 @@ td:nth-child(4) {
 | `enable_service_settings_with_existing_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Enable service settings if there are existing resources. |
 | `encrypt_secret_options_on_raw_save` | `Django Signal (pre_save)` | `marketplace.Offering` | Encrypt secret_options on a raw save (django-reversion revert, loaddata). |
 | `evaluate_usage_limit_on_component_change` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Re-evaluate an offering's resources when a component's limit_amount changes. |
+| `evaluate_usage_limit_on_daily_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentDailyUsage` | Re-evaluate a resource with spending limits when a day's usage changes. |
 | `evaluate_usage_limit_on_resource_limit_change` | `Django Signal (post_save)` | `marketplace.Resource` | Re-evaluate a resource's usage-limit restriction when its limits change. |
 | `evaluate_usage_limit_on_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Pause or downscale a resource when reported usage reaches a component limit. |
 | `forward_comment_to_children` | `Django Signal (post_save)` | `support.Comment` | Forward new public comments from parent issues to child issues. |
@@ -648,6 +656,7 @@ td:nth-child(4) {
 | `resource_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource changes. |
 | `resource_options_have_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle script execution when marketplace resource options are changed. |
 | `resource_state_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle resource state changes. |
+| `revoke_api_keys_of_deleted_user` | `Django Signal (pre_delete)` | `core.User` | Withdraw the API keys assigned to a user before the account is deleted. |
 | `revoke_roles_on_offering_deletion` | `Django Signal (pre_delete)` | `marketplace.Offering` | Revoke active user roles bound to an offering before it is deleted. |
 | `run_reset_actions_upon_cost_policy_deletion` | `Django Signal (pre_delete)` | `policy.ProjectEstimatedCostPolicy` | Execute reset actions when a cost policy is deleted. |
 | `schedule_component_usage_billing` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Thin post_save handler — schedules the async billing+policy task on commit. |
@@ -844,14 +853,15 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 766
+Total unique handlers found: 769
 
 - **waldur_auth_saml2**: 1 handlers
+- **waldur_auth_social**: 2 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 352 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 353 handlers
+- **waldur_mastermind**: 354 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers

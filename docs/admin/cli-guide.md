@@ -293,6 +293,10 @@ options:
 
 ```
 
+## check_service_account_usernames
+
+List open project and customer service accounts whose username is invalid or shared with another open service account, and those closed in Waldur only. Read-only.
+
 ## clean_celery_results
 
 Clean up old Celery task results from the database to prevent bloat.

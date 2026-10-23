@@ -368,6 +368,7 @@
 - marketplace_resource_project_created
 - marketplace_resource_project_recovered
 - marketplace_resource_project_removed
+- marketplace_resource_spending_limits_updated
 - marketplace_resource_terminate_failed
 - marketplace_resource_terminate_requested
 - marketplace_resource_terminate_succeeded
@@ -414,6 +415,7 @@
 - marketplace_resource_project_created
 - marketplace_resource_project_recovered
 - marketplace_resource_project_removed
+- marketplace_resource_spending_limits_updated
 - marketplace_resource_terminate_canceled
 - marketplace_resource_terminate_failed
 - marketplace_resource_terminate_requested

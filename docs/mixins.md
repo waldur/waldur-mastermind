@@ -51,6 +51,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`NestedMixin`](#nestedmixin) | `waldur_core.core.nested_routers` | Mixin for creating nested routers that handle hierarchical URL structures |
 | [`AccessSubnetMixin`](#accesssubnetmixin) | `waldur_core.core.serializers` | Shared mask and provenance rules for the access-subnet serializers |
 | [`AugmentedSerializerMixin`](#augmentedserializermixin) | `waldur_core.core.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
+| [`ConditionalUniqueValidatedInSerializerMixin`](#conditionaluniquevalidatedinserializermixin) | `waldur_core.core.serializers` | Leaves conditional UniqueConstraints (such as one active row per customer) to... |
 | [`NetworkAclValidationMixin`](#networkaclvalidationmixin) | `waldur_core.core.serializers` | Validate + canonicalise ``allowed_networks`` and enforce the entry cap |
 | [`RestrictedSerializerMixin`](#restrictedserializermixin) | `waldur_core.core.serializers` | This mixin allows to specify list of fields to be rendered by serializer |
 | [`SlugSerializerMixin`](#slugserializermixin) | `waldur_core.core.serializers` | Ensures that slug is editable only by staff |
@@ -107,6 +108,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
 | [`ScopeHelperAgreementMixin`](#scopehelperagreementmixin) | `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission` | Each helper must list exactly the scopes has_permission allows |
 | [`GrantMixin`](#grantmixin) | `waldur_mastermind.marketplace.tests.test_slug_permissions` | No description available |
+| [`SpendingLimitsSetupMixin`](#spendinglimitssetupmixin) | `waldur_mastermind.marketplace.tests.test_spending_limits` | No description available |
 | [`ConnectedOfferingDetailsMixin`](#connectedofferingdetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide offering details action for connected resources |
 | [`ConnectedResourceDetailsMixin`](#connectedresourcedetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide resource details action for connected resources |
 | [`OfferingUsageMixin`](#offeringusagemixin) | `waldur_mastermind.marketplace.views` | Shared logic for customer/project per-offering usage ViewSets |
@@ -802,6 +804,17 @@ Example:
 
 or uses URL name specified in a model of serialized object.
 
+### ConditionalUniqueValidatedInSerializerMixin
+
+**Module:** `waldur_core.core.serializers`
+
+**Description:**
+
+Leaves conditional UniqueConstraints (such as one active row per
+customer) to the serializer's own validate(), which names the conflicting
+row. Since 3.18.2 DRF generates a UniqueTogetherValidator for them too,
+which runs first and answers with a generic "must make a unique set".
+
 ### NetworkAclValidationMixin
 
 **Module:** `waldur_core.core.serializers`
@@ -1489,6 +1502,12 @@ Each helper must list exactly the scopes has_permission allows.
 ### GrantMixin
 
 **Module:** `waldur_mastermind.marketplace.tests.test_slug_permissions`
+
+**Description:** No description available.
+
+### SpendingLimitsSetupMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_spending_limits`
 
 **Description:** No description available.
 
