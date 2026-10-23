@@ -200,8 +200,20 @@ def request_key(resource: models.Resource, actor, **settings) -> models.Resource
             **settings,
         )
         utils.publish_api_key_event(api_key, Actions.CREATE)
-    log.log_resource_api_key_command(api_key, Actions.CREATE, actor)
+    log.log_resource_api_key_command(
+        api_key,
+        Actions.CREATE,
+        actor,
+        **_limits_change(None, api_key.spending_limits),
+    )
     return api_key
+
+
+def _limits_change(old: dict | None, new: dict | None) -> dict:
+    """The audit's view of a change of a key's limits; empty when they stay."""
+    if (old or None) == (new or None):
+        return {}
+    return {"spending_limits_change": (old, new)}
 
 
 def failed_command(api_key: models.ResourceApiKey) -> str:
@@ -244,6 +256,7 @@ def issue_command(
     require_resource_live(api_key.resource)
     with transaction.atomic():
         api_key = _lock(api_key)
+        old_limits = api_key.spending_limits
         cancel = action == Actions.DELETE and not api_key.client_id
         if action is None:
             if api_key.state != States.ERRED:
@@ -328,7 +341,13 @@ def issue_command(
         log.log_resource_api_key_command(api_key, action, actor, applied=True)
         return api_key
     utils.publish_api_key_event(api_key, action)
-    log.log_resource_api_key_command(api_key, action, actor, reason)
+    log.log_resource_api_key_command(
+        api_key,
+        action,
+        actor,
+        reason,
+        **_limits_change(old_limits, api_key.spending_limits),
+    )
     return api_key
 
 
@@ -395,16 +414,21 @@ def update_settings(
             )
         elif not changes.keys() & AGENT_SETTINGS or api_key.state == States.PAUSED:
             if changes:
+                old_limits = api_key.spending_limits
                 # No command, so no new state: ``modified`` is left alone, as
                 # the agent's sweep reads it as the time the key entered its
                 # state.
                 models.ResourceApiKey.objects.filter(pk=api_key.pk).update(**changes)
                 for field, value in changes.items():
                     setattr(api_key, field, value)
-                # The assignee decides who may reveal a live secret: audited
-                # like the commands are.
+                # The assignee decides who may reveal a live secret, and the
+                # limits who may spend how much: audited like the commands are.
                 log.log_resource_api_key_command(
-                    api_key, Actions.UPDATE, actor, applied=True
+                    api_key,
+                    Actions.UPDATE,
+                    actor,
+                    applied=True,
+                    **_limits_change(old_limits, api_key.spending_limits),
                 )
                 if changes.keys() & AGENT_SETTINGS:
                     api_key = resume_if_under_limit(api_key)

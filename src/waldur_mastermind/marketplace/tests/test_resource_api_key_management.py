@@ -16,6 +16,7 @@ from waldur_core.configuration.testing import override_config
 from waldur_core.core import encryption
 from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace import models, resource_api_keys, tasks, utils
@@ -1970,6 +1971,87 @@ class AuditTest(ApiKeyManagementTestBase):
             [event for _, event in events],
             [EventType.MARKETPLACE_RESOURCE_API_KEY_DELETED],
         )
+
+    def contexts(self, call):
+        with mock.patch("waldur_mastermind.marketplace.log.event_logger.emit") as emit:
+            call()
+        return [
+            c.kwargs["event_context"]
+            for c in emit.call_args_list
+            if c.kwargs["event_type"].startswith("marketplace_resource_api_key")
+        ]
+
+    def patch_key(self, data):
+        def call():
+            self.client.force_authenticate(self.fixture.owner)
+            with mock.patch(PREPARE, return_value=MESSAGES), mock.patch(PUBLISH):
+                response = self.client.patch(detail_url(self.key), data, format="json")
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        return call
+
+    def test_a_limit_change_carries_the_old_and_new_limits(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        contexts = self.contexts(
+            self.patch_key({"spending_limits": {"tokens": {"month": 20}}})
+        )
+        self.assertEqual(len(contexts), 1)
+        self.assertEqual(contexts[0]["old_spending_limits"], {"tokens": {"month": 10}})
+        self.assertEqual(contexts[0]["new_spending_limits"], {"tokens": {"month": 20}})
+
+    def test_a_limit_change_on_a_paused_key_carries_them_too(self):
+        self.key.state = States.PAUSED
+        self.key.save()
+        contexts = self.contexts(
+            self.patch_key({"spending_limits": {"tokens": {"month": 20}}})
+        )
+        self.assertEqual(len(contexts), 1)
+        self.assertEqual(contexts[0]["old_spending_limits"], {})
+        self.assertEqual(contexts[0]["new_spending_limits"], {"tokens": {"month": 20}})
+
+    def test_the_stored_event_keeps_both(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        self.patch_key({"spending_limits": {"tokens": {"month": 20}}})()
+        event = Event.objects.filter(
+            event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_UPDATED
+        ).latest("created")
+        self.assertEqual(
+            event.context["old_spending_limits"], {"tokens": {"month": 10}}
+        )
+        self.assertEqual(
+            event.context["new_spending_limits"], {"tokens": {"month": 20}}
+        )
+
+    def test_a_removed_limit_reads_as_none_left(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        contexts = self.contexts(self.patch_key({"spending_limits": None}))
+        self.assertEqual(contexts[0]["old_spending_limits"], {"tokens": {"month": 10}})
+        self.assertEqual(contexts[0]["new_spending_limits"], {})
+
+    def test_a_request_carries_the_limits_it_asks_for(self):
+        contexts = self.contexts(
+            lambda: self.post(
+                self.fixture.owner,
+                list_url(),
+                {
+                    "resource": self.resource.uuid.hex,
+                    "spending_limits": {"tokens": {"month": 5}},
+                },
+            )
+        )
+        self.assertEqual(contexts[0]["old_spending_limits"], {})
+        self.assertEqual(contexts[0]["new_spending_limits"], {"tokens": {"month": 5}})
+
+    def test_a_change_that_leaves_the_limits_carries_none(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        contexts = self.contexts(self.patch_key({"allowed_models": ["*"]}))
+        self.assertEqual(len(contexts), 1)
+        self.assertNotIn("old_spending_limits", contexts[0])
+        self.assertNotIn("new_spending_limits", contexts[0])
 
     def test_an_automatic_pause_says_why(self):
         self.key.spending_limits = {"tokens": {"month": 10}}

@@ -117,15 +117,23 @@ def log_resource_api_key_command(
     actor=None,
     reason: str = "",
     applied: bool = False,
+    spending_limits_change: tuple[dict | None, dict | None] | None = None,
 ):
     """Audit a key command. Without an actor the command was Waldur's own.
 
     A command is logged when it is issued, before the agent has carried it out,
     so it reads as requested; its failure is logged separately. ``applied`` is
     for a change Waldur makes on its own, which is done at once: an assignee
-    change, or deleting a key that was never created.
+    change, or deleting a key that was never created. ``spending_limits_change``
+    is the key's limits before and after, when the command changes them; the
+    event carries both, as a resource's spending limits event does.
     """
     resource = api_key.resource
+    context = {"resource": resource}
+    if spending_limits_change is not None:
+        old_limits, new_limits = spending_limits_change
+        context["old_spending_limits"] = old_limits or {}
+        context["new_spending_limits"] = new_limits or {}
     noun, event_type = _API_KEY_COMMAND_EVENTS[action]
     by = f"by {actor}" if actor else "automatically"
     if applied:
@@ -138,7 +146,7 @@ def log_resource_api_key_command(
     event_logger.emit(
         message,
         event_type=event_type,
-        event_context={"resource": resource},
+        event_context=context,
         scopes=get_resource_scopes(resource),
     )
 
