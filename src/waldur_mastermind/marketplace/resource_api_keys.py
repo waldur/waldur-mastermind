@@ -632,6 +632,7 @@ def _pause_if_over_limit(
             reason=f"Its usage reached the {spending_limits.describe(reached)}.",
             paused_by_limit=True,
             limit_resumes_at=spending_limits.resumes_at(reached),
+            limit_pause_retries=0,
         )
     elif reached and api_key.paused_by_limit:
         # A longer limit reached since the pause holds the key past the
@@ -698,6 +699,21 @@ def resume_keys_under_limit(reset_only=False) -> None:
             )
 
 
+# A failed limit pause is issued again after this long, then after twice as
+# long each time it fails again, up to the cap: a backend that stays down is
+# tried a few times an hour at first and four times a day after a day or so.
+LIMIT_PAUSE_RETRY_DELAY = datetime.timedelta(minutes=5)
+LIMIT_PAUSE_RETRY_MAX_DELAY = datetime.timedelta(hours=6)
+
+
+def limit_pause_retry_delay(retries: int) -> datetime.timedelta:
+    """How long after its last failure a limit pause retried ``retries`` times is retried."""
+    # Capped before multiplying: 2 ** retries grows without bound.
+    if retries >= 7:
+        return LIMIT_PAUSE_RETRY_MAX_DELAY
+    return min(LIMIT_PAUSE_RETRY_DELAY * 2**retries, LIMIT_PAUSE_RETRY_MAX_DELAY)
+
+
 def retry_failed_limit_pauses() -> None:
     """Issue again every limit pause the agent failed to carry out.
 
@@ -705,12 +721,17 @@ def retry_failed_limit_pauses() -> None:
     the backend: neither a usage report nor the resume tasks touch an Erred
     key, so without this it keeps being served until someone presses Retry.
     A key that is no longer over its limit is left for a person to settle.
+
+    Each retry waits ``limit_pause_retry_delay`` after the last failure, which
+    the key's ``modified`` records: 5 minutes, then 10, 20 and so on up to 6
+    hours. A new automatic pause starts the count again.
     """
     keys = models.ResourceApiKey.objects.filter(
         state=States.ERRED,
         pending_action=Actions.PAUSE,
         paused_by_limit=True,
         resource__offering__plugin_options__enable_api_key_provisioning=True,
+        modified__lte=timezone.now() - LIMIT_PAUSE_RETRY_DELAY,
     ).exclude(
         resource__state__in=(ResourceStates.TERMINATING, ResourceStates.TERMINATED)
     )
@@ -735,6 +756,11 @@ def _retry_limit_pause(api_key: models.ResourceApiKey) -> None:
             and is_resource_live(api_key.resource)
         ):
             return
+        # modified is when the agent reported the failure: settling a key
+        # saves it, and nothing else writes an Erred key with save().
+        retries = api_key.limit_pause_retries
+        if timezone.now() - api_key.modified < limit_pause_retry_delay(retries):
+            return
         reached = api_key_spending_limits.reached_limits(api_key)
         if not reached:
             return
@@ -744,6 +770,7 @@ def _retry_limit_pause(api_key: models.ResourceApiKey) -> None:
             reason=f"Its pause failed, and its usage is still over the "
             f"{spending_limits.describe(reached)}.",
             limit_resumes_at=spending_limits.resumes_at(reached),
+            limit_pause_retries=retries + 1,
         )
 
 

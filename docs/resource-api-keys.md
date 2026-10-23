@@ -493,10 +493,14 @@ command: if it settles `OK`, it is paused at once rather than serving until the
 next report. A limit reached later while the key is paused moves `limit_resumes_at`.
 
 A pause the agent reports as failed leaves the key `Erred` and still served at
-the backend. Every five minutes the `retry_failed_api_key_limit_pauses` task
+the backend. The `retry_failed_api_key_limit_pauses` task, every five minutes,
 issues that pause again, audited as automatic, for every such key that is
 still over a limit, on an offering with key management and a resource that
-is not terminating. A key under its limits again by then is left `Erred` for a
+is not terminating. It backs off while the pause keeps failing: the first
+retry comes five minutes after the failure, and each one after waits twice as
+long after the last failure — 10 minutes, 20, 40 — up to six hours. The key
+counts its retries in `limit_pause_retries`, and a new automatic pause starts
+the count again. A key under its limits again by then is left `Erred` for a
 person to retry or delete. Any other `Erred` key is not paused automatically:
 its failed command needs a person to retry it first.
 
