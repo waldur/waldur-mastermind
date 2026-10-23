@@ -83,6 +83,11 @@ def is_resource_live(resource: models.Resource) -> bool:
     )
 
 
+def is_resource_restricted(resource: models.Resource) -> bool:
+    """Whether the resource is paused or downscaled for its own spending limits."""
+    return bool(resource.usage_limit_restriction)
+
+
 def require_resource_live(resource: models.Resource) -> None:
     """Reject key commands on a resource that is not live.
 
@@ -162,13 +167,32 @@ def require_free_assignee(
         )
 
 
+def _recheck_limits(requested, resource, current: dict | None):
+    """The requested limits validated again on the locked resource and key.
+
+    The request was validated unlocked: a concurrent edit may since have
+    changed the key's limits, which the request may send back as held, or
+    lowered the resource's, which cap them.
+    """
+    field, _value = requested
+    try:
+        return api_key_spending_limits.clean_requested_limits(
+            requested, resource, current
+        )
+    except ValidationError as error:
+        raise ValidationError({field: error.detail})
+
+
 def request_key(resource: models.Resource, actor, **settings) -> models.ResourceApiKey:
     """Record a key request and ask the agent to create it."""
+    requested = settings.pop(api_key_spending_limits.REQUESTED, None)
     require_resource_live(resource)
     with transaction.atomic():
         resource = _lock_resource(resource)
         require_resource_live(resource)
         require_free_assignee(resource, settings.get("user"))
+        if requested is not None:
+            settings["spending_limits"] = _recheck_limits(requested, resource, None)
         api_key = models.ResourceApiKey.objects.create(
             resource=resource,
             state=States.CREATING,
@@ -176,8 +200,20 @@ def request_key(resource: models.Resource, actor, **settings) -> models.Resource
             **settings,
         )
         utils.publish_api_key_event(api_key, Actions.CREATE)
-    log.log_resource_api_key_command(api_key, Actions.CREATE, actor)
+    log.log_resource_api_key_command(
+        api_key,
+        Actions.CREATE,
+        actor,
+        **_limits_change(None, api_key.spending_limits),
+    )
     return api_key
+
+
+def _limits_change(old: dict | None, new: dict | None) -> dict:
+    """The audit's view of a change of a key's limits; empty when they stay."""
+    if (old or None) == (new or None):
+        return {}
+    return {"spending_limits_change": (old, new)}
 
 
 def failed_command(api_key: models.ResourceApiKey) -> str:
@@ -220,6 +256,7 @@ def issue_command(
     require_resource_live(api_key.resource)
     with transaction.atomic():
         api_key = _lock(api_key)
+        old_limits = api_key.spending_limits
         cancel = action == Actions.DELETE and not api_key.client_id
         if action is None:
             if api_key.state != States.ERRED:
@@ -304,7 +341,13 @@ def issue_command(
         log.log_resource_api_key_command(api_key, action, actor, applied=True)
         return api_key
     utils.publish_api_key_event(api_key, action)
-    log.log_resource_api_key_command(api_key, action, actor, reason)
+    log.log_resource_api_key_command(
+        api_key,
+        action,
+        actor,
+        reason,
+        **_limits_change(old_limits, api_key.spending_limits),
+    )
     return api_key
 
 
@@ -334,14 +377,23 @@ def update_settings(
     an offering without key management, just takes the new assignee. Once
     committed the change is announced with ``resource_api_key_assignee_changed``.
     """
+    changes = dict(changes)
+    requested = changes.pop(api_key_spending_limits.REQUESTED, None)
     require_resource_live(api_key.resource)
     with transaction.atomic():
-        if changes.get("user") is not None:
-            _lock_resource(api_key.resource)
+        # The resource before the key, as everywhere: it serializes the
+        # assignments, and holds the limits that cap the key's.
+        resource = None
+        if changes.get("user") is not None or requested is not None:
+            resource = _lock_resource(api_key.resource)
         api_key = _lock(api_key)
         if api_key.state in (States.DELETING, States.DELETED):
             raise IncorrectStateException(
                 f"An API key that is {api_key.state} cannot be edited."
+            )
+        if requested is not None:
+            changes["spending_limits"] = _recheck_limits(
+                requested, resource, api_key.spending_limits
             )
         changes = {
             field: value
@@ -362,16 +414,21 @@ def update_settings(
             )
         elif not changes.keys() & AGENT_SETTINGS or api_key.state == States.PAUSED:
             if changes:
+                old_limits = api_key.spending_limits
                 # No command, so no new state: ``modified`` is left alone, as
                 # the agent's sweep reads it as the time the key entered its
                 # state.
                 models.ResourceApiKey.objects.filter(pk=api_key.pk).update(**changes)
                 for field, value in changes.items():
                     setattr(api_key, field, value)
-                # The assignee decides who may reveal a live secret: audited
-                # like the commands are.
+                # The assignee decides who may reveal a live secret, and the
+                # limits who may spend how much: audited like the commands are.
                 log.log_resource_api_key_command(
-                    api_key, Actions.UPDATE, actor, applied=True
+                    api_key,
+                    Actions.UPDATE,
+                    actor,
+                    applied=True,
+                    **_limits_change(old_limits, api_key.spending_limits),
                 )
                 if changes.keys() & AGENT_SETTINGS:
                     api_key = resume_if_under_limit(api_key)
@@ -688,6 +745,9 @@ def resume_if_under_limit(api_key: models.ResourceApiKey) -> models.ResourceApiK
     is raised or removed. A key paused by a person is left alone, and so is one
     with a command in flight: the pause has to have settled first. A key still
     over a limit gets the time that limit resets as its ``limit_resumes_at``.
+    So is a key whose resource is restricted for its own spending limits: the
+    resource's usage is over its limit, so none of its keys may spend, and the
+    key resumes once the resource's restriction lifts.
     """
     with transaction.atomic():
         api_key = _lock(api_key)
@@ -696,6 +756,7 @@ def resume_if_under_limit(api_key: models.ResourceApiKey) -> models.ResourceApiK
             and api_key.paused_by_limit
             and not api_key.pending_action
             and is_resource_live(api_key.resource)
+            and not is_resource_restricted(api_key.resource)
         ):
             reached = api_key_spending_limits.reached_limits(api_key)
             if reached:
@@ -714,10 +775,14 @@ def resume_keys_under_limit(reset_only=False) -> None:
 
     A usage report resumes such a key on its own, but when a period resets no
     report may come for a while: this catches the reset. ``reset_only`` checks
-    only the keys whose ``limit_resumes_at`` has passed.
+    only the keys whose ``limit_resumes_at`` has passed. Keys of a resource
+    restricted for its own spending limits wait for that to lift.
     """
     keys = models.ResourceApiKey.objects.filter(
-        state=States.PAUSED, paused_by_limit=True, pending_action=""
+        state=States.PAUSED,
+        paused_by_limit=True,
+        pending_action="",
+        resource__usage_limit_restriction="",
     )
     if reset_only:
         keys = keys.filter(limit_resumes_at__lte=timezone.now())
@@ -729,6 +794,55 @@ def resume_keys_under_limit(reset_only=False) -> None:
             logger.exception(
                 "Could not resume API key %s under its limit", api_key.uuid
             )
+
+
+def retry_failed_limit_pauses() -> None:
+    """Issue again every limit pause the agent failed to carry out.
+
+    Such a key is Erred with the pause as its failed command, and still live at
+    the backend: neither a usage report nor the resume tasks touch an Erred
+    key, so without this it keeps being served until someone presses Retry.
+    A key that is no longer over its limit is left for a person to settle.
+    """
+    keys = models.ResourceApiKey.objects.filter(
+        state=States.ERRED,
+        pending_action=Actions.PAUSE,
+        paused_by_limit=True,
+        resource__offering__plugin_options__enable_api_key_provisioning=True,
+    ).exclude(
+        resource__state__in=(ResourceStates.TERMINATING, ResourceStates.TERMINATED)
+    )
+    for api_key in keys:
+        # One key failing must not keep the others live.
+        try:
+            _retry_limit_pause(api_key)
+        except Exception:
+            logger.exception(
+                "Could not retry the limit pause of API key %s", api_key.uuid
+            )
+
+
+def _retry_limit_pause(api_key: models.ResourceApiKey) -> None:
+    with transaction.atomic():
+        api_key = _lock(api_key)
+        if not (
+            api_key.state == States.ERRED
+            and api_key.pending_action == Actions.PAUSE
+            and api_key.paused_by_limit
+            and api_key.is_managed
+            and is_resource_live(api_key.resource)
+        ):
+            return
+        reached = api_key_spending_limits.reached_limits(api_key)
+        if not reached:
+            return
+        issue_command(
+            api_key,
+            None,
+            reason=f"Its pause failed, and its usage is still over the "
+            f"{spending_limits.describe(reached)}.",
+            limit_resumes_at=spending_limits.resumes_at(reached),
+        )
 
 
 def resource_models_changed(

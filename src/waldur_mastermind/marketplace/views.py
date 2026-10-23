@@ -16709,13 +16709,13 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         if self.action in ("list", "retrieve"):
-            # The daily usage the key's limit status reads, in one query for
-            # the page.
+            # The daily usage the keys' limit status reads, in one query for
+            # the page: only the rows their own limits reach back to.
             qs = qs.prefetch_related(
                 Prefetch(
                     "daily_usages",
                     queryset=models.ResourceApiKeyDailyUsage.objects.filter(
-                        date__gte=api_key_spending_limits.window_start(
+                        api_key_spending_limits.daily_rows_read(
                             spending_limits.utc_today()
                         )
                     ),

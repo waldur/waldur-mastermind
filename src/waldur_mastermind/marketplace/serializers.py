@@ -192,6 +192,9 @@ logger = logging.getLogger(__name__)
 
 MAX_ORDER_NOTIFICATION_EMAILS = 10
 MAX_ORDER_NOTIFICATION_ROLES = 10
+# Items in one report of usage per day: every day of two months for sixteen
+# components, or of a year for two. Each item is a row written under a lock.
+MAX_DAILY_USAGE_ITEMS = 1000
 
 
 def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options):
@@ -230,6 +233,40 @@ def validate_uses_robot_accounts(instance, plugin_options):
                     "uses_robot_accounts cannot be combined with "
                     "service_provider_can_create_offering_user."
                 )
+            }
+        )
+
+
+# Options that only mean something with enable_api_key_provisioning, with the
+# value an offering that does not set them has.
+API_KEY_MANAGEMENT_OPTIONS = {
+    "api_key_limits": True,
+    "api_key_daily_usage": False,
+}
+
+
+def validate_api_key_options(instance, plugin_options):
+    """Per-key limits and per-key daily usage are part of key management.
+
+    Turning either on needs ``enable_api_key_provisioning``. One already on is
+    left as it is, so key management can be switched off on its own and back on
+    with the same settings: nothing reads them while it is off.
+    """
+    if not plugin_options:
+        return
+    stored = dict((instance.plugin_options or {}) if instance else {})
+    if {**stored, **plugin_options}.get("enable_api_key_provisioning"):
+        return
+    turned_on = [
+        name
+        for name, default in API_KEY_MANAGEMENT_OPTIONS.items()
+        if plugin_options.get(name) is True and stored.get(name, default) is not True
+    ]
+    if turned_on:
+        raise rf_exceptions.ValidationError(
+            {
+                "plugin_options": _("%s needs enable_api_key_provisioning.")
+                % ", ".join(turned_on)
             }
         )
 
@@ -1051,6 +1088,24 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         "checks the claim: turn it on only if the agent's backend supports "
         "per-key commands (such as the Envoy AI Gateway); on one that does not "
         "(such as Ceph S3) every such command errs.",
+    )
+    # Neither has a default: an update that leaves one out keeps what is stored,
+    # and an absent one reads as its documented default.
+    api_key_limits = serializers.BooleanField(
+        required=False,
+        help_text="Lets consumers set spending limits on API keys one by one. "
+        "On unless set to false; needs enable_api_key_provisioning. Turned off, "
+        "no new key limit is accepted, and limits keys already hold stay until "
+        "cleared.",
+    )
+    api_key_daily_usage = serializers.BooleanField(
+        required=False,
+        help_text="Declares that the site agent reports each API key's usage per "
+        "day. Only then are keys offered limits other than month: the day and "
+        "week periods, and the quarter and year, that a component offers to "
+        "resources. Off unless set; needs enable_api_key_provisioning. Nothing "
+        "checks the claim: turn it on only if the agent reports per-key daily "
+        "usage, or those limits are never reached.",
     )
 
 
@@ -5886,6 +5941,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             self.context["request"].user, self.instance, attrs.get("plugin_options", {})
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
+        validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
 
         attrs.setdefault("options", {"options": {}, "order": []})
         attrs.setdefault("resource_options", {"options": {}, "order": []})
@@ -6397,6 +6453,7 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             user, self.instance, attrs.get("plugin_options", {})
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
+        validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
         self._joining_offerings = self._validate_account_scope_switch(
             attrs.get("plugin_options", {})
         )
@@ -9829,9 +9886,11 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text="Limits per component type and period, replacing the key's "
-        "limits; a null amount clears that period's limit. A period other than "
-        "month must be offered on the component, and a limit may not exceed the "
-        "resource's spending limit for the same period.",
+        "limits; a null amount clears that period's limit. Only where the "
+        "offering's api_key_limits is not off, and not on a component the plan "
+        "prices at zero. A period other than month must be offered on the "
+        "component and needs the offering's api_key_daily_usage. A limit may "
+        "not exceed the resource's spending limit for the same period.",
     )
     allowed_models = serializers.ListField(
         child=serializers.CharField(),
@@ -9844,27 +9903,32 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
         raise NotImplementedError
 
     def _validate_limits(self, attrs, resource, errors):
-        """Turn ``limits`` or ``spending_limits`` into the key's new spending limits."""
+        """Turn ``limits`` or ``spending_limits`` into the key's new spending limits.
+
+        The request's own value is kept beside them: the command checks it
+        again with the key and the resource locked, as either may change
+        meanwhile.
+        """
         current = self.instance.spending_limits if self.instance else None
         if "limits" in attrs:
             field = "limits"
             if "spending_limits" in attrs:
                 errors[field] = _("Set limits or spending_limits, not both.")
                 return
-            value = api_key_spending_limits.with_monthly_limits(
-                current, attrs.pop("limits")
-            )
+            requested = (field, attrs.pop("limits"))
         elif "spending_limits" in attrs:
             field = "spending_limits"
-            value = attrs["spending_limits"]
+            requested = (field, attrs["spending_limits"])
         else:
             return
         try:
-            attrs["spending_limits"] = api_key_spending_limits.validate_key_limits(
-                value, resource, current
+            attrs["spending_limits"] = api_key_spending_limits.clean_requested_limits(
+                requested, resource, current
             )
         except serializers.ValidationError as error:
             errors[field] = error.detail
+        else:
+            attrs[api_key_spending_limits.REQUESTED] = requested
 
     def get_kept_models(self) -> list[str]:
         """Models the key holds already, which it may keep."""
@@ -9942,9 +10006,12 @@ class ResourceApiKeyUsageSerializer(serializers.Serializer):
     daily_usages = ComponentDailyUsageItemSerializer(
         many=True,
         required=False,
+        max_length=MAX_DAILY_USAGE_ITEMS,
         help_text="The key's usage per UTC date and component type; a date "
         "reported again replaces its amount. The month's usage of a component "
-        "with daily amounts is their sum. Needed for limits other than month.",
+        "with daily amounts is their sum. Needed for limits other than month. "
+        f"At most {MAX_DAILY_USAGE_ITEMS} items, dated from the start of the "
+        "current year, or of the previous month when that is earlier.",
     )
     billing_period = serializers.DateField(
         required=False,
@@ -9983,11 +10050,20 @@ class ResourceApiKeyUsageSerializer(serializers.Serializer):
                 _("Unknown components: %s.") % ", ".join(unknown)
             )
         today = spending_limits.utc_today()
+        earliest = api_key_spending_limits.earliest_reportable_day(today)
         seen = set()
         for item in daily_usages:
             if item["date"] > today:
                 raise serializers.ValidationError(
                     _("Usage cannot be reported ahead: %s.") % item["date"]
+                )
+            if item["date"] < earliest:
+                raise serializers.ValidationError(
+                    _(
+                        "Usage before %(earliest)s counts for no limit and "
+                        "cannot be reported: %(date)s."
+                    )
+                    % {"earliest": earliest, "date": item["date"]}
                 )
             key = (item["type"], item["date"])
             if key in seen:
@@ -11246,9 +11322,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     daily_usages = ComponentDailyUsageItemSerializer(
         many=True,
         required=False,
+        max_length=MAX_DAILY_USAGE_ITEMS,
         help_text="Usage of usage-based components per UTC date. The month's "
         "usage is then the sum of its days, and a month total for a month that "
-        "has daily amounts is rejected. Needed for day and week spending limits.",
+        "has daily amounts is rejected. Needed for day and week spending limits. "
+        f"At most {MAX_DAILY_USAGE_ITEMS} items.",
     )
     plan_period = serializers.SlugRelatedField(
         queryset=models.ResourcePlanPeriod.objects.all(),
