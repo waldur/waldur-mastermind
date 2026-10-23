@@ -162,13 +162,32 @@ def require_free_assignee(
         )
 
 
+def _recheck_limits(requested, resource, current: dict | None):
+    """The requested limits validated again on the locked resource and key.
+
+    The request was validated unlocked: a concurrent edit may since have
+    changed the key's limits, which the request may send back as held, or
+    lowered the resource's, which cap them.
+    """
+    field, _value = requested
+    try:
+        return api_key_spending_limits.clean_requested_limits(
+            requested, resource, current
+        )
+    except ValidationError as error:
+        raise ValidationError({field: error.detail})
+
+
 def request_key(resource: models.Resource, actor, **settings) -> models.ResourceApiKey:
     """Record a key request and ask the agent to create it."""
+    requested = settings.pop(api_key_spending_limits.REQUESTED, None)
     require_resource_live(resource)
     with transaction.atomic():
         resource = _lock_resource(resource)
         require_resource_live(resource)
         require_free_assignee(resource, settings.get("user"))
+        if requested is not None:
+            settings["spending_limits"] = _recheck_limits(requested, resource, None)
         api_key = models.ResourceApiKey.objects.create(
             resource=resource,
             state=States.CREATING,
@@ -334,14 +353,23 @@ def update_settings(
     an offering without key management, just takes the new assignee. Once
     committed the change is announced with ``resource_api_key_assignee_changed``.
     """
+    changes = dict(changes)
+    requested = changes.pop(api_key_spending_limits.REQUESTED, None)
     require_resource_live(api_key.resource)
     with transaction.atomic():
-        if changes.get("user") is not None:
-            _lock_resource(api_key.resource)
+        # The resource before the key, as everywhere: it serializes the
+        # assignments, and holds the limits that cap the key's.
+        resource = None
+        if changes.get("user") is not None or requested is not None:
+            resource = _lock_resource(api_key.resource)
         api_key = _lock(api_key)
         if api_key.state in (States.DELETING, States.DELETED):
             raise IncorrectStateException(
                 f"An API key that is {api_key.state} cannot be edited."
+            )
+        if requested is not None:
+            changes["spending_limits"] = _recheck_limits(
+                requested, resource, api_key.spending_limits
             )
         changes = {
             field: value

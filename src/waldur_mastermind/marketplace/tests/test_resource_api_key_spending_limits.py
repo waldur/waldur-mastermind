@@ -14,7 +14,7 @@ from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace import models, resource_api_keys, tasks
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_resource_api_key_management import (
@@ -313,6 +313,110 @@ class LimitsValidationTest(KeySpendingLimitsTestBase):
     def test_a_key_without_a_month_limit_sends_no_monthly_limits(self):
         _, prepare = self.patch({"spending_limits": {"token_cost": {"day": 10}}})
         self.assertIsNone(self.published_payload(prepare)["limits"])
+
+
+class ConcurrentEditTest(KeySpendingLimitsTestBase):
+    """Limits are validated again with the resource and the key locked.
+
+    The request is validated unlocked, so another edit may commit between
+    that and the command.
+    """
+
+    def concurrently(self, write):
+        original = resource_api_keys.update_settings
+
+        def racing(api_key, actor, changes):
+            write()
+            return original(api_key, actor, changes)
+
+        return mock.patch.object(resource_api_keys, "update_settings", racing)
+
+    def pause_by_hand(self):
+        # The paused branch writes without a command, so no busy guard
+        # serializes it.
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            state=States.PAUSED, pending_action=""
+        )
+
+    def test_a_held_value_sent_back_after_it_was_lowered_is_refused(self):
+        self.set_limits(month=100)
+        self.pause_by_hand()
+        self.resource.spending_limits = {"token_cost": {"month": 50}}
+        self.resource.save()
+
+        def lower_key():
+            models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+                spending_limits={"token_cost": {"month": 40}}
+            )
+
+        with self.concurrently(lower_key):
+            response, _ = self.patch(
+                {"spending_limits": {"token_cost": {"day": 5, "month": 100}}}
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("month spending limit of 50", str(response.data))
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.spending_limits, {"token_cost": {"month": 40}})
+
+    def test_a_cap_lowered_meanwhile_is_applied(self):
+        self.resource.spending_limits = {"token_cost": {"month": 200}}
+        self.resource.save()
+
+        def lower_cap():
+            models.Resource.objects.filter(pk=self.resource.pk).update(
+                spending_limits={"token_cost": {"month": 50}}
+            )
+
+        with self.concurrently(lower_cap):
+            response, prepare = self.patch(
+                {"spending_limits": {"token_cost": {"month": 150}}}
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.spending_limits)
+
+    def test_monthly_limits_keep_the_periods_the_key_holds_at_the_lock(self):
+        self.set_limits(day=5, month=100)
+        self.pause_by_hand()
+
+        def edit_day():
+            models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+                spending_limits={"token_cost": {"day": 7, "month": 100}}
+            )
+
+        with self.concurrently(edit_day):
+            response, _ = self.patch({"limits": {"token_cost": 90}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(
+            self.key.spending_limits, {"token_cost": {"day": 7, "month": 90}}
+        )
+
+    def test_a_new_key_is_checked_against_the_locked_resource(self):
+        self.resource.spending_limits = {"token_cost": {"month": 200}}
+        self.resource.save()
+        original = resource_api_keys.request_key
+
+        def racing(resource, actor, **settings):
+            models.Resource.objects.filter(pk=self.resource.pk).update(
+                spending_limits={"token_cost": {"month": 50}}
+            )
+            return original(resource, actor, **settings)
+
+        with mock.patch.object(resource_api_keys, "request_key", racing):
+            response, prepare = self.post(
+                self.fixture.owner,
+                list_url(),
+                {
+                    "resource": self.resource.uuid.hex,
+                    "spending_limits": {"token_cost": {"month": 150}},
+                },
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("spending_limits", response.data)
+        prepare.assert_not_called()
+        self.assertEqual(self.resource.api_keys.count(), 2)
 
 
 class DailyUsageReportTest(KeySpendingLimitsTestBase):

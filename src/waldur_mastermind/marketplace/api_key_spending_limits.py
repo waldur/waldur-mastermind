@@ -275,9 +275,7 @@ def validate_key_limits(value, resource, current: dict | None = None) -> dict | 
                             )
                         }
                     )
-                cap = resource_cap(
-                    resource_limits.get(component_type) or {}, period
-                )
+                cap = resource_cap(resource_limits.get(component_type) or {}, period)
                 if cap is not None and amount > cap[0]:
                     raise serializers.ValidationError(
                         {
@@ -305,6 +303,25 @@ def validate_key_limits(value, resource, current: dict | None = None) -> dict | 
                 if period in amounts
             }
     return cleaned or None
+
+
+# The limits a request asked for, as sent: ``(field, value)``, where field is
+# ``limits`` (the flat monthly shape) or ``spending_limits``. Validation runs
+# unlocked; the command validates them again with the key and the resource
+# locked, against what they hold then.
+REQUESTED = "requested_spending_limits"
+
+
+def clean_requested_limits(requested, resource, current: dict | None) -> dict | None:
+    """The key's new spending limits from a request's ``(field, value)``.
+
+    ``current`` is what the key holds, which the flat monthly shape keeps the
+    other periods of, and which may be sent back as it is.
+    """
+    field, value = requested
+    if field == "limits":
+        value = with_monthly_limits(current, value)
+    return validate_key_limits(value, resource, current)
 
 
 # --- usage --------------------------------------------------------------------

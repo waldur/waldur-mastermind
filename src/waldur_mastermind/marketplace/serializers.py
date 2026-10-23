@@ -9903,27 +9903,32 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
         raise NotImplementedError
 
     def _validate_limits(self, attrs, resource, errors):
-        """Turn ``limits`` or ``spending_limits`` into the key's new spending limits."""
+        """Turn ``limits`` or ``spending_limits`` into the key's new spending limits.
+
+        The request's own value is kept beside them: the command checks it
+        again with the key and the resource locked, as either may change
+        meanwhile.
+        """
         current = self.instance.spending_limits if self.instance else None
         if "limits" in attrs:
             field = "limits"
             if "spending_limits" in attrs:
                 errors[field] = _("Set limits or spending_limits, not both.")
                 return
-            value = api_key_spending_limits.with_monthly_limits(
-                current, attrs.pop("limits")
-            )
+            requested = (field, attrs.pop("limits"))
         elif "spending_limits" in attrs:
             field = "spending_limits"
-            value = attrs["spending_limits"]
+            requested = (field, attrs["spending_limits"])
         else:
             return
         try:
-            attrs["spending_limits"] = api_key_spending_limits.validate_key_limits(
-                value, resource, current
+            attrs["spending_limits"] = api_key_spending_limits.clean_requested_limits(
+                requested, resource, current
             )
         except serializers.ValidationError as error:
             errors[field] = error.detail
+        else:
+            attrs[api_key_spending_limits.REQUESTED] = requested
 
     def get_kept_models(self) -> list[str]:
         """Models the key holds already, which it may keep."""
