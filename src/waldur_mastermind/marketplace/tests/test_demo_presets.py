@@ -28,13 +28,16 @@ from waldur_mastermind.marketplace.demo_presets.time_shift import (
 )
 from waldur_mastermind.marketplace.models import (
     Offering,
+    PlanComponent,
     Resource,
     ResourceProject,
 )
+from waldur_mastermind.marketplace_openstack import utils as openstack_utils
 from waldur_mastermind.proposal.models import (
     CallAssignmentConfiguration,
     CallCOIConfiguration,
 )
+from waldur_openstack.models import Tenant
 
 
 def _billing_preset(*, opt_in=True):
@@ -489,6 +492,89 @@ class DemoPresetLoadTest(test.APITestCase):
                 "send_reminder_before_expiry_days",
             ):
                 self.assertEqual(getattr(config, field), entry[field], field)
+
+
+class OpenStackCloudPresetTest(test.APITestCase):
+    """The openstack_cloud preset's tenants must be usable and add up."""
+
+    @classmethod
+    def setUpTestData(cls):
+        result = DemoPresetManager.load_preset(
+            "openstack_cloud",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        assert result["success"], result["message"]
+        cls.tenants = list(Tenant.objects.all())
+        assert cls.tenants
+
+    def test_every_tenant_offers_what_a_vm_order_needs(self):
+        for tenant in self.tenants:
+            with self.subTest(tenant=tenant.name):
+                self.assertTrue(tenant.flavors.exists())
+                self.assertTrue(tenant.images.exists())
+                self.assertTrue(tenant.volume_types.exists())
+                self.assertTrue(tenant.security_groups.exists())
+                self.assertTrue(tenant.networks.filter(subnets__isnull=False).exists())
+
+    def test_every_instance_has_an_internal_ip_and_security_groups(self):
+        for tenant in self.tenants:
+            for instance in tenant.instances.all():
+                with self.subTest(instance=instance.name):
+                    self.assertTrue(instance.internal_ips)
+                    self.assertTrue(instance.security_groups.exists())
+
+    def test_quota_limits_match_resource_limits_and_cover_usage(self):
+        quota_for_component = {"cores": "vcpu", "ram": "ram", "storage": "storage"}
+        for tenant in self.tenants:
+            resource = Resource.objects.get(scope=tenant)
+            limits = tenant.quota_limits
+            usages = tenant.quota_usages
+            with self.subTest(tenant=tenant.name):
+                for component, quota in quota_for_component.items():
+                    self.assertEqual(limits[quota], resource.limits[component])
+                    self.assertEqual(resource.current_usages[component], usages[quota])
+                for quota, usage in usages.items():
+                    self.assertLessEqual(usage, limits[quota], quota)
+                self.assertEqual(
+                    usages["vcpu"],
+                    sum(i.cores for i in tenant.instances.all()),
+                )
+                self.assertEqual(
+                    usages["storage"],
+                    sum(v.size for v in tenant.volumes.all()),
+                )
+
+    def test_ram_and_storage_are_priced_per_gigabyte(self):
+        """A month of a tenant's RAM and storage must cost more than pennies.
+
+        The components' factor of 1024 makes their prices per GB; prices
+        written per MB would make the tenant's whole RAM cost under a euro.
+        """
+        for resource in Resource.objects.filter(offering__type="OpenStack.Tenant"):
+            for component in ("ram", "storage"):
+                price = PlanComponent.objects.get(
+                    plan=resource.plan, component__type=component
+                ).price
+                monthly = price * resource.limits[component] / 1024
+                with self.subTest(resource=resource.name, component=component):
+                    self.assertGreater(monthly, 1)
+
+    def test_child_offerings_are_named_like_the_plugin_names_them(self):
+        for tenant in self.tenants:
+            with self.subTest(tenant=tenant.name):
+                self.assertTrue(
+                    Offering.objects.filter(
+                        name=openstack_utils.get_offering_name_for_instance(tenant)
+                    ).exists()
+                )
+                self.assertTrue(
+                    Offering.objects.filter(
+                        name=openstack_utils.get_offering_name_for_volume(tenant)
+                    ).exists()
+                )
 
 
 class SrcpPresetTest(test.APITestCase):

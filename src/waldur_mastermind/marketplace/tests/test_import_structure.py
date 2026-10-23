@@ -61,6 +61,8 @@ from waldur_mastermind.proposal.models import (
     Review,
 )
 from waldur_mastermind.proposal.tests import factories as proposal_factories
+from waldur_openstack import models as openstack_models
+from waldur_openstack.tests import factories as openstack_factories
 
 
 class ImportStructureCommandTest(TestCase):
@@ -4213,3 +4215,222 @@ class AwardedResourcesRoundTripTest(TestCase):
         output = out.getvalue()
         for missing in (missing_plan, missing_request, missing_resource):
             self.assertIn(missing, output)
+
+
+class ImportOpenStackNetworkingTest(TestCase):
+    """The OpenStack data a tenant needs before a VM can be ordered in it."""
+
+    NETWORK = "ae000000000000000000000000000001"
+    SUBNET = "af000000000000000000000000000001"
+    SECURITY_GROUP = "a6000000000000000000000000000001"
+    INSTANCE = "ac000000000000000000000000000001"
+    PORT = "a7000000000000000000000000000001"
+    FLOATING_IP = "a8000000000000000000000000000001"
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.temp_dir, "structure.json")
+        self.tenant = openstack_factories.TenantFactory()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _import(self, data, *args):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        call_command("import_structure", "-i", self.path, *args, stdout=StringIO())
+
+    def _structure(self, rules=None):
+        settings_uuid = self.tenant.service_settings.uuid.hex
+        tenant_uuid = self.tenant.uuid.hex
+        return {
+            "openstack_flavors": [
+                {
+                    "name": "m1.small",
+                    "backend_id": "flavor-small",
+                    "cores": 1,
+                    "ram": 2048,
+                    "disk": 20480,
+                    "settings_uuid": settings_uuid,
+                    "tenant_uuids": [tenant_uuid],
+                }
+            ],
+            "openstack_images": [
+                {
+                    "name": "Ubuntu 22.04",
+                    "backend_id": "image-ubuntu",
+                    "min_disk": 10240,
+                    "min_ram": 1024,
+                    "settings_uuid": settings_uuid,
+                    "tenant_uuids": [tenant_uuid],
+                }
+            ],
+            "openstack_volume_types": [
+                {
+                    "name": "ssd",
+                    "backend_id": "volume-type-ssd",
+                    "settings_uuid": settings_uuid,
+                    "tenant_uuids": [tenant_uuid],
+                }
+            ],
+            "openstack_networks": [
+                {
+                    "uuid": self.NETWORK,
+                    "name": "int-net",
+                    "backend_id": "net-1",
+                    "tenant_uuid": tenant_uuid,
+                }
+            ],
+            "openstack_subnets": [
+                {
+                    "uuid": self.SUBNET,
+                    "name": "sub-net",
+                    "backend_id": "subnet-1",
+                    "network_uuid": self.NETWORK,
+                    "cidr": "192.168.10.0/24",
+                    "gateway_ip": "192.168.10.1",
+                    "allocation_pools": [
+                        {"start": "192.168.10.10", "end": "192.168.10.200"}
+                    ],
+                }
+            ],
+            "openstack_security_groups": [
+                {
+                    "uuid": self.SECURITY_GROUP,
+                    "name": "ssh",
+                    "backend_id": "sg-ssh",
+                    "tenant_uuid": tenant_uuid,
+                    "rules": rules
+                    or [
+                        {
+                            "direction": "ingress",
+                            "protocol": "tcp",
+                            "from_port": 22,
+                            "to_port": 22,
+                            "cidr": "0.0.0.0/0",
+                        }
+                    ],
+                }
+            ],
+            "openstack_instances": [
+                {
+                    "uuid": self.INSTANCE,
+                    "name": "vm-1",
+                    "state": 3,
+                    "tenant_uuid": tenant_uuid,
+                    "cores": 1,
+                    "ram": 2048,
+                    "security_group_uuids": [self.SECURITY_GROUP],
+                }
+            ],
+            "openstack_ports": [
+                {
+                    "uuid": self.PORT,
+                    "name": "vm-1-port",
+                    "backend_id": "port-1",
+                    "tenant_uuid": tenant_uuid,
+                    "network_uuid": self.NETWORK,
+                    "subnet_uuid": self.SUBNET,
+                    "instance_uuid": self.INSTANCE,
+                    "fixed_ips": [
+                        {"ip_address": "192.168.10.11", "subnet_id": "subnet-1"}
+                    ],
+                    "security_group_uuids": [self.SECURITY_GROUP],
+                }
+            ],
+            "openstack_floating_ips": [
+                {
+                    "uuid": self.FLOATING_IP,
+                    "name": "203.0.113.21",
+                    "backend_id": "fip-1",
+                    "tenant_uuid": tenant_uuid,
+                    "address": "203.0.113.21",
+                    "runtime_state": "ACTIVE",
+                    "port_uuid": self.PORT,
+                }
+            ],
+        }
+
+    def test_flavors_images_and_volume_types_are_offered_in_listed_tenants(self):
+        self._import(self._structure())
+
+        self.assertEqual(
+            list(self.tenant.flavors.values_list("name", flat=True)), ["m1.small"]
+        )
+        self.assertEqual(
+            list(self.tenant.images.values_list("name", flat=True)), ["Ubuntu 22.04"]
+        )
+        self.assertEqual(
+            list(self.tenant.volume_types.values_list("name", flat=True)), ["ssd"]
+        )
+
+    def test_instance_is_connected_to_subnet_security_group_and_floating_ip(self):
+        self._import(self._structure())
+
+        subnet = openstack_models.SubNet.objects.get(uuid=self.SUBNET)
+        self.assertEqual(subnet.tenant, self.tenant)
+        self.assertEqual(subnet.network.uuid.hex, self.NETWORK)
+        self.assertEqual(subnet.cidr, "192.168.10.0/24")
+
+        security_group = openstack_models.SecurityGroup.objects.get(
+            uuid=self.SECURITY_GROUP
+        )
+        rule = security_group.rules.get()
+        self.assertEqual((rule.protocol, rule.from_port, rule.to_port), ("tcp", 22, 22))
+
+        instance = openstack_models.Instance.objects.get(uuid=self.INSTANCE)
+        self.assertEqual(list(instance.security_groups.all()), [security_group])
+        self.assertEqual(list(instance.internal_ips), ["192.168.10.11"])
+        self.assertEqual(list(instance.external_ips), ["203.0.113.21"])
+        port = openstack_models.Port.objects.get(uuid=self.PORT)
+        self.assertEqual(list(port.security_groups.all()), [security_group])
+
+    def test_reimport_skips_existing_rows_unless_updating(self):
+        self._import(self._structure())
+        http_rules = [
+            {"direction": "ingress", "protocol": "tcp", "from_port": port}
+            for port in (80, 443)
+        ]
+
+        self._import(self._structure(rules=http_rules))
+        security_group = openstack_models.SecurityGroup.objects.get(
+            uuid=self.SECURITY_GROUP
+        )
+        self.assertEqual(
+            list(security_group.rules.values_list("from_port", flat=True)), [22]
+        )
+        self.assertEqual(openstack_models.Port.objects.count(), 1)
+
+        self._import(self._structure(rules=http_rules), "--update")
+        self.assertEqual(
+            sorted(security_group.rules.values_list("from_port", flat=True)),
+            [80, 443],
+        )
+
+    def test_export_import_roundtrip_keeps_tenant_networking(self):
+        self._import(self._structure())
+        export_path = os.path.join(self.temp_dir, "export.json")
+        call_command("export_structure", "-o", export_path, stdout=StringIO())
+
+        call_command("cleanup_structure", stdout=StringIO())
+        self.assertFalse(openstack_models.SubNet.objects.exists())
+
+        call_command("import_structure", "-i", export_path, stdout=StringIO())
+
+        tenant = openstack_models.Tenant.objects.get(uuid=self.tenant.uuid)
+        self.assertEqual(tenant.flavors.count(), 1)
+        self.assertEqual(tenant.images.count(), 1)
+        self.assertEqual(tenant.volume_types.count(), 1)
+        instance = openstack_models.Instance.objects.get(uuid=self.INSTANCE)
+        self.assertEqual(
+            [group.uuid.hex for group in instance.security_groups.all()],
+            [self.SECURITY_GROUP],
+        )
+        self.assertEqual(list(instance.internal_ips), ["192.168.10.11"])
+        self.assertEqual(list(instance.external_ips), ["203.0.113.21"])
+        self.assertEqual(
+            openstack_models.SecurityGroup.objects.get(
+                uuid=self.SECURITY_GROUP
+            ).rules.count(),
+            1,
+        )
