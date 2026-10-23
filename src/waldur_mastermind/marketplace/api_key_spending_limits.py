@@ -12,7 +12,8 @@ month alone. With it, a key is offered ``month`` on every component, as key
 limits were monthly before they had periods, and the other periods where the
 component offers them to resources. A component the resource's plan does not
 charge for takes no limit.
-A key's limit for a period may not exceed the resource's own for that period,
+A key's limit for a period may not exceed the resource's own for that period
+or for any longer one, as the key could never spend more than the resource,
 and must be above zero: in the flat ``limits`` shape agents and older clients
 still read, zero means no limit, so a zero limit would block in Waldur and read
 as none everywhere else. A key is stopped with a pause instead.
@@ -182,6 +183,20 @@ def _is_held(raw, held) -> bool:
         return False
 
 
+def resource_cap(resource_limits: dict, period: str):
+    """The resource's limit that caps a key's ``period`` limit, with its period.
+
+    The lowest of the resource's limits for ``period`` and the longer periods,
+    or None. Of equal ones, the shortest period's is named.
+    """
+    caps = [
+        (Decimal(str(resource_limits[longer])), longer)
+        for longer in PERIODS[PERIODS.index(period) :]
+        if resource_limits.get(longer) is not None
+    ]
+    return min(caps, key=lambda cap: cap[0], default=None)
+
+
 def validate_key_limits(value, resource, current: dict | None = None) -> dict | None:
     """Clean the spending limits set on a key of ``resource``.
 
@@ -260,15 +275,22 @@ def validate_key_limits(value, resource, current: dict | None = None) -> dict | 
                             )
                         }
                     )
-                cap = (resource_limits.get(component_type) or {}).get(period)
-                if cap is not None and amount > Decimal(str(cap)):
+                cap = resource_cap(
+                    resource_limits.get(component_type) or {}, period
+                )
+                if cap is not None and amount > cap[0]:
                     raise serializers.ValidationError(
                         {
                             component_type: _(
                                 "The %(period)s limit may not exceed the "
-                                "resource's %(period)s spending limit of %(cap)s."
+                                "resource's %(cap_period)s spending limit of "
+                                "%(cap)s."
                             )
-                            % {"period": period, "cap": cap}
+                            % {
+                                "period": period,
+                                "cap_period": cap[1],
+                                "cap": spending_limits.json_number(cap[0]),
+                            }
                         }
                     )
             amounts[period] = amount

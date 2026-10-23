@@ -130,9 +130,64 @@ class LimitsValidationTest(KeySpendingLimitsTestBase):
         response, _ = self.patch({"spending_limits": {"token_cost": {"day": 21}}})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response, _ = self.patch(
-            {"spending_limits": {"token_cost": {"day": 20, "week": 500}}}
+            {"spending_limits": {"token_cost": {"day": 20, "week": 300}}}
         )
-        # No resource limit on the week.
+        # No resource limit on the week: its month limit caps it.
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_limit_may_not_exceed_the_resources_limit_for_a_longer_period(self):
+        self.resource.spending_limits = {"token_cost": {"month": 40}}
+        self.resource.save()
+        for limits in ({"day": 50}, {"week": 40.01}, {"day": 5, "week": 41}):
+            with self.subTest(limits):
+                response, prepare = self.patch(
+                    {"spending_limits": {"token_cost": limits}}
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(
+                    "resource's month spending limit of 40",
+                    str(response.data["spending_limits"]),
+                )
+                prepare.assert_not_called()
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 40, "week": 40}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_lowest_of_the_longer_limits_caps(self):
+        # Set directly: a quarter below the month is what the cap must read
+        # even if the resource's own ordering rule would not let it be set.
+        self.resource.spending_limits = {"token_cost": {"month": 300, "quarter": 90}}
+        self.resource.save()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 91}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("quarter spending limit of 90", str(response.data))
+
+    def test_a_held_limit_stays_above_a_lowered_longer_cap(self):
+        self.set_limits(day=50, month=60)
+        self.resource.spending_limits = {"token_cost": {"month": 40}}
+        self.resource.save()
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 50, "month": 40}}}
+        )
+        # The held day is kept; the ordering rule against the new month
+        # still applies to it.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 50, "month": 60}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_providers_maximum_is_not_a_key_cap(self):
+        # The maximum bounds what the resource may set; the resource's own
+        # limits are what caps a key.
+        self.cost_component.spending_limit_periods = {
+            "day": {"maximum": 1000},
+            "week": {},
+            "month": {},
+        }
+        self.cost_component.save()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 1001}}})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_a_shorter_period_may_not_exceed_a_longer_one(self):
