@@ -1032,6 +1032,12 @@ Trigger integration tests:
     project: waldur/waldur-integration-testing
     branch: main
     strategy: depend
+    # A bridge passes its needs' dotenv variables (E2E_SUITES, below) only with
+    # pipeline_variables on (Gitlab::Ci::Variables::Downstream::Generator). It
+    # also passes this pipeline's own run and schedule variables; the
+    # downstream reads none of them (FULL_TEST_RUN, TEST_PATHS).
+    forward:
+      pipeline_variables: true
   # Without `needs:` this bridge is only stage-ordered, so it could not start
   # until every job in `test`, `build` and `release` had finished — including the
   # ~23-minute 15-shard unit suite — although all it depends on is one image.
@@ -1044,6 +1050,14 @@ Trigger integration tests:
       optional: true
     - job: Publish the latest multiarch docker image
       optional: true
+    # Its dotenv carries E2E_SUITES, the E2E areas the change can affect
+    # (tests/select_tests.py --e2e), which `forward` above passes downstream.
+    # There a job runs only for its areas or "all";
+    # without the variable (no generator in this pipeline) every job runs. It
+    # finishes long before the MR image, so it delays nothing. See #839.
+    - job: Generate test pipeline
+      optional: true
+      artifacts: true
   variables:
     # TRIGGER_SOURCE is forwarded to the downstream E2E suite so it can identify
     # which upstream repo triggered it (backend-only jobs stay on for mastermind).

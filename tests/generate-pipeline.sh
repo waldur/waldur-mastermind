@@ -95,6 +95,13 @@ SELECTED_PATHS=$(uv run tests/select_tests.py)
 echo "TEST_PATHS=${SELECTED_PATHS}" > "${VARS_OUTPUT_FILE}"
 echo "[+] Selected paths: '${SELECTED_PATHS}'"
 
+# The E2E areas the change can affect. "Trigger integration tests" needs this
+# job, so the variable reaches waldur-integration-testing, whose jobs run only
+# for their areas or "all".
+E2E_SUITES=$(uv run tests/select_tests.py --e2e)
+echo "E2E_SUITES=${E2E_SUITES}" >> "${VARS_OUTPUT_FILE}"
+echo "[+] E2E suites: '${E2E_SUITES}'"
+
 
 # --- STEP 2: EARLY EXIT & "SRC" SHORTCUT ---
 # This step handles the two simplest cases to avoid unnecessary work.
