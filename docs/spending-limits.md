@@ -104,7 +104,9 @@ restriction before it responds.
 - `date` is a UTC date. Reporting a date again **replaces** its amount, so an
   agent can resend the whole month so far on every run.
 - Only usage-based components take daily amounts. A date in the future, or the
-  same component and date twice in one request, is rejected.
+  same component and date twice in one request, is rejected, and so is a
+  request of more than 1000 daily items (`MAX_DAILY_USAGE_ITEMS`): every day of
+  two months for sixteen components.
 - A date in a past month needs staff, or the service provider while that
   month's invoice can still change — the same rule as a dated monthly report.
 - The amounts are stored in `ComponentDailyUsage`. The month's `ComponentUsage`
