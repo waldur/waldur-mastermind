@@ -10006,9 +10006,12 @@ class ResourceApiKeyUsageSerializer(serializers.Serializer):
     daily_usages = ComponentDailyUsageItemSerializer(
         many=True,
         required=False,
+        max_length=MAX_DAILY_USAGE_ITEMS,
         help_text="The key's usage per UTC date and component type; a date "
         "reported again replaces its amount. The month's usage of a component "
-        "with daily amounts is their sum. Needed for limits other than month.",
+        "with daily amounts is their sum. Needed for limits other than month. "
+        f"At most {MAX_DAILY_USAGE_ITEMS} items, dated from the start of the "
+        "current year, or of the previous month when that is earlier.",
     )
     billing_period = serializers.DateField(
         required=False,
@@ -10047,11 +10050,20 @@ class ResourceApiKeyUsageSerializer(serializers.Serializer):
                 _("Unknown components: %s.") % ", ".join(unknown)
             )
         today = spending_limits.utc_today()
+        earliest = api_key_spending_limits.earliest_reportable_day(today)
         seen = set()
         for item in daily_usages:
             if item["date"] > today:
                 raise serializers.ValidationError(
                     _("Usage cannot be reported ahead: %s.") % item["date"]
+                )
+            if item["date"] < earliest:
+                raise serializers.ValidationError(
+                    _(
+                        "Usage before %(earliest)s counts for no limit and "
+                        "cannot be reported: %(date)s."
+                    )
+                    % {"earliest": earliest, "date": item["date"]}
                 )
             key = (item["type"], item["date"])
             if key in seen:

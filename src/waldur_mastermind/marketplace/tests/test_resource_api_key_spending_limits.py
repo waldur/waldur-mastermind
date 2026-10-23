@@ -14,7 +14,7 @@ from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_mastermind.marketplace import models, resource_api_keys, tasks
+from waldur_mastermind.marketplace import models, resource_api_keys, serializers, tasks
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_resource_api_key_management import (
@@ -522,6 +522,54 @@ class DailyUsageReportTest(KeySpendingLimitsTestBase):
                 response, _ = self.report(**data)
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(models.ResourceApiKeyDailyUsage.objects.exists())
+
+    def test_days_that_count_for_no_limit_are_rejected(self):
+        for date in (datetime.date(1970, 1, 1), datetime.date(2025, 12, 31)):
+            with self.subTest(date):
+                response, _ = self.report(daily_usages=[self.day(date, 1)])
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("counts for no limit", str(response.data))
+        self.assertFalse(models.ResourceApiKeyDailyUsage.objects.exists())
+        response, _ = self.report(daily_usages=[self.day(datetime.date(2026, 1, 1), 1)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_last_days_of_the_year_may_be_sent_just_after_it(self):
+        with freeze_time("2027-01-01 00:10"):
+            response, _ = self.report(
+                daily_usages=[
+                    self.day(datetime.date(2026, 12, 31), 3),
+                    self.day(datetime.date(2027, 1, 1), 1),
+                ]
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            models.ResourceApiKeyDailyUsage.objects.filter(api_key=self.key).count(), 2
+        )
+
+    def test_a_report_holds_a_bounded_number_of_days(self):
+        days = [self.day(TODAY, 1)] * (serializers.MAX_DAILY_USAGE_ITEMS + 1)
+        response, _ = self.report(daily_usages=days)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("daily_usages", response.data)
+        self.assertFalse(models.ResourceApiKeyDailyUsage.objects.exists())
+
+    def test_the_days_of_a_report_are_written_at_once(self):
+        start = datetime.date(2026, 1, 1)
+        few = [self.day(start, 1)]
+        many = [self.day(start + datetime.timedelta(days=i), 1) for i in range(250)]
+        # The first request of a test pays for what it caches.
+        self.report(daily_usages=few)
+        counts = []
+        for days in (few, many):
+            with CaptureQueriesContext(connection) as queries:
+                response, _ = self.report(daily_usages=days)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            counts.append(len(queries))
+        self.assertEqual(counts[0], counts[1])
+        self.assertEqual(
+            models.ResourceApiKeyDailyUsage.objects.filter(api_key=self.key).count(),
+            250,
+        )
 
     def test_an_empty_month_report_still_starts_a_new_month(self):
         self.report(usages={"tokens": 50}, billing_period="2026-09-01")

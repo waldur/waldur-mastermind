@@ -45,6 +45,7 @@ from waldur_mastermind.marketplace.enums import SpendingLimitPeriods
 
 PERIODS = SpendingLimitPeriods.ORDER
 MONTH = SpendingLimitPeriods.MONTH
+YEAR = SpendingLimitPeriods.YEAR
 
 
 LIMITS_OPTION = "api_key_limits"
@@ -331,15 +332,37 @@ def _month_end(month: datetime.date) -> datetime.date:
     return month + relativedelta(months=1)
 
 
+def earliest_reportable_day(day: datetime.date) -> datetime.date:
+    """The earliest date a key's usage may be reported for on ``day``.
+
+    The start of the year, the longest period a limit has, or of the previous
+    month when that is earlier: an agent may still send the last days of a
+    month just after it ended, and a report refused for them would lose the
+    current days with it. Earlier dates could not count for any limit.
+    """
+    previous_month = (day.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+    return min(spending_limits.period_bounds(YEAR, day)[0], previous_month)
+
+
 def record_days(api_key: models.ResourceApiKey, daily_usages) -> None:
-    """Store a key's usage per date; a date reported again replaces its amount."""
-    for item in daily_usages:
-        models.ResourceApiKeyDailyUsage.objects.update_or_create(
-            api_key=api_key,
-            component_type=item["type"],
-            date=item["date"],
-            defaults={"usage": item["amount"]},
-        )
+    """Store a key's usage per date; a date reported again replaces its amount.
+
+    One statement for the whole report, which holds the key's lock meanwhile.
+    """
+    models.ResourceApiKeyDailyUsage.objects.bulk_create(
+        [
+            models.ResourceApiKeyDailyUsage(
+                api_key=api_key,
+                component_type=item["type"],
+                date=item["date"],
+                usage=item["amount"],
+            )
+            for item in daily_usages
+        ],
+        update_conflicts=True,
+        unique_fields=["api_key", "component_type", "date"],
+        update_fields=["usage", "modified"],
+    )
 
 
 def month_from_days(api_key: models.ResourceApiKey, month: datetime.date) -> dict:
