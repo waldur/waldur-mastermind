@@ -36,7 +36,7 @@ from decimal import ROUND_UP, Decimal, InvalidOperation
 
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import BooleanField, F, Func, Q, Sum
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
@@ -414,18 +414,92 @@ def rename_component_type(offering, old_type: str, new_type: str) -> None:
     ).update(component_type=new_type)
 
 
-def window_start(day: datetime.date) -> datetime.date:
-    """The earliest date any period containing ``day`` reaches back to."""
-    return min(spending_limits.period_bounds(period, day)[0] for period in PERIODS)
+# Rows older than this many whole years before the current one are pruned: no
+# limit reads them, and a report can no longer be dated in them.
+DAILY_USAGE_RETENTION_YEARS = 1
 
 
-def _daily_rows(api_key: models.ResourceApiKey, since: datetime.date) -> list:
-    # The listing prefetches the rows since window_start, so a page of keys
-    # costs one query for all of them.
+def _limit_periods(api_key: models.ResourceApiKey) -> set[str]:
+    return {
+        period
+        for limits in (api_key.spending_limits or {}).values()
+        if isinstance(limits, dict)
+        for period, amount in limits.items()
+        if amount is not None and period in PERIODS
+    }
+
+
+def rows_since(api_key: models.ResourceApiKey, day: datetime.date):
+    """The earliest date of the daily rows the key's limits read on ``day``.
+
+    None when they read none: a month limit reads the key's month figure, and
+    a key without a limit reads nothing. Day and week read the rows of their
+    period; quarter and year those of the months before the current one.
+    """
+    starts = [
+        spending_limits.period_bounds(period, day)[0]
+        for period in _limit_periods(api_key)
+        if period != MONTH
+    ]
+    return min(starts, default=None)
+
+
+class _HasLimitFor(Func):
+    """Whether a key's ``spending_limits`` has a limit for ``period`` on any component."""
+
+    output_field = BooleanField()
+
+    def __init__(self, expression, period):
+        if period not in PERIODS:
+            raise ValueError(f"Unknown spending limit period: {period}")
+        # The period comes from a fixed list, so it may be written in the SQL.
+        self.template = (
+            f"jsonb_path_exists(%(expressions)s, '$.* ? (@.{period} != null)')"
+        )
+        super().__init__(expression)
+
+
+def daily_rows_read(day: datetime.date, api_key_field="api_key") -> Q:
+    """The daily rows that some key's limits read on ``day``, as ``rows_since`` has it.
+
+    For a listing to load the rows of a page of keys in one query, and only
+    those: most keys hold no limit that reads them.
+    """
+    limits = F(f"{api_key_field}__spending_limits")
+    condition = Q(pk__in=[])
+    for period in PERIODS:
+        if period == MONTH:
+            continue
+        condition |= Q(
+            Q(date__gte=spending_limits.period_bounds(period, day)[0]),
+            _HasLimitFor(limits, period),
+        )
+    return condition
+
+
+def _daily_rows(api_key: models.ResourceApiKey, day: datetime.date) -> list:
+    # A listing prefetches the rows some key reads (daily_rows_read), so a
+    # page of keys costs one query for all of them.
+    since = rows_since(api_key, day)
+    if since is None:
+        return []
     prefetched = getattr(api_key, "_prefetched_objects_cache", {})
     if "daily_usages" in prefetched:
         return [row for row in prefetched["daily_usages"] if row.date >= since]
     return list(api_key.daily_usages.filter(date__gte=since))
+
+
+def prune_daily_usage(day: datetime.date) -> int:
+    """Delete the daily rows no limit reads any more, and return how many.
+
+    Those of the current year and the one before are kept, deleted keys'
+    included: the previous year is still shown while it is recent.
+    """
+    keep_from = datetime.date(day.year - DAILY_USAGE_RETENTION_YEARS, 1, 1)
+    deleted, _ = models.ResourceApiKeyDailyUsage.objects.filter(
+        date__lt=keep_from
+    ).delete()
+    return deleted
 
 
 def _month_usage(api_key, component_type, month: datetime.date) -> Decimal:
@@ -461,7 +535,7 @@ def get_status(api_key: models.ResourceApiKey, day=None) -> list[dict]:
     if not api_key.spending_limits:
         return []
     day = day or spending_limits.utc_today()
-    rows = _daily_rows(api_key, window_start(day))
+    rows = _daily_rows(api_key, day)
     result = []
     for component_type, limits in api_key.spending_limits.items():
         for period in PERIODS:

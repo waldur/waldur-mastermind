@@ -65,6 +65,11 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(minutes=5),
                 "args": (),
             },
+            "waldur-marketplace-prune-api-key-daily-usage": {
+                "task": "waldur_mastermind.marketplace.prune_api_key_daily_usage",
+                "schedule": crontab(minute=20, hour=2),
+                "args": (),
+            },
             "waldur-marketplace-send-outdated-api-key-models": {
                 "task": "waldur_mastermind.marketplace.send_outdated_api_key_models",
                 "schedule": timedelta(hours=1),

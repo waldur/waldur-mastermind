@@ -44,12 +44,14 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import (
+    api_key_spending_limits,
     exceptions,
     models,
     offering_merge,
     plugins,
     project_groups,
     resource_api_keys,
+    spending_limits,
     utils,
 )
 from waldur_mastermind.marketplace import log as marketplace_log
@@ -167,6 +169,19 @@ def resume_api_keys_after_limit_reset():
     midnight UTC rather than on the hourly check.
     """
     resource_api_keys.resume_keys_under_limit(reset_only=True)
+
+
+@shared_task(name="waldur_mastermind.marketplace.prune_api_key_daily_usage")
+def prune_api_key_daily_usage():
+    """Delete API keys' daily usage rows from before the previous year.
+
+    No limit reads them and no report can be dated in them any more, and an
+    agent that reports every day of the month adds a row a day per key and
+    component.
+    """
+    deleted = api_key_spending_limits.prune_daily_usage(spending_limits.utc_today())
+    if deleted:
+        logger.info("Pruned %s daily usage rows of API keys.", deleted)
 
 
 @shared_task(name="waldur_mastermind.marketplace.send_outdated_api_key_models")

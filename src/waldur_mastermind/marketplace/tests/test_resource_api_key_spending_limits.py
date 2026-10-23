@@ -14,8 +14,15 @@ from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_mastermind.marketplace import models, resource_api_keys, serializers, tasks
+from waldur_mastermind.marketplace import (
+    api_key_spending_limits,
+    models,
+    resource_api_keys,
+    serializers,
+    tasks,
+)
 from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace.extension import MarketplaceExtension
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_resource_api_key_management import (
     MESSAGES,
@@ -678,6 +685,96 @@ class EnforcementTest(KeySpendingLimitsTestBase):
             if "resourceapikeydailyusage" in query["sql"]
         ]
         self.assertEqual(len(daily), 1)
+
+
+class DailyRowsReadTest(KeySpendingLimitsTestBase):
+    """Only the daily rows a key's own limits reach back to are read."""
+
+    def rows(self, api_key, *dates):
+        for date in dates:
+            models.ResourceApiKeyDailyUsage.objects.create(
+                api_key=api_key, component_type="token_cost", date=date, usage=1
+            )
+
+    def test_a_listing_loads_only_the_rows_the_limits_read(self):
+        dates = (
+            datetime.date(2026, 1, 5),  # this year, an earlier quarter
+            datetime.date(2026, 10, 2),  # this quarter, an earlier week
+            datetime.date(2026, 10, 19),  # this week
+            TODAY,
+        )
+        day = self.key
+        day.spending_limits = {"token_cost": {"day": 5, "month": 50}}
+        day.save()
+        quarter = self.sibling
+        quarter.spending_limits = {"token_cost": {"quarter": 90}}
+        quarter.save()
+        month = self.make_key("cid-3", spending_limits={"token_cost": {"month": 9}})
+        unlimited = self.make_key("cid-4")
+        for api_key in (day, quarter, month, unlimited):
+            self.rows(api_key, *dates)
+
+        read = models.ResourceApiKeyDailyUsage.objects.filter(
+            api_key_spending_limits.daily_rows_read(TODAY)
+        )
+        self.assertEqual(
+            sorted((row.api_key.client_id, row.date) for row in read),
+            [
+                ("cid-1", TODAY),
+                ("cid-2", datetime.date(2026, 10, 2)),
+                ("cid-2", datetime.date(2026, 10, 19)),
+                ("cid-2", TODAY),
+            ],
+        )
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            list_url(), {"resource_uuid": self.resource.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        status_of = {
+            row["client_id"]: {
+                s["period"]: s["used"] for s in row["spending_limit_status"]
+            }
+            for row in response.data
+        }
+        self.assertEqual(status_of["cid-1"]["day"], 1.0)
+        # Quarter: the days of the months before this one, then the month's figure.
+        self.assertEqual(status_of["cid-2"]["quarter"], 0.0)
+        self.assertEqual(status_of["cid-4"], {})
+
+    def test_a_key_with_month_limits_only_reads_no_rows(self):
+        self.set_limits(month=50)
+        self.assertIsNone(api_key_spending_limits.rows_since(self.key, TODAY))
+        self.set_limits(week=20, quarter=90)
+        self.assertEqual(
+            api_key_spending_limits.rows_since(self.key, TODAY),
+            datetime.date(2026, 10, 1),
+        )
+
+    def test_old_rows_are_pruned(self):
+        self.rows(
+            self.key,
+            datetime.date(2024, 12, 31),
+            datetime.date(2025, 1, 1),
+            TODAY,
+        )
+        deleted_key = self.make_key("cid-3", state=States.DELETED)
+        self.rows(deleted_key, datetime.date(2020, 6, 1))
+        tasks.prune_api_key_daily_usage()
+        self.assertEqual(
+            sorted(
+                models.ResourceApiKeyDailyUsage.objects.values_list("date", flat=True)
+            ),
+            [datetime.date(2025, 1, 1), TODAY],
+        )
+
+    def test_pruning_runs_daily(self):
+        schedule = MarketplaceExtension.celery_tasks()
+        self.assertEqual(
+            schedule["waldur-marketplace-prune-api-key-daily-usage"]["task"],
+            "waldur_mastermind.marketplace.prune_api_key_daily_usage",
+        )
 
 
 class ResumeTest(KeySpendingLimitsTestBase):
