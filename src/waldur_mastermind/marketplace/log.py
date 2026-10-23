@@ -123,10 +123,11 @@ def log_resource_api_key_command(
 
     A command is logged when it is issued, before the agent has carried it out,
     so it reads as requested; its failure is logged separately. ``applied`` is
-    for a change Waldur makes on its own, which is done at once: an assignee
-    change, or deleting a key that was never created. ``spending_limits_change``
-    is the key's limits before and after, when the command changes them; the
-    event carries both, as a resource's spending limits event does.
+    for a change Waldur makes on its own, which is done at once: an edit of a
+    paused key, stored for its resume, or deleting a key that was never created.
+    ``spending_limits_change`` is the key's limits before and after, when the
+    command changes them; the event carries both, as a resource's spending
+    limits event does.
     """
     resource = api_key.resource
     context = {"resource": resource}

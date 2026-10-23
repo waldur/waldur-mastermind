@@ -6131,9 +6131,11 @@ class ResourceApiKey(
         self.paused_by_limit = False
         self.limit_resumes_at = None
 
+    # From Updating only when a deletion takes the place of the command in
+    # flight (issue_command's supersede); otherwise a busy key refuses it.
     @transition(
         field=state,
-        source=[States.OK, States.PAUSED, States.ERRED],
+        source=[States.OK, States.PAUSED, States.ERRED, States.UPDATING],
         target=States.DELETING,
     )
     def set_deleting(self):

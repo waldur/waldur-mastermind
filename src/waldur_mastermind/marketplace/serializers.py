@@ -6,7 +6,7 @@ import logging
 import math
 import re
 import uuid as uuid_lib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from decimal import Decimal
 from typing import Literal, cast
 
@@ -9750,8 +9750,8 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     # Per-key governance fields. On an offering whose backend does not support it
     # they are always null, so the portal offers neither the fields nor the
     # actions that set them. The assignee is not among them: reveal still honours
-    # an assignee set while governance was on, and unassigning stays possible, so
-    # the portal has to see it to offer the one and not the other.
+    # an assignee set while governance was on, so the portal has to see whose
+    # key it is.
     MANAGED_FIELDS = (
         "limits",
         "spending_limits",
@@ -9864,16 +9864,10 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
     has no limit of its own. ``spending_limits`` sets the limits of every period;
     ``limits`` is the flat monthly shape key limits had before they had periods,
     and replaces only the month limits. A model list is stored as sent: ``["*"]``
-    is every model and an empty list is none.
+    is every model and an empty list is none. The assignee is chosen only by a
+    request.
     """
 
-    user = serializers.SlugRelatedField(
-        slug_field="uuid",
-        queryset=User.objects.all(),
-        required=False,
-        allow_null=True,
-        help_text="Assignee. When set, only this user can reveal the key.",
-    )
     limits = serializers.DictField(
         child=LimitValueField(min_value=0),
         required=False,
@@ -9934,16 +9928,13 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
         """Models the key holds already, which it may keep."""
         return []
 
+    def get_assignee_errors(self, resource, attrs) -> dict:
+        """Errors in the assignee, keyed by field, gathered with the others."""
+        return {}
+
     def validate(self, attrs):
         resource = self.get_resource(attrs)
-        errors = {}
-        user = attrs.get("user")
-        # A key is handed to someone working in the resource's project; an
-        # organization role alone does not make someone a user of the resource.
-        if user is not None and not resource.project.has_user(user):
-            errors["user"] = _(
-                "The assignee must be a member of the resource's project."
-            )
+        errors = self.get_assignee_errors(resource, attrs)
         self._validate_limits(attrs, resource, errors)
         if "allowed_models" in attrs:
             allowed_models = attrs["allowed_models"]
@@ -9979,13 +9970,46 @@ class ResourceApiKeyCreateSerializer(ResourceApiKeySettingsSerializer):
     resource = serializers.SlugRelatedField(
         slug_field="uuid", queryset=models.Resource.objects.all()
     )
+    user = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Assignee. When set, only this user can reveal the key. It is "
+        "held until the key is deleted.",
+    )
 
     def get_resource(self, attrs):
         return attrs["resource"]
 
+    def get_assignee_errors(self, resource, attrs):
+        user = attrs.get("user")
+        # A key is handed to someone working in the resource's project; an
+        # organization role alone does not make someone a user of the resource.
+        if user is not None and not resource.project.has_user(user):
+            return {
+                "user": _("The assignee must be a member of the resource's project.")
+            }
+        return {}
+
 
 class ResourceApiKeyUpdateSerializer(ResourceApiKeySettingsSerializer):
-    """Edit a key's assignee, limits or model allowlist."""
+    """Edit a key's limits or model allowlist."""
+
+    def to_internal_value(self, data):
+        # Refused rather than dropped: an assignee could once be edited, and a
+        # dropped field would answer 200 to a change that never happened.
+        if isinstance(data, Mapping) and "user" in data:
+            raise serializers.ValidationError(
+                {
+                    "user": _(
+                        "A key's assignee is set when the key is requested and "
+                        "cannot be changed. Request a key for the new holder and "
+                        "delete this one."
+                    )
+                }
+            )
+        return super().to_internal_value(data)
 
     def get_resource(self, attrs):
         return self.instance.resource

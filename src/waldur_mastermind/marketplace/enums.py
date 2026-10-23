@@ -610,8 +610,8 @@ class ResourceApiKeyActions:
 
     # Commands that tell the agent the key's limits and model allowlist. A resume
     # carries them too: settings edited while the key was paused are applied
-    # when it comes back. So does a rotation: a key that changes hands is
-    # rotated, and the same edit may set its limits and models.
+    # when it comes back. So does a rotation, so the replacement value keeps the
+    # settings Waldur has for the key.
     CARRY_SETTINGS = (CREATE, ROTATE, UPDATE, RESUME)
 
 

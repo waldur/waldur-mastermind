@@ -41,7 +41,6 @@ from waldur_mastermind.marketplace import (
     log,
     model_lists,
     models,
-    signals,
     spending_limits,
     utils,
 )
@@ -66,9 +65,6 @@ _START = {
     Actions.RESUME: lambda key: key.set_resuming(),
     Actions.DELETE: lambda key: key.set_deleting(),
 }
-
-# Settings the agent applies at the backend. The assignee is Waldur's alone.
-AGENT_SETTINGS = frozenset({"spending_limits", "allowed_models"})
 
 # Commands every key-carrying backend accepts, governed or not. Rotation
 # predates governance; a resume must stay possible for a key that was paused
@@ -139,9 +135,7 @@ def _lock_resource(resource: models.Resource) -> models.Resource:
     return models.Resource.objects.select_for_update().get(pk=resource.pk)
 
 
-def require_free_assignee(
-    resource: models.Resource, user, api_key: models.ResourceApiKey | None = None
-) -> None:
+def require_free_assignee(resource: models.Resource, user) -> None:
     """Refuse to assign someone a second key on one resource.
 
     A person holds at most one key per resource: the backend ties their own
@@ -152,17 +146,14 @@ def require_free_assignee(
     """
     if user is None:
         return
-    held = resource.api_keys.filter(user=user).exclude(state=States.DELETED)
-    if api_key is not None:
-        held = held.exclude(pk=api_key.pk)
-    other = held.first()
+    other = resource.api_keys.filter(user=user).exclude(state=States.DELETED).first()
     if other is not None:
         name = other.client_id or "a requested key"
         raise ValidationError(
             {
                 "user": f"{user.full_name or user.username} already holds an API "
                 f"key on this resource ({name}). A person holds at most one key "
-                f"per resource: unassign or delete that key first."
+                f"per resource: delete that key first."
             }
         )
 
@@ -231,6 +222,7 @@ def issue_command(
     actor=None,
     reason="",
     assignee_only=False,
+    supersede=False,
     **updates,
 ) -> models.ResourceApiKey:
     """Start a command on a key and publish it to the agent.
@@ -245,13 +237,16 @@ def issue_command(
     ``assignee_only`` says the actor was admitted for being the key's assignee
     and nothing more. Such an actor may only rotate the key, never in place of
     another command that failed, and not a settled key that is over a limit
-    the offering enforces. All of it is settled under the lock: a retry names
-    its command there, and the key may have been reassigned since the actor
-    was admitted.
+    the offering enforces. All of it is settled under the lock, where a retry
+    names its command.
 
     Deleting a requested key that has no client_id yet publishes nothing: the
     backend holds nothing to revoke, so the key is Deleted at once, even while
     its creation is still pending.
+
+    ``supersede`` lets a deletion take the place of a command in flight, which
+    a late acknowledgement can then no longer settle. Only Waldur issues it,
+    for a key whose assignee's account is deleted.
     """
     require_resource_live(api_key.resource)
     with transaction.atomic():
@@ -276,7 +271,7 @@ def issue_command(
                 raise IncorrectStateException(
                     f"The API key's {failed} failed; retry it or delete the key."
                 )
-        elif api_key.pending_action and not cancel:
+        elif api_key.pending_action and not (cancel or supersede):
             raise IncorrectStateException(
                 f"The API key is busy: its {api_key.pending_action} has not "
                 f"been acknowledged yet."
@@ -359,32 +354,25 @@ def retry(api_key: models.ResourceApiKey, actor) -> models.ResourceApiKey:
 def update_settings(
     api_key: models.ResourceApiKey, actor, changes: dict
 ) -> models.ResourceApiKey:
-    """Change a key's assignee, limits or model allowlist.
+    """Change a key's limits or model allowlist.
 
-    The agent only hears about limits and models, and not while the key is paused:
-    the resume command carries them. An Erred key takes new limits and models
-    only when its failed command was an update: the edit is then the retry. A
-    limit raised above the usage of a key Waldur paused for it resumes the key.
+    Its assignee is not among them: it is chosen when the key is requested and
+    held until the key is deleted, so a key changes hands by requesting one for
+    the new holder and deleting the old one.
 
-    An assignee may be given only to someone who holds no other key on the
-    resource. Where the offering manages keys, a key that holds a secret
-    changes hands only by a rotation: the previous assignee, or any project
-    member while the key was unassigned, may have revealed the old secret, and
-    the backend ties chat and spending to whoever holds the key now. The
-    rotation carries whatever limits and models the same edit sets. A paused
-    key, or one with another command in flight or failed, has to be resumed,
-    settled or retried first. A key that holds no secret yet, and any key of
-    an offering without key management, just takes the new assignee. Once
-    committed the change is announced with ``resource_api_key_assignee_changed``.
+    The agent hears of the change, but not while the key is paused: the resume
+    command carries it. An Erred key takes new limits and models only when its
+    failed command was an update: the edit is then the retry. A limit raised
+    above the usage of a key Waldur paused for it resumes the key.
     """
     changes = dict(changes)
     requested = changes.pop(api_key_spending_limits.REQUESTED, None)
     require_resource_live(api_key.resource)
     with transaction.atomic():
-        # The resource before the key, as everywhere: it serializes the
-        # assignments, and holds the limits that cap the key's.
+        # The resource before the key, as everywhere: it holds the limits
+        # that cap the key's.
         resource = None
-        if changes.get("user") is not None or requested is not None:
+        if requested is not None:
             resource = _lock_resource(api_key.resource)
         api_key = _lock(api_key)
         if api_key.state in (States.DELETING, States.DELETED):
@@ -400,111 +388,25 @@ def update_settings(
             for field, value in changes.items()
             if getattr(api_key, field) != value
         }
-        rotate = "user" in changes and _changes_hands_by_rotation(api_key)
-        if "user" in changes:
-            require_free_assignee(api_key.resource, changes["user"], api_key)
-        if rotate:
-            _require_rotatable_for_assignee(api_key)
-            api_key = issue_command(
-                api_key,
-                Actions.ROTATE,
-                actor,
-                reason="Its assignee changed.",
-                **changes,
-            )
-        elif not changes.keys() & AGENT_SETTINGS or api_key.state == States.PAUSED:
-            if changes:
-                old_limits = api_key.spending_limits
-                # No command, so no new state: ``modified`` is left alone, as
-                # the agent's sweep reads it as the time the key entered its
-                # state.
-                models.ResourceApiKey.objects.filter(pk=api_key.pk).update(**changes)
-                for field, value in changes.items():
-                    setattr(api_key, field, value)
-                # The assignee decides who may reveal a live secret, and the
-                # limits who may spend how much: audited like the commands are.
-                log.log_resource_api_key_command(
-                    api_key,
-                    Actions.UPDATE,
-                    actor,
-                    applied=True,
-                    **_limits_change(old_limits, api_key.spending_limits),
-                )
-                if changes.keys() & AGENT_SETTINGS:
-                    api_key = resume_if_under_limit(api_key)
-        else:
-            api_key = issue_command(api_key, Actions.UPDATE, actor, **changes)
-        if "user" in changes:
-            _announce_assignee_change(api_key)
-        return api_key
-
-
-def _changes_hands_by_rotation(api_key: models.ResourceApiKey) -> bool:
-    """Whether a new assignee for the key takes a rotation.
-
-    Only a key whose backend holds a secret has one to replace, and only an
-    offering that manages keys ties its use to the assignee. Without key
-    management an assignee change stays a record in Waldur, as unassigning
-    there always was.
-    """
-    return bool(api_key.client_id) and api_key.is_managed
-
-
-def _require_rotatable_for_assignee(api_key: models.ResourceApiKey) -> None:
-    """Refuse an assignee change the key cannot rotate for now.
-
-    Called with the key locked. A rotation would bring a paused key back, and
-    would replace a command in flight or one that failed without it ever being
-    carried out; a failed rotation is simply retried with the new assignee.
-    """
-    if api_key.state == States.PAUSED:
-        message = (
-            "The API key is paused. Its assignee changes by rotating it, so "
-            "resume the key first."
+        if not changes:
+            return api_key
+        if api_key.state != States.PAUSED:
+            return issue_command(api_key, Actions.UPDATE, actor, **changes)
+        old_limits = api_key.spending_limits
+        # No command, so no new state: ``modified`` is left alone, as the
+        # agent's sweep reads it as the time the key entered its state.
+        models.ResourceApiKey.objects.filter(pk=api_key.pk).update(**changes)
+        for field, value in changes.items():
+            setattr(api_key, field, value)
+        # Audited like the update it stands in for.
+        log.log_resource_api_key_command(
+            api_key,
+            Actions.UPDATE,
+            actor,
+            applied=True,
+            **_limits_change(old_limits, api_key.spending_limits),
         )
-    elif api_key.state == States.ERRED:
-        failed = failed_command(api_key)
-        if failed == Actions.ROTATE:
-            return
-        message = (
-            f"The API key's {failed} failed. Its assignee changes by rotating "
-            f"it, so retry the {failed} or delete the key first."
-        )
-    elif api_key.pending_action:
-        message = (
-            f"The API key is busy: its {api_key.pending_action} has not been "
-            f"acknowledged yet. Its assignee changes by rotating it, so wait "
-            f"for the {api_key.pending_action} to finish first."
-        )
-    else:
-        return
-    raise ValidationError({"user": message})
-
-
-def _announce_assignee_change(api_key: models.ResourceApiKey) -> None:
-    """Announce a key's new assignee once the change commits.
-
-    A backend may tie its own use of the resource, such as chat, to the key's
-    assignee. It learns of a new one only in a membership pass, and no command
-    on the key starts one. Called only once the edit has been applied, so an
-    edit refused on the way announces nothing.
-    """
-    transaction.on_commit(lambda: _send_assignee_change(api_key))
-
-
-def _send_assignee_change(api_key: models.ResourceApiKey) -> None:
-    # The edit has committed: a receiver failing, such as on a broker outage,
-    # must not turn it into an error.
-    for receiver, result in signals.resource_api_key_assignee_changed.send_robust(
-        sender=models.ResourceApiKey, api_key=api_key
-    ):
-        if isinstance(result, Exception):
-            logger.error(
-                "Could not announce the new assignee of API key %s to %s",
-                api_key.uuid,
-                getattr(receiver, "__qualname__", receiver),
-                exc_info=result,
-            )
+        return resume_if_under_limit(api_key)
 
 
 def acknowledge(
@@ -870,6 +772,50 @@ def _retry_limit_pause(api_key: models.ResourceApiKey) -> None:
             limit_resumes_at=spending_limits.resumes_at(reached),
             limit_pause_retries=retries + 1,
         )
+
+
+def revoke_keys_of_deleted_user(user) -> None:
+    """Withdraw the keys assigned to a user whose account is being deleted.
+
+    Deleting the account clears the keys' assignee, which would turn each
+    personal key into a shared one: any member of the project could reveal
+    it, while the departed person's copy still works. Called before the
+    account is deleted, so every such key is withdrawn first:
+
+    - where the offering manages keys, the key is deleted, as by its managers;
+      one not created yet is dropped, and a command in flight gives way to
+      the deletion;
+    - where it does not, keys cannot be deleted, so the key is rotated: the
+      departed person's copy stops working, and the key, now unassigned,
+      carries a value nobody has seen;
+    - a key that can take neither, such as one of a resource being
+      terminated, has its stored value dropped, so that nobody reveals it.
+    """
+    keys = models.ResourceApiKey.objects.filter(user=user).exclude(
+        state__in=(States.DELETING, States.DELETED)
+    )
+    for api_key in keys:
+        _revoke_for_deleted_assignee(api_key)
+
+
+def _revoke_for_deleted_assignee(api_key: models.ResourceApiKey) -> None:
+    reason = "Its assignee's account was deleted."
+    with transaction.atomic():
+        api_key = _lock(api_key)
+        try:
+            if api_key.is_managed:
+                issue_command(api_key, Actions.DELETE, reason=reason, supersede=True)
+            else:
+                issue_command(api_key, Actions.ROTATE, reason=reason)
+            return
+        except (IncorrectStateException, ValidationError) as error:
+            logger.warning(
+                "API key %s of a deleted user could not be withdrawn (%s); its "
+                "stored value is dropped instead.",
+                api_key.uuid,
+                error,
+            )
+        models.ResourceApiKey.objects.filter(pk=api_key.pk).update(key_ciphertext="")
 
 
 def resource_models_changed(

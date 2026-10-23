@@ -16803,29 +16803,23 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Edit an API key",
-        description="Changes the key's assignee, limits or model allowlist. A change "
-        "to limits or models is sent to the site agent as an update command, "
-        "unless the key is paused: resuming it applies them. A change of assignee "
-        "(setting, changing or clearing it) on a key that holds a secret rotates "
-        "the key instead, carrying any limits and models set with it: the old "
-        "secret stops working and the new assignee reveals the new one. A paused "
-        "key, or one with another command pending or failed, refuses it. Only on "
-        "offerings with enable_api_key_provisioning, except for unassigning the "
-        'key ({"user": null}).',
+        description="Changes the key's limits or model allowlist. A change is sent "
+        "to the site agent as an update command, unless the key is paused: "
+        "resuming it applies them. The key's assignee is set when the key is "
+        "requested and cannot be changed: an edit that names user, null "
+        "included, is refused with 400. To hand a key to someone else, request a "
+        "key for them and delete this one. Only on offerings with "
+        "enable_api_key_provisioning.",
         request=serializers.ResourceApiKeyUpdateSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
     )
     def partial_update(self, request, *args, **kwargs):
         obj = self.get_object()
-        # Unassigning needs no governance: reveal still honours an assignee set
-        # while it was on, and only this lets anyone but staff lift it.
-        unassign = isinstance(request.data, Mapping) and dict(request.data) == {
-            "user": None
-        }
-        if not unassign:
-            resource_api_keys.require_managed(obj.resource)
         serializer = self.get_serializer(obj, data=request.data, partial=True)
+        # Validated before governance is checked, so an edit of the assignee
+        # learns on every offering that the assignee cannot change.
         serializer.is_valid(raise_exception=True)
+        resource_api_keys.require_managed(obj.resource)
         api_key = resource_api_keys.update_settings(
             obj, request.user, serializer.validated_data
         )
