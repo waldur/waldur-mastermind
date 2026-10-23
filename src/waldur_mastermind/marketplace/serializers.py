@@ -4387,6 +4387,30 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         if "spending_limit_periods" in attrs or instance is None:
             attrs["spending_limit_periods"] = periods
 
+    def _validate_prepaid_billing_type(self, attrs, is_prepaid):
+        """Refuse a request that makes a component prepaid without one-time billing.
+
+        Only a one-time charge is bought up front for the whole subscription:
+        billing multiplies nothing else by the months ordered, so a prepaid
+        component of another type is quoted a price it is never charged.
+        Components that already combine the two are kept; only a request that
+        creates the combination is refused.
+        """
+        billing_type = attrs.get(
+            "billing_type", self.instance.billing_type if self.instance else None
+        )
+        if not is_prepaid or billing_type == BillingTypes.ONE_TIME:
+            return
+        creates_combination = (
+            self.instance is None
+            or not self.instance.is_prepaid
+            or self.instance.billing_type != billing_type
+        )
+        if creates_combination:
+            raise serializers.ValidationError(
+                {"is_prepaid": _("Only one-time components can be prepaid.")}
+            )
+
     def _validate_prepaid(self, attrs):
         # Determine the final state of 'is_prepaid'.
         # On update, if 'is_prepaid' is not in the request, use the existing value.
@@ -4399,6 +4423,8 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         overage_component = cast(
             models.OfferingComponent | None, attrs.get("overage_component")
         )
+
+        self._validate_prepaid_billing_type(attrs, is_prepaid)
 
         if not is_prepaid:
             # Reject renewal/prepaid duration constraints if the component is not prepaid.
@@ -4608,6 +4634,13 @@ class ExportImportOfferingComponentSerializer(OfferingComponentSerializer):
 
     class Meta(OfferingComponentSerializer.Meta):
         fields = OfferingComponentSerializer.Meta.fields + ("offering_id",)
+
+    def _validate_prepaid_billing_type(self, attrs, is_prepaid):
+        # An export restores components as they were. Nested under the
+        # offering or a plan component it is validated without an instance, so
+        # a component kept from before one-time-only prepaid would read as new
+        # and block re-importing the offering it came from.
+        return
 
 
 class ExportImportPlanComponentSerializer(serializers.ModelSerializer):

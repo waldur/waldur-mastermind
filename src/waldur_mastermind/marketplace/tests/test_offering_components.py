@@ -652,7 +652,10 @@ class OfferingComponentPrepaidValidationTest(BaseOfferingUpdateTest):
     def test_update_non_prepaid_to_prepaid_with_overage_succeeds(self):
         # Arrange
         component_to_update = factories.OfferingComponentFactory(
-            offering=self.offering, is_prepaid=False, type="to-update"
+            offering=self.offering,
+            billing_type=models.BillingTypes.ONE_TIME,
+            is_prepaid=False,
+            type="to-update",
         )
         overage_component = factories.OfferingComponentFactory(
             offering=self.offering,
@@ -717,6 +720,112 @@ class OfferingComponentPrepaidValidationTest(BaseOfferingUpdateTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("min_prepaid_duration", response.data)
+
+    # Only a one-time charge is bought up front for the whole subscription;
+    # billing multiplies nothing else by the months ordered, so a prepaid
+    # component of another type would be quoted a price it is never charged.
+
+    def test_cannot_create_prepaid_component_that_is_not_one_time(self):
+        for billing_type in (
+            models.BillingTypes.LIMIT,
+            models.BillingTypes.USAGE,
+            models.BillingTypes.FIXED,
+            models.BillingTypes.ON_PLAN_SWITCH,
+        ):
+            with self.subTest(billing_type=billing_type):
+                payload = {
+                    "type": f"prepaid-{billing_type}",
+                    "name": "Prepaid",
+                    "measured_unit": "hours",
+                    "billing_type": billing_type,
+                    "is_prepaid": True,
+                }
+
+                response = self.client.post(self.create_url, payload)
+
+                self.assertEqual(
+                    response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+                )
+                self.assertIn("is_prepaid", response.data)
+
+    def test_cannot_turn_on_prepaid_for_component_that_is_not_one_time(self):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.BillingTypes.LIMIT,
+            is_prepaid=False,
+            type="cpu",
+        )
+
+        response = self.client.post(
+            self.update_url, {"uuid": component.uuid.hex, "is_prepaid": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("is_prepaid", response.data)
+        component.refresh_from_db()
+        self.assertFalse(component.is_prepaid)
+
+    def test_cannot_change_billing_type_of_prepaid_component(self):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.BillingTypes.ONE_TIME,
+            is_prepaid=True,
+            type="cpu",
+        )
+
+        response = self.client.post(
+            self.update_url,
+            {"uuid": component.uuid.hex, "billing_type": models.BillingTypes.LIMIT},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("is_prepaid", response.data)
+        component.refresh_from_db()
+        self.assertEqual(component.billing_type, models.BillingTypes.ONE_TIME)
+
+    def test_existing_prepaid_component_of_another_type_can_still_be_edited(self):
+        # Components that already combine the two are kept: a request that
+        # leaves both fields as they are, as the offering editor sends them, is
+        # accepted.
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.BillingTypes.LIMIT,
+            is_prepaid=True,
+            type="cpu",
+            name="old",
+        )
+
+        response = self.client.post(
+            self.update_url,
+            {
+                "uuid": component.uuid.hex,
+                "name": "updated",
+                "billing_type": models.BillingTypes.LIMIT,
+                "is_prepaid": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        component.refresh_from_db()
+        self.assertEqual(component.name, "updated")
+        self.assertTrue(component.is_prepaid)
+
+    def test_existing_prepaid_component_of_another_type_can_become_one_time(self):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.BillingTypes.LIMIT,
+            is_prepaid=True,
+            type="cpu",
+        )
+
+        response = self.client.post(
+            self.update_url,
+            {"uuid": component.uuid.hex, "billing_type": models.BillingTypes.ONE_TIME},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        component.refresh_from_db()
+        self.assertEqual(component.billing_type, models.BillingTypes.ONE_TIME)
 
 
 class LimitValueFieldShapeTest(SimpleTestCase):

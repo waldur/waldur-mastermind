@@ -6396,6 +6396,19 @@ class ProviderOfferingViewSet(
                     )
                     % {"component": component_type, "option": option},
                 )
+            # The import does not carry is_prepaid, so the only way it makes a
+            # component prepaid without one-time billing is by moving a prepaid
+            # component to another type; see _validate_prepaid_billing_type.
+            if (
+                not created
+                and component.is_prepaid
+                and billing_type != component.billing_type
+                and billing_type != BillingTypes.ONE_TIME
+            ):
+                raise _import_error(
+                    f"{path}.billing_type",
+                    _("Only one-time components can be prepaid."),
+                )
 
             if not created:
                 # Update existing component
