@@ -37,6 +37,7 @@ from rest_framework.views import exception_handler as rf_exception_handler
 from reversion.models import Version
 
 from waldur_auth_social.models import IdentityProvider
+from waldur_auth_social.revocation import forget_oauth_tokens
 from waldur_core import __version__
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.changelog.tasks import compute_changelog_impact
@@ -401,7 +402,7 @@ class LogoutView(generics.GenericAPIView):
 
     @extend_schema(
         summary="Log out",
-        description="Logs out the current user by deleting their authentication token. If single logout (SLO) is supported for the current authentication method (e.g., SAML2 or OIDC), this endpoint may return a logout URL to which the user should be redirected to complete the logout process on the identity provider side.",
+        description="Logs out the current user by deleting their authentication token and revoking the identity provider tokens Waldur keeps for them. If single logout (SLO) is supported for the current authentication method (e.g., SAML2 or OIDC), this endpoint may return a logout URL to which the user should be redirected to complete the logout process on the identity provider side.",
         request=None,
         responses={
             200: LogoutSerializer,
@@ -409,6 +410,10 @@ class LogoutView(generics.GenericAPIView):
         },
     )
     def post(self, request, format=None):
+        # The identity provider tokens kept for the user would otherwise
+        # outlive the logout (an offline refresh token does), still usable by
+        # a later session of the same user.
+        forget_oauth_tokens(request.user)
         request.user.auth_token.delete()
         event_logger.emit(
             "User {user_username} with full name {user_full_name} logged out.",
