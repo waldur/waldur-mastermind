@@ -390,7 +390,7 @@ introducing `SUBSCRIBE_*` permissions that would have to be kept in sync.
   (shared vs sharded vs dedicated; noisy-neighbour handling).
 - Permit.io — [Multi-tenant authorization best practices](https://www.permit.io/blog/best-practices-for-multi-tenant-authorization)
   (auth global, authz tenant-scoped, evaluated dynamically).
-- CS Virginia — [Content-based publish/subscribe survey](https://www.cs.virginia.edu/~hs6ms/publishedPaper/bookChapter/2009/sub-pub-Shen.pdf)
+- Haiying Shen — [Content-Based Publish/Subscribe Systems](https://doi.org/10.1007/978-0-387-09751-0_49), Handbook of Peer-to-Peer Networking, 2010
   and [Confidentiality-preserving pub/sub survey](https://arxiv.org/pdf/1705.09404)
   (content-based filtering is more expressive — matches dynamic-authz fan-out).
 - Solace — [Designing and naming topics for EDA](https://solace.com/blog/designing-and-naming-topics-for-event-driven-architecture-with-pubsub/)
