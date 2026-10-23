@@ -687,6 +687,94 @@ class EnforcementTest(KeySpendingLimitsTestBase):
         self.assertEqual(len(daily), 1)
 
 
+class FailedLimitPauseTest(KeySpendingLimitsTestBase):
+    """A limit pause the agent failed to apply is issued again while still over."""
+
+    def fail_the_limit_pause(self):
+        self.set_limits(day=10)
+        self.report(daily_usages=[self.day(TODAY, 12)])
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            detail_url(self.key, "set-erred"),
+            {"error_message": "gateway down"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.ERRED)
+
+    def run_task(self):
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.retry_failed_api_key_limit_pauses()
+        return prepare
+
+    def test_the_pause_is_issued_again_while_over_the_limit(self):
+        self.fail_the_limit_pause()
+        prepare = self.run_task()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertTrue(self.key.paused_by_limit)
+        self.assertEqual(self.key.limit_resumes_at, utc(2026, 10, 22))
+
+    def test_it_is_audited_as_automatic(self):
+        self.fail_the_limit_pause()
+        with mock.patch("waldur_mastermind.marketplace.log.event_logger.emit") as emit:
+            self.run_task()
+        messages = [
+            c.args[0]
+            for c in emit.call_args_list
+            if c.kwargs["event_type"].startswith("marketplace_resource_api_key")
+        ]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("requested automatically", messages[0])
+        self.assertIn("Its pause failed", messages[0])
+
+    def test_a_key_under_its_limit_again_is_left_alone(self):
+        self.fail_the_limit_pause()
+        with freeze_time("2026-10-22 00:03"):
+            prepare = self.run_task()
+        prepare.assert_not_called()
+
+    def test_other_failed_commands_are_left_alone(self):
+        self.set_limits(day=10)
+        self.report(daily_usages=[self.day(TODAY, 12)])
+        cases = (
+            # Paused by hand, not for the limit.
+            {"pending_action": Actions.PAUSE, "paused_by_limit": False},
+            {"pending_action": Actions.UPDATE, "paused_by_limit": True},
+            {"pending_action": Actions.ROTATE, "paused_by_limit": False},
+        )
+        for fields in cases:
+            with self.subTest(fields):
+                models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+                    state=States.ERRED, **fields
+                )
+                self.run_task().assert_not_called()
+
+    def test_keys_without_key_management_or_a_live_resource_are_left_alone(self):
+        self.fail_the_limit_pause()
+        self.offering.plugin_options["enable_api_key_provisioning"] = False
+        self.offering.save()
+        self.run_task().assert_not_called()
+        self.offering.plugin_options["enable_api_key_provisioning"] = True
+        self.offering.save()
+        self.resource.state = models.Resource.States.TERMINATING
+        self.resource.save()
+        self.run_task().assert_not_called()
+
+    def test_retrying_runs_every_five_minutes(self):
+        entry = MarketplaceExtension.celery_tasks()[
+            "waldur-marketplace-retry-failed-api-key-limit-pauses"
+        ]
+        self.assertEqual(entry["schedule"], datetime.timedelta(minutes=5))
+
+
 class DailyRowsReadTest(KeySpendingLimitsTestBase):
     """Only the daily rows a key's own limits reach back to are read."""
 

@@ -65,6 +65,11 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(minutes=5),
                 "args": (),
             },
+            "waldur-marketplace-retry-failed-api-key-limit-pauses": {
+                "task": "waldur_mastermind.marketplace.retry_failed_api_key_limit_pauses",
+                "schedule": timedelta(minutes=5),
+                "args": (),
+            },
             "waldur-marketplace-prune-api-key-daily-usage": {
                 "task": "waldur_mastermind.marketplace.prune_api_key_daily_usage",
                 "schedule": crontab(minute=20, hour=2),

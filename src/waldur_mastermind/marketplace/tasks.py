@@ -171,6 +171,15 @@ def resume_api_keys_after_limit_reset():
     resource_api_keys.resume_keys_under_limit(reset_only=True)
 
 
+@shared_task(name="waldur_mastermind.marketplace.retry_failed_api_key_limit_pauses")
+def retry_failed_api_key_limit_pauses():
+    """Issue again the limit pauses of API keys that the site agent failed to apply.
+
+    The key stays usable at the backend until its pause succeeds.
+    """
+    resource_api_keys.retry_failed_limit_pauses()
+
+
 @shared_task(name="waldur_mastermind.marketplace.prune_api_key_daily_usage")
 def prune_api_key_daily_usage():
     """Delete API keys' daily usage rows from before the previous year.

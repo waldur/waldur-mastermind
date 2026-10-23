@@ -759,6 +759,55 @@ def resume_keys_under_limit(reset_only=False) -> None:
             )
 
 
+def retry_failed_limit_pauses() -> None:
+    """Issue again every limit pause the agent failed to carry out.
+
+    Such a key is Erred with the pause as its failed command, and still live at
+    the backend: neither a usage report nor the resume tasks touch an Erred
+    key, so without this it keeps being served until someone presses Retry.
+    A key that is no longer over its limit is left for a person to settle.
+    """
+    keys = models.ResourceApiKey.objects.filter(
+        state=States.ERRED,
+        pending_action=Actions.PAUSE,
+        paused_by_limit=True,
+        resource__offering__plugin_options__enable_api_key_provisioning=True,
+    ).exclude(
+        resource__state__in=(ResourceStates.TERMINATING, ResourceStates.TERMINATED)
+    )
+    for api_key in keys:
+        # One key failing must not keep the others live.
+        try:
+            _retry_limit_pause(api_key)
+        except Exception:
+            logger.exception(
+                "Could not retry the limit pause of API key %s", api_key.uuid
+            )
+
+
+def _retry_limit_pause(api_key: models.ResourceApiKey) -> None:
+    with transaction.atomic():
+        api_key = _lock(api_key)
+        if not (
+            api_key.state == States.ERRED
+            and api_key.pending_action == Actions.PAUSE
+            and api_key.paused_by_limit
+            and api_key.is_managed
+            and is_resource_live(api_key.resource)
+        ):
+            return
+        reached = api_key_spending_limits.reached_limits(api_key)
+        if not reached:
+            return
+        issue_command(
+            api_key,
+            None,
+            reason=f"Its pause failed, and its usage is still over the "
+            f"{spending_limits.describe(reached)}.",
+            limit_resumes_at=spending_limits.resumes_at(reached),
+        )
+
+
 def resource_models_changed(
     resource: models.Resource, before: list[str], before_choices: list[str] | None
 ) -> None:
