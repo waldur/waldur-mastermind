@@ -34,8 +34,8 @@ def months_to_limits(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    # Kept apart from 0309: these UPDATEs queue deferred FK trigger events, and
-    # Postgres then refuses the indexes 0309 creates in the same transaction.
+    # Kept apart from 0314: these UPDATEs queue deferred FK trigger events, and
+    # Postgres then refuses the indexes 0314 creates in the same transaction.
     dependencies = [
         ("marketplace", "0314_resource_api_key_spending_limits"),
     ]

@@ -169,8 +169,13 @@ Status is computed only for resources that have spending limits.
 ## API keys
 
 A resource's API keys take limits of the same shape, per component and period,
-each capped by the resource's limit for the period; a reached key limit pauses
-that key alone. See [Resource API keys](resource-api-keys.md#limits).
+each capped by the lowest of the resource's limits for that period and the
+longer ones; a reached key limit pauses that key alone, and a key paused for
+its limit stays paused while the resource is restricted for its own. The
+offering decides which periods keys are offered: `month` only, unless it
+declares with `plugin_options.api_key_daily_usage` that the agent reports each
+key's usage per day, and none where `plugin_options.api_key_limits` is off.
+See [Resource API keys](resource-api-keys.md#limits).
 
 ## Code map
 
