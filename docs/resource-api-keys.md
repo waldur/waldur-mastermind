@@ -115,6 +115,23 @@ daily and a monthly share of the group's budget. A key Waldur paused for a limit
 comes back on its own once that period resets, and so it does when the limit is
 raised; a key a person paused stays paused.
 
+**Which limits a key is offered is the provider's call.** Only a key's usage
+per day can reach a day or week limit, and only the usage of every month can
+reach a quarter or year one, so periods other than month need an agent that
+reports each key's usage per day. Waldur cannot tell what the agent reports,
+so the offering declares it, next to `enable_api_key_provisioning`:
+
+- `plugin_options.api_key_limits` — consumers may set limits on keys. On unless
+  set to `false`; off, no new key limit is accepted.
+- `plugin_options.api_key_daily_usage` — the agent reports each key's usage per
+  day (`daily_usages` in `report_usage`). Off unless set; without it a key is
+  offered `month` only.
+
+Turning either on needs `enable_api_key_provisioning`. Like that option, the
+claim is not checked: turned on for an agent that reports keys monthly, day
+and week limits are accepted and never reached. Upgrading set
+`api_key_daily_usage` on every offering whose keys already had usage per day.
+
 **Deletion is soft.** A deleted key keeps its row and the usage it reported, so
 the resource's per-component totals for the month do not move when a key goes
 away. Hard deletion would lose usage that belongs in the resource's total.
@@ -418,19 +435,29 @@ A key's limit for a component is one amount per period:
 {"spending_limits": {"token_cost": {"day": 5, "month": 50}}}
 ```
 
-- `month` is available on every component of the offering, as key limits were
-  monthly before they had periods. The other periods are available where the
-  component offers them to resources (`OfferingComponent.spending_limit_periods`,
-  see [spending limits](spending-limits.md)).
+- No period is offered where the offering turns `api_key_limits` off, nor on
+  a component the resource's plan prices at 0: nothing is spent on it. A
+  component the plan does not price at all still takes limits.
+- `month` is available on every other component of the offering, as key limits
+  were monthly before they had periods. With `api_key_daily_usage` on, the
+  other periods are available where the component offers them to resources
+  (`OfferingComponent.spending_limit_periods`, see
+  [spending limits](spending-limits.md)); without it, none is.
 - A key's limit may not exceed the resource's spending limit for the same
-  period, when the resource has one, and a shorter period's limit may not exceed
-  a longer one's.
+  period or any longer one — the lowest of them, when the resource has any:
+  a key of a resource capped at 40 a month takes no day limit above 40. The
+  provider's per-period `maximum` bounds only the resource's limits. A shorter
+  period's limit may not exceed a longer one's.
 - A limit is reached when usage is equal to it or above it. It must be above
   0, unlike a resource's: in the flat `limits` shape agents and older clients
   read, 0 means no limit. A key is stopped with a pause instead.
 - An amount the key already holds is accepted again unchanged, even once its
   period is no longer offered or the resource's limit has dropped below it, so
   that editing one period never forces a change to another.
+- Requesting or editing a key validates its limits again with the resource and
+  the key locked, against what they hold then: an edit that sends back a held
+  amount another edit has since lowered, or a cap lowered meanwhile, is
+  refused with `400`.
 
 **Usage.** The agent reports a key's usage with `report_usage`: its usage so far
 in a month (`usages`), per day (`daily_usages`), or both. The month figure of a
@@ -453,8 +480,15 @@ and audit-logs it as automatic, naming the limits ("Its usage reached the day
 limit of token_cost."). The resource and its other keys keep serving. A key over a limit
 while a command is in flight is checked again when the agent acknowledges that
 command: if it settles `OK`, it is paused at once rather than serving until the
-next report. An `Erred` key is not paused automatically — its failed command
-needs a person to retry it first. A limit reached later while the key is paused moves `limit_resumes_at`.
+next report. A limit reached later while the key is paused moves `limit_resumes_at`.
+
+A pause the agent reports as failed leaves the key `Erred` and still served at
+the backend. Every five minutes the `retry_failed_api_key_limit_pauses` task
+issues that pause again, audited as automatic, for every such key that is
+still over a limit, on an offering with key management and a resource that
+is not terminating. A key under its limits again by then is left `Erred` for a
+person to retry or delete. Any other `Erred` key is not paused automatically:
+its failed command needs a person to retry it first.
 
 Waldur resumes a key it paused for its limit, again audit-logged as automatic, as
 soon as its usage is under every limit again:
@@ -467,8 +501,23 @@ soon as its usage is under every limit again:
 - the hourly `resume_api_keys_under_limit` task, which checks every key paused
   for its limit, `limit_resumes_at` or not.
 
+None of these resumes a key while its resource is paused or downscaled for
+the resource's own spending limits (`usage_limit_restriction`): the
+resource's usage is over its limit, so none of its keys may spend. The tasks
+resume the key once the resource's restriction lifts.
+
 A resume by hand clears the mark, but does not override the limit: if the key is
 still over it, it is paused again once the agent acknowledges the resume. A key a person paused is never resumed automatically.
+
+**Daily usage rows.** A key's status reads only the daily rows its own limits
+reach back to: from the start of the week for a day or week limit, of the
+quarter or year for those. A key with month limits only, or none, reads none.
+The daily `prune_api_key_daily_usage` task deletes the rows dated before the
+previous year.
+
+**Audit.** Requesting a key with limits, and every edit or command that changes
+them, carries `old_spending_limits` and `new_spending_limits` in the event
+context, as a resource's spending limits event does.
 
 ## API
 
@@ -623,7 +672,10 @@ organization, but reading a value is not: `reveal` stays consumer-side only.
   them. A date reported again replaces its amount, a future date or the same
   component and date twice is refused with `400`, and days of a month before
   the one the key holds count for the limits of the periods they fall in, not
-  for its month figure. Once a component has daily amounts in a month, a month
+  for its month figure. A report holds at most 1000 daily items, and a date
+  before the start of the current year — or of the previous month, when that
+  is earlier, so that the last days of December can still be sent in January —
+  is refused with `400`: no limit reads it. Once a component has daily amounts in a month, a month
   total for it is refused with `400`. A report is accepted or refused whole: one
   bad daily item refuses the `usages` sent with it too. May trigger a limit
   pause, or the resume of a key paused for its limit. Accepted for a deleted

@@ -153,12 +153,19 @@ class ResourceApiKeyPluginOptionsPersistenceTest(test.APITestCase):
         ("enable_api_key_provisioning", False),
         ("hide_api_keys_tab", True),
         ("hide_api_keys_tab", False),
+        ("api_key_limits", True),
+        ("api_key_limits", False),
+        ("api_key_daily_usage", True),
+        ("api_key_daily_usage", False),
     )
     @unpack
     def test_option_persists(self, key, value):
         self.client.force_authenticate(self.fixture.staff)
         url = factories.OfferingFactory.get_url(self.offering, "update_integration")
-        response = self.client.post(url, {"plugin_options": {key: value}})
+        options = {key: value}
+        if key.startswith("api_key_"):
+            options["enable_api_key_provisioning"] = True
+        response = self.client.post(url, {"plugin_options": options}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.plugin_options[key], value)
@@ -176,3 +183,57 @@ class ResourceApiKeyPluginOptionsPersistenceTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering.refresh_from_db()
         self.assertTrue(self.offering.plugin_options["enable_api_key_provisioning"])
+
+    def _post(self, plugin_options):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, "update_integration")
+        response = self.client.post(
+            url, {"plugin_options": plugin_options}, format="json"
+        )
+        self.offering.refresh_from_db()
+        return response
+
+    def test_an_update_leaving_the_key_options_out_keeps_them(self):
+        self.offering.plugin_options = {
+            "enable_api_key_provisioning": True,
+            "api_key_limits": False,
+            "api_key_daily_usage": True,
+        }
+        self.offering.save()
+        response = self._post({"hide_api_keys_tab": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIs(self.offering.plugin_options["api_key_limits"], False)
+        self.assertIs(self.offering.plugin_options["api_key_daily_usage"], True)
+
+    def test_turning_a_key_option_on_needs_key_management(self):
+        for options in (
+            {"api_key_daily_usage": True},
+            {"api_key_daily_usage": True, "enable_api_key_provisioning": False},
+        ):
+            with self.subTest(options):
+                response = self._post(options)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("enable_api_key_provisioning", str(response.data))
+                self.assertNotIn("api_key_daily_usage", self.offering.plugin_options)
+        self.offering.plugin_options = {"api_key_limits": False}
+        self.offering.save()
+        response = self._post({"api_key_limits": True})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_turning_key_options_off_or_leaving_them_as_they_are_is_allowed(self):
+        self.offering.plugin_options = {
+            "enable_api_key_provisioning": True,
+            "api_key_daily_usage": True,
+        }
+        self.offering.save()
+        # Key management off on its own, sending the rest as the form holds it.
+        response = self._post(
+            {
+                "enable_api_key_provisioning": False,
+                "api_key_limits": True,
+                "api_key_daily_usage": True,
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        response = self._post({"api_key_daily_usage": False, "api_key_limits": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

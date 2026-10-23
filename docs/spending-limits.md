@@ -104,7 +104,9 @@ restriction before it responds.
 - `date` is a UTC date. Reporting a date again **replaces** its amount, so an
   agent can resend the whole month so far on every run.
 - Only usage-based components take daily amounts. A date in the future, or the
-  same component and date twice in one request, is rejected.
+  same component and date twice in one request, is rejected, and so is a
+  request of more than 1000 daily items (`MAX_DAILY_USAGE_ITEMS`): every day of
+  two months for sixteen components.
 - A date in a past month needs staff, or the service provider while that
   month's invoice can still change — the same rule as a dated monthly report.
 - The amounts are stored in `ComponentDailyUsage`. The month's `ComponentUsage`
@@ -169,8 +171,13 @@ Status is computed only for resources that have spending limits.
 ## API keys
 
 A resource's API keys take limits of the same shape, per component and period,
-each capped by the resource's limit for the period; a reached key limit pauses
-that key alone. See [Resource API keys](resource-api-keys.md#limits).
+each capped by the lowest of the resource's limits for that period and the
+longer ones; a reached key limit pauses that key alone, and a key paused for
+its limit stays paused while the resource is restricted for its own. The
+offering decides which periods keys are offered: `month` only, unless it
+declares with `plugin_options.api_key_daily_usage` that the agent reports each
+key's usage per day, and none where `plugin_options.api_key_limits` is off.
+See [Resource API keys](resource-api-keys.md#limits).
 
 ## Code map
 

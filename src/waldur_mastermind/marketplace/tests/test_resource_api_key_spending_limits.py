@@ -4,6 +4,7 @@ import datetime
 from importlib import import_module
 from unittest import mock
 
+from django.apps import apps as django_apps
 from django.db import connection
 from django.db.migrations.loader import MigrationLoader
 from django.test import override_settings
@@ -13,8 +14,15 @@ from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace import (
+    api_key_spending_limits,
+    models,
+    resource_api_keys,
+    serializers,
+    tasks,
+)
 from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace.extension import MarketplaceExtension
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_resource_api_key_management import (
     MESSAGES,
@@ -30,6 +38,9 @@ from waldur_mastermind.marketplace.tests.test_resource_api_key_management import
 migration = import_module(
     "waldur_mastermind.marketplace.migrations.0315_resource_api_key_monthly_limits"
 )
+daily_usage_migration = import_module(
+    "waldur_mastermind.marketplace.migrations.0316_api_key_daily_usage_option"
+)
 
 # A Wednesday; its week started on Monday 19 October.
 TODAY = datetime.date(2026, 10, 21)
@@ -43,6 +54,10 @@ def utc(*args):
 class KeySpendingLimitsTestBase(ApiKeyManagementTestBase):
     def setUp(self):
         super().setUp()
+        # The agent reports each key's usage per day, so keys are offered the
+        # component's periods.
+        self.offering.plugin_options["api_key_daily_usage"] = True
+        self.offering.save()
         self.cost_component = factories.OfferingComponentFactory(
             offering=self.offering,
             type="token_cost",
@@ -122,9 +137,64 @@ class LimitsValidationTest(KeySpendingLimitsTestBase):
         response, _ = self.patch({"spending_limits": {"token_cost": {"day": 21}}})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response, _ = self.patch(
-            {"spending_limits": {"token_cost": {"day": 20, "week": 500}}}
+            {"spending_limits": {"token_cost": {"day": 20, "week": 300}}}
         )
-        # No resource limit on the week.
+        # No resource limit on the week: its month limit caps it.
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_limit_may_not_exceed_the_resources_limit_for_a_longer_period(self):
+        self.resource.spending_limits = {"token_cost": {"month": 40}}
+        self.resource.save()
+        for limits in ({"day": 50}, {"week": 40.01}, {"day": 5, "week": 41}):
+            with self.subTest(limits):
+                response, prepare = self.patch(
+                    {"spending_limits": {"token_cost": limits}}
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(
+                    "resource's month spending limit of 40",
+                    str(response.data["spending_limits"]),
+                )
+                prepare.assert_not_called()
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 40, "week": 40}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_lowest_of_the_longer_limits_caps(self):
+        # Set directly: a quarter below the month is what the cap must read
+        # even if the resource's own ordering rule would not let it be set.
+        self.resource.spending_limits = {"token_cost": {"month": 300, "quarter": 90}}
+        self.resource.save()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 91}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("quarter spending limit of 90", str(response.data))
+
+    def test_a_held_limit_stays_above_a_lowered_longer_cap(self):
+        self.set_limits(day=50, month=60)
+        self.resource.spending_limits = {"token_cost": {"month": 40}}
+        self.resource.save()
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 50, "month": 40}}}
+        )
+        # The held day is kept; the ordering rule against the new month
+        # still applies to it.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 50, "month": 60}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_providers_maximum_is_not_a_key_cap(self):
+        # The maximum bounds what the resource may set; the resource's own
+        # limits are what caps a key.
+        self.cost_component.spending_limit_periods = {
+            "day": {"maximum": 1000},
+            "week": {},
+            "month": {},
+        }
+        self.cost_component.save()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 1001}}})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_a_shorter_period_may_not_exceed_a_longer_one(self):
@@ -254,6 +324,110 @@ class LimitsValidationTest(KeySpendingLimitsTestBase):
         self.assertIsNone(self.published_payload(prepare)["limits"])
 
 
+class ConcurrentEditTest(KeySpendingLimitsTestBase):
+    """Limits are validated again with the resource and the key locked.
+
+    The request is validated unlocked, so another edit may commit between
+    that and the command.
+    """
+
+    def concurrently(self, write):
+        original = resource_api_keys.update_settings
+
+        def racing(api_key, actor, changes):
+            write()
+            return original(api_key, actor, changes)
+
+        return mock.patch.object(resource_api_keys, "update_settings", racing)
+
+    def pause_by_hand(self):
+        # The paused branch writes without a command, so no busy guard
+        # serializes it.
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            state=States.PAUSED, pending_action=""
+        )
+
+    def test_a_held_value_sent_back_after_it_was_lowered_is_refused(self):
+        self.set_limits(month=100)
+        self.pause_by_hand()
+        self.resource.spending_limits = {"token_cost": {"month": 50}}
+        self.resource.save()
+
+        def lower_key():
+            models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+                spending_limits={"token_cost": {"month": 40}}
+            )
+
+        with self.concurrently(lower_key):
+            response, _ = self.patch(
+                {"spending_limits": {"token_cost": {"day": 5, "month": 100}}}
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("month spending limit of 50", str(response.data))
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.spending_limits, {"token_cost": {"month": 40}})
+
+    def test_a_cap_lowered_meanwhile_is_applied(self):
+        self.resource.spending_limits = {"token_cost": {"month": 200}}
+        self.resource.save()
+
+        def lower_cap():
+            models.Resource.objects.filter(pk=self.resource.pk).update(
+                spending_limits={"token_cost": {"month": 50}}
+            )
+
+        with self.concurrently(lower_cap):
+            response, prepare = self.patch(
+                {"spending_limits": {"token_cost": {"month": 150}}}
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.spending_limits)
+
+    def test_monthly_limits_keep_the_periods_the_key_holds_at_the_lock(self):
+        self.set_limits(day=5, month=100)
+        self.pause_by_hand()
+
+        def edit_day():
+            models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+                spending_limits={"token_cost": {"day": 7, "month": 100}}
+            )
+
+        with self.concurrently(edit_day):
+            response, _ = self.patch({"limits": {"token_cost": 90}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(
+            self.key.spending_limits, {"token_cost": {"day": 7, "month": 90}}
+        )
+
+    def test_a_new_key_is_checked_against_the_locked_resource(self):
+        self.resource.spending_limits = {"token_cost": {"month": 200}}
+        self.resource.save()
+        original = resource_api_keys.request_key
+
+        def racing(resource, actor, **settings):
+            models.Resource.objects.filter(pk=self.resource.pk).update(
+                spending_limits={"token_cost": {"month": 50}}
+            )
+            return original(resource, actor, **settings)
+
+        with mock.patch.object(resource_api_keys, "request_key", racing):
+            response, prepare = self.post(
+                self.fixture.owner,
+                list_url(),
+                {
+                    "resource": self.resource.uuid.hex,
+                    "spending_limits": {"token_cost": {"month": 150}},
+                },
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("spending_limits", response.data)
+        prepare.assert_not_called()
+        self.assertEqual(self.resource.api_keys.count(), 2)
+
+
 class DailyUsageReportTest(KeySpendingLimitsTestBase):
     def test_usage_per_day_is_stored_and_sums_to_the_month(self):
         response, _ = self.report(
@@ -358,6 +532,54 @@ class DailyUsageReportTest(KeySpendingLimitsTestBase):
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(models.ResourceApiKeyDailyUsage.objects.exists())
 
+    def test_days_that_count_for_no_limit_are_rejected(self):
+        for date in (datetime.date(1970, 1, 1), datetime.date(2025, 12, 31)):
+            with self.subTest(date):
+                response, _ = self.report(daily_usages=[self.day(date, 1)])
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("counts for no limit", str(response.data))
+        self.assertFalse(models.ResourceApiKeyDailyUsage.objects.exists())
+        response, _ = self.report(daily_usages=[self.day(datetime.date(2026, 1, 1), 1)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_last_days_of_the_year_may_be_sent_just_after_it(self):
+        with freeze_time("2027-01-01 00:10"):
+            response, _ = self.report(
+                daily_usages=[
+                    self.day(datetime.date(2026, 12, 31), 3),
+                    self.day(datetime.date(2027, 1, 1), 1),
+                ]
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            models.ResourceApiKeyDailyUsage.objects.filter(api_key=self.key).count(), 2
+        )
+
+    def test_a_report_holds_a_bounded_number_of_days(self):
+        days = [self.day(TODAY, 1)] * (serializers.MAX_DAILY_USAGE_ITEMS + 1)
+        response, _ = self.report(daily_usages=days)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("daily_usages", response.data)
+        self.assertFalse(models.ResourceApiKeyDailyUsage.objects.exists())
+
+    def test_the_days_of_a_report_are_written_at_once(self):
+        start = datetime.date(2026, 1, 1)
+        few = [self.day(start, 1)]
+        many = [self.day(start + datetime.timedelta(days=i), 1) for i in range(250)]
+        # The first request of a test pays for what it caches.
+        self.report(daily_usages=few)
+        counts = []
+        for days in (few, many):
+            with CaptureQueriesContext(connection) as queries:
+                response, _ = self.report(daily_usages=days)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            counts.append(len(queries))
+        self.assertEqual(counts[0], counts[1])
+        self.assertEqual(
+            models.ResourceApiKeyDailyUsage.objects.filter(api_key=self.key).count(),
+            250,
+        )
+
     def test_an_empty_month_report_still_starts_a_new_month(self):
         self.report(usages={"tokens": 50}, billing_period="2026-09-01")
         response, _ = self.report(usages={})
@@ -416,6 +638,10 @@ class EnforcementTest(KeySpendingLimitsTestBase):
         self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
 
     def test_a_monthly_report_enforces_month_limits_only(self):
+        # A key that held a day limit before the provider stopped declaring
+        # daily usage; its month limit still applies.
+        self.offering.plugin_options["api_key_daily_usage"] = False
+        self.offering.save()
         self.set_limits(day=10, month=100)
         _, prepare = self.report(usages={"tokens": 1, "token_cost": 50})
         prepare.assert_not_called()
@@ -463,6 +689,184 @@ class EnforcementTest(KeySpendingLimitsTestBase):
         self.assertEqual(len(daily), 1)
 
 
+class FailedLimitPauseTest(KeySpendingLimitsTestBase):
+    """A limit pause the agent failed to apply is issued again while still over."""
+
+    def fail_the_limit_pause(self):
+        self.set_limits(day=10)
+        self.report(daily_usages=[self.day(TODAY, 12)])
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            detail_url(self.key, "set-erred"),
+            {"error_message": "gateway down"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.ERRED)
+
+    def run_task(self):
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.retry_failed_api_key_limit_pauses()
+        return prepare
+
+    def test_the_pause_is_issued_again_while_over_the_limit(self):
+        self.fail_the_limit_pause()
+        prepare = self.run_task()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertTrue(self.key.paused_by_limit)
+        self.assertEqual(self.key.limit_resumes_at, utc(2026, 10, 22))
+
+    def test_it_is_audited_as_automatic(self):
+        self.fail_the_limit_pause()
+        with mock.patch("waldur_mastermind.marketplace.log.event_logger.emit") as emit:
+            self.run_task()
+        messages = [
+            c.args[0]
+            for c in emit.call_args_list
+            if c.kwargs["event_type"].startswith("marketplace_resource_api_key")
+        ]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("requested automatically", messages[0])
+        self.assertIn("Its pause failed", messages[0])
+
+    def test_a_key_under_its_limit_again_is_left_alone(self):
+        self.fail_the_limit_pause()
+        with freeze_time("2026-10-22 00:03"):
+            prepare = self.run_task()
+        prepare.assert_not_called()
+
+    def test_other_failed_commands_are_left_alone(self):
+        self.set_limits(day=10)
+        self.report(daily_usages=[self.day(TODAY, 12)])
+        cases = (
+            # Paused by hand, not for the limit.
+            {"pending_action": Actions.PAUSE, "paused_by_limit": False},
+            {"pending_action": Actions.UPDATE, "paused_by_limit": True},
+            {"pending_action": Actions.ROTATE, "paused_by_limit": False},
+        )
+        for fields in cases:
+            with self.subTest(fields):
+                models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+                    state=States.ERRED, **fields
+                )
+                self.run_task().assert_not_called()
+
+    def test_keys_without_key_management_or_a_live_resource_are_left_alone(self):
+        self.fail_the_limit_pause()
+        self.offering.plugin_options["enable_api_key_provisioning"] = False
+        self.offering.save()
+        self.run_task().assert_not_called()
+        self.offering.plugin_options["enable_api_key_provisioning"] = True
+        self.offering.save()
+        self.resource.state = models.Resource.States.TERMINATING
+        self.resource.save()
+        self.run_task().assert_not_called()
+
+    def test_retrying_runs_every_five_minutes(self):
+        entry = MarketplaceExtension.celery_tasks()[
+            "waldur-marketplace-retry-failed-api-key-limit-pauses"
+        ]
+        self.assertEqual(entry["schedule"], datetime.timedelta(minutes=5))
+
+
+class DailyRowsReadTest(KeySpendingLimitsTestBase):
+    """Only the daily rows a key's own limits reach back to are read."""
+
+    def rows(self, api_key, *dates):
+        for date in dates:
+            models.ResourceApiKeyDailyUsage.objects.create(
+                api_key=api_key, component_type="token_cost", date=date, usage=1
+            )
+
+    def test_a_listing_loads_only_the_rows_the_limits_read(self):
+        dates = (
+            datetime.date(2026, 1, 5),  # this year, an earlier quarter
+            datetime.date(2026, 10, 2),  # this quarter, an earlier week
+            datetime.date(2026, 10, 19),  # this week
+            TODAY,
+        )
+        day = self.key
+        day.spending_limits = {"token_cost": {"day": 5, "month": 50}}
+        day.save()
+        quarter = self.sibling
+        quarter.spending_limits = {"token_cost": {"quarter": 90}}
+        quarter.save()
+        month = self.make_key("cid-3", spending_limits={"token_cost": {"month": 9}})
+        unlimited = self.make_key("cid-4")
+        for api_key in (day, quarter, month, unlimited):
+            self.rows(api_key, *dates)
+
+        read = models.ResourceApiKeyDailyUsage.objects.filter(
+            api_key_spending_limits.daily_rows_read(TODAY)
+        )
+        self.assertEqual(
+            sorted((row.api_key.client_id, row.date) for row in read),
+            [
+                ("cid-1", TODAY),
+                ("cid-2", datetime.date(2026, 10, 2)),
+                ("cid-2", datetime.date(2026, 10, 19)),
+                ("cid-2", TODAY),
+            ],
+        )
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            list_url(), {"resource_uuid": self.resource.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        status_of = {
+            row["client_id"]: {
+                s["period"]: s["used"] for s in row["spending_limit_status"]
+            }
+            for row in response.data
+        }
+        self.assertEqual(status_of["cid-1"]["day"], 1.0)
+        # Quarter: the days of the months before this one, then the month's figure.
+        self.assertEqual(status_of["cid-2"]["quarter"], 0.0)
+        self.assertEqual(status_of["cid-4"], {})
+
+    def test_a_key_with_month_limits_only_reads_no_rows(self):
+        self.set_limits(month=50)
+        self.assertIsNone(api_key_spending_limits.rows_since(self.key, TODAY))
+        self.set_limits(week=20, quarter=90)
+        self.assertEqual(
+            api_key_spending_limits.rows_since(self.key, TODAY),
+            datetime.date(2026, 10, 1),
+        )
+
+    def test_old_rows_are_pruned(self):
+        self.rows(
+            self.key,
+            datetime.date(2024, 12, 31),
+            datetime.date(2025, 1, 1),
+            TODAY,
+        )
+        deleted_key = self.make_key("cid-3", state=States.DELETED)
+        self.rows(deleted_key, datetime.date(2020, 6, 1))
+        tasks.prune_api_key_daily_usage()
+        self.assertEqual(
+            sorted(
+                models.ResourceApiKeyDailyUsage.objects.values_list("date", flat=True)
+            ),
+            [datetime.date(2025, 1, 1), TODAY],
+        )
+
+    def test_pruning_runs_daily(self):
+        schedule = MarketplaceExtension.celery_tasks()
+        self.assertEqual(
+            schedule["waldur-marketplace-prune-api-key-daily-usage"]["task"],
+            "waldur_mastermind.marketplace.prune_api_key_daily_usage",
+        )
+
+
 class ResumeTest(KeySpendingLimitsTestBase):
     def pause_for_day_limit(self):
         self.set_limits(day=10, month=100)
@@ -483,6 +887,42 @@ class ResumeTest(KeySpendingLimitsTestBase):
         self.assertEqual(self.key.pending_action, Actions.RESUME)
         self.assertFalse(self.key.paused_by_limit)
         self.assertIsNone(self.key.limit_resumes_at)
+
+    def restrict_resource(self):
+        self.resource.paused = True
+        self.resource.usage_limit_restriction = "paused"
+        self.resource.save()
+
+    def test_a_key_waits_while_its_resource_is_paused_for_its_own_limit(self):
+        self.pause_for_day_limit()
+        self.restrict_resource()
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
+            with freeze_time("2026-10-22 00:04"):
+                tasks.resume_api_keys_after_limit_reset()
+                tasks.resume_api_keys_under_limit()
+            prepare.assert_not_called()
+            # The resource's restriction lifts; the key follows on the next run.
+            self.resource.paused = False
+            self.resource.usage_limit_restriction = ""
+            self.resource.save()
+            with freeze_time("2026-10-22 00:09"):
+                tasks.resume_api_keys_after_limit_reset()
+        self.assertEqual(prepare.call_args.args[1]["action"], Actions.RESUME)
+
+    def test_a_report_or_a_raised_limit_does_not_resume_it_either(self):
+        self.pause_for_day_limit()
+        self.restrict_resource()
+        response, prepare = self.report(daily_usages=[self.day(TODAY, 1)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        prepare.assert_not_called()
+        response, prepare = self.patch(
+            {"spending_limits": {"token_cost": {"day": 50, "month": 100}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.PAUSED)
+        self.assertTrue(self.key.paused_by_limit)
 
     def test_a_key_paused_by_hand_is_not_resumed(self):
         self.pause_for_day_limit()
@@ -586,6 +1026,167 @@ class MonthlyLimitsMigrationTest(test.APITestCase):
         migration.months_to_limits(apps, None)
         key.refresh_from_db()
         self.assertEqual(key.spending_limits, {"tokens": 100})
+
+
+class DailyUsageOptionMigrationTest(test.APITestCase):
+    def test_an_offering_whose_keys_have_days_declares_daily_usage(self):
+        reporting = factories.ResourceFactory()
+        reporting.offering.plugin_options = {"enable_api_key_provisioning": True}
+        reporting.offering.save()
+        key = models.ResourceApiKey.objects.create(resource=reporting, client_id="c1")
+        models.ResourceApiKeyDailyUsage.objects.create(
+            api_key=key, component_type="tokens", date=TODAY, usage=1
+        )
+        monthly = factories.ResourceFactory()
+        models.ResourceApiKey.objects.create(resource=monthly, client_id="c2")
+        declined = factories.ResourceFactory()
+        declined.offering.plugin_options = {"api_key_daily_usage": False}
+        declined.offering.save()
+        declined_key = models.ResourceApiKey.objects.create(
+            resource=declined, client_id="c3"
+        )
+        models.ResourceApiKeyDailyUsage.objects.create(
+            api_key=declined_key, component_type="tokens", date=TODAY, usage=1
+        )
+
+        # The models as they are: a migration state is not built under
+        # --no-migrations.
+        daily_usage_migration.declare_daily_usage(django_apps, None)
+
+        reporting.offering.refresh_from_db()
+        self.assertEqual(
+            reporting.offering.plugin_options,
+            {"enable_api_key_provisioning": True, "api_key_daily_usage": True},
+        )
+        monthly.offering.refresh_from_db()
+        self.assertNotIn("api_key_daily_usage", monthly.offering.plugin_options)
+        declined.offering.refresh_from_db()
+        self.assertIs(declined.offering.plugin_options["api_key_daily_usage"], False)
+
+
+@freeze_time("2026-10-21 12:00")
+class OfferedPeriodsTest(KeySpendingLimitsTestBase):
+    """Which periods a key is offered follows the offering's two options and the plan's prices."""
+
+    def set_options(self, **options):
+        self.offering.plugin_options.update(options)
+        self.offering.save()
+
+    def test_without_daily_usage_only_month_is_offered(self):
+        self.set_options(api_key_daily_usage=False)
+        for period in ("day", "week", "quarter"):
+            with self.subTest(period):
+                response, prepare = self.patch(
+                    {"spending_limits": {"token_cost": {period: 5}}}
+                )
+                self.assertEqual(
+                    response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+                )
+                self.assertIn("per day", str(response.data["spending_limits"]))
+                prepare.assert_not_called()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"month": 50}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_daily_usage_is_off_unless_set(self):
+        del self.offering.plugin_options["api_key_daily_usage"]
+        self.offering.save()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_with_daily_usage_the_components_periods_are_offered(self):
+        response, _ = self.patch(
+            {
+                "spending_limits": {
+                    "token_cost": {"day": 5, "week": 20, "month": 50, "quarter": 90}
+                }
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_with_limits_off_no_limit_is_offered(self):
+        self.set_options(api_key_limits=False)
+        for value in (
+            {"spending_limits": {"token_cost": {"month": 5}}},
+            {"spending_limits": {"tokens": {"month": 5}}},
+            {"limits": {"tokens": 5}},
+        ):
+            with self.subTest(value):
+                response, prepare = self.patch(value)
+                self.assertEqual(
+                    response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+                )
+                self.assertIn("does not offer limits", str(response.data))
+                prepare.assert_not_called()
+        response, _ = self.post(
+            self.fixture.owner,
+            list_url(),
+            {
+                "resource": self.resource.uuid.hex,
+                "spending_limits": {"token_cost": {"month": 5}},
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_limits_are_on_unless_turned_off(self):
+        self.assertNotIn("api_key_limits", self.offering.plugin_options)
+        response, _ = self.patch({"spending_limits": {"token_cost": {"month": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_held_limits_stay_when_their_periods_are_withdrawn(self):
+        self.set_limits(day=5, month=50)
+        self.set_options(api_key_limits=False)
+        # Sent back as held, or cleared: both pass.
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 5, "month": 50}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 6}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response, _ = self.patch({"spending_limits": None})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_held_day_limit_stays_without_daily_usage(self):
+        self.set_limits(day=5, month=50)
+        self.set_options(api_key_daily_usage=False)
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 5, "month": 60}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_component_the_plan_prices_at_zero_takes_no_limit(self):
+        plan = factories.PlanFactory(offering=self.offering)
+        factories.PlanComponentFactory(
+            plan=plan, component=self.cost_component, price=2
+        )
+        tokens = self.offering.components.get(type="tokens")
+        factories.PlanComponentFactory(plan=plan, component=tokens, price=0)
+        self.resource.plan = plan
+        self.resource.save()
+        response, prepare = self.patch({"spending_limits": {"tokens": {"month": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("not charged", str(response.data))
+        prepare.assert_not_called()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_held_limit_on_a_free_component_may_stay(self):
+        self.key.spending_limits = {"tokens": {"month": 5}}
+        self.key.save()
+        plan = factories.PlanFactory(offering=self.offering)
+        tokens = self.offering.components.get(type="tokens")
+        factories.PlanComponentFactory(plan=plan, component=tokens, price=0)
+        self.resource.plan = plan
+        self.resource.save()
+        response, _ = self.patch(
+            {"spending_limits": {"tokens": {"month": 5}, "token_cost": {"day": 1}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_component_the_plan_does_not_price_still_takes_limits(self):
+        self.resource.plan = factories.PlanFactory(offering=self.offering)
+        self.resource.save()
+        response, _ = self.patch({"spending_limits": {"tokens": {"month": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @freeze_time("2026-10-21 12:00")

@@ -17,6 +17,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import (
     callbacks,
     models,
+    serializers,
     spending_limits,
     tasks,
     utils,
@@ -563,6 +564,19 @@ class DailyUsageReportTest(SpendingLimitsSetupMixin, test.APITestCase):
         self.assertEqual(
             self.report_days([("2026-10-20", 1), ("2026-10-20", 2)]).status_code,
             status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_rejects_more_items_than_one_report_may_hold(self):
+        start = datetime.date(2023, 1, 1)
+        days = [
+            ((start + datetime.timedelta(days=i)).isoformat(), 1)
+            for i in range(serializers.MAX_DAILY_USAGE_ITEMS + 1)
+        ]
+        response = self.report_days(days)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("daily_usages", response.data)
+        self.assertFalse(
+            models.ComponentDailyUsage.objects.filter(resource=self.resource).exists()
         )
 
     def test_rejects_daily_usage_of_limit_based_component(self):

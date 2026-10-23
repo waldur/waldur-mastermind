@@ -2,10 +2,18 @@
 
 A key's limits have the shape of its resource's spending limits
 (``{component_type: {period: amount}}``, see ``spending_limits``) and the same
-periods, reset times and ordering rule. ``month`` is available on every
-component of the offering, as key limits were monthly before they had
-periods; the other periods only where the component offers them to resources.
-A key's limit for a period may not exceed the resource's own for that period,
+periods, reset times and ordering rule. Two offering options decide which
+periods a key is offered (``offered_periods``). ``api_key_limits``, on unless
+set to false, lets consumers limit keys at all. ``api_key_daily_usage``, off
+unless set, is the provider's declaration that the site agent reports each
+key's usage per day: without it only ``month`` is offered, as day and week
+limits would never be reached and quarter and year would count the current
+month alone. With it, a key is offered ``month`` on every component, as key
+limits were monthly before they had periods, and the other periods where the
+component offers them to resources. A component the resource's plan does not
+charge for takes no limit.
+A key's limit for a period may not exceed the resource's own for that period
+or for any longer one, as the key could never spend more than the resource,
 and must be above zero: in the flat ``limits`` shape agents and older clients
 still read, zero means no limit, so a zero limit would block in Waldur and read
 as none everywhere else. A key is stopped with a pause instead.
@@ -28,7 +36,7 @@ from decimal import ROUND_UP, Decimal, InvalidOperation
 
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import BooleanField, F, Func, Q, Sum
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
@@ -37,22 +45,84 @@ from waldur_mastermind.marketplace.enums import SpendingLimitPeriods
 
 PERIODS = SpendingLimitPeriods.ORDER
 MONTH = SpendingLimitPeriods.MONTH
+YEAR = SpendingLimitPeriods.YEAR
+
+
+LIMITS_OPTION = "api_key_limits"
+DAILY_USAGE_OPTION = "api_key_daily_usage"
+
+
+def limits_offered(offering) -> bool:
+    """Whether consumers may set limits on the offering's keys; on unless turned off."""
+    return (offering.plugin_options or {}).get(LIMITS_OPTION) is not False
+
+
+def daily_usage_reported(offering) -> bool:
+    """Whether the provider declares that each key's usage is reported per day."""
+    return (offering.plugin_options or {}).get(DAILY_USAGE_OPTION) is True
+
+
+def free_component_types(resource) -> set[str]:
+    """The component types the resource's plan prices at zero.
+
+    Nothing is spent on such a component, so a limit on it would only take
+    room in the key's settings. A component the plan does not price at all is
+    not counted: the plan may simply predate it.
+    """
+    if resource.plan_id is None:
+        return set()
+    return set(
+        models.PlanComponent.objects.filter(
+            plan_id=resource.plan_id, price=0
+        ).values_list("component__type", flat=True)
+    )
 
 
 def offered_periods(resource) -> dict[str, set[str]]:
-    """The periods a key of ``resource`` may limit, per component type."""
-    capped = spending_limits.capped_components(resource.offering, resource.plan)
+    """The periods a key of ``resource`` may limit, per component type.
+
+    Every component of the offering is listed, with no period at all where
+    limits are off for the offering or the plan does not charge for it.
+    """
+    offering = resource.offering
+    types = list(offering.components.values_list("type", flat=True))
+    if not limits_offered(offering):
+        return {component_type: set() for component_type in types}
+    free = free_component_types(resource)
+    capped = (
+        spending_limits.capped_components(offering, resource.plan)
+        if daily_usage_reported(offering)
+        else {}
+    )
     return {
-        component_type: {MONTH}
+        component_type: set()
+        if component_type in free
+        else {MONTH}
         | set(
             capped[component_type].spending_limit_periods
             if component_type in capped
             else ()
         )
-        for component_type in resource.offering.components.values_list(
-            "type", flat=True
-        )
+        for component_type in types
     }
+
+
+def _not_offered(resource, component_type, period, offered) -> str:
+    """Why a ``period`` limit is refused on ``component_type``."""
+    if not limits_offered(resource.offering):
+        return _("The offering does not offer limits on API keys.")
+    if not offered:
+        return _("%s is not charged for, so it takes no limit.") % component_type
+    message = _("A %(period)s limit is not offered. Offered: %(offered)s.") % {
+        "period": period,
+        "offered": ", ".join(p for p in PERIODS if p in offered),
+    }
+    if period != MONTH and not daily_usage_reported(resource.offering):
+        message = "{} {}".format(
+            message,
+            _("Other periods need the provider to report each key's usage per day."),
+        )
+    return message
 
 
 def with_monthly_limits(current: dict | None, monthly: dict | None) -> dict:
@@ -112,6 +182,20 @@ def _is_held(raw, held) -> bool:
         return Decimal(str(raw).strip()) == Decimal(str(held))
     except InvalidOperation:
         return False
+
+
+def resource_cap(resource_limits: dict, period: str):
+    """The resource's limit that caps a key's ``period`` limit, with its period.
+
+    The lowest of the resource's limits for ``period`` and the longer periods,
+    or None. Of equal ones, the shortest period's is named.
+    """
+    caps = [
+        (Decimal(str(resource_limits[longer])), longer)
+        for longer in PERIODS[PERIODS.index(period) :]
+        if resource_limits.get(longer) is not None
+    ]
+    return min(caps, key=lambda cap: cap[0], default=None)
 
 
 def validate_key_limits(value, resource, current: dict | None = None) -> dict | None:
@@ -184,27 +268,28 @@ def validate_key_limits(value, resource, current: dict | None = None) -> dict | 
                 if period not in offered[component_type]:
                     raise serializers.ValidationError(
                         {
-                            component_type: _(
-                                "A %(period)s limit is not offered. Offered: "
-                                "%(offered)s."
+                            component_type: _not_offered(
+                                resource,
+                                component_type,
+                                period,
+                                offered[component_type],
                             )
-                            % {
-                                "period": period,
-                                "offered": ", ".join(
-                                    p for p in PERIODS if p in offered[component_type]
-                                ),
-                            }
                         }
                     )
-                cap = (resource_limits.get(component_type) or {}).get(period)
-                if cap is not None and amount > Decimal(str(cap)):
+                cap = resource_cap(resource_limits.get(component_type) or {}, period)
+                if cap is not None and amount > cap[0]:
                     raise serializers.ValidationError(
                         {
                             component_type: _(
                                 "The %(period)s limit may not exceed the "
-                                "resource's %(period)s spending limit of %(cap)s."
+                                "resource's %(cap_period)s spending limit of "
+                                "%(cap)s."
                             )
-                            % {"period": period, "cap": cap}
+                            % {
+                                "period": period,
+                                "cap_period": cap[1],
+                                "cap": spending_limits.json_number(cap[0]),
+                            }
                         }
                     )
             amounts[period] = amount
@@ -221,6 +306,25 @@ def validate_key_limits(value, resource, current: dict | None = None) -> dict | 
     return cleaned or None
 
 
+# The limits a request asked for, as sent: ``(field, value)``, where field is
+# ``limits`` (the flat monthly shape) or ``spending_limits``. Validation runs
+# unlocked; the command validates them again with the key and the resource
+# locked, against what they hold then.
+REQUESTED = "requested_spending_limits"
+
+
+def clean_requested_limits(requested, resource, current: dict | None) -> dict | None:
+    """The key's new spending limits from a request's ``(field, value)``.
+
+    ``current`` is what the key holds, which the flat monthly shape keeps the
+    other periods of, and which may be sent back as it is.
+    """
+    field, value = requested
+    if field == "limits":
+        value = with_monthly_limits(current, value)
+    return validate_key_limits(value, resource, current)
+
+
 # --- usage --------------------------------------------------------------------
 
 
@@ -228,15 +332,37 @@ def _month_end(month: datetime.date) -> datetime.date:
     return month + relativedelta(months=1)
 
 
+def earliest_reportable_day(day: datetime.date) -> datetime.date:
+    """The earliest date a key's usage may be reported for on ``day``.
+
+    The start of the year, the longest period a limit has, or of the previous
+    month when that is earlier: an agent may still send the last days of a
+    month just after it ended, and a report refused for them would lose the
+    current days with it. Earlier dates could not count for any limit.
+    """
+    previous_month = (day.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+    return min(spending_limits.period_bounds(YEAR, day)[0], previous_month)
+
+
 def record_days(api_key: models.ResourceApiKey, daily_usages) -> None:
-    """Store a key's usage per date; a date reported again replaces its amount."""
-    for item in daily_usages:
-        models.ResourceApiKeyDailyUsage.objects.update_or_create(
-            api_key=api_key,
-            component_type=item["type"],
-            date=item["date"],
-            defaults={"usage": item["amount"]},
-        )
+    """Store a key's usage per date; a date reported again replaces its amount.
+
+    One statement for the whole report, which holds the key's lock meanwhile.
+    """
+    models.ResourceApiKeyDailyUsage.objects.bulk_create(
+        [
+            models.ResourceApiKeyDailyUsage(
+                api_key=api_key,
+                component_type=item["type"],
+                date=item["date"],
+                usage=item["amount"],
+            )
+            for item in daily_usages
+        ],
+        update_conflicts=True,
+        unique_fields=["api_key", "component_type", "date"],
+        update_fields=["usage", "modified"],
+    )
 
 
 def month_from_days(api_key: models.ResourceApiKey, month: datetime.date) -> dict:
@@ -288,18 +414,92 @@ def rename_component_type(offering, old_type: str, new_type: str) -> None:
     ).update(component_type=new_type)
 
 
-def window_start(day: datetime.date) -> datetime.date:
-    """The earliest date any period containing ``day`` reaches back to."""
-    return min(spending_limits.period_bounds(period, day)[0] for period in PERIODS)
+# Rows older than this many whole years before the current one are pruned: no
+# limit reads them, and a report can no longer be dated in them.
+DAILY_USAGE_RETENTION_YEARS = 1
 
 
-def _daily_rows(api_key: models.ResourceApiKey, since: datetime.date) -> list:
-    # The listing prefetches the rows since window_start, so a page of keys
-    # costs one query for all of them.
+def _limit_periods(api_key: models.ResourceApiKey) -> set[str]:
+    return {
+        period
+        for limits in (api_key.spending_limits or {}).values()
+        if isinstance(limits, dict)
+        for period, amount in limits.items()
+        if amount is not None and period in PERIODS
+    }
+
+
+def rows_since(api_key: models.ResourceApiKey, day: datetime.date):
+    """The earliest date of the daily rows the key's limits read on ``day``.
+
+    None when they read none: a month limit reads the key's month figure, and
+    a key without a limit reads nothing. Day and week read the rows of their
+    period; quarter and year those of the months before the current one.
+    """
+    starts = [
+        spending_limits.period_bounds(period, day)[0]
+        for period in _limit_periods(api_key)
+        if period != MONTH
+    ]
+    return min(starts, default=None)
+
+
+class _HasLimitFor(Func):
+    """Whether a key's ``spending_limits`` has a limit for ``period`` on any component."""
+
+    output_field = BooleanField()
+
+    def __init__(self, expression, period):
+        if period not in PERIODS:
+            raise ValueError(f"Unknown spending limit period: {period}")
+        # The period comes from a fixed list, so it may be written in the SQL.
+        self.template = (
+            f"jsonb_path_exists(%(expressions)s, '$.* ? (@.{period} != null)')"
+        )
+        super().__init__(expression)
+
+
+def daily_rows_read(day: datetime.date, api_key_field="api_key") -> Q:
+    """The daily rows that some key's limits read on ``day``, as ``rows_since`` has it.
+
+    For a listing to load the rows of a page of keys in one query, and only
+    those: most keys hold no limit that reads them.
+    """
+    limits = F(f"{api_key_field}__spending_limits")
+    condition = Q(pk__in=[])
+    for period in PERIODS:
+        if period == MONTH:
+            continue
+        condition |= Q(
+            Q(date__gte=spending_limits.period_bounds(period, day)[0]),
+            _HasLimitFor(limits, period),
+        )
+    return condition
+
+
+def _daily_rows(api_key: models.ResourceApiKey, day: datetime.date) -> list:
+    # A listing prefetches the rows some key reads (daily_rows_read), so a
+    # page of keys costs one query for all of them.
+    since = rows_since(api_key, day)
+    if since is None:
+        return []
     prefetched = getattr(api_key, "_prefetched_objects_cache", {})
     if "daily_usages" in prefetched:
         return [row for row in prefetched["daily_usages"] if row.date >= since]
     return list(api_key.daily_usages.filter(date__gte=since))
+
+
+def prune_daily_usage(day: datetime.date) -> int:
+    """Delete the daily rows no limit reads any more, and return how many.
+
+    Those of the current year and the one before are kept, deleted keys'
+    included: the previous year is still shown while it is recent.
+    """
+    keep_from = datetime.date(day.year - DAILY_USAGE_RETENTION_YEARS, 1, 1)
+    deleted, _ = models.ResourceApiKeyDailyUsage.objects.filter(
+        date__lt=keep_from
+    ).delete()
+    return deleted
 
 
 def _month_usage(api_key, component_type, month: datetime.date) -> Decimal:
@@ -335,7 +535,7 @@ def get_status(api_key: models.ResourceApiKey, day=None) -> list[dict]:
     if not api_key.spending_limits:
         return []
     day = day or spending_limits.utc_today()
-    rows = _daily_rows(api_key, window_start(day))
+    rows = _daily_rows(api_key, day)
     result = []
     for component_type, limits in api_key.spending_limits.items():
         for period in PERIODS:
