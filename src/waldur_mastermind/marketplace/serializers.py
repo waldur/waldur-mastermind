@@ -16241,7 +16241,10 @@ class OfferingTermsOfServiceSerializer(
         return True
 
 
-class OfferingTermsOfServiceCreateSerializer(serializers.ModelSerializer):
+class OfferingTermsOfServiceCreateSerializer(
+    core_serializers.ConditionalUniqueValidatedInSerializerMixin,
+    serializers.ModelSerializer,
+):
     """Serializer for creating Terms of Service configurations."""
 
     offering = serializers.HyperlinkedRelatedField(

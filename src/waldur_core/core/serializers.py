@@ -433,6 +433,20 @@ class UserEmailPatternsValidatorMixin:
         return value
 
 
+class ConditionalUniqueValidatedInSerializerMixin:
+    """Leaves conditional UniqueConstraints (such as one active row per
+    customer) to the serializer's own validate(), which names the conflicting
+    row. Since 3.18.2 DRF generates a UniqueTogetherValidator for them too,
+    which runs first and answers with a generic "must make a unique set"."""
+
+    def get_unique_together_validators(self):
+        return [
+            validator
+            for validator in super().get_unique_together_validators()
+            if getattr(validator, "condition", None) is None
+        ]
+
+
 class AugmentedSerializerMixin:
     """
     This mixin provides several extensions to stock Serializer class:
