@@ -110,6 +110,7 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | Start Instance | Power on virtual machines | `POST /api/openstack-instances/{uuid}/start/` |
 | Stop Instance | Power off virtual machines | `POST /api/openstack-instances/{uuid}/stop/` |
 | Restart Instance | Reboot virtual machines | `POST /api/openstack-instances/{uuid}/restart/` |
+| Hard Reboot Instance | Power-cycle without guest shutdown | `POST /api/openstack-instances/{uuid}/hard_reboot/` |
 | Resize Instance | Change instance flavor | `POST /api/openstack-instances/{uuid}/change_flavor/` |
 | Console Access | Get VNC console URL | `POST /api/openstack-instances/{uuid}/console/` |
 | Attach Volume | Connect storage to instance | `POST /api/openstack-instances/{uuid}/attach_volume/` |

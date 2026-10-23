@@ -357,6 +357,9 @@ class EventType(StrEnum):
     RESOURCE_EXTEND_VOLUME_FAILED = "resource_extend_volume_failed"
     RESOURCE_EXTEND_VOLUME_SCHEDULED = "resource_extend_volume_scheduled"
     RESOURCE_EXTEND_VOLUME_SUCCEEDED = "resource_extend_volume_succeeded"
+    RESOURCE_HARD_REBOOT_FAILED = "resource_hard_reboot_failed"
+    RESOURCE_HARD_REBOOT_SCHEDULED = "resource_hard_reboot_scheduled"
+    RESOURCE_HARD_REBOOT_SUCCEEDED = "resource_hard_reboot_succeeded"
     RESOURCE_IMPORT_SUCCEEDED = "resource_import_succeeded"
     RESOURCE_PULL_FAILED = "resource_pull_failed"
     RESOURCE_PULL_SCHEDULED = "resource_pull_scheduled"
@@ -901,6 +904,9 @@ EVENT_GROUP_MAPPING = {
         EventType.RESOURCE_EXTEND_VOLUME_FAILED,
         EventType.RESOURCE_EXTEND_VOLUME_SCHEDULED,
         EventType.RESOURCE_EXTEND_VOLUME_SUCCEEDED,
+        EventType.RESOURCE_HARD_REBOOT_FAILED,
+        EventType.RESOURCE_HARD_REBOOT_SCHEDULED,
+        EventType.RESOURCE_HARD_REBOOT_SUCCEEDED,
         EventType.RESOURCE_IMPORT_SUCCEEDED,
         EventType.RESOURCE_PULL_FAILED,
         EventType.RESOURCE_PULL_SCHEDULED,

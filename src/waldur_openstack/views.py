@@ -3325,6 +3325,49 @@ class InstanceViewSet(
     restart_permissions = [openstack_permissions.can_manage_openstack_instance_power]
 
     @extend_schema(
+        summary="Hard reboot instance",
+        description=(
+            "Power-cycle the instance without waiting for the guest OS to shut "
+            "down. Unlike restart, it also recovers an instance that is in "
+            "ERROR, paused, suspended or stuck in a soft reboot."
+        ),
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def hard_reboot(self, request, uuid=None):
+        instance: models.Instance = self.get_object()
+        executors.InstanceHardRebootExecutor().execute(instance)
+        return response.Response(
+            {"status": _("hard reboot was scheduled")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    def _can_hard_reboot_instance(instance):
+        if (
+            instance.state == CoreStates.OK
+            and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
+        ):
+            raise core_exceptions.IncorrectStateException(
+                _("Instance is stopped. Start it instead.")
+            )
+
+    hard_reboot_validators = [
+        _can_hard_reboot_instance,
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
+        core_validators.RuntimeStateValidator(
+            models.Instance.RuntimeStates.ACTIVE,
+            models.Instance.RuntimeStates.ERROR,
+            models.Instance.RuntimeStates.PAUSED,
+            models.Instance.RuntimeStates.SUSPENDED,
+            models.Instance.RuntimeStates.REBOOT,
+        ),
+    ]
+    hard_reboot_permissions = [
+        openstack_permissions.can_manage_openstack_instance_power
+    ]
+
+    @extend_schema(
         summary="Rescue instance",
         description=(
             "Boot the instance from a separate rescue image while keeping "

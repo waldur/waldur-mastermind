@@ -1941,6 +1941,26 @@ class InstanceRestartExecutor(core_executors.ActionExecutor):
         )
 
 
+class InstanceHardRebootExecutor(core_executors.ActionExecutor):
+    action = "Hard reboot"
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                "hard_reboot_instance",
+                state_transition="begin_updating",
+            ),
+            core_tasks.PollRuntimeStateTask().si(
+                serialized_instance,
+                backend_pull_method="pull_instance_runtime_state",
+                success_state="ACTIVE",
+                erred_state=models.Instance.RuntimeStates.ERROR,
+            ),
+        )
+
+
 class InstanceRescueExecutor(core_executors.ActionExecutor):
     action = "Rescue"
 

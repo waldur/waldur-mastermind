@@ -457,6 +457,9 @@
 - resource_extend_volume_failed
 - resource_extend_volume_scheduled
 - resource_extend_volume_succeeded
+- resource_hard_reboot_failed
+- resource_hard_reboot_scheduled
+- resource_hard_reboot_succeeded
 - resource_import_succeeded
 - resource_pull_failed
 - resource_pull_scheduled
