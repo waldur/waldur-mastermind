@@ -1149,6 +1149,14 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Hide the API keys tab on resources of this offering.",
     )
+    display_prepaid_limits_as_total = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, the UI shows each prepaid component as the "
+        "total for the whole subscription (the monthly amount times the months "
+        "ordered) instead of a monthly amount, and the resource's limit_usage "
+        "sums its usage over the whole subscription. Ordering and billing do "
+        "not change.",
+    )
 
     def validate_disabled_resource_actions(self, value):
         valid_actions = [choice[0] for choice in ResourceAction.CHOICES]
@@ -8695,6 +8703,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "end_date_updated_at",
             "username",
             "limit_usage",
+            "prepaid_total_component_types",
             "downscaled",
             "restrict_member_access",
             "paused",
@@ -8968,6 +8977,12 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         "billing period unless the component defines a longer limit_period), i.e. the "
         "period's high-watermark rather than the instantaneous current_usages value."
     )
+    prepaid_total_component_types = serializers.SerializerMethodField(
+        help_text="Component types whose limit_usage covers the whole subscription, "
+        "so the UI shows their limit as the monthly limit times the months ordered. "
+        "Empty unless the offering shows prepaid limits as a total "
+        "(display_prepaid_limits_as_total)."
+    )
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     available_actions = serializers.SerializerMethodField()
     limits = serializers.SerializerMethodField()
@@ -9042,8 +9057,12 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         period high-watermark, shared with SLURM QoS policy enforcement — not the
         instantaneous `current_usages` value (which may be lower after usage
         drops mid-period).
+
+        An offering with `display_prepaid_limits_as_total` also gets the usage
+        of its prepaid components over the whole subscription, to set against
+        the total limit the portal then shows.
         """
-        if not resource.is_limit_based or not resource.plan:
+        if not resource.plan:
             return {}
 
         page = self._page(resource)
@@ -9052,7 +9071,20 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             if page and page.period_usages is not None
             else None
         )
-        return utils.get_current_period_usage(resource, usages=usages)
+        result = {}
+        if resource.is_limit_based:
+            result = utils.get_current_period_usage(resource, usages=usages)
+        if utils.shows_prepaid_limits_as_total(resource.offering):
+            result.update(utils.get_prepaid_total_usage(resource, usages=usages))
+        return result
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_prepaid_total_component_types(self, resource: models.Resource) -> list[str]:
+        if not resource.plan or not utils.shows_prepaid_limits_as_total(
+            resource.offering
+        ):
+            return []
+        return sorted(utils.get_prepaid_total_types(resource))
 
     def get_available_actions(self, resource: models.Resource) -> list[str]:
         return plugins.manager.get_available_resource_actions(resource)

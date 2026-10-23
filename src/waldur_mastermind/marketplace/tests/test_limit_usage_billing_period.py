@@ -6,7 +6,7 @@ from rest_framework import test
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import callbacks, models
+from waldur_mastermind.marketplace import callbacks, models, utils
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
@@ -296,6 +296,161 @@ class TotalLimitUsageWithNullPlanPeriodTest(test.APITestCase):
 
         limit_usage = ResourceSerializer().get_limit_usage(self.resource)
         self.assertEqual(limit_usage.get("cpu"), 42)
+
+    def test_page_preload_keeps_the_whole_history(self):
+        # A total limit period sums every year, so the page preload must still
+        # load last year's rows for it.
+        for billing_period, usage in (
+            (datetime.date(2025, 11, 1), 20),
+            (datetime.date(2026, 2, 1), 25),
+        ):
+            models.ComponentUsage.objects.create(
+                resource=self.resource,
+                plan_period=None,
+                component=self.component,
+                usage=usage,
+                date=datetime.datetime.combine(
+                    billing_period, datetime.time(12), tzinfo=datetime.UTC
+                ),
+                billing_period=billing_period,
+            )
+        rows = utils.load_current_period_usages([self.resource])[self.resource.id]
+        self.assertEqual(
+            utils.get_current_period_usage(self.resource, usages=rows),
+            {"cpu": 45.0},
+        )
+
+
+@freeze_time("2026-01-15")
+class PrepaidLimitUsageShownAsTotalTest(test.APITestCase):
+    """
+    An offering with display_prepaid_limits_as_total shows a prepaid
+    component's limit as the monthly figure times the months ordered, the one
+    budget the SLURM site agent sets. Its limit_usage must then cover the whole
+    subscription, not the current month, or the panel sets a month's usage
+    against the whole budget.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.resource, self.cpu, self.plan_period = _create_limit_resource(
+            self.fixture, LimitPeriods.MONTH
+        )
+        self.gpu = factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            is_prepaid=True,
+            type="gpu",
+            limit_period=LimitPeriods.MONTH,
+        )
+        factories.PlanComponentFactory(plan=self.resource.plan, component=self.gpu)
+        for component, billing_period, usage in (
+            (self.gpu, datetime.date(2025, 12, 1), 40),
+            (self.gpu, datetime.date(2026, 1, 1), 2),
+            (self.cpu, datetime.date(2025, 12, 1), 30),
+            (self.cpu, datetime.date(2026, 1, 1), 5),
+        ):
+            models.ComponentUsage.objects.create(
+                resource=self.resource,
+                plan_period=self.plan_period,
+                component=component,
+                usage=usage,
+                date=datetime.datetime.combine(
+                    billing_period, datetime.time(12), tzinfo=datetime.UTC
+                ),
+                billing_period=billing_period,
+            )
+
+    def _set_option(self, value):
+        self.resource.offering.plugin_options = {
+            "display_prepaid_limits_as_total": value
+        }
+        self.resource.offering.save()
+
+    def test_prepaid_usage_is_the_current_month_by_default(self):
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+        self.assertEqual(limit_usage.get("gpu"), 2)
+
+    def test_prepaid_usage_covers_the_subscription_when_shown_as_total(self):
+        self._set_option(True)
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+        self.assertEqual(limit_usage.get("gpu"), 42)  # 40 + 2
+
+    def test_limit_components_keep_their_own_period(self):
+        self._set_option(True)
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+        self.assertEqual(limit_usage.get("cpu"), 5)
+
+    def test_prepaid_limit_component_keeps_its_own_period(self):
+        # A limit component may be prepaid too; only one-time prepaid
+        # components are shown as a total, so its usage stays monthly.
+        self.cpu.is_prepaid = True
+        self.cpu.save()
+        self._set_option(True)
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+        self.assertEqual(limit_usage.get("cpu"), 5)
+
+    def test_total_component_types_follow_the_option(self):
+        serializer = ResourceSerializer()
+        self.assertEqual(
+            serializer.get_prepaid_total_component_types(self.resource), []
+        )
+        self._set_option(True)
+        self.assertEqual(
+            serializer.get_prepaid_total_component_types(self.resource), ["gpu"]
+        )
+
+    def test_page_preload_covers_the_whole_subscription(self):
+        # A page of resources is served from one preloaded query, which must
+        # reach back past this year for a prepaid component shown as a total,
+        # and only for it: the monthly cpu needs this year's rows alone.
+        self._set_option(True)
+        rows = utils.load_current_period_usages([self.resource])[self.resource.id]
+        self.assertEqual(
+            sorted((row.component_id, row.billing_period) for row in rows),
+            sorted(
+                [
+                    (self.gpu.id, datetime.date(2025, 12, 1)),
+                    (self.gpu.id, datetime.date(2026, 1, 1)),
+                    (self.cpu.id, datetime.date(2026, 1, 1)),
+                ]
+            ),
+        )
+        self.assertEqual(
+            utils.get_prepaid_total_usage(self.resource, usages=rows),
+            {"gpu": 42.0},
+        )
+        self.assertEqual(
+            utils.get_current_period_usage(self.resource, usages=rows)["cpu"], 5
+        )
+
+    def test_page_preload_keeps_other_resources_to_this_year(self):
+        # One offering shown as a total must not pull in the history of every
+        # other resource on the same page.
+        self._set_option(True)
+        other, other_cpu, other_period = _create_limit_resource(
+            self.fixture, LimitPeriods.MONTH
+        )
+        for billing_period, usage in (
+            (datetime.date(2025, 12, 1), 30),
+            (datetime.date(2026, 1, 1), 5),
+        ):
+            models.ComponentUsage.objects.create(
+                resource=other,
+                plan_period=other_period,
+                component=other_cpu,
+                usage=usage,
+                date=datetime.datetime.combine(
+                    billing_period, datetime.time(12), tzinfo=datetime.UTC
+                ),
+                billing_period=billing_period,
+            )
+        rows = utils.load_current_period_usages([self.resource, other])
+        self.assertEqual(
+            [row.billing_period for row in rows[other.id]],
+            [datetime.date(2026, 1, 1)],
+        )
+        self.assertEqual(len(rows[self.resource.id]), 3)
 
 
 # ---------------------------------------------------------------------------

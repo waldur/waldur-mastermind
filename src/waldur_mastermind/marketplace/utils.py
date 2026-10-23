@@ -2076,33 +2076,58 @@ def load_current_period_usages(resources) -> dict:
     """The ComponentUsage rows ``get_current_period_usage`` reads, per resource id.
 
     One query for a page of resources instead of one per component of each.
-    Only this year's rows are loaded unless a component sums its whole history.
+    Only this year's rows are loaded, except for the components that sum their
+    whole history: so one such resource on a page does not pull in the history
+    of every other resource and component on it.
     """
     resources = [
-        resource for resource in resources if resource.is_limit_based and resource.plan
+        resource
+        for resource in resources
+        if resource.plan
+        and (
+            resource.is_limit_based or shows_prepaid_limits_as_total(resource.offering)
+        )
     ]
     if not resources:
         return {}
+    whole_history_components = set()
+    for resource in resources:
+        whole_history_components |= _whole_history_component_ids(resource)
     usages = models.ComponentUsage.objects.filter(
-        resource__in=resources
+        Q(component_id__in=list(whole_history_components))
+        | Q(billing_period__gte=datetime.date(datetime.date.today().year, 1, 1)),
+        resource__in=resources,
     ).select_related("plan_period__plan")
-    sums_whole_history = any(
-        effective.limit_period
-        not in (None, LimitPeriods.MONTH, LimitPeriods.QUARTERLY, LimitPeriods.ANNUAL)
-        for resource in resources
-        for effective in billing_mode.resolve_for_resource(resource).components.values()
-    )
-    if not sums_whole_history:
-        usages = usages.filter(
-            billing_period__gte=datetime.date(datetime.date.today().year, 1, 1)
-        )
     result = {resource.id: [] for resource in resources}
     for usage in usages:
         result[usage.resource_id].append(usage)
     return result
 
 
-def get_current_period_usage(resource, limit_period=None, usages=None):
+def _whole_history_component_ids(resource) -> set[int]:
+    """The components of ``resource`` whose usage counts over its whole history.
+
+    One with a total limit period, and a prepaid one on an offering that shows
+    prepaid limits as a total.
+    """
+    resolved = billing_mode.resolve_for_resource(resource)
+    prepaid_types = (
+        get_prepaid_total_types(resource, resolved=resolved)
+        if shows_prepaid_limits_as_total(resource.offering)
+        else set()
+    )
+    return {
+        effective.component.id
+        for effective in resolved.components.values()
+        if effective.type in prepaid_types
+        or effective.limit_period
+        not in (None, LimitPeriods.MONTH, LimitPeriods.QUARTERLY, LimitPeriods.ANNUAL)
+    }
+
+
+def get_current_period_usage(
+    resource, limit_period=None, usages=None, component_types=None, resolved=None
+):
     """Get per-component usage for a resource in the current period.
 
     Shared between the resource serializer (panel display) and the
@@ -2120,13 +2145,19 @@ def get_current_period_usage(resource, limit_period=None, usages=None):
 
         usages: The resource's ComponentUsage rows, as loaded for a page by
             ``load_current_period_usages``. Queried per component when omitted.
+        component_types: Only these component types, when given.
+        resolved: The resource's ``billing_mode`` resolution, when the caller
+            already has it.
 
     Returns:
         dict[str, float]: Component type → aggregated usage amount
     """
     result = {}
 
-    for effective in billing_mode.resolve_for_resource(resource).components.values():
+    resolved = resolved or billing_mode.resolve_for_resource(resource)
+    for effective in resolved.components.values():
+        if component_types is not None and effective.type not in component_types:
+            continue
         component = effective.component
         effective_period = limit_period or effective.limit_period
 
@@ -2167,6 +2198,50 @@ def get_current_period_usage(resource, limit_period=None, usages=None):
         result[component.type] = float(total)
 
     return result
+
+
+def shows_prepaid_limits_as_total(offering) -> bool:
+    """Whether ``offering`` shows its prepaid limits as one total."""
+    return bool((offering.plugin_options or {}).get("display_prepaid_limits_as_total"))
+
+
+def get_prepaid_total_types(resource, resolved=None) -> set[str]:
+    """The components shown as one total for the subscription.
+
+    One-time prepaid components as billed under the resource's plan; a plan's
+    billing mode can turn a prepaid offering component into a plain one.
+    """
+    resolved = resolved or billing_mode.resolve_for_resource(resource)
+    return {
+        effective.type
+        for effective in resolved.components.values()
+        if effective.billing_type == BillingTypes.ONE_TIME and effective.is_prepaid
+    }
+
+
+def get_prepaid_total_usage(resource, usages=None):
+    """Usage of each prepaid component summed over the whole subscription.
+
+    An offering with ``display_prepaid_limits_as_total`` shows a prepaid
+    component's limit as the monthly figure times the months ordered, which is
+    the single budget the SLURM site agent sets, so its usage has to cover the
+    same span. Only the resource panel reads this; QoS enforcement keeps the
+    component's own period through ``get_current_period_usage``.
+
+    Only one-time prepaid components count, as resolved under the resource's
+    plan: a limit component may be prepaid too, and its usage stays monthly.
+    """
+    resolved = billing_mode.resolve_for_resource(resource)
+    prepaid_types = get_prepaid_total_types(resource, resolved=resolved)
+    if not prepaid_types:
+        return {}
+    return get_current_period_usage(
+        resource,
+        limit_period=LimitPeriods.TOTAL,
+        usages=usages,
+        component_types=prepaid_types,
+        resolved=resolved,
+    )
 
 
 def _query_period_usages(resource, component, effective_period):

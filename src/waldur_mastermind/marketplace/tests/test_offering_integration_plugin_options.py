@@ -36,6 +36,8 @@ class LifecyclePluginOptionsPersistenceTest(test.APITestCase):
         ("enable_resource_limit_change_requests", False),
         ("enable_scim_entitlements", True),
         ("enable_scim_entitlements", False),
+        ("display_prepaid_limits_as_total", True),
+        ("display_prepaid_limits_as_total", False),
     )
     @unpack
     def test_option_persists(self, key, value):
