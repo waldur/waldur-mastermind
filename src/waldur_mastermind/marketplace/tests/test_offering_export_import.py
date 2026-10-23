@@ -10,6 +10,7 @@ from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
+from waldur_mastermind.marketplace.serializers import ExportImportOfferingSerializer
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.views import (
     COMPONENT_IMPORT_FIELDS,
@@ -1343,3 +1344,65 @@ class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
             offering__name="Imported Roundtrip", name="Roundtrip Plan"
         )
         self.assertTrue(imported_plan.components.filter(component=imported).exists())
+
+
+class PrepaidComponentImportTest(test.APITestCase):
+    """Only one-time components can be prepaid, but components kept from
+    before that rule must still survive an export and import, and an import
+    must not make a prepaid component of another type."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.legacy = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="cpu",
+            billing_type=BillingTypes.LIMIT,
+            is_prepaid=True,
+        )
+        self.prepaid = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="gpu",
+            billing_type=BillingTypes.ONE_TIME,
+            is_prepaid=True,
+        )
+
+    def test_management_import_keeps_existing_prepaid_component_of_another_type(self):
+        data = ExportImportOfferingSerializer(self.offering).data
+        data["components"] = [
+            {**component, "offering_id": self.offering.id}
+            for component in data["components"]
+        ]
+        serializer = ExportImportOfferingSerializer(self.offering, data=data)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def _api_import(self, components):
+        self.client.force_authenticate(self.fixture.staff)
+        import_data = {
+            "offering": {"name": self.offering.name, "type": self.offering.type},
+            "components": components,
+        }
+        return self.client.post(
+            reverse("marketplace-provider-offering-import-offering"),
+            {
+                "customer": self.fixture.customer.uuid.hex,
+                "category": self.offering.category.title,
+                "overwrite_existing": True,
+                "offering_data": yaml.safe_dump(import_data),
+            },
+        )
+
+    def test_api_import_cannot_move_a_prepaid_component_off_one_time(self):
+        response = self._api_import(
+            [{"type": "gpu", "name": "GPU", "billing_type": BillingTypes.LIMIT}]
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("billing_type", str(response.data))
+        self.prepaid.refresh_from_db()
+        self.assertEqual(self.prepaid.billing_type, BillingTypes.ONE_TIME)
+
+    def test_api_import_keeps_existing_prepaid_component_of_another_type(self):
+        response = self._api_import(
+            [{"type": "cpu", "name": "CPU", "billing_type": BillingTypes.LIMIT}]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
