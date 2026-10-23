@@ -2,9 +2,16 @@
 
 A key's limits have the shape of its resource's spending limits
 (``{component_type: {period: amount}}``, see ``spending_limits``) and the same
-periods, reset times and ordering rule. ``month`` is available on every
-component of the offering, as key limits were monthly before they had
-periods; the other periods only where the component offers them to resources.
+periods, reset times and ordering rule. Two offering options decide which
+periods a key is offered (``offered_periods``). ``api_key_limits``, on unless
+set to false, lets consumers limit keys at all. ``api_key_daily_usage``, off
+unless set, is the provider's declaration that the site agent reports each
+key's usage per day: without it only ``month`` is offered, as day and week
+limits would never be reached and quarter and year would count the current
+month alone. With it, a key is offered ``month`` on every component, as key
+limits were monthly before they had periods, and the other periods where the
+component offers them to resources. A component the resource's plan does not
+charge for takes no limit.
 A key's limit for a period may not exceed the resource's own for that period,
 and must be above zero: in the flat ``limits`` shape agents and older clients
 still read, zero means no limit, so a zero limit would block in Waldur and read
@@ -39,20 +46,81 @@ PERIODS = SpendingLimitPeriods.ORDER
 MONTH = SpendingLimitPeriods.MONTH
 
 
+LIMITS_OPTION = "api_key_limits"
+DAILY_USAGE_OPTION = "api_key_daily_usage"
+
+
+def limits_offered(offering) -> bool:
+    """Whether consumers may set limits on the offering's keys; on unless turned off."""
+    return (offering.plugin_options or {}).get(LIMITS_OPTION) is not False
+
+
+def daily_usage_reported(offering) -> bool:
+    """Whether the provider declares that each key's usage is reported per day."""
+    return (offering.plugin_options or {}).get(DAILY_USAGE_OPTION) is True
+
+
+def free_component_types(resource) -> set[str]:
+    """The component types the resource's plan prices at zero.
+
+    Nothing is spent on such a component, so a limit on it would only take
+    room in the key's settings. A component the plan does not price at all is
+    not counted: the plan may simply predate it.
+    """
+    if resource.plan_id is None:
+        return set()
+    return set(
+        models.PlanComponent.objects.filter(
+            plan_id=resource.plan_id, price=0
+        ).values_list("component__type", flat=True)
+    )
+
+
 def offered_periods(resource) -> dict[str, set[str]]:
-    """The periods a key of ``resource`` may limit, per component type."""
-    capped = spending_limits.capped_components(resource.offering, resource.plan)
+    """The periods a key of ``resource`` may limit, per component type.
+
+    Every component of the offering is listed, with no period at all where
+    limits are off for the offering or the plan does not charge for it.
+    """
+    offering = resource.offering
+    types = list(offering.components.values_list("type", flat=True))
+    if not limits_offered(offering):
+        return {component_type: set() for component_type in types}
+    free = free_component_types(resource)
+    capped = (
+        spending_limits.capped_components(offering, resource.plan)
+        if daily_usage_reported(offering)
+        else {}
+    )
     return {
-        component_type: {MONTH}
+        component_type: set()
+        if component_type in free
+        else {MONTH}
         | set(
             capped[component_type].spending_limit_periods
             if component_type in capped
             else ()
         )
-        for component_type in resource.offering.components.values_list(
-            "type", flat=True
-        )
+        for component_type in types
     }
+
+
+def _not_offered(resource, component_type, period, offered) -> str:
+    """Why a ``period`` limit is refused on ``component_type``."""
+    if not limits_offered(resource.offering):
+        return _("The offering does not offer limits on API keys.")
+    if not offered:
+        return _("%s is not charged for, so it takes no limit.") % component_type
+    message = _("A %(period)s limit is not offered. Offered: %(offered)s.") % {
+        "period": period,
+        "offered": ", ".join(p for p in PERIODS if p in offered),
+    }
+    if period != MONTH and not daily_usage_reported(resource.offering):
+        message = "{} {}".format(
+            message,
+            _("Other periods need the provider to report each key's usage per day."),
+        )
+    return message
 
 
 def with_monthly_limits(current: dict | None, monthly: dict | None) -> dict:
@@ -184,16 +252,12 @@ def validate_key_limits(value, resource, current: dict | None = None) -> dict | 
                 if period not in offered[component_type]:
                     raise serializers.ValidationError(
                         {
-                            component_type: _(
-                                "A %(period)s limit is not offered. Offered: "
-                                "%(offered)s."
+                            component_type: _not_offered(
+                                resource,
+                                component_type,
+                                period,
+                                offered[component_type],
                             )
-                            % {
-                                "period": period,
-                                "offered": ", ".join(
-                                    p for p in PERIODS if p in offered[component_type]
-                                ),
-                            }
                         }
                     )
                 cap = (resource_limits.get(component_type) or {}).get(period)

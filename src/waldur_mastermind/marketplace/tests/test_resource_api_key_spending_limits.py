@@ -4,6 +4,7 @@ import datetime
 from importlib import import_module
 from unittest import mock
 
+from django.apps import apps as django_apps
 from django.db import connection
 from django.db.migrations.loader import MigrationLoader
 from django.test import override_settings
@@ -30,6 +31,9 @@ from waldur_mastermind.marketplace.tests.test_resource_api_key_management import
 migration = import_module(
     "waldur_mastermind.marketplace.migrations.0315_resource_api_key_monthly_limits"
 )
+daily_usage_migration = import_module(
+    "waldur_mastermind.marketplace.migrations.0316_api_key_daily_usage_option"
+)
 
 # A Wednesday; its week started on Monday 19 October.
 TODAY = datetime.date(2026, 10, 21)
@@ -43,6 +47,10 @@ def utc(*args):
 class KeySpendingLimitsTestBase(ApiKeyManagementTestBase):
     def setUp(self):
         super().setUp()
+        # The agent reports each key's usage per day, so keys are offered the
+        # component's periods.
+        self.offering.plugin_options["api_key_daily_usage"] = True
+        self.offering.save()
         self.cost_component = factories.OfferingComponentFactory(
             offering=self.offering,
             type="token_cost",
@@ -414,6 +422,10 @@ class EnforcementTest(KeySpendingLimitsTestBase):
         self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
 
     def test_a_monthly_report_enforces_month_limits_only(self):
+        # A key that held a day limit before the provider stopped declaring
+        # daily usage; its month limit still applies.
+        self.offering.plugin_options["api_key_daily_usage"] = False
+        self.offering.save()
         self.set_limits(day=10, month=100)
         _, prepare = self.report(usages={"tokens": 1, "token_cost": 50})
         prepare.assert_not_called()
@@ -584,6 +596,167 @@ class MonthlyLimitsMigrationTest(test.APITestCase):
         migration.months_to_limits(apps, None)
         key.refresh_from_db()
         self.assertEqual(key.spending_limits, {"tokens": 100})
+
+
+class DailyUsageOptionMigrationTest(test.APITestCase):
+    def test_an_offering_whose_keys_have_days_declares_daily_usage(self):
+        reporting = factories.ResourceFactory()
+        reporting.offering.plugin_options = {"enable_api_key_provisioning": True}
+        reporting.offering.save()
+        key = models.ResourceApiKey.objects.create(resource=reporting, client_id="c1")
+        models.ResourceApiKeyDailyUsage.objects.create(
+            api_key=key, component_type="tokens", date=TODAY, usage=1
+        )
+        monthly = factories.ResourceFactory()
+        models.ResourceApiKey.objects.create(resource=monthly, client_id="c2")
+        declined = factories.ResourceFactory()
+        declined.offering.plugin_options = {"api_key_daily_usage": False}
+        declined.offering.save()
+        declined_key = models.ResourceApiKey.objects.create(
+            resource=declined, client_id="c3"
+        )
+        models.ResourceApiKeyDailyUsage.objects.create(
+            api_key=declined_key, component_type="tokens", date=TODAY, usage=1
+        )
+
+        # The models as they are: a migration state is not built under
+        # --no-migrations.
+        daily_usage_migration.declare_daily_usage(django_apps, None)
+
+        reporting.offering.refresh_from_db()
+        self.assertEqual(
+            reporting.offering.plugin_options,
+            {"enable_api_key_provisioning": True, "api_key_daily_usage": True},
+        )
+        monthly.offering.refresh_from_db()
+        self.assertNotIn("api_key_daily_usage", monthly.offering.plugin_options)
+        declined.offering.refresh_from_db()
+        self.assertIs(declined.offering.plugin_options["api_key_daily_usage"], False)
+
+
+@freeze_time("2026-10-21 12:00")
+class OfferedPeriodsTest(KeySpendingLimitsTestBase):
+    """Which periods a key is offered follows the offering's two options and the plan's prices."""
+
+    def set_options(self, **options):
+        self.offering.plugin_options.update(options)
+        self.offering.save()
+
+    def test_without_daily_usage_only_month_is_offered(self):
+        self.set_options(api_key_daily_usage=False)
+        for period in ("day", "week", "quarter"):
+            with self.subTest(period):
+                response, prepare = self.patch(
+                    {"spending_limits": {"token_cost": {period: 5}}}
+                )
+                self.assertEqual(
+                    response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+                )
+                self.assertIn("per day", str(response.data["spending_limits"]))
+                prepare.assert_not_called()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"month": 50}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_daily_usage_is_off_unless_set(self):
+        del self.offering.plugin_options["api_key_daily_usage"]
+        self.offering.save()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_with_daily_usage_the_components_periods_are_offered(self):
+        response, _ = self.patch(
+            {
+                "spending_limits": {
+                    "token_cost": {"day": 5, "week": 20, "month": 50, "quarter": 90}
+                }
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_with_limits_off_no_limit_is_offered(self):
+        self.set_options(api_key_limits=False)
+        for value in (
+            {"spending_limits": {"token_cost": {"month": 5}}},
+            {"spending_limits": {"tokens": {"month": 5}}},
+            {"limits": {"tokens": 5}},
+        ):
+            with self.subTest(value):
+                response, prepare = self.patch(value)
+                self.assertEqual(
+                    response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+                )
+                self.assertIn("does not offer limits", str(response.data))
+                prepare.assert_not_called()
+        response, _ = self.post(
+            self.fixture.owner,
+            list_url(),
+            {
+                "resource": self.resource.uuid.hex,
+                "spending_limits": {"token_cost": {"month": 5}},
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_limits_are_on_unless_turned_off(self):
+        self.assertNotIn("api_key_limits", self.offering.plugin_options)
+        response, _ = self.patch({"spending_limits": {"token_cost": {"month": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_held_limits_stay_when_their_periods_are_withdrawn(self):
+        self.set_limits(day=5, month=50)
+        self.set_options(api_key_limits=False)
+        # Sent back as held, or cleared: both pass.
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 5, "month": 50}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 6}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response, _ = self.patch({"spending_limits": None})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_held_day_limit_stays_without_daily_usage(self):
+        self.set_limits(day=5, month=50)
+        self.set_options(api_key_daily_usage=False)
+        response, _ = self.patch(
+            {"spending_limits": {"token_cost": {"day": 5, "month": 60}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_component_the_plan_prices_at_zero_takes_no_limit(self):
+        plan = factories.PlanFactory(offering=self.offering)
+        factories.PlanComponentFactory(
+            plan=plan, component=self.cost_component, price=2
+        )
+        tokens = self.offering.components.get(type="tokens")
+        factories.PlanComponentFactory(plan=plan, component=tokens, price=0)
+        self.resource.plan = plan
+        self.resource.save()
+        response, prepare = self.patch({"spending_limits": {"tokens": {"month": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("not charged", str(response.data))
+        prepare.assert_not_called()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_held_limit_on_a_free_component_may_stay(self):
+        self.key.spending_limits = {"tokens": {"month": 5}}
+        self.key.save()
+        plan = factories.PlanFactory(offering=self.offering)
+        tokens = self.offering.components.get(type="tokens")
+        factories.PlanComponentFactory(plan=plan, component=tokens, price=0)
+        self.resource.plan = plan
+        self.resource.save()
+        response, _ = self.patch(
+            {"spending_limits": {"tokens": {"month": 5}, "token_cost": {"day": 1}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_component_the_plan_does_not_price_still_takes_limits(self):
+        self.resource.plan = factories.PlanFactory(offering=self.offering)
+        self.resource.save()
+        response, _ = self.patch({"spending_limits": {"tokens": {"month": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @freeze_time("2026-10-21 12:00")

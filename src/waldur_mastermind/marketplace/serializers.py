@@ -234,6 +234,40 @@ def validate_uses_robot_accounts(instance, plugin_options):
         )
 
 
+# Options that only mean something with enable_api_key_provisioning, with the
+# value an offering that does not set them has.
+API_KEY_MANAGEMENT_OPTIONS = {
+    "api_key_limits": True,
+    "api_key_daily_usage": False,
+}
+
+
+def validate_api_key_options(instance, plugin_options):
+    """Per-key limits and per-key daily usage are part of key management.
+
+    Turning either on needs ``enable_api_key_provisioning``. One already on is
+    left as it is, so key management can be switched off on its own and back on
+    with the same settings: nothing reads them while it is off.
+    """
+    if not plugin_options:
+        return
+    stored = dict((instance.plugin_options or {}) if instance else {})
+    if {**stored, **plugin_options}.get("enable_api_key_provisioning"):
+        return
+    turned_on = [
+        name
+        for name, default in API_KEY_MANAGEMENT_OPTIONS.items()
+        if plugin_options.get(name) is True and stored.get(name, default) is not True
+    ]
+    if turned_on:
+        raise rf_exceptions.ValidationError(
+            {
+                "plugin_options": _("%s needs enable_api_key_provisioning.")
+                % ", ".join(turned_on)
+            }
+        )
+
+
 def validate_disable_grace_period_is_staff_only(user, instance, plugin_options):
     """Reject a non-staff user setting or changing disable_grace_period.
     Overriding the org/project grace period is a staff-controlled policy, so it is
@@ -1051,6 +1085,24 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         "checks the claim: turn it on only if the agent's backend supports "
         "per-key commands (such as the Envoy AI Gateway); on one that does not "
         "(such as Ceph S3) every such command errs.",
+    )
+    # Neither has a default: an update that leaves one out keeps what is stored,
+    # and an absent one reads as its documented default.
+    api_key_limits = serializers.BooleanField(
+        required=False,
+        help_text="Lets consumers set spending limits on API keys one by one. "
+        "On unless set to false; needs enable_api_key_provisioning. Turned off, "
+        "no new key limit is accepted, and limits keys already hold stay until "
+        "cleared.",
+    )
+    api_key_daily_usage = serializers.BooleanField(
+        required=False,
+        help_text="Declares that the site agent reports each API key's usage per "
+        "day. Only then are keys offered limits other than month: the day and "
+        "week periods, and the quarter and year, that a component offers to "
+        "resources. Off unless set; needs enable_api_key_provisioning. Nothing "
+        "checks the claim: turn it on only if the agent reports per-key daily "
+        "usage, or those limits are never reached.",
     )
 
 
@@ -5886,6 +5938,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             self.context["request"].user, self.instance, attrs.get("plugin_options", {})
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
+        validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
 
         attrs.setdefault("options", {"options": {}, "order": []})
         attrs.setdefault("resource_options", {"options": {}, "order": []})
@@ -6397,6 +6450,7 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             user, self.instance, attrs.get("plugin_options", {})
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
+        validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
         self._joining_offerings = self._validate_account_scope_switch(
             attrs.get("plugin_options", {})
         )
@@ -9829,9 +9883,11 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text="Limits per component type and period, replacing the key's "
-        "limits; a null amount clears that period's limit. A period other than "
-        "month must be offered on the component, and a limit may not exceed the "
-        "resource's spending limit for the same period.",
+        "limits; a null amount clears that period's limit. Only where the "
+        "offering's api_key_limits is not off, and not on a component the plan "
+        "prices at zero. A period other than month must be offered on the "
+        "component and needs the offering's api_key_daily_usage. A limit may "
+        "not exceed the resource's spending limit for the same period.",
     )
     allowed_models = serializers.ListField(
         child=serializers.CharField(),
