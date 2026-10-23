@@ -1365,7 +1365,10 @@ class CustomerAffiliateSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class CreateCustomerAffiliateSerializer(CustomerAffiliateSerializer):
+class CreateCustomerAffiliateSerializer(
+    core_serializers.ConditionalUniqueValidatedInSerializerMixin,
+    CustomerAffiliateSerializer,
+):
     def get_from_attrs_or_instance(self, attrs, field_name, default=None):
         return attrs.get(field_name, getattr(self.instance, field_name, default))
 
