@@ -1286,7 +1286,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             #     (User Profile -> Credentials -> API Token)
             #   - hostname: Your SLURM cluster hostname (if shown as placeholder)
             #
-            # Documentation: https://docs.waldur.com/admin-guide/providers/remote-offerings/
+            # Documentation: https://docs.waldur.com/latest/admin-guide/providers/site-agent/
             #
             # Place this file at /etc/waldur/waldur-site-agent-config.yaml
             # and start the site agent service.
