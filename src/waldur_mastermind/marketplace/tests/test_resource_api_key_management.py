@@ -1833,12 +1833,22 @@ class KeyUsageTest(ApiKeyManagementTestBase):
         self.key.refresh_from_db()
         self.assertEqual(self.key.usage_period, LAST_MONTH)
 
-    def test_an_earlier_month_is_refused_once_a_later_one_is_held(self):
+    def test_an_earlier_month_raises_its_history_once_a_later_one_is_held(self):
         self.report(self.key, {"tokens": 5})
         response, _ = self.report(self.key, {"tokens": 50}, LAST_MONTH)
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.key.refresh_from_db()
         self.assertEqual(self.key.current_usages, {"tokens": 5})
+        self.assertEqual(self.key.usage_period, THIS_MONTH)
+        self.assertEqual(
+            self.key.usage_history, {f"{LAST_MONTH:%Y-%m}": {"tokens": 50}}
+        )
+
+    def test_a_lower_figure_for_the_same_month_keeps_the_higher(self):
+        self.report(self.key, {"tokens": 12})
+        self.report(self.key, {"tokens": 5})
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.current_usages, {"tokens": 12})
 
     def test_a_future_month_is_rejected(self):
         response, _ = self.report(self.key, {"tokens": 5}, NEXT_MONTH)

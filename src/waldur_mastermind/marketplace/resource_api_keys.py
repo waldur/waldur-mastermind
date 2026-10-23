@@ -498,13 +498,29 @@ def record_created_key(
 
 
 def _record_month(api_key, usages: dict, period: datetime.date, daily_usages):
-    """Merge a month's usage so far into the key, refusing what days already cover."""
-    if api_key.usage_period and period < api_key.usage_period:
-        raise IncorrectStateException(
-            f"The API key already holds its usage for "
-            f"{api_key.usage_period:%Y-%m}; {period:%Y-%m} can no longer be "
-            f"reported."
+    """Merge a month's usage so far into the key, refusing what days already cover.
+
+    A month figure never drops: a report for the month the key holds raises
+    each component's figure and never lowers it, as daily amounts do, so a
+    reached limit cannot reopen within the month. A report for a month before
+    the one the key holds raises that month's figure in the history instead,
+    so the usage an agent sends just after the month turned still counts for
+    a total. A month older than daily usage may be dated in
+    (``earliest_reportable_day``) is refused: an agent sends the last figure
+    of a month soon after it ends.
+    """
+    closed = bool(api_key.usage_period) and period < api_key.usage_period
+    if closed:
+        earliest = api_key_spending_limits.earliest_reportable_day(
+            spending_limits.utc_today()
         )
+        if period < earliest:
+            raise IncorrectStateException(
+                f"The API key already holds its usage for "
+                f"{api_key.usage_period:%Y-%m}, and a closed month can be "
+                f"reported from {earliest:%Y-%m} only; {period:%Y-%m} can no "
+                f"longer be reported."
+            )
     # The month figure of a component with daily amounts is their sum, and the
     # next daily report would overwrite a month total sent beside them.
     with_days = api_key_spending_limits.types_with_days(api_key, period) | {
@@ -518,8 +534,13 @@ def _record_month(api_key, usages: dict, period: datetime.date, daily_usages):
                 f"{period:%Y-%m}; report its usage per day."
             }
         )
+    if closed:
+        api_key_spending_limits.raise_closed_month(api_key, period, usages)
+        return
     if period == api_key.usage_period:
-        usages = {**(api_key.current_usages or {}), **usages}
+        usages = api_key_spending_limits.raised(api_key.current_usages, usages)
+    else:
+        api_key_spending_limits.close_month(api_key)
     api_key.current_usages = usages
     api_key.usage_period = period
 
@@ -539,6 +560,7 @@ def _record_days(api_key, daily_usages):
     months = {item["date"].replace(day=1) for item in daily_usages}
     latest = max(months)
     if not api_key.usage_period or latest > api_key.usage_period:
+        api_key_spending_limits.close_month(api_key)
         api_key.current_usages = {}
         api_key.usage_period = latest
     # Days of a month before the one the key holds still count for the limits
@@ -554,6 +576,10 @@ def _record_days(api_key, daily_usages):
                 ).items()
             },
         }
+    # Days of a closed month raise its figure in the history, for the total.
+    api_key_spending_limits.count_late_days(
+        api_key, {month for month in months if month < api_key.usage_period}
+    )
 
 
 def _move_resume_time(api_key: models.ResourceApiKey, reached: list[dict]) -> None:
@@ -579,9 +605,11 @@ def record_usage(
     """Store a key's usage, and pause or resume it against its limits.
 
     ``usages``, unless None, is the usage so far in the month ``period``: a
-    report for the month the key already holds merges per component, and one for
-    a later month replaces it. Only the latest month is kept, so a report for an earlier one
-    is refused. ``daily_usages`` are amounts per UTC date; a date reported again
+    report for the month the key already holds raises its figure per component,
+    and one for a later month replaces it. A report for an earlier month raises
+    that month's figure in the usage history, which only a total reads, and one
+    older than daily usage may be dated in is refused (``_record_month``).
+    ``daily_usages`` are amounts per UTC date; a date reported again
     replaces its amount, and the month figure of a component with daily amounts
     is their sum.
 
@@ -596,7 +624,9 @@ def record_usage(
         if daily_usages:
             _record_days(api_key, daily_usages)
         models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
-            current_usages=api_key.current_usages, usage_period=api_key.usage_period
+            current_usages=api_key.current_usages,
+            usage_period=api_key.usage_period,
+            usage_history=api_key.usage_history,
         )
         reached = api_key_spending_limits.reached_limits(api_key)
         if reached:

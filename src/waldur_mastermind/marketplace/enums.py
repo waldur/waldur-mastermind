@@ -112,6 +112,7 @@ class SpendingLimitPeriods:
 
     A week starts on Monday. Day and week are measured from per-day usage
     reports; month and longer from the monthly usage rows invoicing reads.
+    Total is all the usage since the resource started, and never resets.
     """
 
     DAY = "day"
@@ -119,9 +120,10 @@ class SpendingLimitPeriods:
     MONTH = "month"
     QUARTER = "quarter"
     YEAR = "year"
+    TOTAL = "total"
 
     # Shortest first: a shorter period's limit may not exceed a longer one's.
-    ORDER = (DAY, WEEK, MONTH, QUARTER, YEAR)
+    ORDER = (DAY, WEEK, MONTH, QUARTER, YEAR, TOTAL)
     DAILY = (DAY, WEEK)
 
     CHOICES = (
@@ -130,6 +132,7 @@ class SpendingLimitPeriods:
         (MONTH, "Month, resets on the 1st at 00:00 UTC"),
         (QUARTER, "Quarter, resets on the 1st of January, April, July and October"),
         (YEAR, "Year, resets on the 1st of January"),
+        (TOTAL, "Total, all usage since the resource started; never resets"),
     )
 
 

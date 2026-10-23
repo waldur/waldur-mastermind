@@ -10,7 +10,7 @@ it.
 
 - A **usage-based** component is billed on what was used. Its provider may let
   customers set **spending limits** on it: at most one per period, for any of
-  day, week, month, quarter and year.
+  day, week, month, quarter, year and total.
 - Limits are **never billed** and are not stored in `Resource.limits`, which
   holds the quantities of limit-based components.
 - Every limit compares a different span of the same usage. With limits of 20 a
@@ -30,6 +30,9 @@ October invoice = sum of October's days x price. The limits are never billed.
 
 - Periods are **calendar periods in UTC**. A week starts on Monday, a quarter on
   1 January, April, July or October.
+- **Total** is the exception: all the usage since the resource started, which
+  never resets. It suits a one-off budget, such as a grant of 500 USD for a
+  pilot, which a yearly limit would hand out again every January.
 - A reached limit applies the offering's `action_on_usage_limit` (`pause` or
   `downscale`). The restriction lifts when every limit is under again, and at
   the latest within five minutes of the reset of the limits that hold it.
@@ -59,7 +62,8 @@ period's default may not exceed a longer one's. Amounts take at most two decimal
 places, matching `ComponentUsage.usage`.
 
 Day and week limits need the integration to **report usage per day** (below).
-An integration that reports month totals can offer month, quarter and year.
+An integration that reports month totals can offer month, quarter, year and
+total.
 
 `limit_amount` on a usage-based component is unrelated and not enforced: a
 report above it is accepted and billed, with a log warning.
@@ -129,12 +133,17 @@ resources, and every five minutes for resources whose
 `usage_limit_resumes_at` has passed (`lift_reset_spending_limit_restrictions`).
 
 - Day and week sum `ComponentDailyUsage`; a week spans month boundaries. Month,
-  quarter and year sum the monthly `ComponentUsage` rows.
+  quarter and year sum the monthly `ComponentUsage` rows, and total sums every
+  one of them since the resource started. Months the plan billed the component
+  by limit do not count for any of them.
 - A limit is reached when usage is equal to it or above it, so a limit of 0
   keeps the resource restricted for as long as it is set.
 - `Resource.usage_limit_resumes_at` is when every reached spending limit has
   reset. It is empty while a limit-based component's own limit is also
-  reached, because that one lifts on its own period's rollover.
+  reached, because that one lifts on its own period's rollover, and while a
+  reached total holds the resource: a total never resets, so the restriction
+  lifts only when the limit is raised or cleared (`set_spending_limits`
+  re-evaluates at once).
 - A restriction applied by hand before a limit is reached is never taken over
   or lifted here (`Resource.usage_limit_restriction` records which restriction
   this mechanism applied). A pause set by the project grace period
@@ -166,6 +175,8 @@ one `spending_limit_status` entry per component and period:
 }
 ```
 
+`resets_at` is `null` for a total, which never resets.
+
 Status is computed only for resources that have spending limits.
 
 ## API keys
@@ -177,7 +188,11 @@ its limit stays paused while the resource is restricted for its own. The
 offering decides which periods keys are offered: `month` only, unless it
 declares with `plugin_options.api_key_daily_usage` that the agent reports each
 key's usage per day, and none where `plugin_options.api_key_limits` is off.
-See [Resource API keys](resource-api-keys.md#limits).
+A total is offered wherever the component offers it, as it needs no daily
+usage: it adds each closed month's figure, which a key keeps in its usage
+history, to the current month's. A month's figure never drops, and the agent
+may still raise a closed month's after the month ends, so the usage it sends
+just after midnight counts. See [Resource API keys](resource-api-keys.md#limits).
 
 ## Code map
 

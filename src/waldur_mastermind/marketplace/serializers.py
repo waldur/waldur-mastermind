@@ -1101,9 +1101,10 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
     api_key_daily_usage = serializers.BooleanField(
         required=False,
         help_text="Declares that the site agent reports each API key's usage per "
-        "day. Only then are keys offered limits other than month: the day and "
-        "week periods, and the quarter and year, that a component offers to "
-        "resources. Off unless set; needs enable_api_key_provisioning. Nothing "
+        "day. Only then are keys offered the day and week periods, and the "
+        "quarter and year, that a component offers to resources; month, and total "
+        "where the component offers it, are offered without it, as they need no "
+        "usage per day. Off unless set; needs enable_api_key_provisioning. Nothing "
         "checks the claim: turn it on only if the agent reports per-key daily "
         "usage, or those limits are never reached.",
     )
@@ -4255,10 +4256,11 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         child=SpendingLimitBoundsSerializer(),
         required=False,
         help_text=(
-            "Periods (day, week, month, quarter, year) for which customers can set "
-            "a spending limit on this usage-based component. Day and week need the "
-            "integration to report usage per day. Empty when customers cannot set "
-            "spending limits."
+            "Periods (day, week, month, quarter, year, total) for which customers "
+            "can set a spending limit on this usage-based component; total counts "
+            "all the usage since the resource started and never resets. Day and "
+            "week need the integration to report usage per day. Empty when "
+            "customers cannot set spending limits."
         ),
     )
     factor = serializers.SerializerMethodField()
@@ -8604,7 +8606,9 @@ class SpendingLimitUsageSerializer(serializers.Serializer):
     limit = serializers.FloatField()
     used = serializers.FloatField(help_text="Usage reported in the current period.")
     resets_at = serializers.DateTimeField(
-        help_text="When the current period ends and its usage starts from zero."
+        allow_null=True,
+        help_text="When the current period ends and its usage starts from zero. "
+        "Null for total, which never resets.",
     )
     reached = serializers.BooleanField()
 
@@ -9806,8 +9810,16 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
         child=LimitValueField(), allow_null=True, read_only=True
     )
     usage_period = serializers.DateField(allow_null=True, read_only=True)
-    paused_by_limit = serializers.BooleanField(allow_null=True, read_only=True)
-    limit_resumes_at = serializers.DateTimeField(allow_null=True, read_only=True)
+    paused_by_limit = serializers.BooleanField(
+        allow_null=True,
+        read_only=True,
+        help_text=models.ResourceApiKey._meta.get_field("paused_by_limit").help_text,
+    )
+    limit_resumes_at = serializers.DateTimeField(
+        allow_null=True,
+        read_only=True,
+        help_text=models.ResourceApiKey._meta.get_field("limit_resumes_at").help_text,
+    )
 
     class Meta:
         model = models.ResourceApiKey
@@ -10025,6 +10037,8 @@ class ResourceApiKeyUsageSerializer(serializers.Serializer):
         child=LimitValueField(min_value=0),
         required=False,
         help_text="The key's usage so far in billing_period, per component type. "
+        "A figure never drops: one lower than the key holds for the month "
+        "leaves the higher one. "
         "Rejected for a component that has daily amounts in that month.",
     )
     daily_usages = ComponentDailyUsageItemSerializer(
@@ -10033,15 +10047,19 @@ class ResourceApiKeyUsageSerializer(serializers.Serializer):
         max_length=MAX_DAILY_USAGE_ITEMS,
         help_text="The key's usage per UTC date and component type; a date "
         "reported again replaces its amount. The month's usage of a component "
-        "with daily amounts is their sum. Needed for limits other than month. "
+        "with daily amounts is their sum. Needed for limits other than month and "
+        "total. Days of a month before the one the key holds raise that month's "
+        "figure for a total. "
         f"At most {MAX_DAILY_USAGE_ITEMS} items, dated from the start of the "
         "current year, or of the previous month when that is earlier.",
     )
     billing_period = serializers.DateField(
         required=False,
         help_text="Any day of the month usages belongs to; the current month "
-        "when omitted. Only the latest month is kept, so a later month starts "
-        "afresh.",
+        "when omitted. A later month than the key holds starts afresh. An "
+        "earlier one, from the start of the current year or of the previous "
+        "month when that is earlier, raises that month's figure for a total "
+        "limit; older ones are refused.",
     )
 
     def validate_billing_period(self, value):

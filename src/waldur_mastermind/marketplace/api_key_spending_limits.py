@@ -10,7 +10,9 @@ key's usage per day: without it only ``month`` is offered, as day and week
 limits would never be reached and quarter and year would count the current
 month alone. With it, a key is offered ``month`` on every component, as key
 limits were monthly before they had periods, and the other periods where the
-component offers them to resources. A component the resource's plan prices
+component offers them to resources. ``total`` is offered where the component
+offers it, with or without daily usage: it needs no daily rows. A component
+the resource's plan prices
 at 0 takes limits like any other: the price says how Waldur invoices it, not
 whether anything is spent on it, and a LiteLLM cost cap is priced at 0.
 A key's limit for a period may not exceed the resource's own for that period
@@ -25,7 +27,15 @@ figure of a component that has daily amounts is their sum, so month limits
 read one number however the usage was reported. Day and week sum the daily
 rows; quarter and year add the month figure to the daily rows of the earlier
 months in the period, so a key reported only monthly counts its current month
-there and no earlier one.
+there and no earlier one. ``total`` adds the month figure to ``usage_history``,
+where each month's figure is kept when the next month's usage comes in
+(``close_month``), so it counts every month the key reported in, monthly or
+daily, however long ago. A month figure never drops: a report for a month,
+current or closed, raises its figure and never lowers it, so a month total
+sent late for a closed month (``raise_closed_month``) or a day that comes in
+late for one (``count_late_days``) raises that month's figure as it would the
+current one's. A total never resets: a key it pauses has no
+``limit_resumes_at`` and resumes only when the limit is raised or cleared.
 
 Enforcement is the key's own: ``resource_api_keys.record_usage`` pauses the key
 alone once a limit is reached, records in ``limit_resumes_at`` when every reached
@@ -37,7 +47,8 @@ from decimal import ROUND_UP, Decimal, InvalidOperation
 
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
-from django.db.models import BooleanField, F, Func, Q, Sum
+from django.db.models import BooleanField, Exists, F, Func, OuterRef, Q, Sum
+from django.db.models.functions import TruncMonth
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
@@ -47,6 +58,10 @@ from waldur_mastermind.marketplace.enums import SpendingLimitPeriods
 PERIODS = SpendingLimitPeriods.ORDER
 MONTH = SpendingLimitPeriods.MONTH
 YEAR = SpendingLimitPeriods.YEAR
+TOTAL = SpendingLimitPeriods.TOTAL
+# The periods a key's month figure answers on its own, or with its usage
+# history: neither depends on the agent reporting per day.
+WITHOUT_DAILY_USAGE = (MONTH, TOTAL)
 
 
 LIMITS_OPTION = "api_key_limits"
@@ -73,20 +88,15 @@ def offered_periods(resource) -> dict[str, set[str]]:
     types = list(offering.components.values_list("type", flat=True))
     if not limits_offered(offering):
         return {component_type: set() for component_type in types}
-    capped = (
-        spending_limits.capped_components(offering, resource.plan)
-        if daily_usage_reported(offering)
-        else {}
-    )
-    return {
-        component_type: {MONTH}
-        | set(
-            capped[component_type].spending_limit_periods
-            if component_type in capped
-            else ()
-        )
-        for component_type in types
-    }
+    capped = spending_limits.capped_components(offering, resource.plan)
+    daily = daily_usage_reported(offering)
+
+    def periods(component_type):
+        component = capped.get(component_type)
+        offered = set(component.spending_limit_periods) if component else set()
+        return {MONTH} | (offered if daily else offered & {TOTAL})
+
+    return {component_type: periods(component_type) for component_type in types}
 
 
 def _not_offered(resource, component_type, period, offered) -> str:
@@ -97,7 +107,9 @@ def _not_offered(resource, component_type, period, offered) -> str:
         "period": period,
         "offered": ", ".join(p for p in PERIODS if p in offered),
     }
-    if period != MONTH and not daily_usage_reported(resource.offering):
+    if period not in WITHOUT_DAILY_USAGE and not daily_usage_reported(
+        resource.offering
+    ):
         message = "{} {}".format(
             message,
             _("Other periods need the provider to report each key's usage per day."),
@@ -378,20 +390,59 @@ def rename_component_type(offering, old_type: str, new_type: str) -> None:
     )
     for api_key in keys:
         changed = []
-        for field in ("spending_limits", "current_usages"):
-            value = getattr(api_key, field)
-            if value and old_type in value:
-                value[new_type] = value.pop(old_type)
-                changed.append(field)
+        # The renamed component's limits are the ones set for it; any the key
+        # still holds under the new type belong to a component gone since.
+        if api_key.spending_limits and old_type in api_key.spending_limits:
+            api_key.spending_limits[new_type] = api_key.spending_limits.pop(old_type)
+            changed.append("spending_limits")
+        # Usage the key holds under the new type was spent all the same: the
+        # renamed component's is added to it, so a total never drops.
+        if api_key.current_usages and old_type in api_key.current_usages:
+            _move_usage(api_key.current_usages, old_type, new_type)
+            changed.append("current_usages")
+        history = api_key.usage_history or {}
+        if any(old_type in usages for usages in history.values()):
+            for usages in history.values():
+                if old_type in usages:
+                    _move_usage(usages, old_type, new_type)
+            changed.append("usage_history")
         if changed:
             # update() leaves modified alone, which the agent's sweep reads as
             # the time the key entered its state.
             models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
                 **{field: getattr(api_key, field) for field in changed}
             )
-    models.ResourceApiKeyDailyUsage.objects.filter(
-        api_key__resource__offering=offering, component_type=old_type
-    ).update(component_type=new_type)
+    rows = models.ResourceApiKeyDailyUsage.objects.filter(
+        api_key__resource__offering=offering
+    )
+    # A date the key has under both types would break the unique constraint:
+    # its amounts are added up as well.
+    clashing = rows.filter(component_type=old_type).filter(
+        Exists(
+            models.ResourceApiKeyDailyUsage.objects.filter(
+                api_key=OuterRef("api_key"),
+                date=OuterRef("date"),
+                component_type=new_type,
+            )
+        )
+    )
+    for row in clashing:
+        models.ResourceApiKeyDailyUsage.objects.filter(
+            api_key_id=row.api_key_id, date=row.date, component_type=new_type
+        ).update(usage=F("usage") + row.usage)
+        row.delete()
+    rows.filter(component_type=old_type).update(component_type=new_type)
+
+
+def _move_usage(usages: dict, old_type: str, new_type: str) -> None:
+    """Move ``old_type``'s amount onto ``new_type``, adding it to any held there."""
+    moved = Decimal(str(usages.pop(old_type)))
+    if new_type in usages:
+        usages[new_type] = spending_limits.json_number(
+            Decimal(str(usages[new_type])) + moved
+        )
+    else:
+        usages[new_type] = spending_limits.json_number(moved)
 
 
 # Rows older than this many whole years before the current one are pruned: no
@@ -413,13 +464,14 @@ def rows_since(api_key: models.ResourceApiKey, day: datetime.date):
     """The earliest date of the daily rows the key's limits read on ``day``.
 
     None when they read none: a month limit reads the key's month figure, and
-    a key without a limit reads nothing. Day and week read the rows of their
-    period; quarter and year those of the months before the current one.
+    a key without a limit reads nothing, and a total reads the key's usage
+    history. Day and week read the rows of their period; quarter and year
+    those of the months before the current one.
     """
     starts = [
         spending_limits.period_bounds(period, day)[0]
         for period in _limit_periods(api_key)
-        if period != MONTH
+        if period not in WITHOUT_DAILY_USAGE
     ]
     return min(starts, default=None)
 
@@ -448,7 +500,7 @@ def daily_rows_read(day: datetime.date, api_key_field="api_key") -> Q:
     limits = F(f"{api_key_field}__spending_limits")
     condition = Q(pk__in=[])
     for period in PERIODS:
-        if period == MONTH:
+        if period in WITHOUT_DAILY_USAGE:
             continue
         condition |= Q(
             Q(date__gte=spending_limits.period_bounds(period, day)[0]),
@@ -488,8 +540,102 @@ def _month_usage(api_key, component_type, month: datetime.date) -> Decimal:
     return Decimal(str((api_key.current_usages or {}).get(component_type, 0)))
 
 
+def total_usage(api_key, component_type) -> Decimal:
+    """Usage of ``component_type`` in every month the key reported in.
+
+    The months before ``usage_period`` come from the history and the month it
+    holds from ``current_usages``, which is not in the history yet.
+    """
+    closed = sum(
+        (
+            Decimal(str(usages.get(component_type, 0)))
+            for month, usages in (api_key.usage_history or {}).items()
+            if not api_key.usage_period or month != f"{api_key.usage_period:%Y-%m}"
+        ),
+        Decimal(0),
+    )
+    return closed + Decimal(str((api_key.current_usages or {}).get(component_type, 0)))
+
+
+def raised(kept: dict | None, usages: dict) -> dict:
+    """``kept`` with each component of ``usages`` raised to it, never lowered.
+
+    A month figure only grows: a lower report leaves the amount ``kept``.
+    """
+    kept = kept or {}
+    result = dict(kept)
+    for component_type, amount in usages.items():
+        if component_type not in kept or Decimal(str(amount)) > Decimal(
+            str(kept[component_type])
+        ):
+            result[component_type] = amount
+    return result
+
+
+def close_month(api_key: models.ResourceApiKey) -> None:
+    """Keep the month the key holds in its history, as its usage moves on to a later one.
+
+    Called before ``current_usages`` is replaced by a later month's. A month
+    already in the history keeps the higher figure of each component, so a
+    report sent again cannot count it twice.
+    """
+    if not api_key.usage_period or not api_key.current_usages:
+        return
+    raise_closed_month(api_key, api_key.usage_period, api_key.current_usages)
+
+
+def raise_closed_month(
+    api_key: models.ResourceApiKey, month: datetime.date, usages: dict
+) -> None:
+    """Raise ``month``'s figures in the key's history to ``usages``, never lowering them.
+
+    For the month the key leaves (``close_month``), and for a month figure an
+    agent sends after the key moved on, such as the usage of a month's last
+    minutes reported just after midnight: without it, a total would miss the
+    tail of every month.
+    """
+    key = f"{month:%Y-%m}"
+    history = dict(api_key.usage_history or {})
+    history[key] = raised(history.get(key), usages)
+    api_key.usage_history = history
+
+
+def count_late_days(api_key: models.ResourceApiKey, months) -> None:
+    """Raise each closed month's figure in the history to the sum of its days.
+
+    For days reported after the key moved on to a later month: one query for
+    all of ``months``. As for the current month, a figure never drops, so a
+    month total reported before the days stays as a floor.
+    """
+    if not months:
+        return
+    rows = (
+        models.ResourceApiKeyDailyUsage.objects.filter(
+            api_key=api_key,
+            date__gte=min(months),
+            date__lt=_month_end(max(months)),
+        )
+        .annotate(month=TruncMonth("date"))
+        .values("month", "component_type")
+        .annotate(total=Sum("usage"))
+    )
+    history = dict(api_key.usage_history or {})
+    for row in rows:
+        if row["month"] not in months:
+            continue
+        key = f"{row['month']:%Y-%m}"
+        kept = dict(history.get(key, {}))
+        kept[row["component_type"]] = spending_limits.json_number(
+            max(Decimal(str(kept.get(row["component_type"], 0))), row["total"])
+        )
+        history[key] = kept
+    api_key.usage_history = history
+
+
 def period_usage(api_key, component_type, period, day, rows) -> Decimal:
     """Usage of ``component_type`` in the ``period`` that contains ``day``."""
+    if period == TOTAL:
+        return total_usage(api_key, component_type)
     start, end = spending_limits.period_bounds(period, day)
     month = day.replace(day=1)
 
