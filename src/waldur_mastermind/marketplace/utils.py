@@ -12,11 +12,13 @@ import traceback
 import unicodedata
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from enum import Enum
 from functools import lru_cache
 from io import BytesIO
 from string import Template
 from typing import cast
+from urllib.parse import quote
 
 import httpx
 from django.conf import settings
@@ -101,6 +103,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceApiKeyActions,
     ResourceStates,
     RobotAccountStates,
+    ServiceAccountState,
     UsageLimitAction,
 )
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
@@ -6351,6 +6354,254 @@ def get_course_account_api_token():
     return get_account_api_token(token_url, client_id, client_secret)
 
 
+class AccountApiRefusal(ValueError):
+    """Waldur refuses to call the account backend for this account.
+
+    A ValueError, so the account API functions' existing handling marks the
+    account ERRED; views turn exactly these into a 400, and nothing else.
+    """
+
+
+class InvalidAccountUsername(AccountApiRefusal):
+    """A username that can't safely name an account at the account backend."""
+
+
+class AccountUsernameConflict(AccountApiRefusal):
+    """Another open service account claims the same backend username."""
+
+
+# What the account backends issue: the characters of a URL path segment that
+# nothing between Waldur and the backend will reinterpret. Escaping alone isn't
+# enough: a proxy or framework may decode %2F back into "/" before routing.
+ACCOUNT_USERNAME_RE = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def validate_account_username(username, max_length: int | None = None) -> str:
+    """Return username if it can name an account at the backend, else raise.
+
+    "." and "..", though made of allowed characters, are dot segments: in a
+    URL they address base_url itself or its parent, not an account.
+    """
+    if (
+        not isinstance(username, str)
+        or username in (".", "..")
+        or not ACCOUNT_USERNAME_RE.fullmatch(username)
+    ):
+        raise InvalidAccountUsername(f"Invalid account username: {username!r}")
+    if max_length is not None and len(username) > max_length:
+        raise InvalidAccountUsername(
+            f"Account username is longer than {max_length} characters: {username!r}"
+        )
+    return username
+
+
+def account_needs_backend(username) -> bool:
+    """Whether closing this account calls the backend at all.
+
+    Not without a username (never created there), nor with one no backend
+    call may carry (closed in Waldur only).
+    """
+    if not username:
+        return False
+    try:
+        validate_account_username(username)
+    except InvalidAccountUsername:
+        return False
+    return True
+
+
+# The account's row is closed, but its backend account may still be open:
+# no call could address it, or another account still uses it.
+CLOSED_IN_WALDUR_ONLY = "Closed in Waldur only"
+
+ACCOUNT_BACKEND_SETTINGS = {
+    "course": ("COURSE_ACCOUNT_USE_API", "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND"),
+    "service": ("SERVICE_ACCOUNT_USE_API", "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND"),
+}
+
+
+def account_closing_enabled(kind: str) -> bool:
+    """Whether accounts of this kind are closed at all: by the API or the mock."""
+    use_api, mock = ACCOUNT_BACKEND_SETTINGS[kind]
+    return bool(settings.WALDUR_CORE.get(use_api)) or bool(getattr(config, mock))
+
+
+def account_api_enabled(kind: str) -> bool:
+    """Whether closing accounts of this kind calls the real API, with a token."""
+    use_api, mock = ACCOUNT_BACKEND_SETTINGS[kind]
+    return bool(settings.WALDUR_CORE.get(use_api)) and not getattr(config, mock)
+
+
+# The two builders below are the contract of close_course_accounts_task and
+# close_service_accounts_task, shared by the deletion handlers and the nightly
+# reconcile. Each account is captured while its row exists, because a hard
+# delete CASCADEs the rows away before the task runs.
+
+
+def course_account_close_payload(course_accounts) -> list[dict]:
+    """What close_course_accounts_task needs of each of these course accounts."""
+    return [
+        {
+            "uuid": account["uuid"].hex,
+            "username": account["user__username"],
+            "user_id": account["user_id"],
+        }
+        for account in course_accounts.values("uuid", "user__username", "user_id")
+    ]
+
+
+def service_account_close_payload(service_accounts) -> list[dict]:
+    """What close_service_accounts_task needs of each of these service accounts."""
+    return [
+        {
+            "uuid": account["uuid"].hex,
+            "username": account["username"],
+            "state": account["state"],
+        }
+        for account in service_accounts.values("uuid", "username", "state")
+    ]
+
+
+def validate_service_account_username(username) -> str:
+    """Check a username the backend returned for a new service account."""
+    return validate_account_username(
+        username,
+        max_length=models.ScopedServiceAccount._meta.get_field("username").max_length,
+    )
+
+
+def discard_unusable_account(
+    username, reason: Exception, close_by_username: Callable[[str], None]
+):
+    """Best-effort close of a backend account Waldur won't store.
+
+    The backend has already created the account (and, for a service account,
+    its key) when Waldur sees the username it chose. Only a username that can
+    still be addressed safely (too long for the column, say) can be closed,
+    with close_by_username; anything else is left for the backend's
+    operators, which the log says.
+    """
+    try:
+        validate_account_username(username)
+    except InvalidAccountUsername:
+        logger.error(
+            "Account backend returned an unusable username %r (%s); "
+            "the backend account can't be closed from Waldur and needs manual cleanup",
+            username,
+            reason,
+        )
+        return
+    logger.error(
+        "Account backend returned a username Waldur can't store (%s); "
+        "closing it at the backend",
+        reason,
+    )
+    try:
+        close_by_username(username)
+    except Exception as exc:
+        logger.error(
+            "Failed to close discarded account %s at backend: %s",
+            username,
+            exc,
+        )
+
+
+def validate_course_account_username(username) -> str:
+    """Check a username the backend returned for a new course account.
+
+    It becomes a Waldur User's username, so it must fit that column too.
+    """
+    return validate_account_username(
+        username, max_length=core_models.User._meta.get_field("username").max_length
+    )
+
+
+def account_api_url(base_url: str, username: str, action: str = "") -> str:
+    """URL of one account at a service or course account backend.
+
+    The username comes from outside Waldur, so it must stay one path segment
+    under base_url, whatever sits in front of the backend. Raises
+    InvalidAccountUsername for one that might not. Callers pass base_url
+    without a trailing slash.
+    """
+    validate_account_username(username)
+    url = f"{base_url}/{quote(username, safe='')}"
+    return f"{url}/{action}" if action else url
+
+
+def ensure_sole_owner_of_username(
+    username: str,
+    service_account: models.ScopedServiceAccount | None = None,
+    closing: bool = False,
+):
+    """Refuse to act on a username another open service account also claims.
+
+    The backend assigns each username once, so two open rows sharing one can
+    only come from a username rewritten through the API before it became
+    read-only - pointing one tenant's row at another tenant's account. Which
+    row is genuine can't be told here, so neither may close, update or rotate
+    the account until staff resolve it (see check_service_account_usernames).
+
+    Without service_account (closing by username, after a hard delete took
+    the row), any open row that claims the username is the account's owner.
+
+    When closing, a row under a removed project claims nothing: closing is
+    what it needs too, so rows whose projects are all gone don't block each
+    other forever.
+    """
+    for model in (models.ProjectServiceAccount, models.CustomerServiceAccount):
+        others = model.objects.filter(username=username).exclude(
+            state=ServiceAccountState.CLOSED
+        )
+        if closing and model is models.ProjectServiceAccount:
+            others = others.exclude(project__is_removed=True)
+        if isinstance(service_account, model):
+            others = others.exclude(pk=service_account.pk)
+        if others.exists():
+            raise AccountUsernameConflict(
+                f"Another open service account uses the username "
+                f"{username!r}; staff must resolve it first."
+            )
+
+
+def get_backend_account(base_url: str, username: str, api_access_token: str):
+    """Fetch one account from a service or course account backend.
+
+    Returns the parsed response, or None when the backend doesn't know the
+    account (404). Any other failure is raised.
+    """
+    try:
+        response = httpx.get(
+            account_api_url(base_url, username),
+            headers={"Authorization": f"Bearer {api_access_token}"},
+            follow_redirects=True,
+            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            logger.warning("Account %s not found at %s", username, base_url)
+            return None
+        raise
+
+
+def is_closed_at_backend(account_data, envelope: str) -> bool:
+    """Whether a backend GET response describes an account that is closed.
+
+    The backend wraps the account in an envelope - "serviceAccount" or
+    "tempAccount" - whose "status" is "closed" once it is. Closing such an
+    account again is refused by the backend, so callers treat it as closed
+    rather than sending the close.
+    """
+    if not isinstance(account_data, dict):
+        return False
+    account = account_data.get(envelope)
+    if not isinstance(account, dict):
+        return False
+    return str(account.get("status", "")).lower() == "closed"
+
+
 def rotate_service_account_api_key(service_account: models.ScopedServiceAccount):
     if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
         logger.info(
@@ -6364,18 +6615,26 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
 
     service_account_url = service_account_url.rstrip("/")
     try:
+        # Before the token: a refused account never reaches the backend.
+        url = account_api_url(
+            service_account_url, service_account.username, "rotate-api-key"
+        )
+        ensure_sole_owner_of_username(service_account.username, service_account)
         api_access_token = get_service_account_api_token()
-
-        url = f"{service_account_url}/{service_account.username}/rotate-api-key"
         response = httpx.put(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
+            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
     except (httpx.HTTPError, ValueError) as e:
-        logger.error("Error obtaining token: %s", e)
+        logger.error(
+            "Unable to rotate the API key of service account %s: %s",
+            service_account.uuid,
+            e,
+        )
         raise
 
 
@@ -6429,7 +6688,13 @@ def post_service_account_to_url(
         }
 
         headers = {"Authorization": f"Bearer {api_access_token}"}
-        response = httpx.post(url, json=payload, headers=headers, follow_redirects=True)
+        response = httpx.post(
+            url,
+            json=payload,
+            headers=headers,
+            follow_redirects=True,
+            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+        )
         response.raise_for_status()
         logger.info("Service account has been successfully updated at %s", url)
         return response
@@ -6502,11 +6767,43 @@ def create_service_account(service_account: dict, owner_username: str, scope_typ
         raise
 
 
-def close_service_account(service_account: models.ScopedServiceAccount):
+def close_service_account(
+    service_account: models.ScopedServiceAccount, api_access_token: str | None = None
+):
     """
     Makes a synchronous call to the webhook URL to remove a service account.
-    Raises exceptions on failure which should be handled by the viewset.
+    Raises exceptions on failure which should be handled by the caller.
+
+    An account the backend doesn't have, or has closed already, is closed
+    locally without calling close: that is the outcome being asked for, not
+    an error.
     """
+    # CLOSED is terminal and the FSM forbids CLOSED->CLOSED, so a repeat
+    # (a project deleted after its account was closed by hand) is a no-op.
+    if service_account.state == ServiceAccountState.CLOSED:
+        return
+
+    # No username: the backend never created this account, so there is
+    # nothing to close there - and an empty path segment would address the
+    # collection endpoint instead.
+    if not service_account.username:
+        _mark_service_account_closed(service_account)
+        return
+
+    # A username no backend call may carry can never be closed there either.
+    # Left ERRED, the row would keep counting against max_service_accounts
+    # and be retried every night, so close it here and say why.
+    try:
+        validate_account_username(service_account.username)
+    except InvalidAccountUsername as exc:
+        logger.warning(
+            "Closing service account %s in Waldur only: %s", service_account.uuid, exc
+        )
+        _mark_service_account_closed(
+            service_account, reason=f"{CLOSED_IN_WALDUR_ONLY}: {exc}"
+        )
+        return
+
     if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
         logger.info(
             f"Mock mode enabled for delete_service_account: {service_account.username}"
@@ -6515,8 +6812,7 @@ def close_service_account(service_account: models.ScopedServiceAccount):
         response = generate_mock_service_account_response(service_account.username)
         response["serviceAccount"]["status"] = "closed"
         response["serviceAccount"]["disabledDate"] = datetime.datetime.now().isoformat()
-        service_account.set_state_closed()
-        service_account.save(update_fields=["state"])
+        _mark_service_account_closed(service_account)
         return response
 
     if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
@@ -6529,27 +6825,39 @@ def close_service_account(service_account: models.ScopedServiceAccount):
     service_account_url = service_account_url.rstrip("/")
 
     try:
-        api_access_token = get_service_account_api_token()
-        existing_service_account = get_service_account(service_account)
+        ensure_sole_owner_of_username(
+            service_account.username, service_account, closing=True
+        )
+        if api_access_token is None:
+            api_access_token = get_service_account_api_token()
+        existing_service_account = get_backend_account(
+            service_account_url, service_account.username, api_access_token
+        )
         if existing_service_account is None:
             logger.warning(
-                "Service account %s not found at backend, deleting locally",
+                "Service account %s not found at backend, closing locally",
                 service_account.username,
             )
-            service_account.set_state_closed()
-            service_account.save(update_fields=["state"])
+            _mark_service_account_closed(service_account)
+            return
+        if is_closed_at_backend(existing_service_account, "serviceAccount"):
+            logger.info(
+                "Service account %s is already closed at backend, closing locally",
+                service_account.username,
+            )
+            _mark_service_account_closed(service_account)
             return
 
-        url = f"{service_account_url}/{service_account.username}/close"
+        url = account_api_url(service_account_url, service_account.username, "close")
         response = httpx.put(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
+            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
         )
         response.raise_for_status()
         if response.status_code == 200:
-            service_account.set_state_closed()
-            service_account.save(update_fields=["state"])
+            _mark_service_account_closed(service_account)
     except (httpx.HTTPError, ValueError) as exc:
         error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
@@ -6560,8 +6868,63 @@ def close_service_account(service_account: models.ScopedServiceAccount):
         service_account.set_state_erred()
         service_account.error_message = str(error_details)
         service_account.error_traceback = traceback.format_exc()
-        service_account.save(update_fields=["error_message", "error_traceback"])
+        service_account.save(
+            update_fields=["state", "error_message", "error_traceback"]
+        )
         raise
+
+
+def _mark_service_account_closed(
+    service_account: models.ScopedServiceAccount, reason: str = ""
+):
+    service_account.set_state_closed()
+    service_account.error_message = reason
+    service_account.error_traceback = ""
+    service_account.save(update_fields=["state", "error_message", "error_traceback"])
+
+
+def close_service_account_by_username(
+    username: str, api_access_token: str | None = None
+):
+    """Close a service account at the backend by username alone, with no local row.
+
+    Used when a hard project or customer delete has CASCADEd the local row
+    away before the close task runs. An account the backend doesn't have, or
+    has closed already, needs nothing and is not an error. One that an open
+    row still claims belongs to that row's scope, not the deleted one, and is
+    refused with AccountUsernameConflict.
+    """
+    if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
+        logger.info(
+            f"Mock mode enabled for close_service_account_by_username: {username}"
+        )
+        return
+
+    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
+        return
+
+    service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
+    if not service_account_url:
+        raise ValidationError("URL for service accounts is not configured")
+    service_account_url = service_account_url.rstrip("/")
+
+    # Before the token: a refused account never reaches the backend.
+    validate_account_username(username)
+    ensure_sole_owner_of_username(username, closing=True)
+    if api_access_token is None:
+        api_access_token = get_service_account_api_token()
+
+    existing = get_backend_account(service_account_url, username, api_access_token)
+    if existing is None or is_closed_at_backend(existing, "serviceAccount"):
+        return
+
+    response = httpx.put(
+        account_api_url(service_account_url, username, "close"),
+        headers={"Authorization": f"Bearer {api_access_token}"},
+        follow_redirects=True,
+        timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
 
 
 def get_service_account(service_account: models.ScopedServiceAccount):
@@ -6586,11 +6949,12 @@ def get_service_account(service_account: models.ScopedServiceAccount):
 
     try:
         api_access_token = get_service_account_api_token()
-        url = f"{service_account_url}/{service_account.username}"
+        url = account_api_url(service_account_url, service_account.username)
         response = httpx.get(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
+            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -6619,7 +6983,7 @@ def get_course_account(
     try:
         if api_access_token is None:
             api_access_token = get_course_account_api_token()
-        url = f"{course_account_url}/{username}"
+        url = account_api_url(course_account_url, username)
         response = httpx.get(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
@@ -6659,13 +7023,16 @@ def update_service_account(service_account: models.ScopedServiceAccount):
     service_account_url = service_account_url.rstrip("/")
 
     try:
+        # Before the token: a refused account never reaches the backend.
+        url = account_api_url(service_account_url, service_account.username)
+        ensure_sole_owner_of_username(service_account.username, service_account)
         api_access_token = get_service_account_api_token()
-        url = f"{service_account_url}/{service_account.username}"
 
         response = httpx.put(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
+            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
             json={
                 "email": service_account.email,
                 "description": service_account.description,
@@ -7315,7 +7682,13 @@ def post_course_account_to_url(
         }
 
         headers = {"Authorization": f"Bearer {api_access_token}"}
-        response = httpx.post(url, json=payload, headers=headers, follow_redirects=True)
+        response = httpx.post(
+            url,
+            json=payload,
+            headers=headers,
+            follow_redirects=True,
+            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+        )
         response.raise_for_status()
         logger.info("Course account has been successfully updated at %s", url)
         return response
@@ -7398,8 +7771,20 @@ def create_multiple_course_accounts(
                 api_access_token,
             )
             response_data = response.json()
+            username = response_data["tempAccount"].get("username")
+            try:
+                validate_course_account_username(username)
+            except InvalidAccountUsername as exc:
+                discard_unusable_account(
+                    username,
+                    exc,
+                    lambda name: close_course_account_by_username(
+                        name, api_access_token
+                    ),
+                )
+                raise
             user = core_models.User.objects.create(
-                username=response_data["tempAccount"]["username"],
+                username=username,
                 email=response_data["tempAccount"]["email"],
                 description="Course Account",
             )
@@ -7415,6 +7800,26 @@ def create_multiple_course_accounts(
     return course_accounts_created
 
 
+def course_user_in_use(
+    user_id, course_account: models.CourseAccount | None = None
+) -> bool:
+    """Whether another open course account under a live project uses this user.
+
+    Creating a course account reuses a Waldur user that has the backend's
+    username, so several accounts can share one user and its backend account.
+    Closing that, or deactivating the user, would break the other account. One
+    under a removed project needs the account closed too, so it doesn't count.
+    """
+    others = (
+        models.CourseAccount.objects.filter(user_id=user_id)
+        .exclude(state=CourseAccountState.CLOSED)
+        .exclude(project__is_removed=True)
+    )
+    if course_account is not None:
+        others = others.exclude(pk=course_account.pk)
+    return others.exists()
+
+
 def close_course_account(
     course_account: models.CourseAccount, api_access_token: str | None = None
 ):
@@ -7428,6 +7833,36 @@ def close_course_account(
     if course_account.user is None:
         course_account.set_state_closed()
         course_account.save(update_fields=["state"])
+        return
+
+    if course_user_in_use(course_account.user_id, course_account):
+        logger.warning(
+            "Closing course account %s in Waldur only: another open course "
+            "account uses its user %s",
+            course_account.uuid,
+            course_account.user.username,
+        )
+        _mark_course_account_closed(
+            course_account,
+            deactivation_reason=None,
+            reason=f"{CLOSED_IN_WALDUR_ONLY}: another open course account uses "
+            f"the user {course_account.user.username!r}",
+        )
+        return
+
+    # As for service accounts: a username no backend call may carry can never
+    # be closed there, so close it here and say why rather than retry forever.
+    try:
+        validate_account_username(course_account.user.username)
+    except InvalidAccountUsername as exc:
+        logger.warning(
+            "Closing course account %s in Waldur only: %s", course_account.uuid, exc
+        )
+        _mark_course_account_closed(
+            course_account,
+            f"Course account {course_account.uuid} closed in Waldur only",
+            reason=f"{CLOSED_IN_WALDUR_ONLY}: {exc}",
+        )
         return
 
     if config.ENABLE_MOCK_COURSE_ACCOUNT_BACKEND:
@@ -7451,7 +7886,6 @@ def close_course_account(
 
     course_account_url = course_account_url.rstrip("/")
     username = course_account.user.username
-    user = course_account.user
 
     try:
         if api_access_token is None:
@@ -7459,20 +7893,27 @@ def close_course_account(
         existing_course_account = get_course_account(course_account, api_access_token)
         if existing_course_account is None:
             logger.warning(
-                "Service account %s not found at backend, deleting locally",
+                "Course account %s not found at backend, closing locally",
                 username,
             )
-            course_account.set_state_closed()
-            course_account.save(update_fields=["state"])
-            if user:
-                user.is_active = False
-                user.deactivation_reason = (
-                    f"Course account {course_account.uuid} not found at backend"
-                )
-                user.save(update_fields=["is_active", "deactivation_reason"])
+            _mark_course_account_closed(
+                course_account,
+                f"Course account {course_account.uuid} not found at backend",
+            )
+            return
+        if is_closed_at_backend(existing_course_account, "tempAccount"):
+            # Closed at the backend already, e.g. by an earlier attempt whose
+            # local state was lost. Closing again would be refused there.
+            logger.info(
+                "Course account %s is already closed at backend, closing locally",
+                username,
+            )
+            _mark_course_account_closed(
+                course_account, f"Course account {course_account.uuid} closed"
+            )
             return
 
-        url = f"{course_account_url}/{username}/close"
+        url = account_api_url(course_account_url, username, "close")
         response = httpx.put(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
@@ -7481,14 +7922,9 @@ def close_course_account(
         )
         response.raise_for_status()
         if response.status_code == 200:
-            course_account.set_state_closed()
-            course_account.save(update_fields=["state"])
-            if user:
-                user.is_active = False
-                user.deactivation_reason = (
-                    f"Course account {course_account.uuid} closed"
-                )
-                user.save(update_fields=["is_active", "deactivation_reason"])
+            _mark_course_account_closed(
+                course_account, f"Course account {course_account.uuid} closed"
+            )
     except (httpx.HTTPError, ValueError) as exc:
         error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
@@ -7503,6 +7939,24 @@ def close_course_account(
         raise
 
 
+def _mark_course_account_closed(
+    course_account: models.CourseAccount,
+    deactivation_reason: str | None,
+    reason: str = "",
+):
+    """Close the row and deactivate its user, unless deactivation_reason is None
+    because another account still uses that user."""
+    course_account.set_state_closed()
+    course_account.error_message = reason
+    course_account.error_traceback = ""
+    course_account.save(update_fields=["state", "error_message", "error_traceback"])
+    user = course_account.user
+    if user and deactivation_reason is not None:
+        user.is_active = False
+        user.deactivation_reason = deactivation_reason
+        user.save(update_fields=["is_active", "deactivation_reason"])
+
+
 def close_course_account_by_username(
     username: str, api_access_token: str | None = None
 ):
@@ -7511,7 +7965,9 @@ def close_course_account_by_username(
     Used when the local CourseAccount row is already gone - a hard project
     or customer delete CASCADEs it away before the close task runs - but
     the backend account still needs to be closed. Unlike close_course_account,
-    this never touches a CourseAccount instance or its state.
+    this never touches a CourseAccount instance or its state. An account the
+    backend doesn't have, or has closed already, needs nothing and is not an
+    error.
     """
     if config.ENABLE_MOCK_COURSE_ACCOUNT_BACKEND:
         logger.info(
@@ -7527,10 +7983,16 @@ def close_course_account_by_username(
         raise ValidationError("URL for course accounts is not configured")
     course_account_url = course_account_url.rstrip("/")
 
+    # Before the token: a refused account never reaches the backend.
+    validate_account_username(username)
     if api_access_token is None:
         api_access_token = get_course_account_api_token()
 
-    url = f"{course_account_url}/{username}/close"
+    existing = get_backend_account(course_account_url, username, api_access_token)
+    if existing is None or is_closed_at_backend(existing, "tempAccount"):
+        return
+
+    url = account_api_url(course_account_url, username, "close")
     response = httpx.put(
         url,
         headers={"Authorization": f"Bearer {api_access_token}"},

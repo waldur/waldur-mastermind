@@ -26,6 +26,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
+from waldur_mastermind.marketplace.tests.utils import real_on_commit
 
 
 def add_user_to_project(user, project, role=None):
@@ -688,6 +689,15 @@ TOKEN_SECRET = "test-secret"
 )
 class ServiceAccountHandlersTest(APITestCase):
     def setUp(self):
+        # The deletion handlers hand the accounts to a task scheduled on
+        # commit; run it inline, as a worker would once the delete commits.
+        delay = mock.patch.object(
+            tasks.close_service_accounts_task,
+            "delay",
+            side_effect=tasks.close_service_accounts_task,
+        )
+        delay.start()
+        self.addCleanup(delay.stop)
         respx.start()
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project
@@ -757,7 +767,8 @@ class ServiceAccountHandlersTest(APITestCase):
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(return_value=httpx.Response(200, json={}))
 
-        self.project.delete()
+        with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
+            self.project.delete()
 
         # Verify the call to close the service account was made
         self.assertTrue(response.called)
@@ -816,7 +827,8 @@ class ServiceAccountHandlersTest(APITestCase):
         )
 
         # Projects can be deleted with soft delete or hard delete, default is soft delete
-        self.project.delete()
+        with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
+            self.project.delete()
 
         self.assertTrue(response.called)
 

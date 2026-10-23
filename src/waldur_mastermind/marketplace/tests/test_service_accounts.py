@@ -544,10 +544,15 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-        # Delete one service account
-        account = models.ProjectServiceAccount.objects.filter(
+        # The mocked backend names every account "waldur"; a real one never
+        # repeats a username, and two open accounts sharing one are refused.
+        accounts = models.ProjectServiceAccount.objects.filter(
             project=self.fixture.project
-        ).first()
+        ).order_by("id")
+        accounts.filter(pk=accounts.last().pk).update(username="waldur-2")
+
+        # Delete one service account
+        account = accounts.first()
         delete_url = factories.ProjectServiceAccountFactory.get_url(account)
         response = self.client.delete(delete_url)
         self.assertEqual(
@@ -591,10 +596,15 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-        # Delete one service account
-        account = models.CustomerServiceAccount.objects.filter(
+        # The mocked backend names every account "waldur"; a real one never
+        # repeats a username, and two open accounts sharing one are refused.
+        accounts = models.CustomerServiceAccount.objects.filter(
             customer=self.fixture.offering_customer
-        ).first()
+        ).order_by("id")
+        accounts.filter(pk=accounts.last().pk).update(username="waldur-2")
+
+        # Delete one service account
+        account = accounts.first()
         delete_url = factories.CustomerServiceAccountFactory.get_url(account)
         response = self.client.delete(delete_url)
         self.assertEqual(

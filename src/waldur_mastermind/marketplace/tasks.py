@@ -11,6 +11,7 @@ from typing import cast
 import httpx
 import requests
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -66,6 +67,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderTypes,
     ResourceStates,
     RobotAccountStates,
+    ServiceAccountState,
     UsageLimitAction,
 )
 
@@ -210,8 +212,17 @@ def create_course_account_task(course_account_uuid_hex: str, owner_username: str
             # API disabled in settings — leave record in PENDING state
             return
         temp_account = response_data.get("tempAccount", {})
+        username = temp_account.get("username")
+        try:
+            utils.validate_course_account_username(username)
+        except utils.InvalidAccountUsername as exc:
+            # The backend account exists already: close it if it can be named.
+            utils.discard_unusable_account(
+                username, exc, utils.close_course_account_by_username
+            )
+            raise
         user, _ = core_models.User.objects.get_or_create(
-            username=temp_account["username"],
+            username=username,
             defaults={
                 "email": temp_account.get("email", course_account.email),
                 "description": "Course Account",
@@ -273,15 +284,33 @@ def close_course_accounts_task(accounts: list[dict]):
     if not accounts:
         return
 
-    try:
-        api_access_token = utils.get_course_account_api_token()
-    except httpx.HTTPError as exc:
-        logger.error(
-            "Unable to get course account API token, skipping %s accounts: %s",
-            len(accounts),
-            exc,
-        )
-        return
+    # Only an account the API is called for needs a token: one that never got
+    # a backend account, or whose username no call may carry, is closed
+    # locally, and the mock needs none.
+    needs_backend = [
+        account
+        for account in accounts
+        if utils.account_needs_backend(account["username"])
+    ]
+    api_access_token = None
+    if needs_backend and utils.account_api_enabled("course"):
+        try:
+            api_access_token = utils.get_course_account_api_token()
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.error(
+                "Unable to get course account API token, skipping %s accounts: %s",
+                len(needs_backend),
+                exc,
+            )
+            _mark_batch_erred_on_token_failure(
+                models.CourseAccount.objects.exclude(state=CourseAccountState.CLOSED),
+                CourseAccountState.ERRED,
+                needs_backend,
+            )
+            skipped = {account["uuid"] for account in needs_backend}
+            accounts = [
+                account for account in accounts if account["uuid"] not in skipped
+            ]
 
     for account in accounts:
         uuid_hex = account["uuid"]
@@ -293,16 +322,35 @@ def close_course_accounts_task(accounts: list[dict]):
             if not username:
                 # No backend account was ever created for this one either.
                 continue
-            try:
-                utils.close_course_account_by_username(username, api_access_token)
-            except Exception as exc:
-                logger.error(
-                    "Failed to close course account %s at backend "
-                    "(local row already deleted): %s",
+            if utils.course_user_in_use(user_id):
+                logger.warning(
+                    "Leaving course account %s open at backend: another open "
+                    "course account uses its user",
                     username,
-                    exc,
                 )
                 continue
+            if utils.account_needs_backend(username):
+                try:
+                    utils.close_course_account_by_username(username, api_access_token)
+                except SoftTimeLimitExceeded:
+                    # Let Celery end the task: the next reconcile picks it up.
+                    raise
+                except Exception as exc:
+                    logger.error(
+                        "Failed to close course account %s at backend "
+                        "(local row already deleted): %s",
+                        username,
+                        exc,
+                    )
+                    continue
+            else:
+                # As for a row: no call may carry this username, but the
+                # user is deactivated all the same.
+                logger.warning(
+                    "Course account %r can't be closed at backend, invalid "
+                    "username; deactivating its user only",
+                    username,
+                )
             # Active users only: one already deactivated keeps its reason.
             user = core_models.User.objects.filter(pk=user_id).first()
             if user:
@@ -313,9 +361,287 @@ def close_course_accounts_task(accounts: list[dict]):
                 user.save(update_fields=["is_active", "deactivation_reason"])
             continue
 
+        if _project_in_use(course_account):
+            continue
         _close_course_account_and_mark_erred_on_any_failure(
             course_account, api_access_token
         )
+
+
+def _project_in_use(account) -> bool:
+    """Whether the account's project is in use again, so it must stay open.
+
+    The batch closes run for a removed project: after its deletion commits,
+    or from the nightly reconcile. A project recovered since then keeps its
+    accounts, also when the recovery lands while the batch is under way.
+    A customer service account has no project and is never kept.
+    """
+    project = getattr(account, "project", None)
+    if project is None or project.is_removed:
+        return False
+    logger.info(
+        "Leaving %s open: its project %s is no longer removed", account, project
+    )
+    return True
+
+
+TOKEN_FAILURE_MESSAGE = "Unable to get an API token to close the account."
+
+
+def _mark_batch_erred_on_token_failure(
+    queryset, erred_state: int, accounts: list[dict]
+):
+    """Mark a deleted scope's accounts ERRED when no API token could be had.
+
+    The batch runs once, after its project/customer is gone, and nothing
+    schedules it again. Left as they were, the accounts would read OK while
+    never having been closed at the backend; ERRED says it didn't happen.
+    reconcile_removed_project_accounts tries it again the next night. Rows a
+    hard delete already removed have nothing to mark; the log is all there is.
+
+    The stored message is generic on purpose: account managers can read it,
+    and the exception names the token endpoint. The detail is in the log.
+    """
+    queryset.filter(uuid__in=[account["uuid"] for account in accounts]).update(
+        state=erred_state, error_message=TOKEN_FAILURE_MESSAGE
+    )
+
+
+SERVICE_ACCOUNT_MODELS = {
+    "ProjectServiceAccount": models.ProjectServiceAccount,
+    "CustomerServiceAccount": models.CustomerServiceAccount,
+}
+
+
+@shared_task
+def close_service_accounts_task(model_name: str, accounts: list[dict]):
+    """Close every service account of one deleted project or customer.
+
+    Scheduled on commit by the project/customer pre_delete handlers rather
+    than run inside the delete: there, a rollback after the backend had
+    closed an account restored it locally as OK, and nothing retried it once
+    the delete went through. Batched like close_course_accounts_task, so the
+    API token is fetched once per scope.
+
+    Each account's uuid/username/state is passed in because both scope FKs
+    are CASCADE: after a hard delete the row is gone and the account is
+    closed at the backend by username alone.
+
+    A closed account's row is then deleted, as the handlers always did; one
+    that failed is kept as ERRED, with the error, and
+    reconcile_removed_project_accounts tries it again the next night.
+    """
+    if not accounts:
+        return
+    model = SERVICE_ACCOUNT_MODELS[model_name]
+
+    # Only an open account the API is called for needs a token: closed ones
+    # are done, and one without a username, or with one no call may carry,
+    # is closed locally.
+    needs_backend = [
+        account
+        for account in accounts
+        if account["state"] != ServiceAccountState.CLOSED
+        and utils.account_needs_backend(account["username"])
+    ]
+    api_access_token = None
+    if needs_backend and utils.account_api_enabled("service"):
+        try:
+            api_access_token = utils.get_service_account_api_token()
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.error(
+                "Unable to get service account API token, skipping %s accounts: %s",
+                len(needs_backend),
+                exc,
+            )
+            _mark_batch_erred_on_token_failure(
+                model.objects.exclude(state=ServiceAccountState.CLOSED),
+                ServiceAccountState.ERRED,
+                needs_backend,
+            )
+            # The rest need no token and are finished as usual below.
+            skipped = {account["uuid"] for account in needs_backend}
+            accounts = [
+                account for account in accounts if account["uuid"] not in skipped
+            ]
+
+    for account in accounts:
+        try:
+            service_account = model.objects.get(uuid=account["uuid"])
+        except model.DoesNotExist:
+            # Closed already, or never created at the backend: nothing to close.
+            if (
+                account["state"] == ServiceAccountState.CLOSED
+                or not account["username"]
+            ):
+                continue
+            try:
+                utils.close_service_account_by_username(
+                    account["username"], api_access_token
+                )
+            except SoftTimeLimitExceeded:
+                # Let Celery end the task: the next reconcile picks it up.
+                raise
+            except Exception as exc:
+                logger.error(
+                    "Failed to close service account %s at backend "
+                    "(local row already deleted): %s",
+                    account["username"],
+                    exc,
+                )
+            continue
+
+        if _project_in_use(service_account):
+            continue
+        try:
+            utils.close_service_account(service_account, api_access_token)
+        except SoftTimeLimitExceeded:
+            # Let Celery end the task: the next reconcile picks it up.
+            raise
+        except Exception as exc:
+            logger.error(
+                "Failed to close service account %s: %s", service_account.username, exc
+            )
+            # close_service_account saves ERRED for backend failures itself;
+            # anything else (say, an unconfigured URL) must not leave it OK.
+            try:
+                service_account.refresh_from_db()
+            except model.DoesNotExist:
+                # Hard-deleted meanwhile; nothing left to mark.
+                continue
+            if service_account.state != ServiceAccountState.ERRED:
+                service_account.set_state_erred()
+                service_account.error_message = str(exc)
+                service_account.save(update_fields=["state", "error_message"])
+            continue
+        if service_account.error_message.startswith(utils.CLOSED_IN_WALDUR_ONLY):
+            # Its backend account may still be open: the row, with the
+            # reason, is what staff have to follow it up.
+            continue
+        service_account.delete()
+
+
+#: A project removed less recently than this is left to the close its own
+#: deletion schedules on commit, which may still be queued or running.
+RECONCILE_REMOVAL_GRACE = timedelta(hours=1)
+#: A PENDING course account is a create or a close in flight. One untouched
+#: this long under a removed project has none: the task was never queued
+#: (broker down after a destroy, say), and nothing else would close it.
+RECONCILE_PENDING_AGE = timedelta(days=1)
+
+
+def _reconcilable_course_accounts(now):
+    return models.CourseAccount.objects.filter(
+        Q(state__in=(CourseAccountState.OK, CourseAccountState.ERRED))
+        | Q(state=CourseAccountState.PENDING, modified__lt=now - RECONCILE_PENDING_AGE),
+        project__is_removed=True,
+        project__modified__lt=now - RECONCILE_REMOVAL_GRACE,
+    )
+
+
+def _reconcilable_service_accounts(now):
+    return models.ProjectServiceAccount.objects.filter(
+        state__in=(ServiceAccountState.OK, ServiceAccountState.ERRED),
+        project__is_removed=True,
+        project__modified__lt=now - RECONCILE_REMOVAL_GRACE,
+    )
+
+
+@shared_task(name="waldur_mastermind.marketplace.reconcile_removed_project_accounts")
+def reconcile_removed_project_accounts():
+    """Close course and project service accounts left open under removed projects.
+
+    The project's pre_delete handlers close these accounts once, after the
+    deletion commits. When that attempt fails - no API token, a backend
+    error, or the broker down so the task was never queued - the account
+    stays OK or ERRED under a project that no longer appears anywhere, and
+    nothing would try again. This finds the projects with such accounts and
+    queues one reconcile_removed_project_accounts_for_project per project,
+    which runs the same batch close over them.
+
+    One task per project rather than one sweep: a first run over a large
+    backlog would otherwise share one token across every account, long
+    enough for it to expire, and run into the task time limit.
+
+    A project removed within RECONCILE_REMOVAL_GRACE is left to its own
+    deletion close, so the two don't race. CustomerServiceAccount is not
+    covered: a customer is not soft-deleted, so its accounts are
+    CASCADE-deleted with it and leave no row.
+    """
+    now = timezone.now()
+    project_ids = set()
+    if utils.account_closing_enabled("course"):
+        project_ids.update(
+            _reconcilable_course_accounts(now).values_list("project_id", flat=True)
+        )
+    if utils.account_closing_enabled("service"):
+        project_ids.update(
+            _reconcilable_service_accounts(now).values_list("project_id", flat=True)
+        )
+    for project_id in sorted(project_ids):
+        reconcile_removed_project_accounts_for_project.delay(project_id)
+    if project_ids:
+        logger.info(
+            "Queued reconciliation of accounts in %s removed projects", len(project_ids)
+        )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.reconcile_removed_project_accounts_for_project"
+)
+def reconcile_removed_project_accounts_for_project(project_id: int):
+    """Close one removed project's course and service accounts left open.
+
+    Re-reads the project first: one recovered since the sweep queued it
+    keeps its accounts. The batch tasks check each row's project again, so
+    a recovery during the close still stops it for the accounts not yet
+    reached. The close asks the backend first, so an account it reports
+    closed or doesn't have is closed locally without a close request.
+    """
+    now = timezone.now()
+    if not structure_models.Project.objects.filter(
+        pk=project_id,
+        is_removed=True,
+        modified__lt=now - RECONCILE_REMOVAL_GRACE,
+    ).exists():
+        return
+
+    if utils.account_closing_enabled("course"):
+        course_accounts = _reconcilable_course_accounts(now).filter(
+            project_id=project_id
+        )
+        payload = utils.course_account_close_payload(course_accounts)
+        if payload:
+            close_course_accounts_task(payload)
+            _log_reconciliation("course", project_id, payload, course_accounts)
+
+    if utils.account_closing_enabled("service"):
+        service_accounts = _reconcilable_service_accounts(now).filter(
+            project_id=project_id
+        )
+        payload = utils.service_account_close_payload(service_accounts)
+        if payload:
+            close_service_accounts_task("ProjectServiceAccount", payload)
+            _log_reconciliation("service", project_id, payload, service_accounts)
+
+
+def _log_reconciliation(kind: str, project_id: int, payload: list[dict], open_accounts):
+    uuids = [account["uuid"] for account in payload]
+    still_open = open_accounts.filter(uuid__in=uuids).count()
+    # Counted among the closed, but their backend accounts may still be open.
+    waldur_only = open_accounts.model.objects.filter(
+        uuid__in=uuids,
+        error_message__startswith=utils.CLOSED_IN_WALDUR_ONLY,
+    ).count()
+    logger.info(
+        "Reconciled %s accounts of removed project %s: %s closed, %s still open, "
+        "%s closed in Waldur only",
+        kind,
+        project_id,
+        len(payload) - still_open,
+        still_open,
+        waldur_only,
+    )
 
 
 def _close_course_account_and_mark_erred_on_any_failure(
@@ -332,6 +658,9 @@ def _close_course_account_and_mark_erred_on_any_failure(
     """
     try:
         utils.close_course_account(course_account, api_access_token)
+    except SoftTimeLimitExceeded:
+        # Let Celery end the task: the next reconcile picks it up.
+        raise
     except Exception as exc:
         logger.error(
             "Failed to close course account %s: %s", course_account.uuid.hex, exc

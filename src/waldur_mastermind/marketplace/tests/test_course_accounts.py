@@ -19,6 +19,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.enums import CourseAccountState
 from waldur_mastermind.marketplace.tests import factories, fixtures
+from waldur_mastermind.marketplace.tests.utils import real_on_commit
 
 COURSE_ACCOUNT_URL = "http://example.com/api/course-accounts"
 COURSE_ACCOUNT_TOKEN_URL = "http://example.com/api/token"
@@ -656,7 +657,7 @@ class CourseAccountHandlerTest(test.APITestCase):
             "delay",
             side_effect=tasks.close_course_accounts_task,
         ):
-            with self.captureOnCommitCallbacks(execute=True):
+            with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
                 self.course_project.delete()
 
         # Verify that close account API was called for each account
@@ -698,7 +699,7 @@ class CourseAccountHandlerTest(test.APITestCase):
             "delay",
             side_effect=tasks.close_course_accounts_task,
         ):
-            with self.captureOnCommitCallbacks(execute=True):
+            with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
                 self.course_project.delete()
 
         # Verify no close account requests were made since token failed
@@ -709,12 +710,12 @@ class CourseAccountHandlerTest(test.APITestCase):
         ]
         self.assertEqual(len(close_requests), 0)
 
-        # The account is left as-is (still OK): the batch never got far
-        # enough to attempt it, so there is nothing account-specific to
-        # mark ERRED - the whole batch is retried by re-triggering the
-        # project delete, not by retrying one account.
+        # The project is removed, so nothing will run this batch again: the
+        # account is marked ERRED with the token error rather than left OK,
+        # which would claim it is still open and hide that it never closed.
         account.refresh_from_db()
-        self.assertEqual(account.state, CourseAccountState.OK)
+        self.assertEqual(account.state, CourseAccountState.ERRED)
+        self.assertIn("token", account.error_message)
 
     def test_course_accounts_handler_processes_account_not_found_case(self):
         """Test handler behavior when course account is not found in remote API"""
@@ -736,7 +737,7 @@ class CourseAccountHandlerTest(test.APITestCase):
             "delay",
             side_effect=tasks.close_course_accounts_task,
         ):
-            with self.captureOnCommitCallbacks(execute=True):
+            with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
                 self.course_project.delete()
 
         # Verify no close request was made since account wasn't found
@@ -791,7 +792,7 @@ class CourseAccountHandlerTest(test.APITestCase):
             "delay",
             side_effect=tasks.close_course_accounts_task,
         ):
-            with self.captureOnCommitCallbacks(execute=True):
+            with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
                 self.course_project.delete()
 
         # Verify only the first account's close was attempted
@@ -2054,11 +2055,24 @@ class AccountApiRequestTimeoutTest(test.APITestCase):
         )
 
     @patch("httpx.put")
-    def test_close_course_account_by_username_passes_explicit_timeout(self, mock_put):
+    @patch("httpx.get")
+    def test_close_course_account_by_username_passes_explicit_timeout(
+        self, mock_get, mock_put
+    ):
+        # The account is looked up first, so an account closed already isn't
+        # sent another close; an active one is.
+        mock_get.return_value = httpx.Response(
+            200,
+            json={"tempAccount": {"username": self.user.username, "status": "active"}},
+            request=httpx.Request("GET", COURSE_ACCOUNT_URL),
+        )
         mock_put.return_value = httpx.Response(
             200, json={}, request=httpx.Request("PUT", COURSE_ACCOUNT_URL)
         )
         utils.close_course_account_by_username(self.user.username, "token")
+        self.assertEqual(
+            mock_get.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
+        )
         self.assertEqual(
             mock_put.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
         )

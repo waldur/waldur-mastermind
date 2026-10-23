@@ -343,8 +343,38 @@ Course accounts are automatically closed when their parent project is deleted:
 
 - Signal handler: `close_course_accounts_after_project_removal`
 - Processes all course accounts in the project
-- Attempts to close each account via external API
+- Closes them in one task (`close_course_accounts_task`), scheduled once the
+  project deletion has committed, so a rolled-back deletion closes nothing
 - Continues even if individual account closures fail
+
+A failed close leaves the account `ERRED`. A daily task,
+`reconcile_removed_project_accounts` (03:10), closes every course account still
+`OK` or `ERRED` under a removed project again, including any whose close was
+never queued. It queues one `reconcile_removed_project_accounts_for_project`
+task per project, each with its own token. Details:
+
+- **Grace period:** a project removed less than an hour ago is left to its own
+  deletion close, so the two don't race.
+- **Recovered projects:** a project that is no longer removed keeps its
+  accounts, also when it is recovered while its close is under way.
+- **`PENDING` accounts:** included once they have not changed for a day, as no
+  create or close is in flight for them any more (for example, the broker was
+  down after a destroy). Newer ones are skipped.
+
+Between runs, only staff and support can still see such an account through the
+API.
+
+An account the backend no longer has (404), or reports as `closed`, is closed
+locally without calling close: that is the requested outcome, not an error.
+
+Several course accounts can share one Waldur user, and so one backend account.
+While another open course account under a live project uses it, closing an
+account closes only its row, in Waldur only: the backend account and the user
+stay.
+
+Not covered: a failed close by username after a hard delete. It leaves no row
+to retry, only a log entry, and the backend account and the Waldur user stay
+active.
 
 ### User Creation
 
