@@ -11,6 +11,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
     OfferingRole,
+    ProjectRole,
     ServiceProviderRole,
 )
 from waldur_core.structure.tests import factories as structure_factories
@@ -161,6 +162,60 @@ class ConsumerApiKeyTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.offering_owner)
         response = self.client.get(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_and_support_outside_the_project_cannot_reveal(self):
+        # Support is read-only, and a staff reveal goes through impersonation,
+        # which records who did it. Neither reads a secret directly.
+        assigned = models.ResourceApiKey.objects.create(
+            resource=self.resource,
+            client_id="cid-2",
+            key_ciphertext=encryption.encrypt_value("sk-secret-two"),
+            state=States.OK,
+            user=self.fixture.admin,
+        )
+        for user in (self.fixture.staff, self.fixture.global_support):
+            for key in (self.key, assigned):
+                with self.subTest(user=user, key=key.client_id):
+                    self.client.force_authenticate(user)
+                    with mock.patch(
+                        "waldur_mastermind.marketplace.views.log.log_resource_api_key_revealed"
+                    ) as log_reveal:
+                        response = self.client.get(detail_url(key, "reveal"))
+                    self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                    log_reveal.assert_not_called()
+
+    def test_staff_and_support_in_the_project_reveal_an_unassigned_key(self):
+        for user in (self.fixture.staff, self.fixture.global_support):
+            with self.subTest(user=user):
+                self.fixture.project.add_user(user, ProjectRole.MEMBER)
+                self.client.force_authenticate(user)
+                response = self.client.get(detail_url(self.key, "reveal"))
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["api_key"], "sk-secret-one")
+
+    def test_staff_and_support_in_the_organization_reveal_an_unassigned_key(self):
+        for user in (self.fixture.staff, self.fixture.global_support):
+            with self.subTest(user=user):
+                self.fixture.customer.add_user(user, CustomerRole.OWNER)
+                self.client.force_authenticate(user)
+                response = self.client.get(detail_url(self.key, "reveal"))
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_staff_and_support_still_see_every_key_without_the_secret(self):
+        for user in (self.fixture.staff, self.fixture.global_support):
+            with self.subTest(user=user):
+                self.client.force_authenticate(user)
+                response = self.client.get(
+                    list_url(), {"resource_uuid": self.resource.uuid.hex}
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(
+                    [key["uuid"] for key in response.data], [self.key.uuid.hex]
+                )
+                self.assertNotIn("api_key", response.data[0])
+                response = self.client.get(detail_url(self.key))
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertNotIn("api_key", response.data)
 
     def test_reveal_only_from_ok(self):
         # A transitional key's stored value may not match the gateway; never hand
