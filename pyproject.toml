@@ -23,7 +23,7 @@ dependencies = [
   # change what a build installs without any change here or in uv.lock.
   "django-model-utils @ git+https://github.com/waldur/django-model-utils@50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6",
   "django-reversion==6.1.0",
-  "djangorestframework>=3.16.0,<4.0.0",
+  "djangorestframework>=3.18.2,<4.0.0",
   "djangosaml2>=1.11.0,<2.0.0",
   "docker==7.1.0",
   "lxml>=6.1.0",
