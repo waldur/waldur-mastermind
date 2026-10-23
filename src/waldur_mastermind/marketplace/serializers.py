@@ -192,6 +192,9 @@ logger = logging.getLogger(__name__)
 
 MAX_ORDER_NOTIFICATION_EMAILS = 10
 MAX_ORDER_NOTIFICATION_ROLES = 10
+# Items in one report of usage per day: every day of two months for sixteen
+# components, or of a year for two. Each item is a row written under a lock.
+MAX_DAILY_USAGE_ITEMS = 1000
 
 
 def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options):
@@ -11302,9 +11305,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     daily_usages = ComponentDailyUsageItemSerializer(
         many=True,
         required=False,
+        max_length=MAX_DAILY_USAGE_ITEMS,
         help_text="Usage of usage-based components per UTC date. The month's "
         "usage is then the sum of its days, and a month total for a month that "
-        "has daily amounts is rejected. Needed for day and week spending limits.",
+        "has daily amounts is rejected. Needed for day and week spending limits. "
+        f"At most {MAX_DAILY_USAGE_ITEMS} items.",
     )
     plan_period = serializers.SlugRelatedField(
         queryset=models.ResourcePlanPeriod.objects.all(),
