@@ -112,7 +112,9 @@ def _not_offered(resource, component_type, period, offered) -> str:
     if not limits_offered(resource.offering):
         return _("The offering does not offer limits on API keys.")
     if not offered:
-        return _("%s is not charged for, so it takes no limit.") % component_type
+        component = resource.offering.components.filter(type=component_type).first()
+        name = (component.name if component else "") or component_type
+        return _("%s is not charged for, so it takes no limit.") % name
     message = _("A %(period)s limit is not offered. Offered: %(offered)s.") % {
         "period": period,
         "offered": ", ".join(p for p in PERIODS if p in offered),

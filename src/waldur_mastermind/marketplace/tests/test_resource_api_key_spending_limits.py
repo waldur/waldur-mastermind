@@ -1157,12 +1157,18 @@ class OfferedPeriodsTest(KeySpendingLimitsTestBase):
             plan=plan, component=self.cost_component, price=2
         )
         tokens = self.offering.components.get(type="tokens")
+        tokens.name = "Tokens used"
+        tokens.save()
         factories.PlanComponentFactory(plan=plan, component=tokens, price=0)
         self.resource.plan = plan
         self.resource.save()
         response, prepare = self.patch({"spending_limits": {"tokens": {"month": 5}}})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("not charged", str(response.data))
+        # Keyed by type, as every limit error is; worded with its name.
+        self.assertEqual(
+            str(response.data["spending_limits"]["tokens"]),
+            "Tokens used is not charged for, so it takes no limit.",
+        )
         prepare.assert_not_called()
         response, _ = self.patch({"spending_limits": {"token_cost": {"day": 5}}})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
