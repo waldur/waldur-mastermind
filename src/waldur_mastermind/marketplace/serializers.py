@@ -147,6 +147,7 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
     ServiceAccountState,
     ServiceAccountStatesType,
+    SpendingLimitPeriods,
     SwitchBillingModes,
     UsageLimitAction,
 )
@@ -172,6 +173,7 @@ from waldur_pid import models as pid_models
 
 from . import (
     billing_mode,
+    daily_usage,
     derived_limits,
     display_limits,
     log,
@@ -181,6 +183,7 @@ from . import (
     plugins,
     posix_ids,
     project_groups,
+    spending_limits,
     utils,
 )
 
@@ -188,6 +191,9 @@ logger = logging.getLogger(__name__)
 
 MAX_ORDER_NOTIFICATION_EMAILS = 10
 MAX_ORDER_NOTIFICATION_ROLES = 10
+# Items in one report of usage per day: every day of two months for sixteen
+# components, or of a year for two. Each item is a row written under a lock.
+MAX_DAILY_USAGE_ITEMS = 1000
 
 
 def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options):
@@ -4158,8 +4164,50 @@ class LimitBoundField(serializers.DecimalField):
         return LimitValueField._narrow(super().to_representation(value))
 
 
+class SpendingLimitsField(serializers.DictField):
+    """``{component_type: {period: amount}}``; a null amount clears that period's limit."""
+
+    child = serializers.DictField(
+        child=serializers.FloatField(allow_null=True, min_value=0), allow_null=True
+    )
+
+
+class SpendingLimitBoundsSerializer(serializers.Serializer):
+    default = serializers.FloatField(
+        required=False,
+        allow_null=True,
+        help_text="Amount the order form starts from; the customer may change or clear it.",
+    )
+    maximum = serializers.FloatField(
+        required=False,
+        allow_null=True,
+        help_text="Highest limit a customer may set for this period.",
+    )
+
+    def to_internal_value(self, data):
+        # A misspelt bound would otherwise be dropped, and the period saved
+        # without the maximum the provider meant to set.
+        if isinstance(data, dict):
+            unknown = sorted(set(data) - set(self.fields))
+            if unknown:
+                raise serializers.ValidationError(
+                    _("Unknown keys: %s.") % ", ".join(unknown)
+                )
+        return super().to_internal_value(data)
+
+
 class OfferingComponentSerializer(serializers.ModelSerializer):
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    spending_limit_periods = serializers.DictField(
+        child=SpendingLimitBoundsSerializer(),
+        required=False,
+        help_text=(
+            "Periods (day, week, month, quarter, year) for which customers can set "
+            "a spending limit on this usage-based component. Day and week need the "
+            "integration to report usage per day. Empty when customers cannot set "
+            "spending limits."
+        ),
+    )
     factor = serializers.SerializerMethodField()
     overage_component = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -4188,6 +4236,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             "max_available_limit",
             "is_boolean",
             "default_limit",
+            "spending_limit_periods",
             "factor",
             "is_builtin",
             "is_prepaid",
@@ -4249,8 +4298,41 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
                 attrs.get("limit_decimal_places", self.instance.limit_decimal_places),
             )
         self._validate_prepaid(attrs)
+        self._validate_spending_limit_periods(attrs)
 
         return attrs
+
+    def _validate_spending_limit_periods(self, attrs):
+        instance = self.instance
+        periods = attrs.get(
+            "spending_limit_periods",
+            instance.spending_limit_periods if instance else {},
+        )
+        billing_type = attrs.get(
+            "billing_type", instance.billing_type if instance else None
+        )
+        try:
+            periods = spending_limits.validate_component_periods(periods, billing_type)
+        except serializers.ValidationError as error:
+            raise serializers.ValidationError({"spending_limit_periods": error.detail})
+        if periods and instance:
+            # A resource option already shows its quota as this component's
+            # limit; a second, customer-set ceiling would compete with it.
+            option = display_limits.display_limit_options(
+                instance.offering.resource_options
+            ).get(instance.type)
+            if option:
+                raise serializers.ValidationError(
+                    {
+                        "spending_limit_periods": _(
+                            "Resource option %s is shown as the limit of this "
+                            "component, so it cannot take spending limits."
+                        )
+                        % option
+                    }
+                )
+        if "spending_limit_periods" in attrs or instance is None:
+            attrs["spending_limit_periods"] = periods
 
     def _validate_prepaid(self, attrs):
         # Determine the final state of 'is_prepaid'.
@@ -5845,7 +5927,14 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             for component in attrs.get("components") or []
             if component.get("billing_type") == BillingTypes.USAGE
         }
-        display_limits.validate_components(attrs["resource_options"], usage_types)
+        capped_types = {
+            component["type"]
+            for component in attrs.get("components") or []
+            if component.get("spending_limit_periods")
+        }
+        display_limits.validate_components(
+            attrs["resource_options"], usage_types, capped_types
+        )
 
     def _validate_offering_group(self, attrs):
         offering_group = attrs.get("offering_group")
@@ -6145,13 +6234,17 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
             resource_options, order_options
         )
         self._check_changed_values_are_kept(resource_options, order_options)
+        usage_components = self.instance.components.filter(
+            billing_type=BillingTypes.USAGE
+        )
         display_limits.validate_components(
             resource_options,
-            set(
-                self.instance.components.filter(
-                    billing_type=BillingTypes.USAGE
-                ).values_list("type", flat=True)
-            ),
+            {component.type for component in usage_components},
+            {
+                component.type
+                for component in usage_components
+                if component.spending_limit_periods
+            },
         )
         return resource_options
 
@@ -7670,6 +7763,13 @@ class OrderCreateSerializer(
         "holds RESOURCE.SET_SLUG on the project, the offering or their "
         "organizations; otherwise ignored.",
     )
+    spending_limits = SpendingLimitsField(
+        required=False,
+        write_only=True,
+        help_text="Spending limits of the new resource on its usage-based "
+        "components, per period: {component_type: {period: amount}}. Only the "
+        "periods each component offers are accepted, up to their maximum.",
+    )
 
     class Meta:
         model = models.Order
@@ -7693,6 +7793,7 @@ class OrderCreateSerializer(
             "state",
             "cost",
             "type",
+            "spending_limits",
         )
         read_only_fields = BaseOrderSerializer.Meta.read_only_fields + (
             "created_by",
@@ -7785,6 +7886,7 @@ class OrderCreateSerializer(
             offering=validated_data["offering"],
             plan=validated_data.get("plan"),
             limits=validated_data.get("limits") or {},
+            spending_limits=validated_data.get("spending_limits") or {},
             attributes=attributes,
             name=attributes.get("name") or "",
             slug=validated_data.get("slug") or "",
@@ -7890,6 +7992,7 @@ class OrderCreateSerializer(
         self._validate_project_not_terminated(project)
         self._validate_project_policy_constraints(project, offering, attributes)
         self._validate_plan_for_create(attrs, offering)
+        self._validate_spending_limits(attrs, offering)
 
         # Prepaid Offering Validation
         prepaid_components = offering.components.filter(is_prepaid=True)
@@ -7902,6 +8005,14 @@ class OrderCreateSerializer(
         self._validate_unique_options(offering, attributes)
 
         return attrs
+
+    def _validate_spending_limits(self, attrs, offering):
+        try:
+            attrs["spending_limits"] = spending_limits.validate_resource_limits(
+                attrs.get("spending_limits"), offering, attrs.get("plan")
+            )
+        except serializers.ValidationError as error:
+            raise serializers.ValidationError({"spending_limits": error.detail})
 
     def _validate_resource_name(self, attributes):
         name = attributes.get("name") or ""
@@ -8432,8 +8543,28 @@ class ResourceListSerializer(serializers.ListSerializer):
         return super().to_representation(resources)
 
 
+class SpendingLimitStatusSerializer(serializers.Serializer):
+    component_type = serializers.CharField()
+    period = serializers.ChoiceField(choices=SpendingLimitPeriods.CHOICES)
+    limit = serializers.FloatField()
+    used = serializers.FloatField(help_text="Usage reported in the current period.")
+    resets_at = serializers.DateTimeField(
+        help_text="When the current period ends and its usage starts from zero."
+    )
+    reached = serializers.BooleanField()
+    last_reported_at = serializers.DateTimeField(
+        allow_null=True, help_text="When usage of the component was last reported."
+    )
+
+
 class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerializer):
     project_slug = serializers.ReadOnlyField(source="project.slug")
+    spending_limits = SpendingLimitsField(
+        read_only=True,
+        help_text="Spending limits on usage-based components, per period. "
+        "Changed with the set_spending_limits action.",
+    )
+    spending_limit_status = serializers.SerializerMethodField()
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
     renewal_date = serializers.SerializerMethodField()
     offering_state = serializers.SerializerMethodField()
@@ -8510,6 +8641,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "restrict_member_access",
             "paused",
             "usage_limit_restriction",
+            "usage_limit_resumes_at",
+            "spending_limits",
+            "spending_limit_status",
             "endpoints",
             "error_message",
             "error_traceback",
@@ -8549,6 +8683,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "project_slug",
             "customer_slug",
             "offering_components",
+            "usage_limit_resumes_at",
         )
         view_name = "marketplace-resource-detail"
         list_serializer_class = ResourceListSerializer
@@ -8868,6 +9003,13 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         # float, not int: a component may allow fractional limits, and the
         # annotation is what the generated clients are typed from.
         return resource.limits
+
+    @extend_schema_field(SpendingLimitStatusSerializer(many=True))
+    def get_spending_limit_status(self, resource: models.Resource):
+        """Each spending limit with its usage so far, reset time and whether it is reached."""
+        return SpendingLimitStatusSerializer(
+            spending_limits.get_status(resource), many=True
+        ).data
 
     def get_display_limits(self, resource: models.Resource) -> dict[str, float]:
         # Kept out of limits: clients read limits as the stored quantities
@@ -9823,6 +9965,14 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     attachment = serializers.FileField(
         required=False,
         help_text=_("Optional PDF attachment for the limit update request."),
+    )
+
+
+class ResourceSpendingLimitsSerializer(serializers.Serializer):
+    spending_limits = SpendingLimitsField(
+        help_text="The resource's spending limits, replacing the current ones: "
+        "{component_type: {period: amount}}. A missing or null period clears "
+        "that limit; an empty object clears them all.",
     )
 
 
@@ -10979,9 +11129,31 @@ class ComponentUsageItemSerializer(serializers.Serializer):
         return attrs
 
 
+class ComponentDailyUsageItemSerializer(serializers.Serializer):
+    type = serializers.CharField(help_text="Type of the usage-based component")
+    date = serializers.DateField(help_text="UTC date the amount was used on")
+    amount = serializers.DecimalField(
+        decimal_places=2,
+        max_digits=20,
+        min_value=0,
+        help_text="Usage on that date. Replaces the amount reported for it before.",
+    )
+
+
 class ComponentUsageCreateSerializer(serializers.Serializer):
     usages = ComponentUsageItemSerializer(
-        many=True, help_text="List of component usage items to report"
+        many=True,
+        help_text="List of component usage items to report, each the total of "
+        "the billing month so far. May be empty when daily_usages is given.",
+    )
+    daily_usages = ComponentDailyUsageItemSerializer(
+        many=True,
+        required=False,
+        max_length=MAX_DAILY_USAGE_ITEMS,
+        help_text="Usage of usage-based components per UTC date. The month's "
+        "usage is then the sum of its days, and a month total for a month that "
+        "has daily amounts is rejected. Needed for day and week spending limits. "
+        f"At most {MAX_DAILY_USAGE_ITEMS} items.",
     )
     plan_period = serializers.SlugRelatedField(
         queryset=models.ResourcePlanPeriod.objects.all(),
@@ -11120,7 +11292,10 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         valid_components = set(self.get_components_map(offering)) & set(
             self.get_components_map(resource.plan.offering)
         )
-        actual_components = {usage["type"] for usage in attrs["usages"]}
+        daily_usages = attrs.get("daily_usages") or []
+        actual_components = {usage["type"] for usage in attrs["usages"]} | {
+            usage["type"] for usage in daily_usages
+        }
 
         invalid_components = ", ".join(sorted(actual_components - valid_components))
 
@@ -11177,7 +11352,99 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     }
                 )
 
+        if daily_usages:
+            self._validate_daily_usages(resource, daily_usages)
+        self._validate_monthly_usages_have_no_days(attrs, resource, daily_usages)
+
         return attrs
+
+    def _validate_daily_usages(self, resource, daily_usages):
+        components_map = self.get_components_map(resource.plan.offering)
+        today = spending_limits.utc_today()
+        current_month = today.replace(day=1)
+        seen = set()
+        for usage in daily_usages:
+            component = components_map[usage["type"]]
+            if (
+                billing_mode.resolve_component(component, resource.plan).billing_type
+                != BillingTypes.USAGE
+            ):
+                raise rf_exceptions.ValidationError(
+                    {
+                        "daily_usages": _(
+                            "Daily usage is only accepted for usage-based "
+                            "components; %s is not one."
+                        )
+                        % usage["type"]
+                    }
+                )
+            key = (usage["type"], usage["date"])
+            if key in seen:
+                raise rf_exceptions.ValidationError(
+                    {
+                        "daily_usages": _("%(type)s is reported twice for %(date)s.")
+                        % {"type": usage["type"], "date": usage["date"]}
+                    }
+                )
+            seen.add(key)
+            if usage["date"] > today:
+                raise rf_exceptions.ValidationError(
+                    {"daily_usages": _("Cannot submit usage for future dates.")}
+                )
+            if usage["date"] < current_month and not self._can_backfill_day(
+                resource, usage["date"]
+            ):
+                raise rf_exceptions.ValidationError(
+                    {
+                        "daily_usages": _(
+                            "Usage of a past month can only be reported by staff, "
+                            "or by the service provider while that month's invoice "
+                            "can still change."
+                        )
+                    }
+                )
+
+    def _can_backfill_day(self, resource, day):
+        # The same rule as for a dated monthly report of a usage-based component.
+        request = self.context["request"]
+        if request.user.is_staff:
+            return True
+        return has_permission_on_any_source(
+            request,
+            PermissionEnum.SET_RESOURCE_USAGE,
+            resource.offering,
+            PROVIDER_USAGE_SOURCES,
+        ) and self._has_mutable_invoice_for_period(resource, day)
+
+    def _validate_monthly_usages_have_no_days(self, attrs, resource, daily_usages):
+        """A month total would be overwritten by the next report of its days."""
+        if not attrs["usages"]:
+            return
+        components_map = self.get_components_map(resource.plan.offering)
+        date_value = attrs.get("date") or timezone.now()
+        billing_period = core_utils.month_start(timezone.localtime(date_value)).date()
+        reported_days = {
+            usage["type"]
+            for usage in daily_usages
+            if usage["date"].replace(day=1) == billing_period
+        }
+        for usage in attrs["usages"]:
+            component = components_map[usage["type"]]
+            if usage["type"] in reported_days or daily_usage.has_daily_usage(
+                resource, component, billing_period
+            ):
+                raise rf_exceptions.ValidationError(
+                    {
+                        "usages": _(
+                            "Usage of %(type)s for %(month)s is reported per day; "
+                            "report it in daily_usages instead."
+                        )
+                        % {
+                            "type": usage["type"],
+                            "month": billing_period.strftime("%Y-%m"),
+                        }
+                    }
+                )
 
     def save(self):
         plan_period = self.validated_data.get("plan_period")
@@ -11260,6 +11527,18 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 logger.info(
                     f"Usage has been updated for {resource}, component: {component.type}, value: {amount}"
                 )
+
+        daily_amounts = {}
+        for usage in self.validated_data.get("daily_usages") or []:
+            daily_amounts.setdefault(usage["type"], {})[usage["date"]] = usage["amount"]
+        for component_type, amounts in daily_amounts.items():
+            daily_usage.record(
+                resource, components_map[component_type], amounts, user, timezone.now()
+            )
+            logger.info(
+                f"Daily usage has been recorded for {resource}, component: "
+                f"{component_type}, days: {len(amounts)}"
+            )
 
 
 class OfferingFileSerializer(

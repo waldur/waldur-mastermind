@@ -118,6 +118,36 @@ def re_evaluate_usage_limit_restrictions():
         evaluate_usage_limit_restriction(resource)
 
 
+@shared_task(
+    name="waldur_mastermind.marketplace.lift_reset_spending_limit_restrictions"
+)
+def lift_reset_spending_limit_restrictions():
+    """Re-evaluate resources restricted by spending limits that have since reset.
+
+    A daily or weekly limit resets at midnight UTC, usually without a usage
+    report to trigger the lift; this runs every few minutes so the pause ends
+    close to the reset rather than on the hourly re-evaluation.
+    """
+    restricted = (
+        models.Resource.objects.exclude(usage_limit_restriction="")
+        .exclude(
+            state__in=(
+                ResourceStates.TERMINATING,
+                ResourceStates.TERMINATED,
+            )
+        )
+        .filter(
+            usage_limit_resumes_at__lte=timezone.now(),
+            offering__plugin_options__action_on_usage_limit__in=(
+                UsageLimitAction.PAUSE,
+                UsageLimitAction.DOWNSCALE,
+            ),
+        )
+    )
+    for resource in restricted:
+        evaluate_usage_limit_restriction(resource)
+
+
 @shared_task(name="waldur_mastermind.marketplace.resume_api_keys_under_limit")
 def resume_api_keys_under_limit():
     """Resume the API keys Waldur paused for a limit once a new month resets it.

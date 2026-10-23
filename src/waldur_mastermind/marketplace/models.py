@@ -1448,6 +1448,17 @@ class OfferingComponent(
             "0 keeps the limit integer-only."
         ),
     )
+    # Only meaningful on usage-based components; see marketplace/spending_limits.py.
+    spending_limit_periods = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "Periods for which customers can set a spending limit on this "
+            "usage-based component, each with an optional default and maximum: "
+            '{"day": {"default": 20, "maximum": 100}, "month": {}}. '
+            "Empty when customers cannot set spending limits."
+        ),
+    )
     # unit_factor is for metadata only and is not involved in any computations in Mastermind
     unit_factor = models.IntegerField(
         default=1,
@@ -2192,6 +2203,25 @@ class Resource(
             "because reported usage reached a component limit. Empty when no such "
             "restriction is active. Used so the automatic lift never clears a "
             "restriction that was set for another reason."
+        ),
+    )
+    usage_limit_resumes_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "When the spending limits that restrict the resource reset and the "
+            "restriction lifts. Empty when no spending limit restricts the "
+            "resource, or when a limit-based component's limit does too."
+        ),
+    )
+    spending_limits = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=(
+            "Spending limits on usage-based components, per calendar period: "
+            '{"token_cost": {"day": 20, "month": 300}}. Never billed; reaching '
+            "one applies the offering's action_on_usage_limit."
         ),
     )
     paused_by_grace_period = models.BooleanField(
@@ -3477,6 +3507,48 @@ class ComponentUsage(
 
     def get_log_fields(self):
         return ("uuid", "description", "usage", "date", "resource", "component")
+
+
+class ComponentDailyUsage(TimeStampedModel):
+    """Usage of a usage-based component on one UTC date.
+
+    Written when a provider reports usage per day. For a month that has daily
+    amounts, the month's ``ComponentUsage`` rows are their sum per plan period,
+    so invoicing reads the same rows as for a monthly report. Day and week
+    spending limits are measured here (see ``marketplace/daily_usage.py``).
+    """
+
+    resource = models.ForeignKey(
+        on_delete=models.CASCADE, to=Resource, related_name="daily_usages"
+    )
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent)
+    date = models.DateField()
+    usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
+    modified_by = models.ForeignKey[User](
+        to=User, related_name="+", blank=True, null=True, on_delete=models.SET_NULL
+    )
+
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
+    class Permissions:
+        customer_path = ["resource__project__customer", "resource__offering__customer"]
+        project_path = "resource__project"
+
+        @staticmethod
+        def build_query(user):
+            return filter_by_usage_reporter_permission(user, "resource__")
+
+    class Meta:
+        ordering = ["date", "id"]
+        constraints = [
+            UniqueConstraint(
+                fields=["resource", "component", "date"],
+                name="mp_component_daily_usage_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"resource: {self.resource.name}, component: {self.component.name}, date: {self.date}"
 
 
 class ComponentUsagePollRecord(models.Model):

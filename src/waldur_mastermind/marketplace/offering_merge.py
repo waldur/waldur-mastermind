@@ -107,6 +107,7 @@ PLAN_REFERENCES = (
 # Usage and quota history that makes a source component need a target one.
 COMPONENT_REFERENCES = (
     "marketplace.ComponentUsage.component",
+    "marketplace.ComponentDailyUsage.component",
     "marketplace.ComponentQuota.component",
     "marketplace.ComponentUsagePollRecord.component",
     "marketplace.ComponentUserUsageLimit.component",
@@ -1737,13 +1738,13 @@ class _Verification:
                 ),
             )
 
-        for pk, limits, current_usages in models.Resource.objects.filter(
+        for pk, limits, current_usages, spending in models.Resource.objects.filter(
             pk__in=resource_ids
-        ).values_list("pk", "limits", "current_usages"):
+        ).values_list("pk", "limits", "current_usages", "spending_limits"):
             keys = stale.json_keys.get(pk, set())
             if any(
                 isinstance(value, dict) and keys & set(value)
-                for value in (limits, current_usages)
+                for value in (limits, current_usages, spending)
             ):
                 rows["marketplace.Resource (JSON keys)"].append(pk)
 
@@ -2053,6 +2054,7 @@ def execute(merge: models.OfferingMerge) -> models.OfferingMerge:
 # Usage and quota rows a moved resource may accumulate on the target's components.
 _USAGE_MODELS = (
     models.ComponentUsage,
+    models.ComponentDailyUsage,
     models.ComponentQuota,
     models.ComponentUsagePollRecord,
     models.ComponentUserUsageLimit,
