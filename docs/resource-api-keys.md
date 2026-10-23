@@ -102,6 +102,16 @@ it was on stays, and a manager can still rotate the key. An edit could change
 the assignee in 8.1.3, so one that still names `user` is refused with 400 rather
 than silently dropped.
 
+Deleting a user's account would clear the assignee of their keys, so the keys
+are withdrawn first (`revoke_api_keys_of_deleted_user`, on the user's
+`pre_delete`), audited as automatic: "Its assignee's account was deleted."
+Where the offering manages keys, each is deleted — a requested key not created
+yet is dropped, and a command in flight gives way to the deletion, so its late
+acknowledgement is refused. Without key management, where a key cannot be
+deleted, it is rotated, so the departed person's copy stops working. A key that
+can take neither, such as one of a resource being terminated, has its stored
+value dropped, so nobody reveals it. Deactivating an account changes nothing.
+
 **Limits are enforced by Waldur, not the gateway.** The Envoy backend's
 `set_resource_limits` is a no-op by design: limits are enforced by Waldur (report
 → pause → block). A per-key limit works the same way — reported per-key usage that

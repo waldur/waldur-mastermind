@@ -732,6 +732,136 @@ class AssigneeRevealTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+class DeletedAssigneeTest(ApiKeyManagementTestBase):
+    """Deleting the assignee's account withdraws the key instead of sharing it."""
+
+    def setUp(self):
+        super().setUp()
+        self.assignee = self.fixture.member
+        self.key.user = self.assignee
+        self.key.save()
+
+    def delete_assignee(self):
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            self.assignee.delete()
+        self.key.refresh_from_db()
+        return prepare
+
+    def reveal(self, user):
+        self.client.force_authenticate(user)
+        return self.client.get(detail_url(self.key, "reveal"))
+
+    def test_the_key_is_deleted_and_nobody_else_reveals_it(self):
+        self.assertEqual(
+            self.reveal(self.fixture.admin).status_code, status.HTTP_403_FORBIDDEN
+        )
+        prepare = self.delete_assignee()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.DELETE)
+        self.assertIsNone(self.key.user)
+        self.assertEqual(self.key.state, States.DELETING)
+        self.assertEqual(self.key.pending_action, Actions.DELETE)
+        for user in (self.fixture.admin, self.fixture.manager, self.fixture.owner):
+            with self.subTest(user=user):
+                self.assertNotEqual(self.reveal(user).status_code, status.HTTP_200_OK)
+
+    def test_through_the_users_endpoint_too(self):
+        self.client.force_authenticate(self.fixture.staff)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.delete(
+                structure_factories.UserFactory.get_url(self.assignee)
+            )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.DELETE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.DELETING)
+        self.assertNotEqual(
+            self.reveal(self.fixture.admin).status_code, status.HTTP_200_OK
+        )
+
+    def test_it_is_audited_as_automatic(self):
+        self.assignee  # created before the events are captured
+        with mock.patch("waldur_mastermind.marketplace.log.event_logger.emit") as emit:
+            self.delete_assignee()
+        messages = [
+            c.args[0]
+            for c in emit.call_args_list
+            if c.kwargs["event_type"] == EventType.MARKETPLACE_RESOURCE_API_KEY_DELETED
+        ]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("requested automatically", messages[0])
+        self.assertIn("assignee's account was deleted", messages[0])
+
+    def test_a_command_in_flight_gives_way_to_the_deletion(self):
+        self.key.set_updating(Actions.ROTATE)
+        self.key.save()
+        prepare = self.delete_assignee()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.DELETE)
+        self.assertEqual(self.key.state, States.DELETING)
+        # The rotation's late report can no longer settle the key.
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            detail_url(self.key, "set-key"),
+            {"api_key": "sk-new"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_a_paused_or_erred_key_is_deleted_too(self):
+        for state in (States.PAUSED, States.ERRED):
+            with self.subTest(state):
+                self.key = self.make_key(
+                    f"cid-{state}", state=state, user=self.fixture.admin
+                )
+                with (
+                    mock.patch(PREPARE, return_value=MESSAGES),
+                    mock.patch(PUBLISH),
+                ):
+                    resource_api_keys.revoke_keys_of_deleted_user(self.fixture.admin)
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.state, States.DELETING)
+
+    def test_a_requested_key_not_created_yet_is_dropped(self):
+        self.key = self.make_key(
+            "", state=States.CREATING, pending_action=Actions.CREATE
+        )
+        self.key.user = self.fixture.admin
+        self.key.save()
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
+            self.fixture.admin.delete()
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.DELETED)
+
+    def test_without_key_management_the_key_is_rotated(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+        prepare = self.delete_assignee()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+        self.assertEqual(self.key.pending_action, Actions.ROTATE)
+        self.assertIsNone(self.key.user)
+
+    def test_a_key_that_takes_no_command_keeps_no_value(self):
+        self.resource.state = models.Resource.States.TERMINATING
+        self.resource.save()
+        prepare = self.delete_assignee()
+        prepare.assert_not_called()
+        self.assertEqual(self.key.key_ciphertext, "")
+        self.assertIsNone(self.key.user)
+
+    def test_other_users_keys_are_left_alone(self):
+        self.sibling = self.make_key("cid-2", user=self.fixture.admin)
+        prepare = self.delete_assignee()
+        prepare.assert_called_once()
+        self.sibling.refresh_from_db()
+        self.assertEqual(self.sibling.state, States.OK)
+        self.assertEqual(self.sibling.user, self.fixture.admin)
+
+
 class AssigneeRotationTest(ApiKeyManagementTestBase):
     """The assignee is trusted with the key's value, so with replacing it — and
     with nothing else a manager does to the key."""

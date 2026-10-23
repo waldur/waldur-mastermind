@@ -222,6 +222,7 @@ def issue_command(
     actor=None,
     reason="",
     assignee_only=False,
+    supersede=False,
     **updates,
 ) -> models.ResourceApiKey:
     """Start a command on a key and publish it to the agent.
@@ -242,6 +243,10 @@ def issue_command(
     Deleting a requested key that has no client_id yet publishes nothing: the
     backend holds nothing to revoke, so the key is Deleted at once, even while
     its creation is still pending.
+
+    ``supersede`` lets a deletion take the place of a command in flight, which
+    a late acknowledgement can then no longer settle. Only Waldur issues it,
+    for a key whose assignee's account is deleted.
     """
     require_resource_live(api_key.resource)
     with transaction.atomic():
@@ -266,7 +271,7 @@ def issue_command(
                 raise IncorrectStateException(
                     f"The API key's {failed} failed; retry it or delete the key."
                 )
-        elif api_key.pending_action and not cancel:
+        elif api_key.pending_action and not (cancel or supersede):
             raise IncorrectStateException(
                 f"The API key is busy: its {api_key.pending_action} has not "
                 f"been acknowledged yet."
@@ -740,6 +745,50 @@ def _retry_limit_pause(api_key: models.ResourceApiKey) -> None:
             f"{spending_limits.describe(reached)}.",
             limit_resumes_at=spending_limits.resumes_at(reached),
         )
+
+
+def revoke_keys_of_deleted_user(user) -> None:
+    """Withdraw the keys assigned to a user whose account is being deleted.
+
+    Deleting the account clears the keys' assignee, which would turn each
+    personal key into a shared one: any member of the project could reveal
+    it, while the departed person's copy still works. Called before the
+    account is deleted, so every such key is withdrawn first:
+
+    - where the offering manages keys, the key is deleted, as by its managers;
+      one not created yet is dropped, and a command in flight gives way to
+      the deletion;
+    - where it does not, keys cannot be deleted, so the key is rotated: the
+      departed person's copy stops working, and the key, now unassigned,
+      carries a value nobody has seen;
+    - a key that can take neither, such as one of a resource being
+      terminated, has its stored value dropped, so that nobody reveals it.
+    """
+    keys = models.ResourceApiKey.objects.filter(user=user).exclude(
+        state__in=(States.DELETING, States.DELETED)
+    )
+    for api_key in keys:
+        _revoke_for_deleted_assignee(api_key)
+
+
+def _revoke_for_deleted_assignee(api_key: models.ResourceApiKey) -> None:
+    reason = "Its assignee's account was deleted."
+    with transaction.atomic():
+        api_key = _lock(api_key)
+        try:
+            if api_key.is_managed:
+                issue_command(api_key, Actions.DELETE, reason=reason, supersede=True)
+            else:
+                issue_command(api_key, Actions.ROTATE, reason=reason)
+            return
+        except (IncorrectStateException, ValidationError) as error:
+            logger.warning(
+                "API key %s of a deleted user could not be withdrawn (%s); its "
+                "stored value is dropped instead.",
+                api_key.uuid,
+                error,
+            )
+        models.ResourceApiKey.objects.filter(pk=api_key.pk).update(key_ciphertext="")
 
 
 def resource_models_changed(

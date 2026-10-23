@@ -3934,3 +3934,12 @@ def send_resource_state_change_to_message_queue(
     )
     if messages:
         transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
+
+
+def revoke_api_keys_of_deleted_user(sender, instance, **kwargs):
+    """Withdraw the API keys assigned to a user before the account is deleted.
+
+    The deletion clears their assignee, which would share each with the
+    whole project while the departed person's copy still works.
+    """
+    resource_api_keys.revoke_keys_of_deleted_user(instance)
