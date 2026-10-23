@@ -151,6 +151,13 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": crontab(minute=30, hour=2),  # Run daily at 2:30 AM
                 "args": (),
             },
+            "reconcile_removed_project_accounts": {
+                "task": "waldur_mastermind.marketplace.reconcile_removed_project_accounts",
+                # After terminate_resources_if_project_end_date_has_been_reached
+                # (1:40), so a project it removes gets its own close first.
+                "schedule": crontab(minute=10, hour=3),
+                "args": (),
+            },
             "cleanup_usage_poll_records": {
                 "task": "waldur_mastermind.marketplace.cleanup_usage_poll_records",
                 "schedule": timedelta(days=1),

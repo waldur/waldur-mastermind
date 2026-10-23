@@ -138,6 +138,9 @@ Request Body:
 }
 ```
 
+Waldur refuses a `preferred_identifier` that couldn't be a username: only
+letters, digits, `.`, `_` and `-` are allowed, and not `.` or `..` alone.
+
 Response:
 
 ```json
@@ -282,6 +285,42 @@ This is handled by Django signal handlers:
 
 - `close_service_accounts_on_project_deletion`
 - `close_customer_service_accounts_on_customer_deletion`
+
+The handlers only record the accounts. Closing happens in one task per project
+or customer (`close_service_accounts_task`), scheduled once the deletion has
+committed, so a rolled-back deletion closes nothing. A closed account's row is
+deleted; one that fails is kept as `ERRED` with its error message. One closed in
+Waldur only, because no backend call could carry its username, is kept too, with
+the reason: its backend account may still be open, and
+`waldur check_service_account_usernames` lists it for staff. After a hard
+delete has removed the rows, the task closes the accounts by username. It
+refuses a username that an open service account still claims, because that
+account belongs to the other account's scope, and only logs the refusal. An
+account under a removed project claims nothing here, so accounts of removed
+projects that share a username don't block each other's close.
+
+A daily task, `reconcile_removed_project_accounts` (03:10), retries what that
+attempt left open: every `ProjectServiceAccount` still `OK` or `ERRED` under a
+removed project goes through the same close again. This also covers a close
+that was never queued, for example because the broker was down when the
+deletion committed. The task queues one
+`reconcile_removed_project_accounts_for_project` per project, each with its own
+token. It leaves a project removed less than an hour ago to its own deletion
+close, and a project that is no longer removed keeps its accounts, also when it
+is recovered while its close is under way. Project members can no longer see the
+accounts of a removed project, so between runs only staff can close an `ERRED`
+one through the API.
+
+Not covered: `CustomerServiceAccount`, whose rows are deleted together with the
+customer, and a failed close by username after a hard delete. Neither leaves a
+row to retry, only a log entry.
+
+An account the backend no longer has (404), or reports as `closed`, is closed
+locally without calling close: that is the requested outcome, not an error. An
+account with no username was never created at the backend and is closed
+locally as well.
+Every call to the service account backend has a 5-second timeout
+(`ACCOUNT_API_REQUEST_TIMEOUT`).
 
 ### Account Limits
 

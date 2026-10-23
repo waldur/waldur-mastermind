@@ -3,8 +3,6 @@ from decimal import Decimal
 from functools import partial
 from typing import Any
 
-import httpx
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -337,48 +335,36 @@ def maybe_auto_approve_order_for_project(
     )
 
 
+def _schedule_service_accounts_closing(model, service_accounts):
+    # The project/customer delete is atomic and this runs inside it, so the
+    # backend is called only once the delete has committed: closing inline,
+    # a rollback restored accounts the backend had already closed as OK,
+    # and nothing closed them again. The rows are captured now
+    # because a hard delete CASCADEs them away before the task runs.
+    accounts = marketplace_utils.service_account_close_payload(service_accounts)
+    if not accounts:
+        return
+    transaction.on_commit(
+        lambda: tasks.close_service_accounts_task.delay(model.__name__, accounts)
+    )
+
+
 def close_service_accounts_on_project_deletion(sender, instance: Project, **kwargs):
     """Close service accounts associated with a project when the project is deleted."""
-    project: structure_models.Project = instance
-
-    service_accounts = models.ProjectServiceAccount.objects.filter(project=project)
-    if not service_accounts.exists():
-        return
-
-    for service_account in service_accounts:
-        try:
-            utils.close_service_account(service_account)
-            service_account.delete()
-        except (httpx.HTTPError, ValueError) as exc:
-            logger.error(
-                "Failed to request deletion of service account %s for project %s: %s",
-                service_account,
-                project,
-                exc.response.text if isinstance(exc, httpx.HTTPStatusError) else exc,
-            )
-            continue
+    _schedule_service_accounts_closing(
+        models.ProjectServiceAccount,
+        models.ProjectServiceAccount.objects.filter(project=instance),
+    )
 
 
 def close_customer_service_accounts_on_customer_deletion(
     sender, instance: Customer, **kwargs
 ):
     """Close service accounts associated with a customer when the customer is deleted."""
-    customer: structure_models.Customer = instance
-    service_accounts = models.CustomerServiceAccount.objects.filter(customer=customer)
-    if not service_accounts.exists():
-        return
-    for service_account in service_accounts:
-        try:
-            utils.close_service_account(service_account)
-            service_account.delete()
-        except (httpx.HTTPError, ValueError) as exc:
-            logger.error(
-                "Failed to request deletion of service account %s for customer %s: %s",
-                service_account,
-                customer,
-                exc.response.text if isinstance(exc, httpx.HTTPStatusError) else exc,
-            )
-            continue
+    _schedule_service_accounts_closing(
+        models.CustomerServiceAccount,
+        models.CustomerServiceAccount.objects.filter(customer=instance),
+    )
 
 
 def release_grace_pauses_when_project_end_date_changes(
@@ -2690,7 +2676,8 @@ def add_maintenance_fields_to_admin_announcement_serializer(sender, fields, **kw
 def close_course_accounts_after_project_removal(
     sender, instance: structure_models.Project, **kwargs
 ):
-    if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
+    # The mock closes them too, as the nightly reconcile would otherwise.
+    if not marketplace_utils.account_closing_enabled("course"):
         return
 
     # Project.delete() defaults to a soft delete, but soft=False (Customer.delete()
@@ -2710,21 +2697,11 @@ def close_course_accounts_after_project_removal(
     # that fetch only ever happens inside the task, never here, so it can't
     # reintroduce the same blocking-call-in-a-request problem for the
     # synchronous hard-delete callers above.
-    accounts = list(
-        models.CourseAccount.objects.filter(project=instance).values(
-            "uuid", "user__username", "user_id"
-        )
+    payload = marketplace_utils.course_account_close_payload(
+        models.CourseAccount.objects.filter(project=instance)
     )
-    if not accounts:
+    if not payload:
         return
-    payload = [
-        {
-            "uuid": account["uuid"].hex,
-            "username": account["user__username"],
-            "user_id": account["user_id"],
-        }
-        for account in accounts
-    ]
     transaction.on_commit(lambda: tasks.close_course_accounts_task.delay(payload))
 
 

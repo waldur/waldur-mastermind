@@ -16287,12 +16287,24 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                 data, owner_username, scope_type
             )
             if response_data and "apiKey" in response_data:
-                instance = serializer.save()
+                # The only place a service account's username is set, so check
+                # it here, before anything is stored or the key handed out.
+                username = (response_data.get("serviceAccount") or {}).get("username")
+                try:
+                    utils.validate_service_account_username(username)
+                except utils.InvalidAccountUsername as exc:
+                    utils.discard_unusable_account(
+                        username, exc, utils.close_service_account_by_username
+                    )
+                    raise ValidationError(
+                        {
+                            "detail": "The service account backend returned an "
+                            "unusable username; no account was created."
+                        }
+                    )
+                instance = serializer.save(username=username)
                 instance._token = response_data["apiKey"]["apiKey"]
                 instance._expires_at = response_data["apiKey"]["expiresAt"]
-                if "serviceAccount" in response_data:
-                    instance.username = response_data["serviceAccount"]["username"]
-                    instance.save(update_fields=["username"])
             else:
                 raise ValidationError(
                     {
@@ -16325,7 +16337,7 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                 instance.error_traceback = ""
             # Update the DB object only if the API call is successful
             super().perform_update(serializer)
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, utils.AccountApiRefusal) as exc:
             error_details = utils.extract_error_details_from_httpx_error(exc)
             raise ValidationError({"detail": error_details})
 
@@ -16338,7 +16350,9 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
     def perform_destroy(self, instance):
         try:
             utils.close_service_account(instance)
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, ValueError) as exc:
+            # ValueError too: a backend answering with a body that isn't JSON.
+            # close_service_account has saved the account ERRED either way.
             raise ValidationError(
                 {"detail": utils.extract_error_details_from_httpx_error(exc)}
             )
@@ -16435,7 +16449,7 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
                 raise ValidationError(
                     {"detail": "API key rotation failed - no token returned"}
                 )
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, utils.AccountApiRefusal) as exc:
             error_details = utils.extract_error_details_from_httpx_error(exc)
             raise ValidationError({"detail": error_details})
 
@@ -16535,7 +16549,7 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
                 raise ValidationError(
                     {"detail": "API key rotation failed - no token returned"}
                 )
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, utils.AccountApiRefusal) as exc:
             error_details = utils.extract_error_details_from_httpx_error(exc)
             raise ValidationError({"detail": error_details})
 
@@ -18974,8 +18988,22 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         try:
             data = serializer.validated_data
             response_data = utils.create_course_account(data, owner_username)
+            username = response_data["tempAccount"].get("username")
+            try:
+                utils.validate_course_account_username(username)
+            except utils.InvalidAccountUsername as exc:
+                # The backend account exists already: close it if it can be named.
+                utils.discard_unusable_account(
+                    username, exc, utils.close_course_account_by_username
+                )
+                raise ValidationError(
+                    {
+                        "detail": "The course account backend returned an "
+                        "unusable username; no account was created."
+                    }
+                )
             user, _ = core_models.User.objects.get_or_create(
-                username=response_data["tempAccount"]["username"],
+                username=username,
                 defaults={
                     "email": response_data["tempAccount"]["email"],
                     "description": "Course Account",

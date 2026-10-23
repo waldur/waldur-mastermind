@@ -14736,8 +14736,43 @@ class BaseScopedServiceAccountSerializer(BaseServiceAccountSerializer):
                 "view_name": "marketplace-service-account-detail",
             },
         }
+        # The backend assigns the username on create, and every later backend
+        # call addresses the account by it, with a token valid for every
+        # tenant. Writable, it let a manager point their own account at
+        # another tenant's and close that one.
+        read_only_fields = BaseServiceAccountSerializer.Meta.read_only_fields + [
+            "username"
+        ]
 
-        protected_fields = ("preferred_identifier",)
+    # Set on create, fixed afterwards. Not AugmentedSerializerMixin's
+    # protected_fields: ModelSerializer comes before the mixin in this class's
+    # MRO and its get_fields() doesn't call super(), so they would do nothing.
+    # Writable, the scope let a manager move their own account into another
+    # tenant's project or customer, or out of every scope with null.
+    fields_fixed_after_create = ("project", "customer", "preferred_identifier")
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.instance is not None:
+            for name in self.fields_fixed_after_create:
+                if name in fields:
+                    fields[name].read_only = True
+        return fields
+
+    def validate_preferred_identifier(self, value):
+        # The backend may name the account after it, and a name outside the
+        # allowlist would leave an account Waldur can neither store nor close.
+        if value:
+            try:
+                utils.validate_account_username(value)
+            except utils.InvalidAccountUsername:
+                raise serializers.ValidationError(
+                    _(
+                        "Use only letters, digits, '.', '_' and '-', "
+                        "and not '.' or '..' alone."
+                    )
+                )
+        return value
 
     def get_token(self, obj) -> str | None:
         if hasattr(obj, "_token"):
