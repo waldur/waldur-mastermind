@@ -133,7 +133,20 @@ from waldur_mastermind.proposal.models import (
 from waldur_mastermind.proposal.serializers import (
     CallAssignmentConfigurationSerializer,
 )
-from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
+from waldur_openstack.models import (
+    Flavor,
+    FloatingIP,
+    Image,
+    Instance,
+    Network,
+    Port,
+    SecurityGroup,
+    SecurityGroupRule,
+    SubNet,
+    Tenant,
+    Volume,
+    VolumeType,
+)
 
 OPENSTACK_TENANT_OFFERING = "OpenStack.Tenant"
 VOLUME_TYPE_COMPONENT_PREFIX = "gigabytes_"
@@ -691,6 +704,42 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "openstack_volume_types": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_networks": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_subnets": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_security_groups": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_ports": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_floating_ips": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         self.dry_run = False
         self.update_existing = False
@@ -890,6 +939,12 @@ class Command(BaseCommand):
                 data.get("openstack_service_settings", [])
             ),
         )
+        # Tenants come before flavors, images and volume types, which list the
+        # tenants they are available to.
+        self._safe_import(
+            "openstack_tenants",
+            lambda: self.import_openstack_tenants(data.get("openstack_tenants", [])),
+        )
         self._safe_import(
             "openstack_flavors",
             lambda: self.import_openstack_flavors(data.get("openstack_flavors", [])),
@@ -899,8 +954,24 @@ class Command(BaseCommand):
             lambda: self.import_openstack_images(data.get("openstack_images", [])),
         )
         self._safe_import(
-            "openstack_tenants",
-            lambda: self.import_openstack_tenants(data.get("openstack_tenants", [])),
+            "openstack_volume_types",
+            lambda: self.import_openstack_volume_types(
+                data.get("openstack_volume_types", [])
+            ),
+        )
+        self._safe_import(
+            "openstack_networks",
+            lambda: self.import_openstack_networks(data.get("openstack_networks", [])),
+        )
+        self._safe_import(
+            "openstack_subnets",
+            lambda: self.import_openstack_subnets(data.get("openstack_subnets", [])),
+        )
+        self._safe_import(
+            "openstack_security_groups",
+            lambda: self.import_openstack_security_groups(
+                data.get("openstack_security_groups", [])
+            ),
         )
 
         self._safe_import(
@@ -1010,6 +1081,17 @@ class Command(BaseCommand):
         self._safe_import(
             "openstack_volumes",
             lambda: self.import_openstack_volumes(data.get("openstack_volumes", [])),
+        )
+        # Ports attach instances to subnets; floating IPs then point at ports.
+        self._safe_import(
+            "openstack_ports",
+            lambda: self.import_openstack_ports(data.get("openstack_ports", [])),
+        )
+        self._safe_import(
+            "openstack_floating_ips",
+            lambda: self.import_openstack_floating_ips(
+                data.get("openstack_floating_ips", [])
+            ),
         )
 
         # Import resources (depends on offerings, plans, projects)
@@ -4902,6 +4984,7 @@ class Command(BaseCommand):
                     "project": project,
                     "attributes": resource_data.get("attributes", {}),
                     "limits": resource_data.get("limits", {}),
+                    "current_usages": resource_data.get("current_usages") or {},
                     "options": resource_data.get("options", {}),
                     "backend_id": resource_data.get("backend_id", ""),
                     "effective_id": resource_data.get("effective_id", ""),
@@ -10880,21 +10963,26 @@ class Command(BaseCommand):
                     existing = Flavor.objects.filter(
                         settings=settings, backend_id=backend_id
                     ).first()
+                    flavor = None
                     if existing:
                         if self.update_existing:
                             with transaction.atomic():
                                 Flavor.objects.filter(
                                     settings=settings, backend_id=backend_id
                                 ).update(**defaults)
+                            flavor = existing
                             self.stats["openstack_flavors"]["updated"] += 1
                         else:
                             self.stats["openstack_flavors"]["skipped"] += 1
                     else:
                         with transaction.atomic():
-                            Flavor.objects.create(
+                            flavor = Flavor.objects.create(
                                 settings=settings, backend_id=backend_id, **defaults
                             )
                         self.stats["openstack_flavors"]["created"] += 1
+
+                    if flavor is not None:
+                        self._link_openstack_tenants(flavor, item)
                 else:
                     existing = Flavor.objects.filter(
                         settings=settings, backend_id=backend_id
@@ -10944,21 +11032,27 @@ class Command(BaseCommand):
                     existing = Image.all_objects.filter(
                         settings=settings, backend_id=backend_id
                     ).first()
+                    image = None
                     if existing:
                         if self.update_existing:
                             with transaction.atomic():
                                 Image.all_objects.filter(
                                     settings=settings, backend_id=backend_id
                                 ).update(**defaults)
+                            image = existing
                             self.stats["openstack_images"]["updated"] += 1
                         else:
                             self.stats["openstack_images"]["skipped"] += 1
                     else:
                         with transaction.atomic():
-                            Image(
+                            image = Image(
                                 settings=settings, backend_id=backend_id, **defaults
-                            ).save()
+                            )
+                            image.save()
                         self.stats["openstack_images"]["created"] += 1
+
+                    if image is not None:
+                        self._link_openstack_tenants(image, item)
                 else:
                     existing = Image.all_objects.filter(
                         settings=settings, backend_id=backend_id
@@ -11125,17 +11219,26 @@ class Command(BaseCommand):
 
                 if not self.dry_run:
                     existing = Instance.objects.filter(uuid=uuid).first()
+                    instance = None
                     if existing:
                         if self.update_existing:
                             with transaction.atomic():
                                 Instance.objects.filter(uuid=uuid).update(**defaults)
+                            instance = existing
                             self.stats["openstack_instances"]["updated"] += 1
                         else:
                             self.stats["openstack_instances"]["skipped"] += 1
                     else:
                         with transaction.atomic():
-                            Instance.objects.create(uuid=uuid, **defaults)
+                            instance = Instance.objects.create(uuid=uuid, **defaults)
                         self.stats["openstack_instances"]["created"] += 1
+
+                    if instance is not None and "security_group_uuids" in item:
+                        instance.security_groups.set(
+                            SecurityGroup.objects.filter(
+                                uuid__in=item["security_group_uuids"]
+                            )
+                        )
                 else:
                     existing = Instance.objects.filter(uuid=uuid).exists()
                     if existing:
@@ -11228,6 +11331,321 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["openstack_volumes"]["errors"] += 1
+
+    def _link_openstack_tenants(self, obj, item):
+        """Make a flavor, image or volume type available to the listed tenants.
+
+        Without the link the tenant's order forms offer none of them. An item
+        without ``tenant_uuids`` (a dump that predates the key) leaves the
+        existing links alone.
+        """
+        if "tenant_uuids" in item:
+            obj.tenants.set(Tenant.objects.filter(uuid__in=item["tenant_uuids"]))
+
+    def _upsert_openstack_object(self, stats_key, model, lookup, defaults):
+        """Create or update the row matching ``lookup`` and count it.
+
+        Returns the row when it was created or updated, so the caller can set
+        its many-to-many relations; None when it was skipped or on a dry run.
+        """
+        stats = self.stats[stats_key]
+        queryset = model.objects.filter(**lookup)
+        existing = queryset.first()
+        if existing and not self.update_existing:
+            stats["skipped"] += 1
+            return None
+        stats["updated" if existing else "created"] += 1
+        if self.dry_run:
+            return None
+        with transaction.atomic():
+            if existing:
+                queryset.update(**defaults)
+                existing.refresh_from_db()
+                return existing
+            return model.objects.create(**lookup, **defaults)
+
+    def _openstack_tenant_resource_defaults(self, tenant, item):
+        """Fields every tenant-owned OpenStack resource shares."""
+        return {
+            "name": item.get("name", ""),
+            "description": item.get("description", ""),
+            "backend_id": item.get("backend_id", ""),
+            "state": item.get("state", 3),
+            "tenant": tenant,
+            "service_settings": tenant.service_settings,
+            "project": tenant.project,
+        }
+
+    def _find_openstack_tenant(self, stats_key, label, item):
+        """Return the tenant an item belongs to, counting an error if it is missing."""
+        tenant = Tenant.objects.filter(uuid=item.get("tenant_uuid")).first()
+        if not tenant:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Skipping {label} {item.get('uuid')}: "
+                    f"tenant {item.get('tenant_uuid')} not found"
+                )
+            )
+            self.stats[stats_key]["errors"] += 1
+        return tenant
+
+    def import_openstack_volume_types(self, volume_types_data):
+        """Import OpenStack volume types."""
+        self.stdout.write("Importing OpenStack volume types...")
+
+        for item in volume_types_data:
+            try:
+                settings_uuid = item.get("settings_uuid")
+                settings = ServiceSettings.objects.filter(uuid=settings_uuid).first()
+                if not settings:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping volume type: settings {settings_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_volume_types"]["errors"] += 1
+                    continue
+
+                volume_type = self._upsert_openstack_object(
+                    "openstack_volume_types",
+                    VolumeType,
+                    {"settings": settings, "backend_id": item.get("backend_id", "")},
+                    {
+                        "name": item.get("name", ""),
+                        "description": item.get("description", ""),
+                        "disabled": item.get("disabled", False),
+                    },
+                )
+                if volume_type is not None:
+                    self._link_openstack_tenants(volume_type, item)
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import volume type {item.get('name')}: {e}"
+                    )
+                )
+                self.stats["openstack_volume_types"]["errors"] += 1
+
+    def import_openstack_networks(self, networks_data):
+        """Import OpenStack networks."""
+        self.stdout.write("Importing OpenStack networks...")
+
+        for item in networks_data:
+            try:
+                if not item.get("uuid"):
+                    self.stats["openstack_networks"]["errors"] += 1
+                    continue
+                tenant = self._find_openstack_tenant(
+                    "openstack_networks", "network", item
+                )
+                if not tenant:
+                    continue
+
+                self._upsert_openstack_object(
+                    "openstack_networks",
+                    Network,
+                    {"uuid": item["uuid"]},
+                    {
+                        **self._openstack_tenant_resource_defaults(tenant, item),
+                        "runtime_state": item.get("runtime_state", ""),
+                        "is_external": item.get("is_external", False),
+                        "type": item.get("type", ""),
+                        "segmentation_id": item.get("segmentation_id"),
+                        "mtu": item.get("mtu"),
+                    },
+                )
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import network {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_networks"]["errors"] += 1
+
+    def import_openstack_subnets(self, subnets_data):
+        """Import OpenStack subnets."""
+        self.stdout.write("Importing OpenStack subnets...")
+
+        for item in subnets_data:
+            try:
+                if not item.get("uuid"):
+                    self.stats["openstack_subnets"]["errors"] += 1
+                    continue
+                network_uuid = item.get("network_uuid")
+                network = Network.objects.filter(uuid=network_uuid).first()
+                if not network:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping subnet {item['uuid']}: "
+                            f"network {network_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_subnets"]["errors"] += 1
+                    continue
+
+                self._upsert_openstack_object(
+                    "openstack_subnets",
+                    SubNet,
+                    {"uuid": item["uuid"]},
+                    {
+                        **self._openstack_tenant_resource_defaults(
+                            network.tenant, item
+                        ),
+                        "network": network,
+                        "cidr": item.get("cidr", ""),
+                        "gateway_ip": item.get("gateway_ip"),
+                        "allocation_pools": item.get("allocation_pools", []),
+                        "ip_version": item.get("ip_version", 4),
+                        "enable_dhcp": item.get("enable_dhcp", True),
+                        "dns_nameservers": item.get("dns_nameservers", []),
+                        "host_routes": item.get("host_routes", []),
+                        "disable_gateway": item.get("disable_gateway", False),
+                        "is_connected": item.get("is_connected", True),
+                    },
+                )
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import subnet {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_subnets"]["errors"] += 1
+
+    def import_openstack_security_groups(self, security_groups_data):
+        """Import OpenStack security groups together with their rules."""
+        self.stdout.write("Importing OpenStack security groups...")
+
+        for item in security_groups_data:
+            try:
+                if not item.get("uuid"):
+                    self.stats["openstack_security_groups"]["errors"] += 1
+                    continue
+                tenant = self._find_openstack_tenant(
+                    "openstack_security_groups", "security group", item
+                )
+                if not tenant:
+                    continue
+
+                security_group = self._upsert_openstack_object(
+                    "openstack_security_groups",
+                    SecurityGroup,
+                    {"uuid": item["uuid"]},
+                    self._openstack_tenant_resource_defaults(tenant, item),
+                )
+                if security_group is not None and "rules" in item:
+                    # The rules are replaced as a whole: a rule has no identity
+                    # of its own in a dump to match an existing one against.
+                    with transaction.atomic():
+                        security_group.rules.all().delete()
+                        SecurityGroupRule.objects.bulk_create(
+                            SecurityGroupRule(
+                                security_group=security_group,
+                                direction=rule.get("direction", "ingress"),
+                                ethertype=rule.get("ethertype", "IPv4"),
+                                protocol=rule.get("protocol", ""),
+                                from_port=rule.get("from_port"),
+                                to_port=rule.get("to_port"),
+                                cidr=rule.get("cidr", ""),
+                                description=rule.get("description", ""),
+                            )
+                            for rule in item["rules"]
+                        )
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import security group {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_security_groups"]["errors"] += 1
+
+    def import_openstack_ports(self, ports_data):
+        """Import OpenStack ports, which give instances their internal IPs."""
+        self.stdout.write("Importing OpenStack ports...")
+
+        for item in ports_data:
+            try:
+                if not item.get("uuid"):
+                    self.stats["openstack_ports"]["errors"] += 1
+                    continue
+                tenant = self._find_openstack_tenant("openstack_ports", "port", item)
+                if not tenant:
+                    continue
+
+                port = self._upsert_openstack_object(
+                    "openstack_ports",
+                    Port,
+                    {"uuid": item["uuid"]},
+                    {
+                        **self._openstack_tenant_resource_defaults(tenant, item),
+                        "network": Network.objects.filter(
+                            uuid=item.get("network_uuid")
+                        ).first(),
+                        "subnet": SubNet.objects.filter(
+                            uuid=item.get("subnet_uuid")
+                        ).first(),
+                        "instance": Instance.objects.filter(
+                            uuid=item.get("instance_uuid")
+                        ).first(),
+                        "mac_address": item.get("mac_address", ""),
+                        "fixed_ips": item.get("fixed_ips", []),
+                        "device_id": item.get("device_id", ""),
+                        "device_owner": item.get("device_owner", ""),
+                        "status": item.get("status", ""),
+                    },
+                )
+                if port is not None and "security_group_uuids" in item:
+                    port.security_groups.set(
+                        SecurityGroup.objects.filter(
+                            uuid__in=item["security_group_uuids"]
+                        )
+                    )
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(f"Failed to import port {item.get('uuid')}: {e}")
+                )
+                self.stats["openstack_ports"]["errors"] += 1
+
+    def import_openstack_floating_ips(self, floating_ips_data):
+        """Import OpenStack floating IPs."""
+        self.stdout.write("Importing OpenStack floating IPs...")
+
+        for item in floating_ips_data:
+            try:
+                if not item.get("uuid"):
+                    self.stats["openstack_floating_ips"]["errors"] += 1
+                    continue
+                tenant = self._find_openstack_tenant(
+                    "openstack_floating_ips", "floating IP", item
+                )
+                if not tenant:
+                    continue
+
+                self._upsert_openstack_object(
+                    "openstack_floating_ips",
+                    FloatingIP,
+                    {"uuid": item["uuid"]},
+                    {
+                        **self._openstack_tenant_resource_defaults(tenant, item),
+                        "runtime_state": item.get("runtime_state", ""),
+                        "address": item.get("address"),
+                        "external_address": item.get("external_address"),
+                        "backend_network_id": item.get("backend_network_id", ""),
+                        "port": Port.objects.filter(uuid=item.get("port_uuid")).first(),
+                    },
+                )
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import floating IP {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_floating_ips"]["errors"] += 1
 
     def print_summary(self):
         """Print import summary statistics."""

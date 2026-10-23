@@ -82,7 +82,19 @@ from waldur_mastermind.proposal.models import (
     ReviewerSuggestion,
     Round,
 )
-from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
+from waldur_openstack.models import (
+    Flavor,
+    FloatingIP,
+    Image,
+    Instance,
+    Network,
+    Port,
+    SecurityGroup,
+    SubNet,
+    Tenant,
+    Volume,
+    VolumeType,
+)
 
 
 class Command(BaseCommand):
@@ -368,6 +380,24 @@ class Command(BaseCommand):
             ),
             "openstack_volumes": self.log_export_step(
                 "openstack_volumes", self.export_openstack_volumes
+            ),
+            "openstack_volume_types": self.log_export_step(
+                "openstack_volume_types", self.export_openstack_volume_types
+            ),
+            "openstack_networks": self.log_export_step(
+                "openstack_networks", self.export_openstack_networks
+            ),
+            "openstack_subnets": self.log_export_step(
+                "openstack_subnets", self.export_openstack_subnets
+            ),
+            "openstack_security_groups": self.log_export_step(
+                "openstack_security_groups", self.export_openstack_security_groups
+            ),
+            "openstack_ports": self.log_export_step(
+                "openstack_ports", self.export_openstack_ports
+            ),
+            "openstack_floating_ips": self.log_export_step(
+                "openstack_floating_ips", self.export_openstack_floating_ips
             ),
         }
 
@@ -2416,7 +2446,9 @@ class Command(BaseCommand):
     def export_openstack_flavors(self):
         """Export OpenStack flavors."""
         flavors = []
-        for flavor in Flavor.objects.select_related("settings"):
+        for flavor in Flavor.objects.select_related("settings").prefetch_related(
+            "tenants"
+        ):
             flavors.append(
                 {
                     "uuid": flavor.uuid.hex,
@@ -2427,6 +2459,9 @@ class Command(BaseCommand):
                     "disk": flavor.disk,
                     "settings_uuid": flavor.settings.uuid.hex,
                     "settings_name": flavor.settings.name,
+                    "tenant_uuids": [
+                        tenant.uuid.hex for tenant in flavor.tenants.all()
+                    ],
                 }
             )
         return flavors
@@ -2434,7 +2469,9 @@ class Command(BaseCommand):
     def export_openstack_images(self):
         """Export OpenStack images."""
         images = []
-        for image in Image.all_objects.select_related("settings"):
+        for image in Image.all_objects.select_related("settings").prefetch_related(
+            "tenants"
+        ):
             images.append(
                 {
                     "uuid": image.uuid.hex,
@@ -2444,6 +2481,7 @@ class Command(BaseCommand):
                     "min_ram": image.min_ram,
                     "settings_uuid": image.settings.uuid.hex,
                     "settings_name": image.settings.name,
+                    "tenant_uuids": [tenant.uuid.hex for tenant in image.tenants.all()],
                 }
             )
         return images
@@ -2477,7 +2515,7 @@ class Command(BaseCommand):
         instances = []
         for instance in Instance.objects.select_related(
             "tenant", "service_settings", "project"
-        ):
+        ).prefetch_related("security_groups"):
             instances.append(
                 {
                     "uuid": instance.uuid.hex,
@@ -2497,6 +2535,9 @@ class Command(BaseCommand):
                     "key_name": instance.key_name,
                     "key_fingerprint": instance.key_fingerprint,
                     "directly_connected_ips": instance.directly_connected_ips,
+                    "security_group_uuids": [
+                        group.uuid.hex for group in instance.security_groups.all()
+                    ],
                 }
             )
         return instances
@@ -2526,6 +2567,128 @@ class Command(BaseCommand):
                 }
             )
         return volumes
+
+    def _export_openstack_tenant_resource(self, resource):
+        """Fields every tenant-owned OpenStack resource shares."""
+        return {
+            "uuid": resource.uuid.hex,
+            "name": resource.name,
+            "description": resource.description,
+            "backend_id": resource.backend_id,
+            "state": resource.state,
+            "tenant_uuid": resource.tenant.uuid.hex,
+        }
+
+    def export_openstack_volume_types(self):
+        """Export OpenStack volume types."""
+        return [
+            {
+                "uuid": volume_type.uuid.hex,
+                "name": volume_type.name,
+                "description": volume_type.description,
+                "backend_id": volume_type.backend_id,
+                "disabled": volume_type.disabled,
+                "settings_uuid": volume_type.settings.uuid.hex,
+                "tenant_uuids": [
+                    tenant.uuid.hex for tenant in volume_type.tenants.all()
+                ],
+            }
+            for volume_type in VolumeType.objects.select_related(
+                "settings"
+            ).prefetch_related("tenants")
+        ]
+
+    def export_openstack_networks(self):
+        """Export OpenStack networks."""
+        return [
+            {
+                **self._export_openstack_tenant_resource(network),
+                "runtime_state": network.runtime_state,
+                "is_external": network.is_external,
+                "type": network.type,
+                "segmentation_id": network.segmentation_id,
+                "mtu": network.mtu,
+            }
+            for network in Network.objects.select_related("tenant")
+        ]
+
+    def export_openstack_subnets(self):
+        """Export OpenStack subnets."""
+        return [
+            {
+                **self._export_openstack_tenant_resource(subnet),
+                "network_uuid": subnet.network.uuid.hex,
+                "cidr": subnet.cidr,
+                "gateway_ip": subnet.gateway_ip,
+                "allocation_pools": subnet.allocation_pools,
+                "ip_version": subnet.ip_version,
+                "enable_dhcp": subnet.enable_dhcp,
+                "dns_nameservers": subnet.dns_nameservers,
+                "host_routes": subnet.host_routes,
+                "disable_gateway": subnet.disable_gateway,
+                "is_connected": subnet.is_connected,
+            }
+            for subnet in SubNet.objects.select_related("tenant", "network")
+        ]
+
+    def export_openstack_security_groups(self):
+        """Export OpenStack security groups together with their rules."""
+        return [
+            {
+                **self._export_openstack_tenant_resource(security_group),
+                "rules": [
+                    {
+                        "direction": rule.direction,
+                        "ethertype": rule.ethertype,
+                        "protocol": rule.protocol,
+                        "from_port": rule.from_port,
+                        "to_port": rule.to_port,
+                        "cidr": rule.cidr,
+                        "description": rule.description,
+                    }
+                    for rule in security_group.rules.all()
+                ],
+            }
+            for security_group in SecurityGroup.objects.select_related(
+                "tenant"
+            ).prefetch_related("rules")
+        ]
+
+    def export_openstack_ports(self):
+        """Export OpenStack ports."""
+        return [
+            {
+                **self._export_openstack_tenant_resource(port),
+                "network_uuid": port.network.uuid.hex if port.network else None,
+                "subnet_uuid": port.subnet.uuid.hex if port.subnet else None,
+                "instance_uuid": port.instance.uuid.hex if port.instance else None,
+                "mac_address": port.mac_address,
+                "fixed_ips": port.fixed_ips,
+                "device_id": port.device_id,
+                "device_owner": port.device_owner,
+                "status": port.status,
+                "security_group_uuids": [
+                    group.uuid.hex for group in port.security_groups.all()
+                ],
+            }
+            for port in Port.objects.select_related(
+                "tenant", "network", "subnet", "instance"
+            ).prefetch_related("security_groups")
+        ]
+
+    def export_openstack_floating_ips(self):
+        """Export OpenStack floating IPs."""
+        return [
+            {
+                **self._export_openstack_tenant_resource(floating_ip),
+                "runtime_state": floating_ip.runtime_state,
+                "address": floating_ip.address,
+                "external_address": floating_ip.external_address,
+                "backend_network_id": floating_ip.backend_network_id,
+                "port_uuid": floating_ip.port.uuid.hex if floating_ip.port else None,
+            }
+            for floating_ip in FloatingIP.objects.select_related("tenant", "port")
+        ]
 
     def export_project_estimated_cost_policies(self):
         """Export project estimated cost policies."""

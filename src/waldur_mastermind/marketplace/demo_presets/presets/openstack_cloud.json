@@ -1,8 +1,8 @@
 {
   "_metadata": {
     "title": "OpenStack Cloud",
-    "description": "A complete OpenStack cloud environment with tenants, instances, and volumes. Demonstrates marketplace resource management with real backend model scope linking.",
-    "version": "1.0.0",
+    "description": "A complete OpenStack cloud environment with tenants, instances, volumes, networks, security groups and floating IPs. Demonstrates marketplace resource management with real backend model scope linking.",
+    "version": "1.1.0",
     "scenarios": [
       "OpenStack cloud management demo",
       "Marketplace resource lifecycle",
@@ -185,7 +185,12 @@
       "cores": 1,
       "ram": 2048,
       "disk": 20480,
-      "settings_uuid": "aa000000000000000000000000000001"
+      "settings_uuid": "aa000000000000000000000000000001",
+      "tenant_uuids": [
+        "ab000000000000000000000000000001",
+        "ab000000000000000000000000000002",
+        "ab000000000000000000000000000003"
+      ]
     },
     {
       "name": "m1.medium",
@@ -193,7 +198,12 @@
       "cores": 2,
       "ram": 4096,
       "disk": 40960,
-      "settings_uuid": "aa000000000000000000000000000001"
+      "settings_uuid": "aa000000000000000000000000000001",
+      "tenant_uuids": [
+        "ab000000000000000000000000000001",
+        "ab000000000000000000000000000002",
+        "ab000000000000000000000000000003"
+      ]
     },
     {
       "name": "m1.large",
@@ -201,7 +211,12 @@
       "cores": 4,
       "ram": 8192,
       "disk": 81920,
-      "settings_uuid": "aa000000000000000000000000000001"
+      "settings_uuid": "aa000000000000000000000000000001",
+      "tenant_uuids": [
+        "ab000000000000000000000000000001",
+        "ab000000000000000000000000000002",
+        "ab000000000000000000000000000003"
+      ]
     }
   ],
   "openstack_images": [
@@ -210,14 +225,48 @@
       "backend_id": "image-ubuntu-2204",
       "min_disk": 10240,
       "min_ram": 1024,
-      "settings_uuid": "aa000000000000000000000000000001"
+      "settings_uuid": "aa000000000000000000000000000001",
+      "tenant_uuids": [
+        "ab000000000000000000000000000001",
+        "ab000000000000000000000000000002",
+        "ab000000000000000000000000000003"
+      ]
     },
     {
       "name": "Rocky Linux 9",
       "backend_id": "image-rocky-9",
       "min_disk": 10240,
       "min_ram": 1024,
-      "settings_uuid": "aa000000000000000000000000000001"
+      "settings_uuid": "aa000000000000000000000000000001",
+      "tenant_uuids": [
+        "ab000000000000000000000000000001",
+        "ab000000000000000000000000000002",
+        "ab000000000000000000000000000003"
+      ]
+    }
+  ],
+  "openstack_volume_types": [
+    {
+      "name": "ssd",
+      "description": "Fast SSD-backed storage",
+      "backend_id": "volume-type-ssd",
+      "settings_uuid": "aa000000000000000000000000000001",
+      "tenant_uuids": [
+        "ab000000000000000000000000000001",
+        "ab000000000000000000000000000002",
+        "ab000000000000000000000000000003"
+      ]
+    },
+    {
+      "name": "hdd",
+      "description": "Bulk HDD-backed storage",
+      "backend_id": "volume-type-hdd",
+      "settings_uuid": "aa000000000000000000000000000001",
+      "tenant_uuids": [
+        "ab000000000000000000000000000001",
+        "ab000000000000000000000000000002",
+        "ab000000000000000000000000000003"
+      ]
     }
   ],
   "offerings": [
@@ -236,7 +285,7 @@
     },
     {
       "uuid": "f3000000000000000000000000000002",
-      "name": "VM in Web Production",
+      "name": "Virtual machine in Web Production",
       "type": "OpenStack.Instance",
       "state": 2,
       "shared": false,
@@ -251,7 +300,7 @@
     },
     {
       "uuid": "f3000000000000000000000000000003",
-      "name": "VM in Data Analytics",
+      "name": "Virtual machine in Data Analytics",
       "type": "OpenStack.Instance",
       "state": 2,
       "shared": false,
@@ -266,7 +315,7 @@
     },
     {
       "uuid": "f3000000000000000000000000000004",
-      "name": "VM in Dev Sandbox",
+      "name": "Virtual machine in Dev Sandbox",
       "type": "OpenStack.Instance",
       "state": 2,
       "shared": false,
@@ -380,13 +429,13 @@
     {
       "plan_uuid": "b3000000000000000000000000000001",
       "component_uuid": "c3000000000000000000000000000002",
-      "price": "0.01",
+      "price": "2.00",
       "amount": 0
     },
     {
       "plan_uuid": "b3000000000000000000000000000001",
       "component_uuid": "c3000000000000000000000000000003",
-      "price": "0.0001",
+      "price": "0.10",
       "amount": 0
     },
     {
@@ -398,13 +447,13 @@
     {
       "plan_uuid": "b3000000000000000000000000000002",
       "component_uuid": "c3000000000000000000000000000002",
-      "price": "0.008",
+      "price": "1.60",
       "amount": 0
     },
     {
       "plan_uuid": "b3000000000000000000000000000002",
       "component_uuid": "c3000000000000000000000000000003",
-      "price": "0.00008",
+      "price": "0.08",
       "amount": 0
     }
   ],
@@ -426,18 +475,18 @@
       "quotas": [
         {
           "name": "vcpu",
-          "limit": 20,
+          "limit": 8,
           "usage": 4
         },
         {
           "name": "ram",
-          "limit": 51200,
+          "limit": 16384,
           "usage": 8192
         },
         {
           "name": "storage",
           "limit": 102400,
-          "usage": 10240
+          "usage": 71680
         },
         {
           "name": "instances",
@@ -447,22 +496,42 @@
         {
           "name": "volumes",
           "limit": 20,
-          "usage": 3
+          "usage": 2
         },
         {
           "name": "snapshots",
           "limit": 10,
-          "usage": 1
+          "usage": 0
         },
         {
           "name": "security_group_count",
           "limit": 10,
-          "usage": 2
+          "usage": 4
         },
         {
           "name": "security_group_rule_count",
           "limit": 50,
-          "usage": 8
+          "usage": 5
+        },
+        {
+          "name": "network_count",
+          "limit": 5,
+          "usage": 1
+        },
+        {
+          "name": "subnet_count",
+          "limit": 5,
+          "usage": 1
+        },
+        {
+          "name": "port_count",
+          "limit": 50,
+          "usage": 2
+        },
+        {
+          "name": "floating_ip_count",
+          "limit": 5,
+          "usage": 2
         }
       ]
     },
@@ -483,43 +552,63 @@
       "quotas": [
         {
           "name": "vcpu",
-          "limit": 40,
-          "usage": 16
+          "limit": 64,
+          "usage": 43
         },
         {
           "name": "ram",
-          "limit": 102400,
-          "usage": 32768
+          "limit": 131072,
+          "usage": 88064
         },
         {
           "name": "storage",
-          "limit": 204800,
-          "usage": 51200
+          "limit": 2048000,
+          "usage": 1280000
         },
         {
           "name": "instances",
-          "limit": 20,
-          "usage": 8
+          "limit": 30,
+          "usage": 15
         },
         {
           "name": "volumes",
-          "limit": 30,
-          "usage": 10
+          "limit": 40,
+          "usage": 18
         },
         {
           "name": "snapshots",
-          "limit": 15,
-          "usage": 3
+          "limit": 20,
+          "usage": 0
         },
         {
           "name": "security_group_count",
           "limit": 15,
-          "usage": 3
+          "usage": 4
         },
         {
           "name": "security_group_rule_count",
           "limit": 75,
-          "usage": 12
+          "usage": 5
+        },
+        {
+          "name": "network_count",
+          "limit": 5,
+          "usage": 1
+        },
+        {
+          "name": "subnet_count",
+          "limit": 5,
+          "usage": 1
+        },
+        {
+          "name": "port_count",
+          "limit": 100,
+          "usage": 15
+        },
+        {
+          "name": "floating_ip_count",
+          "limit": 10,
+          "usage": 3
         }
       ]
     },
@@ -540,28 +629,28 @@
       "quotas": [
         {
           "name": "vcpu",
-          "limit": 8,
-          "usage": 0
+          "limit": 4,
+          "usage": 3
         },
         {
           "name": "ram",
-          "limit": 16384,
-          "usage": 0
+          "limit": 8192,
+          "usage": 6144
         },
         {
           "name": "storage",
-          "limit": 51200,
-          "usage": 0
+          "limit": 102400,
+          "usage": 61440
         },
         {
           "name": "instances",
           "limit": 5,
-          "usage": 0
+          "usage": 2
         },
         {
           "name": "volumes",
           "limit": 10,
-          "usage": 0
+          "usage": 2
         },
         {
           "name": "snapshots",
@@ -571,12 +660,392 @@
         {
           "name": "security_group_count",
           "limit": 5,
-          "usage": 0
+          "usage": 4
         },
         {
           "name": "security_group_rule_count",
           "limit": 25,
-          "usage": 0
+          "usage": 5
+        },
+        {
+          "name": "network_count",
+          "limit": 2,
+          "usage": 1
+        },
+        {
+          "name": "subnet_count",
+          "limit": 2,
+          "usage": 1
+        },
+        {
+          "name": "port_count",
+          "limit": 20,
+          "usage": 2
+        },
+        {
+          "name": "floating_ip_count",
+          "limit": 2,
+          "usage": 1
+        }
+      ]
+    }
+  ],
+  "openstack_networks": [
+    {
+      "uuid": "ae000000000000000000000000000001",
+      "name": "web-production-int-net",
+      "description": "Internal network of the Web Production tenant",
+      "backend_id": "net-internal-web-001",
+      "state": 3,
+      "runtime_state": "ACTIVE",
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "is_external": false,
+      "type": "vxlan",
+      "segmentation_id": 1001,
+      "mtu": 1450
+    },
+    {
+      "uuid": "ae000000000000000000000000000002",
+      "name": "data-analytics-int-net",
+      "description": "Internal network of the Data Analytics tenant",
+      "backend_id": "net-internal-analytics-001",
+      "state": 3,
+      "runtime_state": "ACTIVE",
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "is_external": false,
+      "type": "vxlan",
+      "segmentation_id": 1002,
+      "mtu": 1450
+    },
+    {
+      "uuid": "ae000000000000000000000000000003",
+      "name": "dev-sandbox-int-net",
+      "description": "Internal network of the Dev Sandbox tenant",
+      "backend_id": "net-internal-dev-001",
+      "state": 3,
+      "runtime_state": "ACTIVE",
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "is_external": false,
+      "type": "vxlan",
+      "segmentation_id": 1003,
+      "mtu": 1450
+    }
+  ],
+  "openstack_subnets": [
+    {
+      "uuid": "af000000000000000000000000000001",
+      "name": "web-production-sub-net",
+      "description": "",
+      "backend_id": "subnet-web-production-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "network_uuid": "ae000000000000000000000000000001",
+      "cidr": "192.168.10.0/24",
+      "gateway_ip": "192.168.10.1",
+      "allocation_pools": [
+        {
+          "start": "192.168.10.10",
+          "end": "192.168.10.200"
+        }
+      ],
+      "ip_version": 4,
+      "enable_dhcp": true,
+      "dns_nameservers": []
+    },
+    {
+      "uuid": "af000000000000000000000000000002",
+      "name": "data-analytics-sub-net",
+      "description": "",
+      "backend_id": "subnet-data-analytics-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "cidr": "192.168.20.0/24",
+      "gateway_ip": "192.168.20.1",
+      "allocation_pools": [
+        {
+          "start": "192.168.20.10",
+          "end": "192.168.20.200"
+        }
+      ],
+      "ip_version": 4,
+      "enable_dhcp": true,
+      "dns_nameservers": []
+    },
+    {
+      "uuid": "af000000000000000000000000000003",
+      "name": "dev-sandbox-sub-net",
+      "description": "",
+      "backend_id": "subnet-dev-sandbox-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "network_uuid": "ae000000000000000000000000000003",
+      "cidr": "192.168.30.0/24",
+      "gateway_ip": "192.168.30.1",
+      "allocation_pools": [
+        {
+          "start": "192.168.30.10",
+          "end": "192.168.30.200"
+        }
+      ],
+      "ip_version": 4,
+      "enable_dhcp": true,
+      "dns_nameservers": []
+    }
+  ],
+  "openstack_security_groups": [
+    {
+      "uuid": "a6000000000000000000000000000001",
+      "name": "default",
+      "description": "Allows all outgoing traffic",
+      "backend_id": "sg-web-production-default",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "rules": [
+        {
+          "direction": "egress",
+          "ethertype": "IPv4",
+          "protocol": "",
+          "from_port": null,
+          "to_port": null,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000002",
+      "name": "ssh",
+      "description": "Allows SSH from anywhere",
+      "backend_id": "sg-web-production-ssh",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 22,
+          "to_port": 22,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000003",
+      "name": "web",
+      "description": "Allows HTTP and HTTPS from anywhere",
+      "backend_id": "sg-web-production-web",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 80,
+          "to_port": 80,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        },
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 443,
+          "to_port": 443,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000004",
+      "name": "ping",
+      "description": "Allows ICMP echo from anywhere",
+      "backend_id": "sg-web-production-ping",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "icmp",
+          "from_port": null,
+          "to_port": null,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000005",
+      "name": "default",
+      "description": "Allows all outgoing traffic",
+      "backend_id": "sg-data-analytics-default",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "rules": [
+        {
+          "direction": "egress",
+          "ethertype": "IPv4",
+          "protocol": "",
+          "from_port": null,
+          "to_port": null,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000006",
+      "name": "ssh",
+      "description": "Allows SSH from anywhere",
+      "backend_id": "sg-data-analytics-ssh",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 22,
+          "to_port": 22,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000007",
+      "name": "web",
+      "description": "Allows HTTP and HTTPS from anywhere",
+      "backend_id": "sg-data-analytics-web",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 80,
+          "to_port": 80,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        },
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 443,
+          "to_port": 443,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000008",
+      "name": "ping",
+      "description": "Allows ICMP echo from anywhere",
+      "backend_id": "sg-data-analytics-ping",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "icmp",
+          "from_port": null,
+          "to_port": null,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a6000000000000000000000000000009",
+      "name": "default",
+      "description": "Allows all outgoing traffic",
+      "backend_id": "sg-dev-sandbox-default",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "rules": [
+        {
+          "direction": "egress",
+          "ethertype": "IPv4",
+          "protocol": "",
+          "from_port": null,
+          "to_port": null,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a600000000000000000000000000000a",
+      "name": "ssh",
+      "description": "Allows SSH from anywhere",
+      "backend_id": "sg-dev-sandbox-ssh",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 22,
+          "to_port": 22,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a600000000000000000000000000000b",
+      "name": "web",
+      "description": "Allows HTTP and HTTPS from anywhere",
+      "backend_id": "sg-dev-sandbox-web",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 80,
+          "to_port": 80,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        },
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "tcp",
+          "from_port": 443,
+          "to_port": 443,
+          "cidr": "0.0.0.0/0",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "uuid": "a600000000000000000000000000000c",
+      "name": "ping",
+      "description": "Allows ICMP echo from anywhere",
+      "backend_id": "sg-dev-sandbox-ping",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "protocol": "icmp",
+          "from_port": null,
+          "to_port": null,
+          "cidr": "0.0.0.0/0",
+          "description": ""
         }
       ]
     }
@@ -599,7 +1068,12 @@
       "hypervisor_hostname": "hypervisor-01.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000001",
+        "a6000000000000000000000000000002",
+        "a6000000000000000000000000000003"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000002",
@@ -618,7 +1092,12 @@
       "hypervisor_hostname": "hypervisor-02.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000001",
+        "a6000000000000000000000000000002",
+        "a6000000000000000000000000000003"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000003",
@@ -637,7 +1116,11 @@
       "hypervisor_hostname": "hypervisor-01.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000004",
@@ -656,7 +1139,11 @@
       "hypervisor_hostname": "hypervisor-03.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000007",
@@ -675,7 +1162,11 @@
       "hypervisor_hostname": "hypervisor-02.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000008",
@@ -694,7 +1185,11 @@
       "hypervisor_hostname": "hypervisor-04.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000009",
@@ -713,7 +1208,11 @@
       "hypervisor_hostname": "hypervisor-05.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac00000000000000000000000000000a",
@@ -732,7 +1231,11 @@
       "hypervisor_hostname": "hypervisor-01.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac00000000000000000000000000000b",
@@ -751,7 +1254,11 @@
       "hypervisor_hostname": "hypervisor-03.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac00000000000000000000000000000c",
@@ -770,7 +1277,11 @@
       "hypervisor_hostname": "hypervisor-04.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac00000000000000000000000000000d",
@@ -789,7 +1300,11 @@
       "hypervisor_hostname": "hypervisor-05.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac00000000000000000000000000000e",
@@ -808,7 +1323,11 @@
       "hypervisor_hostname": "hypervisor-02.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac00000000000000000000000000000f",
@@ -827,7 +1346,11 @@
       "hypervisor_hostname": "hypervisor-01.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000010",
@@ -846,7 +1369,11 @@
       "hypervisor_hostname": "hypervisor-04.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000011",
@@ -865,7 +1392,11 @@
       "hypervisor_hostname": "hypervisor-03.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000012",
@@ -884,7 +1415,12 @@
       "hypervisor_hostname": "hypervisor-02.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006",
+        "a6000000000000000000000000000007"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000013",
@@ -903,7 +1439,12 @@
       "hypervisor_hostname": "hypervisor-05.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006",
+        "a6000000000000000000000000000007"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000005",
@@ -922,7 +1463,11 @@
       "hypervisor_hostname": "hypervisor-02.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000009",
+        "a600000000000000000000000000000a"
+      ]
     },
     {
       "uuid": "ac000000000000000000000000000006",
@@ -941,7 +1486,11 @@
       "hypervisor_hostname": "hypervisor-01.demo",
       "key_name": "",
       "key_fingerprint": "",
-      "directly_connected_ips": ""
+      "directly_connected_ips": "",
+      "security_group_uuids": [
+        "a6000000000000000000000000000009",
+        "a600000000000000000000000000000a"
+      ]
     }
   ],
   "openstack_volumes": [
@@ -1253,6 +1802,561 @@
       "image_name": ""
     }
   ],
+  "openstack_ports": [
+    {
+      "uuid": "a7000000000000000000000000000001",
+      "name": "web-frontend-01-port",
+      "description": "",
+      "backend_id": "port-instance-web-fe-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "network_uuid": "ae000000000000000000000000000001",
+      "subnet_uuid": "af000000000000000000000000000001",
+      "instance_uuid": "ac000000000000000000000000000001",
+      "mac_address": "fa:16:3e:01:00:0b",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.10.11",
+          "subnet_id": "subnet-web-production-001"
+        }
+      ],
+      "device_id": "instance-web-fe-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000001",
+        "a6000000000000000000000000000002",
+        "a6000000000000000000000000000003"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000002",
+      "name": "web-backend-01-port",
+      "description": "",
+      "backend_id": "port-instance-web-be-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "network_uuid": "ae000000000000000000000000000001",
+      "subnet_uuid": "af000000000000000000000000000001",
+      "instance_uuid": "ac000000000000000000000000000002",
+      "mac_address": "fa:16:3e:01:00:0c",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.10.12",
+          "subnet_id": "subnet-web-production-001"
+        }
+      ],
+      "device_id": "instance-web-be-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000001",
+        "a6000000000000000000000000000002",
+        "a6000000000000000000000000000003"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000003",
+      "name": "analytics-worker-01-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w1-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000003",
+      "mac_address": "fa:16:3e:02:00:0b",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.11",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w1-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000004",
+      "name": "analytics-worker-02-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w2-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000004",
+      "mac_address": "fa:16:3e:02:00:0c",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.12",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w2-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000005",
+      "name": "analytics-worker-03-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w3-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000007",
+      "mac_address": "fa:16:3e:02:00:0d",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.13",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w3-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000006",
+      "name": "analytics-worker-04-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w4-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000008",
+      "mac_address": "fa:16:3e:02:00:0e",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.14",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w4-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000007",
+      "name": "analytics-worker-05-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w5-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000009",
+      "mac_address": "fa:16:3e:02:00:0f",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.15",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w5-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000008",
+      "name": "analytics-worker-06-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w6-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac00000000000000000000000000000a",
+      "mac_address": "fa:16:3e:02:00:10",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.16",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w6-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000009",
+      "name": "analytics-worker-07-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w7-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac00000000000000000000000000000b",
+      "mac_address": "fa:16:3e:02:00:11",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.17",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w7-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a700000000000000000000000000000a",
+      "name": "analytics-worker-08-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w8-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac00000000000000000000000000000c",
+      "mac_address": "fa:16:3e:02:00:12",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.18",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w8-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a700000000000000000000000000000b",
+      "name": "analytics-worker-09-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-w9-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac00000000000000000000000000000d",
+      "mac_address": "fa:16:3e:02:00:13",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.19",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-w9-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a700000000000000000000000000000c",
+      "name": "analytics-scheduler-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-sched-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac00000000000000000000000000000e",
+      "mac_address": "fa:16:3e:02:00:14",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.20",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-sched-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a700000000000000000000000000000d",
+      "name": "analytics-db-primary-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-db1-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac00000000000000000000000000000f",
+      "mac_address": "fa:16:3e:02:00:15",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.21",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-db1-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a700000000000000000000000000000e",
+      "name": "analytics-db-replica-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-db2-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000010",
+      "mac_address": "fa:16:3e:02:00:16",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.22",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-db2-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a700000000000000000000000000000f",
+      "name": "analytics-monitor-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-mon-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000011",
+      "mac_address": "fa:16:3e:02:00:17",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.23",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-mon-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000010",
+      "name": "analytics-gateway-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-gw-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000012",
+      "mac_address": "fa:16:3e:02:00:18",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.24",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-gw-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006",
+        "a6000000000000000000000000000007"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000011",
+      "name": "analytics-jupyter-port",
+      "description": "",
+      "backend_id": "port-instance-analytics-jup-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "network_uuid": "ae000000000000000000000000000002",
+      "subnet_uuid": "af000000000000000000000000000002",
+      "instance_uuid": "ac000000000000000000000000000013",
+      "mac_address": "fa:16:3e:02:00:19",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.20.25",
+          "subnet_id": "subnet-data-analytics-001"
+        }
+      ],
+      "device_id": "instance-analytics-jup-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000005",
+        "a6000000000000000000000000000006",
+        "a6000000000000000000000000000007"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000012",
+      "name": "dev-test-vm-port",
+      "description": "",
+      "backend_id": "port-instance-dev-test-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "network_uuid": "ae000000000000000000000000000003",
+      "subnet_uuid": "af000000000000000000000000000003",
+      "instance_uuid": "ac000000000000000000000000000005",
+      "mac_address": "fa:16:3e:03:00:0b",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.30.11",
+          "subnet_id": "subnet-dev-sandbox-001"
+        }
+      ],
+      "device_id": "instance-dev-test-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000009",
+        "a600000000000000000000000000000a"
+      ]
+    },
+    {
+      "uuid": "a7000000000000000000000000000013",
+      "name": "dev-build-server-port",
+      "description": "",
+      "backend_id": "port-instance-dev-build-001",
+      "state": 3,
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "network_uuid": "ae000000000000000000000000000003",
+      "subnet_uuid": "af000000000000000000000000000003",
+      "instance_uuid": "ac000000000000000000000000000006",
+      "mac_address": "fa:16:3e:03:00:0c",
+      "fixed_ips": [
+        {
+          "ip_address": "192.168.30.12",
+          "subnet_id": "subnet-dev-sandbox-001"
+        }
+      ],
+      "device_id": "instance-dev-build-001",
+      "device_owner": "compute:nova",
+      "status": "ACTIVE",
+      "security_group_uuids": [
+        "a6000000000000000000000000000009",
+        "a600000000000000000000000000000a"
+      ]
+    }
+  ],
+  "openstack_floating_ips": [
+    {
+      "uuid": "a8000000000000000000000000000001",
+      "name": "203.0.113.21",
+      "description": "",
+      "backend_id": "fip-203-0-113-21",
+      "state": 3,
+      "runtime_state": "ACTIVE",
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "address": "203.0.113.21",
+      "backend_network_id": "net-external-001",
+      "port_uuid": "a7000000000000000000000000000001"
+    },
+    {
+      "uuid": "a8000000000000000000000000000002",
+      "name": "203.0.113.22",
+      "description": "",
+      "backend_id": "fip-203-0-113-22",
+      "state": 3,
+      "runtime_state": "ACTIVE",
+      "tenant_uuid": "ab000000000000000000000000000001",
+      "address": "203.0.113.22",
+      "backend_network_id": "net-external-001",
+      "port_uuid": "a7000000000000000000000000000002"
+    },
+    {
+      "uuid": "a8000000000000000000000000000003",
+      "name": "203.0.113.31",
+      "description": "",
+      "backend_id": "fip-203-0-113-31",
+      "state": 3,
+      "runtime_state": "ACTIVE",
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "address": "203.0.113.31",
+      "backend_network_id": "net-external-001",
+      "port_uuid": "a7000000000000000000000000000010"
+    },
+    {
+      "uuid": "a8000000000000000000000000000004",
+      "name": "203.0.113.32",
+      "description": "",
+      "backend_id": "fip-203-0-113-32",
+      "state": 3,
+      "runtime_state": "ACTIVE",
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "address": "203.0.113.32",
+      "backend_network_id": "net-external-001",
+      "port_uuid": "a7000000000000000000000000000011"
+    },
+    {
+      "uuid": "a8000000000000000000000000000005",
+      "name": "203.0.113.33",
+      "description": "",
+      "backend_id": "fip-203-0-113-33",
+      "state": 3,
+      "runtime_state": "DOWN",
+      "tenant_uuid": "ab000000000000000000000000000002",
+      "address": "203.0.113.33",
+      "backend_network_id": "net-external-001",
+      "port_uuid": null
+    },
+    {
+      "uuid": "a8000000000000000000000000000006",
+      "name": "203.0.113.41",
+      "description": "",
+      "backend_id": "fip-203-0-113-41",
+      "state": 3,
+      "runtime_state": "DOWN",
+      "tenant_uuid": "ab000000000000000000000000000003",
+      "address": "203.0.113.41",
+      "backend_network_id": "net-external-001",
+      "port_uuid": null
+    }
+  ],
   "resources": [
     {
       "uuid": "d3000000000000000000000000000001",
@@ -1269,7 +2373,12 @@
       },
       "backend_id": "tenant-web-prod-001",
       "scope_type": "openstack.tenant",
-      "scope_uuid": "ab000000000000000000000000000001"
+      "scope_uuid": "ab000000000000000000000000000001",
+      "current_usages": {
+        "cores": 4,
+        "ram": 8192,
+        "storage": 71680
+      }
     },
     {
       "uuid": "d3000000000000000000000000000002",
@@ -1282,11 +2391,16 @@
       "limits": {
         "cores": 64,
         "ram": 131072,
-        "storage": 1024000
+        "storage": 2048000
       },
       "backend_id": "tenant-analytics-001",
       "scope_type": "openstack.tenant",
-      "scope_uuid": "ab000000000000000000000000000002"
+      "scope_uuid": "ab000000000000000000000000000002",
+      "current_usages": {
+        "cores": 43,
+        "ram": 88064,
+        "storage": 1280000
+      }
     },
     {
       "uuid": "d3000000000000000000000000000003",
@@ -1299,11 +2413,16 @@
       "limits": {
         "cores": 4,
         "ram": 8192,
-        "storage": 51200
+        "storage": 102400
       },
       "backend_id": "tenant-dev-001",
       "scope_type": "openstack.tenant",
-      "scope_uuid": "ab000000000000000000000000000003"
+      "scope_uuid": "ab000000000000000000000000000003",
+      "current_usages": {
+        "cores": 3,
+        "ram": 6144,
+        "storage": 61440
+      }
     },
     {
       "uuid": "d3000000000000000000000000000004",
