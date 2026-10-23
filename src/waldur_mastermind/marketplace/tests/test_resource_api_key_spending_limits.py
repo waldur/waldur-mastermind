@@ -1208,40 +1208,40 @@ class OfferedPeriodsTest(KeySpendingLimitsTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-    def test_a_component_the_plan_prices_at_zero_takes_no_limit(self):
+    def test_a_component_the_plan_prices_at_zero_takes_limits(self):
+        # A LiteLLM cost cap is priced at 0, as Waldur invoices a limit
+        # component on the limit itself, yet it measures real spend.
         plan = factories.PlanFactory(offering=self.offering)
         factories.PlanComponentFactory(
-            plan=plan, component=self.cost_component, price=2
+            plan=plan, component=self.cost_component, price=0
         )
         tokens = self.offering.components.get(type="tokens")
-        tokens.name = "Tokens used"
-        tokens.save()
         factories.PlanComponentFactory(plan=plan, component=tokens, price=0)
         self.resource.plan = plan
         self.resource.save()
-        response, prepare = self.patch({"spending_limits": {"tokens": {"month": 5}}})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        # Keyed by type, as every limit error is; worded with its name.
-        self.assertEqual(
-            str(response.data["spending_limits"]["tokens"]),
-            "Tokens used is not charged for, so it takes no limit.",
+        response, prepare = self.patch(
+            {"spending_limits": {"tokens": {"month": 5}, "token_cost": {"day": 5}}}
         )
-        prepare.assert_not_called()
-        response, _ = self.patch({"spending_limits": {"token_cost": {"day": 5}}})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        prepare.assert_called_once()
+        self.key.refresh_from_db()
+        self.assertEqual(
+            self.key.spending_limits,
+            {"tokens": {"month": 5}, "token_cost": {"day": 5}},
+        )
 
-    def test_a_held_limit_on_a_free_component_may_stay(self):
-        self.key.spending_limits = {"tokens": {"month": 5}}
-        self.key.save()
+    def test_a_zero_priced_component_keeps_its_period_rules(self):
         plan = factories.PlanFactory(offering=self.offering)
         tokens = self.offering.components.get(type="tokens")
         factories.PlanComponentFactory(plan=plan, component=tokens, price=0)
         self.resource.plan = plan
         self.resource.save()
-        response, _ = self.patch(
-            {"spending_limits": {"tokens": {"month": 5}, "token_cost": {"day": 1}}}
+        response, _ = self.patch({"spending_limits": {"tokens": {"day": 5}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            str(response.data["spending_limits"]["tokens"]),
+            "A day limit is not offered. Offered: month.",
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_a_component_the_plan_does_not_price_still_takes_limits(self):
         self.resource.plan = factories.PlanFactory(offering=self.offering)

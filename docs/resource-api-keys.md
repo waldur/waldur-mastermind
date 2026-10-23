@@ -447,11 +447,11 @@ A key's limit for a component is one amount per period:
 {"spending_limits": {"token_cost": {"day": 5, "month": 50}}}
 ```
 
-- No period is offered where the offering turns `api_key_limits` off, nor on
-  a component the resource's plan prices at 0: nothing is spent on it. A
-  component the plan does not price at all still takes limits.
-- `month` is available on every other component of the offering, as key limits
-  were monthly before they had periods. With `api_key_daily_usage` on, the
+- No period is offered where the offering turns `api_key_limits` off.
+- `month` is available on every component of the offering, as key limits
+  were monthly before they had periods, whatever the resource's plan charges
+  for it: a LiteLLM cost cap is priced at 0, yet it is what a key's spend is
+  capped on. With `api_key_daily_usage` on, the
   other periods are available where the component offers them to resources
   (`OfferingComponent.spending_limit_periods`, see
   [spending limits](spending-limits.md)); without it, none is.
