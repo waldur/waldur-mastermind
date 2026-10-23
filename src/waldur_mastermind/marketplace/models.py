@@ -6047,6 +6047,14 @@ class ResourceApiKey(
             "an update. Waldur sends one once the key settles."
         ),
     )
+    limit_pause_retries = models.PositiveSmallIntegerField(
+        default=0,
+        help_text=_(
+            "How many times Waldur has issued again a limit pause the site agent "
+            "failed to apply. Each retry waits twice as long as the one before, "
+            "so a backend that stays down is not sent a pause every few minutes."
+        ),
+    )
 
     objects = managers.ResourceApiKeyQuerySet.as_manager()
 

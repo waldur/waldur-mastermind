@@ -704,13 +704,24 @@ class FailedLimitPauseTest(KeySpendingLimitsTestBase):
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.ERRED)
 
-    def run_task(self):
+    def run_task(self, at="2026-10-21 12:05"):
+        # The first retry waits five minutes after the failure.
         with (
+            freeze_time(at),
             mock.patch(PREPARE, return_value=MESSAGES) as prepare,
             mock.patch(PUBLISH),
         ):
             tasks.retry_failed_api_key_limit_pauses()
         return prepare
+
+    def fail_again(self, at):
+        with freeze_time(at):
+            response, _ = self.post(
+                self.fixture.offering_owner,
+                detail_url(self.key, "set-erred"),
+                {"error_message": "gateway still down"},
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_the_pause_is_issued_again_while_over_the_limit(self):
         self.fail_the_limit_pause()
@@ -721,6 +732,52 @@ class FailedLimitPauseTest(KeySpendingLimitsTestBase):
         self.assertEqual(self.key.pending_action, Actions.PAUSE)
         self.assertTrue(self.key.paused_by_limit)
         self.assertEqual(self.key.limit_resumes_at, utc(2026, 10, 22))
+        self.assertEqual(self.key.limit_pause_retries, 1)
+
+    def test_retries_wait_twice_as_long_each_time(self):
+        self.fail_the_limit_pause()  # at 12:00
+        self.run_task(at="2026-10-21 12:04").assert_not_called()
+        self.run_task(at="2026-10-21 12:05").assert_called_once()
+        self.fail_again("2026-10-21 12:05")
+        self.run_task(at="2026-10-21 12:14").assert_not_called()
+        self.run_task(at="2026-10-21 12:15").assert_called_once()
+        self.fail_again("2026-10-21 12:15")
+        self.run_task(at="2026-10-21 12:34").assert_not_called()
+        self.run_task(at="2026-10-21 12:35").assert_called_once()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.limit_pause_retries, 3)
+
+    def test_the_wait_is_capped_at_six_hours(self):
+        self.assertEqual(
+            [
+                resource_api_keys.limit_pause_retry_delay(retries)
+                for retries in (0, 1, 2, 6, 7, 50)
+            ],
+            [
+                datetime.timedelta(minutes=5),
+                datetime.timedelta(minutes=10),
+                datetime.timedelta(minutes=20),
+                datetime.timedelta(minutes=320),
+                datetime.timedelta(hours=6),
+                datetime.timedelta(hours=6),
+            ],
+        )
+        self.fail_the_limit_pause()
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            limit_pause_retries=30
+        )
+        self.run_task(at="2026-10-21 17:59").assert_not_called()
+        self.run_task(at="2026-10-21 18:00").assert_called_once()
+
+    def test_a_new_automatic_pause_starts_the_count_again(self):
+        self.set_limits(day=10)
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            limit_pause_retries=4
+        )
+        self.report(daily_usages=[self.day(TODAY, 12)])
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertEqual(self.key.limit_pause_retries, 0)
 
     def test_it_is_audited_as_automatic(self):
         self.fail_the_limit_pause()
@@ -737,9 +794,7 @@ class FailedLimitPauseTest(KeySpendingLimitsTestBase):
 
     def test_a_key_under_its_limit_again_is_left_alone(self):
         self.fail_the_limit_pause()
-        with freeze_time("2026-10-22 00:03"):
-            prepare = self.run_task()
-        prepare.assert_not_called()
+        self.run_task(at="2026-10-22 00:03").assert_not_called()
 
     def test_other_failed_commands_are_left_alone(self):
         self.set_limits(day=10)
