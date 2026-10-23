@@ -11730,6 +11730,18 @@
     },
     {
       "role_name": "CUSTOMER.OWNER",
+      "permission": "RESOURCE.MANAGE_CONSUMER_API_KEY"
+    },
+    {
+      "role_name": "PROJECT.ADMIN",
+      "permission": "RESOURCE.MANAGE_CONSUMER_API_KEY"
+    },
+    {
+      "role_name": "PROJECT.MANAGER",
+      "permission": "RESOURCE.MANAGE_CONSUMER_API_KEY"
+    },
+    {
+      "role_name": "CUSTOMER.OWNER",
       "permission": "RESOURCE.REJECT_BOOKING_REQUEST"
     },
     {

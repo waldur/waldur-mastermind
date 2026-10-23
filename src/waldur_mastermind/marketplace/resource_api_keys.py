@@ -14,7 +14,7 @@ enforced here, not at the gateway: a usage report that reaches a limit issues a
 ``pause`` for that key alone, and Waldur resumes the key once its usage is under
 its limits again — when the period resets, or when a limit is raised.
 
-Commands are issued by whoever manages the resource's users. A key's assignee,
+Commands are issued by whoever manages the resource's API keys. A key's assignee,
 the one person trusted with its value, may also replace that value: rotate the
 key, or retry a rotation of it that failed.
 

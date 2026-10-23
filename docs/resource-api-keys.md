@@ -73,7 +73,7 @@ Waldur's API and models are unchanged.
 is trusted to replace it, so a person who suspects their key has leaked does not
 have to find a manager while it stays live. Nothing else follows from being the
 assignee: pausing, resuming, deleting and editing the key stay with whoever
-manages the resource's users. A separate permission for this was considered and
+manages the resource's API keys. A separate permission for this was considered and
 dropped — it would be one more thing for a project to grant, to the one person
 who already holds the secret.
 
@@ -553,7 +553,8 @@ Consumer side. The actions marked *governance* need the offering's
   match the gateway. **Audited** — each reveal emits the
   `marketplace_resource_api_key_revealed` event identifying the key.
 - `POST /{uuid}/rotate/` — the `rotate` command. Available on every backend,
-  and to the key's assignee as well as to whoever holds `RESOURCE.MANAGE_USERS`.
+  and to the key's assignee as well as to whoever holds
+  `RESOURCE.MANAGE_CONSUMER_API_KEY`.
 - `POST /{uuid}/resume/` — the `resume` command. Available on every backend
   too, so a key paused before the provider switched governance off can come
   back.
@@ -599,7 +600,11 @@ Consumer side. The actions marked *governance* need the offering's
 - `GET /usage_totals/?resource_uuid=` — the resource's reported key usage this
   month, summed per component, deleted keys included.
 
-Every command is gated on `RESOURCE.MANAGE_USERS` (project or customer scope).
+Every command is gated on `RESOURCE.MANAGE_CONSUMER_API_KEY` (project or customer
+scope). `permissions.yaml` grants it to the organization owner, the project
+manager and the project administrator: the two project roles differ on the
+project's team and settings, not on its resources, and every key action is a
+resource action. A project member manages no keys.
 `rotate`, and a `retry` of a failed rotation, also admit the key's **assignee**
 without that permission, under the conditions `reveal` holds them to: still a
 member of the resource's project or its customer, and not a minimal-visibility
@@ -707,6 +712,21 @@ then refuses. Keys stuck in `Creating` and
 original one is refused by `set_key` and withdrawn by the agent. A sweep written
 before this change must be updated before an offering turns on
 `enable_api_key_provisioning`.
+
+### Upgrading from `RESOURCE.MANAGE_USERS`
+
+Until it had its own permission, key management was gated on
+`RESOURCE.MANAGE_USERS`, held by the organization owner alone. A data migration
+gives the new permission to every role that held the old one, and adds it to
+every personal access token scoped to the old one, so a custom role or an
+existing token keeps managing keys. Roles listed in `custom-roles.yaml` are the
+exception: `import_roles` replaces their whole permission set on every
+deployment, so the migration's addition is dropped again. A deployment that
+grants `RESOURCE.MANAGE_USERS` for this purpose, in `custom-roles.yaml` or
+through `permissions-override.yaml`, has to grant
+`RESOURCE.MANAGE_CONSUMER_API_KEY` there instead. Likewise, an override that
+keeps key management from a role with `drop_permissions: [RESOURCE.MANAGE_USERS]`
+has to drop `RESOURCE.MANAGE_CONSUMER_API_KEY` instead, or the role gains it.
 
 ## Encryption at rest {#encryption-at-rest}
 
