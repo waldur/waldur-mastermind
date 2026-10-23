@@ -852,3 +852,103 @@ def test_full_test_run_env_forces_full_suite(monkeypatch, capsys):
     monkeypatch.setenv("FULL_TEST_RUN", "true")
     select_tests.main()
     assert capsys.readouterr().out.strip() == "src"
+
+
+# ---------------------------------------------------------------------------
+# select_e2e_suites — which waldur-integration-testing suites a change can affect
+# ---------------------------------------------------------------------------
+
+from select_tests import select_e2e_suites  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "changed,expected",
+    [
+        (["src/waldur_openstack/backend.py"], "openstack"),
+        (
+            [
+                "src/waldur_openstack/views.py",
+                "src/waldur_mastermind/marketplace_openstack/handlers.py",
+            ],
+            "openstack",
+        ),
+        (
+            ["src/waldur_vmware/backend.py", "src/waldur_slurm/models.py"],
+            "slurm vmware",
+        ),
+        (["src/waldur_mastermind/matrix_chat/views.py"], "matrix"),
+        (["src/waldur_mastermind/marketplace_site_agent/views.py"], "firecrest"),
+        (["src/waldur_mastermind/proposal/models.py"], "calls"),
+        (["src/waldur_auth_social/views.py"], "oidc"),
+        # a plugin's migrations reach the database every suite runs on
+        (["src/waldur_openstack/migrations/0099_x.py"], "openstack"),
+    ],
+)
+def test_plugin_changes_select_their_areas(changed, expected):
+    assert select_e2e_suites(changed) == expected
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        ["src/waldur_core/structure/models.py"],
+        ["src/waldur_mastermind/marketplace/serializers.py"],
+        ["src/waldur_core/logging/enums.py", "src/waldur_openstack/views.py"],
+        ["src/waldur_core/core/migrations/0099_x.py"],
+        ["src/waldur_mastermind/some_new_app/views.py"],
+        ["docker/rootfs/etc/waldur/permissions.yaml"],
+        ["Dockerfile"],
+        ["pyproject.toml"],
+        ["uv.lock"],
+    ],
+)
+def test_shared_code_and_image_changes_select_all(changed):
+    assert select_e2e_suites(changed) == "all"
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        ["src/waldur_openstack/tests/test_instance.py"],
+        ["src/waldur_core/structure/tests/test_project.py"],
+        ["src/waldur_core/core/locale/et/LC_MESSAGES/django.po"],
+        ["src/waldur_aws/backend.py"],
+        [".gitlab-ci.yml", "tests/select_tests.py", "docs/guides/x.md"],
+        [""],
+    ],
+)
+def test_changes_no_suite_exercises_select_none(changed):
+    assert select_e2e_suites(changed) == "none"
+
+
+def test_e2e_runs_everything_outside_merge_requests(monkeypatch, capsys):
+    import select_tests
+
+    monkeypatch.delenv("FULL_TEST_RUN", raising=False)
+    monkeypatch.delenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", raising=False)
+    monkeypatch.setattr(sys, "argv", ["select_tests.py", "--e2e"])
+    select_tests.main()
+    assert capsys.readouterr().out.strip() == "all"
+
+
+def test_e2e_full_test_run_runs_everything(monkeypatch, capsys):
+    import select_tests
+
+    monkeypatch.setenv("FULL_TEST_RUN", "true")
+    monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop")
+    monkeypatch.setattr(sys, "argv", ["select_tests.py", "--e2e"])
+    select_tests.main()
+    assert capsys.readouterr().out.strip() == "all"
+
+
+def test_e2e_on_a_merge_request_selects_from_the_diff(monkeypatch, capsys):
+    import select_tests
+
+    monkeypatch.delenv("FULL_TEST_RUN", raising=False)
+    monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop")
+    monkeypatch.setattr(
+        select_tests, "get_changed_files", lambda: ["src/waldur_openstack/backend.py"]
+    )
+    monkeypatch.setattr(sys, "argv", ["select_tests.py", "--e2e"])
+    select_tests.main()
+    assert capsys.readouterr().out.strip() == "openstack"

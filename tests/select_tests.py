@@ -25,6 +25,8 @@ How it works:
 Output:
 - To stdout: A space-separated list of paths (e.g., "src/waldur_core src/waldur_mastermind/marketplace").
 - To stderr: Informational logs about the selection process.
+
+With --e2e it prints the E2E areas instead (see select_e2e_suites).
 """
 
 import os
@@ -120,6 +122,50 @@ IRRELEVANT_SUFFIXES = {".md", ".po", ".mo"}
 # but does not fan out to its dependents. (`management` is *not* here — 33
 # test files call other apps' commands via call_command.)
 LOCAL_ONLY_DIRS = {"tests", "templates", "static"}
+
+# --- E2E suite selection (--e2e) -------------------------------------------
+# "Trigger integration tests" runs the waldur-integration-testing suites. That
+# pipeline cannot see this repository's diff, so the choice is made here and
+# passed down as E2E_SUITES, and each downstream job runs only when one of its
+# areas, or "all", is named (its E2E_AREA variable there).
+#
+# A change confined to one of these plugins runs the suites of its area:
+E2E_AREAS = {
+    "openstack": (
+        "src/waldur_openstack/",
+        "src/waldur_openstack_tenant/",
+        "src/waldur_openstack_replication/",
+        "src/waldur_mastermind/marketplace_openstack/",
+    ),
+    "vmware": ("src/waldur_vmware/", "src/waldur_mastermind/marketplace_vmware/"),
+    "matrix": ("src/waldur_mastermind/matrix_chat/",),
+    "openportal": (
+        "src/waldur_openportal/",
+        "src/waldur_mastermind/marketplace_openportal/",
+        "src/waldur_mastermind/marketplace_openportal_remote/",
+    ),
+    "firecrest": (
+        "src/waldur_firecrest/",
+        "src/waldur_mastermind/marketplace_site_agent/",
+    ),
+    "slurm": ("src/waldur_slurm/", "src/waldur_mastermind/marketplace_slurm/"),
+    "calls": ("src/waldur_mastermind/proposal/",),
+    "oidc": ("src/waldur_auth_social/",),
+}
+# Backends no E2E suite exercises: a change confined to them runs none.
+E2E_UNCOVERED = (
+    "src/waldur_aws/",
+    "src/waldur_azure/",
+    "src/waldur_mastermind/marketplace_azure/",
+    "src/waldur_digitalocean/",
+    "src/waldur_rancher/",
+    "src/waldur_mastermind/marketplace_rancher/",
+    "src/waldur_kubernetes/",
+    "src/waldur_lexis/",
+    "src/waldur_mastermind/google/",
+)
+# Outside src/, these change the image every suite runs on.
+E2E_IMAGE_FILES = ("docker/", "Dockerfile", "pyproject.toml", "uv.lock")
 
 # .gitlab-ci.yml is treated specially — see ci_diff_affects_tests().
 # Only changes that touch test/build stages or test-related sections trigger
@@ -701,8 +747,55 @@ def select_paths(
     return extra_paths + test_paths
 
 
+def select_e2e_suites(changed_files: list[str]) -> str:
+    """Name the E2E areas a change can affect: "all", "none" or a list.
+
+    Anything in src/ outside the plugins in E2E_AREAS and E2E_UNCOVERED — core,
+    structure, marketplace, an app added later — can reach every suite, as can
+    the files the image is built from. Tests and translations cannot.
+    Migrations, unlike for the unit suite, count: E2E runs them.
+    """
+    areas = set()
+    for path in filter(None, changed_files):
+        if path.startswith("src/"):
+            if "tests" in Path(path).parts or Path(path).suffix in IRRELEVANT_SUFFIXES:
+                continue
+            area = next(
+                (a for a, roots in E2E_AREAS.items() if path.startswith(roots)), None
+            )
+            if area:
+                areas.add(area)
+            elif not path.startswith(E2E_UNCOVERED):
+                log(f"E2E: {path} is outside the plugin areas; running every suite.")
+                return "all"
+        elif path.startswith(E2E_IMAGE_FILES):
+            log(f"E2E: {path} changes the image; running every suite.")
+            return "all"
+    return " ".join(sorted(areas)) or "none"
+
+
+def main_e2e():
+    """Print E2E_SUITES: the change's areas on a merge request, else "all".
+
+    Every other pipeline — develop, a tag, the scheduled sweep — is where the
+    whole E2E suite is the safety net, so it gets all of it.
+    """
+    if os.environ.get("FULL_TEST_RUN", "").lower() in ("true", "yes"):
+        print("all")
+        return
+    if not os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
+        print("all")
+        return
+    suites = select_e2e_suites(get_changed_files())
+    log(f"E2E suites: {suites}")
+    print(suites)
+
+
 def main():
     """Main execution logic."""
+    if "--e2e" in sys.argv[1:]:
+        main_e2e()
+        return
     if os.environ.get("FULL_TEST_RUN", "").lower() in ("true", "yes"):
         log("FULL_TEST_RUN is set (scheduled sweep); running the whole suite.")
         print("src")
