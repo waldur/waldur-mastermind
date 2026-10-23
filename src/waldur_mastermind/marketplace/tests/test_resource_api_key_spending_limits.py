@@ -1,6 +1,7 @@
 """Spending limits of resource API keys per period: day, week, month, quarter, year."""
 
 import datetime
+from decimal import Decimal
 from importlib import import_module
 from unittest import mock
 
@@ -40,6 +41,9 @@ migration = import_module(
 )
 daily_usage_migration = import_module(
     "waldur_mastermind.marketplace.migrations.0316_api_key_daily_usage_option"
+)
+usage_history_migration = import_module(
+    "waldur_mastermind.marketplace.migrations.0318_resource_api_key_usage_history"
 )
 
 # A Wednesday; its week started on Monday 19 October.
@@ -564,7 +568,9 @@ class DailyUsageReportTest(KeySpendingLimitsTestBase):
 
     def test_the_days_of_a_report_are_written_at_once(self):
         start = datetime.date(2026, 1, 1)
-        few = [self.day(start, 1)]
+        # Both reach back into a closed month, which costs one query however
+        # many of its days come in.
+        few = [self.day(start, 1), self.day(datetime.date(2026, 2, 1), 1)]
         many = [self.day(start + datetime.timedelta(days=i), 1) for i in range(250)]
         # The first request of a test pays for what it caches.
         self.report(daily_usages=few)
@@ -1272,3 +1278,306 @@ class ComponentRenameTest(KeySpendingLimitsTestBase):
         self.assertEqual(self.key.current_usages, {"inference_cost": 4})
         self.assertEqual(self.key.daily_usages.get().component_type, "inference_cost")
         self.assertEqual(self.key.modified, modified)
+
+
+@freeze_time("2026-10-21 12:00")
+class TotalLimitTest(KeySpendingLimitsTestBase):
+    """A key's total limit counts every month it reported and never resets."""
+
+    def setUp(self):
+        super().setUp()
+        self.cost_component.spending_limit_periods = {
+            **self.cost_component.spending_limit_periods,
+            "total": {},
+        }
+        self.cost_component.save()
+
+    def total_used(self):
+        self.key.refresh_from_db()
+        return next(
+            row["used"]
+            for row in api_key_spending_limits.get_status(self.key)
+            if row["period"] == "total"
+        )
+
+    def test_a_month_reported_again_raises_it_and_closed_months_add_up(self):
+        self.set_limits(total=1000)
+        self.report(usages={"token_cost": 40})
+        self.report(usages={"token_cost": 60})
+        self.assertEqual(self.total_used(), 60)
+        with freeze_time("2026-11-03 12:00"):
+            self.report(usages={"token_cost": 30})
+            self.report(usages={"token_cost": 35})
+            self.assertEqual(self.total_used(), 95)
+            self.key.refresh_from_db()
+            self.assertEqual(self.key.usage_history, {"2026-10": {"token_cost": 60}})
+
+    def test_daily_reports_add_up_across_months_and_late_days_count(self):
+        self.set_limits(total=1000)
+        with freeze_time("2026-10-31 12:00"):
+            self.report(
+                daily_usages=[
+                    self.day(datetime.date(2026, 10, 30), 20),
+                    self.day(datetime.date(2026, 10, 31), 10),
+                ]
+            )
+        with freeze_time("2026-11-01 08:00"):
+            self.report(daily_usages=[self.day(datetime.date(2026, 11, 1), 5)])
+            self.assertEqual(self.total_used(), 35)
+            # The agent sends the rest of the 31st after the month turned.
+            self.report(
+                daily_usages=[
+                    self.day(datetime.date(2026, 10, 31), 15),
+                    self.day(datetime.date(2026, 11, 1), 5),
+                ]
+            )
+            self.assertEqual(self.total_used(), 40)
+
+    def test_a_pruned_year_still_counts(self):
+        self.set_limits(total=1000)
+        with freeze_time("2025-03-10 12:00"):
+            self.report(daily_usages=[self.day(datetime.date(2025, 3, 10), 70)])
+        with freeze_time("2027-02-01 12:00"):
+            self.report(daily_usages=[self.day(datetime.date(2027, 2, 1), 5)])
+            api_key_spending_limits.prune_daily_usage(datetime.date(2027, 2, 1))
+            self.assertFalse(self.key.daily_usages.filter(date__year=2025).exists())
+            self.assertEqual(self.total_used(), 75)
+
+    def test_a_reached_total_pauses_with_no_resume_time_until_raised(self):
+        self.set_limits(day=10, total=100)
+        self.report(usages={"token_cost": 100})
+        self.key.refresh_from_db()
+        self.assertTrue(self.key.paused_by_limit)
+        self.assertIsNone(self.key.limit_resumes_at)
+        self.key.set_paused()
+        self.key.save()
+
+        with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
+            with freeze_time("2027-01-01 00:04"):
+                tasks.resume_api_keys_after_limit_reset()
+                tasks.resume_api_keys_under_limit()
+            prepare.assert_not_called()
+
+        response, prepare = self.patch(
+            {"spending_limits": {"token_cost": {"day": 10, "total": 200}}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.RESUME)
+
+    def test_status_has_no_reset_time(self):
+        self.set_limits(month=50, total=100)
+        self.report(usages={"token_cost": 20})
+        self.key.refresh_from_db()
+        rows = {
+            row["period"]: row for row in api_key_spending_limits.get_status(self.key)
+        }
+        self.assertIsNone(rows["total"]["resets_at"])
+        self.assertEqual(rows["month"]["resets_at"], utc(2026, 11, 1))
+
+    def test_offered_where_the_component_offers_it_without_daily_usage(self):
+        self.offering.plugin_options["api_key_daily_usage"] = False
+        self.offering.save()
+        response, _ = self.patch({"spending_limits": {"token_cost": {"total": 50}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        response, _ = self.patch({"spending_limits": {"tokens": {"total": 50}}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            str(response.data["spending_limits"]["tokens"]),
+            "A total limit is not offered. Offered: month.",
+        )
+
+    def test_capped_by_the_resources_total(self):
+        self.resource.spending_limits = {"token_cost": {"total": 50}}
+        self.resource.save()
+        for periods in ({"total": 60}, {"day": 60}):
+            with self.subTest(periods):
+                response, _ = self.patch({"spending_limits": {"token_cost": periods}})
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response, _ = self.patch({"spending_limits": {"token_cost": {"total": 50}}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_renamed_component_takes_its_history_along(self):
+        self.key.usage_history = {"2026-09": {"token_cost": 12}}
+        self.key.save()
+        api_key_spending_limits.rename_component_type(
+            self.offering, "token_cost", "inference_cost"
+        )
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.usage_history, {"2026-09": {"inference_cost": 12}})
+
+    def test_a_rename_onto_a_type_with_usage_adds_to_it(self):
+        # Usage a key holds under the new type, left by a component gone since,
+        # was spent all the same: the renamed component's is added to it.
+        self.key.spending_limits = {
+            "token_cost": {"total": 100},
+            "inference_cost": {"total": 5},
+        }
+        self.key.usage_history = {"2026-09": {"token_cost": 12, "inference_cost": 30}}
+        self.key.current_usages = {"token_cost": 1.5, "inference_cost": 2}
+        self.key.usage_period = datetime.date(2026, 10, 1)
+        self.key.save()
+        for component_type, amount in (("token_cost", 4), ("inference_cost", 3)):
+            models.ResourceApiKeyDailyUsage.objects.create(
+                api_key=self.key,
+                component_type=component_type,
+                date=TODAY,
+                usage=amount,
+            )
+        api_key_spending_limits.rename_component_type(
+            self.offering, "token_cost", "inference_cost"
+        )
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.usage_history, {"2026-09": {"inference_cost": 42}})
+        self.assertEqual(self.key.current_usages, {"inference_cost": 3.5})
+        self.assertEqual(self.key.spending_limits, {"inference_cost": {"total": 100}})
+        self.assertEqual(
+            list(self.key.daily_usages.values_list("component_type", "usage")),
+            [("inference_cost", 7)],
+        )
+        self.assertEqual(self.total_used(), Decimal("45.5"))
+
+    def report_monthly_rollover(self, september, october):
+        """September's last figure before midnight, October's first just after."""
+        with freeze_time("2026-09-30 23:50"):
+            self.report(usages={"token_cost": september})
+        with freeze_time("2026-10-01 00:05"):
+            self.report(usages={"token_cost": october})
+
+    @freeze_time("2026-10-01 00:10")
+    def test_a_closed_months_last_figure_sent_late_counts(self):
+        # The agent reports a month total only, and the usage of a month's
+        # last minutes arrives once the next month has started.
+        self.offering.plugin_options["api_key_daily_usage"] = False
+        self.offering.save()
+        self.set_limits(total=10)
+        self.report_monthly_rollover(6, 0.1)
+        self.assertEqual(self.total_used(), Decimal("6.1"))
+        response, _ = self.report(
+            usages={"token_cost": 7.0}, billing_period="2026-09-01"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.total_used(), Decimal("7.1"))
+        self.assertEqual(self.key.usage_history, {"2026-09": {"token_cost": 7.0}})
+        self.assertEqual(self.key.usage_period, datetime.date(2026, 10, 1))
+        self.assertEqual(self.key.current_usages, {"token_cost": 0.1})
+
+    @freeze_time("2026-10-01 00:10")
+    def test_a_late_figure_lower_than_the_closed_months_changes_nothing(self):
+        self.set_limits(total=10)
+        self.report_monthly_rollover(6, 1)
+        response, _ = self.report(usages={"token_cost": 2}, billing_period="2026-09-01")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.total_used(), Decimal(7))
+        self.assertEqual(self.key.usage_history, {"2026-09": {"token_cost": 6}})
+
+    @freeze_time("2026-10-01 00:10")
+    def test_a_late_figure_that_reaches_the_total_pauses_the_key(self):
+        self.set_limits(month=50, total=7)
+        self.report_monthly_rollover(6, 0.5)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.OK)
+        response, prepare = self.report(
+            usages={"token_cost": 6.6}, billing_period="2026-09-01"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertTrue(self.key.paused_by_limit)
+        self.assertIsNone(self.key.limit_resumes_at)
+        rows = {
+            row["period"]: row for row in api_key_spending_limits.get_status(self.key)
+        }
+        # September's figure counts for the total, not for October's month.
+        self.assertEqual(rows["month"]["used"], Decimal("0.5"))
+        self.assertFalse(rows["month"]["reached"])
+        self.assertTrue(rows["total"]["reached"])
+
+    @freeze_time("2026-10-01 00:10")
+    def test_a_late_day_raises_the_closed_month_when_it_makes_it_larger(self):
+        self.set_limits(total=100)
+        with freeze_time("2026-09-30 23:50"):
+            self.report(
+                daily_usages=[
+                    self.day(datetime.date(2026, 9, 29), 3),
+                    self.day(datetime.date(2026, 9, 30), 3),
+                ]
+            )
+        with freeze_time("2026-10-01 00:05"):
+            self.report(daily_usages=[self.day(datetime.date(2026, 10, 1), 0.1)])
+        self.assertEqual(self.total_used(), Decimal("6.1"))
+        # The rest of 30 September, sent after midnight.
+        self.report(daily_usages=[self.day(datetime.date(2026, 9, 30), 4)])
+        self.assertEqual(self.total_used(), Decimal("7.1"))
+        self.assertEqual(self.key.usage_history, {"2026-09": {"token_cost": 7}})
+        # A day corrected downwards leaves the closed month as it was.
+        self.report(daily_usages=[self.day(datetime.date(2026, 9, 30), 1)])
+        self.assertEqual(self.total_used(), Decimal("7.1"))
+
+    def test_a_closed_month_is_reported_from_the_start_of_the_year_only(self):
+        self.set_limits(total=100)
+        self.report(usages={"token_cost": 1})
+        response, _ = self.report(usages={"token_cost": 5}, billing_period="2025-12-01")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        response, _ = self.report(usages={"token_cost": 5}, billing_period="2026-01-01")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.total_used(), Decimal(6))
+
+    def test_a_late_month_figure_for_a_component_with_days_is_rejected(self):
+        self.set_limits(total=100)
+        with freeze_time("2026-09-30 12:00"):
+            self.report(daily_usages=[self.day(datetime.date(2026, 9, 30), 3)])
+        self.report(usages={"token_cost": 1})
+        response, _ = self.report(usages={"token_cost": 9}, billing_period="2026-09-01")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.total_used(), Decimal(4))
+
+    def test_a_lower_month_figure_does_not_reopen_a_reached_total(self):
+        self.set_limits(total=100)
+        self.report(usages={"token_cost": 100})
+        self.key.refresh_from_db()
+        self.assertTrue(self.key.paused_by_limit)
+        _, prepare = self.report(usages={"token_cost": 10})
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.current_usages, {"token_cost": 100})
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertTrue(self.key.paused_by_limit)
+        self.assertEqual(self.total_used(), Decimal(100))
+
+
+class UsageHistoryMigrationTest(test.APITestCase):
+    def test_months_before_the_held_one_are_summed_from_their_days(self):
+        resource = factories.ResourceFactory()
+        key = models.ResourceApiKey.objects.create(
+            resource=resource,
+            client_id="c1",
+            usage_period=datetime.date(2026, 11, 1),
+            current_usages={"token_cost": 7},
+        )
+        for date, amount in (
+            (datetime.date(2026, 9, 3), 1),
+            (datetime.date(2026, 9, 30), 2),
+            (datetime.date(2026, 10, 1), 4),
+            (datetime.date(2026, 11, 2), 7),
+        ):
+            models.ResourceApiKeyDailyUsage.objects.create(
+                api_key=key, component_type="token_cost", date=date, usage=amount
+            )
+        monthly = models.ResourceApiKey.objects.create(
+            resource=resource,
+            client_id="c2",
+            usage_period=datetime.date(2026, 11, 1),
+            current_usages={"token_cost": 3},
+        )
+
+        usage_history_migration.backfill_usage_history(django_apps, None)
+
+        key.refresh_from_db()
+        self.assertEqual(
+            key.usage_history,
+            {"2026-09": {"token_cost": 3}, "2026-10": {"token_cost": 4}},
+        )
+        monthly.refresh_from_db()
+        self.assertEqual(monthly.usage_history, {})

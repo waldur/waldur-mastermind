@@ -866,3 +866,122 @@ class StatusApiTest(SpendingLimitsSetupMixin, test.APITestCase):
         response = self.client.get(factories.ResourceFactory.get_url(self.resource))
         self.assertEqual(response.data["spending_limit_status"], [])
         self.assertIsNone(response.data["usage_limit_resumes_at"])
+
+
+@freeze_time("2026-10-21 12:00")
+class TotalLimitTest(SpendingLimitsSetupMixin, test.APITestCase):
+    """A total limit counts every month since the resource started and never resets."""
+
+    def setUp(self):
+        super().setUp()
+        self.component.spending_limit_periods = {
+            **ALL_PERIODS,
+            "total": {"maximum": 5000},
+        }
+        self.component.save(update_fields=["spending_limit_periods"])
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+
+    def evaluate(self):
+        evaluate_usage_limit_restriction(self.resource)
+        self.resource.refresh_from_db()
+
+    def set_spending_limits(self, value):
+        self.client.force_authenticate(self.fixture.owner)
+        return self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "set_spending_limits"),
+            {"spending_limits": value},
+            format="json",
+        )
+
+    def test_has_no_reset(self):
+        self.assertIsNone(
+            spending_limits.resets_at("total", datetime.date(2026, 10, 21))
+        )
+
+    def test_is_the_longest_period(self):
+        with self.assertRaises(rf_serializers.ValidationError):
+            spending_limits.validate_order(
+                {"year": Decimal(600), "total": Decimal(500)}, "Limits"
+            )
+
+    def test_provider_offers_it_with_a_maximum(self):
+        self.assertEqual(
+            spending_limits.validate_component_periods(
+                {"total": {"default": 500, "maximum": 5000}}, BillingTypes.USAGE
+            ),
+            {"total": {"default": 500, "maximum": 5000}},
+        )
+
+    def test_resource_takes_it_only_where_offered(self):
+        self.assertEqual(
+            spending_limits.validate_resource_limits(
+                {"token_cost": {"year": 400, "total": 500}}, self.offering, self.plan
+            ),
+            {"token_cost": {"year": 400, "total": 500}},
+        )
+        with self.assertRaises(rf_serializers.ValidationError):
+            spending_limits.validate_resource_limits(
+                {"token_cost": {"total": 5001}}, self.offering, self.plan
+            )
+        self.component.spending_limit_periods = ALL_PERIODS
+        self.component.save(update_fields=["spending_limit_periods"])
+        with self.assertRaises(rf_serializers.ValidationError):
+            spending_limits.validate_resource_limits(
+                {"token_cost": {"total": 500}}, self.offering, self.plan
+            )
+
+    def test_counts_every_month_since_the_resource_started(self):
+        self.add_month(datetime.date(2024, 5, 1), 100)
+        self.add_month(datetime.date(2025, 12, 1), 150)
+        self.add_month(datetime.date(2026, 10, 1), 50)
+        self.assertEqual(
+            spending_limits.period_usage(
+                self.resource, self.component, "total", datetime.date(2026, 10, 21)
+            ),
+            Decimal(300),
+        )
+
+    def test_reached_total_pauses_and_never_lifts_on_its_own(self):
+        self.set_limits(total=300)
+        self.add_month(datetime.date(2025, 12, 1), 250)
+        self.add_month(datetime.date(2026, 10, 1), 50)
+        self.evaluate()
+        self.assertTrue(self.resource.paused)
+        self.assertIsNone(self.resource.usage_limit_resumes_at)
+
+        with freeze_time("2027-02-01 00:03"):
+            tasks.lift_reset_spending_limit_restrictions()
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+
+    def test_a_reached_total_holds_past_a_shorter_reset(self):
+        self.set_limits(day=20, total=300)
+        self.add_day(datetime.date(2026, 10, 21), 20)
+        self.add_month(datetime.date(2026, 10, 1), 300)
+        self.evaluate()
+        self.assertTrue(self.resource.paused)
+        self.assertIsNone(self.resource.usage_limit_resumes_at)
+
+    def test_raising_the_total_lifts_at_once(self):
+        self.set_limits(total=300)
+        self.add_month(datetime.date(2026, 10, 1), 300)
+        self.evaluate()
+        self.assertTrue(self.resource.paused)
+
+        response = self.set_spending_limits({"token_cost": {"total": 400}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.paused)
+        self.assertEqual(self.resource.usage_limit_restriction, "")
+
+    def test_status_has_no_reset_time(self):
+        self.set_limits(month=200, total=500)
+        self.add_month(datetime.date(2026, 9, 1), 300)
+        self.add_month(datetime.date(2026, 10, 1), 142)
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(factories.ResourceFactory.get_url(self.resource))
+        rows = {row["period"]: row for row in response.data["spending_limit_status"]}
+        self.assertEqual(rows["total"]["used"], 442.0)
+        self.assertFalse(rows["total"]["reached"])
+        self.assertIsNone(rows["total"]["resets_at"])
+        self.assertEqual(rows["month"]["resets_at"], utc(2026, 11, 1))

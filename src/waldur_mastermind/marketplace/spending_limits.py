@@ -13,14 +13,18 @@ plan switches and renewals, and pushed to backends as quotas.
 Every period compares a different span of the same usage. Day and week sum the
 per-day rows (``ComponentDailyUsage``, see ``daily_usage``); month, quarter and
 year sum the monthly ``ComponentUsage`` rows that invoicing reads. Periods are
-calendar periods in UTC, and a week starts on Monday.
+calendar periods in UTC, and a week starts on Monday. ``total`` is the one
+period that is not a calendar period: it sums every monthly row since the
+resource started and never resets, so a restriction it holds lifts only when
+the limit is raised or cleared.
 
 A reached limit applies the offering's ``action_on_usage_limit`` through
 ``utils.evaluate_usage_limit_restriction``, which lifts the restriction once
 every limit is under again. ``Resource.usage_limit_resumes_at`` records when the
 reached limits reset, and ``tasks.lift_reset_spending_limit_restrictions``
 re-evaluates the resource once that time has passed, so a daily pause ends at
-midnight without a new usage report.
+midnight without a new usage report. It stays empty while a reached total
+holds the resource.
 """
 
 import datetime
@@ -59,7 +63,10 @@ def utc_today() -> datetime.date:
 
 
 def period_bounds(period: str, day: datetime.date):
-    """The first day of the ``period`` that contains ``day``, and the first day after it."""
+    """The first day of the ``period`` that contains ``day``, and the first day after it.
+
+    ``total`` has no bounds: callers handle it before asking.
+    """
     if period == SpendingLimitPeriods.DAY:
         start = day
         end = day + datetime.timedelta(days=1)
@@ -80,8 +87,13 @@ def period_bounds(period: str, day: datetime.date):
     return start, end
 
 
-def resets_at(period: str, day: datetime.date) -> datetime.datetime:
-    """When the ``period`` that contains ``day`` ends and its usage starts from zero."""
+def resets_at(period: str, day: datetime.date) -> datetime.datetime | None:
+    """When the ``period`` that contains ``day`` ends and its usage starts from zero.
+
+    None for ``total``, which never resets.
+    """
+    if period == SpendingLimitPeriods.TOTAL:
+        return None
     _start, end = period_bounds(period, day)
     return datetime.datetime.combine(end, datetime.time.min, datetime.UTC)
 
@@ -292,19 +304,20 @@ def validate_resource_limits(value, offering, plan) -> dict:
 
 
 def period_usage(resource, component, period, day: datetime.date) -> Decimal:
-    """Usage of ``component`` in the ``period`` that contains ``day``."""
-    start, end = period_bounds(period, day)
-    if period in SpendingLimitPeriods.DAILY:
-        total = models.ComponentDailyUsage.objects.filter(
-            resource=resource, component=component, date__gte=start, date__lt=end
-        ).aggregate(total=Sum("usage"))["total"]
-        return total or Decimal(0)
-    rows = models.ComponentUsage.objects.filter(
-        resource=resource,
-        component=component,
-        billing_period__gte=start,
-        billing_period__lt=end,
-    ).select_related("plan_period__plan")
+    """Usage of ``component`` in the ``period`` that contains ``day``.
+
+    For ``total``, every month the resource has usage for.
+    """
+    rows = models.ComponentUsage.objects.filter(resource=resource, component=component)
+    if period != SpendingLimitPeriods.TOTAL:
+        start, end = period_bounds(period, day)
+        if period in SpendingLimitPeriods.DAILY:
+            total = models.ComponentDailyUsage.objects.filter(
+                resource=resource, component=component, date__gte=start, date__lt=end
+            ).aggregate(total=Sum("usage"))["total"]
+            return total or Decimal(0)
+        rows = rows.filter(billing_period__gte=start, billing_period__lt=end)
+    rows = rows.select_related("plan_period__plan")
     # A month billed under a plan that counts the component as a limit holds a
     # peak quantity, not usage.
     return sum(
@@ -367,8 +380,12 @@ def reached_limits(resource) -> list[dict]:
 
 
 def resumes_at(reached: list[dict]) -> datetime.datetime | None:
-    """When every reached limit has reset, so a restriction they hold lifts."""
-    if not reached:
+    """When every reached limit has reset, so a restriction they hold lifts.
+
+    None also while a reached total holds it: that never resets, and lifts
+    only when the limit is raised or cleared.
+    """
+    if not reached or any(status["resets_at"] is None for status in reached):
         return None
     return max(status["resets_at"] for status in reached)
 

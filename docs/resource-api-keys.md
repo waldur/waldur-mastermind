@@ -122,22 +122,24 @@ gateway to enforce a limit, and a limit never affects billing.
 
 **Limits are per calendar period.** A key takes the same per-period limits as
 its resource's [spending limits](spending-limits.md) — day, week, month, quarter
-and year, calendar periods in UTC — so a research group can give each member a
-daily and a monthly share of the group's budget. A key Waldur paused for a limit
-comes back on its own once that period resets, and so it does when the limit is
-raised; a key a person paused stays paused.
+and year, calendar periods in UTC, and a total that never resets — so a
+research group can give each member a daily and a monthly share of the group's
+budget, or a one-off allowance. A key Waldur paused for a limit comes back on
+its own once that period resets, and so it does when the limit is raised; a
+key a person paused stays paused. A total never resets, so a key it paused
+comes back only when the limit is raised or removed.
 
 **Which limits a key is offered is the provider's call.** Only a key's usage
 per day can reach a day or week limit, and only the usage of every month can
-reach a quarter or year one, so periods other than month need an agent that
-reports each key's usage per day. Waldur cannot tell what the agent reports,
+reach a quarter or year one, so periods other than month and total need an
+agent that reports each key's usage per day. Waldur cannot tell what the agent reports,
 so the offering declares it, next to `enable_api_key_provisioning`:
 
 - `plugin_options.api_key_limits` — consumers may set limits on keys. On unless
   set to `false`; off, no new key limit is accepted.
 - `plugin_options.api_key_daily_usage` — the agent reports each key's usage per
   day (`daily_usages` in `report_usage`). Off unless set; without it a key is
-  offered `month` only.
+  offered `month`, and `total` where the component offers it.
 
 Turning either on needs `enable_api_key_provisioning`. Like that option, the
 claim is not checked: turned on for an agent that reports keys monthly, day
@@ -176,10 +178,11 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `user` | optional assignee, set when the key is requested and never changed; only they can reveal the key, and they can rotate it. A person is the assignee of at most one key per resource that is not `Deleted` |
 | `spending_limits` | optional limits per component type and period, `{component_type: {period: amount}}` (see [Limits](#limits)) |
 | `allowed_models` | the models the key may call, never null: `["*"]` for every model, `[]` for none, or a list of names ([below](#model-lists)) |
-| `current_usages` | per-component usage in `usage_period`, as last reported by the agent; for a component reported per day, the sum of its days |
+| `current_usages` | per-component usage in `usage_period`, the highest figure the agent reported for the month, which never drops; for a component reported per day, the sum of its days |
 | `usage_period` | the month `current_usages` covers (its first day); usage of an earlier month counts against no month limit |
+| `usage_history` | each earlier month's usage per component, `{"2026-09": {"token_cost": 12.5}}`: kept when the next month's usage comes in, and raised, never lowered, by usage reported late for that month; never pruned, as a total limit counts it. Not in the API |
 | `paused_by_limit` | Waldur paused the key because its usage reached a limit; such a key is resumed automatically once under its limits again |
-| `limit_resumes_at` | when every limit that paused the key resets, so that it resumes without a usage report |
+| `limit_resumes_at` | when every limit that paused the key resets, so that it resumes without a usage report; empty while a reached total holds the key, which then resumes only when that limit is raised or cleared |
 | `models_outdated` | the resource's model selection changed while the key could not take an `update`; Waldur sends one once the key settles ([below](#resource-selection)) |
 | `error_message` | agent-reported failure detail when `Erred` |
 | `modified` | `TimeStampedModel`; the time the key last changed state or settings — the agent's sweep reads it as "in this state since". Usage reports do not touch it |
@@ -454,7 +457,8 @@ A key's limit for a component is one amount per period:
   capped on. With `api_key_daily_usage` on, the
   other periods are available where the component offers them to resources
   (`OfferingComponent.spending_limit_periods`, see
-  [spending limits](spending-limits.md)); without it, none is.
+  [spending limits](spending-limits.md)); without it, only `total` is, where
+  the component offers it: a total needs no usage per day.
 - A key's limit may not exceed the resource's spending limit for the same
   period or any longer one — the lowest of them, when the resource has any:
   a key of a resource capped at 40 a month takes no day limit above 40. The
@@ -477,6 +481,29 @@ component reported per day is the sum of its days. Month limits compare that
 figure; day and week sum the days; quarter and year add the month figure to the
 days of the earlier months in the period. A key reported only monthly therefore
 enforces month limits, and counts no earlier month towards a quarter or a year.
+A month figure never drops: a month total lower than the key holds for the
+month leaves the higher one, and so does a day corrected downwards (below), so a
+limit it reached does not reopen within the month.
+A total adds the month figure to `usage_history`: when a report moves the key on
+to a later month, the month it held is kept there, so a total counts every
+month the key reported in, monthly or daily, after the daily rows are pruned.
+A closed month still takes the usage the agent sends for it once the next month
+has started — the minutes after its last report before midnight, or the days of
+an outage over the month end: a month total with `billing_period` set to that
+month, or days dated in it, raise its figure in `usage_history`, and never lower
+it. As in the current month, a component with days in that month takes days
+only. A late month total counts for a total alone — month limits read the
+current month, and quarter and year read days — while late days also count
+for the day, week, quarter and year they fall in. Either may pause the key at
+once, when it brings a limit to its amount. The agent should therefore send one last report for a month
+after it ends; without one, a total misses the usage after the month's last
+report. Closed months are accepted as far back as daily usage is: from the
+start of the current year, or of the previous month when that is earlier;
+an older one is refused with `409`.
+Keys from before totals start with the history their stored daily rows give:
+the months before the one they hold, back to the start of the previous year at
+most, and none for a key reported only monthly. A total is the key's own: a key
+requested again starts from zero, and a rotated one keeps its usage.
 An agent that switches to daily reporting mid-month must report every day of
 the month so far, as for a resource's [daily usage](spending-limits.md): the
 days replace the month total from then on, and a month total for that component
@@ -487,7 +514,8 @@ a day corrected downwards counts as reported until the month turns.
 
 **Enforcement.** When a key is `OK`, has no command in flight and a report brings
 its usage to a limit, Waldur issues a `pause` for that key alone, marks it
-`paused_by_limit`, records in `limit_resumes_at` when every reached limit resets,
+`paused_by_limit`, records in `limit_resumes_at` when every reached limit resets
+(none, while a reached total holds it),
 and audit-logs it as automatic, naming the limits ("Its usage reached the day
 limit of token_cost."). The resource and its other keys keep serving. A key over a limit
 while a command is in flight is checked again when the agent acknowledges that
@@ -527,9 +555,9 @@ still over it, it is paused again once the agent acknowledges the resume. A key 
 
 **Daily usage rows.** A key's status reads only the daily rows its own limits
 reach back to: from the start of the week for a day or week limit, of the
-quarter or year for those. A key with month limits only, or none, reads none.
-The daily `prune_api_key_daily_usage` task deletes the rows dated before the
-previous year.
+quarter or year for those. A key with month or total limits only, or none,
+reads none. The daily `prune_api_key_daily_usage` task deletes the rows dated
+before the previous year; a total reads `usage_history`, which is kept.
 
 **Audit.** Requesting a key with limits, and every edit or command that changes
 them, carries `old_spending_limits` and `new_spending_limits` in the event
@@ -550,8 +578,8 @@ Consumer side. The actions marked *governance* need the offering's
 - `GET /` and `GET /{uuid}/` — list/retrieve status (`client_id`, state,
   `pending_action`, `modified`, error message, assignee, limits, models as chosen
   and effective, usage — no secret). `spending_limit_status` lists each limit
-  with `used`, `limit`, `resets_at` and `reached`, and `limits` the month limits
-  alone. Visible to resource project/customer members and the provider
+  with `used`, `limit`, `resets_at` (`null` for a total) and `reached`, and
+  `limits` the month limits alone. Visible to resource project/customer members and the provider
   organization.
 - `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
   URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access —
@@ -630,7 +658,7 @@ Three things stay closed to the assignee:
   the assignee that would undo a pause meant for them, so it is refused with
   `403`.
 - They cannot rotate an `OK` key whose usage has reached any one of its
-  limits, whatever its period — day, week, month, quarter or year (`409`). A
+  limits, whatever its period — day, week, month, quarter, year or total (`409`). A
   usage report pauses only a settled key, so a rotation in flight would hold
   the limit pause off for the very person the limit is set for. A manager can
   still rotate it, and the key is paused once the agent acknowledges the
@@ -687,9 +715,12 @@ organization, but reading a value is not: `reveal` stays consumer-side only.
   value}, billing_period?, daily_usages?: [{type, date, amount}]}`. `usages` is
   the key's usage so far in that month (any day of it; the current month when
   omitted). A report for the month the key holds is merged into
-  `current_usages`; one for a later month replaces it. Only the latest month is
-  kept, so a report for an earlier one is refused with `409`, and one for a
-  future month with `400`. `daily_usages` are amounts per UTC date with at most
+  `current_usages`, each component taking the higher of the figure it held and
+  the one reported; one for a later month replaces it. One for an earlier month
+  raises that month's figures in `usage_history` the same way, for a total
+  limit, and leaves `current_usages` alone; a month before the start of the
+  current year — or of the previous month, when that is earlier — is refused
+  with `409`, and a future month with `400`. `daily_usages` are amounts per UTC date with at most
   two decimal places, as for a resource's daily usage (`usages` takes any
   number), so an agent must round sub-cent amounts to the cent before sending
   them. A date reported again replaces its amount, a future date or the same

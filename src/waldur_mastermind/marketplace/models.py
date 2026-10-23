@@ -2213,7 +2213,9 @@ class Resource(
         help_text=(
             "When the spending limits that restrict the resource reset and the "
             "restriction lifts. Empty when no spending limit restricts the "
-            "resource, or when a limit-based component's limit does too."
+            "resource, when a limit-based component's limit does too, or while a "
+            "reached total limit holds it: a total never resets, so the "
+            "restriction lifts only when that limit is raised or cleared."
         ),
     )
     spending_limits = models.JSONField(
@@ -6020,8 +6022,18 @@ class ResourceApiKey(
         null=True,
         blank=True,
         help_text=_(
-            "The month current_usages covers (its first day). Limits are monthly: "
-            "usage of an earlier month counts against none."
+            "The month current_usages covers (its first day). Earlier months are "
+            "kept in usage_history."
+        ),
+    )
+    usage_history = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Usage per component type of each month before usage_period: "
+            '{"2026-09": {"token_cost": 12.5}}. Kept when the next month\'s usage '
+            "comes in, and raised, never lowered, by usage reported late for the "
+            "month. Never pruned: a total limit counts it."
         ),
     )
     paused_by_limit = models.BooleanField(
@@ -6029,7 +6041,8 @@ class ResourceApiKey(
         help_text=_(
             "Waldur paused the key because its usage reached a limit. Such a key "
             "is resumed automatically once its usage is under its limits again: "
-            "when the period of the limit resets, or when a limit is raised."
+            "when the period of the limit resets, or when a limit is raised. A "
+            "total limit never resets, so only raising or clearing it does."
         ),
     )
     limit_resumes_at = models.DateTimeField(
@@ -6037,7 +6050,9 @@ class ResourceApiKey(
         blank=True,
         help_text=_(
             "When every limit that paused the key has reset, so that it resumes "
-            "without a new usage report."
+            "without a new usage report. Empty while a reached total limit holds "
+            "the key: a total never resets, so the key resumes only when that "
+            "limit is raised or cleared."
         ),
     )
     models_outdated = models.BooleanField(
