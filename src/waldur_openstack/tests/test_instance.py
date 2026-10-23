@@ -28,6 +28,7 @@ from waldur_openstack.tests import factories, fixtures, helpers
 from waldur_openstack.tests.helpers import (
     override_openstack_settings,
 )
+from waldur_openstack.tests.unittests.test_backend import BaseBackendTestCase
 from waldur_openstack.utils import (
     get_external_network_id,
     volume_type_name_to_quota_name,
@@ -2381,6 +2382,105 @@ class InstanceRescueActionTest(test.APITestCase):
         response = self.client.post(self.rescue_url, data={})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.rescue_exec.assert_not_called()
+
+
+@ddt
+class InstanceActionNovaErrorTest(BaseBackendTestCase):
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+        self.instance.state = CoreStates.OK
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.backend_id = "VALID_ID"
+        self.instance.save()
+        self.fault_message = (
+            "Instance VALID_ID cannot be rescued: Driver Error: "
+            "[Errno 28] No space left on device"
+        )
+        server = mock.Mock(
+            status=models.Instance.RuntimeStates.ERROR,
+            fault={"message": self.fault_message},
+        )
+        self.mocked_nova.servers.get.return_value = server
+        # A poll that does not recognise ERROR would retry for ~100 minutes.
+        self.poll_retry = mock.patch.object(
+            core_tasks.PollRuntimeStateTask,
+            "retry",
+            side_effect=RuntimeError("Poll did not stop on ERROR."),
+        ).start()
+
+    def assert_instance_erred(self):
+        self.poll_retry.assert_not_called()
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.state, CoreStates.ERRED)
+
+    def assert_poll_stops_on_error(self, executor, **kwargs):
+        # Sync execute() cannot pass result_id to the failure signature when
+        # the chain raises, so run the task chain alone and check the poll.
+        executor.pre_apply(self.instance, **kwargs)
+        signature = executor.get_task_signature(
+            self.instance, serialize_instance(self.instance), **kwargs
+        )
+        with self.assertRaises(core_tasks.RuntimeStateException):
+            signature.apply()
+        self.poll_retry.assert_not_called()
+
+    @data(
+        executors.InstanceRescueExecutor,
+        executors.InstanceUnrescueExecutor,
+        executors.InstanceStopExecutor,
+        executors.InstanceStartExecutor,
+        executors.InstanceRestartExecutor,
+    )
+    def test_instance_is_erred_when_nova_fails_the_action(self, executor):
+        with self.assertRaises(core_tasks.RuntimeStateException):
+            executor.execute(self.instance, is_async=False)
+
+        self.assert_instance_erred()
+        self.assertEqual(
+            self.instance.runtime_state, models.Instance.RuntimeStates.ERROR
+        )
+        self.assertEqual(self.instance.error_message, self.fault_message)
+
+    def test_flavor_change_poll_stops_when_nova_fails_the_resize(self):
+        self.assert_poll_stops_on_error(
+            executors.InstanceFlavorChangeExecutor,
+            flavor=self.fixture.flavor,
+            old_flavor_name="small",
+        )
+
+    def test_floating_ip_poll_stops_when_neutron_reports_error(self):
+        port = factories.PortFactory(
+            instance=self.instance,
+            tenant=self.tenant,
+            service_settings=self.fixture.settings,
+        )
+        floating_ip = self.fixture.floating_ip
+        floating_ip.port = port
+        floating_ip.save()
+        self.instance._old_floating_ips = []
+        self.instance._new_floating_ips = [floating_ip.address]
+        self.mocked_neutron.show_floatingip.return_value = {
+            "floatingip": {"status": "ERROR"}
+        }
+
+        self.assert_poll_stops_on_error(executors.InstanceFloatingIPsUpdateExecutor)
+
+    def test_termination_stops_when_nova_fails_the_stop(self):
+        self.assert_poll_stops_on_error(executors.InstanceDeleteExecutor)
+
+    def test_instance_can_be_terminated_after_failed_rescue(self):
+        with self.assertRaises(core_tasks.RuntimeStateException):
+            executors.InstanceRescueExecutor.execute(self.instance, is_async=False)
+        self.instance.refresh_from_db()
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.NotFound(code=404)
+        self.mocked_cinder.volumes.get.side_effect = cinder_exceptions.NotFound(
+            code=404
+        )
+
+        delete_instance(self.instance, is_async=False)
+
+        self.assertFalse(models.Instance.objects.filter(id=self.instance.id).exists())
 
 
 class InstanceSetMetadataTest(test.APITestCase):

@@ -1370,7 +1370,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
                     core_utils.serialize_instance(floating_ip),
                     backend_pull_method="pull_floating_ip_runtime_state",
                     success_state="ACTIVE",
-                    erred_state="ERRED",
+                    erred_state="ERROR",
                 )
                 .set(countdown=5 if not index else 0)
             )
@@ -1566,7 +1566,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="SHUTOFF",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
         ]
 
@@ -1766,7 +1766,7 @@ class InstanceFlavorChangeExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="VERIFY_RESIZE",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance, backend_method="confirm_instance_resize"
@@ -1775,7 +1775,7 @@ class InstanceFlavorChangeExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="SHUTOFF",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
         )
 
@@ -1859,7 +1859,7 @@ class InstanceFloatingIPsUpdateExecutor(core_executors.ActionExecutor):
                     core_utils.serialize_instance(floating_ip),
                     backend_pull_method="pull_floating_ip_runtime_state",
                     success_state="ACTIVE",
-                    erred_state="ERRED",
+                    erred_state="ERROR",
                 )
                 .set(countdown=5 if not index else 0)
             )
@@ -1896,7 +1896,7 @@ class InstanceStopExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="SHUTOFF",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
         )
 
@@ -1916,7 +1916,7 @@ class InstanceStartExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="ACTIVE",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
         )
 
@@ -1936,7 +1936,7 @@ class InstanceRestartExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="ACTIVE",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
         )
 
@@ -1958,7 +1958,7 @@ class InstanceRescueExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="RESCUE",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
         )
 
@@ -1978,7 +1978,7 @@ class InstanceUnrescueExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
                 success_state="ACTIVE",
-                erred_state="ERRED",
+                erred_state=models.Instance.RuntimeStates.ERROR,
             ),
         )
 
