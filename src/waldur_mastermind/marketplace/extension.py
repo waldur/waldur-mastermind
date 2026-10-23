@@ -60,6 +60,21 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "waldur-marketplace-resume-api-keys-after-limit-reset": {
+                "task": "waldur_mastermind.marketplace.resume_api_keys_after_limit_reset",
+                "schedule": timedelta(minutes=5),
+                "args": (),
+            },
+            "waldur-marketplace-retry-failed-api-key-limit-pauses": {
+                "task": "waldur_mastermind.marketplace.retry_failed_api_key_limit_pauses",
+                "schedule": timedelta(minutes=5),
+                "args": (),
+            },
+            "waldur-marketplace-prune-api-key-daily-usage": {
+                "task": "waldur_mastermind.marketplace.prune_api_key_daily_usage",
+                "schedule": crontab(minute=20, hour=2),
+                "args": (),
+            },
             "waldur-marketplace-send-outdated-api-key-models": {
                 "task": "waldur_mastermind.marketplace.send_outdated_api_key_models",
                 "schedule": timedelta(hours=1),

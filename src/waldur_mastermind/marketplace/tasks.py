@@ -45,12 +45,14 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import (
+    api_key_spending_limits,
     exceptions,
     models,
     offering_merge,
     plugins,
     project_groups,
     resource_api_keys,
+    spending_limits,
     utils,
 )
 from waldur_mastermind.marketplace import log as marketplace_log
@@ -152,12 +154,45 @@ def lift_reset_spending_limit_restrictions():
 
 @shared_task(name="waldur_mastermind.marketplace.resume_api_keys_under_limit")
 def resume_api_keys_under_limit():
-    """Resume the API keys Waldur paused for a limit once a new month resets it.
+    """Resume the API keys Waldur paused for a limit once they are under it again.
 
     The per-key counterpart of ``re_evaluate_usage_limit_restrictions``: a usage
-    report resumes such a key on its own, but a new month may begin without one.
+    report resumes such a key on its own, but a period may reset without one.
     """
     resource_api_keys.resume_keys_under_limit()
+
+
+@shared_task(name="waldur_mastermind.marketplace.resume_api_keys_after_limit_reset")
+def resume_api_keys_after_limit_reset():
+    """Resume the API keys whose limits have reset since Waldur paused them.
+
+    The per-key counterpart of ``lift_reset_spending_limit_restrictions``: runs
+    every few minutes, so a key paused by a daily limit comes back close to
+    midnight UTC rather than on the hourly check.
+    """
+    resource_api_keys.resume_keys_under_limit(reset_only=True)
+
+
+@shared_task(name="waldur_mastermind.marketplace.retry_failed_api_key_limit_pauses")
+def retry_failed_api_key_limit_pauses():
+    """Issue again the limit pauses of API keys that the site agent failed to apply.
+
+    The key stays usable at the backend until its pause succeeds.
+    """
+    resource_api_keys.retry_failed_limit_pauses()
+
+
+@shared_task(name="waldur_mastermind.marketplace.prune_api_key_daily_usage")
+def prune_api_key_daily_usage():
+    """Delete API keys' daily usage rows from before the previous year.
+
+    No limit reads them and no report can be dated in them any more, and an
+    agent that reports every day of the month adds a row a day per key and
+    component.
+    """
+    deleted = api_key_spending_limits.prune_daily_usage(spending_limits.utc_today())
+    if deleted:
+        logger.info("Pruned %s daily usage rows of API keys.", deleted)
 
 
 @shared_task(name="waldur_mastermind.marketplace.send_outdated_api_key_models")

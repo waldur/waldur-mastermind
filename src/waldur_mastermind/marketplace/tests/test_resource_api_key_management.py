@@ -16,6 +16,7 @@ from waldur_core.configuration.testing import override_config
 from waldur_core.core import encryption
 from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace import models, resource_api_keys, tasks, utils
@@ -126,7 +127,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
         self.assertIsNone(key.user)
-        self.assertIsNone(key.limits)
+        self.assertIsNone(key.spending_limits)
         self.assertEqual(key.allowed_models, [])
 
     def test_several_requests_can_wait_for_a_client_id_at_once(self):
@@ -309,7 +310,7 @@ class RequestKeyTest(ApiKeyManagementTestBase):
             resource=self.resource,
             state=States.ERRED,
             pending_action=Actions.CREATE,
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
         )
         response, prepare = self.post(
             self.fixture.owner, detail_url(requested, "retry")
@@ -438,7 +439,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
 
     def test_assigning_a_key_rotates_it(self):
         # Any project member could reveal the unassigned key.
-        self.key.limits = {"tokens": 50}
+        self.key.spending_limits = {"tokens": {"month": 50}}
         self.key.allowed_models = ["*"]
         self.key.save()
         response, prepare = self.patch(
@@ -463,6 +464,19 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.assertIn("limits", payload)
         self.assertIn("allowed_models", payload)
 
+    def test_limit_change_is_sent_as_an_update_command(self):
+        response, prepare = self.patch(
+            self.fixture.owner, self.key, {"limits": {"tokens": 50}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.pending_action, Actions.UPDATE)
+        self.assertEqual(self.key.spending_limits, {"tokens": {"month": 50}})
+        payload = self.published_payload(prepare)
+        self.assertEqual(payload["action"], Actions.UPDATE)
+        self.assertEqual(payload["limits"], {"tokens": 50})
+
     def test_unassigning_a_key_rotates_it(self):
         self.key.user = self.fixture.admin
         self.key.save()
@@ -479,11 +493,11 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         payload = self.assert_rotated(prepare, self.fixture.admin)
         self.assertEqual(payload["limits"], {"tokens": 50})
-        self.assertEqual(self.key.limits, {"tokens": 50})
+        self.assertEqual(self.key.spending_limits, {"tokens": {"month": 50}})
 
     def test_a_rotation_settling_over_the_limit_pauses_the_key(self):
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 9},
             usage_period=THIS_MONTH,
         )
@@ -512,7 +526,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         prepare.assert_not_called()
         self.key.refresh_from_db()
         self.assertIsNone(self.key.user)
-        self.assertIsNone(self.key.limits)
+        self.assertIsNone(self.key.spending_limits)
         self.assertEqual(self.key.state, States.PAUSED)
 
     def test_a_key_with_a_command_in_flight_cannot_change_hands(self):
@@ -622,7 +636,7 @@ class KeySettingsTest(ApiKeyManagementTestBase):
         )
 
     def test_unchanged_settings_are_not_a_command(self):
-        self.key.limits = {"tokens": 50}
+        self.key.spending_limits = {"tokens": {"month": 50}}
         self.key.save()
         response, prepare = self.patch(
             self.fixture.owner, self.key, {"limits": {"tokens": 50}}
@@ -974,7 +988,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         # A usage report pauses only a settled key, so a rotation in flight
         # would hold the limit pause off for the one the limit is set for.
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 5},
             usage_period=THIS_MONTH,
         )
@@ -991,7 +1005,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         # nothing off: it is what settles the key for the next report.
         self.fail_command(
             lambda key: key.set_updating(),
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 9},
             usage_period=THIS_MONTH,
         )
@@ -1002,7 +1016,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
         # A usage report holds off while the rotation is in flight; the
         # acknowledgement must not then settle the key unpaused.
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 4},
             usage_period=THIS_MONTH,
         )
@@ -1033,7 +1047,7 @@ class AssigneeRotationTest(ApiKeyManagementTestBase):
 
     def test_last_months_usage_does_not_stop_the_assignee(self):
         models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
             current_usages={"tokens": 9},
             usage_period=LAST_MONTH,
         )
@@ -1229,7 +1243,7 @@ class RetryTest(ApiKeyManagementTestBase):
     def test_a_retried_update_carries_the_stored_settings(self):
         self.fail(
             lambda key: key.set_updating(Actions.UPDATE),
-            limits={"tokens": 50},
+            spending_limits={"tokens": {"month": 50}},
             allowed_models=["mistral"],
         )
         response, prepare = self.post(self.fixture.owner, detail_url(self.key, "retry"))
@@ -1273,11 +1287,14 @@ class RetryTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         prepare.assert_not_called()
         self.key.refresh_from_db()
-        self.assertIsNone(self.key.limits)
+        self.assertIsNone(self.key.spending_limits)
         self.assertEqual(self.key.pending_action, Actions.ROTATE)
 
     def test_an_edit_retries_a_failed_update(self):
-        self.fail(lambda key: key.set_updating(Actions.UPDATE), limits={"tokens": 5})
+        self.fail(
+            lambda key: key.set_updating(Actions.UPDATE),
+            spending_limits={"tokens": {"month": 5}},
+        )
         self.client.force_authenticate(self.fixture.owner)
         with mock.patch(PREPARE, return_value=MESSAGES) as prepare, mock.patch(PUBLISH):
             response = self.client.patch(
@@ -1596,7 +1613,7 @@ class KeyUsageTest(ApiKeyManagementTestBase):
 class KeyLimitTest(ApiKeyManagementTestBase):
     def setUp(self):
         super().setUp()
-        self.key.limits = {"tokens": 100}
+        self.key.spending_limits = {"tokens": {"month": 100}}
         self.key.save()
         self.sibling = self.make_key("cid-2")
 
@@ -1639,11 +1656,16 @@ class KeyLimitTest(ApiKeyManagementTestBase):
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.OK)
 
-    def test_a_zero_limit_is_no_limit(self):
-        self.key.limits = {"tokens": 0}
-        self.key.save()
-        _, prepare = self.report({"tokens": 5000})
-        prepare.assert_not_called()
+    def test_a_zero_monthly_limit_is_no_limit(self):
+        # The flat monthly shape keeps its meaning: zero sets no limit.
+        self.client.force_authenticate(self.fixture.owner)
+        with mock.patch(PREPARE, return_value=MESSAGES), mock.patch(PUBLISH):
+            response = self.client.patch(
+                detail_url(self.key), {"limits": {"tokens": 0}}, format="json"
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.key.refresh_from_db()
+        self.assertIsNone(self.key.spending_limits)
 
     def test_a_key_already_paused_is_not_paused_again(self):
         self.key.state = States.PAUSED
@@ -1732,7 +1754,7 @@ class KeyLimitTest(ApiKeyManagementTestBase):
         prepare.assert_not_called()
         self.key.refresh_from_db()
         self.assertEqual(self.key.state, States.PAUSED)
-        self.assertEqual(self.key.limits, {"tokens": 120})
+        self.assertEqual(self.key.spending_limits, {"tokens": {"month": 120}})
 
     def test_a_resume_by_hand_clears_the_mark(self):
         self.pause_for_limit()
@@ -1789,14 +1811,14 @@ class KeyLimitTest(ApiKeyManagementTestBase):
             "cid-3",
             state=States.PAUSED,
             paused_by_limit=True,
-            limits={"tokens": 100},
+            spending_limits={"tokens": {"month": 100}},
             current_usages={"tokens": 150},
             usage_period=THIS_MONTH,
         )
         by_hand = self.make_key(
             "cid-4",
             state=States.PAUSED,
-            limits={"tokens": 100},
+            spending_limits={"tokens": {"month": 100}},
             current_usages={"tokens": 150},
             usage_period=LAST_MONTH,
         )
@@ -1950,8 +1972,89 @@ class AuditTest(ApiKeyManagementTestBase):
             [EventType.MARKETPLACE_RESOURCE_API_KEY_DELETED],
         )
 
+    def contexts(self, call):
+        with mock.patch("waldur_mastermind.marketplace.log.event_logger.emit") as emit:
+            call()
+        return [
+            c.kwargs["event_context"]
+            for c in emit.call_args_list
+            if c.kwargs["event_type"].startswith("marketplace_resource_api_key")
+        ]
+
+    def patch_key(self, data):
+        def call():
+            self.client.force_authenticate(self.fixture.owner)
+            with mock.patch(PREPARE, return_value=MESSAGES), mock.patch(PUBLISH):
+                response = self.client.patch(detail_url(self.key), data, format="json")
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        return call
+
+    def test_a_limit_change_carries_the_old_and_new_limits(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        contexts = self.contexts(
+            self.patch_key({"spending_limits": {"tokens": {"month": 20}}})
+        )
+        self.assertEqual(len(contexts), 1)
+        self.assertEqual(contexts[0]["old_spending_limits"], {"tokens": {"month": 10}})
+        self.assertEqual(contexts[0]["new_spending_limits"], {"tokens": {"month": 20}})
+
+    def test_a_limit_change_on_a_paused_key_carries_them_too(self):
+        self.key.state = States.PAUSED
+        self.key.save()
+        contexts = self.contexts(
+            self.patch_key({"spending_limits": {"tokens": {"month": 20}}})
+        )
+        self.assertEqual(len(contexts), 1)
+        self.assertEqual(contexts[0]["old_spending_limits"], {})
+        self.assertEqual(contexts[0]["new_spending_limits"], {"tokens": {"month": 20}})
+
+    def test_the_stored_event_keeps_both(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        self.patch_key({"spending_limits": {"tokens": {"month": 20}}})()
+        event = Event.objects.filter(
+            event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_UPDATED
+        ).latest("created")
+        self.assertEqual(
+            event.context["old_spending_limits"], {"tokens": {"month": 10}}
+        )
+        self.assertEqual(
+            event.context["new_spending_limits"], {"tokens": {"month": 20}}
+        )
+
+    def test_a_removed_limit_reads_as_none_left(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        contexts = self.contexts(self.patch_key({"spending_limits": None}))
+        self.assertEqual(contexts[0]["old_spending_limits"], {"tokens": {"month": 10}})
+        self.assertEqual(contexts[0]["new_spending_limits"], {})
+
+    def test_a_request_carries_the_limits_it_asks_for(self):
+        contexts = self.contexts(
+            lambda: self.post(
+                self.fixture.owner,
+                list_url(),
+                {
+                    "resource": self.resource.uuid.hex,
+                    "spending_limits": {"tokens": {"month": 5}},
+                },
+            )
+        )
+        self.assertEqual(contexts[0]["old_spending_limits"], {})
+        self.assertEqual(contexts[0]["new_spending_limits"], {"tokens": {"month": 5}})
+
+    def test_a_change_that_leaves_the_limits_carries_none(self):
+        self.key.spending_limits = {"tokens": {"month": 10}}
+        self.key.save()
+        contexts = self.contexts(self.patch_key({"allowed_models": ["*"]}))
+        self.assertEqual(len(contexts), 1)
+        self.assertNotIn("old_spending_limits", contexts[0])
+        self.assertNotIn("new_spending_limits", contexts[0])
+
     def test_an_automatic_pause_says_why(self):
-        self.key.limits = {"tokens": 10}
+        self.key.spending_limits = {"tokens": {"month": 10}}
         self.key.save()
         events = self.emitted(
             lambda: self.post(
@@ -1964,7 +2067,7 @@ class AuditTest(ApiKeyManagementTestBase):
         message, event_type = events[0]
         self.assertEqual(event_type, EventType.MARKETPLACE_RESOURCE_API_KEY_PAUSED)
         self.assertIn("automatically", message)
-        self.assertIn("limit for tokens", message)
+        self.assertIn("month limit of tokens", message)
 
 
 class ListingTest(ApiKeyManagementTestBase):
@@ -2052,7 +2155,7 @@ class CommandEnumTest(test.APITestCase):
         key = models.ResourceApiKey.objects.create(
             resource=self.managed_resource(),
             client_id="cid-1",
-            limits={"tokens": 5},
+            spending_limits={"tokens": {"month": 5}},
         )
         for action in Actions.VALUES:
             with self.subTest(action), mock.patch(PREPARE, return_value=[]) as prepare:
@@ -2070,7 +2173,7 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         self.offering.plugin_options = {}
         self.offering.save()
         self.key.user = self.fixture.admin
-        self.key.limits = {"tokens": 5}
+        self.key.spending_limits = {"tokens": {"month": 5}}
         self.key.allowed_models = ALL_MODELS
         self.key.save()
 
@@ -2267,7 +2370,7 @@ class MigrationTest(test.APITestCase):
         settled.refresh_from_db()
         self.assertEqual(settled.pending_action, "")
         self.assertIsNone(settled.user)
-        self.assertIsNone(settled.limits)
+        self.assertIsNone(settled.spending_limits)
         self.assertEqual(settled.state, States.OK)
         settled.set_updating()  # still rotatable
         rotating.refresh_from_db()

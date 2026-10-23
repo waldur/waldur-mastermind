@@ -7618,7 +7618,10 @@ def publish_api_key_event(api_key: models.ResourceApiKey, action: str) -> bool:
         action != ResourceApiKeyActions.ROTATE or api_key.is_managed
     )
     if carries_settings:
-        payload["limits"] = api_key.limits
+        # limits carries the month limits alone, in the flat shape agents that
+        # know only monthly limits read; spending_limits carries every period.
+        payload["limits"] = api_key.monthly_limits
+        payload["spending_limits"] = api_key.spending_limits
         # The key's list narrowed by its resource's: the agent applies what the
         # key can call, not what it chose.
         payload["allowed_models"] = model_lists.effective_models(api_key)
