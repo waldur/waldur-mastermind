@@ -711,6 +711,15 @@ class UserRoleMixin:
                 extensions={"x-waldur-operation-id": "roles_retrieve"},
             ),
             OpenApiParameter(
+                name="role_template",
+                type=build_array_type(build_basic_type(OpenApiTypes.STR)),
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "Role name. Matches that role and organization copies of it. "
+                    "Repeat to match several. Omit to leave the role filter unchanged."
+                ),
+            ),
+            OpenApiParameter(
                 name="search_string",
                 type=str,
                 location=OpenApiParameter.QUERY,
@@ -799,6 +808,11 @@ class UserRoleMixin:
         # "role" query param. getlist honours all of them; a single value is
         # simply a list of one, so callers passing one role are unaffected.
         roles = request.query_params.getlist("role")
+        # Separate from "role": that parameter is an exact row match. This one
+        # also matches organization copies, so a caller can ask for
+        # PROJECT.MANAGER without listing every copy. Callers that omit it are
+        # unchanged.
+        role_templates = request.query_params.getlist("role_template")
         search_string = request.query_params.get("search_string")
         if search_string:
             queryset = queryset.filter(
@@ -816,6 +830,11 @@ class UserRoleMixin:
             if name_roles:
                 role_query |= Q(role__name__in=name_roles)
             queryset = queryset.filter(role_query)
+        if role_templates:
+            queryset = queryset.filter(
+                Q(role__name__in=role_templates)
+                | Q(role__template__name__in=role_templates)
+            )
         queryset = self.paginate_queryset(queryset)
         if request.method == "HEAD":
             # Count-only request (the `_count` companion): the X-Result-Count
