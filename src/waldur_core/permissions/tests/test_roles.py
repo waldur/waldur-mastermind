@@ -5,8 +5,13 @@ from waldur_core.configuration.testing import override_config
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions import models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.serializers import clone_role_for_customer
 from waldur_core.permissions.tests import factories
 from waldur_core.structure.models import Project
 from waldur_core.structure.tests import factories as structure_factories
@@ -375,3 +380,64 @@ class DeactivatedUserRoleAssignmentTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("deactivated", str(response.data))
+
+
+class ListUsersRoleTemplateFilterTest(test.APITestCase):
+    """role_template matches a role and its organization copies.
+
+    The role parameter stays an exact match on the role row.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.staff = self.fixture.staff
+        self.manager = structure_factories.UserFactory()
+        self.copy_holder = structure_factories.UserFactory()
+        self.admin = structure_factories.UserFactory()
+        self.project.add_user(self.manager, ProjectRole.MANAGER)
+        self.project.add_user(self.admin, ProjectRole.ADMIN)
+        self.clone = clone_role_for_customer(
+            ProjectRole.MANAGER, self.project.customer, conceal_template=False
+        )
+        self.project.add_user(self.copy_holder, self.clone)
+        self.url = structure_factories.ProjectFactory.get_url(
+            self.project, action="list_users"
+        )
+        self.client.force_authenticate(self.staff)
+
+    def _user_uuids(self, **params):
+        response = self.client.get(self.url, params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return {row["user_uuid"] for row in response.data}
+
+    def test_role_name_does_not_include_an_organization_copy(self):
+        listed = self._user_uuids(role=ProjectRole.MANAGER.name)
+
+        self.assertIn(self.manager.uuid.hex, listed)
+        self.assertNotIn(self.copy_holder.uuid.hex, listed)
+        self.assertNotIn(self.admin.uuid.hex, listed)
+
+    def test_role_template_includes_the_role_and_its_copy(self):
+        listed = self._user_uuids(role_template=ProjectRole.MANAGER.name)
+
+        self.assertIn(self.manager.uuid.hex, listed)
+        self.assertIn(self.copy_holder.uuid.hex, listed)
+        self.assertNotIn(self.admin.uuid.hex, listed)
+
+    def test_role_stays_exact_when_role_template_is_also_set(self):
+        listed = self._user_uuids(
+            role=ProjectRole.MANAGER.name,
+            role_template=ProjectRole.MANAGER.name,
+        )
+
+        self.assertIn(self.manager.uuid.hex, listed)
+        self.assertNotIn(self.copy_holder.uuid.hex, listed)
+
+    def test_role_template_can_be_combined_with_role(self):
+        listed = self._user_uuids(
+            role=ProjectRole.ADMIN.name,
+            role_template=ProjectRole.MANAGER.name,
+        )
+
+        self.assertEqual(listed, set())
