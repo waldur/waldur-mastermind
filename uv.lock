@@ -3551,15 +3551,6 @@ wheels = [
 ]
 
 [[package]]
-name = "ua-parser"
-version = "0.18.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/72/c3/5e715a16a9f8117a9ed92f5112911e07d40cfdf0f81cd4139f0c6307c57c/ua-parser-0.18.0.tar.gz", hash = "sha256:db51f1b59bfaa82ed9e2a1d99a54d3e4153dddf99ac1435d51828165422e624e", size = 40659, upload-time = "2023-07-08T11:24:06.519Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/d5/3cf1bdc3401dda1c45894deac836aaab571c26858f83e1b6d6a7c249d444/ua_parser-0.18.0-py2.py3-none-any.whl", hash = "sha256:9d94ac3a80bcb0166823956a779186c746b50ea4c9fd9bf30fdb758553c38950", size = 38314, upload-time = "2023-07-08T11:24:04.903Z" },
-]
-
-[[package]]
 name = "uc-micro-py"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3687,7 +3678,6 @@ dependencies = [
     { name = "django-netfields" },
     { name = "django-reversion" },
     { name = "django-structlog", extra = ["celery"] },
-    { name = "django-stubs-ext" },
     { name = "djangorestframework" },
     { name = "djangosaml2" },
     { name = "docker" },
@@ -3734,7 +3724,6 @@ dependencies = [
     { name = "textile" },
     { name = "tomli-w" },
     { name = "typst" },
-    { name = "ua-parser" },
     { name = "uvicorn" },
     { name = "waldur-api-client" },
     { name = "webauthn" },
@@ -3785,7 +3774,6 @@ requires-dist = [
     { name = "django-netfields", specifier = ">=1.3.0,<2.0.0" },
     { name = "django-reversion", specifier = "==6.1.0" },
     { name = "django-structlog", extras = ["celery"], specifier = ">=10.0.0" },
-    { name = "django-stubs-ext", specifier = ">=5.1.3,<6.0.0" },
     { name = "djangorestframework", specifier = ">=3.18.2,<4.0.0" },
     { name = "djangosaml2", specifier = ">=1.11.0,<2.0.0" },
     { name = "docker", specifier = "==7.1.0" },
@@ -3832,7 +3820,6 @@ requires-dist = [
     { name = "textile", specifier = ">=4.0.2,<5.0.0" },
     { name = "tomli-w", specifier = ">=1.2.0" },
     { name = "typst", specifier = ">=0.15" },
-    { name = "ua-parser", specifier = ">=0.18.0,<1.0.0" },
     { name = "uvicorn", specifier = ">=0.54" },
     { name = "waldur-api-client", specifier = ">=8.0.9,<8.1" },
     { name = "webauthn", specifier = ">=3.0.0" },

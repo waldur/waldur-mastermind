@@ -39,7 +39,6 @@ from requests.packages.urllib3 import exceptions
 from rest_framework.fields import BooleanField
 from rest_framework.serializers import ValidationError
 from rest_framework.settings import api_settings
-from ua_parser import user_agent_parser
 
 from waldur_core.configuration import config
 from waldur_core.structure.notifications import NOTIFICATIONS
@@ -823,10 +822,6 @@ def validate_access_subnet_for_user(value, user):
 
 def get_user_agent(request):
     return request.META.get("HTTP_USER_AGENT", "")
-
-
-def get_device_info(user_agent):
-    return user_agent_parser.Parse(user_agent)
 
 
 def get_last_month():
