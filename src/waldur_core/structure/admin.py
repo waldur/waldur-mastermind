@@ -23,7 +23,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import (
     ExecutorAdminAction,
     ExtraActionsMixin,
-    JsonWidget,
     PasswordWidget,
     ReadOnlyAdminMixin,
 )
@@ -398,47 +397,42 @@ class ServiceSettingsAdminForm(ModelForm):
                         f"Incorrect field {field} in {service_type} required_fields"
                     )
 
-        # Check required extra fields of service type
-        try:
-            if "options" in cleaned_data:
-                options = {
-                    "backend_url": cleaned_data.get("backend_url"),
-                    "username": cleaned_data.get("username"),
-                    "password": cleaned_data.get("password"),
-                    "domain": cleaned_data.get("domain"),
-                    "token": cleaned_data.get("token"),
-                    **json.loads(cleaned_data.get("options")),
-                }
-                unfilled = (
-                    set(extra_fields_required[service_type])
-                    - set(options.keys())
-                    - set(fields_default.keys())
-                )
+        # Check required extra fields of service type. The admin's AdminJsonField has
+        # already made sure options is an object, or reported why not.
+        if "options" in cleaned_data:
+            options = {
+                "backend_url": cleaned_data.get("backend_url"),
+                "username": cleaned_data.get("username"),
+                "password": cleaned_data.get("password"),
+                "domain": cleaned_data.get("domain"),
+                "token": cleaned_data.get("token"),
+                **cleaned_data["options"],
+            }
+            unfilled = (
+                set(extra_fields_required[service_type])
+                - set(options.keys())
+                - set(fields_default.keys())
+            )
 
-                if unfilled:
-                    self.add_error(
-                        "options",
-                        _("This field must include keys: %s") % ", ".join(unfilled),
-                    )
-                options_serializer_class = get_options_serializer_class(service_type)
-                if options_serializer_class:
-                    options_serializer = options_serializer_class(data=options)
-                    if not options_serializer.is_valid():
-                        self.add_error("options", json.dumps(options_serializer.errors))
-                    else:
-                        if "options" in options_serializer.validated_data:
-                            cleaned_data["options"] = json.dumps(
-                                options_serializer.validated_data["options"]
-                            )
-        except ValueError:
-            self.add_error("options", _("JSON is not valid"))
+            if unfilled:
+                self.add_error(
+                    "options",
+                    _("This field must include keys: %s") % ", ".join(unfilled),
+                )
+            options_serializer_class = get_options_serializer_class(service_type)
+            if options_serializer_class:
+                options_serializer = options_serializer_class(data=options)
+                if not options_serializer.is_valid():
+                    self.add_error("options", json.dumps(options_serializer.errors))
+                elif "options" in options_serializer.validated_data:
+                    cleaned_data["options"] = options_serializer.validated_data[
+                        "options"
+                    ]
 
         return cleaned_data
 
     class Meta:
         widgets = {
-            "options": JsonWidget(),
-            "geolocations": JsonWidget(),
             "username": forms.TextInput(attrs={"autocomplete": "new-password"}),
             "password": PasswordWidget(attrs={"autocomplete": "new-password"}),
             "token": PasswordWidget(attrs={"autocomplete": "new-password"}),

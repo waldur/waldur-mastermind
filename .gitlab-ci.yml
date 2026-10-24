@@ -1106,9 +1106,8 @@ Release tag:
 # use-restricted (Hippocratic, JSON). LGPL and MPL pass but stay listed in the
 # artifact. See #285.
 #
-# The two exemptions are defective upstream metadata, not incompatible licences:
-# matrix-nio ships its whole licence text in the `License:` field (it is ISC),
-# and django-jsoneditor publishes an empty one.
+# The exemption is defective upstream metadata, not an incompatible licence:
+# matrix-nio ships its whole licence text in the `License:` field (it is ISC).
 #
 # allow_failure is inherited as true from the template. Drop it to false once
 # #286 (html2text is GPL-3.0-or-later) is closed.
@@ -1118,7 +1117,7 @@ Check dependency licences:
     # peewee and vodozemac (the Matrix bot's crypto store and Olm library) ship an
     # MIT LICENSE file but declare no licence in their metadata, so the checker
     # cannot classify them.
-    LICENCE_EXEMPT_PACKAGES: "matrix-nio django-jsoneditor peewee vodozemac"
+    LICENCE_EXEMPT_PACKAGES: "matrix-nio peewee vodozemac"
     # Beyond the template's default git: python-ldap (via django-auth-ldap)
     # publishes no wheel on any platform, so the sync builds it from its sdist
     # and needs a compiler plus the OpenLDAP and Cyrus SASL headers.

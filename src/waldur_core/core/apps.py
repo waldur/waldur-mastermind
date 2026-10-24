@@ -20,9 +20,13 @@ class CoreConfig(AppConfig):
             db_template_cache,
             handlers,
         )
+        from waldur_core.core.admin_widgets import install_admin_json_fields
         from waldur_core.core.health_checks import CeleryWorkersHealthCheck
         from waldur_core.core.models import StateMixin, User
         from waldur_core.logging import availability as event_availability
+
+        # Every admin edits JSON model fields with AdminJsonField.
+        install_admin_json_fields()
 
         SshPublicKey = self.get_model("SshPublicKey")
         NotificationTemplate = self.get_model("NotificationTemplate")

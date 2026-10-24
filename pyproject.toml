@@ -18,7 +18,6 @@ dependencies = [
   "django-auth-ldap>=5.2.0,<6.0.0",
   "django-filter==24.3",
   "django-fsm-2>=4.2.4,<5",
-  "django-jsoneditor==0.2.3",
   # Pinned to a commit, not to the branch: a branch ref lets an upstream push
   # change what a build installs without any change here or in uv.lock.
   "django-model-utils @ git+https://github.com/waldur/django-model-utils@50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6",

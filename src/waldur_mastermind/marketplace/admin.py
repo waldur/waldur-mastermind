@@ -14,7 +14,6 @@ from waldur_core.core import admin as core_admin
 from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import (
     ExecutorAdminAction,
-    JsonWidget,
     format_json_field,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
@@ -330,16 +329,6 @@ class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
     scope_link.short_description = "Scope"
 
 
-class OfferingAdminForm(ModelForm):
-    class Meta:
-        widgets = {
-            "attributes": JsonWidget(),
-            "options": JsonWidget(),
-            "plugin_options": JsonWidget(),
-            "referrals": JsonWidget(),
-        }
-
-
 class OfferingComponentInline(admin.StackedInline):
     model = models.OfferingComponent
     classes = ["collapse"]
@@ -387,7 +376,6 @@ class OfferingUserGroupInline(admin.StackedInline):
 
 
 class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
-    form = OfferingAdminForm
     inlines = [
         ScreenshotsInline,
         PlansInline,

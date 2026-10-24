@@ -7,7 +7,6 @@ from django.utils.translation import gettext_lazy as _
 from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
-from waldur_core.core.admin import JsonWidget
 
 from . import models, tasks
 
@@ -114,7 +113,6 @@ class InvoiceAdmin(
 class PaymentProfileAdminForm(ModelForm):
     class Meta:
         widgets = {
-            "attributes": JsonWidget(),
             "is_active": CheckboxInput(),
         }
 

@@ -17,15 +17,13 @@ from django.contrib.auth import forms as auth_forms
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
-from django.forms.utils import flatatt
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import re_path, reverse
 from django.utils.functional import cached_property
-from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
-from jsoneditor.forms import JSONEditor
 from rest_framework import permissions as rf_permissions
 from rest_framework.exceptions import ParseError
 from reversion.admin import VersionAdmin
@@ -33,6 +31,7 @@ from reversion.admin import VersionAdmin
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import models
+from waldur_core.core.admin_widgets import CopyButtonMixin
 from waldur_core.core.authentication import can_access_admin_site
 from waldur_core.core.handlers import emit_admin_action_event
 from waldur_core.core.utils import chunked_queryset
@@ -93,22 +92,6 @@ class ReadOnlyAdminMixin:
         pass
 
 
-class CopyButtonMixin:
-    """Mixin to add copy-to-clipboard functionality to form fields in Django admin."""
-
-    class Media:
-        js = (settings.STATIC_URL + "landing/js/copy2clipboard.js",)
-
-    def render(self, name, value, attrs=None, renderer=None):
-        result = super().render(name, value, attrs)
-        button_attrs = {
-            "class": "button copy-button",
-            "data-target-id": attrs["id"],
-        }
-        result += f"<a {flatatt(button_attrs)}>Copy</a>"
-        return mark_safe(result)  # noqa: S308
-
-
 class PasswordWidget(CopyButtonMixin, forms.PasswordInput):
     template_name = "admin/core/widgets/password-widget.html"
 
@@ -116,15 +99,12 @@ class PasswordWidget(CopyButtonMixin, forms.PasswordInput):
         super().__init__(attrs, render_value=True)
 
 
-class JsonWidget(CopyButtonMixin, JSONEditor):
-    class Media:
-        js = JSONEditor.Media.js + CopyButtonMixin.Media.js
-
-
 def format_json_field(value):
-    template = '<div><pre style="overflow: hidden">{0}</pre></div>'
-    formatted_value = json.dumps(value, indent=True, ensure_ascii=False)
-    return mark_safe(template.format(formatted_value))  # noqa: S308
+    # The JSON holds whatever users and backends put in it: escape it.
+    return format_html(
+        '<div><pre style="overflow: hidden">{}</pre></div>',
+        json.dumps(value, indent=True, ensure_ascii=False),
+    )
 
 
 class OptionalChoiceField(forms.ChoiceField):
