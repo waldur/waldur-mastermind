@@ -7,7 +7,9 @@ from io import StringIO
 from pathlib import Path
 
 from django.core.management import call_command
+from django.utils import timezone
 
+from waldur_mastermind.invoices.models import Invoice
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.demo_presets.credit_history import (
     generate_credit_history,
@@ -304,17 +306,34 @@ class DemoPresetManager:
         This method triggers the billing system for each resource that is in
         the OK state, creating the appropriate invoices and invoice items
         based on the resource's plan components.
+
+        Creating a customer's invoice for the month bills every active resource
+        of that customer. Once one resource has created it, the customer's
+        other resources are already on it, and registering them again would
+        bill them twice. Resources are registered one by one only on an
+        invoice the preset ships.
         """
         output.write("\n============================================================\n")
         output.write("Generating Billing Data\n")
         output.write("============================================================\n")
 
-        resources = Resource.objects.filter(state=ResourceStates.OK)
+        resources = Resource.objects.filter(state=ResourceStates.OK).select_related(
+            "project"
+        )
         invoice_count = 0
+        today = timezone.now()
+        invoiced_customers = set()
 
         for resource in resources:
+            customer_id = resource.project.customer_id
             try:
-                MarketplaceBillingService.handle_resource_creation(resource)
+                if customer_id not in invoiced_customers:
+                    invoice_exists = Invoice.objects.filter(
+                        customer_id=customer_id, year=today.year, month=today.month
+                    ).exists()
+                    MarketplaceBillingService.handle_resource_creation(resource)
+                    if not invoice_exists:
+                        invoiced_customers.add(customer_id)
                 invoice_count += 1
                 output.write(f"Generated billing for: {resource.name}\n")
             except Exception as e:

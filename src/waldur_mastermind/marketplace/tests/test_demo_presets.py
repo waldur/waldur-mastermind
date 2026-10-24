@@ -12,6 +12,7 @@ from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db.models import Count
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status, test
@@ -19,6 +20,7 @@ from rest_framework import status, test
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace.demo_presets.manifest import (
     DemoPresetManager,
     PresetMetadata,
@@ -26,12 +28,15 @@ from waldur_mastermind.marketplace.demo_presets.manifest import (
 from waldur_mastermind.marketplace.demo_presets.time_shift import (
     rebase_to_current_month,
 )
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import (
     Offering,
     PlanComponent,
     Resource,
     ResourceProject,
 )
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_openstack import utils as openstack_utils
 from waldur_mastermind.proposal.models import (
     CallAssignmentConfiguration,
@@ -427,6 +432,52 @@ class DemoPresetAPITest(test.APITestCase):
         self.assertEqual(response.json()["name"], preset_name)
 
 
+class GenerateBillingTest(test.APITestCase):
+    """Two resources of one customer, each billed once for the month."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resources = [
+            self.fixture.resource,
+            marketplace_factories.ResourceFactory(
+                offering=self.fixture.offering,
+                plan=self.fixture.plan,
+                project=self.fixture.project,
+            ),
+        ]
+        # update() rather than save(): the state change handler would bill
+        # the resources itself.
+        Resource.objects.filter(id__in=[r.id for r in self.resources]).update(
+            state=ResourceStates.OK
+        )
+
+    def _items_per_resource(self):
+        today = timezone.now()
+        return [
+            InvoiceItem.objects.filter(
+                resource=resource,
+                invoice__year=today.year,
+                invoice__month=today.month,
+            ).count()
+            for resource in self.resources
+        ]
+
+    def test_resources_of_a_new_invoice_are_billed_once(self):
+        DemoPresetManager._generate_billing_for_resources(StringIO())
+
+        self.assertEqual(self._items_per_resource(), [1, 1])
+
+    def test_resources_of_an_existing_invoice_are_billed_once(self):
+        today = timezone.now()
+        Invoice.objects.create(
+            customer=self.fixture.customer, year=today.year, month=today.month
+        )
+
+        DemoPresetManager._generate_billing_for_resources(StringIO())
+
+        self.assertEqual(self._items_per_resource(), [1, 1])
+
+
 @ddt
 class DemoPresetLoadTest(test.APITestCase):
     """Integration tests for loading demo presets into the database."""
@@ -453,6 +504,18 @@ class DemoPresetLoadTest(test.APITestCase):
             f"Preset '{preset_name}' failed to load: {result['message']}\n"
             f"Output: {result.get('output', '')}",
         )
+        today = timezone.now()
+        billed_twice = (
+            InvoiceItem.objects.filter(
+                invoice__year=today.year,
+                invoice__month=today.month,
+                resource__isnull=False,
+            )
+            .values("resource__name", "name")
+            .annotate(count=Count("id"))
+            .filter(count__gt=1)
+        )
+        self.assertFalse(list(billed_twice))
 
     def test_call_management_preset_loads_call_configurations(self):
         preset = json.loads(
@@ -561,6 +624,21 @@ class OpenStackCloudPresetTest(test.APITestCase):
                 monthly = price * resource.limits[component] / 1024
                 with self.subTest(resource=resource.name, component=component):
                     self.assertGreater(monthly, 1)
+
+    def test_each_tenant_is_billed_once_this_month(self):
+        # The preset ships no invoices, so the loader creates this month's.
+        today = timezone.now()
+        for resource in Resource.objects.filter(offering__type="OpenStack.Tenant"):
+            names = list(
+                InvoiceItem.objects.filter(
+                    resource=resource,
+                    invoice__year=today.year,
+                    invoice__month=today.month,
+                ).values_list("name", flat=True)
+            )
+            with self.subTest(resource=resource.name):
+                self.assertTrue(names)
+                self.assertEqual(len(names), len(set(names)))
 
     def test_child_offerings_are_named_like_the_plugin_names_them(self):
         for tenant in self.tenants:
