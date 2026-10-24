@@ -18,6 +18,7 @@ from django.db import connection, connections, transaction
 from django.db.models import ForeignKey, ProtectedError
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
 from drf_spectacular.plumbing import OpenApiTypes
@@ -51,7 +52,7 @@ from waldur_core.changelog.utils import (
 from waldur_core.configuration import config
 from waldur_core.configuration.models import Setting, Source
 from waldur_core.configuration.secrets import redact_constance_secrets
-from waldur_core.core import WaldurExtension, models, permissions
+from waldur_core.core import WaldurExtension, models, pdf, permissions
 from waldur_core.core.authentication import (
     OIDC_AUTHENTICATION_METHODS,
     AuthenticationMethod,
@@ -79,6 +80,12 @@ from waldur_core.core.permissions import (
     can_read_constance_secrets,
 )
 from waldur_core.core.serializers import (
+    EXPORT_PDF_MAX_CELLS,
+    EXPORT_PDF_MAX_CHARACTERS,
+    EXPORT_PDF_MAX_COLUMNS,
+    EXPORT_PDF_MAX_IMAGE_BYTES,
+    EXPORT_PDF_MAX_IMAGE_PIXELS,
+    EXPORT_PDF_MAX_ROWS,
     AuthTokenChallengeSerializer,
     AvailableBindingTargetSerializer,
     AvailableScopeSerializer,
@@ -87,6 +94,7 @@ from waldur_core.core.serializers import (
     CoreAuthTokenSerializer,
     DatabaseStatsResponseSerializer,
     EmptySerializer,
+    ExportPdfSerializer,
     LogoutSerializer,
     ObtainAuthTokenSerializer,
     PersonalAccessTokenCreatedSerializer,
@@ -394,6 +402,82 @@ class TokenExchangeView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response({"token": token_key})
+
+
+class ExportPdfView(APIView):
+    """Render a table or a chart the client has already assembled as a PDF."""
+
+    throttle_scope = "export_pdf"
+    serializer_class = ExportPdfSerializer
+
+    @extend_schema(
+        summary="Export a table or chart as PDF",
+        description=(
+            "Renders the title with either a table (columns and rows of text) "
+            "or a chart (a base64-encoded PNG) as a PDF. Nothing is read from "
+            "the database: the PDF holds only what the request sends. A table "
+            f"may have at most {EXPORT_PDF_MAX_ROWS} rows, "
+            f"{EXPORT_PDF_MAX_COLUMNS} columns, {EXPORT_PDF_MAX_CELLS} cells and "
+            f"{EXPORT_PDF_MAX_CHARACTERS} characters; an image at most "
+            f"{EXPORT_PDF_MAX_IMAGE_BYTES // (1024 * 1024)} MB and "
+            f"{EXPORT_PDF_MAX_IMAGE_PIXELS} pixels."
+        ),
+        request=ExportPdfSerializer,
+        responses={(200, "application/pdf"): OpenApiTypes.BINARY},
+    )
+    def post(self, request):
+        serializer = ExportPdfSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        title = data["title"]
+        if "image" in data:
+            document = {"title": title, "image": True}
+            files = {"chart.png": data["image"]}
+        else:
+            document = {
+                "title": title,
+                "columns": data["columns"],
+                "rows": data["rows"],
+            }
+            files = None
+        # One export at a time per user: each holds an API worker while it
+        # renders, so parallel requests from one user could take them all.
+        lock = f"export-pdf:{request.user.pk}"
+        if not cache.add(lock, True, timeout=pdf.ISOLATED_TIMEOUT + 15):
+            raise exceptions.Throttled(
+                detail=_("Another PDF export of yours is still rendering.")
+            )
+        try:
+            content = pdf.render_pdf_isolated(pdf.EXPORT_TEMPLATE, document, files)
+        except pdf.PdfRenderTimeout:
+            raise ValidationError(
+                _("The PDF took too long to render. Export as CSV or Excel instead.")
+            )
+        except pdf.PdfRenderError:
+            if files is None:
+                # A table is validated text, which always renders: this is a
+                # server fault, for error tracking rather than for the user.
+                raise
+            # An image that passed the header checks can still fail to decode.
+            logger.warning("Chart export could not be rendered", exc_info=True)
+            raise ValidationError(_("The chart image could not be read."))
+        finally:
+            cache.delete(lock)
+        response = HttpResponse(content, content_type="application/pdf")
+        response.headers["Content-Disposition"] = content_disposition_header(
+            as_attachment=True, filename=f"{_export_file_name(title)}.pdf"
+        )
+        return response
+
+
+def _export_file_name(title: str) -> str:
+    # Path separators, characters Windows refuses, and control characters have
+    # no place in a file name; nor does a name longer than file systems take.
+    name = "".join(
+        "_" if char in '<>:"/\\|?*' or not char.isprintable() else char
+        for char in title
+    ).strip()[:150]
+    return name or "export"
 
 
 class LogoutView(generics.GenericAPIView):

@@ -16,10 +16,10 @@ ENV LD_PRELOAD=libjemalloc.so.2
 
 # Install necessary system packages.
 #
-# No font packages are installed. Invoice PDFs (invoices/pdf/invoice.typ) bundle
-# Source Sans 3, which covers Latin, Greek and Cyrillic, and fall back to host
-# fonts for other scripts. With none here, customer, project and item names in
-# Arabic, Hebrew, Thai, CJK, ... print as blank boxes. To render them, add
+# No font packages are installed. Invoice PDFs and table and chart exports
+# (waldur_core/core/pdf/) bundle Source Sans 3, which covers Latin, Greek and
+# Cyrillic, and fall back to host fonts for other scripts. With none here,
+# names in Arabic, Hebrew, Thai, CJK, ... print as blank boxes. To render them, add
 # fonts-noto-core (~30 MB; Arabic, Hebrew, Thai, Indic, ...) and fonts-noto-cjk
 # (~60 MB more; Chinese, Japanese, Korean) below.
 RUN apt-get update && \

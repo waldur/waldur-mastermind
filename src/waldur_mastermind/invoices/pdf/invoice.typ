@@ -1,10 +1,10 @@
 // Invoice PDF, rendered by invoices.utils.create_invoice_pdf.
 //
-// Every value arrives as a string in the `invoice` JSON input, already
+// Every value arrives as a string in the `data` JSON input, already
 // formatted and translated in Python. Strings are inserted as text, never
 // evaluated, so markup characters in customer or item names print literally.
 
-#let data = json(bytes(sys.inputs.invoice))
+#let data = json(bytes(sys.inputs.data))
 #let labels = data.labels
 #let muted = luma(100)
 #let hairline = 0.4pt + luma(200)

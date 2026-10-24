@@ -1,13 +1,10 @@
 import datetime
-import json
 import logging
 import re
-import threading
 from decimal import ROUND_HALF_UP, ROUND_UP, Decimal
 from pathlib import Path
 from uuid import UUID
 
-import typst
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import F, QuerySet, Sum
@@ -17,6 +14,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.configuration import config
+from waldur_core.core import pdf
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
 
@@ -420,29 +418,11 @@ def get_invoice_pdf_data(invoice: "models.Invoice") -> dict:
     }
 
 
-_invoice_pdf_compiler = None
-_invoice_pdf_compiler_lock = threading.Lock()
-
-
 def create_invoice_pdf(invoice: "models.Invoice") -> bytes:
-    """Render the invoice PDF.
-
-    The compiler is built once per process: it scans the bundled fonts and the
-    host fonts, which is far slower than compiling one invoice. Bundled Source
-    Sans 3 comes first; host fonts are only a fallback for scripts it lacks
-    (CJK, Arabic, Hebrew, ...). The template reads nothing outside
-    INVOICE_PDF_DIR and imports no packages, so it never touches the network.
-    """
-    global _invoice_pdf_compiler
-    data = json.dumps(get_invoice_pdf_data(invoice))
-    with _invoice_pdf_compiler_lock:
-        if _invoice_pdf_compiler is None:
-            _invoice_pdf_compiler = typst.Compiler(
-                str(INVOICE_PDF_DIR / "invoice.typ"),
-                root=str(INVOICE_PDF_DIR),
-                font_paths=[str(INVOICE_PDF_DIR / "fonts")],
-            )
-        return _invoice_pdf_compiler.compile(sys_inputs={"invoice": data})
+    """Render the invoice PDF with the shared renderer and bundled fonts."""
+    return pdf.render_pdf(
+        INVOICE_PDF_DIR / "invoice.typ", get_invoice_pdf_data(invoice)
+    )
 
 
 def get_end_date_for_profile(profile):
