@@ -15752,7 +15752,7 @@ class RobotAccountDetailsSerializer(
 
 
 class ServiceProviderRevenues(serializers.Serializer):
-    total = serializers.IntegerField(read_only=True, help_text="Total revenue amount")
+    total = serializers.FloatField(read_only=True, help_text="Total revenue amount")
     year = serializers.IntegerField(
         read_only=True, source="invoice__year", help_text="Invoice year"
     )

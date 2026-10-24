@@ -8,6 +8,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, utils
 from waldur_mastermind.marketplace.enums import (
     SUPPORT_OFFERING,
@@ -86,6 +87,31 @@ class ServiceProviderGetTest(test.APITestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.json()[0]["projects_count"], 1)
+
+
+class ServiceProviderRevenueTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.invoice = invoices_factories.InvoiceFactory(customer=self.fixture.customer)
+
+    def test_revenue_keeps_the_fraction(self):
+        for unit_price, quantity in (("4.6", 64), ("2", 128), ("0.08", 2000)):
+            invoices_factories.InvoiceItemFactory(
+                invoice=self.invoice,
+                project=self.fixture.project,
+                resource=self.fixture.resource,
+                unit_price=unit_price,
+                quantity=quantity,
+            )
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ServiceProviderFactory.get_url(
+            self.fixture.service_provider, "revenue"
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()[0]["total"], 710.4)
 
 
 @ddt
