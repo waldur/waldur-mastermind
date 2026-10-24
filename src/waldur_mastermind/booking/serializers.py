@@ -3,14 +3,9 @@ import copy
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from waldur_core.core import signals as core_signals
 from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.booking import models as booking_models
-from waldur_mastermind.google import serializers as google_serializers
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
-from waldur_mastermind.marketplace.models import Offering
-
-from ..marketplace.enums import BOOKING_OFFERING
 
 
 class BookingSlotSerializer(serializers.ModelSerializer):
@@ -85,7 +80,7 @@ class BookingSerializer(serializers.Serializer):
         order = booking.order
 
         if not order:
-            return "google calendar"
+            return None
 
         user_customers = get_connected_customers(self.context["request"].user)
         creator_customers = get_connected_customers(order.created_by)
@@ -95,62 +90,8 @@ class BookingSerializer(serializers.Serializer):
 
 
 class OfferingSerializer(marketplace_serializers.PublicOfferingDetailsSerializer):
-    googlecalendar = google_serializers.GoogleCalendarSerializer(required=False)
-
     class Meta(marketplace_serializers.PublicOfferingDetailsSerializer.Meta):
-        fields = marketplace_serializers.PublicOfferingDetailsSerializer.Meta.fields + (
-            "googlecalendar",
-        )
         view_name = "booking-offering-detail"
-
-
-def get_google_calendar_public(serializer, offering: Offering) -> bool | None:
-    if offering.type != BOOKING_OFFERING or not hasattr(offering, "googlecalendar"):
-        return
-
-    return offering.googlecalendar.public
-
-
-def add_google_calendar_info(sender, fields, **kwargs):
-    """Add a Google Calendar info field to the serializer."""
-    fields["google_calendar_is_public"] = serializers.SerializerMethodField()
-    setattr(sender, "get_google_calendar_is_public", get_google_calendar_public)
-
-
-core_signals.pre_serializer_fields.connect(
-    add_google_calendar_info,
-    sender=marketplace_serializers.ProviderOfferingDetailsSerializer,
-)
-
-core_signals.pre_serializer_fields.connect(
-    add_google_calendar_info,
-    sender=marketplace_serializers.PublicOfferingDetailsSerializer,
-)
-
-
-def get_google_calendar_link(serializer, offering) -> str | None:
-    """Get the Google Calendar link for an offering."""
-    try:
-        return offering.googlecalendar.http_link
-    except AttributeError:
-        return
-
-
-def add_google_calendar_link(sender, fields, **kwargs):
-    """Add a Google Calendar link field to the serializer."""
-    fields["google_calendar_link"] = serializers.SerializerMethodField()
-    setattr(sender, "get_google_calendar_link", get_google_calendar_link)
-
-
-core_signals.pre_serializer_fields.connect(
-    sender=marketplace_serializers.ProviderOfferingDetailsSerializer,
-    receiver=add_google_calendar_link,
-)
-
-core_signals.pre_serializer_fields.connect(
-    sender=marketplace_serializers.PublicOfferingDetailsSerializer,
-    receiver=add_google_calendar_link,
-)
 
 
 class BookingOrderUUIDSerializer(serializers.Serializer):

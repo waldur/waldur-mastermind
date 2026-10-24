@@ -662,12 +662,6 @@ MERGE_COVERAGE: dict[str, CoverageEntry] = _entries(
         area=AREA_OFFERING_CONFIGURATION,
     ),
     E(
-        "google.GoogleCalendar.offering",
-        KEEP_ON_SOURCE,
-        "The source's booking calendar.",
-        area=AREA_OFFERING_CONFIGURATION,
-    ),
-    E(
         "booking.BusySlot.offering",
         KEEP_ON_SOURCE,
         "Busy slots of the source's calendar.",

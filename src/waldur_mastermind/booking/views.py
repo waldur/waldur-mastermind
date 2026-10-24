@@ -1,20 +1,16 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import status, views
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
 from waldur_mastermind.booking.utils import get_offering_bookings_and_busy_slots
-from waldur_mastermind.google import models as google_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import (
     resource_creation_canceled,
@@ -23,7 +19,7 @@ from waldur_mastermind.marketplace.callbacks import (
 from waldur_mastermind.marketplace.enums import BOOKING_OFFERING, ResourceStates
 from waldur_mastermind.proposal import managers as proposal_managers
 
-from . import executors, filters, permissions, serializers
+from . import filters, permissions, serializers
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
@@ -91,111 +87,6 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
         return proposal_managers.annotate_offerings_open_for_proposals(
             super().get_queryset()
         )
-
-    @extend_schema(request=None, responses=None)
-    @action(detail=True, methods=["post"])
-    def google_calendar_sync(self, request, uuid=None):
-        offering: models.Offering = self.get_object()
-        self._get_or_create_google_calendar(offering)
-        transaction.on_commit(
-            lambda: executors.GoogleCalendarSyncExecutor.execute(
-                offering.googlecalendar, updated_fields=None
-            )
-        )
-        return Response("OK", status=status.HTTP_202_ACCEPTED)
-
-    @extend_schema(request=None, responses=None)
-    @action(detail=True, methods=["post"])
-    def share_google_calendar(self, request, uuid=None):
-        offering: models.Offering = self.get_object()
-        self._get_or_create_google_calendar(offering)
-        transaction.on_commit(
-            lambda: executors.GoogleCalendarShareExecutor.execute(
-                offering.googlecalendar, updated_fields=["public"]
-            )
-        )
-        return Response("OK", status=status.HTTP_202_ACCEPTED)
-
-    @extend_schema(request=None, responses=None)
-    @action(detail=True, methods=["post"])
-    def unshare_google_calendar(self, request, uuid=None):
-        offering: models.Offering = self.get_object()
-        self._get_or_create_google_calendar(offering)
-        transaction.on_commit(
-            lambda: executors.GoogleCalendarUnShareExecutor.execute(
-                offering.googlecalendar, updated_fields=["public"]
-            )
-        )
-        return Response("OK", status=status.HTTP_202_ACCEPTED)
-
-    def validate_google_credential(offering):
-        service_provider = getattr(offering.customer, "serviceprovider", None)
-        credentials = getattr(service_provider, "googlecredentials", None)
-        if (
-            not credentials
-            or not credentials.calendar_token
-            or not credentials.calendar_refresh_token
-        ):
-            raise ValidationError(_("Google credentials do not exist."))
-
-    def validate_google_calendar_state(offering):
-        try:
-            google_calendar = google_models.GoogleCalendar.objects.get(
-                offering=offering
-            )
-
-            if google_calendar.state not in (
-                CoreStates.OK,
-                CoreStates.ERRED,
-            ):
-                raise ValidationError(_("The calendar cannot be updated."))
-        except google_models.GoogleCalendar.DoesNotExist:
-            # a calendar will be created in waldur later
-            pass
-
-    def validate_sharing_available(offering):
-        try:
-            google_calendar = google_models.GoogleCalendar.objects.get(
-                offering=offering
-            )
-
-            if google_calendar.public:
-                raise ValidationError(_("The calendar is public already."))
-        except google_models.GoogleCalendar.DoesNotExist:
-            # a calendar will be created in waldur later
-            pass
-
-    def validate_unsharing_available(offering):
-        try:
-            google_calendar = google_models.GoogleCalendar.objects.get(
-                offering=offering
-            )
-
-            if not google_calendar.public:
-                raise ValidationError(_("The calendar is private already."))
-        except google_models.GoogleCalendar.DoesNotExist:
-            raise ValidationError(_("The calendar does not exist."))
-
-    google_calendar_sync_validators = [
-        validate_google_credential,
-        validate_google_calendar_state,
-    ]
-    share_google_calendar_validators = [
-        validate_google_credential,
-        validate_google_calendar_state,
-        validate_sharing_available,
-    ]
-    unshare_google_calendar_validators = [
-        validate_google_credential,
-        validate_google_calendar_state,
-        validate_unsharing_available,
-    ]
-
-    def _get_or_create_google_calendar(self, offering):
-        google_calendar, _ = google_models.GoogleCalendar.objects.get_or_create(
-            offering=offering
-        )
-        return google_calendar
 
 
 class OfferingBookingsViewSet(views.APIView):
