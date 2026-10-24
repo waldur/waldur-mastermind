@@ -15,7 +15,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import (
     ExecutorAdminAction,
     JsonWidget,
-    PasswordWidget,
     format_json_field,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
@@ -24,7 +23,6 @@ from waldur_core.structure.models import (
     ServiceSettings,
     SharedServiceSettings,
 )
-from waldur_mastermind.google.models import GoogleCalendar, GoogleCredentials
 from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace_openstack import (
     executors as marketplace_openstack_executors,  # test-dependency-ignore
@@ -35,23 +33,8 @@ from waldur_pid import utils as pid_utils
 from . import billing_mode, executors, models, utils
 
 
-class GoogleCredentialsAdminForm(ModelForm):
-    class Meta:
-        widgets = {
-            "client_secret": PasswordWidget(),
-            "calendar_token": PasswordWidget(),
-            "calendar_refresh_token": PasswordWidget(),
-        }
-
-
-class GoogleCredentialsInline(admin.StackedInline):
-    model = GoogleCredentials
-    form = GoogleCredentialsAdminForm
-
-
 class ServiceProviderAdmin(admin.ModelAdmin):
     list_display = ("uuid", "customer", "created")
-    inlines = [GoogleCredentialsInline]
 
 
 class AttributeOptionInline(admin.TabularInline):
@@ -363,11 +346,6 @@ class OfferingComponentInline(admin.StackedInline):
     extra = 1
 
 
-class GoogleCalendarInline(admin.StackedInline):
-    model = GoogleCalendar
-    classes = ["collapse"]
-
-
 def get_admin_url_for_scope(scope):
     if isinstance(scope, ServiceSettings):
         model = scope.shared and SharedServiceSettings or PrivateServiceSettings
@@ -415,7 +393,6 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         PlansInline,
         OfferingEndpointsOrganizationGroupsInline,
         OfferingComponentInline,
-        GoogleCalendarInline,
         OfferingUserInline,
         OrganizationGroupsInline,
         OfferingUserGroupInline,

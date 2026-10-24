@@ -265,6 +265,38 @@ class OrderCreateTest(test.APITestCase):
             ),
         )
 
+    def test_do_not_create_order_if_busy_slot_covers_period(self):
+        booking_models.BusySlot.objects.create(
+            offering=self.offering,
+            start="2019-01-02T00:00:00.000000Z",
+            end="2019-01-02T23:59:59.000000Z",
+            backend_id="busy",
+        )
+
+        add_payload = {
+            "offering": marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            "attributes": {
+                "schedules": [
+                    {
+                        "start": "2019-01-02T00:00:00.000000Z",
+                        "end": "2019-01-02T23:59:59.000000Z",
+                    },
+                ]
+            },
+        }
+        response = self.create_order(
+            self.user, offering=self.offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            str(response.content, "utf-8"),
+            '["Time period from {} to {} is not available."]'.format(
+                "2019-01-02T00:00:00.000000Z", "2019-01-02T23:59:59.000000Z"
+            ),
+        )
+
     def test_past_slots_are_not_available(self):
         add_payload = {
             "offering": marketplace_factories.OfferingFactory.get_public_url(

@@ -96,6 +96,27 @@ class BookingsTest(test.APITestCase):
             ],
         )
 
+    def test_busy_slot_is_listed_without_a_creator(self):
+        models.BusySlot.objects.create(
+            offering=self.fixture.offering,
+            start="2020-04-01T02:00:00+03:00",
+            end="2020-04-02T02:00:00+03:00",
+            backend_id="busy",
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            f"/api/marketplace-bookings/{self.fixture.offering.uuid.hex}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(
+            {
+                "created_by_full_name": None,
+                "start": parse_datetime("2020-04-01T02:00:00+03:00"),
+                "end": parse_datetime("2020-04-02T02:00:00+03:00"),
+            },
+            response.data,
+        )
+
 
 @freeze_time("2020-02-01")
 class SlotsTest(test.APITestCase):

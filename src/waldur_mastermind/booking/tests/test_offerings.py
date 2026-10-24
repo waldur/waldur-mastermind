@@ -1,31 +1,27 @@
-import re
-from unittest import mock
-
 from ddt import data, ddt
 from django.db import connection as db_connection
+from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
-from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.booking import models
-from waldur_mastermind.google.tests import factories as google_factories
-from waldur_mastermind.marketplace.enums import (
-    BOOKING_OFFERING,
-    OfferingStates,
-    ResourceStates,
-)
+from waldur_mastermind.marketplace.enums import BOOKING_OFFERING, OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal.enums import CallStates
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 
-from .. import calendar
+GOOGLE_CALENDAR_FIELDS = (
+    "googlecalendar",
+    "google_calendar_is_public",
+    "google_calendar_link",
+)
 
 
 @ddt
-class BookingOfferingActionsTest(test.APITestCase):
+class GoogleCalendarRemovedTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = marketplace_factories.OfferingFactory(
@@ -33,181 +29,69 @@ class BookingOfferingActionsTest(test.APITestCase):
             type=BOOKING_OFFERING,
             state=OfferingStates.ACTIVE,
         )
-        marketplace_factories.PlanFactory(offering=self.offering)
-        self.google_calendar = google_factories.GoogleCalendarFactory(
-            offering=self.offering
-        )
         self.service_provider = marketplace_factories.ServiceProviderFactory(
-            customer=self.offering.customer
+            customer=self.fixture.customer
         )
-        self.google_credentials = google_factories.GoogleCredentialsFactory(
-            service_provider=self.service_provider,
-            calendar_token="calendar_token",
-            calendar_refresh_token="calendar_refresh_token",
-        )
-        self.schedules = [
-            {
-                "start": "2020-02-12T02:00:00+03:00",
-                "end": "2020-02-15T02:00:00+03:00",
-            },
-            {
-                "start": "2020-03-01T02:00:00+03:00",
-                "end": "2020-03-05T02:00:00+03:00",
-            },
-        ]
+        self.client.force_authenticate(self.fixture.staff)
 
-        self.resource_1 = marketplace_factories.ResourceFactory(
-            offering=self.offering,
-            state=ResourceStates.OK,
-            attributes={"schedules": [self.schedules[0]]},
-        )
-
-        self.resource_2 = marketplace_factories.ResourceFactory(
-            offering=self.offering,
-            state=ResourceStates.OK,
-            attributes={"schedules": [self.schedules[1]]},
-        )
-
-        self.slot_1 = models.BookingSlot.objects.create(
-            resource=self.resource_1,
-            start=self.schedules[0]["start"],
-            end=self.schedules[0]["end"],
-        )
-
-        self.slot_2 = models.BookingSlot.objects.create(
-            resource=self.resource_2,
-            start=self.schedules[1]["start"],
-            end=self.schedules[1]["end"],
-        )
-
-    @data("owner", "staff")
-    def test_user_can_sync_bookings_to_calendar(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
+    @data("google_calendar_sync", "share_google_calendar", "unshare_google_calendar")
+    def test_calendar_actions_are_gone(self, action):
         response = self.client.post(
-            f"/api/booking-offerings/{self.offering.uuid.hex}/google_calendar_sync/"
-        )
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-
-    @data("user")
-    def test_user_cannot_sync_bookings_to_calendar(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(
-            f"/api/booking-offerings/{self.offering.uuid.hex}/google_calendar_sync/"
+            f"/api/booking-offerings/{self.offering.uuid.hex}/{action}/"
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_google_calendar_sync_validators(self):
-        self.google_credentials.delete()
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(
-            f"/api/booking-offerings/{self.offering.uuid.hex}/google_calendar_sync/"
+    @data(
+        "/api/google-auth/",
+        "/api/google-auth/callback/",
+        "/api/google-auth/{uuid}/",
+        "/api/google-auth/{uuid}/authorize/",
+    )
+    def test_google_auth_endpoints_are_gone(self, url):
+        response = self.client.get(url.format(uuid=self.service_provider.uuid.hex))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_offering_responses_have_no_calendar_fields(self):
+        for url in (
+            marketplace_factories.OfferingFactory.get_url(self.offering),
+            marketplace_factories.OfferingFactory.get_public_url(self.offering),
+            reverse("booking-offering-detail", kwargs={"uuid": self.offering.uuid.hex}),
+        ):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, url)
+            for field in GOOGLE_CALENDAR_FIELDS:
+                self.assertNotIn(field, response.data, url)
+
+
+class AdminWithoutGoogleCalendarTest(TestCase):
+    def setUp(self):
+        self.offering = marketplace_factories.OfferingFactory(type=BOOKING_OFFERING)
+        self.service_provider = marketplace_factories.ServiceProviderFactory(
+            customer=self.offering.customer
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @mock.patch("waldur_mastermind.google.backend.build")
-    @freeze_time("2020-02-20")
-    def test_bookings_sync(self, mock_build):
-        mock_build().events().list().execute().get.return_value = []
-        sync_bookings = calendar.SyncBookings(self.offering)
-
-        need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
-        self.assertEqual(len(need_to_add), 2)
-        self.assertEqual(len(need_to_delete), 0)
-        self.assertEqual(len(need_to_update), 0)
-
-        mock_build().events().list().execute().get.return_value = [
-            {
-                "start": {"dateTime": self.slot_2.start},
-                "end": {"dateTime": self.slot_2.end},
-                "id": self.slot_2.backend_id,
-            }
-        ]
-
-        self.slot_2.start = "2020-03-02T02:00:00+03:00"
-        self.slot_2.save()
-        need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
-        self.assertEqual(len(need_to_add), 1)
-        self.assertEqual(len(need_to_delete), 0)
-        self.assertEqual(len(need_to_update), 1)
-        self.assertEqual(
-            need_to_update[0].id, re.sub(r"[^a-z0-9]", "", self.slot_2.backend_id)
+        self.busy_slot = models.BusySlot.objects.create(
+            offering=self.offering,
+            start="2020-04-01T02:00:00+03:00",
+            end="2020-04-02T02:00:00+03:00",
         )
-
-        # Past events are also being updated
-        self.slot_2.start = "2020-02-02T02:00:00+03:00"
-        self.slot_2.save()
-        need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
-        self.assertEqual(len(need_to_add), 1)
-        self.assertEqual(len(need_to_delete), 0)
-        self.assertEqual(len(need_to_update), 1)
-        self.assertEqual(
-            need_to_update[0].id, re.sub(r"[^a-z0-9]", "", self.slot_2.backend_id)
+        self.client.force_login(
+            structure_factories.UserFactory(is_staff=True, is_superuser=True)
         )
 
-    @mock.patch("waldur_mastermind.google.backend.build")
-    def test_automatically_create_google_calendar(self, mock_build):
-        # if calendar backend_id exists
-        backend = calendar.SyncBookings(self.offering)
-        backend.calendar_id
-        mock_build().calendars().insert().execute.assert_not_called()
-
-        # if calendar backend_id doesn't exist
-        self.google_calendar.backend_id = ""
-        self.google_calendar.save()
-        backend = calendar.SyncBookings(self.offering)
-        mock_build().calendars().insert().execute.return_value = {
-            "id": "new_calendar_id"
-        }
-        backend.calendar_id
-        mock_build().calendars().insert().execute.assert_called_once()
-        self.google_calendar.refresh_from_db()
-        self.assertEqual(self.google_calendar.backend_id, "new_calendar_id")
-
-    @mock.patch("waldur_mastermind.booking.handlers.GoogleCalendarRenameExecutor")
-    def test_update_google_calendar_name_if_offering_name_has_been_updated(
-        self, mock_executor
-    ):
-        self.offering.name = "new name"
-        self.offering.save()
-        mock_executor.execute.assert_called_once()
-
-    def test_marketplace_offering_serializer_has_calendar_info(self):
-        self.client.force_authenticate(self.fixture.staff)
-
-        url = marketplace_factories.OfferingFactory.get_url(self.offering)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue("google_calendar_is_public" in response.data.keys())
-        self.assertEqual(
-            response.data["google_calendar_is_public"], self.google_calendar.public
-        )
-
-        url = marketplace_factories.OfferingFactory.get_public_url(self.offering)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue("google_calendar_is_public" in response.data.keys())
-        self.assertEqual(
-            response.data["google_calendar_is_public"], self.google_calendar.public
-        )
-
-    def test_marketplace_offering_serializer_has_google_calendar_link(self):
-        self.client.force_authenticate(self.fixture.staff)
-
-        url = marketplace_factories.OfferingFactory.get_url(self.offering)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue("google_calendar_link" in response.data.keys())
-        self.assertEqual(
-            response.data["google_calendar_link"], self.google_calendar.http_link
-        )
-
-        url = marketplace_factories.OfferingFactory.get_public_url(self.offering)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue("google_calendar_link" in response.data.keys())
-        self.assertEqual(
-            response.data["google_calendar_link"], self.google_calendar.http_link
-        )
+    def test_change_pages_load(self):
+        for url in (
+            reverse("admin:marketplace_offering_change", args=[self.offering.pk]),
+            reverse(
+                "admin:marketplace_serviceprovider_change",
+                args=[self.service_provider.pk],
+            ),
+            reverse("admin:booking_busyslot_changelist"),
+            reverse("admin:booking_busyslot_change", args=[self.busy_slot.pk]),
+        ):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, url)
+            self.assertNotContains(response, "Google calendar")
+            self.assertNotContains(response, "Google credentials")
 
 
 class BookingOfferingOpenForProposalsTest(test.APITestCase):
