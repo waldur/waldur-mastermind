@@ -686,12 +686,16 @@ wheels = [
 ]
 
 [[package]]
-name = "django-fsm"
-version = "2.8.1"
+name = "django-fsm-2"
+version = "4.2.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/9c/c4/8502fcb2adae21cb3d822b25fa32bb2dd7e6b523697170e63f061866ae7c/django-fsm-2.8.1.tar.gz", hash = "sha256:fd9f8de9f33188e50f876ce53908fbd7289e5031a44ffdb97d43909e56699ef8", size = 13113, upload-time = "2022-08-15T10:47:16.608Z" }
+dependencies = [
+    { name = "django" },
+    { name = "django-stubs-ext" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/eb/594712952364f0b1f009b9c414940a09031d07fe95bb888e92f50aa9a550/django_fsm_2-4.2.4.tar.gz", hash = "sha256:0e395afd03ff504afd476e8568ca213aafc3324bd4e5427e5b3287f7b1e7d979", size = 21544, upload-time = "2026-03-16T20:33:33.476Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/81/9d82415c63a5dbbd655283e653660dddfeadbe5daecb58da6d3e3e8780cd/django_fsm-2.8.1-py2.py3-none-any.whl", hash = "sha256:e2c02cbf273fb9691aa9a907c29990afdd21a4adea09c5640344c93fbe03f8d9", size = 11600, upload-time = "2022-08-15T10:47:14.35Z" },
+    { url = "https://files.pythonhosted.org/packages/33/f6/75b74d0b631abfccfb71dda88b530ccccfba48cd6db674f7c27f027b827b/django_fsm_2-4.2.4-py3-none-any.whl", hash = "sha256:0072be359520075eee4baead3873e5eb8f1700b4f91e41208058cbea0ceae9b9", size = 23282, upload-time = "2026-03-16T20:33:31.97Z" },
 ]
 
 [[package]]
@@ -3670,7 +3674,7 @@ dependencies = [
     { name = "django-axes" },
     { name = "django-cors-headers" },
     { name = "django-filter" },
-    { name = "django-fsm" },
+    { name = "django-fsm-2" },
     { name = "django-health-check" },
     { name = "django-jsoneditor" },
     { name = "django-model-utils" },
@@ -3766,7 +3770,7 @@ requires-dist = [
     { name = "django-axes", specifier = ">=8.0.0,<9.0.0" },
     { name = "django-cors-headers", specifier = ">=4.5.0,<5.0.0" },
     { name = "django-filter", specifier = "==24.3" },
-    { name = "django-fsm", specifier = "==2.8.1" },
+    { name = "django-fsm-2", specifier = ">=4.2.4,<5" },
     { name = "django-health-check", specifier = ">=3.20.0,<4.0.0" },
     { name = "django-jsoneditor", specifier = "==0.2.3" },
     { name = "django-model-utils", git = "https://github.com/waldur/django-model-utils?rev=50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6" },
