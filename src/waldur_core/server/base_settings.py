@@ -68,7 +68,6 @@ INSTALLED_APPS = (
     "django_structlog",
     "django_fsm",
     "reversion",
-    "jsoneditor",
     "modeltranslation",
     "health_check",
     "health_check.db",

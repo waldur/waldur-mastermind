@@ -723,18 +723,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-jsoneditor"
-version = "0.2.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/57/e7/6bd7a83c2baadd7a8bef29a24e8a4f7e2b98fcddc86eb708f2a5349104f3/django-jsoneditor-0.2.3.tar.gz", hash = "sha256:560435e47fc878ed6a345876cb5489d982b2cb5eec2def5f40a5aa49aaafbb1a", size = 3335, upload-time = "2022-10-10T17:13:16.361Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/70/87d224484f3cd97510523639593a004a96ed2e2acbe05f9f43c28fd9e9cb/django_jsoneditor-0.2.3-py2.py3-none-any.whl", hash = "sha256:1da2c672a65f2707ca83171c35208b0dcecf4d62af71f201225d105f8943f440", size = 372966, upload-time = "2022-10-10T17:13:14.619Z" },
-]
-
-[[package]]
 name = "django-model-utils"
 version = "0.0.post1122+g50cc7a1f1"
 source = { git = "https://github.com/waldur/django-model-utils?rev=50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6#50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6" }
@@ -3676,7 +3664,6 @@ dependencies = [
     { name = "django-filter" },
     { name = "django-fsm-2" },
     { name = "django-health-check" },
-    { name = "django-jsoneditor" },
     { name = "django-model-utils" },
     { name = "django-modeltranslation" },
     { name = "django-netfields" },
@@ -3772,7 +3759,6 @@ requires-dist = [
     { name = "django-filter", specifier = "==24.3" },
     { name = "django-fsm-2", specifier = ">=4.2.4,<5" },
     { name = "django-health-check", specifier = ">=3.20.0,<4.0.0" },
-    { name = "django-jsoneditor", specifier = "==0.2.3" },
     { name = "django-model-utils", git = "https://github.com/waldur/django-model-utils?rev=50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6" },
     { name = "django-modeltranslation", specifier = ">=0.19.0,<0.20.0" },
     { name = "django-netfields", specifier = ">=1.3.0,<2.0.0" },
