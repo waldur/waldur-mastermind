@@ -171,6 +171,9 @@ REST_FRAMEWORK = {
         # request carries up to METRICS_MAX_POINTS_PER_REQUEST points, and a
         # collector or site agent batching every minute stays far below this.
         "metrics_ingest": "600/min",
+        # Table and chart PDF exports, per user. Each renders in a child
+        # process for up to a second or so; people export a handful at a time.
+        "export_pdf": "20/min",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
     "DEFAULT_SCHEMA_CLASS": "waldur_core.core.openapi_inspector.WaldurOpenApiInspector",

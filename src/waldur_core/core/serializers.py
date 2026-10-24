@@ -2099,3 +2099,149 @@ class AccessSubnetMixin:
         if "inet" in validated_data and self.context["request"].user.is_staff:
             validated_data["is_staff_managed"] = True
         return super().update(instance, validated_data)
+
+
+# Limits of POST /api/export-pdf/. Rendering takes about 11 KB of memory per
+# cell, and long text wraps into more lines still, so the cell and character
+# budgets keep the largest export near 700 MB and a few seconds. Homeport checks
+# the same numbers before it sends a table (src/table/exporters/pdfLimits.ts).
+EXPORT_PDF_MAX_ROWS = 10_000
+EXPORT_PDF_MAX_COLUMNS = 100
+EXPORT_PDF_MAX_CELLS = 50_000
+EXPORT_PDF_MAX_CHARACTERS = 1_000_000
+EXPORT_PDF_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+# A PNG compresses a plain area to almost nothing, so its byte size says
+# nothing about the memory it takes to decode.
+EXPORT_PDF_MAX_IMAGE_PIXELS = 25_000_000
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def _cell_field():
+    return serializers.CharField(allow_blank=True, trim_whitespace=False)
+
+
+class ExportPdfSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255, allow_blank=True)
+    columns = serializers.ListField(
+        child=_cell_field(),
+        required=False,
+        min_length=1,
+        max_length=EXPORT_PDF_MAX_COLUMNS,
+        help_text="Header row of a table export.",
+    )
+    rows = serializers.ListField(
+        child=serializers.ListField(
+            child=_cell_field(), max_length=EXPORT_PDF_MAX_COLUMNS
+        ),
+        required=False,
+        max_length=EXPORT_PDF_MAX_ROWS,
+        help_text="Rows of a table export, each with one cell per column.",
+    )
+    image = serializers.CharField(
+        required=False,
+        help_text="Base64-encoded PNG of a chart export.",
+    )
+
+    def to_internal_value(self, data):
+        # Counted from the raw request before DRF validates each item: a table
+        # over the limits is expensive to validate, let alone to render.
+        if isinstance(data, Mapping):
+            self._check_table_size(data.get("columns"), data.get("rows"))
+        return super().to_internal_value(data)
+
+    @staticmethod
+    def _check_table_size(columns, rows):
+        columns = columns if isinstance(columns, list) else []
+        rows = rows if isinstance(rows, list) else []
+        if len(columns) > EXPORT_PDF_MAX_COLUMNS:
+            raise serializers.ValidationError(
+                {
+                    "columns": _("A PDF export holds at most %s columns.")
+                    % EXPORT_PDF_MAX_COLUMNS
+                }
+            )
+        if len(rows) > EXPORT_PDF_MAX_ROWS:
+            raise serializers.ValidationError(
+                {"rows": _("A PDF export holds at most %s rows.") % EXPORT_PDF_MAX_ROWS}
+            )
+        cells = sum(len(row) if isinstance(row, list) else 1 for row in rows)
+        if cells > EXPORT_PDF_MAX_CELLS:
+            raise serializers.ValidationError(
+                {
+                    "rows": _(
+                        "A PDF export holds at most %s cells. "
+                        "Export this table as CSV or Excel instead."
+                    )
+                    % EXPORT_PDF_MAX_CELLS
+                }
+            )
+        texts = columns + [
+            cell for row in rows if isinstance(row, list) for cell in row
+        ]
+        characters = sum(len(text) for text in texts if isinstance(text, str))
+        if characters > EXPORT_PDF_MAX_CHARACTERS:
+            raise serializers.ValidationError(
+                {
+                    "rows": _(
+                        "A PDF export holds at most %s characters. "
+                        "Export this table as CSV or Excel instead."
+                    )
+                    % EXPORT_PDF_MAX_CHARACTERS
+                }
+            )
+
+    def validate_image(self, value):
+        # Base64 takes four characters for every three bytes.
+        if len(value) > (EXPORT_PDF_MAX_IMAGE_BYTES + 2) // 3 * 4:
+            raise serializers.ValidationError(self._image_too_large())
+        try:
+            image = base64.b64decode(value, validate=True)
+        except ValueError:
+            raise serializers.ValidationError(_("The image is not valid base64."))
+        if len(image) > EXPORT_PDF_MAX_IMAGE_BYTES:
+            raise serializers.ValidationError(self._image_too_large())
+        # The IHDR chunk always comes first: width and height follow the
+        # signature, the chunk length and the chunk type, and the chunk with
+        # its checksum ends 33 bytes in.
+        width = int.from_bytes(image[16:20], "big")
+        height = int.from_bytes(image[20:24], "big")
+        if (
+            len(image) < 33
+            or not image.startswith(PNG_SIGNATURE)
+            or image[12:16] != b"IHDR"
+            or not width
+            or not height
+        ):
+            raise serializers.ValidationError(_("The image must be a PNG."))
+        if width * height > EXPORT_PDF_MAX_IMAGE_PIXELS:
+            raise serializers.ValidationError(
+                _("The image may have at most %s pixels.") % EXPORT_PDF_MAX_IMAGE_PIXELS
+            )
+        return image
+
+    def _image_too_large(self):
+        return _("The image may be at most %s MB.") % (
+            EXPORT_PDF_MAX_IMAGE_BYTES // (1024 * 1024)
+        )
+
+    def validate(self, attrs):
+        is_table = "columns" in attrs or "rows" in attrs
+        if is_table == ("image" in attrs):
+            raise serializers.ValidationError(
+                _("Send either columns and rows, or an image.")
+            )
+        if not is_table:
+            return attrs
+        if "columns" not in attrs:
+            raise serializers.ValidationError({"columns": _("This field is required.")})
+        columns = attrs["columns"]
+        rows = attrs.setdefault("rows", [])
+        for index, row in enumerate(rows, start=1):
+            if len(row) != len(columns):
+                raise serializers.ValidationError(
+                    {
+                        "rows": _("Row %(row)s has %(cells)s cells, not %(columns)s.")
+                        % {"row": index, "cells": len(row), "columns": len(columns)}
+                    }
+                )
+        return attrs
