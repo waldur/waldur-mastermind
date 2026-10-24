@@ -74,7 +74,6 @@ td:nth-child(4) {
 | `delete_error_message` | `Custom Signal (post_transition)` | `waldur_aws.Instance` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `waldur_aws.Volume` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `waldur_digitalocean.Droplet` | Delete error message if instance state changed from erred |
-| `delete_error_message` | `Custom Signal (post_transition)` | `google.GoogleCalendar` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `waldur_openportal.Allocation` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `waldur_openportal.RemoteAllocation` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.Tenant` | Delete error message if instance state changed from erred |
@@ -424,10 +423,6 @@ td:nth-child(4) {
 | `add_call_managing_organization_uuid` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a call managing organization UUID field to the serializer. |
 | `add_customer_credit` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a customer credit field to the serializer. |
 | `add_customer_unallocated_credit` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a customer unallocated credit field to the serializer. |
-| `add_google_calendar_info` | `Custom Signal (pre_serializer_fields)` | `ProviderOfferingDetailsSerializer` | Add a Google Calendar info field to the serializer. |
-| `add_google_calendar_info` | `Custom Signal (pre_serializer_fields)` | `PublicOfferingDetailsSerializer` | Add a Google Calendar info field to the serializer. |
-| `add_google_calendar_link` | `Custom Signal (pre_serializer_fields)` | `ProviderOfferingDetailsSerializer` | Add a Google Calendar link field to the serializer. |
-| `add_google_calendar_link` | `Custom Signal (pre_serializer_fields)` | `PublicOfferingDetailsSerializer` | Add a Google Calendar link field to the serializer. |
 | `add_has_active_helpdesk` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a flag telling whether the customer's provider has an active helpdesk. |
 | `add_has_affiliate_links` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a flag telling whether the organization is an affiliate on any link. |
 | `add_has_metrics` | `Custom Signal (pre_serializer_fields)` | `ProjectSerializer` | The project Metrics tab is shown only where this is true. |
@@ -757,7 +752,6 @@ td:nth-child(4) {
 | `update_daily_quotas` | `Django Signal (post_save)` | `quotas.QuotaUsage` | No description |
 | `update_estimate_when_invoice_is_created` | `Django Signal (post_save)` | `invoices.Invoice` | Update price estimates when new invoice is created for customer. |
 | `update_floating_ip_external_addresses` | `Django Signal (post_save)` | `openstack.FloatingIP` | No description |
-| `update_google_calendar_name_if_offering_name_has_been_changed` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `update_instances_ip_external_addresses` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `update_invoice_item_on_project_name_update` | `Django Signal (post_save)` | `structure.Project` | No description |
 | `update_maintenance_announcement_on_offering_change` | `Django Signal (post_save)` | `marketplace.MaintenanceAnnouncementOffering` | Update AdminAnnouncement when affected offerings change. |
@@ -853,15 +847,15 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 769
+Total unique handlers found: 763
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 352 handlers
+- **waldur_core**: 351 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 354 handlers
+- **waldur_mastermind**: 349 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers
