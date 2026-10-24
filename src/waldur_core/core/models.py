@@ -16,7 +16,7 @@ from django.db import models, transaction
 from django.template.defaultfilters import slugify
 from django.utils import timezone as django_timezone
 from django.utils.translation import gettext_lazy as _
-from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
+from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.fields import AutoLastModifiedField
 from model_utils.models import TimeStampedModel
@@ -904,13 +904,17 @@ class RuntimeStateMixin(models.Model):
         return cls.RuntimeStates.OFFLINE
 
 
-class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
+class StateMixin(ErrorMessageMixin):
     """
     Mixin implementing finite state machine (FSM) functionality.
 
     Provides state management with transitions between creation, updating,
-    deletion, OK, and error states. Includes error handling capabilities
-    and concurrent transition support.
+    deletion, OK, and error states. Includes error handling capabilities.
+
+    There is no optimistic locking: saving a stale copy overwrites a state
+    changed elsewhere. django_fsm's ConcurrentTransitionMixin used to be listed
+    here but sat after django's Model in the MRO, so it never ran; enabling it
+    breaks transitions out of ERRED and deferred querysets (#866).
     """
 
     class Meta:

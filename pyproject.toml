@@ -17,7 +17,7 @@ dependencies = [
   "celery==5.6.3",
   "django-auth-ldap>=5.2.0,<6.0.0",
   "django-filter==24.3",
-  "django-fsm==2.8.1",
+  "django-fsm-2>=4.2.4,<5",
   "django-jsoneditor==0.2.3",
   # Pinned to a commit, not to the branch: a branch ref lets an upstream push
   # change what a build installs without any change here or in uv.lock.
