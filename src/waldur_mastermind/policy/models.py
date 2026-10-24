@@ -332,13 +332,6 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
                 return decimal.Decimal(0)
         return min(added_cost, balance)
 
-    def _deduction_increase(self, draw, compensation) -> decimal.Decimal:
-        """How much the Gate 1 deduction grows when the credit draws `draw` more
-        for usage. The deduction follows the usage draw unless the scope's
-        compensation also counts a minimal-consumption tail; see the customer
-        override."""
-        return draw
-
     def _credit_gates(
         self, compensation, added_cost=decimal.Decimal(0), offering=None
     ) -> structures.PolicyDecision:
@@ -368,9 +361,8 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         if balance is None:
             return self._decision(True, gates.NO_CREDIT, cost, deduction)
         draw = self._added_cost_draw(added_cost, balance, offering, compensation)
-        increase = self._deduction_increase(draw, compensation)
-        cost -= increase
-        deduction += increase
+        cost -= draw
+        deduction += draw
         # The live balance counts usage only, so it falls by the whole draw.
         remaining = balance - draw
         if cost <= self.limit_cost:
@@ -737,9 +729,12 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
             invoice__customer=customer
         )
         compensation = compensation or self._new_compensation()
-        deduction = self._pending_compensation(
-            invoice_items, compensation.total_compensation
-        )
+        # Usage compensation only, as the project policy deducts. The
+        # minimal-consumption tail in `total_compensation` comes off the
+        # balance at month end but offsets no invoice item, so deducting it
+        # took a quiet month's cost below zero.
+        usage_compensation = compensation.total_compensation - compensation.tail
+        deduction = self._pending_compensation(invoice_items, usage_compensation)
         return invoice_items, deduction
 
     def _projection_credit(self):
@@ -771,14 +766,6 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
             compensation.customer_restored_draw,
         )
         return balance, structures.CreditSources.CUSTOMER
-
-    def _deduction_increase(self, draw, compensation) -> decimal.Decimal:
-        """`total_compensation`, which this policy deducts, includes the
-        minimal-consumption tail. While usage is under the floor, a further
-        usage draw only shrinks the tail and the total stays put, so only the
-        part of the draw the tail does not absorb lowers the cost. Project
-        compensation counts usage items only and needs no such adjustment."""
-        return max(decimal.Decimal(0), draw - decimal.Decimal(compensation.tail))
 
     class Meta:
         verbose_name_plural = "Customer estimated cost policies"

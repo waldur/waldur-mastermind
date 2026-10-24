@@ -399,11 +399,10 @@ class LiveCreditBalanceTest(test.APITestCase):
         )
         self.assertTrue(policy.is_triggered())
 
-    def test_minimal_consumption_tail_absorbs_added_cost(self):
-        # Floor 1000, credit 1050; 50 used this month, so the tail is 950 and
-        # total_compensation is 1000 whatever the next 950 of usage is. The
-        # organization policy deducts that total, so the 950 resource lowers
-        # Gate 1 by nothing, and the live balance falls to 50.
+    def test_minimal_consumption_floor_does_not_absorb_added_cost(self):
+        # Floor 1000, credit 1050; 50 used this month. The 950 the floor would
+        # take at month end pays for nothing, so the 950 resource is drawn from
+        # the credit like any other usage, and the live balance falls to 50.
         self._earlier_uncovered_cost("1000")
         invoices_factories.CustomerCreditFactory(
             customer=self.customer, value=1050, expected_consumption=1000
@@ -422,4 +421,47 @@ class LiveCreditBalanceTest(test.APITestCase):
         )
 
         self.assertTrue(blocked)
+        self.assertTrue(policy.is_triggered())
+
+    def _customer_policy(self):
+        return policy_factories.CustomerEstimatedCostPolicyFactory(
+            scope=self.customer,
+            limit_cost=LIMIT,
+            actions="request_downscaling",
+            period=CustomerEstimatedCostPolicy.Periods.MONTH_1,
+        )
+
+    def test_minimal_consumption_floor_is_not_taken_off_the_cost(self):
+        # 50 used against an expected consumption of 1000: the credit pays the
+        # 50, and the 950 the floor takes at month end pays for nothing.
+        invoices_factories.CustomerCreditFactory(
+            customer=self.customer, value=1050, expected_consumption=1000
+        )
+        self._charge(50)
+
+        self.assertEqual(self._customer_policy().get_current_cost(), 0)
+
+    def test_minimal_consumption_floor_does_not_hide_uncovered_cost(self):
+        # The credit covers only self.resource's offering. The 70 left after
+        # it pays the covered 50 goes to the floor at month end, and none of it
+        # pays the 140 invoiced on the other offering.
+        uncovered = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=marketplace_factories.OfferingFactory(customer=self.customer),
+        )
+        credit = invoices_factories.CustomerCreditFactory(
+            customer=self.customer, value=120, expected_consumption=1000
+        )
+        credit.offerings.add(self.resource.offering)
+        self._charge(50)
+        invoices_factories.InvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            resource=uncovered,
+            unit_price=140,
+            quantity=1,
+        )
+        policy = self._customer_policy()
+
+        self.assertEqual(policy.get_current_cost(), 140)
         self.assertTrue(policy.is_triggered())
