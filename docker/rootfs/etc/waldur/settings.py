@@ -1,4 +1,5 @@
 # Django settings for Waldur
+import copy
 import os
 
 from waldur_core.server.base_settings import *
@@ -208,6 +209,10 @@ if sentry_dsn:
 
     WALDUR_CORE["HOMEPORT_SENTRY_TRACES_SAMPLE_RATE"] = sentry_traces_sample_rate
 
+# Remember the SAML2 configuration derived so far, to tell what saml2.conf.py
+# sets or changes in it.
+_saml_config_derived = copy.deepcopy(globals().get("SAML_CONFIG", {}))
+
 # Additional configuration files for Waldur
 # 'override.conf.py' must be the first element to override settings in core.ini but not plugin configuration.
 # Plugin configuration files must me ordered alphabetically to provide predictable configuration handling order.
@@ -231,11 +236,17 @@ for extension_name in extensions:
 
 # Re-apply SAML2 extension settings so that values mutated by override.conf.py /
 # saml2.conf.py (e.g. WALDUR_AUTH_SAML2 or WALDUR_CORE['MASTERMIND_URL']) propagate
-# into the derived SAML_CONFIG. SAML2Extension.update_settings() is idempotent.
-# See gh-83.
+# into the derived SAML_CONFIG (gh-83), keeping what saml2.conf.py set in
+# SAML_CONFIG itself on top. SAML2Extension.update_settings() is idempotent.
 from waldur_auth_saml2.extension import SAML2Extension as _SAML2Extension  # noqa: E402
+from waldur_auth_saml2.extension import saml_config_changes  # noqa: E402
 
-_SAML2Extension.update_settings(globals())
+_SAML2Extension.update_settings(
+    globals(),
+    saml_config_overrides=saml_config_changes(
+        _saml_config_derived, globals().get("SAML_CONFIG", {})
+    ),
+)
 
 # Give this deployment its own Sentry Crons monitors. sentry-sdk keys monitors on
 # the beat entry name, which is identical in every Waldur installation, so

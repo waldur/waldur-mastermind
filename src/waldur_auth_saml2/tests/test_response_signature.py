@@ -2,9 +2,11 @@ import base64
 import copy
 import datetime
 import os
+import re
 import shutil
 import tempfile
 import unittest
+from urllib.parse import parse_qs, urlparse
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -12,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 from django.conf import settings
 from django.core.cache import cache
-from django.test import override_settings
+from django.test import Client, override_settings
 from django.urls import reverse
 from djangosaml2.conf import get_config
 from rest_framework import status, test
@@ -21,6 +23,7 @@ from saml2.attribute_converter import ac_factory
 from saml2.config import IdPConfig
 from saml2.mdstore import InMemoryMetaData
 from saml2.metadata import entity_descriptor
+from saml2.s_utils import decode_base64_and_inflate
 from saml2.saml import NAME_FORMAT_URI, NAMEID_FORMAT_TRANSIENT, NameID
 from saml2.server import Server
 
@@ -146,11 +149,23 @@ class Saml2ResponseSignatureTest(test.APITestCase):
         )
         return config
 
-    def signed_response(self, entity_id, key_name, username, sign=True):
+    def start_login(self, browser):
+        """Start a login in Waldur as the portal does; return the request id."""
+        response = browser.post(reverse("saml2-login"), {"idp": KNOWN_IDP})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["binding"], "redirect")
+        saml_request = parse_qs(urlparse(data["url"]).query)["SAMLRequest"][0]
+        authn_request = decode_base64_and_inflate(saml_request).decode()
+        return re.search(r'\bID="([^"]+)"', authn_request).group(1)
+
+    def signed_response(
+        self, entity_id, key_name, username, sign=True, in_response_to=None
+    ):
         server = Server(config=self.idp_config(entity_id, key_name))
         response = server.create_authn_response(
             identity={"uid": [username]},
-            in_response_to=None,
+            in_response_to=in_response_to,
             destination=self.acs_url,
             sp_entity_id=self.sp_entity_id,
             name_id=NameID(format=NAMEID_FORMAT_TRANSIENT, text="opaque-id"),
@@ -206,3 +221,31 @@ class Saml2ResponseSignatureTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         self.assertIn("login_failed", response["Location"])
         self.assertNotIn("_auth_user_id", self.client.session)
+
+    def login_started_in_waldur(self, allow_unsolicited):
+        saml_config = copy.deepcopy(settings.SAML_CONFIG)
+        saml_config["service"]["sp"]["allow_unsolicited"] = allow_unsolicited
+        with override_settings(SAML_CONFIG=saml_config):
+            request_id = self.start_login(self.client)
+            # The identity provider posts the response from another site, so
+            # the browser does not send the SameSite=Lax session cookie.
+            identity_provider_post = Client()
+            return identity_provider_post.post(
+                self.url,
+                {
+                    "SAMLResponse": self.signed_response(
+                        KNOWN_IDP, "known-idp", "alice", in_response_to=request_id
+                    ),
+                    "RelayState": "",
+                },
+            )
+
+    def test_login_started_in_waldur_completes_without_the_session_cookie(self):
+        response = self.login_started_in_waldur(allow_unsolicited=True)
+        self.assertIn("login_completed", response["Location"])
+
+    def test_login_started_in_waldur_fails_without_the_session_cookie_if_unsolicited_responses_are_refused(
+        self,
+    ):
+        response = self.login_started_in_waldur(allow_unsolicited=False)
+        self.assertIn("login_failed", response["Location"])
