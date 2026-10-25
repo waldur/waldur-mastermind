@@ -153,6 +153,7 @@ td:nth-child(4) {
 | `emit_user_profile` | `Django Signal (post_save)` | `core.User` | No description |
 | `emit_user_ssh_key_delete` | `Django Signal (post_delete)` | `core.SshPublicKey` | No description |
 | `emit_user_ssh_key_save` | `Django Signal (post_save)` | `core.SshPublicKey` | No description |
+| `end_request` | `Unknown Signal` | `—` | No description |
 | `handle_aggregated_quotas` | `Django Signal (post_save)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
 | `handle_aggregated_quotas` | `Django Signal (pre_delete)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
 | `invalidate_cache_on_commit` | `Django Signal (post_save)` | `core.Feature` | Signal receiver that defers the drop until the transaction commits. |
@@ -302,6 +303,9 @@ td:nth-child(4) {
 | `mark_table_exists` | `Unknown Signal` | `—` | No description |
 | `on_role_granted` | `Custom Signal (role_granted)` | `—` | No description |
 | `on_role_revoked` | `Custom Signal (role_revoked)` | `—` | No description |
+| `on_scope_saved` | `Django Signal (post_save)` | `permissions.GlobalRoleScope` | No description |
+| `on_user_role_changed` | `Django Signal (post_save)` | `permissions.UserRole` | No description |
+| `on_user_role_changed` | `Django Signal (post_delete)` | `permissions.UserRole` | No description |
 | `permissions_request_approved` | `Custom Signal (permissions_request_approved)` | `users.PermissionRequest` | Send a notification when a permission request has been approved. |
 | `preserve_fields_before_update` | `Django Signal (pre_save)` | `core.User` | Preserve fields of a user instance before it is updated. |
 | `process_hook` | `Unknown Signal` | `—` | Process a hook for a given event. |
@@ -387,6 +391,7 @@ td:nth-child(4) {
 | `scrub_logged_request` | `Custom Signal (bind_extra_request_failed_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
 | `set_default_token_lifetime` | `Django Signal (post_save)` | `core.User` | Set the default token lifetime for a new user. |
 | `setting_updated` | `Custom Signal (setting_updated)` | `—` | Clear the API configuration cache when a setting is updated. |
+| `start_request` | `Unknown Signal` | `—` | No description |
 | `stash_customer_slug` | `Django Signal (pre_save)` | `structure.Customer` | Remember the persisted slug before save so the change can be detected. |
 | `update_customer_users_count` | `Custom Signal (recalculate_quotas)` | `—` | Update the user count for all customers. |
 | `update_resource_start_time` | `Django Signal (post_save)` | `waldur_aws.Instance` | Update the start time of a resource when its runtime state changes. |
@@ -847,12 +852,12 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 763
+Total unique handlers found: 768
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 351 handlers
+- **waldur_core**: 356 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 349 handlers
