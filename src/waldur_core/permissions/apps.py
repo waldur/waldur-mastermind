@@ -6,11 +6,12 @@ class PermissionsConfig(AppConfig):
     verbose_name = "Permissions"
 
     def ready(self):
+        from django.core.signals import request_finished, request_started
         from django.db.models.signals import post_delete, post_save, pre_save
 
         from waldur_core.structure.models import Customer
 
-        from . import handlers, models, signals
+        from . import global_scope, handlers, models, signals
 
         signals.role_granted.connect(
             handlers.log_role_granted,
@@ -65,6 +66,33 @@ class PermissionsConfig(AppConfig):
             handlers.rename_clones_on_customer_slug_change,
             sender=Customer,
             dispatch_uid="waldur_core.permissions.rename_clones_on_customer_slug_change",
+        )
+
+        # Site-wide grants: a per-request memo of each user's global
+        # permissions, and a per-process note that the site scope exists. See
+        # global_scope for why both are needed and what each costs.
+        request_started.connect(
+            global_scope.start_request,
+            dispatch_uid="waldur_core.permissions.global_scope.start_request",
+        )
+        request_finished.connect(
+            global_scope.end_request,
+            dispatch_uid="waldur_core.permissions.global_scope.end_request",
+        )
+        post_save.connect(
+            global_scope.on_scope_saved,
+            sender=models.GlobalRoleScope,
+            dispatch_uid="waldur_core.permissions.global_scope.on_scope_saved",
+        )
+        post_save.connect(
+            global_scope.on_user_role_changed,
+            sender=models.UserRole,
+            dispatch_uid="waldur_core.permissions.global_scope.on_user_role_saved",
+        )
+        post_delete.connect(
+            global_scope.on_user_role_changed,
+            sender=models.UserRole,
+            dispatch_uid="waldur_core.permissions.global_scope.on_user_role_deleted",
         )
 
         # Register per-model rules for the scoped-PAT list filter.

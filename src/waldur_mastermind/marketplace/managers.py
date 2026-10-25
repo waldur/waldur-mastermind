@@ -8,7 +8,7 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import get_scope_ids
+from waldur_core.permissions.utils import get_scope_ids, global_grant_sees_all
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     get_connected_customers,
@@ -34,6 +34,13 @@ class OfferingQuerySet(django_models.QuerySet):
             return self.none()
 
         if user.is_staff or user.is_support:
+            return self
+
+        # A site-wide OFFERING.LIST grant is every offering on this management
+        # list. A role on the customer, project, offering, or service provider
+        # still reaches the offerings that connection already includes.
+        # The public catalog does not use this queryset.
+        if global_grant_sees_all(user, PermissionEnum.LIST_OFFERINGS):
             return self
 
         connected_customers = get_connected_customers(user)
@@ -257,6 +264,9 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
         if user.is_anonymous or user.is_staff or user.is_support:
             return self
 
+        if global_grant_sees_all(user, PermissionEnum.LIST_RESOURCES):
+            return self
+
         connected_projects = get_connected_projects_by_permission(
             user, PermissionEnum.LIST_RESOURCES
         )
@@ -279,6 +289,9 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
         if user.is_staff or user.is_support:
             return self
 
+        if global_grant_sees_all(user, PermissionEnum.LIST_RESOURCES):
+            return self
+
         connected_customers = get_connected_customers(user)
         connected_service_providers = get_connected_serviceproviders(user)
         connected_offerings = get_connected_offerings(user)
@@ -291,6 +304,8 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
 
     def filter_for_user(self, user):
         if user.is_staff or user.is_support:
+            return self
+        if global_grant_sees_all(user, PermissionEnum.LIST_RESOURCES):
             return self
         direct_resource_ids = get_user_direct_resource_ids(user)
         rp_resource_ids = get_user_resource_project_resource_ids(user)
@@ -473,6 +488,9 @@ def filter_orders_for_user(queryset, user):
         return queryset.none()
 
     if user.is_staff or user.is_support:
+        return queryset
+
+    if global_grant_sees_all(user, PermissionEnum.LIST_ORDERS):
         return queryset
 
     connected_projects = get_connected_projects_by_permission(

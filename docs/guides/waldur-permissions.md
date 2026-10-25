@@ -120,6 +120,126 @@ my_action_permissions = [
 ]
 ```
 
+## Site-wide roles
+
+A role is usually granted on one organization, project, offering, or call. A
+site-wide role is granted once, and each permission on it applies to every
+object.
+
+Define it in `custom-roles.yaml` with `scope: global`. `permissions.yaml` ships
+no global role. A deployment opts in, for example:
+
+```yaml
+- role: GLOBAL.ORDER_DESK
+  description: See every order and approve or reject it
+  scope: global
+  permissions:
+    - ORDER.LIST
+    - ORDER.APPROVE
+    - ORDER.REJECT
+```
+
+Staff can also create the role with `POST /api/roles/` and
+`"content_type": "global"`. The role is left out of the organization role
+picker (`available_for_customer`).
+
+### Granting
+
+Staff assign and revoke holders at `/api/global-user-roles/`. A personal access
+token needs the staff scope.
+
+- `GET` lists the active grants.
+- `POST` body: `user` (uuid), `role` (uuid or name), optional `expiration_time`.
+- `DELETE /api/global-user-roles/<uuid>/` revokes the grant. The row stays
+  inactive for the audit log.
+
+Adding the role through an organization's add-user action fails. The role's
+scope has to match the object. The site scope is also not a target for an
+invitation, a personal access token's `allowed_scopes`, or an event consumer's
+bindings: roles are granted on it, but nothing is bound to it.
+
+### What a site-wide role cannot carry
+
+A site-wide role cannot manage an organization's or a service provider's team:
+`CUSTOMER.CREATE_PERMISSION`, `CUSTOMER.UPDATE_PERMISSION` and
+`CUSTOMER.DELETE_PERMISSION`. Held on every organization, they would let the
+holder make themselves owner of any of them. `POST /api/roles/` and
+`PUT /api/roles/<uuid>/` reject them on a global role, `import_roles` drops them
+with a warning, and a global grant never satisfies them even when a role
+carries one anyway. `waldur check_role_names` reports such a role as
+`global-denied-permission`.
+
+Team management below the organization stays grantable. A desk holding
+`PROJECT.CREATE_PERMISSION` can invite people into any project. Toggling
+`is_staff`, impersonation, site settings and deleting an organization are staff
+checks rather than permissions, so no role carries them.
+
+### What the grant does
+
+Staff still passes before this lookup. `is_support` does not enter
+`has_permission`. It stays the blanket read, and it combines with a global
+write: support can see a row, and the site role supplies the action.
+
+`has_permission` is true on every object for a permission held on the site
+scope. A personal access token must list that permission. A token bound to
+another organization cannot use the grant.
+
+A list opens only for the permission that list already checks. An action
+permission does not open the list. `ORDER.APPROVE` alone cannot list orders,
+and `OFFERING.UPDATE` alone cannot open an offering. The holder acts on a row
+they can already see, because they also hold the list permission, because they
+are support, or because they have a role on that object.
+
+| Permission on the site role | What it lists |
+|---|---|
+| `ORDER.LIST` | Every order |
+| `PROJECT.LIST` | Every project |
+| `RESOURCE.LIST` | Every resource |
+| `OFFERING.LIST` | Every offering on the provider list, including drafts. The public catalog is unchanged |
+| `CALL.LIST` | Every call, and the call lists support can already read, including reviews. Conflict-of-interest disclosures and reviewer bids stay staff-only |
+| `ROUND.LIST` | Every round. It does not open calls or disclosures |
+| `PROPOSAL.LIST` | Every proposal |
+| `INVITATION.LIST` | Every invitation |
+| `SERVICE_ACCOUNT.MANAGE` | Every project service account |
+| `PROJECT.COURSE_ACCOUNT_MANAGE` | Every course account |
+
+`PROJECT.CREATE` does not list organizations. Creating a project still needs an
+organization the user can see. Support plus `PROJECT.CREATE` can create one in
+an organization they do not belong to.
+
+A site role is not membership. `get_connected_customers` and
+`get_connected_projects` stay empty for a user whose only role is site-wide.
+A site-wide `RESOURCE.SET_LIMITS` sees every limit-change request. Approving
+one still needs permission to create the order.
+
+The pending-order dashboard follows the approve rule: an `ORDER.APPROVE` grant
+on the project, on its organization, or on the site. This changes the dashboard
+for deployments that grant no site-wide role too: an approver whose grant is on
+the organization, an organization owner for instance, now sees the orders
+waiting in its projects. Before, the dashboard looked at project grants only.
+
+### What it costs
+
+A site-wide grant is consulted on every permission check, so its cost is what
+every request pays. Until the first global role is granted, the site scope does
+not exist and the checks cost nothing extra: each process notes that once a
+minute. After the first grant, a user's site-wide permissions are loaded once
+per request, so a request pays one query however many checks it makes. A
+Celery task or a shell asks the database on each check.
+
+The first grant on a deployment applies at once in the process that made it,
+and within a minute in the other API and worker processes. Until then they
+treat the grant as absent, so it never applies early. Grants and revokes after
+that apply on the next request.
+
+`OFFERING.LIST` also ships on `CUSTOMER.OWNER`, `CUSTOMER.MANAGER`, and
+`OFFERING.MANAGER`. A role on the organization, project, offering, or service
+provider still sees the offerings that connection already included.
+
+Homeport's role form keeps its scope list in `ROLE_TYPES`. Add `global` there
+before the administration screen can create the role. The grant screen uses
+`/api/global-user-roles/`.
+
 ## Team visibility
 
 Listing the members of a scope (`GET .../list_users/`) is gated on a

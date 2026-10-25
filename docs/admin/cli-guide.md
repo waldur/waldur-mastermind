@@ -278,7 +278,7 @@ waldur check_role_names --check global-custom-role --check org-role-unmanaged
 
 usage: waldur check_role_names [--format {text,json}]
                                [--severity {error,warning,info}]
-                               [--check {clone-name-drift,cross-scope-permission,global-custom-role,label-equals-name,label-missing,multi-org-binding,name-not-a-code,org-role-unmanaged,scope-prefix-mismatch,system-name-unknown,system-scope-mismatch,template-without-scope}]
+                               [--check {clone-name-drift,cross-scope-permission,global-custom-role,global-denied-permission,label-equals-name,label-missing,multi-org-binding,name-not-a-code,org-role-unmanaged,scope-prefix-mismatch,system-name-unknown,system-scope-mismatch,template-without-scope}]
                                [--exit-zero]
 
 options:
@@ -286,7 +286,7 @@ options:
   --severity {error,warning,info}
                         Lowest severity to report (default: info, i.e.
                         everything)
-  --check {clone-name-drift,cross-scope-permission,global-custom-role,label-equals-name,label-missing,multi-org-binding,name-not-a-code,org-role-unmanaged,scope-prefix-mismatch,system-name-unknown,system-scope-mismatch,template-without-scope}
+  --check {clone-name-drift,cross-scope-permission,global-custom-role,global-denied-permission,label-equals-name,label-missing,multi-org-binding,name-not-a-code,org-role-unmanaged,scope-prefix-mismatch,system-name-unknown,system-scope-mismatch,template-without-scope}
                         Report only this check; repeat for several
   --exit-zero           Always exit with status 0, even when errors are
                         reported

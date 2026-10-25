@@ -118,10 +118,10 @@ from waldur_core.passkeys import models as passkey_models
 from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.passkeys import services as passkey_services
 from waldur_core.permissions.enums import (
+    BINDABLE_TYPE_MAP,
     CREATE_PERMISSIONS,
     PERMISSION_DESCRIPTION,
     TYPE_KEY_BY_CT,
-    TYPE_MAP,
     PermissionEnum,
     RoleEnum,
 )
@@ -2647,7 +2647,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     )
     @action(detail=False, methods=["get"])
     def available_binding_targets(self, request):
-        """For each permission, which TYPE_MAP keys the caller could bind a PAT to.
+        """For each permission, which scope types the caller could bind a PAT to.
 
         Drives the create-PAT frontend's type picker. For staff users every
         type is offered for every permission (they bypass UserRole checks).
@@ -2658,7 +2658,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         user = request.user
         perm_to_types: dict[str, set[str]] = defaultdict(set)
         if user.is_staff:
-            type_keys = set(TYPE_MAP.keys())
+            type_keys = set(BINDABLE_TYPE_MAP)
             for perm in PermissionEnum:
                 if perm in (PermissionEnum.STAFF_ACCESS, PermissionEnum.SUPPORT_ACCESS):
                     continue
@@ -2677,7 +2677,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 if not perm_value:
                     continue
                 type_key = TYPE_KEY_BY_CT.get((app_label, model_name))
-                if type_key:
+                if type_key in BINDABLE_TYPE_MAP:
                     perm_to_types[perm_value].add(type_key)
 
         result = [

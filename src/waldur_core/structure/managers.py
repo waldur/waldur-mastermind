@@ -11,7 +11,11 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.models import User
 from waldur_core.permissions.mixins import PermissionMixin
-from waldur_core.permissions.utils import get_scope_ids, get_user_ids
+from waldur_core.permissions.utils import (
+    get_scope_ids,
+    get_user_ids,
+    global_grant_sees_all,
+)
 from waldur_core.structure import models as structure_models
 
 
@@ -60,6 +64,11 @@ def filter_queryset_for_user[T: Model](
         return queryset
 
     list_permission = getattr(permissions, "list_permission", None)
+
+    # A site-wide grant of this model's list permission is the whole table.
+    # An action permission is not. is_support remains the blanket read above.
+    if global_grant_sees_all(user, list_permission):
+        return queryset
 
     subquery = models.Q()
 

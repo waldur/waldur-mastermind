@@ -13,7 +13,7 @@ from waldur_core.configuration import config
 from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.models import User, UserDetailsMatchMixin
 
-from . import enums, models, signals
+from . import enums, global_scope, models, signals
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +134,54 @@ def check_pat_support_scope(request) -> bool:
     )
 
 
+def get_global_role_scope():
+    """The single site-wide scope global roles are granted on.
+
+    Created on first use. Staff grant through ``/api/global-user-roles/``.
+    A permission held here satisfies :func:`has_permission` for every object. When that
+    permission is a model's ``list_permission``, the list returns every row.
+    ``User.is_support`` remains the blanket read.
+    """
+    scope, _ = models.GlobalRoleScope.objects.get_or_create(singleton=True)
+    return scope
+
+
+def grant_global_role(user, role, created_by=None, expiration_time=None):
+    """Grant ``role``, a role on the site scope, to ``user``."""
+    return add_user(
+        get_global_role_scope(),
+        user,
+        role,
+        created_by=created_by,
+        expiration_time=expiration_time,
+    )
+
+
+def holds_global_permission(user, permission) -> bool:
+    """Whether ``user`` holds ``permission`` on the site-wide scope.
+
+    List filters call this. :func:`has_permission` answers the same question
+    for one object, including a grant on the object itself. Free when the
+    deployment has no site scope, and one query per request when it does; see
+    :mod:`waldur_core.permissions.global_scope`.
+    """
+    return permission in global_scope.global_permissions(user)
+
+
+def global_grant_sees_all(user, list_permission) -> bool:
+    """Whether a site-wide grant of ``list_permission`` returns every row.
+
+    ``list_permission`` is the permission the list already checks, such as
+    ``PROJECT.LIST`` or ``ORDER.LIST``. An update, approve, or other action
+    permission does not open the list: the action runs only on a row the
+    list has already returned. ``is_support`` is a separate bypass and is
+    not implied here.
+    """
+    if not list_permission:
+        return False
+    return holds_global_permission(user, list_permission)
+
+
 def has_permission(
     request: "HttpRequest | User",
     permission: enums.PermissionEnum,
@@ -142,12 +190,18 @@ def has_permission(
 ) -> bool:
     """Whether the user may exercise ``permission`` on ``scope``.
 
+    A permission held on the site-wide scope (see :func:`get_global_role_scope`)
+    applies to every object. Staff still short-circuits before that lookup.
+    ``is_support`` does not.
+
     ``role_index`` is an optional lookup table from :func:`build_role_index`,
     for callers checking many scopes in a row. It replaces **only** the final
     role query — the PAT ceiling, the inactive-user guard and the staff bypass
     all still run, so a batched caller cannot accidentally widen the answer.
     A key the index does not cover falls through to the query, which makes an
-    incomplete index a slow answer rather than a wrong one.
+    incomplete index a slow answer rather than a wrong one. The index includes
+    site-wide grants, so a ``False`` entry means the user holds the permission
+    neither on the scope nor on the site scope.
     """
     if isinstance(request, User):
         user = request
@@ -176,6 +230,9 @@ def has_permission(
         cached = role_index.get((permission, ct_id, scope.id))
         if cached is not None:
             return cached
+
+    if holds_global_permission(user, permission):
+        return True
 
     # Single query with join instead of two separate queries
     return models.UserRole.objects.filter(
@@ -215,6 +272,10 @@ def has_any_permission(
 
     if scope is None:
         return False
+
+    held_globally = global_scope.global_permissions(user)
+    if any(permission in held_globally for permission in permissions):
+        return True
 
     return models.UserRole.objects.filter(
         user=user,
@@ -317,10 +378,31 @@ def get_users(scope, role_name=None):
 
 
 def get_users_with_permission(scope, permission):
-    user_ids = models.UserRole.objects.filter(
-        is_active=True, scope=scope, role__permissions__permission=permission
-    ).values_list("user_id", flat=True)
-    return User.objects.filter(id__in=user_ids)
+    """Users who hold ``permission`` on ``scope``, or on the site-wide scope.
+
+    A global grant applies to every object, so those users are approvers,
+    reviewers and notification recipients for this scope too.
+    """
+    if (
+        permission in enums.GLOBAL_DENIED_PERMISSIONS
+        or not global_scope.scope_may_exist()
+    ):
+        # The manager resolves the generic ``scope`` lookup; a filtered
+        # queryset does not, so it has to come in this first call.
+        roles = models.UserRole.objects.filter(
+            is_active=True, scope=scope, role__permissions__permission=permission
+        )
+    else:
+        roles = models.UserRole.objects.filter(
+            Q(
+                content_type_id=ContentType.objects.get_for_model(scope).id,
+                object_id=scope.pk,
+            )
+            | Q(content_type_id=global_scope.global_content_type_id()),
+            is_active=True,
+            role__permissions__permission=permission,
+        )
+    return User.objects.filter(id__in=roles.values_list("user_id", flat=True))
 
 
 def get_scope_ids(user, content_type, role=None, permission=None) -> QuerySet[int]:
@@ -329,7 +411,21 @@ def get_scope_ids(user, content_type, role=None, permission=None) -> QuerySet[in
     Callers routinely feed this to ``filter(scope__in=...)``, which works with
     ids. A membership test does not: ``obj in <queryset of ints>`` is neither a
     type error nor a runtime error, it is silently False.
+
+    When ``permission`` is given and the user holds it on the site-wide scope,
+    every object of ``content_type`` is included. ``get_connected_projects_by_permission``
+    and the other callers then see the whole set. A lookup with no permission
+    stays a membership lookup and does not expand.
     """
+    if (
+        permission is not None
+        and role is None
+        and holds_global_permission(user, permission)
+    ):
+        model = content_type.model_class()
+        if model is not None:
+            return model._base_manager.order_by().values_list("pk", flat=True)
+
     qs = models.UserRole.objects.filter(
         is_active=True, user=user, content_type=content_type
     )
@@ -875,9 +971,10 @@ def get_role_customers(role) -> list:
 
 
 def get_valid_content_types():
+    """Content types an invitation or a binding may target. Not the site scope."""
     return [
         ContentType.objects.get_by_natural_key(*pair)
-        for pair in enums.TYPE_MAP.values()
+        for pair in enums.BINDABLE_TYPE_MAP.values()
     ]
 
 
@@ -1063,6 +1160,9 @@ def build_role_index(user, pairs) -> dict:
     the number of scopes. Callers may over-collect: a pair that never gets
     checked only widens an ``object_id IN (...)``, while a pair that is checked
     but missing from the index falls back to its own query.
+
+    A site-wide grant of the permission marks every requested scope ``True``,
+    so a batched check agrees with :func:`has_permission`.
     """
     scopes_by_permission: dict = {}
     for permission, scope in pairs:
@@ -1071,8 +1171,13 @@ def build_role_index(user, pairs) -> dict:
         ct_id = ContentType.objects.get_for_model(type(scope)).id
         scopes_by_permission.setdefault(permission, set()).add((ct_id, scope.id))
 
+    held_globally = global_scope.global_permissions(user)
     index: dict = {}
     for permission, scope_keys in scopes_by_permission.items():
+        if permission in held_globally:
+            for ct_id, object_id in scope_keys:
+                index[(permission, ct_id, object_id)] = True
+            continue
         for ct_id, object_id in scope_keys:
             index[(permission, ct_id, object_id)] = False
         held = (

@@ -20,6 +20,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.permissions import models
 from waldur_core.permissions.enums import (
+    GLOBAL_DENIED_PERMISSIONS,
     SCOPE_NAME_PREFIXES,
     SYSTEM_ROLE_SCOPES,
     TYPE_KEY_BY_CT,
@@ -50,6 +51,7 @@ CHECK_SEVERITIES: dict[str, str] = {
     "global-custom-role": WARNING,
     "scope-prefix-mismatch": WARNING,
     "cross-scope-permission": WARNING,
+    "global-denied-permission": ERROR,
     "label-missing": INFO,
     "label-equals-name": INFO,
 }
@@ -296,8 +298,12 @@ class RoleHygieneChecker:
                 )
             )
 
+        # A global role is left out of organization pickers (see
+        # RoleFilter.filter_available_for_customer), so "offered in every
+        # organization" does not describe it.
         if (
-            not role.is_system_role
+            scope_type != "global"
+            and not role.is_system_role
             and not role.template_id
             and not has_any_availability
         ):
@@ -327,26 +333,42 @@ class RoleHygieneChecker:
     def _check_permissions(self, role, scope_type) -> list[Finding]:
         if scope_type is None:
             return []
+        findings = []
+        permissions = [p.permission for p in role.permissions.all()]
+        if scope_type == "global":
+            denied = sorted(set(permissions) & GLOBAL_DENIED_PERMISSIONS)
+            if denied:
+                findings.append(
+                    self._finding(
+                        "global-denied-permission",
+                        role,
+                        scope_type,
+                        f"Site-wide role carries {len(denied)} organization "
+                        f"team permission(s), which a global grant never "
+                        f"satisfies: {', '.join(denied)}.",
+                        permissions=denied,
+                    )
+                )
         inert = []
-        for role_permission in role.permissions.all():
-            allowed = get_permission_scope_types(role_permission.permission)
+        for permission in permissions:
+            allowed = get_permission_scope_types(permission)
             if allowed is None:
                 continue
             if scope_type not in allowed:
-                inert.append(role_permission.permission)
-        if not inert:
-            return []
-        return [
-            self._finding(
-                "cross-scope-permission",
-                role,
-                scope_type,
-                f"Carries {len(inert)} permission(s) that cannot apply to a "
-                f"{scope_type} role and are therefore inert: "
-                f"{', '.join(sorted(inert))}.",
-                permissions=sorted(inert),
+                inert.append(permission)
+        if inert:
+            findings.append(
+                self._finding(
+                    "cross-scope-permission",
+                    role,
+                    scope_type,
+                    f"Carries {len(inert)} permission(s) that cannot apply to a "
+                    f"{scope_type} role and are therefore inert: "
+                    f"{', '.join(sorted(inert))}.",
+                    permissions=sorted(inert),
+                )
             )
-        ]
+        return findings
 
     def _check_label(self, role, scope_type) -> list[Finding]:
         description = (role.description or "").strip()

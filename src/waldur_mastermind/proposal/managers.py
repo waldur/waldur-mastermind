@@ -8,8 +8,8 @@ from django.utils import timezone
 
 from waldur_core.core.models import User
 from waldur_core.core.utils import SubqueryCount
-from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.utils import get_scope_ids
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import get_scope_ids, global_grant_sees_all
 from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.managers import MixinManager
@@ -32,7 +32,21 @@ class CallQuerySet(django_models.QuerySet):
         if user.is_staff or user.is_support:
             return self
 
+        if global_grant_sees_all(user, PermissionEnum.LIST_CALLS):
+            return self
+
         return self.filter(customer__in=get_connected_customers(user))
+
+
+def sees_every_call(user) -> bool:
+    """Whether a site-wide ``CALL.LIST`` grant should list every call-scoped row.
+
+    List querysets that otherwise keep rows to call membership use this.
+    Another call permission, such as ``ROUND.LIST``, does not. It does not
+    make the user a call manager: ``get_connected_calls`` stays a membership
+    lookup, and writes keep their own permission checks.
+    """
+    return global_grant_sees_all(user, PermissionEnum.LIST_CALLS)
 
 
 class CallManager(MixinManager):

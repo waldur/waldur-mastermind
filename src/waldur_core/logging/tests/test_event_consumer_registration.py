@@ -5,6 +5,7 @@ from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
+from waldur_core.permissions.utils import get_global_role_scope
 from waldur_core.structure.tests import factories as structure_factories
 
 URL = "/api/event-consumers/register/"
@@ -109,6 +110,18 @@ class EventConsumerRegistrationTest(test.APITestCase):
         )
         consumer = logging_models.EventConsumer.objects.get(user=staff)
         self.assertEqual(consumer.scopes.get().scope, other)
+
+    def test_the_site_scope_is_not_a_binding_type(self, *mocks):
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(staff)
+        scope = get_global_role_scope()
+
+        response = self.client.post(
+            URL,
+            {"scopes": [{"type": "global", "uuid": scope.uuid.hex}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_unknown_scope_type_is_rejected(self, *mocks):
         user = structure_factories.UserFactory()

@@ -14,13 +14,19 @@ from waldur_core.core.serializers import (
 )
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions import hygiene
-from waldur_core.permissions.enums import TYPE_KEYS, TYPE_MAP, PermissionEnum
+from waldur_core.permissions.enums import (
+    GLOBAL_DENIED_PERMISSIONS,
+    TYPE_KEYS,
+    TYPE_MAP,
+    PermissionEnum,
+)
 from waldur_core.permissions.utils import (
     RoleChange,
     build_org_role_name,
     ensure_unique_role_name,
     get_create_permission,
     get_delete_permission,
+    get_global_role_scope,
     get_update_permission,
     has_permission,
     validate_role_change,
@@ -148,6 +154,24 @@ class RoleModifySerializer(RoleDetailsSerializer):
             if attrs.get("content_type") != self.instance.content_type:
                 raise ValidationError(
                     "Changing scope of an organization role is not possible."
+                )
+        content_type = attrs.get("content_type") or getattr(
+            self.instance, "content_type", None
+        )
+        if content_type is not None and content_type.natural_key() == tuple(
+            TYPE_MAP["global"]
+        ):
+            denied = sorted(
+                set(attrs.get("permissions") or ()) & GLOBAL_DENIED_PERMISSIONS
+            )
+            if denied:
+                raise ValidationError(
+                    {
+                        "permissions": [
+                            "A site-wide role cannot manage an organization's "
+                            "team: " + ", ".join(denied)
+                        ]
+                    }
                 )
         return attrs
 
@@ -781,6 +805,51 @@ class UserRoleDeleteSerializer(UserRoleMutateSerializer):
 
 class UserRoleExpirationTimeSerializer(serializers.Serializer):
     expiration_time = serializers.DateTimeField(allow_null=True)
+
+
+class GlobalUserRoleCreateSerializer(serializers.Serializer):
+    """Grant a site-wide role. The role's scope must be global."""
+
+    role = serializers.CharField()
+    user = serializers.UUIDField()
+    expiration_time = serializers.DateTimeField(
+        required=False, allow_null=True, input_formats=["%Y-%m-%d", "iso-8601"]
+    )
+
+    def validate_role(self, value):
+        field = "uuid" if is_uuid_like(value) else "name"
+        try:
+            role = models.Role.objects.get(**{field: value})
+        except models.Role.DoesNotExist:
+            raise ValidationError("Role is not found.")
+        global_ct = ContentType.objects.get_by_natural_key(*TYPE_MAP["global"])
+        if role.content_type_id != global_ct.id:
+            raise ValidationError("Role is not a site-wide role.")
+        if not role.is_active:
+            raise ValidationError("Role is not active.")
+        return role
+
+    def validate_user(self, value):
+        try:
+            user = User.all_objects.get(uuid=value)
+        except User.DoesNotExist:
+            raise ValidationError("User is not found.")
+        if not user.is_active:
+            raise ValidationError("User is not active.")
+        return user
+
+    def validate_expiration_time(self, value):
+        if value is not None and value < timezone.now():
+            raise ValidationError(
+                "Expiration time should be greater than current time."
+            )
+        return value
+
+    def validate(self, attrs):
+        scope = get_global_role_scope()
+        validate_role_grant(scope, attrs["user"], attrs["role"])
+        attrs["scope"] = scope
+        return attrs
 
 
 class UserRolePermissionActionSerializer(serializers.Serializer):

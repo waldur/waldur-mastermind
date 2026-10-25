@@ -75,6 +75,7 @@ Waldur supports multiple authorization scopes, each representing a different org
 | Call Organizer | `proposal.CallManagingOrganisation` | Organization managing calls for proposals |
 | Call | `proposal.Call` | Call for proposals permissions |
 | Proposal | `proposal.Proposal` | Individual proposal permissions |
+| Global | `permissions.GlobalRoleScope` | One site-wide grant. Each permission applies to every object. See [Site-wide roles](../guides/waldur-permissions.md#site-wide-roles) |
 
 ### System Roles
 
@@ -402,6 +403,7 @@ can_update_projects = get_connected_projects_by_permission(
 
 | Permission | Description |
 |------------|-------------|
+| `OFFERING.LIST` | List offerings on the provider (management) list. The public catalog does not use it |
 | `OFFERING.CREATE` | Create new offerings |
 | `OFFERING.UPDATE` | Update offering details |
 | `OFFERING.DELETE` | Delete offerings |

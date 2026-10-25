@@ -2,6 +2,7 @@ import uuid
 from datetime import timedelta
 
 from ddt import data, ddt
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -12,8 +13,9 @@ from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
-from waldur_core.permissions.fixtures import CallRole, CustomerRole
+from waldur_core.permissions.fixtures import CallRole, CustomerRole, GlobalRole
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.utils import grant_global_role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import enums as proposal_enums
@@ -1589,3 +1591,104 @@ class CallOrderAuthorTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.call.order_author_user, grants_office)
+
+
+class GlobalScopeCallTest(test.APITestCase):
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        self.client.force_authenticate(self.user)
+
+    def grant(self, role_name, *permissions):
+        role = GlobalRole.get(role_name)
+        for permission in permissions:
+            role.add_permission(permission)
+        grant_global_role(self.user, role)
+
+    def uuids(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return {item["uuid"] for item in response.data}
+
+    def test_list_and_update_calls(self):
+        first = factories.CallFactory()
+        second = factories.CallFactory()
+        self.grant(
+            "GLOBAL.CALL_EDITOR",
+            permissions_enums.PermissionEnum.LIST_CALLS,
+            permissions_enums.PermissionEnum.UPDATE_CALL,
+        )
+        self.assertEqual(
+            self.uuids(factories.CallFactory.get_protected_list_url()),
+            {first.uuid.hex, second.uuid.hex},
+        )
+        response = self.client.patch(
+            factories.CallFactory.get_protected_url(first),
+            {"name": "Renamed call"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        first.refresh_from_db()
+        self.assertEqual(first.name, "Renamed call")
+
+    def test_list_rounds(self):
+        first = factories.RoundFactory()
+        second = factories.RoundFactory()
+        self.grant("GLOBAL.ROUND_READER", permissions_enums.PermissionEnum.LIST_ROUNDS)
+        self.assertEqual(
+            self.uuids(reverse("call-round-list")),
+            {first.uuid.hex, second.uuid.hex},
+        )
+
+    def test_list_calls_opens_reviews(self):
+        review = factories.ReviewFactory()
+        self.grant("GLOBAL.CALL_READER", permissions_enums.PermissionEnum.LIST_CALLS)
+        self.assertEqual(
+            self.uuids(factories.ReviewFactory.get_list_url()),
+            {review.uuid.hex},
+        )
+
+    def test_list_rounds_does_not_open_coi_disclosures(self):
+        disclosure = factories.COIDisclosureFormFactory()
+        self.grant(
+            "GLOBAL.ROUND_READER_ONLY",
+            permissions_enums.PermissionEnum.LIST_ROUNDS,
+        )
+        self.assertNotIn(
+            disclosure.uuid.hex,
+            self.uuids(reverse("coi-disclosure-list")),
+        )
+
+    def test_list_calls_does_not_open_coi_disclosures(self):
+        disclosure = factories.COIDisclosureFormFactory()
+        self.grant(
+            "GLOBAL.CALL_DISCLOSURE_READER",
+            permissions_enums.PermissionEnum.LIST_CALLS,
+        )
+        self.assertNotIn(
+            disclosure.uuid.hex,
+            self.uuids(reverse("coi-disclosure-list")),
+        )
+
+    def test_list_calls_does_not_open_reviewer_bids(self):
+        proposal = factories.ProposalFactory()
+        bid = models.ReviewerBid.objects.create(
+            call=proposal.round.call,
+            reviewer=factories.ReviewerProfileFactory(),
+            proposal=proposal,
+            bid="eager",
+        )
+        self.grant(
+            "GLOBAL.CALL_BID_READER",
+            permissions_enums.PermissionEnum.LIST_CALLS,
+        )
+        self.assertNotIn(bid.uuid.hex, self.uuids(reverse("reviewer-bid-list")))
+
+    def test_list_proposals(self):
+        first = factories.ProposalFactory()
+        second = factories.ProposalFactory()
+        self.grant(
+            "GLOBAL.PROPOSAL_READER", permissions_enums.PermissionEnum.LIST_PROPOSALS
+        )
+        self.assertEqual(
+            self.uuids(factories.ProposalFactory.get_list_url()),
+            {first.uuid.hex, second.uuid.hex},
+        )

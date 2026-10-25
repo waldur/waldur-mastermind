@@ -1,6 +1,7 @@
 import pytest
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.permissions import global_scope
 from waldur_core.permissions.enums import TEAM_VIEW_PERMISSIONS
 from waldur_core.permissions.models import RoleManager
 
@@ -71,6 +72,19 @@ def _system_roles_view_team(monkeypatch):
         return role
 
     monkeypatch.setattr(RoleManager, "get_system_role", get_system_role)
+
+
+@pytest.fixture(autouse=True)
+def _global_scope_state(request):
+    # The per-process "site scope exists" flag would otherwise carry over from
+    # a test that created the scope (and rolled it back) to the next one,
+    # adding a lookup to its query counts. See permissions.global_scope.
+    for name in ("db", "transactional_db"):
+        if name in request.fixturenames:
+            request.getfixturevalue(name)
+    global_scope.sync()
+    yield
+    global_scope.reset()
 
 
 @pytest.fixture(autouse=True)

@@ -24,7 +24,7 @@ from waldur_core.logging import (
     event_logger,
     models,
 )
-from waldur_core.permissions.enums import TYPE_MAP
+from waldur_core.permissions.enums import BINDABLE_TYPE_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -1273,12 +1273,13 @@ class DeadLetterQueueSerializer(serializers.Serializer):
     )
 
 
-# Event-consumer bindings accept one scope type beyond the shared TYPE_MAP: a
-# self-referential "user" binding for a user's own identity events
-# (user_profile, user_ssh_key, user_lifecycle, user_role). Deliberately kept
-# OUT of TYPE_MAP — that map also validates Personal Access Token scopes,
-# invitation targets and role content types, none of which should accept users.
-EVENT_CONSUMER_TYPE_MAP = {**TYPE_MAP, "user": ("core", "user")}
+# Event-consumer bindings accept one scope type beyond the shared
+# BINDABLE_TYPE_MAP: a self-referential "user" binding for a user's own identity
+# events (user_profile, user_ssh_key, user_lifecycle, user_role). Deliberately
+# kept OUT of that map — it also validates Personal Access Token scopes and
+# invitation targets, neither of which should accept users. The site scope is
+# not bindable either: roles are granted on it, but nothing is bound to it.
+EVENT_CONSUMER_TYPE_MAP = {**BINDABLE_TYPE_MAP, "user": ("core", "user")}
 
 
 class EventConsumerScopeInputSerializer(AllowedScopeInputSerializer):

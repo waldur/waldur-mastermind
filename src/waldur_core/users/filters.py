@@ -13,6 +13,7 @@ from waldur_core.permissions.utils import (
     get_scope_ids,
     get_valid_content_types,
     get_valid_models,
+    holds_global_permission,
 )
 from waldur_core.structure.managers import (
     get_connected_customers_by_permission,
@@ -35,6 +36,9 @@ class InvitationFilterBackend(BaseFilterBackend):
         user: User = request.user
 
         if user.is_staff or user.is_support:
+            return queryset
+
+        if holds_global_permission(user, PermissionEnum.LIST_INVITATIONS):
             return queryset
 
         subquery = Q(
@@ -85,6 +89,11 @@ class GroupInvitationFilterBackend(BaseFilterBackend):
 
         # Staff/support users can see everything
         if user.is_authenticated and (user.is_staff or user.is_support):
+            return queryset
+
+        if user.is_authenticated and holds_global_permission(
+            user, PermissionEnum.LIST_INVITATIONS
+        ):
             return queryset
 
         # Unauthenticated users can only see public active invitations

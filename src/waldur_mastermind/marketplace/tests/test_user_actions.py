@@ -5,13 +5,16 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, GlobalRole, ProjectRole
+from waldur_core.permissions.utils import grant_global_role
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.user_actions.providers import (
     ActionCategory,
     ActionSeverity,
     get_all_providers,
 )
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.marketplace.user_actions import (
     ExpiringResourceProvider,
@@ -166,6 +169,50 @@ class PendingOrderProviderTest(APITestCase):
 
         # Should NOT detect the order since 30h < 48h configured threshold
         self.assertEqual(len(actions), 0)
+
+    def _age_pending_order(self, order):
+        order.state = OrderStates.PENDING_CONSUMER
+        order.created = timezone.now() - timedelta(hours=25)
+        order.save()
+        return order
+
+    def test_organization_owner_sees_a_pending_order(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        order = self._age_pending_order(self.fixture.order)
+
+        actions = self.provider.get_actions_for_user(self.fixture.owner)
+
+        self.assertEqual([action["related_object"] for action in actions], [order])
+        approve = next(
+            action
+            for action in self.provider.get_corrective_actions(
+                self.fixture.owner, order
+            )
+            if action.label == "Approve Order"
+        )
+        self.assertEqual(approve.category, ActionCategory.APPROVE)
+
+    def test_global_approve_sees_every_pending_order(self):
+        order = self._age_pending_order(self.fixture.order)
+        other = self._age_pending_order(marketplace_factories.OrderFactory())
+        approver = structure_factories.UserFactory()
+        role = GlobalRole.get("GLOBAL.ORDER_APPROVER_DASHBOARD")
+        role.add_permission(PermissionEnum.APPROVE_ORDER)
+        grant_global_role(approver, role)
+
+        actions = self.provider.get_actions_for_user(approver)
+
+        self.assertEqual(
+            {action["related_object"] for action in actions},
+            {order, other},
+        )
+        self.assertIn(approver, self.provider.get_affected_users())
+
+    def test_approve_without_the_permission_sees_no_pending_order(self):
+        self._age_pending_order(self.fixture.order)
+        stranger = structure_factories.UserFactory()
+        self.assertEqual(self.provider.get_actions_for_user(stranger), [])
+        self.assertNotIn(stranger, self.provider.get_affected_users())
 
 
 class ExpiringResourceProviderTest(APITestCase):

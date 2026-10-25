@@ -11,6 +11,7 @@ from rest_framework.authtoken.models import Token
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import PersonalAccessToken, User
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import get_global_role_scope
 from waldur_core.structure.tests import fixtures
 
 
@@ -811,6 +812,17 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_binding_to_the_site_scope(self):
+        # Roles are granted on the site scope; a token is never bound to it.
+        scope = get_global_role_scope()
+        response = self.client.post(
+            PAT_URL,
+            self._payload(allowed_scopes=[{"type": "global", "uuid": str(scope.uuid)}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Unknown scope type", str(response.data))
 
     def test_staff_access_with_bindings_rejected(self):
         self.client.force_authenticate(user=self.fixture.staff)
