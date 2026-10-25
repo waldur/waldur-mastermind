@@ -8,6 +8,8 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+REQUEST_TIMEOUT = 30  # seconds
+
 
 class ClientError(Exception):
     pass
@@ -25,6 +27,10 @@ class RequestError(ClientError):
     def __init__(self, message, response=None):
         super().__init__(message)
         self.response = response
+
+
+class ServiceUnavailableError(ClientError):
+    """The Mobile ID service could not be reached or did not answer in time."""
 
 
 class UnknownStatusError(ResponseParseError):
@@ -64,28 +70,36 @@ class Request:
             **kwargs,
         )
         cert = (cls.settings["cert_path"], cls.settings["key_path"])
-        # TODO: add verification
-        logger.debug(
-            "Executing POST request to %s with data:\n %s \nheaders: %s",
-            url,
-            data,
-            headers,
-        )
+        # The body carries AP_PWD, so it is never logged.
+        logger.debug("Executing POST request to %s", url)
         # workaround for https://github.com/psf/requests/pull/5596 as requests need to go directly
         proxies = {"http": "", "https": ""}
-        response = requests.post(
-            url,
-            data=data,
-            headers=headers,
-            cert=cert,
-            proxies=proxies,
-            verify=cls.settings["verify_ssl"],
-        )
+        try:
+            response = requests.post(
+                url,
+                data=data,
+                headers=headers,
+                cert=cert,
+                proxies=proxies,
+                verify=cls.settings["verify_ssl"],
+                timeout=REQUEST_TIMEOUT,
+            )
+        except requests.RequestException as e:
+            logger.warning("Mobile ID service at %s is unavailable: %s", url, e)
+            raise ServiceUnavailableError("Mobile ID service is unavailable.")
         if response.ok:
             return cls.response_class(response.content)
-        else:
-            message = f"Failed to execute POST request against {url} endpoint. Response [{response.status_code}]: {response.content}"
-            raise RequestError(message, response)
+        # Error messages reach the anonymous login result, so they carry no
+        # response content; it is logged instead.
+        logger.debug(
+            "Mobile ID service at %s answered %s: %s",
+            url,
+            response.status_code,
+            response.content,
+        )
+        raise RequestError(
+            f"Mobile ID service answered with HTTP {response.status_code}.", response
+        )
 
     @classmethod
     def _format_datetime(cls, d):
@@ -110,9 +124,10 @@ class SignatureResponse(Response):
                 "//ns6:StatusCode", namespaces={"ns6": self.ns_namespace}
             )[0].attrib["Value"]
         except (IndexError, KeyError, lxml.etree.XMLSchemaError) as e:
-            raise ResponseParseError(
-                f"Cannot parse signature response: {e}. Response content: {lxml.etree.tostring(etree)}"
+            logger.debug(
+                "Unparsable signature response: %s", lxml.etree.tostring(etree)
             )
+            raise ResponseParseError(f"Cannot parse signature response: {e}.")
 
 
 class SignatureRequest(Request):
@@ -187,11 +202,12 @@ class StatusResponse(Response):
                 "//ns5:StatusCode", namespaces={"ns5": self.ns_namespace}
             )[0].attrib["Value"]
         except (IndexError, KeyError, lxml.etree.XMLSchemaError) as e:
-            raise ResponseParseError(
-                f"Cannot parse status response: {e}. Response content: {lxml.etree.tostring(etree)}"
-            )
+            logger.debug("Unparsable status response: %s", lxml.etree.tostring(etree))
+            raise ResponseParseError(f"Cannot parse status response: {e}.")
         self.status = Statuses.map(status_code)
 
+        # TODO: take the identity from the verified signature of the response,
+        # not from the UserIdentifier element.
         try:
             civil_number_tag = etree.xpath(
                 "//ns4:UserIdentifier", namespaces={"ns4": self.ns_namespace}
@@ -203,9 +219,7 @@ class StatusResponse(Response):
             try:
                 self.civil_number = civil_number_tag.text.split("=")[1]
             except IndexError:
-                raise ResponseParseError(
-                    "Cannot get civil_number from tag text: %s" % civil_number_tag.text
-                )
+                raise ResponseParseError("Cannot get civil number from the response.")
 
 
 class ErredStatusResponse(Response):
@@ -218,9 +232,10 @@ class ErredStatusResponse(Response):
                 "//soapenv:Text", namespaces={"soapenv": self.soapenv_namespace}
             )[0].text
         except (IndexError, lxml.etree.XMLSchemaError) as e:
-            raise ResponseParseError(
-                f"Cannot parse error status response: {e}. Response content: {lxml.etree.tostring(etree)}"
+            logger.debug(
+                "Unparsable error status response: %s", lxml.etree.tostring(etree)
             )
+            raise ResponseParseError(f"Cannot parse error status response: {e}.")
 
 
 class StatusRequest(Request):

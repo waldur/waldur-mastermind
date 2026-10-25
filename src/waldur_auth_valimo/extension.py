@@ -12,7 +12,9 @@ class AuthValimoExtension(WaldurExtension):
             "cert_path": None,
             "key_path": None,
             "message_prefix": "Login code:",
-            "verify_ssl": False,
+            "verify_ssl": True,
+            # Unsuccessful logins allowed per phone number and hour; 0 disables.
+            "LOGIN_ATTEMPTS_PER_PHONE_PER_HOUR": 10,
             "LABEL": "Mobile ID",
             "MOBILE_PREFIX": "+372",
             "USER_MANAGEMENT_URL": [],

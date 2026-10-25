@@ -54,10 +54,15 @@ class PollTask(tasks.Task):
     default_retry_delay = 12
 
     def execute(self, auth_result):
-        response = client.StatusRequest.execute(
-            transaction_id=auth_result.uuid.hex,
-            backend_transaction_id=auth_result.backend_transaction_id,
-        )
+        try:
+            response = client.StatusRequest.execute(
+                transaction_id=auth_result.uuid.hex,
+                backend_transaction_id=auth_result.backend_transaction_id,
+            )
+        except client.ServiceUnavailableError:
+            # A slow or unreachable service is asked again, like a login in progress.
+            self.retry()
+            return
         if response.status == client.Statuses.OK:
             self._associate_with_user(auth_result, response.civil_number)
         elif response.status == client.Statuses.PROCESSING:
