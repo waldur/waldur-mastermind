@@ -9,6 +9,7 @@ from django.urls import resolve
 from django_filters.constants import EMPTY_VALUES
 from django_filters.filters import MultipleChoiceFilter
 from rest_framework.filters import BaseFilterBackend
+from rest_framework.permissions import SAFE_METHODS
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import serializers as core_serializers
@@ -217,8 +218,12 @@ class CategoryFilter(django_filters.CharFilter):
 
 
 class StaffOrUserFilter(BaseFilterBackend):
+    """Staff see every row; support see every row read-only; others see their own."""
+
     def filter_queryset(self, request, queryset, view):
-        if request.user.is_staff or request.user.is_support:
+        if request.user.is_staff:
+            return queryset
+        if request.user.is_support and request.method in SAFE_METHODS:
             return queryset
 
         return queryset.filter(user=request.user)
