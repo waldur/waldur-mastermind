@@ -15,7 +15,11 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serial
 from keycloak import exceptions as keycloak_exceptions
 from rest_framework import decorators, generics, mixins, response, status, viewsets
 from rest_framework import serializers as rf_serializers
-from rest_framework.exceptions import MethodNotAllowed, ValidationError
+from rest_framework.exceptions import (
+    MethodNotAllowed,
+    PermissionDenied,
+    ValidationError,
+)
 from rest_framework.permissions import SAFE_METHODS
 
 from waldur_core.core import validators as core_validators
@@ -330,7 +334,10 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
             return self.filter_visible_catalogs()
 
     def filter_catalogs_for_settings(self, settings_uuid):
-        qs = ServiceSettings.objects.filter(type=RancherConfig.service_name)
+        qs = filter_queryset_for_user(
+            queryset=ServiceSettings.objects.filter(type=RancherConfig.service_name),
+            user=self.request.user,
+        )
         scope = get_object_or_404(qs, uuid=settings_uuid)
         ctype = ContentType.objects.get_for_model(ServiceSettings)
         return self.queryset.filter(content_type=ctype, object_id=scope.id)
@@ -424,11 +431,17 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
 
     def check_catalog_permissions(self, scope):
         user = cast(User, self.request.user)
-        if isinstance(scope, ServiceSettings) and not user:
+        if user.is_staff:
+            return
+        if isinstance(scope, ServiceSettings):
             raise ValidationError(_("Only staff is allowed to manage global catalogs."))
-        if isinstance(scope, models.Cluster):
-            is_administrator(self.request, scope.project)
-            utils.check_managed_cluster(scope, user)
+        if isinstance(scope, models.Cluster | models.Project):
+            cluster = scope if isinstance(scope, models.Cluster) else scope.cluster
+            if cluster is None:
+                # A Rancher project outside any cluster has no project administrators.
+                raise PermissionDenied()
+            is_administrator(self.request, self, scope)
+            utils.check_managed_cluster(cluster, user)
 
 
 class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
