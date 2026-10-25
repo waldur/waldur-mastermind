@@ -28,7 +28,11 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from waldur_core.core.models import User
-from waldur_core.core.permissions import IsAdminOrReadOnly, IsStaff
+from waldur_core.core.permissions import (
+    IsAdminOrReadOnly,
+    IsStaff,
+    PATScopeAwareIsAdminUser,
+)
 from waldur_core.core.serializers import get_localized_field_names
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet, count_action
@@ -1028,6 +1032,65 @@ class UserRoleMixin:
                 reason="Manual user removal via delete_user API endpoint",
             )
         return Response(status=status.HTTP_200_OK)
+
+
+class GlobalUserRoleViewSet(ActionsViewSet):
+    """Staff assignments of site-wide roles.
+
+    The site scope is one row, so this list is the whole site team.
+    A role scoped to an organization or another object is rejected here;
+    those grants stay on that object's add-user action.
+    """
+
+    queryset = models.UserRole.objects.all()
+    serializer_class = serializers.UserRoleDetailsSerializer
+    create_serializer_class = serializers.GlobalUserRoleCreateSerializer
+    lookup_field = "uuid"
+    permission_classes = (PATScopeAwareIsAdminUser,)
+    disabled_actions = ["update", "partial_update"]
+
+    def get_queryset(self):
+        global_ct = ContentType.objects.get_by_natural_key(*enums.TYPE_MAP["global"])
+        return (
+            super()
+            .get_queryset()
+            .filter(content_type=global_ct, is_active=True)
+            .select_related("user", "role", "created_by")
+        )
+
+    @extend_schema(
+        summary="Grant a site-wide role",
+        description=(
+            "Staff assigns a global role to a user. The role's content type "
+            "must be global. An optional expiration time can be set."
+        ),
+        request=serializers.GlobalUserRoleCreateSerializer,
+        responses={201: serializers.UserRoleDetailsSerializer},
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        output = serializers.UserRoleDetailsSerializer(
+            serializer.instance, context={"request": request}
+        )
+        return Response(output.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        data = serializer.validated_data
+        serializer.instance = add_user(
+            data["scope"],
+            data["user"],
+            data["role"],
+            created_by=self.request.user,
+            expiration_time=data.get("expiration_time"),
+        )
+
+    def perform_destroy(self, instance):
+        instance.revoke(
+            self.request.user,
+            reason="Manual user removal via global user role API",
+        )
 
 
 def filter_user_permissions_by_ip_address(qs: QuerySet[models.UserRole], user_ip: str):

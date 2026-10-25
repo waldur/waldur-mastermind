@@ -22,7 +22,10 @@
 #   description: Read-only auditor
 #   scope: customer          # customer | service_provider | call_organizer |
 #                            # project | offering | resource |
-#                            # resource_project | call | proposal
+#                            # resource_project | call | proposal | global
+# scope: global applies each permission to every object. Staff assign holders
+# with POST /api/global-user-roles/. It is not an organization role, and it
+# cannot carry CUSTOMER.CREATE/UPDATE/DELETE_PERMISSION (import drops them).
 #   permissions:
 #     - CUSTOMER.LIST_USERS
 #     - PROJECT.LIST

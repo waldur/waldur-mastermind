@@ -2,7 +2,11 @@ import yaml
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
-from waldur_core.permissions.enums import TEAM_VIEW_PERMISSIONS, TYPE_MAP
+from waldur_core.permissions.enums import (
+    GLOBAL_DENIED_PERMISSIONS,
+    TEAM_VIEW_PERMISSIONS,
+    TYPE_MAP,
+)
 from waldur_core.permissions.models import Role, RolePermission
 
 
@@ -56,6 +60,17 @@ class Command(BaseCommand):
                     )
                     continue
                 new_permissions = set(row["permissions"])
+                if role.content_type.natural_key() == tuple(TYPE_MAP["global"]):
+                    denied = new_permissions & GLOBAL_DENIED_PERMISSIONS
+                    if denied:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Role {row['role']} is site-wide, so it cannot "
+                                f"manage an organization's team; dropping "
+                                f"{', '.join(sorted(denied))}"
+                            )
+                        )
+                        new_permissions -= denied
 
                 RolePermission.objects.filter(
                     role=role, permission__in=current_permissions - new_permissions

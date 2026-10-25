@@ -103,9 +103,13 @@ class RoleFilter(django_filters.FilterSet):
             content_type=customer_ct, object_id=customer.id
         ).values_list("role_id", flat=True)
         # Public roles (no availability records) plus roles made available to this
-        # customer.
+        # customer. A global role has no availability records either, but it is
+        # granted on the site scope and is not valid on an organization, so it
+        # stays out of the picker.
         qs = queryset.filter(
             Q(availability__isnull=True) | Q(id__in=available_role_ids)
+        ).exclude(
+            content_type=ContentType.objects.get_by_natural_key(*TYPE_MAP["global"])
         )
         # Concealed roles are excluded by default (pickers), but kept when
         # include_concealed is set so the staff management view can list them.

@@ -18,9 +18,17 @@ _KEY_REMAP = {
 }
 
 
+# A site-wide role has no create permission: only staff grant it, through
+# /api/global-user-roles/. The frontend keys this map by every SDK RoleType,
+# so the site scope is listed too, mapped to STAFF.ACCESS. No role carries that
+# permission, so the frontend's check passes for staff alone.
+_EXTRA_SCOPES = {"global": enums.PermissionEnum.STAFF_ACCESS}
+
+
 def format_dict(enum):
     return "\n".join(
-        f"  {_KEY_REMAP.get(key, key)}: '{value.value}'," for key, value in enum.items()
+        f"  {_KEY_REMAP.get(key, key)}: '{value.value}',"
+        for key, value in {**enum, **_EXTRA_SCOPES}.items()
     )
 
 

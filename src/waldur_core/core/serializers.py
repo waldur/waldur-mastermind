@@ -39,7 +39,12 @@ from waldur_core.core.validators import (
     normalize_network_acl,
     validate_access_email_patterns,
 )
-from waldur_core.permissions.enums import TYPE_KEY_BY_CT, TYPE_MAP, PermissionEnum
+from waldur_core.permissions.enums import (
+    BINDABLE_TYPE_MAP,
+    TYPE_KEY_BY_CT,
+    TYPE_MAP,
+    PermissionEnum,
+)
 from waldur_core.permissions.utils import (
     get_scope_ancestors,
     has_any_permission,
@@ -1732,7 +1737,7 @@ class TableGrowthTriggerResponseSerializer(serializers.Serializer):
 class AllowedScopeInputSerializer(serializers.Serializer):
     """Single PAT binding entry on create.
 
-    `type` is a key of :data:`waldur_core.permissions.enums.TYPE_MAP`;
+    `type` is a key of :data:`waldur_core.permissions.enums.BINDABLE_TYPE_MAP`;
     `uuid` is the target entity's UUID.
     """
 
@@ -1740,9 +1745,10 @@ class AllowedScopeInputSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
 
     def validate_type(self, value):
-        if value not in TYPE_MAP:
+        if value not in BINDABLE_TYPE_MAP:
             raise serializers.ValidationError(
-                f"Unknown scope type '{value}'. Expected one of: {sorted(TYPE_MAP)}."
+                f"Unknown scope type '{value}'. "
+                f"Expected one of: {sorted(BINDABLE_TYPE_MAP)}."
             )
         return value
 

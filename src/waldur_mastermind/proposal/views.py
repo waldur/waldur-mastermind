@@ -111,6 +111,7 @@ from .managers import (
     get_connected_call_organizers,
     get_connected_calls,
     holds_live_review,
+    sees_every_call,
 )
 from .models import Proposal
 from .serializers import ReviewSubmitSerializer
@@ -4714,7 +4715,7 @@ class ReviewViewSet(ActionsViewSet):
 
         # Support reads everything staff does and writes nothing; writes on
         # this viewset are gated separately, not by queryset visibility.
-        if user.is_staff or user.is_support:
+        if user.is_staff or user.is_support or sees_every_call(user):
             return models.Review.objects.all().order_by("created")
 
         # Base queries for authorized users (call organizers, call managers, reviewers)
@@ -5229,7 +5230,7 @@ class CallWorkflowStepNotificationRuleViewSet(ActionsViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if user.is_staff or user.is_support or sees_every_call(user):
             return queryset
         return queryset.filter(workflow_step__call__in=get_connected_calls(user))
 
@@ -5295,7 +5296,7 @@ class ReviewerProfileViewSet(ActionsViewSet):
         accepted = Q(
             pool_memberships__invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED
         )
-        if user.is_support:
+        if user.is_support or sees_every_call(user):
             pooled = accepted
         else:
             pooled = accepted & Q(
@@ -5683,7 +5684,7 @@ class ConflictOfInterestViewSet(ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if user.is_staff or user.is_support or sees_every_call(user):
             return models.ConflictOfInterest.objects.all().order_by("-detected_at")
         # Call managers can see COIs for their calls
         return models.ConflictOfInterest.objects.filter(
@@ -5879,6 +5880,7 @@ class COIDisclosureViewSet(ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        # Staff only. Support and a call desk stay on the membership filter.
         if user.is_staff:
             return models.COIDisclosureForm.objects.all().order_by("-created")
         # Users can see their own disclosures, call managers can see all for their calls
@@ -6093,7 +6095,7 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if user.is_staff or user.is_support or sees_every_call(user):
             qs = models.CallReviewerPool.objects.all()
         else:
             qs = models.CallReviewerPool.objects.filter(
@@ -6370,8 +6372,8 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
                 ]
             )
             transaction.on_commit(
-                lambda uuid=invitation.uuid: (
-                    tasks.send_reviewer_invitation_email.delay(uuid)
+                lambda uuid=invitation.uuid: tasks.send_reviewer_invitation_email.delay(
+                    uuid
                 )
             )
 
@@ -6432,7 +6434,7 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if user.is_staff or user.is_support or sees_every_call(user):
             return models.ReviewerSuggestion.objects.all().order_by("-affinity_score")
         return models.ReviewerSuggestion.objects.filter(
             Q(call__in=get_connected_calls(user, CallRole.MANAGER))
@@ -6718,6 +6720,7 @@ class ReviewerBidViewSet(ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        # Staff only. Support and a call desk stay on the membership filter.
         if user.is_staff:
             return models.ReviewerBid.objects.all().order_by("-submitted_at")
         # Reviewers can see their own bids, managers can see all for their calls
@@ -7238,7 +7241,7 @@ class AssignmentBatchViewSet(ActionsViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if user.is_staff or user.is_support or sees_every_call(user):
             return queryset
 
         # Filter based on user's roles
@@ -7747,7 +7750,7 @@ class CallAssignmentConfigurationViewSet(ActionsViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if user.is_staff or user.is_support or sees_every_call(user):
             return queryset
 
         connected_calls = get_connected_calls(user)

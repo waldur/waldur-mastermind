@@ -73,7 +73,14 @@ TYPE_MAP = {
     "resource_project": ("marketplace", "resourceproject"),
     "call": ("proposal", "call"),
     "proposal": ("proposal", "proposal"),
+    "global": ("permissions", "globalrolescope"),
 }
+
+# Scope types an entity can be bound to: a personal access token's
+# allowed_scopes, an event consumer's bindings, an invitation's target. The site
+# scope is left out. Roles are granted on it (/api/global-user-roles/), but it
+# is not an entity to bind a token or a queue to.
+BINDABLE_TYPE_MAP = {key: pair for key, pair in TYPE_MAP.items() if key != "global"}
 
 # Inverse of TYPE_MAP — (app_label, model) → type key. Used by PAT
 # serialization and the list-filter backend to map a ContentType back to
@@ -90,12 +97,14 @@ TYPE_KEYS = Literal[
     "resource_project",
     "call",
     "proposal",
+    "global",
 ]
 
 
 class PermissionEnum(StrEnum):
     REGISTER_SERVICE_PROVIDER = "SERVICE_PROVIDER.REGISTER"
 
+    LIST_OFFERINGS = "OFFERING.LIST"
     CREATE_OFFERING = "OFFERING.CREATE"
     DELETE_OFFERING = "OFFERING.DELETE"
     UPDATE_OFFERING_THUMBNAIL = "OFFERING.UPDATE_THUMBNAIL"
@@ -344,6 +353,20 @@ DELETE_PERMISSIONS = {
     "resourceproject": PermissionEnum.DELETE_RESOURCE_PROJECT_PERMISSION,
 }
 
+# Permissions a site-wide (global) role may not use: managing an
+# organization's or a service provider's team. Held on every object, they let
+# the holder make themselves owner of any organization, which no
+# narrower-than-staff role may do. Team management below the organization
+# (project, offering, resource, call, proposal) stays grantable, so a support
+# desk can invite people into any project. The other powers #762 keeps from
+# this scope (toggling is_staff, impersonation, site settings, deleting an
+# organization) are staff checks, not permissions, so no role can carry them.
+GLOBAL_DENIED_PERMISSIONS = frozenset(
+    permission_map[scope]
+    for permission_map in (CREATE_PERMISSIONS, UPDATE_PERMISSIONS, DELETE_PERMISSIONS)
+    for scope in ("customer", "service_provider")
+)
+
 
 # Permission a role must carry for its holder to see the team, keyed by the
 # (app_label, model) of the scope the role is held on. See
@@ -392,6 +415,7 @@ SCOPE_NAME_PREFIXES: dict[str, str] = {
     "call_organizer": "CALL_ORGANIZER",
     "call": "CALL",
     "proposal": "PROPOSAL",
+    "global": "GLOBAL",
 }
 
 
@@ -452,6 +476,11 @@ def get_permission_scope_types(permission: str) -> tuple[str, ...] | None:
 
     Returns ``None`` when the permission category is unknown, so callers can
     stay silent rather than guess.
+
+    ``global`` is added for every permission that has a target scope, so a
+    site-wide role may carry it. ``has_permission`` then applies that grant
+    to every object. STAFF and SUPPORT have no target, so they stay inert
+    on a role.
     """
     category = permission.split(".")[0]
     targets = PERMISSION_TARGET_SCOPES.get(category)
@@ -462,6 +491,8 @@ def get_permission_scope_types(permission: str) -> tuple[str, ...] | None:
         for scope in (target, *SCOPE_ANCESTORS.get(target, ())):
             if scope not in scopes:
                 scopes.append(scope)
+    if scopes:
+        scopes.append("global")
     return tuple(scopes)
 
 

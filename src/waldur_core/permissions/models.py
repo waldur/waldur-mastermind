@@ -13,6 +13,7 @@ from model_utils.tracker import FieldInstanceTracker
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.mixins import ScopeMixin
 from waldur_core.core.models import DescribableMixin, User, UuidMixin
+from waldur_core.logging.mixins import LoggableMixin
 
 from . import signals
 from .enums import ROLE_DESCRIPTIONS
@@ -262,6 +263,38 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
 
     def __str__(self):
         return f"{self.user.username} ({self.role}, {self.expiration_time}, {self.is_active})"
+
+
+class GlobalRoleScope(LoggableMixin, UuidMixin):
+    """The one site-wide scope a global role is granted on.
+
+    A permission held here applies to every object. See
+    ``permissions.utils.has_permission``. A model's ``list_permission``,
+    held here, lists every row of that model. ``User.is_support`` remains
+    the blanket read that does not depend on a particular permission.
+
+    ``singleton`` keeps the table to one row, which is the scope
+    ``get_global_role_scope`` grants on. Grant with
+    ``permissions.utils.grant_global_role``.
+    """
+
+    singleton = models.BooleanField(default=True, unique=True, editable=False)
+
+    class Meta:
+        verbose_name = "Global role scope"
+
+    # No organisation. ``_get_customer`` reads Permissions.customer_path and
+    # returns None when it is unset, so granting the role still logs.
+    class Permissions:
+        customer_path = None
+        project_path = None
+
+    @property
+    def name(self):
+        return "Global"
+
+    def __str__(self):
+        return self.name
 
 
 class RolePermission(models.Model):

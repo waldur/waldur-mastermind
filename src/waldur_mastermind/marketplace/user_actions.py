@@ -10,9 +10,9 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
 from waldur_core.configuration import config
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import has_permission, holds_global_permission
 from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
@@ -31,6 +31,7 @@ from waldur_core.user_actions.providers import (
 
 from . import models
 from .enums import OrderStates, ResourceStates
+from .permissions import user_can_approve_order_as_consumer
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -47,20 +48,19 @@ class PendingOrderProvider(BaseActionProvider):
         pending_hours = config.USER_ACTIONS_PENDING_ORDER_HOURS
         cutoff = timezone.now() - timedelta(hours=pending_hours)
 
-        # Find orders pending consumer approval where user has APPROVE_ORDER permission
-        project_ct = ContentType.objects.get_for_model(Project)
-        user_projects = UserRole.objects.filter(
-            user=user,
-            content_type=project_ct,
-            is_active=True,
-            role__permissions__permission=PermissionEnum.APPROVE_ORDER,
-        ).values_list("object_id", flat=True)
+        # Same scopes the approve action accepts: the project, its
+        # organization, or a site-wide APPROVE_ORDER grant.
+        projects = self._projects_user_can_approve(user)
+        if projects is not None and not projects:
+            return []
 
         orders = models.Order.objects.filter(
             state=models.OrderStates.PENDING_CONSUMER,
             created__lt=cutoff,
-            project_id__in=user_projects,
-        ).distinct()
+        )
+        if projects is not None:
+            orders = orders.filter(project_id__in=projects)
+        orders = orders.distinct()
 
         actions = []
         for order in orders:
@@ -95,13 +95,14 @@ class PendingOrderProvider(BaseActionProvider):
         return actions
 
     def get_affected_users(self) -> list[User]:
-        """Get users who can approve orders (have APPROVE_ORDER permission on projects or customers)"""
+        """Users who hold APPROVE_ORDER on a project, an organization, or the site."""
         project_ct = ContentType.objects.get_for_model(Project)
         customer_ct = ContentType.objects.get_for_model(Customer)
+        global_ct = ContentType.objects.get_by_natural_key(*TYPE_MAP["global"])
 
-        # Users with APPROVE_ORDER permission on projects or customers
+        # Users with APPROVE_ORDER on a project, an organization, or the site.
         user_ids = UserRole.objects.filter(
-            content_type__in=[project_ct, customer_ct],
+            content_type__in=[project_ct, customer_ct, global_ct],
             is_active=True,
             role__permissions__permission=PermissionEnum.APPROVE_ORDER,
         ).values_list("user_id", flat=True)
@@ -162,10 +163,39 @@ class PendingOrderProvider(BaseActionProvider):
             )
         return actions
 
+    def _projects_user_can_approve(self, user: User):
+        """Project ids whose orders this user may approve, or None for every project.
+
+        None is a site-wide APPROVE_ORDER grant. An empty list is no grant.
+        """
+        if holds_global_permission(user, PermissionEnum.APPROVE_ORDER):
+            return None
+
+        project_ct = ContentType.objects.get_for_model(Project)
+        customer_ct = ContentType.objects.get_for_model(Customer)
+        project_ids = []
+        customer_ids = []
+        for content_type_id, object_id in UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            role__permissions__permission=PermissionEnum.APPROVE_ORDER,
+            content_type__in=[project_ct, customer_ct],
+        ).values_list("content_type_id", "object_id"):
+            if content_type_id == project_ct.id:
+                project_ids.append(object_id)
+            else:
+                customer_ids.append(object_id)
+        if not project_ids and not customer_ids:
+            return []
+        return list(
+            Project.objects.filter(
+                Q(id__in=project_ids) | Q(customer_id__in=customer_ids)
+            ).values_list("id", flat=True)
+        )
+
     def _can_approve_order(self, user: User, order) -> bool:
         """Check if user can approve the order"""
-        # Check if user has APPROVE_ORDER permission on the project
-        return has_permission(user, PermissionEnum.APPROVE_ORDER, order.project)
+        return user_can_approve_order_as_consumer(user, order)
 
     def _can_reject_order(self, user: User, order) -> bool:
         """Check if user can reject the order"""

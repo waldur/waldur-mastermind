@@ -8,6 +8,11 @@ def register_in(router):
         basename="role",
     )
     router.register(
+        r"global-user-roles",
+        views.GlobalUserRoleViewSet,
+        basename="global-user-role",
+    )
+    router.register(
         r"role-availabilities",
         views.RoleAvailabilityViewSet,
         basename="role-availability",

@@ -127,6 +127,7 @@ from waldur_core.permissions.utils import (
     get_user_ids,
     has_permission,
     has_permission_on_any_source,
+    holds_global_permission,
     permission_factory,
 )
 from waldur_core.permissions.views import UserRoleMixin
@@ -20059,8 +20060,10 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
         user = self.request.user
         if user.is_staff or user.is_support:
             return qs
-        # Users with UPDATE_RESOURCE_LIMITS on any customer/project see all requests
-        # Others only see their own requests
+        # A site-wide grant covers every request. A grant on a customer or
+        # project covers that scope. Anyone else sees requests they created.
+        if holds_global_permission(user, PermissionEnum.UPDATE_RESOURCE_LIMITS):
+            return qs
         privileged_customer_ids = UserRole.objects.filter(
             user=user,
             role__permissions__permission=PermissionEnum.UPDATE_RESOURCE_LIMITS,

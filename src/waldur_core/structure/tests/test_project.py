@@ -16,8 +16,8 @@ from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.permissions.utils import get_permissions
+from waldur_core.permissions.fixtures import CustomerRole, GlobalRole, ProjectRole
+from waldur_core.permissions.utils import get_permissions, grant_global_role
 from waldur_core.structure import executors, models, permissions
 from waldur_core.structure.models import Project
 from waldur_core.structure.tests import factories, fixtures
@@ -2480,3 +2480,107 @@ class ProjectListQueryOptimizationTest(test.APITestCase):
                 f"Found {len(per_project_resource_queries)} per-project resource count queries (N+1 issue). "
                 f"Queries: {[q['sql'][:150] for q in per_project_resource_queries]}",
             )
+
+
+class GlobalScopeProjectTest(test.APITestCase):
+    def setUp(self):
+        self.user = factories.UserFactory()
+        self.client.force_authenticate(self.user)
+
+    def grant(self, role_name, *permissions):
+        role = GlobalRole.get(role_name)
+        for permission in permissions:
+            role.add_permission(permission)
+        grant_global_role(self.user, role)
+
+    def test_create_project_without_visibility_rejects_the_organization(self):
+        # The customer field only accepts an organization the user can see.
+        # PROJECT.CREATE does not open that list.
+        customer = factories.CustomerFactory()
+        self.grant("GLOBAL.PROJECT_CREATOR", PermissionEnum.CREATE_PROJECT)
+        response = self.client.post(
+            factories.ProjectFactory.get_list_url(),
+            {
+                "name": "Created from the site role",
+                "customer": factories.CustomerFactory.get_url(customer),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.Project.objects.filter(name="Created from the site role").exists()
+        )
+
+    def test_support_with_create_project_can_create_without_membership(self):
+        customer = factories.CustomerFactory()
+        support = factories.UserFactory(is_support=True)
+        role = GlobalRole.get("GLOBAL.PROJECT_SUPPORT_CREATOR")
+        role.add_permission(PermissionEnum.CREATE_PROJECT)
+        grant_global_role(support, role)
+        self.client.force_authenticate(support)
+        response = self.client.post(
+            factories.ProjectFactory.get_list_url(),
+            {
+                "name": "Created from the site role",
+                "customer": factories.CustomerFactory.get_url(customer),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(
+            models.Project.objects.filter(
+                name="Created from the site role", customer=customer
+            ).exists()
+        )
+
+    def test_delete_project_with_list_and_delete(self):
+        project = factories.ProjectFactory()
+        self.grant(
+            "GLOBAL.PROJECT_REMOVER",
+            PermissionEnum.LIST_PROJECTS,
+            PermissionEnum.DELETE_PROJECT,
+        )
+        response = self.client.delete(factories.ProjectFactory.get_url(project))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        project.refresh_from_db()
+        self.assertTrue(project.is_removed)
+
+    def test_create_project_does_not_list_organizations(self):
+        first = factories.CustomerFactory()
+        second = factories.CustomerFactory()
+        self.grant("GLOBAL.PROJECT_CREATOR_LIST", PermissionEnum.CREATE_PROJECT)
+        response = self.client.get(factories.CustomerFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        visible = {item["uuid"] for item in response.data}
+        self.assertNotIn(first.uuid.hex, visible)
+        self.assertNotIn(second.uuid.hex, visible)
+        filtered = self.client.get(
+            factories.CustomerFactory.get_list_url(),
+            {"current_user_has_project_create_permission": "true"},
+        )
+        self.assertEqual(filtered.status_code, status.HTTP_200_OK, filtered.data)
+        self.assertEqual(filtered.data, [])
+
+    def test_update_customer_without_membership_does_not_open_the_organization(self):
+        customer = factories.CustomerFactory()
+        self.grant("GLOBAL.CUSTOMER_EDITOR", PermissionEnum.UPDATE_CUSTOMER)
+        response = self.client.patch(
+            factories.CustomerFactory.get_url(customer),
+            {"name": "Renamed from the site role"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        customer.refresh_from_db()
+        self.assertNotEqual(customer.name, "Renamed from the site role")
+
+    def test_support_with_update_customer_can_rename_it(self):
+        customer = factories.CustomerFactory()
+        support = factories.UserFactory(is_support=True)
+        role = GlobalRole.get("GLOBAL.CUSTOMER_SUPPORT_EDITOR")
+        role.add_permission(PermissionEnum.UPDATE_CUSTOMER)
+        grant_global_role(support, role)
+        self.client.force_authenticate(support)
+        response = self.client.patch(
+            factories.CustomerFactory.get_url(customer),
+            {"name": "Renamed from the site role"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        customer.refresh_from_db()
+        self.assertEqual(customer.name, "Renamed from the site role")

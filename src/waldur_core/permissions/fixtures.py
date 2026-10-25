@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.core.types import classproperty
-from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.enums import TYPE_MAP, RoleEnum
 from waldur_core.permissions.models import Role
 
 
@@ -122,4 +122,20 @@ class ProposalRole:
         return Role.objects.get_system_role(
             RoleEnum.PROPOSAL_ADMIN,
             content_type=ContentType.objects.get_by_natural_key("proposal", "proposal"),
+        )
+
+
+class GlobalRole:
+    """A deployment-defined role on the site-wide scope.
+
+    The name is chosen by the deployment, the same way ``import_roles``
+    creates one from ``custom-roles.yaml`` with ``scope: global``. Grant it
+    with ``grant_global_role(user, role)`` after ``add_permission``.
+    """
+
+    @staticmethod
+    def get(name):
+        return Role.objects.get_system_role(
+            name,
+            content_type=ContentType.objects.get_by_natural_key(*TYPE_MAP["global"]),
         )
