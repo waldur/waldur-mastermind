@@ -1277,7 +1277,14 @@ class ServiceDeskBackend(SupportBackend):
                 "because it still exists on backend.",
                 issue.backend_id,
             )
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.HTTPError as e:
+            # Only a 404 says the issue is gone; any other error (expired
+            # credentials, rate limiting, an outage) says nothing about it.
+            if e.response is None or e.response.status_code != 404:
+                raise
+            # Jira also answers 404 for an issue the account can no longer see,
+            # so the service desk itself must still be visible.
+            self.manager.get_service_desk_by_id(self.get_service_desk_id())
             issue.delete()
 
     @reraise_exceptions

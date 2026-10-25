@@ -4,6 +4,7 @@ import unittest
 from io import BytesIO
 from unittest import mock
 
+import requests
 from django.core import mail
 from django.test import override_settings
 from django.urls import reverse
@@ -14,10 +15,12 @@ from waldur_core.configuration.testing import (
     override_config as override_constance_config,
 )
 from waldur_core.core.tests.helpers import load_json_resource
+from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendType
 from waldur_mastermind.support.backend.atlassian import (
     AttachmentSynchronizer,
     CommentSynchronizer,
+    JiraBackendError,
     ServiceDeskBackend,
 )
 from waldur_mastermind.support.tests import factories
@@ -58,6 +61,20 @@ class TestJiraWebHooks(APITestCase):
         return self.client.post(
             self.url, body, HTTP_X_WEBHOOK_SECRET=JIRA_WEBHOOK_TEST_SECRET
         )
+
+    def test_deletion_event_is_refused_with_503_while_jira_is_unavailable(
+        self, mock_jira
+    ):
+        mock_jira.return_value.delete_issue_from_jira.side_effect = JiraBackendError(
+            "Jira is down"
+        )
+        body = dict(self.request_data_issue_updated, webhookEvent="jira:issue_deleted")
+
+        response = self._post(body)
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response["Retry-After"], "60")
+        self.assertTrue(models.Issue.objects.filter(pk=self.issue.pk).exists())
 
     def test_issue_update(self, mock_jira):
         self.request_data_issue_updated["issue_event_type_name"] = "issue_updated"
@@ -515,3 +532,70 @@ class TestUpdateAttachmentFromJira(APITestCase):
         self.backend_issue.fields.attachment = []
         self.backend.update_attachment_from_jira(self.issue)
         self.assertEqual(self.issue.attachments.count(), 0)
+
+
+@override_constance_config(
+    WALDUR_SUPPORT_ENABLED=True,
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ATLASSIAN,
+)
+class TestDeleteIssueFromJira(APITestCase):
+    """A deletion event only removes the issue once Jira confirms it is gone."""
+
+    def setUp(self):
+        self.issue = factories.IssueFactory(backend_id="SNT-101")
+        self.backend = ServiceDeskBackend()
+        manager = mock.patch.object(
+            ServiceDeskBackend, "manager", new_callable=mock.PropertyMock
+        )
+        self.manager = manager.start().return_value
+        self.addCleanup(manager.stop)
+        service_desk_id = mock.patch.object(
+            ServiceDeskBackend, "get_service_desk_id", return_value=10
+        )
+        service_desk_id.start()
+        self.addCleanup(service_desk_id.stop)
+
+    def jira_error(self, status_code):
+        response = requests.Response()
+        response.status_code = status_code
+        return requests.exceptions.HTTPError(str(status_code), response=response)
+
+    def issue_exists(self):
+        return models.Issue.objects.filter(pk=self.issue.pk).exists()
+
+    def test_issue_is_deleted_when_jira_reports_it_not_found(self):
+        self.manager.get_customer_request.side_effect = self.jira_error(404)
+        self.manager.get_service_desk_by_id.return_value = {"id": "10"}
+
+        self.backend.delete_issue_from_jira(self.issue)
+
+        self.assertFalse(self.issue_exists())
+
+    def test_issue_is_kept_when_the_service_desk_is_no_longer_visible(self):
+        # Jira answers 404 for issues an account lost access to, too.
+        self.manager.get_customer_request.side_effect = self.jira_error(404)
+        self.manager.get_service_desk_by_id.side_effect = self.jira_error(404)
+
+        with self.assertRaises(JiraBackendError):
+            self.backend.delete_issue_from_jira(self.issue)
+
+        self.assertTrue(self.issue_exists())
+
+    def test_issue_is_kept_when_jira_still_has_it(self):
+        self.manager.get_customer_request.return_value = {"issueKey": "SNT-101"}
+
+        self.backend.delete_issue_from_jira(self.issue)
+
+        self.assertTrue(self.issue_exists())
+
+    def test_issue_is_kept_when_jira_cannot_answer(self):
+        for status_code in (401, 403, 429, 500, 503):
+            with self.subTest(status_code=status_code):
+                self.manager.get_customer_request.side_effect = self.jira_error(
+                    status_code
+                )
+
+                with self.assertRaises(JiraBackendError):
+                    self.backend.delete_issue_from_jira(self.issue)
+
+                self.assertTrue(self.issue_exists())
