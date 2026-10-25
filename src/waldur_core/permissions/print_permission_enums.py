@@ -25,6 +25,12 @@ _KEY_REMAP = {
 _EXTRA_SCOPES = {"global": enums.PermissionEnum.STAFF_ACCESS}
 
 
+# What a site-wide role cannot carry. The role form greys these out instead of
+# offering a choice the API rejects.
+def format_list(permissions):
+    return "\n".join(f"  '{permission.value}'," for permission in sorted(permissions))
+
+
 def format_dict(enum):
     return "\n".join(
         f"  {_KEY_REMAP.get(key, key)}: '{value.value}',"
@@ -48,5 +54,9 @@ export const PermissionMap = {{
 
 export const PermissionEnum = {{
 {format_enum(enums.PermissionEnum)}
-}};"""
+}};
+
+export const GlobalDeniedPermissions = [
+{format_list(enums.GLOBAL_DENIED_PERMISSIONS)}
+];"""
 )
