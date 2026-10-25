@@ -36,6 +36,9 @@ class SAML2Extension(WaldurExtension):
                     "authn_requests_signed": settings["WALDUR_AUTH_SAML2"][
                         "AUTHN_REQUESTS_SIGNED"
                     ],
+                    # Reject a response in which neither the response nor the
+                    # assertion is signed, even if want_response_signed is off.
+                    "want_assertions_or_response_signed": True,
                     "endpoints": {
                         # url and binding to the assertion consumer service view
                         # do not change the binding or service name
@@ -125,7 +128,9 @@ class SAML2Extension(WaldurExtension):
             # signing
             "key_file": settings["WALDUR_AUTH_SAML2"]["KEY_FILE"],  # private part
             "cert_file": settings["WALDUR_AUTH_SAML2"]["CERT_FILE"],  # public part
-            "only_use_keys_in_metadata": False,
+            # Verify signatures only with keys published in identity provider
+            # metadata, never with the certificate a response carries itself.
+            "only_use_keys_in_metadata": True,
             "allow_unknown_attributes": True,
             "accepted_time_diff": 120,
         }
