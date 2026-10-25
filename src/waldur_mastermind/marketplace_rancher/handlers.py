@@ -1,6 +1,8 @@
 import logging
 from typing import cast
 
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from model_utils.tracker import FieldInstanceTracker
 
 from waldur_kubernetes.backend import KubernetesBackend
@@ -157,7 +159,18 @@ def create_public_cluster_ip_for_floating_ip(
 
     resource_slug = floating_ip_instance.name.replace(OS_LB_PREFIX, "", 1)
 
-    resource = marketplace_models.Resource.objects.filter(slug=resource_slug).first()
+    # Load balancers live in the cluster's dedicated VM project (managed
+    # clusters) or in its tenant (imported ones); a VM anywhere else that merely
+    # carries the name gives no cluster an IP.
+    own_clusters = Cluster.objects.filter(
+        Q(vm_project=floating_ip_instance.project)
+        | Q(tenant=floating_ip_instance.tenant)
+    )
+    resource = marketplace_models.Resource.objects.filter(
+        slug=resource_slug,
+        content_type=ContentType.objects.get_for_model(Cluster),
+        object_id__in=own_clusters.values("id"),
+    ).first()
 
     if not resource:
         logger.warning(
