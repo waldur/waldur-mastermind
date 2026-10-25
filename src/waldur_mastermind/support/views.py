@@ -1567,7 +1567,17 @@ class WebHookReceiverView(CheckExtensionMixin, views.APIView):
             return rejection
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        try:
+            serializer.save()
+        except structure_exceptions.ServiceBackendError:
+            # Jira could not be asked about the issue, so the event was not
+            # applied; let Jira deliver it again later.
+            logger.exception("Jira webhook event could not be processed.")
+            return response.Response(
+                {"detail": "Jira is unavailable, retry later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                headers={"Retry-After": "60"},
+            )
 
         # Try to update order output if the issue is linked to an order (fail-safe)
         try:
