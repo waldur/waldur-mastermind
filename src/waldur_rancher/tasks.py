@@ -793,6 +793,7 @@ def sync_rancher_group_bindings():
         rancher_backend: backend.RancherBackend = cluster.get_backend()
         local_cluster_groups = list(
             models.KeycloakGroup.objects.filter(
+                scope_uuid=cluster.uuid,
                 role__settings=cluster.settings,
                 role__scope_type=enums.RoleScopeType.CLUSTER,
             )
@@ -806,6 +807,7 @@ def sync_rancher_group_bindings():
         for project in projects:
             local_project_groups = list(
                 models.KeycloakGroup.objects.filter(
+                    scope_uuid=project.uuid,
                     role__settings=project.settings,
                     role__scope_type=enums.RoleScopeType.PROJECT,
                 )
