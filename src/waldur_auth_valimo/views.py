@@ -1,3 +1,4 @@
+from django.db import connection, transaction
 from django.http import Http404
 from drf_spectacular.utils import (
     OpenApiExample,
@@ -21,6 +22,26 @@ class AuthResultViewSet(
     permission_classes = ()
     lookup_field = "uuid"
     create_executor = executors.AuthExecutor
+
+    def perform_create(self, serializer):
+        phone = serializer.validated_data["phone"]
+        with transaction.atomic():
+            # Logins for one phone are checked and created one at a time, so
+            # parallel requests cannot all pass the per-phone limit.
+            if connection.vendor == "postgresql":
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                        [f"waldur_auth_valimo.phone:{phone}"],
+                    )
+            serializers.check_phone_login_limit(phone)
+            super().perform_create(serializer)
+
+    @property
+    def throttle_scope(self):
+        # Starting a login sends a signing prompt to the phone; the portal
+        # then polls the result until the user answers, which is not limited.
+        return "valimo" if self.action == "create" else None
 
     @extend_schema(
         request=serializers.AuthResultSerializer,

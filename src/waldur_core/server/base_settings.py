@@ -132,6 +132,9 @@ REST_FRAMEWORK = {
         "oauth_probe": "120/s",
         "oauth_default": "60/s",
         "token_exchange": "60/min",
+        # Each call sends a Mobile ID signing prompt to a phone. Budgeted for a
+        # class signing in behind one NAT, per client address.
+        "valimo": "30/min",
         "matrix_credentials": "1000/hour",
         # Each call replaces the user's Matrix password.
         "matrix_password": "30/hour",
