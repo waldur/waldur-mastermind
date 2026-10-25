@@ -110,7 +110,9 @@ class HookUpdateTest(BaseHookApiTest):
 class HookPermissionsViewTest(BaseHookApiTest):
     def setUp(self):
         super().setUp()
-        self.url = WebHookFactory.get_url(WebHookFactory(user=self.author))
+        self.support = structure_factories.UserFactory(is_support=True)
+        self.hook = WebHookFactory(user=self.author)
+        self.url = WebHookFactory.get_url(self.hook)
 
     def test_hook_visible_to_author(self):
         self.client.force_authenticate(user=self.author)
@@ -127,6 +129,36 @@ class HookPermissionsViewTest(BaseHookApiTest):
         self.client.force_authenticate(user=self.other_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_hook_visible_to_support(self):
+        self.client.force_authenticate(user=self.support)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_support_cannot_disable_other_users_web_hook(self):
+        self.client.force_authenticate(user=self.support)
+        response = self.client.patch(self.url, {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.hook.refresh_from_db()
+        self.assertTrue(self.hook.is_active)
+
+    def test_support_cannot_delete_other_users_email_hook(self):
+        hook = EmailHookFactory(user=self.author)
+        self.client.force_authenticate(user=self.support)
+        response = self.client.delete(EmailHookFactory.get_url(hook))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(models.EmailHook.objects.filter(pk=hook.pk).exists())
+
+    def test_support_can_update_own_hook(self):
+        hook = WebHookFactory(user=self.support)
+        self.client.force_authenticate(user=self.support)
+        response = self.client.patch(WebHookFactory.get_url(hook), {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_staff_can_update_other_users_hook(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(self.url, {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 class HookFilterViewTest(BaseHookApiTest):
