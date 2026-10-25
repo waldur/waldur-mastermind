@@ -21,6 +21,27 @@ from waldur_core.structure.models import Customer, Project
 
 from . import models
 
+SCOPE_TYPE_LABEL = (
+    "Scope type, as returned in scope_type: customer, project, offering, "
+    "service_provider, call_organizer, call, proposal, resource, "
+    "resource_project or global. A content type model name also matches."
+)
+
+
+def filter_by_scope_type(queryset, value):
+    """Match a scope type by the public name the serializers return.
+
+    ``scope_type`` reads ``service_provider`` or ``global``, while the content
+    type's model is ``serviceprovider`` or ``globalrolescope``. A value that is
+    not a public name is still taken as a model name, as before.
+    """
+    if value in TYPE_MAP:
+        app_label, model = TYPE_MAP[value]
+        return queryset.filter(
+            content_type__app_label=app_label, content_type__model=model
+        )
+    return queryset.filter(content_type__model=value)
+
 
 class RoleFilter(django_filters.FilterSet):
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
@@ -171,12 +192,12 @@ class RoleAvailabilityFilter(django_filters.FilterSet):
     )
     scope_type = django_filters.CharFilter(
         method="filter_scope_type",
-        label="Scope content type (e.g. 'offering', 'customer')",
+        label=SCOPE_TYPE_LABEL,
     )
     object_id = django_filters.NumberFilter(label="Scope object id")
 
     def filter_scope_type(self, queryset, name, value):
-        return queryset.filter(content_type__model=value)
+        return filter_by_scope_type(queryset, value)
 
     class Meta:
         model = models.RoleAvailability
@@ -209,7 +230,7 @@ class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
         label="User slug contains",
     )
     scope_type = django_filters.CharFilter(
-        method="filter_scope_type", label="Scope type"
+        method="filter_scope_type", label=SCOPE_TYPE_LABEL
     )
     scope_uuid = django_filters.UUIDFilter(
         method=get_generic_field_filter(models_to_search=get_permission_aggregates()),
@@ -244,7 +265,7 @@ class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
         return filter_by_full_name(queryset, value, "user")
 
     def filter_scope_type(self, queryset, name, value):
-        return queryset.filter(content_type__model=value)
+        return filter_by_scope_type(queryset, value)
 
     def filter_customer_uuid(self, queryset, name, value):
         try:
