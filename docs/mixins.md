@@ -9,12 +9,12 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`UserChecklistMixin`](#userchecklistmixin) | `waldur_core.checklist.mixins` | Mixin for ViewSets that provide checklist functionality to end users |
 | [`LatestAnswerTestMixin`](#latestanswertestmixin) | `waldur_core.checklist.tests.test_latest_answers` | No description available |
 | [`ConstanceTableMixin`](#constancetablemixin) | `waldur_core.configuration.tests.utils` | Gives a test django-constance's settings table |
-| [`CopyButtonMixin`](#copybuttonmixin) | `waldur_core.core.admin` | Mixin to add copy-to-clipboard functionality to form fields in Django admin |
 | [`ExcludedFieldsAdminMixin`](#excludedfieldsadminmixin) | `waldur_core.core.admin` | This mixin allows to toggle display of fields in Django model admin according... |
 | [`ExtraActionsMixin`](#extraactionsmixin) | `waldur_core.core.admin` | Allows to add extra actions to admin list page |
 | [`ExtraActionsObjectMixin`](#extraactionsobjectmixin) | `waldur_core.core.admin` | Allows to add extra actions to admin object edit page |
 | [`HideAdminOriginalMixin`](#hideadminoriginalmixin) | `waldur_core.core.admin` | Encapsulate all admin options and functionality for a given model |
 | [`ReadOnlyAdminMixin`](#readonlyadminmixin) | `waldur_core.core.admin` | Disables all editing capabilities |
+| [`CopyButtonMixin`](#copybuttonmixin) | `waldur_core.core.admin_widgets` | Mixin to add copy-to-clipboard functionality to form fields in Django admin |
 | [`DeleteExecutorMixin`](#deleteexecutormixin) | `waldur_core.core.executors` | Delete object on success or if force flag is enabled |
 | [`ErrorExecutorMixin`](#errorexecutormixin) | `waldur_core.core.executors` | Set object as erred on fail |
 | [`SuccessExecutorMixin`](#successexecutormixin) | `waldur_core.core.executors` | Set object as OK on success, cleanup action and its details |
@@ -234,14 +234,6 @@ Gives a test django-constance's settings table.
 Migrations written against it run on databases that have it. The table is
 created inside the test's transaction and goes away with it.
 
-### CopyButtonMixin
-
-**Module:** `waldur_core.core.admin`
-
-**Description:**
-
-Mixin to add copy-to-clipboard functionality to form fields in Django admin.
-
 ### ExcludedFieldsAdminMixin
 
 **Module:** `waldur_core.core.admin`
@@ -287,6 +279,14 @@ Encapsulate all admin options and functionality for a given model.
 
 Disables all editing capabilities.
 Please ensure that readonly_fields is specified in derived class.
+
+### CopyButtonMixin
+
+**Module:** `waldur_core.core.admin_widgets`
+
+**Description:**
+
+Mixin to add copy-to-clipboard functionality to form fields in Django admin.
 
 ### DeleteExecutorMixin
 
@@ -615,10 +615,14 @@ by appending numeric suffixes when needed.
 Mixin implementing finite state machine (FSM) functionality.
 
 Provides state management with transitions between creation, updating,
-deletion, OK, and error states. Includes error handling capabilities
-and concurrent transition support.
+deletion, OK, and error states. Includes error handling capabilities.
 
-**Base classes:** `ErrorMessageMixin`, `ConcurrentTransitionMixin`
+There is no optimistic locking: saving a stale copy overwrites a state
+changed elsewhere. django_fsm's ConcurrentTransitionMixin used to be listed
+here but sat after django's Model in the MRO, so it never ran; enabling it
+breaks transitions out of ERRED and deferred querysets (#866).
+
+**Base classes:** `ErrorMessageMixin`
 
 ### UiDescribableMixin
 
