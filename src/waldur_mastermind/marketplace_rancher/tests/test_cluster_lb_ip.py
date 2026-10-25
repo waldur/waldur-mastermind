@@ -118,3 +118,72 @@ class ManagedRancherClusterIPTest(test.APITestCase):
                 floating_ip=floating_ip,
             ).exists()
         )
+
+
+class ClusterLoadBalancerIPOwnershipTest(test.APITestCase):
+    """Only the cluster's own load balancers give it a public IP."""
+
+    def setUp(self):
+        self.fixture = fixtures.RancherFixture()
+        self.cluster = self.fixture.cluster
+        self.resource = marketplace_factories.ResourceFactory(
+            scope=self.cluster, state=ResourceStates.OK
+        )
+
+    def activate_floating_ip(self, instance):
+        port = os_factories.PortFactory(
+            instance=instance,
+            tenant=instance.tenant,
+            service_settings=instance.service_settings,
+        )
+        floating_ip = os_factories.FloatingIPFactory(
+            port=port,
+            tenant=instance.tenant,
+            service_settings=instance.service_settings,
+            runtime_state="DOWN",
+        )
+        floating_ip.runtime_state = "ACTIVE"
+        floating_ip.save()
+        return floating_ip
+
+    def load_balancer(self, slug, **kwargs):
+        return os_factories.InstanceFactory(name=f"{OS_LB_PREFIX}{slug}", **kwargs)
+
+    def has_public_ip(self, floating_ip):
+        return rancher_models.ClusterPublicIP.objects.filter(
+            cluster=self.cluster, floating_ip=floating_ip
+        ).exists()
+
+    def test_load_balancer_in_cluster_tenant_gives_cluster_public_ip(self):
+        instance = self.load_balancer(
+            self.resource.slug, tenant=self.fixture.tenant, project=self.fixture.project
+        )
+        self.assertTrue(self.has_public_ip(self.activate_floating_ip(instance)))
+
+    def test_load_balancer_in_cluster_vm_project_gives_cluster_public_ip(self):
+        tenant = os_factories.TenantFactory(project=self.cluster.vm_project)
+        instance = self.load_balancer(
+            self.resource.slug, tenant=tenant, project=self.cluster.vm_project
+        )
+        self.assertTrue(self.has_public_ip(self.activate_floating_ip(instance)))
+
+    def test_vm_of_another_organization_named_after_cluster_gives_no_public_ip(self):
+        instance = self.load_balancer(self.resource.slug)
+        floating_ip = self.activate_floating_ip(instance)
+        self.assertFalse(
+            rancher_models.ClusterPublicIP.objects.filter(
+                floating_ip=floating_ip
+            ).exists()
+        )
+
+    def test_vm_named_after_resource_that_is_not_a_cluster_is_ignored(self):
+        other_resource = marketplace_factories.ResourceFactory(
+            scope=os_factories.InstanceFactory()
+        )
+        instance = self.load_balancer(other_resource.slug)
+        floating_ip = self.activate_floating_ip(instance)
+        self.assertFalse(
+            rancher_models.ClusterPublicIP.objects.filter(
+                floating_ip=floating_ip
+            ).exists()
+        )
