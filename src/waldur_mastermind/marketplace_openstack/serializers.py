@@ -7,6 +7,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace_openstack import metrics
 from waldur_mastermind.marketplace_openstack.utils import _apply_quotas
 from waldur_openstack import models as openstack_models
 from waldur_openstack import serializers as openstack_serializers
@@ -245,3 +246,36 @@ class DuplicateOfferingGroupSerializer(serializers.Serializer):
     )
     orphan_count = serializers.IntegerField()
     candidates = DuplicateOfferingCandidateSerializer(many=True)
+
+
+class InstanceMetricsPollingSerializer(serializers.Serializer):
+    """How often an instance's metrics are read, and whether the user may change it."""
+
+    enabled = serializers.BooleanField(
+        help_text="Whether the instance's provider collects instance metrics."
+    )
+    interval_minutes = serializers.IntegerField(
+        help_text="Minutes between reads now, the faster ones included."
+    )
+    offering_interval_minutes = serializers.IntegerField(
+        help_text="Minutes between reads when nobody asked for faster ones."
+    )
+    faster_until = serializers.DateTimeField(allow_null=True)
+    last_polled_at = serializers.DateTimeField(allow_null=True)
+    next_poll_at = serializers.DateTimeField(
+        allow_null=True, help_text="Empty while the instance is not running."
+    )
+    can_manage = serializers.BooleanField(
+        help_text="Whether the user may ask for faster reads or a read now."
+    )
+    instance_name = serializers.CharField(
+        allow_null=True,
+        help_text="The instance whose reads cover the resource; for a volume, the "
+        "one it is attached to. Empty for a detached volume.",
+    )
+    instance_resource_uuid = serializers.UUIDField(format="hex", allow_null=True)
+
+
+class InstanceMetricsFasterUpdatesSerializer(serializers.Serializer):
+    interval_minutes = serializers.ChoiceField(choices=metrics.FAST_INTERVALS)
+    hours = serializers.IntegerField(min_value=1, max_value=metrics.MAX_FAST_HOURS)

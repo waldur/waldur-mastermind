@@ -21,3 +21,18 @@ STORAGE_MODE_DYNAMIC = "dynamic"
 # from Placement allocations. Storage stays on Cinder quota in both modes.
 BILLING_SOURCE_QUOTA = "quota"
 BILLING_SOURCE_PLACEMENT = "placement"
+
+# Custom metrics an OpenStack offering can collect for the instances in its
+# tenants, and for the volumes attached to them. Turned on, and chosen, in the
+# offering's plugin options.
+INSTANCE_METRICS_ENABLED_OPTION = "instance_metrics_enabled"
+INSTANCE_METRICS_OPTION = "instance_metrics"
+INSTANCE_METRIC_KEYS = (
+    "vm.cpu.utilization",
+    "vm.cpu.time",
+    "vm.memory.utilization",
+    "vm.network.io",
+    "vm.disk.io",
+    "vm.disk.operations",
+)
+VOLUME_METRIC_KEYS = ("volume.io", "volume.operations")

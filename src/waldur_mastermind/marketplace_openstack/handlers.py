@@ -36,6 +36,7 @@ from waldur_openstack.utils import volume_type_name_to_quota_name
 
 from . import (
     STORAGE_MODE_FIXED,
+    metrics,
     tasks,
     utils,
 )
@@ -735,3 +736,18 @@ def populate_volume_metadata_on_resource_creation(
 
     instance.backend_metadata["size"] = size
     instance.save(update_fields=["backend_metadata"])
+
+
+def sync_instance_metrics(sender, instance: Offering, created=False, **kwargs):
+    """Keep the tenants' instance and volume offerings in step with the provider."""
+    if instance.type in (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING):
+        if created and instance.parent_id:
+            metrics.sync_tenant_offering(instance)
+        return
+    if instance.type != OPENSTACK_TENANT_OFFERING:
+        return
+    if not created and not instance.tracker.has_changed("plugin_options"):
+        return
+    transaction.on_commit(
+        lambda: tasks.sync_instance_metric_offerings.delay(instance.id)
+    )

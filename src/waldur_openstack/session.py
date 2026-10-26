@@ -276,6 +276,20 @@ def recover_cached_session(
     return TimedSession(auth=auth, verify=verify_ssl)
 
 
+def with_timeout(session: keystone_session.Session, seconds: float) -> TimedSession:
+    """The same authentication on a session whose requests give up after seconds.
+
+    novaclient takes a timeout of its own but never passes it to the HTTP
+    request; a session's timeout it does. No new token is fetched, and a token
+    refreshed on the new session is cached as the original's would be.
+    """
+    timed = TimedSession(auth=session.auth, verify=session.verify, timeout=seconds)
+    session_key = getattr(session, "_waldur_session_key", None)
+    if session_key:
+        _bind_session_cache(timed, session_key)
+    return timed
+
+
 def create_session(credentials: dict[str, str], verify_ssl: bool | str = False):
     # TimedSession injects the QuietSession transport itself when verify_ssl is off.
     ks_session = TimedSession(
@@ -483,13 +497,16 @@ def get_placement_client(session: keystone_session.Session) -> PlacementClient:
     return PlacementClient(session)
 
 
-def get_nova_client(session: keystone_session.Session) -> "nova2_client.Client":
+def get_nova_client(
+    session: keystone_session.Session, version: str = "2.87"
+) -> "nova2_client.Client":
     # 2.87 is required for volume-backed instance rescue; pinned exactly because
     # 2.88 removes capacity fields from /os-hypervisors/* (consumed by
-    # pull_hypervisors and pull_service_settings_quotas).
+    # pull_hypervisors and pull_service_settings_quotas). A call that needs an
+    # older shape of a response asks for its own version.
     try:
         return nova_client.Client(
-            version="2.87",
+            version=version,
             session=session,
             endpoint_type="publicURL",
         )

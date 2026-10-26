@@ -296,6 +296,42 @@ class MetricPointTest(test.APITestCase):
 
         self.assertEqual(self.values(), [7])
 
+    def recorded_point(self, resource_uuid, value):
+        return ingest.Point(
+            resource_uuid=resource_uuid,
+            metric="education.course.completions",
+            timestamp=timezone.now() - datetime.timedelta(hours=1),
+            value=Decimal(value),
+            attributes={"course": "intro-to-linux"},
+        )
+
+    def test_waldur_records_its_own_measurements_without_a_caller(self):
+        result = ingest.record(
+            self.resource, [self.recorded_point(self.resource.uuid.hex, 3)]
+        )
+
+        self.assertEqual(result.accepted, 1)
+        self.assertEqual(self.values(), [3])
+
+    @mock.patch.object(ingest, "RESERVED_KEYS", {"education.course.completions"})
+    def test_a_metric_waldur_measures_itself_is_not_reported(self):
+        response = self.report(self.point())
+
+        self.assertEqual(response.data["accepted"], 0)
+        self.assertIn("measures", str(response.data["rejected"][0]["reason"]))
+        result = ingest.record(
+            self.resource, [self.recorded_point(self.resource.uuid.hex, 3)]
+        )
+        self.assertEqual(result.accepted, 1)
+
+    def test_a_recorded_point_must_belong_to_the_resource(self):
+        other = marketplace_factories.ResourceFactory(offering=self.offering)
+
+        with self.assertRaises(ValueError):
+            ingest.record(self.resource, [self.recorded_point(other.uuid.hex, 3)])
+
+        self.assertEqual(self.values(), [])
+
 
 class IngestThrottleTest(test.APITestCase):
     """Test settings switch throttling off; these switch it back on."""

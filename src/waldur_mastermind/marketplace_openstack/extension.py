@@ -35,6 +35,14 @@ class MarketplaceOpenStackExtension(WaldurExtension):
                 "schedule": timedelta(hours=24),
                 "args": (),
             },
+            "marketplace-openstack.collect-instance-metrics": {
+                "task": "waldur_mastermind.marketplace_openstack.collect_instance_metrics",
+                "schedule": timedelta(minutes=1),
+                "args": (),
+                # Ticks queued while no worker ran are dropped: run together,
+                # each would send the instances due that minute again.
+                "options": {"expires": 55},
+            },
         }
 
     @staticmethod

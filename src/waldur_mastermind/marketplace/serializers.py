@@ -164,6 +164,10 @@ from waldur_mastermind.marketplace.utils import (
     validate_end_date,
     validate_limits,
 )
+from waldur_mastermind.marketplace_openstack import (
+    INSTANCE_METRIC_KEYS,
+    VOLUME_METRIC_KEYS,
+)
 from waldur_mastermind.marketplace_rancher.const import (
     DEPLOYMENT_MODE_MANAGED,
     DEPLOYMENT_MODE_SELF_MANAGED,
@@ -799,6 +803,27 @@ class OpenStackPluginOptionsSerializer(serializers.Serializer):
         min_value=15,
         max_value=1440,
         help_text="Interval in minutes between usage polling for this offering (default: 60)",
+    )
+    instance_metrics_enabled = serializers.BooleanField(
+        required=False,
+        help_text="Collect custom metrics of the instances in tenants of this "
+        "offering and show them to their projects.",
+    )
+    instance_metrics = serializers.ListField(
+        child=serializers.ChoiceField(
+            choices=INSTANCE_METRIC_KEYS + VOLUME_METRIC_KEYS
+        ),
+        required=False,
+        allow_empty=True,
+        help_text="Instance and volume metrics shown to projects; empty shows "
+        "all of them.",
+    )
+    instance_metrics_poll_interval_minutes = serializers.IntegerField(
+        required=False,
+        min_value=5,
+        max_value=1440,
+        help_text="Minutes between custom metrics polls of each instance in "
+        "tenants of this offering (default: 360).",
     )
     billing_source = serializers.ChoiceField(
         required=False,
