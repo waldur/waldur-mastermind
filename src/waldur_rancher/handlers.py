@@ -91,13 +91,12 @@ def delete_keycloak_group_from_backend(sender, instance: KeycloakGroup, **kwargs
         _, settings = utils.get_keycloak_group_scope_and_settings(group)
         keycloak = backend.KeycloakBackend(settings)
         # Delete the group
+        # This runs after the group has been deleted from the DB; deleting it
+        # again here would re-send post_delete and recurse.
         backend_group = keycloak.get_group(group.backend_id)
         if backend_group is None:
-            # If the group is already removed in Keycloak, delete from DB
-            group.delete()
             return
         keycloak.delete_group(group.backend_id)
-        group.delete()
         # Delete the parent group if it has no subgroups
         group_parent_id = backend_group.get("parentId")
         if group_parent_id:
