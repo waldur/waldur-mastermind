@@ -1971,6 +1971,14 @@ CONSTANCE_CONFIG = {
         10000,
         "Maximum number of log rows to keep per agent identity. Oldest rows are deleted when exceeded.",
     ),
+    # API tokens
+    "API_TOKEN_MAX_LIFETIME_MINUTES": (
+        0,
+        "Maximum API token lifetime, in minutes, that a non-staff user can "
+        "choose. 0 means no limit, which also allows tokens that never "
+        "expire. Staff can choose any lifetime. A lifetime chosen before the "
+        "limit was set is kept until the user changes it.",
+    ),
     # Personal Access Tokens
     "PAT_ENABLED": (
         False,
@@ -2232,6 +2240,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_MATCHMAKING_BY_EMAIL",
         "OIDC_ACCESS_TOKEN_ENABLED",
         "REMOTE_EDUTEAMS_REFRESH_TOKEN",
+        "API_TOKEN_MAX_LIFETIME_MINUTES",
     ),
     "Invitation settings": (
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
@@ -2548,6 +2557,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SSH_KEY_ALLOWED_TYPES",
     "SSH_KEY_MIN_RSA_KEY_SIZE",
     "ENABLED_REPORTING_SCREENS",
+    # The API token page offers only the lifetimes within the limit.
+    "API_TOKEN_MAX_LIFETIME_MINUTES",
     # Personal Access Tokens
     "PAT_ENABLED",
     "MCP_ENABLED",

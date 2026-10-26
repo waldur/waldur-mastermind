@@ -28,6 +28,7 @@ from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import template_utils
+from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
@@ -2840,6 +2841,30 @@ class UserSerializer(
         except (KeyError, AttributeError):
             return False
         return self.instance == request_user and not self._is_impersonated()
+
+    def _is_staff_acting(self):
+        # Only staff can impersonate, so an impersonated request is staff's.
+        if self._is_impersonated():
+            return True
+        try:
+            return self.context["request"].user.is_staff
+        except (KeyError, AttributeError):
+            return False
+
+    def validate_token_lifetime(self, value):
+        max_lifetime = core_utils.get_api_token_max_lifetime()
+        if not max_lifetime or self._is_staff_acting():
+            return value
+        # Only a new choice is held to the limit. A lifetime set before it,
+        # sent back unchanged by a client that saves the whole profile, stays.
+        if self.instance and value == self.instance.token_lifetime:
+            return value
+        if value is None or value > max_lifetime:
+            raise serializers.ValidationError(
+                _("Choose a token lifetime of at most %(minutes)s minutes.")
+                % {"minutes": max_lifetime // 60}
+            )
+        return value
 
     def validate(self, attrs):
         agree_with_policy = attrs.pop("agree_with_policy", False)

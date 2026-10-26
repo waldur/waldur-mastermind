@@ -7,6 +7,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.models import User
@@ -1247,6 +1248,98 @@ class TermsOfServiceConsentTest(test.APITestCase):
 
         self.user.refresh_from_db()
         self.assertEqual(self.user.agreement_date, accepted)
+
+
+@ddt
+@override_config(API_TOKEN_MAX_LIFETIME_MINUTES=60)
+class UserTokenLifetimeLimitTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.user.agreement_date = timezone.now()
+        self.user.save()
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def _set_lifetime(self, token_lifetime, url=None):
+        return self.client.patch(
+            url or self.url, {"token_lifetime": token_lifetime}, format="json"
+        )
+
+    @data(1800, 3600)
+    def test_user_can_choose_lifetime_within_limit(self, token_lifetime):
+        self.client.force_authenticate(self.user)
+        response = self._set_lifetime(token_lifetime)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.token_lifetime, token_lifetime)
+
+    @data(3660, None)
+    def test_user_cannot_choose_lifetime_above_limit(self, token_lifetime):
+        self.user.token_lifetime = 600
+        self.user.save()
+        self.client.force_authenticate(self.user)
+        response = self._set_lifetime(token_lifetime)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("token_lifetime", response.data)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.token_lifetime, 600)
+
+    def test_user_keeps_lifetime_chosen_before_limit(self):
+        self.user.token_lifetime = None
+        self.user.save()
+        self.client.force_authenticate(self.user)
+        response = self.client.put(
+            self.url,
+            {"phone_number": "123456789", "token_lifetime": None},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.phone_number, "123456789")
+        self.assertIsNone(self.user.token_lifetime)
+
+    def test_user_cannot_replace_lifetime_above_limit_with_another_above_it(self):
+        self.user.token_lifetime = 43200
+        self.user.save()
+        self.client.force_authenticate(self.user)
+        response = self._set_lifetime(7200)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.token_lifetime, 43200)
+
+    def test_staff_can_choose_token_that_never_expires(self):
+        staff = self.fixture.staff
+        self.client.force_authenticate(staff)
+        response = self._set_lifetime(None, url=factories.UserFactory.get_url(staff))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        staff.refresh_from_db()
+        self.assertIsNone(staff.token_lifetime)
+
+    def test_impersonating_staff_can_choose_token_that_never_expires(self):
+        staff_token = refresh_token(self.fixture.staff)
+        self.client.credentials(
+            HTTP_AUTHORIZATION="Token " + staff_token.key,
+            HTTP_X_IMPERSONATED_USER_UUID=self.user.uuid.hex,
+        )
+        response = self._set_lifetime(None)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.token_lifetime)
+
+    @override_config(API_TOKEN_MAX_LIFETIME_MINUTES=0)
+    def test_user_can_choose_token_that_never_expires_without_limit(self):
+        self.client.force_authenticate(self.user)
+        response = self._set_lifetime(None)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.token_lifetime)
 
 
 @ddt

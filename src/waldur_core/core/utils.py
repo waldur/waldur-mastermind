@@ -573,6 +573,13 @@ def decode_jwt_token(encoded_data, api_secret_code=None):
     return jwt.decode(encoded_data, api_secret_code, algorithms=["HS256"])
 
 
+def get_api_token_max_lifetime() -> int | None:
+    """The longest API token lifetime, in seconds, a non-staff user may have;
+    None when there is no limit."""
+    minutes = config.API_TOKEN_MAX_LIFETIME_MINUTES
+    return minutes * 60 if minutes > 0 else None
+
+
 def normalize_unicode(data):
     return unicodedata.normalize("NFKD", data).encode("ascii", "ignore").decode("utf8")
 

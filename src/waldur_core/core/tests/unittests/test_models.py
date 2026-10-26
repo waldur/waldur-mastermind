@@ -3,6 +3,7 @@ from django.db import models
 from django.test import TestCase
 from django.utils import timezone
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User, generate_slug
 
 
@@ -18,6 +19,30 @@ class TestModels(TestCase):
             expected_lifetime = int(token_lifetime.total_seconds())
             user = User.objects.create(username="test1")
             self.assertEqual(user.token_lifetime, expected_lifetime)
+
+    @override_config(API_TOKEN_MAX_LIFETIME_MINUTES=30)
+    def test_default_token_lifetime_is_held_to_limit(self):
+        waldur_core_settings = settings.WALDUR_CORE.copy()
+        waldur_core_settings["TOKEN_LIFETIME"] = timezone.timedelta(days=1)
+
+        with self.settings(WALDUR_CORE=waldur_core_settings):
+            user = User.objects.create(username="test1")
+            self.assertEqual(user.token_lifetime, 1800)
+
+            staff = User.objects.create(username="test2", is_staff=True)
+            self.assertEqual(staff.token_lifetime, 86400)
+
+    @override_config(API_TOKEN_MAX_LIFETIME_MINUTES=30)
+    def test_default_token_that_never_expires_is_held_to_limit(self):
+        waldur_core_settings = settings.WALDUR_CORE.copy()
+        waldur_core_settings["TOKEN_LIFETIME"] = None
+
+        with self.settings(WALDUR_CORE=waldur_core_settings):
+            user = User.objects.create(username="test1")
+            self.assertEqual(user.token_lifetime, 1800)
+
+            staff = User.objects.create(username="test2", is_staff=True)
+            self.assertIsNone(staff.token_lifetime)
 
     def test_when_user_is_created_query_field_is_filled(self):
         user = User.objects.create_user(username="jb007", full_name="J̋̀a̻͢m̪̄e̪͊s̯̊ B̝͆on͎̂d")
