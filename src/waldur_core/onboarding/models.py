@@ -14,6 +14,7 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
 
 from . import enums
+from .backends.base import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -376,7 +377,12 @@ class OnboardingVerification(
         # Determine validation flow:
         # - Automatic validation: validation_method is set AND no justification
         # - Manual validation: no validation_method OR has justification (fallback after automatic validation failed)
-        is_automatic_validation = self.validation_method and not has_justification
+        # A verification the register confirmed, reviewed by staff only for the
+        # person's identity, still has its company data from the register.
+        identity_review = self.error_message == ErrorCode.PERSON_IDENTITY_NOT_VERIFIED
+        is_automatic_validation = self.validation_method and (
+            not has_justification or identity_review
+        )
 
         if is_automatic_validation:
             # Automatic validation: Only check INTENT checklist

@@ -43,6 +43,9 @@ class ErrorCode:
     COMPANY_NOT_FOUND = "COMPANY_NOT_FOUND"
     NO_BACKEND_AVAILABLE = "NO_BACKEND_AVAILABLE"
     CONFIGURATION_ERROR = "CONFIGURATION_ERROR"
+    # The register confirms the person, but the person's identity was entered
+    # by the user or can be edited by them, so staff review the verification.
+    PERSON_IDENTITY_NOT_VERIFIED = "PERSON_IDENTITY_NOT_VERIFIED"
 
 
 @dataclass
