@@ -1,7 +1,7 @@
 import io
 import json
 import uuid
-from unittest import mock, skip
+from unittest import mock
 from uuid import uuid4
 
 import respx
@@ -372,7 +372,6 @@ class OfferingDetailsPullTest(test.APITestCase):
             1, self.plan.components.filter(component=new_component).count()
         )
 
-    @skip("Unstable in CI/CD")
     @override_settings(task_always_eager=True)
     def test_update_plan(self):
         new_plan_name = "New plan"
@@ -470,7 +469,6 @@ class OfferingDetailsPullTest(test.APITestCase):
         self.assertIsNone(endpoints.filter(name="Stale Endpoint").first())
 
     @override_settings(task_always_eager=True)
-    @skip("Unstable in CI/CD")
     def test_sync_terms_of_service_from_remote_offering(self):
         """Test that old-style ToS fields from remote offerings create OfferingTermsOfService records"""
         # Ensure clean state - delete any existing ToS objects

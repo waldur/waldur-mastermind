@@ -1,4 +1,3 @@
-import unittest
 from unittest import mock
 
 from waldur_core.core import utils as core_utils
@@ -13,11 +12,11 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_openstack import tasks
 from waldur_openstack import models as openstack_models
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
-from .. import tasks
 from .utils import BaseOpenStackTest
 
 
@@ -229,7 +228,6 @@ class TerminateChildResourcesOfTerminatedTenantsTest(BaseOpenStackTest):
         )
 
 
-@unittest.skip("Mock does not work correctly for backend")
 @mock.patch("waldur_mastermind.marketplace_openstack.utils.OpenStackBackend")
 class TaskSyncTenantTest(BaseOpenStackTest):
     def setUp(self):
