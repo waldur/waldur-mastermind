@@ -2759,13 +2759,21 @@ class UserSerializer(
             # change_email, which confirms it from the new address.
             if user.is_staff and "email" in fields:
                 fields["email"].read_only = False
+                fields["email"].required = False
 
-            if user.should_protect_user_details:
+            # The edited user's registration method decides, not the
+            # requester's: their details come from the identity provider, and
+            # autoprovisioning trusts the organization claim for that reason.
+            if (
+                isinstance(self.instance, core_models.User)
+                and self.instance.should_protect_user_details
+            ):
+                # Email is left to validate(), which refuses a staff change
+                # instead of dropping it unseen. Non-staff cannot write it.
                 detail_fields = (
                     "full_name",
                     "native_name",
                     "job_title",
-                    "email",
                     "phone_number",
                     "organization",
                     # User profile attributes
@@ -2847,9 +2855,8 @@ class UserSerializer(
             # provider would overwrite rather than dropping it unseen like the
             # other provider-managed fields below.
             if (
-                "email" in idp_fields
-                and attrs.get("email", self.instance.email) != self.instance.email
-            ):
+                "email" in idp_fields or self.instance.should_protect_user_details
+            ) and attrs.get("email", self.instance.email) != self.instance.email:
                 raise serializers.ValidationError(
                     {
                         "email": _(
@@ -2904,6 +2911,19 @@ class UserSerializer(
             raise exceptions.ValidationError(error.message_dict)
         return attrs
 
+    def to_internal_value(self, data):
+        # Edit forms send every field back. Skip an unchanged email before
+        # EmailField sees it: stored ones were never validated by
+        # createstaffuser or identity providers, and may be blank or malformed.
+        if (
+            self.instance
+            and isinstance(data, dict)
+            and data.get("email") == self.instance.email
+        ):
+            data = data.copy()
+            data.pop("email")
+        return super().to_internal_value(data)
+
     def update(self, instance, validated_data):
         email_changed = (
             "email" in validated_data and validated_data["email"] != instance.email
@@ -2912,6 +2932,10 @@ class UserSerializer(
         if email_changed:
             # A pending self-service change would overwrite this on confirmation.
             core_models.ChangeEmailRequest.objects.filter(user=instance).delete()
+            # The viewset select_related it; the response must not show it.
+            relation = core_models.User._meta.get_field("changeemailrequest")
+            if relation.is_cached(instance):
+                relation.delete_cached_value(instance)
         return instance
 
     # Personal data fields to track for GDPR data access logging.

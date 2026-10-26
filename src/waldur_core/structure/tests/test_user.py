@@ -983,12 +983,21 @@ class UserEmailUpdateTest(test.APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, self.old_email)
 
-    def test_support_cannot_set_email_directly(self):
-        self.client.force_authenticate(self.fixture.global_support)
-        self.client.patch(self.url, {"email": "new@example.com"})
+    def test_support_cannot_set_own_email_directly(self):
+        # Support may not update other users at all, so use their own profile.
+        support = self.fixture.global_support
+        support.agreement_date = timezone.now()
+        support.save()
+        old_email = support.email
 
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.email, self.old_email)
+        self.client.force_authenticate(support)
+        response = self.client.patch(
+            factories.UserFactory.get_url(support), {"email": "new@example.com"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        support.refresh_from_db()
+        self.assertEqual(support.email, old_email)
 
     @override_waldur_core_settings(LOCAL_IDP_PROTECTED_FIELDS=["email"])
     def test_staff_cannot_change_email_managed_by_identity_provider(self):
@@ -1012,12 +1021,57 @@ class UserEmailUpdateTest(test.APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.phone_number, "123456789")
 
+    def test_staff_can_resend_unchanged_empty_email(self):
+        self.user.email = ""
+        self.user.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"email": "", "phone_number": "123456789"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.phone_number, "123456789")
+
+    def test_staff_can_resend_unchanged_malformed_email(self):
+        # Stored without validation, e.g. by `waldur createstaffuser`.
+        self.user.email = "not-an-email"
+        self.user.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"email": "not-an-email", "phone_number": "123456789"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.phone_number, "123456789")
+
+    def test_staff_cannot_clear_email(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"email": ""})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, self.old_email)
+
+    def test_staff_put_without_email_keeps_it(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.put(self.url, {"phone_number": "123456789"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, self.old_email)
+        self.assertEqual(self.user.phone_number, "123456789")
+
     def test_staff_email_update_drops_pending_change_request(self):
         self.user.create_request_for_update_email("pending@example.com")
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.patch(self.url, {"email": "new@example.com"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["requested_email"])
 
         self.user.refresh_from_db()
         self.assertFalse(hasattr(self.user, "changeemailrequest"))
@@ -1033,6 +1087,72 @@ class UserEmailUpdateTest(test.APITestCase):
 
         self.user.refresh_from_db()
         self.assertTrue(hasattr(self.user, "changeemailrequest"))
+
+
+@override_waldur_core_settings(
+    PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=["PROTECTED"]
+)
+class ProtectedUserDetailsTest(test.APITestCase):
+    """The edited user's registration method locks their details, not the requester's."""
+
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.user.agreement_date = timezone.now()
+        self.user.save()
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def test_staff_cannot_edit_details_of_protected_user(self):
+        self.user.registration_method = "PROTECTED"
+        self.user.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"organization": "Edited by staff"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.organization, "Edited by staff")
+
+    def test_protected_staff_can_edit_details_of_unprotected_user(self):
+        staff = self.fixture.staff
+        staff.registration_method = "PROTECTED"
+        staff.save()
+
+        self.client.force_authenticate(staff)
+        response = self.client.patch(
+            self.url,
+            {"organization": "Edited by staff", "email": "new@example.com"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.organization, "Edited by staff")
+        self.assertEqual(self.user.email, "new@example.com")
+
+    def test_staff_cannot_change_email_of_protected_user(self):
+        self.user.registration_method = "PROTECTED"
+        self.user.save()
+        old_email = self.user.email
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"email": "new@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, old_email)
+
+    def test_staff_can_resend_unchanged_email_of_protected_user(self):
+        self.user.registration_method = "PROTECTED"
+        self.user.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"email": self.user.email, "description": "Checked"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.description, "Checked")
 
 
 @ddt
