@@ -147,11 +147,6 @@ def send_comment_added_notification(
     if comment.is_forwarded:
         return
 
-    # A comment from the caller is not sent back to them: it goes to whoever
-    # works the ticket instead, and so does an edit of it, since the helpdesk
-    # may already have acted on the original.
-    is_caller_comment = comment.author.user == comment.issue.caller
-
     serialized_comment = core_utils.serialize_instance(comment)
     if created:
         transaction.on_commit(
@@ -163,13 +158,20 @@ def send_comment_added_notification(
     if old_description == comment.description:
         return
 
-    if is_caller_comment:
+    # An edit is announced by the same rules as a new comment, since its readers
+    # may already have acted on the original. The exception is staff correcting
+    # someone else's comment, which only staff may do: the helpdesk made that
+    # edit itself. `_edited_by` is set by the comment API; an edit made anywhere
+    # else is taken to be the author's.
+    edited_by = getattr(comment, "_edited_by", None)
+    edited_by_author = edited_by is None or edited_by == comment.author.user
+    if edited_by_author and tasks.comment_reaches_helpdesk(comment):
         transaction.on_commit(
             lambda: tasks.notify_helpdesk_comment_updated.delay(
                 serialized_comment, old_description
             )
         )
-    else:
+    if tasks.comment_reaches_caller(comment):
         transaction.on_commit(
             lambda: tasks.send_comment_updated_notification.delay(
                 serialized_comment, old_description
