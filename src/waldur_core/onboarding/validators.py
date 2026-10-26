@@ -12,11 +12,39 @@ from django.utils import timezone
 
 from waldur_core.configuration import config
 from waldur_core.core.models import User
+from waldur_core.structure.utils import get_identity_provider_fields
 
 from . import enums
 from .backends import ValidationRequest, backend_registry
 from .backends.base import ErrorCode, ValidationResult
 from .models import OnboardingVerification
+
+
+def is_identity_verified_by_account(user: User, backend, supplied: dict) -> bool:
+    """Whether the person checked against the register is the signed-in user.
+
+    That holds only if every identity field the backend needs is taken from the
+    account and cannot be edited by the user: civil_number never can be, other
+    fields only when the user's identity provider protects them. A value the
+    user supplied for the check that differs from the account counts as typed.
+    """
+    spec = backend.get_person_identifier_fields() or {}
+    if spec.get("type") == "object":
+        fields = list(spec.get("fields", {}))
+    elif spec.get("field"):
+        fields = [spec["field"]]
+    else:
+        return False
+    locked = set(get_identity_provider_fields(user.registration_method))
+    locked.add("civil_number")
+    for field in fields:
+        account_value = getattr(user, field, None)
+        if not account_value or field not in locked:
+            return False
+        supplied_value = supplied.get(field)
+        if supplied_value and str(supplied_value) != str(account_value):
+            return False
+    return True
 
 
 class OnboardingValidator:
@@ -201,7 +229,26 @@ class OnboardingValidator:
             verification.raw_response = result.raw_response
             verification.validated_at = timezone.now()
 
-            if result.is_valid:
+            supplied_identity = {
+                "civil_number": person_identifier,
+                "first_name": first_name,
+                "last_name": last_name,
+                "birth_date": birth_date,
+            }
+            if result.is_valid and not is_identity_verified_by_account(
+                user, backend, supplied_identity
+            ):
+                # The register vouches for the person named in the request, not
+                # for the signed-in user: staff confirm that they are the same.
+                verification.status = enums.VerificationStatus.ESCALATED
+                verification.error_traceback = (
+                    "The business register confirms the representative rights of "
+                    "the person, but their identity was entered by the user rather "
+                    "than taken from a verified login, so the verification is "
+                    "reviewed manually."
+                )
+                verification.error_message = ErrorCode.PERSON_IDENTITY_NOT_VERIFIED
+            elif result.is_valid:
                 verification.status = enums.VerificationStatus.VERIFIED
             else:
                 verification.status = enums.VerificationStatus.ESCALATED
