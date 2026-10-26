@@ -236,9 +236,15 @@ def set_default_token_lifetime(sender, instance: User, created=False, **kwargs):
     if created and instance.token_lifetime is None:
         # if settings used directly in model - django creates new migration every time settings change
         # Therefore - set default token_lifetime value in handler.
+        seconds = None
         if settings.WALDUR_CORE["TOKEN_LIFETIME"]:
-            seconds = settings.WALDUR_CORE["TOKEN_LIFETIME"].total_seconds()
-            instance.token_lifetime = int(seconds)
+            seconds = int(settings.WALDUR_CORE["TOKEN_LIFETIME"].total_seconds())
+        # The default is held to the same limit as the user's own choice.
+        max_lifetime = core_utils.get_api_token_max_lifetime()
+        if max_lifetime and not instance.is_staff:
+            seconds = min(seconds or max_lifetime, max_lifetime)
+        if seconds:
+            instance.token_lifetime = seconds
             # Applying the system default is part of creating the user, not a
             # change to it: the initial revision must stay the only one.
             instance._skip_revision = True
