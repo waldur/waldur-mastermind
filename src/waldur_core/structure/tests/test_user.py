@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest import mock
 
 from ddt import data, ddt
@@ -8,6 +8,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.authentication import refresh_token
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.core.utils import format_homeport_link
@@ -1153,6 +1154,99 @@ class ProtectedUserDetailsTest(test.APITestCase):
 
         self.user.refresh_from_db()
         self.assertEqual(self.user.description, "Checked")
+
+
+class TermsOfServiceConsentTest(test.APITestCase):
+    """Only the user can accept the Terms of Service, and acceptance is logged."""
+
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.assertIsNone(self.user.agreement_date)
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def _acceptance_events(self):
+        return logging_models.Event.objects.filter(
+            event_type="user_terms_of_service_accepted",
+            context__affected_user_uuid=self.user.uuid.hex,
+        )
+
+    def test_user_accepts_own_terms(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.patch(self.url, {"agree_with_policy": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertIsNotNone(self.user.agreement_date)
+        event = self._acceptance_events().get()
+        self.assertEqual(event.context["source"], "")
+        self.assertNotIn("Source:", event.message)
+        self.assertEqual(event.context["user_uuid"], self.user.uuid.hex)
+
+    def test_staff_accepts_own_terms(self):
+        staff = self.fixture.staff
+        self.client.force_authenticate(staff)
+        response = self.client.patch(
+            factories.UserFactory.get_url(staff), {"agree_with_policy": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        staff.refresh_from_db()
+        self.assertIsNotNone(staff.agreement_date)
+
+    def test_user_created_with_acceptance_is_logged(self):
+        user = factories.UserFactory(agreement_date=timezone.now())
+
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="user_terms_of_service_accepted",
+                context__affected_user_uuid=user.uuid.hex,
+            ).exists()
+        )
+
+    def test_staff_edit_does_not_accept_terms_for_user(self):
+        # Clients may send the flag with any save; from staff it is ignored.
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"phone_number": "123456789", "agree_with_policy": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.phone_number, "123456789")
+        self.assertIsNone(self.user.agreement_date)
+        self.assertFalse(self._acceptance_events().exists())
+
+    def test_impersonating_staff_can_edit_but_not_accept_terms(self):
+        # Like staff editing the user directly: the edit applies, consent not.
+        staff_token = refresh_token(self.fixture.staff)
+        self.client.credentials(
+            HTTP_AUTHORIZATION="Token " + staff_token.key,
+            HTTP_X_IMPERSONATED_USER_UUID=self.user.uuid.hex,
+        )
+        response = self.client.patch(
+            self.url, {"phone_number": "123456789", "agree_with_policy": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.phone_number, "123456789")
+        self.assertIsNone(self.user.agreement_date)
+        self.assertFalse(self._acceptance_events().exists())
+
+    def test_staff_sending_flag_for_user_who_accepted_keeps_their_date(self):
+        accepted = timezone.now() - timedelta(days=30)
+        self.user.agreement_date = accepted
+        self.user.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"phone_number": "123456789", "agree_with_policy": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.agreement_date, accepted)
 
 
 @ddt

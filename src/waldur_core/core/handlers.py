@@ -248,6 +248,21 @@ def set_default_token_lifetime(sender, instance: User, created=False, **kwargs):
                 instance._skip_revision = False
 
 
+def _log_terms_of_service_accepted(instance: User):
+    # The request context names who sent it; the source says when a policy
+    # rather than the user did, e.g. AUTO_APPROVE_USER_TOS at sign-in.
+    change_source = getattr(instance, "_change_source", None)
+    source_suffix = f" Source: {change_source}." if change_source else ""
+    event_logger.emit(
+        "Terms of Service acceptance has been recorded for user {affected_user_username}.%s"
+        % source_suffix,
+        event_type=EventType.USER_TERMS_OF_SERVICE_ACCEPTED,
+        # An empty source is the user's own acceptance.
+        event_context={"affected_user": instance, "source": change_source or ""},
+        scopes=[instance],
+    )
+
+
 def log_user_save(sender, instance: User, created=False, **kwargs):
     """Log user creation, update, and activation/deactivation events."""
     if created:
@@ -257,8 +272,13 @@ def log_user_save(sender, instance: User, created=False, **kwargs):
             event_context={"affected_user": instance},
             scopes=[instance],
         )
+        if instance.agreement_date:
+            _log_terms_of_service_accepted(instance)
     else:
         old_values = instance._old_values
+
+        if old_values["agreement_date"] is None and instance.agreement_date:
+            _log_terms_of_service_accepted(instance)
 
         password_changed = (
             is_password_usable(old_values["password"])
