@@ -3012,7 +3012,7 @@ Notification about a new comment in the issue. The recipient is issue caller.
 
 ### support.notification_comment_added_staff
 
-Notification to the assignee, or to all staff and support users when the ticket is unassigned, about a comment the issue caller added. Sent only by the built-in service desk — the Atlassian, Zammad and SMAX backends notify their own agents.
+Notification to the assignee, or to all staff and support users when the ticket is unassigned, about a comment added by the issue caller or by another user who is not staff or support, such as an organization owner or a project admin. Sent only by the built-in service desk — the Atlassian, Zammad and SMAX backends notify their own agents.
 
 #### Templates
 
@@ -3120,7 +3120,7 @@ Notification about an update in the issue comment. The recipient is issue caller
 
 ### support.notification_comment_updated_staff
 
-Notification to the assignee, or to all staff and support users when the ticket is unassigned, that the issue caller has edited one of their comments. Sent only by the built-in service desk.
+Notification to the assignee, or to all staff and support users when the ticket is unassigned, that the issue caller, or another user who is not staff or support, has edited one of their comments. Sent only by the built-in service desk.
 
 #### Templates
 

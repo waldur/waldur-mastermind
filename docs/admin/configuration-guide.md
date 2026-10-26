@@ -8,6 +8,7 @@ Default value:
 
 ```python
 WALDUR_AUTH_SAML2 = {'ALLOW_TO_SELECT_IDENTITY_PROVIDER': True,
+ 'ALLOW_UNSOLICITED': True,
  'ATTRIBUTE_MAP_DIR': '/etc/waldur/saml2/attributemaps',
  'AUTHN_REQUESTS_SIGNED': 'true',
  'CATEGORIES': ['http://www.geant.net/uri/dataprotection-code-of-conduct/v1'],
@@ -46,6 +47,12 @@ WALDUR_AUTH_SAML2 = {'ALLOW_TO_SELECT_IDENTITY_PROVIDER': True,
 #### ALLOW_TO_SELECT_IDENTITY_PROVIDER
 
 **Type:** bool
+
+#### ALLOW_UNSOLICITED
+
+**Type:** bool
+
+Accept responses that do not answer a request found in the session. Needed for logins started in Waldur when the identity provider is on another site: browsers do not send the SameSite=Lax session cookie with its cross-site POST.
 
 #### ATTRIBUTE_MAP_DIR
 
@@ -2496,6 +2503,12 @@ If true, OIDC complete view returns access token instead of Waldur token
 **Type:** secret_field
 
 Rotating OAuth2 refresh token for remote eduTEAMS API access. Automatically updated by the periodic token rotation task. If empty, falls back to REMOTE_EDUTEAMS_REFRESH_TOKEN from Django settings.
+
+#### API_TOKEN_MAX_LIFETIME_MINUTES
+
+**Type:** int
+
+Maximum API token lifetime, in minutes, that a non-staff user can choose. 0 means no limit, which also allows tokens that never expire. Staff can choose any lifetime. A lifetime chosen before the limit was set is kept until the user changes it.
 
 ### Invitation settings
 
