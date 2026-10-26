@@ -600,6 +600,12 @@ class WaldurAuthSAML2(BaseModel):
         description="Registration instant time required by mdpi",
     )
     ENABLE_SINGLE_LOGOUT: bool = Field(False, description="")
+    ALLOW_UNSOLICITED: bool = Field(
+        True,
+        description="Accept responses that do not answer a request found in the session. "
+        "Needed for logins started in Waldur when the identity provider is on another site: "
+        "browsers do not send the SameSite=Lax session cookie with its cross-site POST.",
+    )
     ALLOW_TO_SELECT_IDENTITY_PROVIDER: bool = Field(True, description="")
     IDENTITY_PROVIDER_URL: str | None = Field(None, description="")
     IDENTITY_PROVIDER_LABEL: str | None = Field(None, description="")

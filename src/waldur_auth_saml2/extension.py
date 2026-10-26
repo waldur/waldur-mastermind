@@ -1,6 +1,32 @@
+import copy
+
 import saml2
 
 from waldur_core.core import WaldurExtension
+
+_MISSING = object()
+
+
+def saml_config_changes(before, after):
+    """The parts of SAML_CONFIG that a deployment's saml2.conf.py set or changed."""
+    changes = {}
+    for key, value in after.items():
+        previous = before.get(key, _MISSING)
+        if isinstance(value, dict) and isinstance(previous, dict):
+            nested = saml_config_changes(previous, value)
+            if nested:
+                changes[key] = nested
+        elif value != previous:
+            changes[key] = value
+    return changes
+
+
+def _merge(config, changes):
+    for key, value in changes.items():
+        if isinstance(value, dict) and isinstance(config.get(key), dict):
+            _merge(config[key], value)
+        else:
+            config[key] = value
 
 
 class SAML2Extension(WaldurExtension):
@@ -10,7 +36,12 @@ class SAML2Extension(WaldurExtension):
         SAML_DJANGO_USER_MAIN_ATTRIBUTE = "username"
 
     @staticmethod
-    def update_settings(settings):
+    def update_settings(settings, saml_config_overrides=None):
+        """Derive SAML_CONFIG from WALDUR_AUTH_SAML2 and WALDUR_CORE.
+
+        ``saml_config_overrides`` are what a deployment's saml2.conf.py changed
+        in SAML_CONFIG; they are applied on top of the derived configuration.
+        """
         settings["SAML_ATTRIBUTE_MAPPING"] = settings["WALDUR_AUTH_SAML2"][
             "SAML_ATTRIBUTE_MAPPING"
         ]
@@ -36,9 +67,12 @@ class SAML2Extension(WaldurExtension):
                     "authn_requests_signed": settings["WALDUR_AUTH_SAML2"][
                         "AUTHN_REQUESTS_SIGNED"
                     ],
-                    # Reject a response in which neither the response nor the
-                    # assertion is signed, even if want_response_signed is off.
-                    "want_assertions_or_response_signed": True,
+                    # The browser does not send the SameSite=Lax session cookie
+                    # with the identity provider's cross-site POST, so the
+                    # request a response answers is not found in the session.
+                    "allow_unsolicited": settings["WALDUR_AUTH_SAML2"][
+                        "ALLOW_UNSOLICITED"
+                    ],
                     "endpoints": {
                         # url and binding to the assertion consumer service view
                         # do not change the binding or service name
@@ -128,9 +162,6 @@ class SAML2Extension(WaldurExtension):
             # signing
             "key_file": settings["WALDUR_AUTH_SAML2"]["KEY_FILE"],  # private part
             "cert_file": settings["WALDUR_AUTH_SAML2"]["CERT_FILE"],  # public part
-            # Verify signatures only with keys published in identity provider
-            # metadata, never with the certificate a response carries itself.
-            "only_use_keys_in_metadata": True,
             "allow_unknown_attributes": True,
             "accepted_time_diff": 120,
         }
@@ -176,6 +207,23 @@ class SAML2Extension(WaldurExtension):
                     "metadata": [(remote["url"], remote["cert"])],
                 }
             )
+
+        if saml_config_overrides:
+            overrides = copy.deepcopy(saml_config_overrides)
+            # Waldur's views serve these URLs and bindings; they follow
+            # MASTERMIND_URL and are not taken from configuration files.
+            overrides.get("service", {}).get("sp", {}).pop("endpoints", None)
+            _merge(settings["SAML_CONFIG"], overrides)
+
+        # Applied last, so that no configuration file can weaken them:
+        # verify signatures only with keys published in identity provider
+        # metadata, never with the certificate a response carries itself, and
+        # reject a response in which neither the response nor the assertion
+        # is signed, even if want_response_signed is off.
+        settings["SAML_CONFIG"]["only_use_keys_in_metadata"] = True
+        settings["SAML_CONFIG"]["service"]["sp"][
+            "want_assertions_or_response_signed"
+        ] = True
 
     @staticmethod
     def django_app():
