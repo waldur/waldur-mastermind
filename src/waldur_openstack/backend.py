@@ -70,6 +70,7 @@ from waldur_openstack.session import (
     get_nova_client,
     get_placement_client,
     get_verify_ssl,
+    with_timeout,
 )
 from waldur_openstack.utils import (
     drop_unshared_networks_of_unmanaged_owners,
@@ -7255,6 +7256,57 @@ class OpenStackBackend(ServiceBackend):
             if instance.error_message != error_message:
                 instance.error_message = error_message
                 instance.save(update_fields=["error_message"])
+
+    # Seconds a metrics call may take: a stuck one is given up, and the
+    # instance is read again at its next turn instead of holding a worker.
+    METRICS_CALL_TIMEOUT = 30
+
+    def _metrics_nova(self, version="2.87"):
+        session = with_timeout(self.admin_session, self.METRICS_CALL_TIMEOUT)
+        return get_nova_client(session, version=version)
+
+    def get_instance_diagnostics(self, instance: models.Instance) -> dict:
+        """Counters the hypervisor keeps for a running server, in libvirt's terms.
+
+        Asked for at microversion 2.47, the last before diagnostics were
+        standardised: the standard form drops the guest's memory statistics
+        and the device name of each disk and port (vda_read, tapXXX_rx), and
+        those names are what tie a disk's counters to its volume.
+
+        Nova allows this to admins only, so it goes over the provider's
+        session rather than the tenant's. A server that is not running has no
+        diagnostics and answers 409.
+        """
+        nova = self._metrics_nova(version="2.47")
+        try:
+            _response, body = nova.servers.diagnostics(instance.backend_id)
+        except (
+            nova_exceptions.ClientException,
+            keystone_exceptions.ClientException,
+        ) as e:
+            # keystoneauth raises timeouts and refused connections itself.
+            raise OpenStackBackendError(e) from e
+        return body
+
+    def get_instance_volume_devices(self, instance: models.Instance) -> dict:
+        """The Cinder volume behind each of a server's disks, by device name.
+
+        Read with every diagnostics poll: a volume detached and attached again
+        may come back under another device name.
+        """
+        nova = self._metrics_nova()
+        try:
+            attachments = nova.volumes.get_server_volumes(instance.backend_id)
+        except (
+            nova_exceptions.ClientException,
+            keystone_exceptions.ClientException,
+        ) as e:
+            raise OpenStackBackendError(e) from e
+        return {
+            attachment.device.rsplit("/", 1)[-1]: attachment.volumeId
+            for attachment in attachments
+            if attachment.device
+        }
 
     @log_backend_action()
     def confirm_instance_resize(self, instance: models.Instance):

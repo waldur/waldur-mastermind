@@ -4,19 +4,27 @@ from typing import cast
 from celery import shared_task
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_mastermind.marketplace import callbacks as marketplace_callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
     OPENSTACK_TENANT_OFFERING,
+    OPENSTACK_VOLUME_OFFERING,
     OrderStates,
     OrderTypes,
     ResourceStates,
 )
-from waldur_openstack import models as openstack_models
 
-from . import utils
+# Absolute, as in metrics.py: a relative import loads a second model class.
+from waldur_mastermind.marketplace_openstack import models
+from waldur_openstack import models as openstack_models
+from waldur_openstack.exceptions import OpenStackBackendError
+
+from . import metrics, utils
 
 logger = logging.getLogger(__name__)
 
@@ -214,3 +222,105 @@ def terminate_child_resources_of_terminated_tenants():
             "terminate_child_resources_of_terminated_tenants terminated %s orphaned resource(s).",
             count,
         )
+
+
+@shared_task(name="waldur_mastermind.marketplace_openstack.collect_instance_metrics")
+def collect_instance_metrics():
+    """Poll the running instances whose turn it is this minute.
+
+    Runs every minute; each instance comes up once per its offering's polling
+    interval, or per the faster one asked for on it, see metrics.is_due. Only
+    a few columns of each resource are read: this runs for every instance of
+    every provider that collects metrics, every minute.
+    """
+    now = timezone.now()
+    minutes = metrics.minutes_to_dispatch(now)
+    if not minutes:
+        return
+    # Offerings in use only, active or paused: a draft, archived or
+    # unavailable one, or its provider's, is left alone.
+    rows = list(
+        marketplace_models.Resource.objects.filter(
+            offering__type=OPENSTACK_INSTANCE_OFFERING,
+            offering__state__in=metrics.READ_OFFERING_STATES,
+            offering__parent__state__in=metrics.READ_OFFERING_STATES,
+            offering__parent__plugin_options__instance_metrics_enabled=True,
+            state__in=metrics.READ_RESOURCE_STATES,
+            content_type=ContentType.objects.get_for_model(openstack_models.Instance),
+        ).values_list("id", "uuid", "object_id", "offering__parent_id")
+    )
+    providers = marketplace_models.Offering.objects.filter(
+        id__in={provider_id for *_, provider_id in rows}
+    ).only("id", "parent_id", "plugin_options")
+    intervals = {provider.id: metrics.poll_interval(provider) for provider in providers}
+    backing_off = {
+        provider.id: metrics.is_backing_off(provider) for provider in providers
+    }
+    schedules = {
+        schedule.instance_id: schedule
+        for schedule in models.InstanceMetricSchedule.objects.filter(until__gt=now)
+    }
+    due = {}
+    for resource_id, uuid, instance_id, provider_id in rows:
+        if backing_off[provider_id]:
+            continue
+        interval = metrics.current_interval(
+            intervals[provider_id], schedules.get(instance_id), now
+        )
+        if any(metrics.is_due(uuid, interval, minute) for minute in minutes):
+            due[instance_id] = (resource_id, interval)
+    # Running servers with a sound record, on a provider in working order.
+    running = (
+        openstack_models.Instance.objects.filter(
+            id__in=due,
+            runtime_state=openstack_models.Instance.RuntimeStates.ACTIVE,
+            state__in=metrics.READ_INSTANCE_STATES,
+            tenant__service_settings__is_active=True,
+        )
+        .exclude(backend_id="")
+        .exclude(tenant__service_settings__state=CoreStates.ERRED)
+        .values_list("id", flat=True)
+    )
+    for instance_id in running:
+        resource_id, interval = due[instance_id]
+        collect_resource_metrics.apply_async(
+            args=(resource_id,), expires=metrics.poll_expiry(interval)
+        )
+
+
+# Background queue: polls must not hold up orders and other user-facing work.
+@shared_task(
+    name="waldur_mastermind.marketplace_openstack.collect_resource_metrics",
+    is_background=True,
+)
+def collect_resource_metrics(resource_id):
+    try:
+        resource = marketplace_models.Resource.objects.get(pk=resource_id)
+    except marketplace_models.Resource.DoesNotExist:
+        return
+    try:
+        metrics.collect(resource)
+    except OpenStackBackendError as e:
+        if metrics.is_instance_error(e):
+            # Stopped or deleted since the last pull, or no diagnostics there.
+            logger.info("Instance of resource %s cannot be read: %s", resource, e)
+        else:
+            logger.warning("Could not read resource %s from Nova: %s", resource, e)
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace_openstack.sync_instance_metric_offerings"
+)
+def sync_instance_metric_offerings(offering_id):
+    """Apply a provider's metrics choice to every one of its tenants."""
+    for tenant_offering in marketplace_models.Offering.objects.filter(
+        parent_id=offering_id,
+        type__in=(OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING),
+    ).select_related("parent"):
+        try:
+            metrics.sync_tenant_offering(tenant_offering)
+        except Exception:
+            # One tenant's failure doesn't leave the others unsynced.
+            logger.exception(
+                "Could not sync the instance metrics of offering %s.", tenant_offering
+            )

@@ -5,6 +5,9 @@ resources in a request gets 403 and nothing is written, so a refusal never
 tells an outsider anything about a resource. Everything else is decided point
 by point and refused points come back with a reason, the way OTLP reports
 partial success, so one bad point does not cost a service its whole batch.
+
+Points Waldur collects itself, by polling a backend, go in through record():
+there is no caller to authorize, and every other rule applies unchanged.
 """
 
 import dataclasses
@@ -74,6 +77,11 @@ class Rejected(Exception):
 # its organization (owner) or the organization's ServiceProvider record
 # (service provider manager).
 OFFERING_PROVIDER_SOURCES = ["*", "customer", "customer.serviceprovider"]
+
+# Metrics Waldur measures itself and records with record(). Nobody reports
+# them, or a reporter could change what Waldur counted; apps add theirs on
+# startup.
+RESERVED_KEYS: set[str] = set()
 
 
 def can_report(request, resource):
@@ -311,10 +319,23 @@ def ingest(request, points):
         raise Rejected(
             f"At most {config.METRICS_MAX_POINTS_PER_REQUEST} points per request."
         )
-    result = Result()
     if not points:
-        return result
-    resources = _resolve_resources(request, points)
+        return Result()
+    return _ingest(points, _resolve_resources(request, points))
+
+
+def record(resource, points):
+    """Points Waldur measured itself for one resource it already holds."""
+    if not points:
+        return Result()
+    if any(normalize_uuid(p.resource_uuid) != resource.uuid.hex for p in points):
+        raise ValueError("Every point must belong to the resource being recorded.")
+    return _ingest(points, {resource.uuid.hex: resource}, measured=True)
+
+
+def _ingest(points, resources, measured=False):
+    """Validate and store points; measured when Waldur took them itself."""
+    result = Result()
     now = timezone.now()
     context = _Context()
     rows = {}
@@ -328,6 +349,8 @@ def ingest(request, points):
         for index in order:
             point = points[index]
             try:
+                if not measured and point.metric in RESERVED_KEYS:
+                    raise Rejected(f"Waldur measures metric {point.metric} itself.")
                 resource = resources[normalize_uuid(point.resource_uuid)]
                 if resource.state not in REPORTABLE_STATES:
                     raise Rejected("Resource is not in a state that accepts metrics.")

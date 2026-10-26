@@ -50,6 +50,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
+        from waldur_mastermind.marketplace_metrics import ingest as metrics_ingest
         from waldur_mastermind.marketplace_openstack.const import TENANT_COMPONENTS
         from waldur_openstack import executors as openstack_executors
         from waldur_openstack import models as openstack_models
@@ -58,10 +59,15 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         from . import (
             AVAILABLE_LIMITS,
+            INSTANCE_METRIC_KEYS,
+            VOLUME_METRIC_KEYS,
             handlers,
             processors,
             utils,
         )
+
+        # Instance and volume metrics are read from Nova, not reported.
+        metrics_ingest.RESERVED_KEYS.update(INSTANCE_METRIC_KEYS + VOLUME_METRIC_KEYS)
 
         signals.post_save.connect(
             handlers.create_offering_from_tenant,
@@ -293,6 +299,12 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=openstack_models.FloatingIP,
             dispatch_uid="waldur_mastermind.marketplace_openstack."
             "update_floating_ip_external_addresses",
+        )
+
+        signals.post_save.connect(
+            handlers.sync_instance_metrics,
+            sender=marketplace_models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.sync_instance_metrics",
         )
 
         signals.post_save.connect(

@@ -8,6 +8,11 @@ def register_in(router):
         basename="openstack-marketplace-tenant",
     )
     router.register(
+        r"marketplace-openstack-instance-metrics",
+        views.InstanceMetricsViewSet,
+        basename="marketplace-openstack-instance-metrics",
+    )
+    router.register(
         r"marketplace-openstack-duplicate-offerings",
         views.DuplicateTenantOfferingViewSet,
         basename="marketplace-openstack-duplicate-offering",
