@@ -382,6 +382,7 @@ class OAuthViewComplete(BaseOAuthView):
 
         if config.AUTO_APPROVE_USER_TOS and user.agreement_date is None:
             user.agreement_date = timezone.now()
+            user._change_source = "AUTO_APPROVE_USER_TOS"
             user.save(update_fields=["agreement_date"])
 
         OAuthToken.objects.update_or_create(

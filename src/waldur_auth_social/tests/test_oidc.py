@@ -346,6 +346,22 @@ class OAuthViewCompleteTest(test.APITestCase):
         token_key = exchange_response.data["token"]
         self.assertTrue(Token.objects.filter(user=user, key=token_key).exists())
 
+    @override_config(AUTO_APPROVE_USER_TOS=True)
+    def test_auto_approved_terms_are_logged_as_auto_approved(self):
+        self._mock_token_request()
+        self._mock_userinfo_request({"sub": "test_sub", "email": "t@example.com"})
+
+        self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        user = User.objects.get(username="test_sub")
+        self.assertIsNotNone(user.agreement_date)
+        event = Event.objects.get(
+            event_type=EventType.USER_TERMS_OF_SERVICE_ACCEPTED,
+            context__affected_user_uuid=user.uuid.hex,
+        )
+        self.assertIn("Source: AUTO_APPROVE_USER_TOS.", event.message)
+        self.assertEqual(event.context["source"], "AUTO_APPROVE_USER_TOS")
+
     @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["birth_date"])
     def test_new_user_oidc_iso_birthdate_string_succeeds_and_sets_birth_date(self):
         """OIDC birthdate is an ISO string; it must become a date so reversion can serialize."""

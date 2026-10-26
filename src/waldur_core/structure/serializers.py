@@ -2825,8 +2825,28 @@ class UserSerializer(
         except (KeyError, AttributeError):
             return False
 
+    def _is_impersonated(self):
+        # Only staff can impersonate (ImpersonationAuthentication).
+        try:
+            return (
+                getattr(self.context["request"].user, "impersonator", None) is not None
+            )
+        except (KeyError, AttributeError):
+            return False
+
+    def _is_own_consent(self):
+        try:
+            request_user = self.context["request"].user
+        except (KeyError, AttributeError):
+            return False
+        return self.instance == request_user and not self._is_impersonated()
+
     def validate(self, attrs):
         agree_with_policy = attrs.pop("agree_with_policy", False)
+        # Consent is the user's own: from staff, or from staff impersonating
+        # them, it is ignored rather than refused so clients keep working.
+        if agree_with_policy and not self._is_own_consent():
+            agree_with_policy = False
         if self.instance and not self.instance.agreement_date:
             if not agree_with_policy:
                 if (
@@ -2838,9 +2858,11 @@ class UserSerializer(
                     )
                     or self.instance.is_staff
                     or self._is_staff_editing_other_user()
+                    or self._is_impersonated()
                 ):
-                    # Deactivation of user, staff editing own profile,
-                    # or staff editing another user.
+                    # Deactivation of user, staff editing own profile, or
+                    # staff editing another user, directly or impersonating
+                    # them: they may edit but cannot accept for the user.
                     pass
                 else:
                     raise serializers.ValidationError(

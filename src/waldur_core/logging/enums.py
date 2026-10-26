@@ -468,6 +468,7 @@ class EventType(StrEnum):
     USER_INVITATION_DELETED = "user_invitation_deleted"
     TERMS_OF_SERVICE_CONSENT_GRANTED = "terms_of_service_consent_granted"
     TERMS_OF_SERVICE_CONSENT_REVOKED = "terms_of_service_consent_revoked"
+    USER_TERMS_OF_SERVICE_ACCEPTED = "user_terms_of_service_accepted"
     CHAT_SESSION_ACCESSED = "chat_session_accessed"
     CHAT_THREAD_ACCESSED = "chat_thread_accessed"
     CHAT_INJECTION_DETECTED = "chat_injection_detected"
@@ -1002,6 +1003,7 @@ EVENT_GROUP_MAPPING = {
     EventGroup.TERMS_OF_SERVICE: [
         EventType.TERMS_OF_SERVICE_CONSENT_GRANTED,
         EventType.TERMS_OF_SERVICE_CONSENT_REVOKED,
+        EventType.USER_TERMS_OF_SERVICE_ACCEPTED,
     ],
     EventGroup.ONBOARDING: [
         EventType.ONBOARDING_VERIFICATION_DELETED,
