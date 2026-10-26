@@ -690,6 +690,9 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_update(self, serializer):
+        # Read by the notification handler, which must tell an author's own edit
+        # from staff correcting someone else's comment.
+        serializer.instance._edited_by = self.request.user
         comment: models.Comment = serializer.save()
         backend.get_active_backend().update_comment(comment)
 

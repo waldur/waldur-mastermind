@@ -99,23 +99,17 @@ def send_comment_added_notification(serialized_comment):
     ):
         is_system_comment = True
 
-    issue = comment.issue
-    author = comment.author.user if comment.author_id else None
-
-    if author is None and issue.caller is None:
-        # Neither side is a known user, which happens for comments imported from
-        # a remote service desk. There is nobody to tell, and letting this fall
-        # through would queue a send that can only log a warning and give up.
-        return
-
-    if author == issue.caller:
-        # The customer replied. Before this, their comment reached nobody: the
-        # only comment notification went to the caller, who is the author here.
+    if comment_reaches_helpdesk(comment):
         notify_helpdesk_new_comment(comment)
+
+    if not comment_reaches_caller(comment):
+        # The caller wrote it, or the ticket has no caller to tell. Letting the
+        # latter fall through would queue a send that can only log a warning
+        # and give up.
         return
 
     _send_issue_notification(
-        issue=issue,
+        issue=comment.issue,
         template="comment_added",
         extra_context={
             "comment": comment,
@@ -127,26 +121,35 @@ def send_comment_added_notification(serialized_comment):
 
 
 def notify_helpdesk_new_comment(comment):
-    """Tell whoever works the ticket that its caller has commented."""
-    _notify_helpdesk_about_caller_comment(comment, "notification_comment_added_staff")
+    """Tell whoever works the ticket that someone outside the helpdesk has
+    commented."""
+    _notify_helpdesk_about_comment(
+        comment,
+        "notification_comment_added_staff",
+        "support.notification_comment_added",
+    )
 
 
 @shared_task(name="waldur_mastermind.support.notify_helpdesk_comment_updated")
 def notify_helpdesk_comment_updated(serialized_comment, old_description):
-    """Tell whoever works the ticket that its caller has edited a comment.
+    """Tell whoever works the ticket that someone outside the helpdesk has
+    edited a comment.
 
     They may already have acted on the original, so the old text goes along
     with the new one.
     """
     comment = core_utils.deserialize_instance(serialized_comment)
-    _notify_helpdesk_about_caller_comment(
+    _notify_helpdesk_about_comment(
         comment,
         "notification_comment_updated_staff",
+        "support.notification_comment_updated",
         {"old_description": old_description},
     )
 
 
-def _notify_helpdesk_about_caller_comment(comment, template, extra_context=None):
+def _notify_helpdesk_about_comment(
+    comment, template, caller_notification_key, extra_context=None
+):
     issue = comment.issue
 
     # `broadcast_mail` consults only the Notification row, where `_send_email`
@@ -164,11 +167,17 @@ def _notify_helpdesk_about_caller_comment(comment, template, extra_context=None)
         # `notify_provider_customer_comment` instead.
         return
 
-    recipients = get_caller_comment_recipients(comment)
+    # A caller who also works the helpdesk must not be told twice, but nor left
+    # out when the notification addressed to them as the caller is switched off.
+    caller_is_told = (
+        comment_reaches_caller(comment)
+        and core_models.Notification.objects.filter(
+            key=caller_notification_key, enabled=True
+        ).exists()
+    )
+    recipients = get_helpdesk_comment_recipients(comment, caller_is_told)
     if not recipients:
-        logger.info(
-            "Nobody is available to notify about a comment on issue %s.", issue.key
-        )
+        logger.info("No helpdesk recipient for a comment on issue %s.", issue.key)
         return
 
     try:
@@ -594,18 +603,58 @@ def get_helpdesk_personnel():
     )
 
 
-def get_caller_comment_recipients(comment) -> list[str]:
-    """Who to tell that the person who raised the ticket has replied.
+def _comment_author_user(comment):
+    """The user who wrote a comment, or None for one imported from a remote
+    service desk."""
+    return comment.author.user
+
+
+def _issue_assignee_user(issue):
+    return issue.assignee.user if issue.assignee_id else None
+
+
+def comment_reaches_helpdesk(comment) -> bool:
+    """Whether whoever works the ticket should hear about a comment.
+
+    They hear about every comment the helpdesk did not write itself: the
+    caller's, and those of anyone else on the customer's side who may comment,
+    such as an organization owner or a project admin. Staff, support users and
+    the ticket's assignee write for the helpdesk. A staff member who raised the
+    ticket is its caller, so the rest of the desk hears from them too.
+    """
+    author = _comment_author_user(comment)
+    if author is None:
+        # Imported from a remote service desk, whose own agents have seen it.
+        return False
+    issue = comment.issue
+    if author == issue.caller:
+        return True
+    return not (
+        author.is_staff or author.is_support or author == _issue_assignee_user(issue)
+    )
+
+
+def comment_reaches_caller(comment) -> bool:
+    """Whether the caller should hear about a comment: whenever someone else
+    wrote it."""
+    caller = comment.issue.caller
+    return caller is not None and _comment_author_user(comment) != caller
+
+
+def get_helpdesk_comment_recipients(comment, caller_is_told=False) -> list[str]:
+    """Who on the helpdesk to tell about a comment from outside it.
 
     The assignee owns the ticket once it has one, so they alone are told;
     otherwise nobody in particular owns it yet and the whole helpdesk hears.
-    The author never gets their own comment back, which matters when a staff
-    member raised the ticket themselves.
+    The author is never on the list, and neither is the caller when
+    `caller_is_told`, that is, when the notification addressed to them as the
+    caller goes out. Both matter when a staff member raised the ticket.
     """
     issue = comment.issue
-    author = comment.author.user if comment.author_id else None
+    author = _comment_author_user(comment)
+    caller = issue.caller if caller_is_told else None
 
-    assignee = issue.assignee.user if issue.assignee_id else None
+    assignee = _issue_assignee_user(issue)
     if (
         assignee is not None
         and assignee != author
@@ -613,15 +662,17 @@ def get_caller_comment_recipients(comment) -> list[str]:
         and assignee.notifications_enabled
         and assignee.email
     ):
-        return [assignee.email]
+        # An assignee who is also the caller has been told already, and the
+        # ticket is theirs, so nobody else needs to be.
+        return [] if assignee == caller else [assignee.email]
 
     # No reachable assignee: an agent who has left, or who switched
     # notifications off, must not swallow the reply. Fall back to the whole
     # helpdesk, the way the new-ticket notification does.
 
-    personnel = get_helpdesk_personnel()
-    if author is not None:
-        personnel = personnel.exclude(pk=author.pk)
+    personnel = get_helpdesk_personnel().exclude(
+        pk__in=[user.pk for user in (author, caller) if user is not None]
+    )
     return list(personnel.values_list("email", flat=True).distinct())
 
 

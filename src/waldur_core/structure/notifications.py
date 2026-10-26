@@ -868,17 +868,17 @@ class IssueCreatedContext(BaseModel):
 
 class CommentAddedStaffContext(BaseModel):
     issue: Any = Field(description="The Issue model instance that was commented on.")
-    comment: Any = Field(description="The Comment model instance the caller added.")
+    comment: Any = Field(description="The Comment model instance that was added.")
     issue_url: str = Field(description="Link to the issue in Homeport.")
 
 
 class CommentUpdatedStaffContext(BaseModel):
     issue: Any = Field(description="The Issue model instance that was commented on.")
     comment: Any = Field(
-        description="The Comment model instance the caller edited, with its new content."
+        description="The Comment model instance that was edited, with its new content."
     )
     old_description: str = Field(
-        description="The content of the comment before the caller edited it."
+        description="The content of the comment before it was edited."
     )
     issue_url: str = Field(description="Link to the issue in Homeport.")
 
@@ -946,16 +946,19 @@ class SupportSection(NotificationSection):
     notification_comment_added_staff = Notification(
         key="notification_comment_added_staff",
         description="Notification to the assignee, or to all staff and support "
-        "users when the ticket is unassigned, about a comment the issue caller "
-        "added. Sent only by the built-in service desk — the Atlassian, Zammad "
-        "and SMAX backends notify their own agents.",
+        "users when the ticket is unassigned, about a comment added by the issue "
+        "caller or by another user who is not staff or support, such as an "
+        "organization owner or a project admin. Sent only by the built-in "
+        "service desk — the Atlassian, Zammad and SMAX backends notify their own "
+        "agents.",
         context_model=CommentAddedStaffContext,
     )
     notification_comment_updated_staff = Notification(
         key="notification_comment_updated_staff",
         description="Notification to the assignee, or to all staff and support "
-        "users when the ticket is unassigned, that the issue caller has edited "
-        "one of their comments. Sent only by the built-in service desk.",
+        "users when the ticket is unassigned, that the issue caller, or another "
+        "user who is not staff or support, has edited one of their comments. "
+        "Sent only by the built-in service desk.",
         context_model=CommentUpdatedStaffContext,
     )
     notification_comment_updated = Notification(

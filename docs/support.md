@@ -120,7 +120,7 @@ Staff can edit and delete any comment. The author of a comment can edit or delet
 
 The `update_is_available` and `destroy_is_available` fields of a comment tell the requesting user whether they can edit or delete it, taking all of the above into account.
 
-When the caller of a ticket edits their own public comment, the assignee is notified (or all staff and support users while the ticket is unassigned) through `support.notification_comment_updated_staff`, with the previous and the edited text. An edit by anyone else notifies the caller through `support.notification_comment_updated`. Deleting a comment notifies nobody.
+A public comment by the caller of a ticket, or by anyone else who is neither staff nor support (an organization owner, or a project admin or manager), notifies the assignee, or all staff and support users while the ticket is unassigned, through `support.notification_comment_added_staff`. An edit of such a comment by its author notifies them through `support.notification_comment_updated_staff`, with the previous and the edited text. Staff correcting someone else's comment does not, since the helpdesk made that edit itself. A comment or edit by anyone other than the caller also notifies the caller, through `support.notification_comment_added` or `support.notification_comment_updated`. Nobody gets two emails about one comment, even a caller who is staff, and deleting a comment notifies nobody.
 
 ### 3. Attachment Management
 
