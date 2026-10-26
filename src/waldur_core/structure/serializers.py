@@ -2755,6 +2755,11 @@ class UserSerializer(
         if request.method in ("PUT", "PATCH"):
             fields["username"].read_only = True
 
+            # Staff set the email directly. Everyone else changes it through
+            # change_email, which confirms it from the new address.
+            if user.is_staff and "email" in fields:
+                fields["email"].read_only = False
+
             if user.should_protect_user_details:
                 detail_fields = (
                     "full_name",
@@ -2838,6 +2843,20 @@ class UserSerializer(
 
         if self.instance:
             idp_fields = self.get_identity_provider_fields(self.instance)
+            # Only staff can send an email here. Refuse a change the identity
+            # provider would overwrite rather than dropping it unseen like the
+            # other provider-managed fields below.
+            if (
+                "email" in idp_fields
+                and attrs.get("email", self.instance.email) != self.instance.email
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "email": _(
+                            "The email is managed by the user's identity provider and cannot be changed."
+                        )
+                    }
+                )
             allowed_fields = set(attrs.keys()) - set(idp_fields)
             attrs = {k: v for k, v in attrs.items() if k in allowed_fields}
 
@@ -2884,6 +2903,16 @@ class UserSerializer(
         except django_exceptions.ValidationError as error:
             raise exceptions.ValidationError(error.message_dict)
         return attrs
+
+    def update(self, instance, validated_data):
+        email_changed = (
+            "email" in validated_data and validated_data["email"] != instance.email
+        )
+        instance = super().update(instance, validated_data)
+        if email_changed:
+            # A pending self-service change would overwrite this on confirmation.
+            core_models.ChangeEmailRequest.objects.filter(user=instance).delete()
+        return instance
 
     # Personal data fields to track for GDPR data access logging.
     # Technical fields (url, uuid, token, is_staff, image, etc.) are excluded.
