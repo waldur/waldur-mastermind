@@ -383,16 +383,31 @@ class Saml2LogoutCompleteView(BaseSaml2View):
             conf, state_cache=state, identity_cache=IdentityCache(request.session)
         )
 
-        if "SAMLResponse" in data:
-            # Logout started by us
-            client.parse_logout_request_response(data["SAMLResponse"], binding)
-            http_response = logout_completed()
-        else:
-            # Logout started by IdP
-            subject_id = _get_subject_id(request.session)
-            if subject_id is None:
+        # The session is ended only for a SAML exchange that concerns it: a link
+        # to this endpoint must not be enough to log anybody out.
+        confirmed = False
+        subject_id = _get_subject_id(request.session)
+        try:
+            if "SAMLResponse" in data:
+                # Logout started by us: the answer must be to the request we sent.
+                logout_response = client.parse_logout_request_response(
+                    data["SAMLResponse"], binding
+                )
+                confirmed = (
+                    subject_id is not None
+                    and logout_response is not None
+                    and logout_response.in_response_to in state
+                )
+                http_response = logout_completed()
+            elif subject_id is None:
+                # Logout started by IdP, for a browser without a SAML2 login.
                 http_response = logout_completed()
             else:
+                # Logout started by IdP: it must name the subject of this session.
+                logout_request = client.parse_logout_request(
+                    data["SAMLRequest"], binding
+                )
+                confirmed = logout_request.message.name_id == subject_id
                 http_info = client.handle_logout_request(
                     data["SAMLRequest"],
                     subject_id,
@@ -400,20 +415,33 @@ class Saml2LogoutCompleteView(BaseSaml2View):
                     relay_state=data.get("RelayState", ""),
                 )
                 http_response = HttpResponseRedirect(get_location(http_info))
+        except Exception as e:
+            logger.warning("SAML2 logout message could not be processed: %s", e)
+            if confirmed:
+                # The identity provider did ask to log this session out.
+                self.end_session(request)
+            return logout_failed(_("SAML2 logout message has errors."))
 
         state.sync()
-        user = request.user
-        if user.is_anonymous:
-            return http_response
-        Token.objects.get(user=user).delete()
-        auth.logout(request)
-        event_logger.emit(
-            "User {user_username} with full name {user_full_name} logged out successfully with SAML2.",
-            event_type=EventType.AUTH_LOGGED_OUT_WITH_SAML2,
-            event_context={"user": user},
-            scopes=[user],
-        )
+        if confirmed:
+            self.end_session(request)
         return http_response
+
+    def end_session(self, request):
+        # SAML views authenticate nobody, so request.user is always anonymous;
+        # the user is the one of the Django session that the SAML login started.
+        user = auth.get_user(request)
+        if not user.is_anonymous:
+            Token.objects.filter(user=user).delete()
+            request.user = user  # carried by the user_logged_out signal
+        auth.logout(request)
+        if not user.is_anonymous:
+            event_logger.emit(
+                "User {user_username} with full name {user_full_name} logged out successfully with SAML2.",
+                event_type=EventType.AUTH_LOGGED_OUT_WITH_SAML2,
+                event_context={"user": user},
+                scopes=[user],
+            )
 
 
 class Saml2ProviderView(ListAPIView):

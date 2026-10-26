@@ -494,17 +494,21 @@ class LogoutView(generics.GenericAPIView):
         },
     )
     def post(self, request, format=None):
+        # While impersonating, request.user is the impersonated user; the token
+        # and session being logged out belong to the impersonator.
+        user = getattr(request.user, "impersonator", None) or request.user
         # The identity provider tokens kept for the user would otherwise
         # outlive the logout (an offline refresh token does), still usable by
         # a later session of the same user.
-        forget_oauth_tokens(request.user)
-        request.user.auth_token.delete()
+        forget_oauth_tokens(user)
+        Token.objects.filter(user=user).delete()
         event_logger.emit(
             "User {user_username} with full name {user_full_name} logged out.",
             event_type=EventType.AUTH_LOGGED_OUT,
-            event_context={"user": request.user, "request": request},
-            scopes=[request.user],
+            event_context={"user": user, "request": request},
+            scopes=[user],
         )
+        saml2_state = {}
         logout_url = None
         authentication_method = get_authentication_method(request)
         if authentication_method in OIDC_AUTHENTICATION_METHODS:
@@ -527,6 +531,19 @@ class LogoutView(generics.GenericAPIView):
             and settings.WALDUR_AUTH_SAML2.get("ENABLE_SINGLE_LOGOUT")
         ):
             logout_url = reverse("saml2-logout", request=request)
+            # SAML2 single logout reads the IdP subject and its own state from
+            # the session, so only that is carried into the new session.
+            saml2_state = {
+                key: value
+                for key, value in request.session.items()
+                if key.startswith("_saml2")
+            }
+
+        # A session started by an admin or SAML2 login would otherwise keep
+        # authenticating the browser, and re-create the token, after logout.
+        request.user = user  # carried by the user_logged_out signal
+        auth.logout(request)
+        request.session.update(saml2_state)
         if logout_url:
             return Response(status=status.HTTP_200_OK, data={"logout_url": logout_url})
         else:

@@ -9,6 +9,7 @@ from django.contrib.auth import SESSION_KEY as AUTH_USER_SESSION_KEY
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
@@ -136,6 +137,67 @@ class TokenAuthenticationTest(test.APITestCase):
         response = self.client.post(self.logout_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertRaises(ObjectDoesNotExist, token.refresh_from_db)
+
+    def test_logout_ends_the_session_started_at_login(self):
+        # SAML2 and admin logins start a Django session next to the API token.
+        self.client.force_login(self.user)
+        token = refresh_token(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+        response = self.client.post(self.logout_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # Without the token, the session cookie must not authenticate either,
+        # nor mint a new token through SessionAuthentication.
+        self.client.credentials()
+        response = self.client.get(self.test_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(Token.objects.filter(user=self.user).exists())
+
+    def test_saml2_single_logout_ends_authentication_but_keeps_saml2_state(self):
+        # The SAML2 logout view reads the IdP subject from the session; nothing
+        # else of it may survive the logout.
+        self.client.force_login(self.user)
+        session = self.client.session
+        session[AUTHENTICATION_METHOD_KEY] = AuthenticationMethod.SAML2
+        session["_saml2_subject_id"] = "encoded-subject"
+        session.save()
+        token = refresh_token(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+
+        with override_settings(
+            WALDUR_AUTH_SAML2={
+                **settings.WALDUR_AUTH_SAML2,
+                "ENABLE_SINGLE_LOGOUT": True,
+            }
+        ):
+            response = self.client.post(self.logout_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("saml2/logout", response.data["logout_url"])
+        session = self.client.session
+        self.assertNotIn(AUTH_USER_SESSION_KEY, session)
+        self.assertEqual(session["_saml2_subject_id"], "encoded-subject")
+        self.client.credentials()
+        response = self.client.get(self.test_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(Token.objects.filter(user=self.user).exists())
+
+    def test_logout_while_impersonating_revokes_the_impersonators_token(self):
+        staff = User.objects.create_user(
+            "staff", "staff@example.com", "staff-secret", is_staff=True
+        )
+        staff_token = refresh_token(staff)
+        refresh_token(self.user)
+        self.client.credentials(
+            HTTP_AUTHORIZATION="Token " + staff_token.key,
+            HTTP_X_IMPERSONATED_USER_UUID=self.user.uuid.hex,
+        )
+
+        response = self.client.post(self.logout_url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Token.objects.filter(user=staff).exists())
+        self.assertTrue(Token.objects.filter(user=self.user).exists())
 
     def test_token_expires_based_on_user_token_lifetime(self):
         user = User.objects.get(username=self.username)
