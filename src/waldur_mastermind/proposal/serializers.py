@@ -62,6 +62,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
+    ResourceTemplateSelectionModes,
     ResponsibleRoles,
     ResultsPublication,
     ReviewerPoolInvitationStatuses,
@@ -1243,6 +1244,8 @@ class PublicCallSerializer(
             "evaluation_start",
             # Public so an applicant can be told results come with the round.
             "publish_results",
+            # Public so the applicant's form offers one template or several.
+            "resource_template_selection_mode",
         )
         view_name = "proposal-public-call-detail"
         extra_kwargs = {
@@ -1606,7 +1609,35 @@ class RequestedResourceSerializer(
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
-        return super().create(validated_data)
+        proposal = validated_data["proposal"]
+        with transaction.atomic():
+            # The call row is the lock both this check and a switch to single
+            # mode take, so neither a concurrent request nor the switch can
+            # slip in between the check and the insert. no_key leaves inserts
+            # that reference the call (rounds, templates) unblocked.
+            call = models.Call.objects.select_for_update(no_key=True).get(
+                pk=proposal.round.call_id
+            )
+            # validate_proposal ran before any lock; submit locks this row, so
+            # the draft check is only reliable once we hold it too.
+            proposal = models.Proposal.objects.select_for_update(no_key=True).get(
+                pk=proposal.pk
+            )
+            if proposal.state != ProposalStates.DRAFT:
+                raise serializers.ValidationError(
+                    _("Only proposals with a draft status are available for editing.")
+                )
+            if (
+                call.allows_one_request_only()
+                and proposal.requestedresource_set.exists()
+            ):
+                raise serializers.ValidationError(
+                    _(
+                        "This call allows only one resource template per "
+                        "proposal. Remove the current resource request first."
+                    )
+                )
+            return super().create(validated_data)
 
 
 class RequestedResourcePurchaseOrderSerializer(serializers.ModelSerializer):
@@ -2387,6 +2418,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
         # reads it from the call (utils.project_end_date), so it takes effect
         # for every proposal that has not been allocated yet without rewriting
         # a single proposal row.
+        if (
+            validated_data.get("resource_template_selection_mode")
+            == ResourceTemplateSelectionModes.SINGLE
+            and instance.resource_template_selection_mode
+            != ResourceTemplateSelectionModes.SINGLE
+        ):
+            # Same lock RequestedResourceSerializer.create takes: a request
+            # added concurrently either shows up here or sees single mode.
+            models.Call.objects.select_for_update(no_key=True).get(pk=instance.pk)
+            instance.check_can_allow_one_request_only()
         has_visibility = "applicant_visibility_config" in validated_data
         visibility_data = validated_data.pop("applicant_visibility_config", None)
         field_config_data = validated_data.pop("proposal_field_config", None)

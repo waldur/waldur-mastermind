@@ -313,6 +313,23 @@ class EvaluationStart:
     )
 
 
+class ResourceTemplateSelectionModes:
+    """How many of a call's resource templates one proposal may request.
+
+    ``multiple`` lets an applicant combine templates. ``single`` treats them as
+    mutually exclusive options, such as access tiers, so a proposal holds at
+    most one resource request.
+    """
+
+    SINGLE = "single"
+    MULTIPLE = "multiple"
+
+    CHOICES = (
+        (SINGLE, "Single"),
+        (MULTIPLE, "Multiple"),
+    )
+
+
 class OrderAuthors:
     """Who the orders a call places when it grants resources are attributed to.
 
