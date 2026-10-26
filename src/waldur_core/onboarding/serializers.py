@@ -171,6 +171,21 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
         return obj.verification.get_user_submitted_customer_data()
 
 
+VERIFIED_COMPANY_FIELDS = ("country", "legal_person_identifier", "legal_name")
+
+
+def is_company_locked(verification):
+    """A verification vouches for its company once verified, and while a
+    justification for it awaits review -- whatever its status by then, since an
+    escalated verification can expire before staff get to it."""
+    return (
+        verification.status == enums.VerificationStatus.VERIFIED
+        or verification.justifications.filter(
+            validation_decision=enums.ReviewDecision.PENDING
+        ).exists()
+    )
+
+
 class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for OnboardingVerification model."""
 
@@ -266,6 +281,32 @@ class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
         if not (user and user.is_authenticated and user.is_staff):
             fields.pop("raw_response", None)
         return fields
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user and user.is_staff:
+            return attrs
+        if "expires_at" in attrs:
+            raise serializers.ValidationError(
+                {"expires_at": "Only staff can change when a verification expires."}
+            )
+        # Changing the company of a verification that vouches for one would let
+        # an organisation be created for another one.
+        if self.instance and is_company_locked(self.instance):
+            changed = [
+                field
+                for field in VERIFIED_COMPANY_FIELDS
+                if field in attrs and attrs[field] != getattr(self.instance, field)
+            ]
+            if changed:
+                raise serializers.ValidationError(
+                    {
+                        field: "The company of a verified verification, or of one under review, cannot be changed."
+                        for field in changed
+                    }
+                )
+        return attrs
 
     def get_onboarding_metadata(self, obj) -> dict:
         """Get onboarding-specific metadata with human-readable labels (UUIDs resolved to labels)."""
