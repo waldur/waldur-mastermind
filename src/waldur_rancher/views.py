@@ -694,12 +694,23 @@ class KeycloakGroupViewSet(core_views.ReadOnlyActionsViewSet):
         return queryset
 
 
+def can_manage_keycloak_group_membership(request, view, obj=None):
+    if obj is None or request.user.is_staff:
+        return
+    scope, _settings = utils.get_keycloak_group_scope_and_settings(obj.group)
+    utils.check_keycloak_group_scope_permissions(request, view, scope)
+
+
 class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
     queryset = models.KeycloakUserGroupMembership.objects.all().order_by("-created")
     serializer_class = serializers.KeycloakUserGroupMembershipSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.KeycloakUserGroupMembershipFilter
     lookup_field = "uuid"
+    # Creation is checked by the serializer, once the scope is resolved.
+    # Updates only renamed the database row and never reached Keycloak.
+    disabled_actions = ["update", "partial_update"]
+    destroy_permissions = [can_manage_keycloak_group_membership]
 
     def get_queryset(self):
         queryset = super().get_queryset()

@@ -1581,18 +1581,37 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
         role = attrs.get("role")
         scope_uuid = attrs.get("scope_uuid")
 
-        # Validate that the scope exists
+        request = self.context["request"]
+        # Validate that the scope exists; to anybody but staff an unknown scope
+        # looks the same as a forbidden one.
         try:
-            utils.get_keycloak_group_scope_and_settings(
+            scope, settings = utils.get_keycloak_group_scope_and_settings(
                 models.KeycloakGroup(role=role, scope_uuid=scope_uuid)
             )
         except models.Cluster.DoesNotExist:
+            if not request.user.is_staff:
+                raise exceptions.PermissionDenied()
             raise serializers.ValidationError(
                 _("Cluster with UUID %s does not exist.") % scope_uuid
             )
         except models.Project.DoesNotExist:
+            if not request.user.is_staff:
+                raise exceptions.PermissionDenied()
             raise serializers.ValidationError(
                 _("Project with UUID %s does not exist.") % scope_uuid
+            )
+        # Checked before anything else is revealed about the scope.
+        utils.check_keycloak_group_scope_permissions(
+            request, self.context.get("view"), scope
+        )
+
+        if role is None or settings is None or role.settings_id != settings.id:
+            raise serializers.ValidationError(
+                {
+                    "role": _(
+                        "The role does not belong to the Rancher server of this scope."
+                    )
+                }
             )
 
         # Check if membership already exists

@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
+from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
 from waldur_core.configuration import config
@@ -16,6 +17,7 @@ from waldur_core.core.models import SshPublicKey, User
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure.models import Project, ServiceSettings
+from waldur_core.structure.permissions import is_administrator
 from waldur_openstack import models as openstack_models
 from waldur_openstack.models import Flavor, Image, SecurityGroup, SubNet, Tenant
 from waldur_openstack.utils import (
@@ -410,6 +412,16 @@ def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
     else:
         scope = models.Project.objects.get(uuid=scope_uuid)
         return scope, scope.cluster and scope.cluster.settings
+
+
+def check_keycloak_group_scope_permissions(request, view, scope):
+    """Staff and administrators of the cluster's project manage its role groups."""
+    if request.user.is_staff:
+        return
+    cluster = scope if isinstance(scope, models.Cluster) else scope.cluster
+    if cluster is None:
+        raise rf_exceptions.PermissionDenied()
+    is_administrator(request, view, scope)
 
 
 def check_managed_cluster(cluster: models.Cluster, user: User):
