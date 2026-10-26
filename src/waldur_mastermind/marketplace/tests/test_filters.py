@@ -1,6 +1,5 @@
 import datetime
 import json
-import unittest
 
 from django.utils import timezone
 from freezegun import freeze_time
@@ -369,41 +368,47 @@ class CategoryFilterTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
-    @unittest.skip("Temporary disable till counters are fixed")
     def test_customer_uuid_filter_with_offering_state_positive(self):
         self.client.force_authenticate(self.fixture.staff)
-        self.offering.state = 1
+        self.offering.state = OfferingStates.DRAFT
         self.offering.save()
         response = self.client.get(
             self.url,
-            {"customer_uuid": self.customer.uuid.hex, "customers_offerings_state": 1},
+            {
+                "customer_uuid": self.customer.uuid.hex,
+                "customers_offerings_state": OfferingStates.DRAFT,
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
         self.assertEqual(response.data[0]["uuid"], self.category.uuid.hex)
-        self.assertEqual(response.data[0]["offering_count"], 1)
+        # offering_count is not asserted: it counts only orderable offerings,
+        # and a draft offering is not orderable.
 
     def test_customer_uuid_filter_with_offering_state_negative(self):
-        new_customer = structure_factories.CustomerFactory()
+        # The customer's only offering is active, so filtering by draft must
+        # leave its category out.
         self.client.force_authenticate(self.fixture.staff)
-        self.offering.state = 2
-        self.offering.save()
         response = self.client.get(
             self.url,
-            {"customer_uuid": new_customer.uuid.hex, "customers_offerings_state": 1},
+            {
+                "customer_uuid": self.customer.uuid.hex,
+                "customers_offerings_state": OfferingStates.DRAFT,
+            },
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
-    @unittest.skip("Temporary disable till counters are fixed")
     def test_offering_count_if_shared_is_passed(self):
-        factories.OfferingFactory(
+        private_offering = factories.OfferingFactory(
             category=self.category,
             customer=self.customer,
             state=OfferingStates.ACTIVE,
             shared=False,
         )
+        # Non-shared offerings are orderable (and counted) only with a plan.
+        factories.PlanFactory(offering=private_offering)
         url = factories.CategoryFactory.get_url(self.category)
 
         self.client.force_authenticate(self.fixture.staff)

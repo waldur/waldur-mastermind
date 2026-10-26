@@ -1,6 +1,5 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest import skip
 
 import respx
 from django.test import override_settings
@@ -234,21 +233,44 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         self.assertFalse(mock_list_projects.called)
         self.assertFalse(add_user_mock.called)
 
-    @skip("Unstable in CI/CD")
     def test_sync_resource_team(self):
+        # Local team: one project manager. Remote team: one stale project admin.
         self.fixture.manager
+        remote_resource_uuid = uuid.uuid4().hex
+        self.resource.backend_id = remote_resource_uuid
+        self.resource.save()
         stale_user_uuid = uuid.uuid4().hex
-        self.mock_list_users(
-            [
+
+        self.mock_list_projects()
+        self.mock_remote_eduteams()
+        team_mock = respx.get(
+            f"{self.api_url}/api/marketplace-resources/{remote_resource_uuid}/team/"
+        ).respond(
+            200,
+            json=[
                 {
+                    "url": f"{self.api_url}/api/users/{stale_user_uuid}/",
                     "uuid": stale_user_uuid,
-                    "role": RoleEnum.PROJECT_ADMIN,
                     "username": "stale_username_00",
+                    "full_name": "Stale User",
+                    "role": RoleEnum.PROJECT_ADMIN.value,
+                    "expiration_time": None,
+                    "offering_user_username": None,
+                    "offering_user_state": None,
                 }
-            ]
+            ],
         )
-        self.mock_list_users([{"role_name": RoleEnum.PROJECT_ADMIN}])
-        self.mock_list_users([])
+        list_users_url = (
+            f"{self.api_url}/api/projects/{REMOTE_PROJECT_UUID}/list_users/"
+        )
+        respx.get(list_users_url, params={"user": stale_user_uuid}).respond(
+            200, json=[{"expiration_time": None}]
+        )
+        respx.get(list_users_url, params={"user": REMOTE_USER_UUID}).respond(
+            200, json=[]
+        )
+        delete_user_mock = self.mock_delete_user()
+        add_user_mock = self.mock_add_user()
 
         self.client.force_login(self.fixture.staff)
         response = self.client.post(
@@ -256,8 +278,8 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         )
 
         self.assertEqual(200, response.status_code)
+        self.assertTrue(team_mock.called)
 
-        delete_user_mock = self.mock_delete_user()
         self.assertTrue(delete_user_mock.called)
         self.assertEqual(
             get_request_data(delete_user_mock),
@@ -267,7 +289,6 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             },
         )
 
-        add_user_mock = self.mock_add_user()
         self.assertTrue(add_user_mock.called)
         self.assertEqual(
             get_request_data(add_user_mock),

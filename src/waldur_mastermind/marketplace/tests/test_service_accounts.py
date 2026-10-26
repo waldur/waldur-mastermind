@@ -1,5 +1,4 @@
 import json
-import unittest
 
 import httpx
 import respx
@@ -711,10 +710,10 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         self.assertGreaterEqual(int(headers[RESULT_COUNT_HEADER]), 15)
         self.assertIn("Link", headers)
 
-    @unittest.skip("SPs cannot see service accounts yet")
     def test_list_customer_service_accounts_pagination(self):
-        # Create more customer service accounts than the default page size (assume 10)
-        customer = self.fixture.offering_customer
+        # The endpoint lists accounts of customers consuming the offering, so
+        # they go on the resource's customer, not the provider's.
+        customer = self.fixture.resource.project.customer
         for i in range(15):
             factories.CustomerServiceAccountFactory(customer=customer)
         self.client.force_authenticate(self.fixture.provider_owner)
