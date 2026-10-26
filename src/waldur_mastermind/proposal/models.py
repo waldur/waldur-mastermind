@@ -59,6 +59,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalStates,
     PublicationVenueTypes,
     RequestedOfferingStates,
+    ResourceTemplateSelectionModes,
     ResultsPublication,
     ReviewerAffiliationTypes,
     ReviewerBidChoices,
@@ -86,6 +87,11 @@ EVALUATION_START_LOCKED_MESSAGE = _(
 PUBLISH_RESULTS_LOCKED_MESSAGE = _(
     "Cannot change when results are published while the call holds decisions "
     "that have not been published yet."
+)
+RESOURCE_TEMPLATE_SELECTION_LOCKED_MESSAGE = _(
+    "Cannot allow only one resource template while draft proposals hold "
+    "several resource requests. Ask their applicants to keep one, then try "
+    "again."
 )
 
 
@@ -311,6 +317,17 @@ class Call(
         ),
     )
 
+    resource_template_selection_mode = models.CharField(
+        max_length=20,
+        choices=ResourceTemplateSelectionModes.CHOICES,
+        default=ResourceTemplateSelectionModes.MULTIPLE,
+        help_text=(
+            "Whether a proposal may request several of the call's resource "
+            "templates or at most one of them. Cannot be set to single while "
+            "a draft proposal holds several resource requests."
+        ),
+    )
+
     coi_configuration: "CallCOIConfiguration"
     round_set: models.Manager["Round"]
 
@@ -346,6 +363,38 @@ class Call(
             state__in=[ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW],
         ).exists()
 
+    def allows_one_request_only(self):
+        # A call with templates refuses direct requests for offerings no
+        # template uses, so every request on it stands for a template: one made
+        # from it, a direct one for its offering, or one whose template was
+        # deleted. Counting them all is what keeps single mode honest.
+        return (
+            self.resource_template_selection_mode
+            == ResourceTemplateSelectionModes.SINGLE
+            and self.resource_templates.exists()
+        )
+
+    def has_drafts_with_several_requests(self):
+        return (
+            Proposal.objects.filter(round__call=self, state=ProposalStates.DRAFT)
+            .annotate(request_count=models.Count("requestedresource"))
+            .filter(request_count__gt=1)
+            .exists()
+        )
+
+    def check_can_allow_one_request_only(self):
+        """Refuse single selection while a draft holds several requests.
+
+        The draft would break the rule the setting promises, and nothing would
+        tell its applicant; the call manager sorts it out first.
+        """
+        if self.has_drafts_with_several_requests():
+            raise ValidationError(
+                {
+                    "resource_template_selection_mode": RESOURCE_TEMPLATE_SELECTION_LOCKED_MESSAGE
+                }
+            )
+
     def clean(self):
         """Prevent changing checklist or slug template if proposals exist."""
         if (
@@ -371,6 +420,13 @@ class Call(
             and self.has_held_decisions()
         ):
             raise ValidationError({"publish_results": PUBLISH_RESULTS_LOCKED_MESSAGE})
+        if (
+            self.pk
+            and self.tracker.has_changed("resource_template_selection_mode")
+            and self.resource_template_selection_mode
+            == ResourceTemplateSelectionModes.SINGLE
+        ):
+            self.check_can_allow_one_request_only()
         if self.pk and self.proposal_set.exists():
             if self.tracker.has_changed("compliance_checklist"):
                 raise ValidationError(
