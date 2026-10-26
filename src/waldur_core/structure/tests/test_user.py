@@ -950,6 +950,91 @@ class UserConfirmEmailTest(test.APITestCase):
         self.assertFalse(getattr(self.user, "changeemailrequest", False))
 
 
+class UserEmailUpdateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.user.agreement_date = timezone.now()
+        self.user.save()
+        self.old_email = self.user.email
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def test_staff_sets_email_directly(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"email": "new@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], "new@example.com")
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "new@example.com")
+        self.assertFalse(hasattr(self.user, "changeemailrequest"))
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="user_update_succeeded",
+                message__icontains="new@example.com",
+            ).exists()
+        )
+
+    def test_user_cannot_set_own_email_directly(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.patch(self.url, {"email": "new@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, self.old_email)
+
+    def test_support_cannot_set_email_directly(self):
+        self.client.force_authenticate(self.fixture.global_support)
+        self.client.patch(self.url, {"email": "new@example.com"})
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, self.old_email)
+
+    @override_waldur_core_settings(LOCAL_IDP_PROTECTED_FIELDS=["email"])
+    def test_staff_cannot_change_email_managed_by_identity_provider(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"email": "new@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, self.old_email)
+
+    @override_waldur_core_settings(LOCAL_IDP_PROTECTED_FIELDS=["email"])
+    def test_staff_can_resend_unchanged_email_managed_by_identity_provider(self):
+        # The edit form sends every field back, the email included.
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"email": self.old_email, "phone_number": "123456789"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.phone_number, "123456789")
+
+    def test_staff_email_update_drops_pending_change_request(self):
+        self.user.create_request_for_update_email("pending@example.com")
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"email": "new@example.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertFalse(hasattr(self.user, "changeemailrequest"))
+
+    def test_unchanged_email_keeps_pending_change_request(self):
+        self.user.create_request_for_update_email("pending@example.com")
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"email": self.old_email, "phone_number": "123456789"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertTrue(hasattr(self.user, "changeemailrequest"))
+
+
 @ddt
 class UserFullnameTest(test.APITestCase):
     def setUp(self):
