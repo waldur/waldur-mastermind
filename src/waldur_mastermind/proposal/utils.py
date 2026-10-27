@@ -23,7 +23,10 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
-from waldur_mastermind.common.serializers import transform_option_values
+from waldur_mastermind.common.serializers import (
+    transform_option_values,
+    validate_options,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -1201,3 +1204,26 @@ def disclosed_proposal_fields(
         "proposal_slug": proposal.slug,
         "proposal_summary": (proposal.project_summary or "") if show_summary else "",
     }
+
+
+def normalize_option_values(attributes, offering):
+    """The requested option values as an order for them would store them.
+
+    They are checked as at order creation (types, pattern), but not for
+    required options, which a request may leave for later. Values of options
+    with a transform are stored transformed, so the request, the award and the
+    resource allocated from it carry what the order form previewed.
+    """
+    options = (offering.options or {}).get("options")
+    if not options or not attributes:
+        return attributes
+    try:
+        return validate_options(options, attributes, optional=True)
+    except serializers.ValidationError as e:
+        raise serializers.ValidationError({"attributes": e.detail})
+
+
+def template_request_values(template):
+    """The limits and attributes a request made from ``template`` carries."""
+    offering = template.requested_offering.offering
+    return template.limits, normalize_option_values(template.attributes, offering)

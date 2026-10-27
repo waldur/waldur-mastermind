@@ -289,7 +289,7 @@ class ResourceTemplateValidationTestCase(APITestCase):
 
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Please use a resource template", str(response.data))
+        self.assertIn("only accepts its resource templates", str(response.data))
 
     def test_direct_offering_allowed_when_no_templates(self):
         """Test that direct offering requests work when no templates exist."""

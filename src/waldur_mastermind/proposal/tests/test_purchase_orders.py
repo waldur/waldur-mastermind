@@ -18,6 +18,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.proposal import models, utils
 from waldur_mastermind.proposal.enums import (
     ProposalStates,
+    RequestedOfferingStates,
     WorkflowStepInstanceStatuses,
 )
 from waldur_mastermind.proposal.tests import factories, fixtures
@@ -563,7 +564,13 @@ class CanSubmitQueryCountTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.requested_offering = factories.RequestedOfferingFactory(
-            call=self.fixture.call, offering=self.fixture.offering
+            call=self.fixture.call,
+            offering=self.fixture.offering,
+            state=RequestedOfferingStates.ACCEPTED,
+        )
+        # With a template on the call, can_submit walks the template rule too.
+        self.template = factories.CallResourceTemplateFactory(
+            call=self.fixture.call, requested_offering=self.requested_offering
         )
 
     def _add_proposals(self, count):
@@ -572,6 +579,9 @@ class CanSubmitQueryCountTest(test.APITestCase):
             factories.RequestedResourceFactory(
                 proposal=proposal,
                 requested_offering=self.requested_offering,
+                call_resource_template=self.template,
+                limits=self.template.limits,
+                attributes=self.template.attributes,
                 resource=None,
             )
 
@@ -579,10 +589,11 @@ class CanSubmitQueryCountTest(test.APITestCase):
         # As ProposalViewSet.get_queryset prepares it.
         queryset = (
             models.Proposal.objects.prefetch_related(
-                "requestedresource_set__requested_offering__offering__components"
+                "requestedresource_set__requested_offering__offering__components",
+                "requestedresource_set__call_resource_template__requested_offering__offering",
             )
             .select_related("round__call")
-            .annotate(_has_proposal_manager=models.has_proposal_manager_expression())
+            .annotate(**models.can_submit_annotations())
         )
         with CaptureQueriesContext(connection) as captured:
             for proposal in queryset:

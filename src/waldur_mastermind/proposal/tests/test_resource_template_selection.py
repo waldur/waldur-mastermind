@@ -63,6 +63,14 @@ class ResourceTemplateSelectionTestCase(APITestCase):
             format="json",
         )
 
+    def add_direct_request(self, proposal=None):
+        # Template calls refuse these through the API; they still exist from
+        # before the rule, or when a request's template was deleted.
+        return proposal_factories.RequestedResourceFactory(
+            proposal=proposal or self.proposal,
+            requested_offering=self.requested_offering,
+        )
+
     def update_mode(self, mode):
         return self.client.patch(
             proposal_factories.CallFactory.get_protected_url(self.call),
@@ -117,7 +125,7 @@ class ResourceTemplateSelectionTestCase(APITestCase):
 
     def test_single_mode_rejects_template_beside_direct_request(self):
         self.set_mode(ResourceTemplateSelectionModes.SINGLE)
-        self.assertEqual(self.request_offering().status_code, 201)
+        self.add_direct_request()
 
         response = self.request_template(self.basic)
 
@@ -189,7 +197,7 @@ class ResourceTemplateSelectionTestCase(APITestCase):
 
     def test_switch_to_single_refused_while_draft_mixes_template_and_direct(self):
         self.request_template(self.basic)
-        self.request_offering()
+        self.add_direct_request()
 
         response = self.update_mode(ResourceTemplateSelectionModes.SINGLE)
 

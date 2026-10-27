@@ -261,6 +261,13 @@ def validate_purchase_orders_present(proposal):
         )
 
 
+def validate_resource_templates_used(proposal):
+    """On a call with resource templates, the requests follow them."""
+    error = proposal.resource_template_error()
+    if error:
+        raise exceptions.ValidationError(error)
+
+
 def validate_proposal_manager_present(proposal):
     """A proposal is submitted with at least one proposal manager."""
     if not proposal.has_proposal_manager():
@@ -3397,7 +3404,7 @@ class ProposalViewSet(
                 ),
                 _latest_step_status=Subquery(latest_step_status),
                 # Read by can_submit.
-                _has_proposal_manager=models.has_proposal_manager_expression(),
+                **models.can_submit_annotations(),
             )
             # ProposalSerializer.can_submit reads every requested resource, its
             # call entry and the offering's components. Prefetched here for the
@@ -3406,6 +3413,8 @@ class ProposalViewSet(
             # Python so the prefetch is actually used.
             .prefetch_related(
                 "requestedresource_set__requested_offering__offering__components",
+                # Read by the template rule in can_submit.
+                "requestedresource_set__call_resource_template__requested_offering__offering",
             )
             # can_submit also reads the call's state.
             .select_related("round__call")
@@ -3643,6 +3652,8 @@ class ProposalViewSet(
             # or the call been archived.
             validate_call_is_active(proposal)
             validate_round_is_open(proposal)
+            # A request may have been removed or added since, too.
+            validate_resource_templates_used(proposal)
 
             # A proposal must have a project team before it can be submitted.
             # (The creator is normally auto-added, so a solo-PI proposal passes;
@@ -3683,6 +3694,7 @@ class ProposalViewSet(
         validate_call_is_active,
         validate_round_is_open,
         validate_project_details_complete,
+        validate_resource_templates_used,
         validate_requested_amounts_present,
         validate_purchase_orders_present,
         validate_proposal_manager_present,
@@ -3736,11 +3748,22 @@ class ProposalViewSet(
                     "Only proposals with a draft status are available for editing."
                 )
 
-        return self.action_detail_method(
+        handler = self.action_detail_method(
             "requestedresource_set",
             delete_validators=[validate_proposal_state],
             update_validators=[validate_proposal_state],
-        )(self, request, uuid, obj_uuid)
+        )
+        if request.method != "DELETE":
+            return handler(self, request, uuid, obj_uuid)
+        # Submit checks the template rules under this lock; a removal that
+        # skipped it could leave a proposal submitted without its template.
+        with transaction.atomic():
+            list(
+                models.Proposal.objects.select_for_update()
+                .filter(pk=self.get_object().pk)
+                .values_list("pk", flat=True)
+            )
+            return handler(self, request, uuid, obj_uuid)
 
     resource_detail_serializer_class = serializers.RequestedResourceSerializer
     resource_detail_permissions = [proposal_permissions.can_update_proposal_attachments]

@@ -75,6 +75,33 @@ from . import managers
 
 logger = logging.getLogger(__name__)
 
+MISSING_RESOURCE_TEMPLATE_MESSAGE = _(
+    "This call only accepts its resource templates. Replace the requests for "
+    "these offerings with a template: %(offerings)s."
+)
+MISSING_SINGLE_TEMPLATE_MESSAGE = _(
+    "This call needs one of its resource templates. Choose one before submitting."
+)
+TEMPLATE_OFFERING_NOT_ACCEPTED_MESSAGE = _(
+    "The provider no longer accepts these offerings for this call: "
+    "%(offerings)s. Choose a different template."
+)
+SEVERAL_TEMPLATES_MESSAGE = _(
+    "This call allows one resource template per proposal. Keep one of them."
+)
+OUTDATED_TEMPLATE_REQUEST_MESSAGE = _(
+    "These requests no longer match their resource template: %(templates)s. "
+    "Choose the template again."
+)
+TEMPLATE_VALUES_LOCKED_MESSAGE = _(
+    "A request made from a resource template takes its amounts and attributes "
+    "from the template, so they cannot be set or changed. Choose a different "
+    "template instead."
+)
+DUPLICATE_RESOURCE_TEMPLATE_MESSAGE = _(
+    "A resource template is requested more than once on this proposal. Keep "
+    "one request per template."
+)
 MISSING_PROPOSAL_MANAGER_MESSAGE = _(
     "A proposal needs at least one proposal manager to be submitted. Grant the "
     "proposal manager role to one of the team members."
@@ -368,10 +395,8 @@ class Call(
         ).exists()
 
     def allows_one_request_only(self):
-        # A call with templates refuses direct requests for offerings no
-        # template uses, so every request on it stands for a template: one made
-        # from it, a direct one for its offering, or one whose template was
-        # deleted. Counting them all is what keeps single mode honest.
+        # A call with templates takes nothing else, so every request on it
+        # stands for a template, even one whose template was since deleted.
         return (
             self.resource_template_selection_mode
             == ResourceTemplateSelectionModes.SINGLE
@@ -1163,6 +1188,21 @@ class ProposalDocumentation(
     )
 
 
+def call_has_resource_templates_expression():
+    """``Exists`` over the resource templates of a proposal's call."""
+    return models.Exists(
+        CallResourceTemplate.objects.filter(call=models.OuterRef("round__call"))
+    )
+
+
+def can_submit_annotations():
+    """What ``Proposal.can_submit`` would otherwise query once per proposal."""
+    return {
+        "_has_proposal_manager": has_proposal_manager_expression(),
+        "_call_has_resource_templates": call_has_resource_templates_expression(),
+    }
+
+
 def has_proposal_manager_expression():
     """``Exists`` over a proposal's active proposal manager grants.
 
@@ -1395,6 +1435,87 @@ class Proposal(
             }
         )
 
+    def call_has_resource_templates(self) -> bool:
+        annotated = getattr(self, "_call_has_resource_templates", None)
+        if annotated is not None:
+            return annotated
+        return CallResourceTemplate.objects.filter(call_id=self.round.call_id).exists()
+
+    def resource_template_error(self) -> str | None:
+        """Why the requests break the call's template rules, or None."""
+        # Creation enforces these too; this catches drafts from before the
+        # rules, requests whose template was deleted, and calls that gained
+        # templates after a draft was started.
+        if not self.call_has_resource_templates():
+            return None
+        requested_resources = list(self.requestedresource_set.all())
+        without_template = sorted(
+            {
+                requested_resource.requested_offering.offering.name
+                for requested_resource in requested_resources
+                if requested_resource.call_resource_template_id is None
+            }
+        )
+        if without_template:
+            return MISSING_RESOURCE_TEMPLATE_MESSAGE % {
+                "offerings": ", ".join(without_template)
+            }
+        not_accepted = sorted(
+            {
+                requested_resource.requested_offering.offering.name
+                for requested_resource in requested_resources
+                if requested_resource.requested_offering.state
+                != RequestedOfferingStates.ACCEPTED
+            }
+        )
+        if not_accepted:
+            return TEMPLATE_OFFERING_NOT_ACCEPTED_MESSAGE % {
+                "offerings": ", ".join(not_accepted)
+            }
+        template_ids = [
+            requested_resource.call_resource_template_id
+            for requested_resource in requested_resources
+        ]
+        if len(template_ids) != len(set(template_ids)):
+            return DUPLICATE_RESOURCE_TEMPLATE_MESSAGE
+        single = (
+            self.round.call.resource_template_selection_mode
+            == ResourceTemplateSelectionModes.SINGLE
+        )
+        if single and not template_ids:
+            return MISSING_SINGLE_TEMPLATE_MESSAGE
+        if single and len(template_ids) > 1:
+            return SEVERAL_TEMPLATES_MESSAGE
+        # Lazily: utils imports this module.
+        from waldur_mastermind.proposal import utils
+
+        def matches_template(requested_resource):
+            template = requested_resource.call_resource_template
+            try:
+                limits, attributes = utils.template_request_values(template)
+            except ValidationError:
+                # The template no longer passes its offering's options; this
+                # runs wherever can_submit is shown, so it must not raise.
+                return False
+            return (
+                requested_resource.limits,
+                requested_resource.attributes,
+                requested_resource.requested_offering_id,
+            ) == (limits, attributes, template.requested_offering_id)
+
+        outdated = sorted(
+            {
+                requested_resource.call_resource_template.name
+                for requested_resource in requested_resources
+                if not matches_template(requested_resource)
+            }
+        )
+        if outdated:
+            return OUTDATED_TEMPLATE_REQUEST_MESSAGE % {
+                "templates": ", ".join(outdated)
+            }
+        return None
+
     def offerings_missing_requested_amounts(self) -> list[str]:
         """Offerings asked for without naming any amount.
 
@@ -1451,6 +1572,12 @@ class Proposal(
         """
         if self.round.call.state != CallStates.ACTIVE:
             return False, CALL_NOT_ACTIVE_MESSAGE
+
+        # Before amounts: fixing amounts or a purchase order on a request the
+        # template rules refuse anyway would be wasted work.
+        template_error = self.resource_template_error()
+        if template_error:
+            return False, template_error
 
         missing_amounts = self.offerings_missing_requested_amounts()
         if missing_amounts:
