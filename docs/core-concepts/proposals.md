@@ -406,6 +406,48 @@ graph TB
 }
 ```
 
+### Template Rules
+
+Once a call has at least one resource template, templates are the only way to
+request resources in it. `RequestedResourceSerializer` enforces this when a
+request is created or changed:
+
+- A direct request (`requested_offering_uuid`) is refused.
+- A request made from a template (`call_resource_template_uuid`) takes the
+  template's `limits` and `attributes`; different values are refused on create,
+  and changing them later is refused. The template's offering must be accepted
+  by the provider.
+- A template can be requested at most once per proposal.
+
+`Call.resource_template_selection_mode` sets how many templates a proposal may
+hold:
+
+| Mode | Rule |
+|------|------|
+| `multiple` (default) | any combination of the call's templates |
+| `single` | exactly one: a second request is refused, and a proposal cannot be submitted without one |
+
+Switching a call to `single` is refused while a draft proposal holds several
+requests. Requests are created under a lock on the call row, which the switch
+takes too, so neither can slip in between the other's check and its write.
+
+Saving a template validates its attributes against the offering's options and
+its prepaid duration against the offering's terms. Editing a template updates
+the requests made from it on **draft** proposals; submitted proposals keep the
+values they were submitted with. `utils.template_request_values()` defines the
+values a template request carries, for creation, this sync and the submit check.
+
+`Proposal.resource_template_error()` reports what breaks these rules, and both
+`can_submit` and the submit action use it (submit checks again under the
+proposal lock): requests not made from a template, templates whose offering is
+no longer accepted, duplicates, the `single` mode count, and requests whose
+values no longer match their template. This catches drafts from before the
+rules, requests whose template was deleted, and calls that gained templates
+after a draft was started.
+
+`is_required` is stored on a template but not enforced: a proposal can be
+submitted without a template marked as required.
+
 ## Review System Architecture
 
 ### Conflict of Interest Detection
