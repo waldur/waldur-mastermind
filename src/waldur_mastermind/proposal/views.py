@@ -147,6 +147,17 @@ def validate_round_is_open(proposal):
         )
 
 
+def validate_call_is_active(proposal):
+    """A proposal may only be submitted while its call is active.
+
+    Same rule as creation. Archiving a call leaves its drafts behind, and a
+    round's own dates say nothing about the call, so a draft in a round that is
+    still open would otherwise be sent into an archived call.
+    """
+    if proposal.round.call.state != CallStates.ACTIVE:
+        raise exceptions.ValidationError(models.CALL_NOT_ACTIVE_MESSAGE)
+
+
 def check_reviewer_workload_limit(pool_entry, new_assignments, override, user):
     """Refuse assignments that would take a reviewer above their limit.
 
@@ -3396,6 +3407,8 @@ class ProposalViewSet(
             .prefetch_related(
                 "requestedresource_set__requested_offering__offering__components",
             )
+            # can_submit also reads the call's state.
+            .select_related("round__call")
             .order_by("created")
         )
 
@@ -3626,7 +3639,9 @@ class ProposalViewSet(
             proposal = locked
             previous_state = proposal.state
             # Checked again under the lock: the round may have ended since the
-            # validators ran, and the draft moved on to a round not yet open.
+            # validators ran, and the draft moved on to a round not yet open,
+            # or the call been archived.
+            validate_call_is_active(proposal)
             validate_round_is_open(proposal)
 
             # A proposal must have a project team before it can be submitted.
@@ -3665,6 +3680,7 @@ class ProposalViewSet(
 
     submit_validators = [
         core_validators.StateValidator(ProposalStates.DRAFT),
+        validate_call_is_active,
         validate_round_is_open,
         validate_project_details_complete,
         validate_requested_amounts_present,
