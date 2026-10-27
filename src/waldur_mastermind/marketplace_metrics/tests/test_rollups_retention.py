@@ -1,7 +1,10 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
 
+from django.db import connection
 from django.test import TestCase
+from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.configuration.testing import override_config
@@ -62,12 +65,21 @@ class RollupTest(TestCase):
         )
         self.assertEqual((day.count, day.sum, day.last), (3, Decimal(14), Decimal(8)))
 
+    def later(self, minutes):
+        return freeze_time(NOW + datetime.timedelta(minutes=minutes))
+
     def test_a_late_correction_inside_the_window_is_picked_up(self):
         self.add(self.counter, 5, days=3)
         rollups.roll_up()
-        models.MetricPoint.objects.filter(series=self.counter).update(value=7)
+        with self.later(30):
+            rollups.roll_up()
 
-        rollups.roll_up()
+        with self.later(60):
+            # As ingest corrects a point: received anew.
+            models.MetricPoint.objects.filter(series=self.counter).update(
+                value=7, received_at=timezone.now()
+            )
+            rollups.roll_up()
 
         day = models.MetricRollup.objects.get(
             series=self.counter, granularity=enums.Granularities.DAY
@@ -77,14 +89,127 @@ class RollupTest(TestCase):
     def test_buckets_before_the_window_are_left_alone(self):
         self.add(self.counter, 5, days=20)
         rollups.roll_up(since=at(days=30))
-        models.MetricPoint.objects.filter(series=self.counter).update(value=7)
+        models.MetricPoint.objects.filter(series=self.counter).update(
+            value=7, received_at=NOW
+        )
 
         rollups.roll_up()
+        rollups.roll_up(whole_window=True)
 
         day = models.MetricRollup.objects.get(
             series=self.counter, granularity=enums.Granularities.DAY
         )
         self.assertEqual(day.sum, Decimal(5))
+
+    def test_a_run_writes_only_what_changed(self):
+        self.add(self.gauge, 4, minutes=25)
+        self.add(self.counter, 5, days=3)
+        # An hourly and a daily bucket of each series.
+        self.assertEqual(rollups.roll_up(), 4)
+
+        # Within the overlap the points are looked at again, and unchanged.
+        with self.later(30):
+            self.assertEqual(rollups.roll_up(), 0)
+            self.assertEqual(rollups.roll_up(whole_window=True), 0)
+        # Past it, nothing is new.
+        with self.later(60):
+            self.assertEqual(rollups.roll_up(), 0)
+
+    def test_only_buckets_with_newly_received_points_are_recomputed(self):
+        self.add(self.gauge, 4, hours=2)
+        self.add(self.counter, 5, days=3)
+        rollups.roll_up()
+        # The next run looks once more at what the last one may have missed.
+        with self.later(30):
+            rollups.roll_up()
+        # Wrong, to show which buckets a run recomputes.
+        models.MetricRollup.objects.filter(series=self.gauge).update(sum=999)
+        later = NOW + datetime.timedelta(hours=1)
+
+        with freeze_time(later):
+            # A late point, received now, for a bucket three days old.
+            models.MetricPoint.objects.create(
+                series=self.counter, timestamp=at(days=3, minutes=5), value=2
+            )
+            written = rollups.roll_up()
+
+        self.assertEqual(written, 2)
+        day = self.rollup(
+            self.counter,
+            enums.Granularities.DAY,
+            at(days=3).replace(hour=0, minute=0),
+        )
+        self.assertEqual(day.sum, Decimal(7))
+        gauge_sums = models.MetricRollup.objects.filter(series=self.gauge)
+        self.assertEqual(set(gauge_sums.values_list("sum", flat=True)), {999})
+
+        # The daily run recomputes the whole window, and puts it right.
+        with freeze_time(later):
+            rollups.roll_up(whole_window=True)
+        self.assertEqual(set(gauge_sums.values_list("sum", flat=True)), {4})
+
+    def test_a_point_committed_after_a_run_it_was_received_before_is_rolled_up(
+        self,
+    ):
+        rollups.roll_up()
+
+        with self.later(15):
+            # Received before the run started, committed after it: within
+            # the overlap it is rolled up; before it, left to the daily run.
+            for series, received in ((self.counter, 14), (self.gauge, 16)):
+                models.MetricPoint.objects.create(
+                    series=series,
+                    timestamp=at(minutes=5),
+                    value=3,
+                    received_at=at(minutes=received),
+                )
+            rollups.roll_up()
+
+        hour = self.rollup(
+            self.counter, enums.Granularities.HOUR, NOW.replace(minute=0)
+        )
+        self.assertEqual(hour.sum, Decimal(3))
+        self.assertFalse(models.MetricRollup.objects.filter(series=self.gauge))
+
+    def test_a_run_from_inside_the_window_does_not_move_the_next_start(self):
+        rollups.roll_up(since=at(hours=1))
+
+        self.assertIsNone(models.RollupState.objects.get().rolled_up_until)
+
+    def test_a_sum_is_clamped_to_what_its_column_holds(self):
+        self.add(self.counter, 6, minutes=10)
+        self.add(self.counter, 7, minutes=20)
+
+        with mock.patch.object(rollups, "MAX_SUM", Decimal(10)):
+            rollups.roll_up()
+
+        hour = self.rollup(
+            self.counter, enums.Granularities.HOUR, NOW.replace(minute=0)
+        )
+        self.assertEqual(hour.sum, Decimal(10))
+
+    def test_a_point_stored_without_received_at_gets_it_from_the_database(self):
+        # As code from before the column, during a rolling deploy.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {models.MetricPoint._meta.db_table} "
+                "(series_id, timestamp, value) VALUES (%s, %s, %s)",
+                [self.counter.id, at(minutes=5), 1],
+            )
+
+        self.assertIsNotNone(models.MetricPoint.objects.get().received_at)
+
+    def test_without_a_previous_run_the_whole_window_is_recomputed(self):
+        self.add(self.counter, 5, days=3)
+        rollups.roll_up()
+        models.MetricRollup.objects.filter(series=self.counter).update(sum=999)
+        models.RollupState.objects.all().delete()
+
+        with freeze_time(NOW + datetime.timedelta(hours=1)):
+            rollups.roll_up()
+
+        sums = models.MetricRollup.objects.filter(series=self.counter)
+        self.assertEqual(set(sums.values_list("sum", flat=True)), {5})
 
 
 @freeze_time(NOW)

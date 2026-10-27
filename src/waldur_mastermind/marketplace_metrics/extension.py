@@ -27,9 +27,15 @@ class MarketplaceMetricsExtension(WaldurExtension):
         from datetime import timedelta
 
         return {
+            # The buckets new points touched; once a day, the whole window.
             "marketplace-metrics-roll-up": {
                 "task": "waldur_mastermind.marketplace_metrics.roll_up",
                 "schedule": timedelta(minutes=15),
+                "args": (),
+            },
+            "marketplace-metrics-roll-up-window": {
+                "task": "waldur_mastermind.marketplace_metrics.roll_up_window",
+                "schedule": timedelta(days=1),
                 "args": (),
             },
             "marketplace-metrics-enforce-retention": {

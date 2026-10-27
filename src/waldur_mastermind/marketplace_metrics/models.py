@@ -3,6 +3,8 @@ from django.contrib.postgres.indexes import BrinIndex
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q, UniqueConstraint
+from django.db.models.functions import Now
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
@@ -235,6 +237,13 @@ class MetricPoint(models.Model):
     )
     timestamp = models.DateTimeField()
     value = models.DecimalField(max_digits=24, decimal_places=6)
+    received_at = models.DateTimeField(
+        default=timezone.now,
+        # For code that doesn't set it, as during a rolling deploy.
+        db_default=Now(),
+        help_text="When the point was stored, or last corrected: the roll-up "
+        "recomputes the buckets of points received since its previous run.",
+    )
 
     class Meta:
         constraints = [
@@ -242,7 +251,18 @@ class MetricPoint(models.Model):
                 fields=["series", "timestamp"], name="unique_metric_point"
             ),
         ]
-        indexes = [BrinIndex(fields=["timestamp"], name="metric_point_ts_brin")]
+        # Summarised as pages fill, not when autovacuum gets to this
+        # insert-mostly table: a range left unsummarised is always scanned.
+        indexes = [
+            BrinIndex(
+                fields=["timestamp"], name="metric_point_ts_brin", autosummarize=True
+            ),
+            BrinIndex(
+                fields=["received_at"],
+                name="metric_point_received_brin",
+                autosummarize=True,
+            ),
+        ]
 
     def __str__(self):
         return f"{self.series_id} @ {self.timestamp}: {self.value}"
@@ -288,6 +308,18 @@ class MetricRollup(models.Model):
                 fields=["granularity", "bucket_start"], name="metric_rollup_age"
             )
         ]
+
+
+class RollupState(models.Model):
+    """When the last roll-up run started: the next one starts from there.
+
+    A single row. Without it, a run recomputes the whole window.
+    """
+
+    rolled_up_until = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Rolled up until {self.rolled_up_until}"
 
 
 class MetricGoal(core_models.UuidMixin, TimeStampedModel):

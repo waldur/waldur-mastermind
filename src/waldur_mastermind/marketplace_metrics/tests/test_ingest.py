@@ -4,6 +4,7 @@ from unittest import mock
 
 from django.core.cache import cache
 from django.utils import timezone
+from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.throttling import ScopedRateThrottle
 
@@ -323,6 +324,29 @@ class MetricPointTest(test.APITestCase):
             self.resource, [self.recorded_point(self.resource.uuid.hex, 3)]
         )
         self.assertEqual(result.accepted, 1)
+
+    def test_a_correction_is_received_anew(self):
+        measured_at = timezone.now() - datetime.timedelta(hours=1)
+        first = timezone.now()
+        later = first + datetime.timedelta(minutes=20)
+        for moment, value in ((first, 3), (later, 4)):
+            with freeze_time(moment):
+                ingest.record(
+                    self.resource,
+                    [
+                        ingest.Point(
+                            resource_uuid=self.resource.uuid.hex,
+                            metric="education.course.completions",
+                            timestamp=measured_at,
+                            value=Decimal(value),
+                            attributes={"course": "intro-to-linux"},
+                        )
+                    ],
+                )
+
+        point = models.MetricPoint.objects.get()
+        # The roll-up recomputes the buckets of points received since its last run.
+        self.assertEqual((point.value, point.received_at), (Decimal(4), later))
 
     def test_a_recorded_point_must_belong_to_the_resource(self):
         other = marketplace_factories.ResourceFactory(offering=self.offering)
