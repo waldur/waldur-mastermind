@@ -472,9 +472,11 @@ class Call(
             raise ValidationError(
                 "Cannot change compliance checklist when proposals exist"
             )
+        # An empty template and no template both mean the default one.
         if (
             self.pk
-            and self.tracker.has_changed("proposal_slug_template")
+            and (self.tracker.previous("proposal_slug_template") or None)
+            != (self.proposal_slug_template or None)
             and self.has_proposals()
         ):
             raise ValidationError(
