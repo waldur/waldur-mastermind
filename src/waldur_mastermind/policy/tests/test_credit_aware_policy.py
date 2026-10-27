@@ -1,8 +1,10 @@
 """
-Tests that cost policies account for available credit balance.
+Tests that cost policies account for available credit.
 
-A project with sufficient remaining credit should not have its resources
-paused, even if the raw invoice total exceeds the policy limit.
+A credit-aware policy compares the cost the credit does not pay with its limit.
+Credit that pays the cost keeps the policy from firing; how much credit is left
+is not compared with the limit (#784), so cost the credit cannot pay fires the
+policy even while credit remains.
 """
 
 from django.test import override_settings
@@ -21,8 +23,7 @@ from waldur_mastermind.policy.tests import factories as policy_factories
 @override_settings(task_always_eager=True)
 @freeze_time("2026-04-01")
 class ProjectCreditPreventsTriggering(test.APITestCase):
-    """ProjectEstimatedCostPolicy should not fire when the project
-    has sufficient remaining credit to cover costs."""
+    """ProjectEstimatedCostPolicy does not fire while credit pays its cost."""
 
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
@@ -48,130 +49,89 @@ class ProjectCreditPreventsTriggering(test.APITestCase):
             period=ProjectEstimatedCostPolicy.Periods.TOTAL,
         )
 
-    def _create_item(self, unit_price):
-        # Don't set resource — MonthlyCompensation excludes resource=None items,
-        # so this item won't be compensated. This isolates the credit check logic.
+    def _create_item(self, unit_price, creditable=True):
+        # MonthlyCompensation pays only items with a resource, so an item
+        # without one is cost no credit covers.
         return invoices_factories.InvoiceItemFactory(
             invoice=self.invoice,
             project=self.project,
+            resource=self.fixture.resource if creditable else None,
             unit_price=unit_price,
             quantity=1,
         )
 
-    def test_not_triggered_when_project_credit_covers_cost(self):
-        """Project with 33,625 credit should not trigger on 200 cost."""
-        invoices_factories.ProjectCreditFactory(
-            project=self.project,
-            value=33625,
-        )
+    def test_not_triggered_when_project_credit_pays_the_cost(self):
+        invoices_factories.ProjectCreditFactory(project=self.project, value=33625)
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=200)
 
-        self.assertFalse(
-            policy.is_triggered(),
-            "Policy should not trigger when project credit exceeds limit_cost.",
-        )
+        self.assertFalse(policy.is_triggered())
 
     def test_triggered_when_no_credit_at_all(self):
-        """Without any credit, cost exceeding limit should trigger."""
         self.customer_credit.delete()
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=200)
 
-        self.assertTrue(
-            policy.is_triggered(),
-            "Policy should trigger when cost exceeds limit and no credit exists.",
-        )
+        self.assertTrue(policy.is_triggered())
 
     def test_triggered_when_project_credit_exhausted(self):
-        """Zero remaining project credit should trigger."""
-        invoices_factories.ProjectCreditFactory(
-            project=self.project,
-            value=0,
-        )
+        invoices_factories.ProjectCreditFactory(project=self.project, value=0)
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=200)
 
-        self.assertTrue(
-            policy.is_triggered(),
-            "Policy should trigger when project credit is exhausted.",
-        )
+        self.assertTrue(policy.is_triggered())
 
-    def test_triggered_when_project_credit_below_limit(self):
-        """Project credit smaller than limit_cost should trigger."""
-        invoices_factories.ProjectCreditFactory(
-            project=self.project,
-            value=50,  # Less than limit_cost=100
-        )
+    def test_triggered_when_project_credit_pays_too_little(self):
+        # 50 paid by credit leaves 150, over the limit of 100.
+        invoices_factories.ProjectCreditFactory(project=self.project, value=50)
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=200)
 
-        self.assertTrue(
-            policy.is_triggered(),
-            "Policy should trigger when project credit is below limit_cost.",
-        )
+        self.assertTrue(policy.is_triggered())
 
-    def test_project_credit_takes_precedence_over_customer_credit(self):
-        """When ProjectCredit exists, only it matters — even if
-        CustomerCredit is large enough to cover the cost."""
-        # Small project credit (below limit) but large customer credit
-        invoices_factories.ProjectCreditFactory(
-            project=self.project,
-            value=50,  # Below limit_cost=100
-        )
-        # customer_credit is 100000 (from setUp) — but should NOT prevent triggering
-
+    def test_project_allocation_caps_what_the_organization_credit_pays(self):
+        # The organization credit is large, but the project may draw only its
+        # 50 allocation of it.
+        invoices_factories.ProjectCreditFactory(project=self.project, value=50)
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=200)
 
-        self.assertTrue(
-            policy.is_triggered(),
-            "ProjectCredit should take precedence over CustomerCredit. "
-            "Even with large CustomerCredit, exhausted ProjectCredit "
-            "should allow triggering.",
-        )
+        self.assertTrue(policy.is_triggered())
 
     def test_not_triggered_when_cost_below_limit(self):
-        """Cost below limit should not trigger regardless of credit."""
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=50)
 
-        self.assertFalse(
-            policy.is_triggered(),
-            "Policy should not trigger when cost is below limit.",
-        )
+        self.assertFalse(policy.is_triggered())
 
     def test_falls_back_to_customer_credit_when_no_project_credit(self):
-        """When no ProjectCredit exists, CustomerCredit should prevent triggering."""
-        # No ProjectCredit — only CustomerCredit (100000 from setUp)
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=200)
 
-        self.assertFalse(
-            policy.is_triggered(),
-            "Policy should fall back to CustomerCredit when no ProjectCredit exists.",
-        )
+        self.assertFalse(policy.is_triggered())
 
-    def test_triggered_when_no_project_credit_and_customer_credit_below_limit(self):
-        """No ProjectCredit and CustomerCredit below limit should trigger."""
+    def test_triggered_when_customer_credit_pays_too_little(self):
         self.customer_credit.value = 50
         self.customer_credit.save()
 
         policy = self._create_policy(limit_cost=100)
         self._create_item(unit_price=200)
 
-        self.assertTrue(
-            policy.is_triggered(),
-            "Policy should trigger when no ProjectCredit and "
-            "CustomerCredit is below limit_cost.",
-        )
+        self.assertTrue(policy.is_triggered())
+
+    def test_cost_no_credit_covers_fires_although_credit_is_left(self):
+        # 100000 of credit is left, but none of it can pay an item without a
+        # resource. The remaining balance used to hold the policy back.
+        policy = self._create_policy(limit_cost=100)
+        self._create_item(unit_price=200, creditable=False)
+
+        self.assertTrue(policy.is_triggered())
 
 
 @override_settings(task_always_eager=True)
 @freeze_time("2026-04-01")
 class CustomerCreditPreventsTriggering(test.APITestCase):
-    """CustomerEstimatedCostPolicy should not fire when the customer
-    has sufficient remaining credit."""
+    """CustomerEstimatedCostPolicy does not fire while credit pays its cost."""
 
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
@@ -182,45 +142,35 @@ class CustomerCreditPreventsTriggering(test.APITestCase):
             year=2026,
             tax_percent=0,
         )
-
-    def test_not_triggered_when_customer_credit_covers_cost(self):
-        invoices_factories.CustomerCreditFactory(
-            customer=self.customer,
-            value=50000,
-        )
-        policy = policy_factories.CustomerEstimatedCostPolicyFactory(
+        self.policy = policy_factories.CustomerEstimatedCostPolicyFactory(
             scope=self.customer,
             limit_cost=100,
             actions="notify_organization_owners",
             period=CustomerEstimatedCostPolicy.Periods.TOTAL,
         )
+
+    def _create_item(self, creditable=True):
         invoices_factories.InvoiceItemFactory(
             invoice=self.invoice,
             project=self.fixture.project,
+            resource=self.fixture.resource if creditable else None,
             unit_price=200,
             quantity=1,
         )
 
-        self.assertFalse(
-            policy.is_triggered(),
-            "Customer policy should not trigger when credit exceeds limit_cost.",
-        )
+    def test_not_triggered_when_customer_credit_pays_the_cost(self):
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=50000)
+        self._create_item()
+
+        self.assertFalse(self.policy.is_triggered())
 
     def test_triggered_when_no_customer_credit(self):
-        policy = policy_factories.CustomerEstimatedCostPolicyFactory(
-            scope=self.customer,
-            limit_cost=100,
-            actions="notify_organization_owners",
-            period=CustomerEstimatedCostPolicy.Periods.TOTAL,
-        )
-        invoices_factories.InvoiceItemFactory(
-            invoice=self.invoice,
-            project=self.fixture.project,
-            unit_price=200,
-            quantity=1,
-        )
+        self._create_item()
 
-        self.assertTrue(
-            policy.is_triggered(),
-            "Customer policy should trigger when no credit exists.",
-        )
+        self.assertTrue(self.policy.is_triggered())
+
+    def test_cost_no_credit_covers_fires_although_credit_is_left(self):
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=50000)
+        self._create_item(creditable=False)
+
+        self.assertTrue(self.policy.is_triggered())

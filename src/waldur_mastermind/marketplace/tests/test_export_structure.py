@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import shutil
@@ -1336,6 +1337,9 @@ class ExportStructureCommandTest(TestCase):
             apply_as_minimal_consumption=False,
             end_date=timezone.now().replace(day=1).date(),
             mark_unused_credit_as_spent_on_project_termination=True,
+            pay_earlier_invoices=True,
+            earlier_invoices_from=datetime.date(2024, 1, 1),
+            earlier_invoices_until=datetime.date(2024, 6, 1),
         )
 
         # Export and verify
@@ -1361,6 +1365,9 @@ class ExportStructureCommandTest(TestCase):
         self.assertEqual(
             exported_credit["mark_unused_credit_as_spent_on_project_termination"], True
         )
+        self.assertEqual(exported_credit["pay_earlier_invoices"], True)
+        self.assertEqual(exported_credit["earlier_invoices_from"], "2024-01-01")
+        self.assertEqual(exported_credit["earlier_invoices_until"], "2024-06-01")
         self.assertIsNotNone(exported_credit["created"])
         self.assertIsNotNone(exported_credit["modified"])
 

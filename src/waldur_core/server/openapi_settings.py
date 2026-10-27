@@ -15,6 +15,7 @@ from waldur_core.users.enums import InvitationState
 from waldur_mastermind.chat.enums import FeedbackCategory
 from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices.enums import CompensateIn
 from waldur_mastermind.marketplace import offering_merge_coverage
 from waldur_mastermind.marketplace.attribute_types import ATTRIBUTE_TYPES
 from waldur_mastermind.marketplace.enums import (
@@ -94,6 +95,9 @@ SPECTACULAR_SETTINGS = {
         "MetricKindEnum": metrics_enums.MetricKinds.CHOICES,
         # trigger_status.gate would otherwise be a bare GateEnum in the SDK.
         "PolicyGateEnum": PolicyGates.CHOICES,
+        # Where a payment of earlier invoices goes: the project credit's setting
+        # and the pay_earlier_invoices action share one choice set.
+        "CompensateInEnum": CompensateIn.CHOICES,
         # Shared by the Constance setting and the credentials response, so the
         # SDK gets one named type instead of a generic MethodEnum.
         "MatrixExternalLoginMethodEnum": MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES,

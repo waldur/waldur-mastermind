@@ -87,8 +87,8 @@ class ResourceScopedCostMeasurementTest(test.APITestCase):
 @override_settings(task_always_eager=True)
 @freeze_time("2026-04-01")
 class UseCreditToggleTest(test.APITestCase):
-    """The ``use_credit`` flag controls whether credit (compensation +
-    balance override) is factored into the limit check."""
+    """The ``use_credit`` flag controls whether the credit still to be drawn
+    is taken off the cost compared with the limit."""
 
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
@@ -116,9 +116,12 @@ class UseCreditToggleTest(test.APITestCase):
         )
 
     def _create_item(self, unit_price):
+        # With a resource, so the credit can pay it: credit left no longer
+        # holds a policy back on cost it does not pay (#784).
         return invoices_factories.InvoiceItemFactory(
             invoice=self.invoice,
             project=self.project,
+            resource=self.fixture.resource,
             unit_price=unit_price,
             quantity=1,
         )

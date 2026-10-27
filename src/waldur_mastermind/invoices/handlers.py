@@ -371,19 +371,93 @@ def delete_project_credits_with_customer_credit(
     project_credits.delete()
 
 
+def _earlier_invoices_months(credit: ProjectCredit) -> str:
+    # str() and not strftime: a value assigned directly may still be a string.
+    start = str(credit.earlier_invoices_from or "")[:7]
+    end = str(credit.earlier_invoices_until or "")[:7]
+    if start and end:
+        return f" from {start} until {end}"
+    if start:
+        return f" from {start}"
+    if end:
+        return f" until {end}"
+    return ""
+
+
+def _log_earlier_invoices_settings(credit: ProjectCredit, created, scopes):
+    """Record a change to whether and how the credit pays earlier invoices.
+
+    Only staff may make one, and it changes what the organization was billed,
+    so it is audited like the value. The payments it leads to are recorded
+    separately, by whoever's save made them.
+    """
+    if created:
+        if not credit.pay_earlier_invoices:
+            return
+        changed = list(ProjectCredit.EARLIER_INVOICES_FIELDS)
+    else:
+        changed = [
+            field
+            for field in ProjectCredit.EARLIER_INVOICES_FIELDS
+            if credit.tracker.has_changed(field)
+        ]
+        if not changed:
+            return
+
+    if credit.pay_earlier_invoices:
+        where = (
+            "the invoice of the month the cost was incurred"
+            if credit.earlier_invoices_compensate_in
+            == ProjectCredit.CompensateIn.INCURRED_MONTH
+            else "the invoice of the current month"
+        )
+        message = (
+            "{project_name} project credit pays earlier invoices"
+            f"{_earlier_invoices_months(credit)}, written on {where}."
+        )
+    elif not created and credit.tracker.previous("pay_earlier_invoices"):
+        message = "{project_name} project credit no longer pays earlier invoices."
+    else:
+        message = (
+            "{project_name} project credit settings for paying earlier invoices "
+            "have changed; paying them is off."
+        )
+
+    def shown(value):
+        return value.isoformat() if isinstance(value, datetime.date) else value
+
+    event_logger.emit(
+        message,
+        event_type=EventType.UPDATE_OF_PROJECT_CREDIT_BY_STAFF,
+        event_context={
+            "customer": credit.project.customer,
+            "project": credit.project,
+            "earlier_invoices_changes": {
+                field: {
+                    "old": None if created else shown(credit.tracker.previous(field)),
+                    "new": shown(getattr(credit, field)),
+                }
+                for field in changed
+            },
+        },
+        scopes=scopes,
+    )
+
+
 def log_project_credit(sender, instance: ProjectCredit, created=False, **kwargs):
     # See log_credit() for the rationale behind opt-in suppression.
     if credit_audit_skipped():
-        return
-
-    if kwargs.get("update_fields") and "value" not in kwargs["update_fields"]:
-        # Save targeted fields other than `value` — nothing to audit here.
         return
 
     credit = instance
     # The project too, so the project's audit log (events filtered by scope)
     # shows changes to its own credit, as it does the compensation draws on it.
     scopes = [credit.project.customer, credit.project]
+    _log_earlier_invoices_settings(credit, created, scopes)
+
+    if kwargs.get("update_fields") and "value" not in kwargs["update_fields"]:
+        # Save targeted fields other than `value` — nothing more to audit here.
+        return
 
     if created:
         event_logger.emit(

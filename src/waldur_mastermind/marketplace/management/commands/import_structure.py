@@ -7789,6 +7789,23 @@ class Command(BaseCommand):
                             )
                         )
 
+                # The period of earlier invoices the credit pays names months,
+                # stored as their first day.
+                earlier_invoices_period = {}
+                for field in ("earlier_invoices_from", "earlier_invoices_until"):
+                    earlier_invoices_period[field] = None
+                    if credit_data.get(field):
+                        try:
+                            earlier_invoices_period[field] = self._parse_date(
+                                credit_data[field]
+                            ).replace(day=1)
+                        except (ValueError, TypeError):
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Invalid {field} for project credit {uuid}"
+                                )
+                            )
+
                 # Parse dates
                 created = None
                 if credit_data.get("created"):
@@ -7826,6 +7843,13 @@ class Command(BaseCommand):
                     "end_date": end_date,
                     "mark_unused_credit_as_spent_on_project_termination": credit_data.get(
                         "mark_unused_credit_as_spent_on_project_termination", False
+                    ),
+                    "pay_earlier_invoices": credit_data.get(
+                        "pay_earlier_invoices", False
+                    ),
+                    **earlier_invoices_period,
+                    "earlier_invoices_compensate_in": credit_data.get(
+                        "earlier_invoices_compensate_in", "current_month"
                     ),
                 }
 

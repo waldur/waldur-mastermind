@@ -31,7 +31,7 @@ from waldur_mastermind.policy.policy_actions import (
 
 from . import models
 from .models import LIMIT_PERIOD_TO_POLICY_PERIOD
-from .structures import CreditSources, EvaluationTriggers, PolicyGates
+from .structures import EvaluationTriggers, PolicyGates
 from .utils import system_actor_event_context
 
 logger = logging.getLogger(__name__)
@@ -220,7 +220,7 @@ class PolicyTriggerStatusSerializer(serializers.Serializer):
     gate = serializers.ChoiceField(
         choices=PolicyGates.CHOICES,
         help_text=(
-            "Which check decided. Not firing: cost_below_limit (current_cost is at or below limit_cost); held_by_project_credit / held_by_customer_credit (current_cost is over the limit, but that credit's live balance, credit_value_compared, is above it; for a project with its own allocation the lower of the two binds). Firing: credit_exhausted (current_cost is over the limit and credit_value_compared is at or below it); no_credit (current_cost is over the limit and no credit applies); credit_ignored (current_cost is over the limit and the policy does not take credit into account). Clients word the explanation themselves from this value and those figures."
+            "Which check decided. Not firing: cost_below_limit (current_cost is at or below limit_cost). Firing: cost_over_limit (current_cost, the cost after credit, is over the limit); no_credit (current_cost is over the limit and no credit applies); credit_ignored (current_cost is over the limit and the policy does not take credit into account). The credit left is not compared with the limit. held_by_project_credit, held_by_customer_credit and credit_exhausted are no longer returned; they remain in the enum for clients that still handle them. Clients word the explanation themselves from this value and those figures."
         ),
     )
     triggered = serializers.BooleanField(
@@ -233,8 +233,34 @@ class PolicyTriggerStatusSerializer(serializers.Serializer):
         decimal_places=2,
         allow_null=True,
         help_text=(
-            "The live credit balance compared against limit_cost; null when the credit was not checked (cost_below_limit, no_credit, credit_ignored), and on a project policy when it is the organization's balance and the user may not view the organization's accounting."
+            "Deprecated: always null. The policy no longer compares the credit balance with limit_cost."
         ),
+    )
+
+
+class PolicyCostBreakdownSerializer(serializers.Serializer):
+    """What current_cost is made of: cost_before_credit - credit_drawn -
+    credit_pending."""
+
+    cost_before_credit = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="The invoiced cost within the policy's period before any credit, tax included.",
+    )
+    credit_drawn = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="Credit compensation already written on the period's invoices.",
+    )
+    credit_pending = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="Credit the current month will still draw that is not written yet. 0 for a policy that does not take credit into account; such a policy still counts the compensation already written, which shows in credit_drawn.",
+    )
+    earlier_months = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="The part of current_cost from months before the current one. Credit added now pays only the current month, so this part stays until those months are paid; see ProjectCredit.pay_earlier_invoices. 0 for a one-month period.",
     )
 
 
@@ -243,6 +269,7 @@ class EstimatedCostPolicySerializer(
 ):
     period_name = serializers.CharField(read_only=True, source="get_period_display")
     current_cost = serializers.SerializerMethodField()
+    cost_breakdown = serializers.SerializerMethodField()
     eta_days = serializers.SerializerMethodField()
     eta_date = serializers.SerializerMethodField()
     trigger_status = serializers.SerializerMethodField()
@@ -253,6 +280,7 @@ class EstimatedCostPolicySerializer(
             "period",
             "period_name",
             "current_cost",
+            "cost_breakdown",
             "eta_days",
             "eta_date",
             "trigger_status",
@@ -309,11 +337,32 @@ class EstimatedCostPolicySerializer(
         )
         return instance.get_current_cost(compensation)
 
+    @extend_schema_field(PolicyCostBreakdownSerializer)
+    def get_cost_breakdown(self, instance) -> dict:
+        """The parts current_cost is made of, so clients can show where the
+        figure comes from without re-deriving it. Shares the response's
+        MonthlyCompensation, and is skipped by a `?field=` that leaves it out.
+        """
+        compensation = (
+            self._compensation_for(instance)
+            if instance.uses_credit_compensation
+            else None
+        )
+        breakdown = instance.get_cost_breakdown(compensation)
+        return PolicyCostBreakdownSerializer(
+            {
+                "cost_before_credit": breakdown.cost_before_credit,
+                "credit_drawn": breakdown.credit_drawn,
+                "credit_pending": breakdown.credit_pending,
+                "earlier_months": breakdown.earlier_months,
+            }
+        ).data
+
     @extend_schema_field(
         serializers.IntegerField(
             allow_null=True,
             help_text=(
-                "Days until the policy fires, or null when no projection exists. 0 means the threshold is already crossed and the policy is triggered — measured, not projected. Null must be rendered as no date, never as 'now': it is the common case, and it is also what an unprojectable or more-than-a-year-away policy reports. Nothing is projected beyond 365 days, because the rate comes from the current month's spend. Note that a cost policy does not fire on cost alone — it also waits for the credit balance to fall to limit_cost — so a policy far over its cap can still report a future date or null."
+                "Days until the policy fires, or null when no projection exists. 0 means the threshold is already crossed and the policy is triggered — measured, not projected. Null must be rendered as no date, never as 'now': it is the common case, and it is also what an unprojectable or more-than-a-year-away policy reports. Nothing is projected beyond 365 days, because the rate comes from the current month's spend."
             ),
         )
     )
@@ -482,14 +531,6 @@ class ProjectEstimatedCostPolicySerializer(
             return data
 
         data.pop("customer_credit", None)
-        trigger_status = data.get("trigger_status")
-        if (
-            trigger_status
-            and self._decision_for(instance).credit_source == CreditSources.CUSTOMER
-        ):
-            # The live organization balance would also reveal what the whole
-            # organization has used this month.
-            trigger_status["credit_value_compared"] = None
         return data
 
     def get_project_credit(self, instance) -> str | None:

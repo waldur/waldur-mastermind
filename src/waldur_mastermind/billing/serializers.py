@@ -136,8 +136,7 @@ def _bulk_compute_project_estimates(project_ids, year, month):
     query_month = month or utils.get_current_month()
 
     qs = invoices_models.InvoiceItem.objects.filter(
-        invoice__year=query_year,
-        invoice__month=query_month,
+        utils.month_q(query_year, query_month),
         project_id__in=project_ids,
     ).select_related("invoice")
 

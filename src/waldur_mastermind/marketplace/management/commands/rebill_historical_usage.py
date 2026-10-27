@@ -4,7 +4,7 @@ import logging
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q, Sum
 
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import ledger
@@ -535,7 +535,8 @@ class Command(BaseCommand):
             policy.refresh_from_db()
             scope_label = self._POLICY_SCOPE_LABELS[type(policy)]
 
-            # One simulation for both gates, as is_triggered() itself does.
+            # One simulation for the figures and the verdict, as is_triggered()
+            # itself does.
             compensation = (
                 policy._new_compensation() if policy.uses_credit_compensation else None
             )
@@ -543,14 +544,15 @@ class Command(BaseCommand):
             cost_total = policy._scoped_cost(invoice_items)
             net_cost = policy._evaluated_cost(invoice_items, deduction)
             # Match evaluate()'s strict `>`: cost exactly on limit_cost is
-            # not triggered, so gate 1 must read closed there too.
-            gate1 = "open" if net_cost > policy.limit_cost else "closed"
+            # not over it.
+            over_limit = "yes" if net_cost > policy.limit_cost else "no"
 
-            # Gate 2 reads the live balance, net of this month's usage, through
-            # the policy's own method -- the stored value only falls at month
-            # end. None where no credit applies: a use_credit=False project
-            # policy, no credit configured, or an OfferingEstimatedCostPolicy,
-            # which no single customer's credit covers.
+            # For information only: the policy no longer compares the balance
+            # with limit_cost (#784). The live balance, net of this month's
+            # usage; the stored value only falls at month end. None where no
+            # credit applies: a use_credit=False project policy, no credit
+            # configured, or an OfferingEstimatedCostPolicy, which no single
+            # customer's credit covers.
             credit_balance = (
                 policy._live_credit_balance(compensation)
                 if policy.uses_credit_compensation
@@ -559,11 +561,10 @@ class Command(BaseCommand):
 
             credit_note = ""
             if credit_balance is not None:
-                gate2 = "open" if credit_balance <= policy.limit_cost else "closed"
-                credit_note = f" credit_balance={credit_balance} (gate 2: {gate2})"
+                credit_note = f" credit_balance={credit_balance}"
 
             # The same simulation, so the verdict cannot disagree with the
-            # gate figures printed above.
+            # figures printed above.
             now_triggered = policy.evaluate(compensation=compensation).triggered
             changed = was_fired != now_triggered
             verdict = ""
@@ -575,7 +576,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"{prefix}{label}: [{scope_label} Cost Policy {policy.uuid.hex}] "
                 f"limit_cost={policy.limit_cost} cost_this_window={net_cost} "
-                f"(gate 1: {gate1}){credit_note} fired: {was_fired} -> "
+                f"(over limit: {over_limit}){credit_note} fired: {was_fired} -> "
                 f"{now_triggered}{verdict}"
             )
             logger.debug(
@@ -851,6 +852,9 @@ class Command(BaseCommand):
             credit=customer_credit,
             details__offering_component_type=offering_component.type,
             unit_price__lt=0,
+            # A payment of an earlier invoice written on this one copies the
+            # paid item's details too, but it is not this month's compensation.
+            compensated_period__isnull=True,
         ).first()
         if existing_compensation is not None:
             old_compensation = existing_compensation.unit_price * -1
@@ -871,14 +875,27 @@ class Command(BaseCommand):
             details__discount_of_item=new_item.uuid.hex,
         ):
             discount_price += discount_item.price
-        new_compensation = new_item.price + discount_price
+        # Credit that paid this item later, from a project credit paying
+        # earlier invoices (see invoices.settlement), is drawn already: this
+        # month's own compensation covers only the rest, or the correction
+        # draws that part a second time.
+        paid_later = -(
+            invoice_models.InvoiceItem.objects.filter(
+                compensated_period=datetime.date(invoice.year, invoice.month, 1),
+                resource=resource,
+                details__offering_component_type=offering_component.type,
+            ).aggregate(total=Sum(F("unit_price") * F("quantity")))["total"]
+            or 0
+        )
+        new_compensation = new_item.price + discount_price - paid_later
         if new_compensation < 0:
             new_compensation = decimal.Decimal(0)
         logger.debug(
-            "%s: new_item.price=%s discount_price=%s new_compensation=%s",
+            "%s: new_item.price=%s discount_price=%s paid_later=%s new_compensation=%s",
             label,
             new_item.price,
             discount_price,
+            paid_later,
             new_compensation,
         )
 
@@ -897,7 +914,7 @@ class Command(BaseCommand):
             return
 
         sibling_compensations = invoice.items.filter(
-            credit=customer_credit, unit_price__lt=0
+            credit=customer_credit, unit_price__lt=0, compensated_period__isnull=True
         ).exclude(resource=resource)
         if sibling_compensations.exists():
             sibling_resources = sorted(

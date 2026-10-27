@@ -1,11 +1,9 @@
-"""A cost policy waits for the *live* credit balance, not the stored one.
+"""A cost policy reads the *live* credit balance, not the stored one.
 
-`is_triggered` spares a policy while the credit balance stays above
-`limit_cost`. The stored balance only falls when the month's compensations are
-written at month end, so comparing it as is held every credit-funded policy back
-until the 1st, however early in the month usage exhausted the credit: a project
-with ~2500 of credit spending >4500 in a month with a limit of 100 was not
-downscaled until the credit was drawn to 0 at month end.
+The stored balance only falls when the month's compensations are written at
+month end. The policy no longer compares the balance with `limit_cost` (#784),
+but the live balance still decides what the credit pays this month, what it pays
+for a resource about to be created, and when the projection says it runs out.
 
 The items here carry a resource so MonthlyCompensation actually compensates
 them; test_credit_aware_policy uses uncompensated items on purpose and so never
@@ -102,6 +100,42 @@ class LiveCreditBalanceTest(test.APITestCase):
 
         self.assertTrue(self._project_policy().is_triggered())
 
+    def _assert_cost_unchanged_by_writing_compensation(self, expected):
+        # The pending draw comes off taxed, as the compensation item it becomes
+        # does, so writing it mid-month must not move the cost. Within a cent:
+        # invoice prices round up to cents, the projection does not.
+        cent = decimal.Decimal("0.01")
+        policy = self._project_policy()
+        self.assertAlmostEqual(policy.get_current_cost(), expected, delta=cent)
+
+        compensations.MonthlyCompensation(self.customer).apply_compensations()
+
+        self.assertAlmostEqual(policy.get_current_cost(), expected, delta=cent)
+        self.assertAlmostEqual(
+            policy.get_cost_breakdown().credit_pending, 0, delta=cent
+        )
+
+    def test_taxed_organization_credit_partly_covering_the_cost(self):
+        # 1000 at 20 % VAT is 1200. The exhausted organization credit is
+        # written as 500 / 1.2, so with tax it takes exactly its 500 off.
+        self.invoice.tax_percent = 20
+        self.invoice.save()
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=500)
+        self._charge(1000)
+
+        self._assert_cost_unchanged_by_writing_compensation(decimal.Decimal(700))
+
+    def test_taxed_project_allocation_partly_covering_the_cost(self):
+        # The allocation's 500 is written untaxed and carries the invoice's
+        # 20 % like the cost it offsets: 600 comes off the 1200.
+        self.invoice.tax_percent = 20
+        self.invoice.save()
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
+        invoices_factories.ProjectCreditFactory(project=self.project, value=500)
+        self._charge(1000)
+
+        self._assert_cost_unchanged_by_writing_compensation(decimal.Decimal(600))
+
     def test_customer_policy_credit_exhausted_mid_month_triggers(self):
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=CREDIT)
         self._charge(4500)
@@ -115,8 +149,8 @@ class LiveCreditBalanceTest(test.APITestCase):
         self.assertTrue(policy.is_triggered())
 
     def _earlier_uncovered_cost(self, amount):
-        # Cost in an earlier month that no credit covered, so a TOTAL policy's
-        # Gate 1 stays open and the credit balance alone decides.
+        # Cost in an earlier month that no credit covered: a TOTAL policy keeps
+        # counting it, whatever credit is added later.
         previous = core_utils.month_start(datetime.date.today()) - datetime.timedelta(
             days=1
         )
@@ -143,30 +177,37 @@ class LiveCreditBalanceTest(test.APITestCase):
             use_credit=True,
         )
 
-    def test_total_period_with_monthly_allocation(self):
-        # The shape that surfaced this: a TOTAL policy far over its limit on
-        # earlier, uncompensated months, so the cost test always passes and the
-        # credit balance is the only gate. A fresh monthly allocation must hold
-        # the policy back until this month's usage has spent it — not until the
-        # month-end run writes the draw.
+    def test_total_period_keeps_counting_earlier_overspend(self):
+        # A TOTAL policy far over its limit on earlier, uncompensated months.
+        # The credit-balance gate used to hold it back while a fresh monthly
+        # allocation lasted; now the cost alone decides, so it fires throughout.
         self._earlier_uncovered_cost("7701.67")
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
         policy = self._total_policy()
 
         self._charge(50)  # start of the month, allocation untouched
+        self.assertTrue(policy.is_triggered())
+
+        self._charge(3000)  # 3050: the allocation is spent
+        self.assertTrue(policy.is_triggered())
+
+    def test_total_period_fires_once_this_month_spends_the_allocation(self):
+        # No earlier overspend: the allocation pays this month's usage until
+        # it is spent, and only the rest counts towards the limit.
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
+        invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
+        policy = self._total_policy()
+
+        self._charge(2050)  # 2050 of 2900 drawn
         self.assertFalse(policy.is_triggered())
 
-        self._charge(2000)  # 2050 of 2900 drawn
-        self.assertFalse(policy.is_triggered())
-
-        self._charge(1000)  # 3050: the allocation is spent
+        self._charge(1000)  # 3050: 150 beyond the allocation
         self.assertTrue(policy.is_triggered())
 
     def test_project_allocation_with_minimal_consumption_untouched(self):
         # The minimal-consumption floor is drawn at month end whatever the
         # usage; it is not usage, so it must not read as the allocation spent.
-        self._earlier_uncovered_cost("7701.67")
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(
             project=self.project, value=2900, expected_consumption=2900
@@ -180,7 +221,6 @@ class LiveCreditBalanceTest(test.APITestCase):
         self.assertTrue(policy.is_triggered())
 
     def test_organization_credit_with_minimal_consumption_untouched(self):
-        self._earlier_uncovered_cost("7701.67")
         invoices_factories.CustomerCreditFactory(
             customer=self.customer, value=2900, expected_consumption=2900
         )
@@ -205,11 +245,12 @@ class LiveCreditBalanceTest(test.APITestCase):
 
     def test_written_compensation_is_not_drawn_twice(self):
         # The re-simulation sees all of this month's usage again; counting the
-        # written 1000 a second time would read 500 and fire this 1000 limit.
-        self._earlier_uncovered_cost("5000")
+        # written 1000 a second time would read 500 left instead of 1500.
         self._apply_mid_month()
 
-        self.assertFalse(self._total_policy(limit_cost=1000).is_triggered())
+        policy = self._total_policy()
+        self.assertEqual(policy._live_credit_balance(), CREDIT - 1000)
+        self.assertFalse(policy.is_triggered())
 
     def test_mid_month_apply_then_credit_exhausted(self):
         self._earlier_uncovered_cost("5000")
@@ -219,13 +260,15 @@ class LiveCreditBalanceTest(test.APITestCase):
 
         self.assertTrue(self._total_policy(limit_cost=LIMIT).is_triggered())
 
-    def test_mid_month_apply_balance_below_limit(self):
-        self._earlier_uncovered_cost("5000")
+    def test_mid_month_apply_live_balance(self):
         self._apply_mid_month()
 
         self._charge(600)  # 1600 used of 2500: real balance 900
 
-        self.assertTrue(self._total_policy(limit_cost=950).is_triggered())
+        policy = self._total_policy()
+        self.assertEqual(policy._live_credit_balance(), 900)
+        # The credit still pays all of it.
+        self.assertFalse(policy.is_triggered())
 
     def _capped_floor_apply(self):
         # The floor (3000) is larger than the credit left (1000): the mid-month
@@ -272,14 +315,6 @@ class LiveCreditBalanceTest(test.APITestCase):
         self._charge(1000)  # 1100 used of an opening 2900: 1800 left
 
         self.assertEqual(self._total_policy()._live_credit_balance(), 1800)
-
-    def test_mid_month_apply_balance_above_limit(self):
-        self._earlier_uncovered_cost("5000")
-        self._apply_mid_month()
-
-        self._charge(600)  # real balance 900
-
-        self.assertFalse(self._total_policy(limit_cost=850).is_triggered())
 
     def test_eta_agrees_with_is_triggered(self):
         # The projection must start from the same live balance the gate reads,
@@ -349,7 +384,6 @@ class LiveCreditBalanceTest(test.APITestCase):
         )
 
     def _allocation_with_900_left(self):
-        self._earlier_uncovered_cost("7701.67")
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
         policy = self._blocking_total_policy()
@@ -365,25 +399,25 @@ class LiveCreditBalanceTest(test.APITestCase):
         self.assertFalse(policy.is_triggered())
 
     def test_creation_blocked_when_the_resource_spends_the_credit(self):
+        # 900 left pays 900 of a 1050 resource; the other 150 is over the limit.
         # Before !6531's live balance reached this copy, the stored 2900 let
         # the resource through and the policy fired as soon as it was invoiced.
         policy = self._allocation_with_900_left()
         self.assertFalse(policy.is_triggered())
 
         self.assertTrue(
-            self._creation_check(handlers._check_project_policies, self.resource, 1000)
+            self._creation_check(handlers._check_project_policies, self.resource, 1050)
         )
         self.assertTrue(policy.is_triggered())
 
     def test_credit_does_not_cover_cost_on_an_uncovered_offering(self):
-        # 1050 left, limit 100: a 1000 resource on a covered offering draws the
-        # credit down to 50 and fires the policy; on an offering the credit
-        # does not cover it leaves the balance untouched.
+        # 1050 of credit, limit 100: a 1000 resource on the covered offering is
+        # paid by it; on an offering the credit does not cover, all of it
+        # counts, and the 50 still left does not hold the policy back.
         uncovered = marketplace_factories.ResourceFactory(
             project=self.project,
             offering=marketplace_factories.OfferingFactory(customer=self.customer),
         )
-        self._earlier_uncovered_cost("7701.67")
         credit = invoices_factories.CustomerCreditFactory(
             customer=self.customer, value=1050
         )
@@ -391,19 +425,19 @@ class LiveCreditBalanceTest(test.APITestCase):
         policy = self._blocking_total_policy()
 
         self.assertFalse(
-            self._creation_check(handlers._check_project_policies, uncovered, 1000)
+            self._creation_check(handlers._check_project_policies, self.resource, 1000)
         )
         self.assertFalse(policy.is_triggered())
         self.assertTrue(
-            self._creation_check(handlers._check_project_policies, self.resource, 1000)
+            self._creation_check(handlers._check_project_policies, uncovered, 1000)
         )
         self.assertTrue(policy.is_triggered())
 
     def test_minimal_consumption_floor_does_not_absorb_added_cost(self):
         # Floor 1000, credit 1050; 50 used this month. The 950 the floor would
-        # take at month end pays for nothing, so the 950 resource is drawn from
-        # the credit like any other usage, and the live balance falls to 50.
-        self._earlier_uncovered_cost("1000")
+        # take at month end pays for nothing, so a 1150 resource is drawn from
+        # the 1000 of live credit like any other usage, and 150 of it is over
+        # the limit.
         invoices_factories.CustomerCreditFactory(
             customer=self.customer, value=1050, expected_consumption=1000
         )
@@ -417,7 +451,7 @@ class LiveCreditBalanceTest(test.APITestCase):
         self.assertFalse(policy.is_triggered())
 
         blocked = self._creation_check(
-            handlers._check_customer_policies, self.resource, 950
+            handlers._check_customer_policies, self.resource, 1150
         )
 
         self.assertTrue(blocked)

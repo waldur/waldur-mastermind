@@ -37,7 +37,6 @@ class ProjectEtaDaysTest(test.APISimpleTestCase):
             gross_this_month=7500,
             uncompensated_this_month=7500,
             credit_days=0,
-            credit_limit_days=0,
             period=P.TOTAL,
             today=MID_MONTH,
         )
@@ -73,7 +72,6 @@ class ProjectEtaDaysTest(test.APISimpleTestCase):
                 gross_this_month=15771,
                 uncompensated_this_month=0,
                 credit_days=None,
-                credit_limit_days=None,
             )
         )
 
@@ -87,7 +85,6 @@ class ProjectEtaDaysTest(test.APISimpleTestCase):
                 gross_this_month=15771,
                 uncompensated_this_month=150,
                 credit_days=185,
-                credit_limit_days=0,
             ),
             100,
         )
@@ -101,7 +98,6 @@ class ProjectEtaDaysTest(test.APISimpleTestCase):
                 gross_this_month=15000,
                 uncompensated_this_month=0,
                 credit_days=30,
-                credit_limit_days=0,
             ),
             130,
         )
@@ -132,18 +128,25 @@ class ProjectEtaDaysTest(test.APISimpleTestCase):
         self.assertEqual(self.project(limit_cost=7500 + 500 * 365, period=P.TOTAL), 365)
         self.assertIsNone(self.project(limit_cost=7500 + 500 * 366, period=P.TOTAL))
 
-    def test_the_credit_balance_gates_the_cost_crossing(self):
-        """`is_triggered` returns `credit.value <= limit_cost` once the cost
-        test passes, so a project whose balance is still above the limit cannot
-        fire however much it spends. The later of the two is when it fires."""
-        # Cost alone would say 25 days; the balance does not clear until 90.
-        self.assertEqual(self.project(credit_limit_days=90), 90)
-        # And a balance that never reaches the limit means it never fires.
-        self.assertIsNone(self.project(credit_limit_days=None))
+    def test_a_crossed_limit_is_reached_whatever_credit_is_left(self):
+        """The policy fires on the cost alone since #784, so a cost over the
+        limit is a breach even while the credit lasts."""
+        self.assertEqual(self.project(current_cost=25000, credit_days=40), 0)
+        self.assertEqual(self.project(current_cost=25000, credit_days=None), 0)
 
-    def test_a_crossed_limit_still_waits_for_the_balance(self):
-        self.assertEqual(self.project(current_cost=25000, credit_limit_days=40), 40)
-        self.assertEqual(self.project(current_cost=25000, credit_limit_days=0), 0)
+    def test_the_cost_crossing_alone_dates_the_policy(self):
+        """No credit-balance condition delays the date the cost projects."""
+        # 500/day from 7500 against 20000 is 25 days, with or without credit
+        # left to be drawn after it.
+        self.assertEqual(self.project(credit_days=0), 25)
+        self.assertEqual(
+            self.project(
+                current_cost=7500,
+                uncompensated_this_month=7500,
+                credit_days=None,
+            ),
+            25,
+        )
 
     def test_a_sub_day_projection_is_a_day_away_not_a_breach(self):
         """0 is reserved for a limit already crossed, so it must never be the
@@ -276,9 +279,9 @@ class CreditCoveredProjectTest(test.APITestCase):
     they are handed the rates already computed.
     """
 
-    # Compensation is computed pre-tax while the policy's total carries tax, so
-    # on a taxed deployment a fully covered project still carries the tax in
-    # `current_cost`. Zero tax hides every problem below.
+    # Compensation is computed pre-tax while the policy's total carries tax;
+    # the credit still to be drawn is taxed before it comes off. Zero tax hides
+    # every problem below.
     TAX_PERCENT = 20
 
     def build(self, *, limit_cost, with_project_credit=True):
@@ -339,13 +342,13 @@ class CreditCoveredProjectTest(test.APITestCase):
         self.assertFalse(self.policy.is_triggered())
         self.assertIsNone(data["eta_days"])
 
-    def test_a_crossed_limit_the_credit_still_covers_is_not_reported_reached(self):
-        """`is_triggered` applies a test the cost figures cannot see: a credit
-        balance still above the limit holds the policy back. Serving 0 while the
-        policy itself reports False is the contradiction this field exists to
-        prevent a client inventing."""
+    def test_the_credit_pays_the_tax_on_what_it_covers(self):
+        """A compensation item carries the invoice's tax like the cost it
+        offsets, so the credit still to be drawn is taxed too. Deducted untaxed,
+        the tax read as 200 of cost on a fully covered project, over this limit
+        of 100; since #784 nothing else would hold the policy back."""
         self.build(limit_cost=100)
-        self.assertGreater(self.policy.get_current_cost(), self.policy.limit_cost)
+        self.assertEqual(self.policy.get_current_cost(), 0)
         self.assertFalse(self.policy.is_triggered())
         self.assertIsNone(self.eta()["eta_days"])
 

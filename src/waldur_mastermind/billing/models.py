@@ -41,7 +41,7 @@ class PriceEstimate(core_models.UuidMixin, models.Model):
         if not self.scope:
             return 0
         items = invoices_models.InvoiceItem.objects.filter(
-            invoice__year=year, invoice__month=month
+            invoices_utils.month_q(year, month)
         ).select_related("invoice")
         if self.content_type.model_class() == structure_models.Project:
             items = items.filter(project__uuid=self.scope.uuid.hex)

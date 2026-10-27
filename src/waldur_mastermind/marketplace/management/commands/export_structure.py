@@ -1762,6 +1762,14 @@ class Command(BaseCommand):
                     if credit.end_date
                     else None,
                     "mark_unused_credit_as_spent_on_project_termination": credit.mark_unused_credit_as_spent_on_project_termination,
+                    "pay_earlier_invoices": credit.pay_earlier_invoices,
+                    "earlier_invoices_compensate_in": credit.earlier_invoices_compensate_in,
+                    "earlier_invoices_from": credit.earlier_invoices_from.isoformat()
+                    if credit.earlier_invoices_from
+                    else None,
+                    "earlier_invoices_until": credit.earlier_invoices_until.isoformat()
+                    if credit.earlier_invoices_until
+                    else None,
                     "created": credit.created.isoformat() if credit.created else None,
                     "modified": credit.modified.isoformat()
                     if credit.modified

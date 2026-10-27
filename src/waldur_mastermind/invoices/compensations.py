@@ -636,7 +636,12 @@ class MonthlyCompensation:
         if not self.invoice:
             return
 
-        compensation_items = self.invoice.items.filter(credit=self.credit)
+        # Payments of earlier invoices (see `settlement`) are not this month's
+        # compensations: a run does not write them, so it must not roll them
+        # back either. They are written once and stay.
+        compensation_items = self.invoice.items.filter(
+            credit=self.credit, compensated_period__isnull=True
+        )
 
         if not compensation_items:
             return

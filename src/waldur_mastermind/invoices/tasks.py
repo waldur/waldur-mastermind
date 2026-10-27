@@ -22,7 +22,15 @@ from waldur_mastermind.marketplace import billing_discount
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
-from ..invoices import compensations, ledger, models, serializers, utils, vat
+from ..invoices import (
+    compensations,
+    ledger,
+    models,
+    serializers,
+    settlement,
+    utils,
+    vat,
+)
 from ..invoices.audit import skip_credit_audit
 
 logger = logging.getLogger(__name__)
@@ -536,3 +544,6 @@ def process_invoice_credits(invoice: models.Invoice):
         )
         monthly_compensation.apply_compensations()
         monthly_compensation.update_linear_expected_consumption()
+        # Only after the month's own compensation: an allocation set to pay
+        # earlier invoices pays them from what the month left.
+        settlement.pay_earlier_invoices_at_month_end(invoice)

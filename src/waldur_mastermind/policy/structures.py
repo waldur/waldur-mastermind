@@ -19,20 +19,25 @@ class PolicyGates:
 
     # Not triggered.
     COST_BELOW_LIMIT = "cost_below_limit"
-    HELD_BY_PROJECT_CREDIT = "held_by_project_credit"
-    HELD_BY_CUSTOMER_CREDIT = "held_by_customer_credit"
     # Triggered.
-    CREDIT_EXHAUSTED = "credit_exhausted"
+    COST_OVER_LIMIT = "cost_over_limit"
     NO_CREDIT = "no_credit"
     CREDIT_IGNORED = "credit_ignored"
+    # No longer produced: they came from the credit-balance gate that #784
+    # removed. Kept in CHOICES so that the generated clients still accept them
+    # until they stop handling them, and old events still carry them.
+    HELD_BY_PROJECT_CREDIT = "held_by_project_credit"
+    HELD_BY_CUSTOMER_CREDIT = "held_by_customer_credit"
+    CREDIT_EXHAUSTED = "credit_exhausted"
 
     CHOICES = (
         (COST_BELOW_LIMIT, "Cost below limit"),
-        (HELD_BY_PROJECT_CREDIT, "Held by project credit"),
-        (HELD_BY_CUSTOMER_CREDIT, "Held by organization credit"),
-        (CREDIT_EXHAUSTED, "Credit exhausted"),
+        (COST_OVER_LIMIT, "Cost over limit"),
         (NO_CREDIT, "No credit"),
         (CREDIT_IGNORED, "Credit ignored"),
+        (HELD_BY_PROJECT_CREDIT, "Held by project credit (no longer produced)"),
+        (HELD_BY_CUSTOMER_CREDIT, "Held by organization credit (no longer produced)"),
+        (CREDIT_EXHAUSTED, "Credit exhausted (no longer produced)"),
     )
 
 
@@ -55,11 +60,28 @@ class EvaluationTriggers:
 
 
 class CreditSources:
-    """The balance Gate 2 compared: a project allocation or the organization
-    credit, whichever is lower."""
+    """Whose live balance a policy reads: a project allocation or the
+    organization credit, whichever is lower."""
 
     PROJECT = "project"
     CUSTOMER = "customer"
+
+
+@dataclass(frozen=True)
+class CostBreakdown:
+    """What an estimated-cost policy's `current_cost` is made of:
+    `cost_before_credit - credit_drawn - credit_pending`."""
+
+    #: The period's invoiced cost before any credit.
+    cost_before_credit: decimal.Decimal
+    #: Credit compensation already written on the period's invoices.
+    credit_drawn: decimal.Decimal
+    #: Credit this month will still draw that is not written yet.
+    credit_pending: decimal.Decimal
+    #: The part of `current_cost` from months before the current one: cost
+    #: after credit that credit added now cannot pay, since a top-up pays only
+    #: the current month. 0 for a one-month period.
+    earlier_months: decimal.Decimal = decimal.Decimal(0)
 
 
 @dataclass(frozen=True)
@@ -79,12 +101,10 @@ class PolicyDecision:
     limit_cost: int
     period: int
     use_credit: bool
-    #: The live credit balance Gate 2 compared; None when Gate 2 did not run.
+    #: The credit balance compared against `limit_cost`. Always None since
+    #: #784 removed that comparison; kept so the API field keeps its shape.
+    #: The event context leaves it out, as it does every None.
     credit_value_compared: decimal.Decimal | None = None
-    #: Whose balance `credit_value_compared` is (a `CreditSources` value), so
-    #: the API can withhold an organization balance from project roles. Not
-    #: part of the event context.
-    credit_source: str | None = None
 
     def as_event_context(self) -> dict:
         def amount(value):

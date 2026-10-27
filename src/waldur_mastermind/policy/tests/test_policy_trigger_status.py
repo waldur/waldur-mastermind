@@ -107,7 +107,9 @@ class TriggerStatusTest(test.APITestCase):
         self.assertFalse(trigger_status["triggered"])
         self.assertIsNone(trigger_status["credit_value_compared"])
 
-    def test_held_by_project_credit_reports_the_project_balance(self):
+    def test_cost_over_limit_fires_although_credit_is_left(self):
+        # The allocation still has 2850 left; it is no longer compared with
+        # the limit (#784).
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
@@ -115,21 +117,12 @@ class TriggerStatusTest(test.APITestCase):
 
         trigger_status = self._project_status(self._project_policy())
 
-        self.assertEqual(trigger_status["gate"], PolicyGates.HELD_BY_PROJECT_CREDIT)
-        self.assertFalse(trigger_status["triggered"])
-        self.assertEqual(trigger_status["credit_value_compared"], "2850.00")
+        self.assertEqual(trigger_status["gate"], PolicyGates.COST_OVER_LIMIT)
+        self.assertTrue(trigger_status["triggered"])
+        self.assertIsNone(trigger_status["credit_value_compared"])
         self.assertNotIn("message", trigger_status)
 
-    def test_held_by_customer_credit(self):
-        self._earlier_uncovered_cost()
-        invoices_factories.CustomerCreditFactory(customer=self.customer, value=2900)
-
-        trigger_status = self._project_status(self._project_policy())
-
-        self.assertEqual(trigger_status["gate"], PolicyGates.HELD_BY_CUSTOMER_CREDIT)
-        self.assertEqual(trigger_status["credit_value_compared"], "2900.00")
-
-    def test_credit_exhausted(self):
+    def test_cost_over_limit_with_the_credit_used_up(self):
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
@@ -137,9 +130,9 @@ class TriggerStatusTest(test.APITestCase):
 
         trigger_status = self._project_status(self._project_policy())
 
-        self.assertEqual(trigger_status["gate"], PolicyGates.CREDIT_EXHAUSTED)
+        self.assertEqual(trigger_status["gate"], PolicyGates.COST_OVER_LIMIT)
         self.assertTrue(trigger_status["triggered"])
-        self.assertEqual(trigger_status["credit_value_compared"], "0.00")
+        self.assertIsNone(trigger_status["credit_value_compared"])
 
     def test_no_credit(self):
         self._earlier_uncovered_cost()
@@ -175,7 +168,7 @@ class TriggerStatusTest(test.APITestCase):
             policy_factories.OfferingEstimatedCostPolicyFactory, offering_policy
         )
 
-        self.assertEqual(customer_status["gate"], PolicyGates.HELD_BY_CUSTOMER_CREDIT)
+        self.assertEqual(customer_status["gate"], PolicyGates.COST_OVER_LIMIT)
         self.assertEqual(offering_status["gate"], PolicyGates.NO_CREDIT)
 
     def test_listing_a_customers_policies_shares_one_simulation(self):
@@ -239,7 +232,7 @@ class TriggerStatusTest(test.APITestCase):
             self._project_policy(limit_cost=limit)
 
         without, _ = self._count_cost_aggregations(
-            field=["uuid", "current_cost", "eta_days"]
+            field=["uuid", "current_cost", "cost_breakdown", "eta_days"]
         )
         with_status, rows = self._count_cost_aggregations()
 
@@ -251,6 +244,74 @@ class TriggerStatusTest(test.APITestCase):
                 decimal.Decimal(row["current_cost"]),
                 policy.get_current_cost().quantize(decimal.Decimal("0.01")),
             )
+
+    def _breakdown(self, policy):
+        row = self._status_row(policy)
+        breakdown = {k: decimal.Decimal(v) for k, v in row["cost_breakdown"].items()}
+        self.assertEqual(
+            breakdown["cost_before_credit"]
+            - breakdown["credit_drawn"]
+            - breakdown["credit_pending"],
+            decimal.Decimal(row["current_cost"]),
+        )
+        return breakdown
+
+    def _status_row(self, policy):
+        response = self.client.get(
+            policy_factories.ProjectEstimatedCostPolicyFactory.get_url(policy)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return response.data
+
+    def test_cost_breakdown_adds_up_to_current_cost(self):
+        # 7701.67 earlier + 3000 this month; the 2900 allocation is still to be
+        # drawn, as nothing is written before month end.
+        self._earlier_uncovered_cost()
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
+        invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
+        self._charge(3000)
+
+        breakdown = self._breakdown(self._project_policy())
+
+        self.assertEqual(breakdown["cost_before_credit"], decimal.Decimal("10701.67"))
+        self.assertEqual(breakdown["credit_drawn"], 0)
+        self.assertEqual(breakdown["credit_pending"], 2900)
+        # 7701.67 of the 7801.67 is from earlier months; 100 is October's
+        # overspend.
+        self.assertEqual(breakdown["earlier_months"], decimal.Decimal("7701.67"))
+
+    def test_cost_breakdown_has_no_earlier_months_for_one_month(self):
+        self._earlier_uncovered_cost()
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
+        self._charge(3000)
+
+        policy = self._project_policy(
+            period=models.ProjectEstimatedCostPolicy.Periods.MONTH_1
+        )
+
+        self.assertEqual(self._breakdown(policy)["earlier_months"], 0)
+
+    def test_cost_breakdown_moves_written_credit_from_pending_to_drawn(self):
+        # Staff apply this month's compensation mid-month: what was pending is
+        # now written on the invoice.
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=2500)
+        self._charge(1000)
+        invoices_compensations.MonthlyCompensation(self.customer).apply_compensations()
+
+        breakdown = self._breakdown(self._project_policy())
+
+        self.assertEqual(breakdown["cost_before_credit"], 1000)
+        self.assertEqual(breakdown["credit_drawn"], 1000)
+        self.assertEqual(breakdown["credit_pending"], 0)
+
+    def test_cost_breakdown_has_nothing_pending_without_credit(self):
+        self._earlier_uncovered_cost()
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
+
+        breakdown = self._breakdown(self._project_policy(use_credit=False))
+
+        self.assertEqual(breakdown["cost_before_credit"], decimal.Decimal("7701.67"))
+        self.assertEqual(breakdown["credit_pending"], 0)
 
     def test_current_cost_alone_is_not_evaluated(self):
         self._earlier_uncovered_cost()
@@ -329,10 +390,8 @@ class TriggerStatusVisibilityTest(test.APITestCase):
         row = self._get(getattr(self.fixture, role))
 
         self.assertNotIn("customer_credit", row)
-        # They still see why the policy waits, just not the balance.
-        self.assertEqual(
-            row["trigger_status"]["gate"], PolicyGates.HELD_BY_CUSTOMER_CREDIT
-        )
+        # They still see why the policy fires.
+        self.assertEqual(row["trigger_status"]["gate"], PolicyGates.COST_OVER_LIMIT)
         self.assertIsNone(row["trigger_status"]["credit_value_compared"])
 
     @data("staff", "global_support", "owner")
@@ -340,7 +399,8 @@ class TriggerStatusVisibilityTest(test.APITestCase):
         row = self._get(getattr(self.fixture, role))
 
         self.assertEqual(row["customer_credit"], decimal.Decimal("2900.00"))
-        self.assertEqual(row["trigger_status"]["credit_value_compared"], "2900.00")
+        # Nothing is compared with the limit any more.
+        self.assertIsNone(row["trigger_status"]["credit_value_compared"])
 
     @data(True, False)
     def test_organization_credit_follows_view_accounting(self, granted):
@@ -357,10 +417,6 @@ class TriggerStatusVisibilityTest(test.APITestCase):
         row = self._get(user)
 
         self.assertEqual("customer_credit" in row, granted)
-        self.assertEqual(
-            row["trigger_status"]["credit_value_compared"],
-            "2900.00" if granted else None,
-        )
 
     def test_project_roles_still_see_their_own_project_credit(self):
         invoices_factories.CustomerCreditFactory._meta.model.objects.filter(
@@ -370,7 +426,5 @@ class TriggerStatusVisibilityTest(test.APITestCase):
 
         row = self._get(self.fixture.member)
 
-        self.assertEqual(
-            row["trigger_status"]["gate"], PolicyGates.HELD_BY_PROJECT_CREDIT
-        )
-        self.assertEqual(row["trigger_status"]["credit_value_compared"], "2900.00")
+        self.assertEqual(row["project_credit"], decimal.Decimal("2900.00"))
+        self.assertEqual(row["trigger_status"]["gate"], PolicyGates.COST_OVER_LIMIT)
