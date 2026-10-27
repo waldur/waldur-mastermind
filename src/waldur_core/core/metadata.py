@@ -799,7 +799,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_USER_ACTIONS: WaldurUserActions = WaldurUserActions()
     VERIFY_WEBHOOK_REQUESTS: bool = Field(
         True,
-        description="When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.",
+        description="Verify the TLS certificate of webhook destinations, including event consumer webhooks. Certificates are checked against the public CAs, or against the bundle in REQUESTS_CA_BUNDLE, which is how a private CA is added. Turned off, no webhook is verified.",
     )
     DEFAULT_FROM_EMAIL: str = Field(
         "webmaster@localhost",

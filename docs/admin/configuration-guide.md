@@ -1188,7 +1188,7 @@ Represents the name of a default language.
 
 **Type:** bool, **default value:** True
 
-When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.
+Verify the TLS certificate of webhook destinations, including event consumer webhooks. Certificates are checked against the public CAs, or against the bundle in REQUESTS_CA_BUNDLE, which is how a private CA is added. Turned off, no webhook is verified.
 
 ## Dynamic options
 

@@ -1,16 +1,28 @@
 """Webhook delivery for EventConsumer: dispatch, payload filters, HTTP delivery,
 the staff-only API, and resync of the current role state."""
 
+import datetime
+import http.server
+import ipaddress
 import json
+import os
+import ssl
+import tempfile
+import threading
 from unittest import mock
 
+import certifi
 import requests
 from celery.exceptions import Retry, SoftTimeLimitExceeded
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework import status, test
 
-from waldur_core.logging import event_dispatch, tasks
+from waldur_core.logging import event_dispatch, tasks, utils
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.logging.tests import factories as logging_factories
@@ -250,6 +262,51 @@ class WebhookDeliveryTaskTest(TestCase):
         self.consumer.refresh_from_db()
         self.assertEqual(self.consumer.last_error, "Request failed: ConnectionError.")
         self.assertNotIn("sig=", self.consumer.last_error)
+
+    @mock.patch(POST)
+    def test_certificate_is_verified_by_default(self, mock_post):
+        mock_post.return_value = _response(200)
+        tasks.deliver_webhook_messages(self.consumer.uuid.hex, ["1"])
+        self.assertIs(mock_post.call_args.kwargs["verify"], True)
+
+    @override_settings(VERIFY_WEBHOOK_REQUESTS=False)
+    @mock.patch(POST)
+    def test_deployment_can_turn_verification_off(self, mock_post):
+        mock_post.return_value = _response(200)
+        tasks.deliver_webhook_messages(self.consumer.uuid.hex, ["1"])
+        self.assertIs(mock_post.call_args.kwargs["verify"], False)
+
+    @mock.patch.object(tasks.deliver_webhook_messages, "retry", side_effect=Retry)
+    @mock.patch(POST)
+    def test_untrusted_certificate_is_named_without_the_url(
+        self, mock_post, mock_retry
+    ):
+        mock_post.side_effect = requests.exceptions.SSLError(
+            f"Max retries exceeded with url: {LISTENER_URL} (Caused by "
+            "SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] "
+            "certificate verify failed: self-signed certificate')))"
+        )
+
+        with self.assertRaises(Retry):
+            tasks.deliver_webhook_messages(self.consumer.uuid.hex, ["1"])
+
+        self.consumer.refresh_from_db()
+        self.assertEqual(
+            self.consumer.last_error, "TLS certificate verification failed."
+        )
+
+    @mock.patch.object(tasks.deliver_webhook_messages, "retry", side_effect=Retry)
+    @mock.patch(POST)
+    def test_other_tls_failure_is_a_handshake_failure(self, mock_post, mock_retry):
+        mock_post.side_effect = requests.exceptions.SSLError(
+            f"url: {LISTENER_URL} (Caused by SSLError('wrong version number'))"
+        )
+
+        with self.assertRaises(Retry):
+            tasks.deliver_webhook_messages(self.consumer.uuid.hex, ["1"])
+
+        self.consumer.refresh_from_db()
+        self.assertEqual(self.consumer.last_error, "TLS handshake failed.")
 
     @mock.patch.object(tasks.deliver_webhook_messages, "retry", side_effect=Retry)
     @mock.patch(POST)
@@ -674,3 +731,133 @@ class ResyncTest(test.APITestCase):
 
         self.assertEqual(result["sent"], mock_delay.call_count)
         self.assertGreaterEqual(mock_delay.call_count, 2)
+
+
+def _private_pki(ip="127.0.0.1"):
+    """A private CA, and a listener certificate and key for ``ip`` it issued, as PEM."""
+    now = datetime.datetime.now(datetime.UTC)
+    ca_key = ec.generate_private_key(ec.SECP256R1())
+    ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Private CA")])
+    ca = (
+        x509.CertificateBuilder()
+        .subject_name(ca_name)
+        .issuer_name(ca_name)
+        .public_key(ca_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=1))
+        .not_valid_after(now + datetime.timedelta(days=1))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=False,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=True,
+                crl_sign=True,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+    key = ec.generate_private_key(ec.SECP256R1())
+    listener = (
+        x509.CertificateBuilder()
+        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, ip)]))
+        .issuer_name(ca_name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=1))
+        .not_valid_after(now + datetime.timedelta(days=1))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address(ip))]),
+            critical=False,
+        )
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False
+        )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+    key_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    return (
+        ca.public_bytes(serialization.Encoding.PEM).decode(),
+        listener.public_bytes(serialization.Encoding.PEM).decode(),
+        key_pem.decode(),
+    )
+
+
+class _NoContentHandler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+class DeploymentTrustBundleTest(TestCase):
+    """A listener with a private CA, trusted through REQUESTS_CA_BUNDLE as the
+    deployment guide describes: a real TLS handshake, not a mock."""
+
+    def setUp(self):
+        ca_pem, listener_pem, key_pem = _private_pki()
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+
+        def write(name, content):
+            path = os.path.join(directory.name, name)
+            with open(path, "w") as fh:
+                fh.write(content)
+            return path
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(
+            write("listener.pem", listener_pem), write("listener.key", key_pem)
+        )
+        with open(certifi.where()) as fh:
+            public_roots = fh.read()
+        self.bundle = write("ca-bundle.pem", public_roots + ca_pem)
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), _NoContentHandler)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.url = f"https://127.0.0.1:{server.server_address[1]}/"
+
+        # The guard would refuse a loopback listener; it is not what is tested.
+        patcher = mock.patch.object(utils, "validate_outbound_url")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _post(self):
+        utils.post_consumer_webhook(self.url, "{}", "id")
+
+    def test_private_ca_is_not_trusted_by_default(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("REQUESTS_CA_BUNDLE", None)
+            os.environ.pop("CURL_CA_BUNDLE", None)
+            with self.assertRaisesMessage(
+                utils.WebhookDeliveryError, "TLS certificate verification failed."
+            ):
+                self._post()
+
+    def test_private_ca_in_the_deployment_bundle_is_trusted(self):
+        with mock.patch.dict(os.environ, {"REQUESTS_CA_BUNDLE": self.bundle}):
+            self._post()
