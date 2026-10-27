@@ -330,6 +330,11 @@ def serialize_completion_answers(completion) -> list[dict]:
             "question": answer.question.description,
             "question_type": answer.question.question_type,
             "answer": answer.question.get_answer_display(answer.answer_data),
+            "min_value": answer.question.min_value,
+            "max_value": answer.question.max_value,
+            "likert_scale_length": answer.question.likert_scale_length,
+            "likert_low_label": answer.question.likert_low_label,
+            "likert_high_label": answer.question.likert_high_label,
             "modified": answer.modified,
         }
         for answer in answers
