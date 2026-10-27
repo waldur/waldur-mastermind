@@ -845,6 +845,10 @@ class DeploymentTrustBundleTest(TestCase):
         patcher = mock.patch.object(utils, "validate_outbound_url")
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Straight to the listener, even where the runner sets a proxy.
+        env = mock.patch.dict(os.environ, {"NO_PROXY": "*", "no_proxy": "*"})
+        env.start()
+        self.addCleanup(env.stop)
 
     def _post(self):
         utils.post_consumer_webhook(self.url, "{}", "id")
