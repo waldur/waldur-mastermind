@@ -5,7 +5,14 @@ from . import models, retention, rollups
 
 @shared_task(name="waldur_mastermind.marketplace_metrics.roll_up")
 def roll_up():
+    """Recompute the roll-up buckets of points received since the last run."""
     rollups.roll_up()
+
+
+@shared_task(name="waldur_mastermind.marketplace_metrics.roll_up_window")
+def roll_up_window():
+    """Recompute the whole window, in case a run left a bucket behind."""
+    rollups.roll_up(whole_window=True)
 
 
 @shared_task(name="waldur_mastermind.marketplace_metrics.enforce_retention")

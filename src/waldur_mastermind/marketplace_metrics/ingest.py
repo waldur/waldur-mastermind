@@ -380,13 +380,17 @@ def _ingest(points, resources, measured=False):
                 # The same series and timestamp twice in one batch: last wins,
                 # as a correction sent later would.
                 rows[(series.id, point.timestamp)] = models.MetricPoint(
-                    series=series, timestamp=point.timestamp, value=value
+                    series=series,
+                    timestamp=point.timestamp,
+                    value=value,
+                    received_at=now,
                 )
+        # A correction is received anew, so the roll-up recomputes its bucket.
         models.MetricPoint.objects.bulk_create(
             rows.values(),
             update_conflicts=True,
             unique_fields=["series", "timestamp"],
-            update_fields=["value"],
+            update_fields=["value", "received_at"],
         )
         changed = [
             s
