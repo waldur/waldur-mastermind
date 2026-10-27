@@ -31,7 +31,6 @@ from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer
-from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -1103,9 +1102,40 @@ class CallResourceTemplateSerializer(
                 )
         return requested_offering
 
+    def validate(self, attrs):
+        # Requests take these values unchanged, so they are checked here,
+        # where the call manager can still correct them.
+        if "attributes" in attrs or "requested_offering" in attrs:
+            requested_offering = attrs.get("requested_offering") or getattr(
+                self.instance, "requested_offering", None
+            )
+            attributes = attrs.get(
+                "attributes", getattr(self.instance, "attributes", None)
+            )
+            if requested_offering:
+                offering = requested_offering.offering
+                utils.normalize_option_values(attributes, offering)
+                _validate_prepaid_duration(attributes, offering, None)
+        return attrs
+
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        template = super().update(instance, validated_data)
+        # Drafts follow the template they were made from; submitted proposals
+        # keep what they were submitted with.
+        limits, attributes = utils.template_request_values(template)
+        models.RequestedResource.objects.filter(
+            call_resource_template=template, proposal__state=ProposalStates.DRAFT
+        ).update(
+            limits=limits,
+            attributes=attributes,
+            requested_offering=template.requested_offering,
+        )
+        return template
 
 
 class CallProposalFieldConfigSerializer(serializers.ModelSerializer):
@@ -1414,23 +1444,6 @@ class RequestedOfferingSerializer(
 PREPAID_DURATION_FIELD = "attributes.prepaid_duration_months"
 
 
-def _validate_option_values(attributes, offering):
-    """The requested option values as an order for them would store them.
-
-    They are checked as at order creation (types, pattern), but not for
-    required options, which a request may leave for later. Values of options
-    with a transform are stored transformed, so the request, the award and the
-    resource allocated from it carry what the order form previewed.
-    """
-    options = (offering.options or {}).get("options")
-    if not options or not attributes:
-        return attributes
-    try:
-        return validate_options(options, attributes, optional=True)
-    except serializers.ValidationError as e:
-        raise serializers.ValidationError({"attributes": e.detail})
-
-
 def _validate_prepaid_duration(attributes, offering, proposal_round):
     """Hold the requested subscription length to the terms it is sold under.
 
@@ -1460,6 +1473,9 @@ def _validate_prepaid_duration(attributes, offering, proposal_round):
             months, component, PREPAID_DURATION_FIELD
         )
 
+    if proposal_round is None:
+        # A call-level check, as for a template: the cap depends on the round.
+        return
     anchor = utils.allocation_start_date(proposal_round) or datetime.today().date()
     cap = utils.max_prepaid_duration_months(proposal_round.call, anchor)
     if cap is not None and months > cap:
@@ -1511,11 +1527,21 @@ class RequestedResourceSerializer(
 
     def validate(self, attrs):
         if self.instance:
+            offering = self.instance.requested_offering.offering
             if "attributes" in attrs:
-                offering = self.instance.requested_offering.offering
-                attrs["attributes"] = _validate_option_values(
+                attrs["attributes"] = utils.normalize_option_values(
                     attrs["attributes"], offering
                 )
+            # The template sets these; changing them would make the request a
+            # custom configuration, which a template call does not accept.
+            # Compared after normalising, as the stored values were.
+            if self.instance.call_resource_template_id:
+                for field in ("limits", "attributes"):
+                    if field in attrs and attrs[field] != getattr(self.instance, field):
+                        raise serializers.ValidationError(
+                            {field: models.TEMPLATE_VALUES_LOCKED_MESSAGE}
+                        )
+            if "attributes" in attrs:
                 _validate_prepaid_duration(
                     attrs["attributes"], offering, self.instance.proposal.round
                 )
@@ -1537,17 +1563,44 @@ class RequestedResourceSerializer(
                     {"call_resource_template_uuid": _("Resource template not found.")}
                 )
 
+            if template.requested_offering.state != RequestedOfferingStates.ACCEPTED:
+                raise serializers.ValidationError(
+                    _("Offering has not been confirmed by service provider.")
+                )
+            # A request made from a template carries the template's values;
+            # values the client sends are compared as they would be stored.
+            offering = template.requested_offering.offering
+            limits, attributes = utils.template_request_values(template)
+            if attrs.get("limits") and attrs["limits"] != limits:
+                raise serializers.ValidationError(
+                    {"limits": models.TEMPLATE_VALUES_LOCKED_MESSAGE}
+                )
+            if (
+                attrs.get("attributes")
+                and utils.normalize_option_values(attrs["attributes"], offering)
+                != attributes
+            ):
+                raise serializers.ValidationError(
+                    {"attributes": models.TEMPLATE_VALUES_LOCKED_MESSAGE}
+                )
             attrs["call_resource_template"] = template
             attrs["requested_offering"] = template.requested_offering
-
-            # Use template's attributes and limits as defaults
-            if not attrs.get("attributes"):
-                attrs["attributes"] = template.attributes
-            if not attrs.get("limits"):
-                attrs["limits"] = template.limits
+            attrs["limits"] = limits
+            attrs["attributes"] = attributes
+            _validate_prepaid_duration(attributes, offering, proposal.round)
+            return attrs
 
         elif requested_offering_uuid:
-            # Traditional direct offering request
+            # Once a call has templates, they are the only way to request.
+            if call.resource_templates.exists():
+                raise serializers.ValidationError(
+                    {
+                        "requested_offering_uuid": _(
+                            "This call only accepts its resource templates. "
+                            "Choose one of them instead."
+                        )
+                    }
+                )
             try:
                 requested_offering = call.requestedoffering_set.get(
                     uuid=requested_offering_uuid
@@ -1566,19 +1619,6 @@ class RequestedResourceSerializer(
                     _("Offering has not been confirmed by service provider.")
                 )
 
-            # Check if call has resource templates - if so, direct requests may not be allowed
-            if call.resource_templates.exists():
-                # Check if this offering is available through a template
-                available_offering = call.resource_templates.filter(
-                    requested_offering=requested_offering
-                ).exists()
-                if not available_offering:
-                    raise serializers.ValidationError(
-                        _(
-                            "This offering is not available for direct requests. Please use a resource template."
-                        )
-                    )
-
             attrs["requested_offering"] = requested_offering
         else:
             raise serializers.ValidationError(
@@ -1589,7 +1629,9 @@ class RequestedResourceSerializer(
 
         offering = attrs["requested_offering"].offering
         if attrs.get("attributes"):
-            attrs["attributes"] = _validate_option_values(attrs["attributes"], offering)
+            attrs["attributes"] = utils.normalize_option_values(
+                attrs["attributes"], offering
+            )
         _validate_prepaid_duration(attrs.get("attributes"), offering, proposal.round)
         return attrs
 
@@ -1626,6 +1668,20 @@ class RequestedResourceSerializer(
             if proposal.state != ProposalStates.DRAFT:
                 raise serializers.ValidationError(
                     _("Only proposals with a draft status are available for editing.")
+                )
+            template = validated_data.get("call_resource_template")
+            if (
+                template
+                and proposal.requestedresource_set.filter(
+                    call_resource_template=template
+                ).exists()
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "call_resource_template_uuid": _(
+                            "This template is already requested on this proposal."
+                        )
+                    }
                 )
             if (
                 call.allows_one_request_only()
@@ -1852,7 +1908,7 @@ class AwardedResourceSerializer(serializers.ModelSerializer):
             else (self.instance.attributes if self.instance else {})
         )
         if "attributes" in attrs or moved:
-            attributes = _validate_option_values(attributes, offering)
+            attributes = utils.normalize_option_values(attributes, offering)
             if "attributes" in attrs:
                 attrs["attributes"] = attributes
             _validate_prepaid_duration(attributes, offering, proposal.round)
