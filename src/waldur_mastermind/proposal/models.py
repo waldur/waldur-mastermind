@@ -80,6 +80,10 @@ MISSING_PROPOSAL_MANAGER_MESSAGE = _(
     "proposal manager role to one of the team members."
 )
 
+CALL_NOT_ACTIVE_MESSAGE = _(
+    "Call is not active, so the proposal can no longer be submitted."
+)
+
 EVALUATION_START_LOCKED_MESSAGE = _(
     "Cannot change when evaluation starts while the call has proposals that "
     "are submitted or in review."
@@ -1445,6 +1449,9 @@ class Proposal(
         rejected request. Compliance checklists are for evaluation only and
         never block submission.
         """
+        if self.round.call.state != CallStates.ACTIVE:
+            return False, CALL_NOT_ACTIVE_MESSAGE
+
         missing_amounts = self.offerings_missing_requested_amounts()
         if missing_amounts:
             return False, _(

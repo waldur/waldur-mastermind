@@ -20,7 +20,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_mastermind.proposal.enums import ProposalStates
+from waldur_mastermind.proposal.enums import CallStates, ProposalStates
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 
@@ -625,7 +625,9 @@ class ProposalSubmissionWithComplianceTest(
         """Test that proposals without compliance checklist can be submitted normally."""
         # Create proposal without compliance checklist
         call_without_checklist = proposal_factories.CallFactory(
-            manager=self.fixture.call.manager, compliance_checklist=None
+            manager=self.fixture.call.manager,
+            compliance_checklist=None,
+            state=CallStates.ACTIVE,
         )
         round_without_checklist = proposal_factories.RoundFactory(
             call=call_without_checklist
