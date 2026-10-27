@@ -70,6 +70,16 @@ class CallModelValidationTest(APITestCase):
         self.call.proposal_slug_template = "{call_slug}-{counter_padded}"
         self.call.clean()
 
+    def test_blank_and_missing_slug_template_are_the_same(self):
+        self.add_proposal()
+        for stored, new in ((None, ""), ("", None)):
+            with self.subTest(stored=stored, new=new):
+                self.call.proposal_slug_template = stored
+                self.call.save()
+                self.call = models.Call.objects.get(pk=self.call.pk)
+                self.call.proposal_slug_template = new
+                self.call.clean()
+
 
 class CallAdminFormTest(APITestCase):
     def test_change_form_validates_saved_call(self):

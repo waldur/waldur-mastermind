@@ -2398,6 +2398,18 @@ class ProtectedCallSerializer(PublicCallSerializer):
 
     def validate_proposal_slug_template(self, value):
         """Validate that the template only uses allowed placeholders."""
+        # Prevent changing template if proposals exist. An empty template
+        # and no template both mean the default one.
+        call: models.Call = self.instance
+        if (
+            call
+            and (value or None) != (call.proposal_slug_template or None)
+            and call.has_proposals()
+        ):
+            raise serializers.ValidationError(
+                "Cannot change proposal slug template when proposals exist"
+            )
+
         if not value:
             return value
 
@@ -2437,14 +2449,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
             value.format(**test_context)
         except (KeyError, ValueError) as e:
             raise serializers.ValidationError(f"Invalid template format: {e}")
-
-        # Prevent changing template if proposals exist
-        call: models.Call = self.instance
-        if call and models.Proposal.objects.filter(round__call=call).exists():
-            if value != call.proposal_slug_template:
-                raise serializers.ValidationError(
-                    "Cannot change proposal slug template when proposals exist"
-                )
 
         return value
 

@@ -1177,6 +1177,7 @@ class AvailableChecklistsTest(test.APITestCase):
         self.assertIn("category_uuid", checklist_data)
 
 
+@ddt
 class CallProposalSlugTemplateSerializerTest(test.APITestCase):
     """Tests for proposal_slug_template field validation in Call serializer."""
 
@@ -1285,6 +1286,36 @@ class CallProposalSlugTemplateSerializerTest(test.APITestCase):
         response = self.client.patch(
             self.url, {"proposal_slug_template": "{call_slug}-{counter_padded}"}
         )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("", None)
+    def test_cannot_clear_template_with_proposals(self, value):
+        self.call.proposal_slug_template = "{call_slug}-{counter_padded}"
+        self.call.save()
+        factories.ProposalFactory(round=factories.RoundFactory(call=self.call))
+
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url, {"proposal_slug_template": value}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("proposals exist", str(response.data))
+        self.call.refresh_from_db()
+        self.assertEqual(
+            self.call.proposal_slug_template, "{call_slug}-{counter_padded}"
+        )
+
+    @data("", None)
+    def test_can_resend_empty_template_with_proposals(self, value):
+        # No template and an empty one both mean "use the default".
+        factories.ProposalFactory(round=factories.RoundFactory(call=self.call))
+
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url, {"proposal_slug_template": value}, format="json"
+        )
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_template_field_in_response(self):
