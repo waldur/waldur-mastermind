@@ -290,6 +290,11 @@ payloads are exactly those of a queue consumer; only the last hop differs.
   undelivered remainder with exponential backoff (10 s doubling, capped at
   10 min, 8 retries), after which the remainder is dropped and logged. Error
   text never contains the URL, since requests' exception messages embed it.
+  The listener's certificate is verified against the deployment's trust
+  bundle: the public CAs, or the file in `REQUESTS_CA_BUNDLE` for a private
+  CA. `VERIFY_WEBHOOK_REQUESTS` false turns verification off for every
+  webhook. An untrusted certificate is recorded as
+  `TLS certificate verification failed.`
 - **Guarantees** — delivery is **at-least-once with no ordering across events**:
   every event is its own task and retries independently, so a revoke can arrive
   before the grant it follows. Every message carries `emitted_at`, and every
