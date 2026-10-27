@@ -331,7 +331,8 @@ def _enforce_step_gates(proposal, current_instance, outcome, call_step):
 
 
 def _enforce_award_amounts(proposal, current_instance, outcome):
-    """Block approving an award that grants an offering no amount.
+    """Block approving an award that grants an offering no amount, or leaves
+    one of its required options empty.
 
     The award editor refuses such an item, but one can still be there: copied
     from a request written before amounts were required, or seeded around the
@@ -351,6 +352,13 @@ def _enforce_award_amounts(proposal, current_instance, outcome):
         raise ValueError(
             f"Cannot complete {_step_label(current_instance.step)}: awarded "
             f"amounts are missing for the following offerings: "
+            f"{', '.join(missing)}."
+        )
+    missing = proposal.offerings_missing_awarded_options()
+    if missing:
+        raise ValueError(
+            f"Cannot complete {_step_label(current_instance.step)}: required "
+            f"options are missing for the following offerings: "
             f"{', '.join(missing)}."
         )
 

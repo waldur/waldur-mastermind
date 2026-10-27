@@ -27,6 +27,10 @@ from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.common.serializers import (
+    NON_INPUT_FIELD_TYPES,
+    get_hidden_options,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.models import (
@@ -1264,6 +1268,75 @@ def names_an_amount(offering, limits) -> bool:
     return any(limits.get(component_type) for component_type in requestable)
 
 
+REQUIRED_OPTIONS_MISSING_MESSAGE = _(
+    "Required options are missing for the following offerings: %(offerings)s."
+)
+REQUIRED_OPTIONS_MISSING_FIELD_MESSAGE = _("Required options are missing: %(options)s.")
+
+
+def _asks_for_an_answer(option) -> bool:
+    """Whether an option can be left unanswered at all: required, without a
+    default, typed in (not computed), and not a boolean, whose unticked box is
+    an answer."""
+    return (
+        isinstance(option, dict)
+        and bool(option.get("required"))
+        and not option.get("default")
+        and option.get("type") != "boolean"
+        and option.get("type") not in NON_INPUT_FIELD_TYPES
+    )
+
+
+def _is_unanswered(value) -> bool:
+    """No value, null, or text that is blank once trimmed: what an order
+    refuses as empty. An empty list is an answer, as for an order."""
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def missing_required_options(offering, attributes) -> list[str]:
+    """Labels of the required options of ``offering`` that ``attributes`` leave empty.
+
+    Requests, awards and templates are saved with required options optional
+    (``utils.normalize_option_values``), so a draft may leave them for later.
+    They are asked for before submission and the decision: ``allocate_proposal``
+    creates the order without the serializer that would refuse it, so an option
+    missing then reached the provider unchecked.
+
+    A presence check over the options an order requires: one hidden by its
+    ``visible_if`` rule, one with a default (the provider reads the default
+    when the value is absent, as for an order) and a boolean are not required.
+    The values themselves were checked when they were saved. Homeport's
+    ``missingRequiredOptions`` applies the same rule, so the form and the
+    submission agree.
+    """
+    options = (offering.options or {}).get("options") or {}
+    asked = {name: o for name, o in options.items() if _asks_for_an_answer(o)}
+    if not asked:
+        return []
+    values = attributes if isinstance(attributes, dict) else {}
+    hidden = get_hidden_options(options, values)
+    return [
+        option.get("label") or name
+        for name, option in asked.items()
+        if name not in hidden and _is_unanswered(values.get(name))
+    ]
+
+
+def offerings_missing_options(items) -> list[str]:
+    """``"Offering (Option, …)"`` for each item leaving a required option empty.
+
+    ``items`` are requested or awarded resources: both carry the call's
+    ``requested_offering`` and the ``attributes`` an order would take.
+    """
+    missing = set()
+    for item in items:
+        offering = item.requested_offering.offering
+        labels = missing_required_options(offering, item.attributes)
+        if labels:
+            missing.add(f"{offering.name} ({', '.join(labels)})")
+    return sorted(missing)
+
+
 class Proposal(
     TimeStampedModel,
     PermissionMixin,
@@ -1533,6 +1606,27 @@ class Proposal(
             }
         )
 
+    def offerings_missing_required_options(self) -> list[str]:
+        """Requested offerings whose required options are left empty.
+
+        Read off ``requestedresource_set.all()``, so the prefetch that
+        ``can_submit`` relies on in lists is used as is.
+        """
+        return offerings_missing_options(self.requestedresource_set.all())
+
+    def offerings_missing_awarded_options(self) -> list[str]:
+        """The award's counterpart of :meth:`offerings_missing_required_options`.
+
+        Over the items allocation provisions, as
+        :meth:`offerings_missing_awarded_amounts`: a call manager may change
+        an award's options, and must not drop a required one.
+        """
+        return offerings_missing_options(
+            self.awarded_resources.filter(
+                requested_offering__state=RequestedOfferingStates.ACCEPTED
+            ).select_related("requested_offering__offering")
+        )
+
     def offerings_missing_awarded_amounts(self) -> list[str]:
         """Offerings the award grants without naming any amount.
 
@@ -1585,6 +1679,12 @@ class Proposal(
                 "Requested amounts are missing for the following offerings: "
                 "%(offerings)s."
             ) % {"offerings": ", ".join(missing_amounts)}
+
+        missing_options = self.offerings_missing_required_options()
+        if missing_options:
+            return False, REQUIRED_OPTIONS_MISSING_MESSAGE % {
+                "offerings": ", ".join(missing_options)
+            }
 
         missing_orders = self.offerings_missing_purchase_orders()
         if missing_orders:

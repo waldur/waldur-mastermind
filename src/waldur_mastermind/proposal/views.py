@@ -295,6 +295,19 @@ def validate_requested_amounts_present(proposal):
         )
 
 
+def validate_required_options_present(proposal):
+    """Every required option of a requested offering carries a value.
+
+    A draft may leave them for later; the order allocation creates from the
+    request takes them as they are, so they are asked for here.
+    """
+    missing = proposal.offerings_missing_required_options()
+    if missing:
+        raise exceptions.ValidationError(
+            models.REQUIRED_OPTIONS_MISSING_MESSAGE % {"offerings": ", ".join(missing)}
+        )
+
+
 def validate_call_not_archived(nested_obj):
     """Reject update/delete of a nested object whose parent call is archived.
 
@@ -3696,6 +3709,7 @@ class ProposalViewSet(
         validate_project_details_complete,
         validate_resource_templates_used,
         validate_requested_amounts_present,
+        validate_required_options_present,
         validate_purchase_orders_present,
         validate_proposal_manager_present,
     ]
