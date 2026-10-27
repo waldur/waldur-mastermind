@@ -202,31 +202,7 @@ class UserChecklistMixin(BaseChecklistMixin):
         )
         serializer.is_valid(raise_exception=True)
 
-        # Process each answer
-        for answer_data in serializer.validated_data:
-            question = answer_data["question"]
-            answer_value = answer_data["answer_data"]
-
-            if answer_value is None:
-                # Remove answer (hard delete)
-                checklist_models.Answer.objects.filter(
-                    completion=completion,
-                    question=question,
-                    user=request.user,
-                ).delete()
-            else:
-                # Create or update answer using direct foreign key.
-                # File processing (for file/multiple_files questions) is handled
-                # inside Answer.save() via process_file_answer(), which is idempotent.
-                checklist_models.Answer.objects.update_or_create(
-                    completion=completion,
-                    question=question,
-                    user=request.user,
-                    defaults={"answer_data": answer_value},
-                )
-
-        # Update completion status to reflect any changes from additions/removals
-        completion.update_completion_status()
+        self.save_answers(completion, serializer.validated_data, request.user)
 
         # Return updated completion status
         completion.refresh_from_db()
@@ -242,6 +218,33 @@ class UserChecklistMixin(BaseChecklistMixin):
         )
 
         return response.Response(response_serializer.data)
+
+    def save_answers(self, completion, validated_answers, user):
+        """Save validated answers of ``AnswerSubmitSerializer``; a null answer deletes it."""
+        for answer_data in validated_answers:
+            question = answer_data["question"]
+            answer_value = answer_data["answer_data"]
+
+            if answer_value is None:
+                # Remove answer (hard delete)
+                checklist_models.Answer.objects.filter(
+                    completion=completion,
+                    question=question,
+                    user=user,
+                ).delete()
+            else:
+                # Create or update answer using direct foreign key.
+                # File processing (for file/multiple_files questions) is handled
+                # inside Answer.save() via process_file_answer(), which is idempotent.
+                checklist_models.Answer.objects.update_or_create(
+                    completion=completion,
+                    question=question,
+                    user=user,
+                    defaults={"answer_data": answer_value},
+                )
+
+        # Update completion status to reflect any changes from additions/removals
+        completion.update_completion_status()
 
     def get_checklist_for_new_object(self, parent_obj):
         """Get checklist that will be used for new objects.

@@ -474,6 +474,7 @@ class EventType(StrEnum):
     CHAT_INJECTION_DETECTED = "chat_injection_detected"
     CHAT_PII_DETECTED = "chat_pii_detected"
     CHAT_FEEDBACK_SUBMITTED = "chat_feedback_submitted"
+    FEEDBACK_SURVEY_ANSWERED = "feedback_survey_answered"
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
     PAT_CREATED = "pat_created"
@@ -999,6 +1000,7 @@ EVENT_GROUP_MAPPING = {
         EventType.USER_GROUP_INVITATION_UPDATED,
         EventType.USER_INVITATION_UPDATED,
         EventType.USER_INVITATION_DELETED,
+        EventType.FEEDBACK_SURVEY_ANSWERED,
     ],
     EventGroup.TERMS_OF_SERVICE: [
         EventType.TERMS_OF_SERVICE_CONSENT_GRANTED,

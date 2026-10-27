@@ -543,6 +543,15 @@ class ProjectMetadataAnswerSerializer(serializers.Serializer):
             "to their labels."
         ),
     )
+    min_value = serializers.DecimalField(
+        max_digits=20, decimal_places=4, allow_null=True
+    )
+    max_value = serializers.DecimalField(
+        max_digits=20, decimal_places=4, allow_null=True
+    )
+    likert_scale_length = serializers.IntegerField(allow_null=True)
+    likert_low_label = serializers.CharField(allow_blank=True)
+    likert_high_label = serializers.CharField(allow_blank=True)
     modified = serializers.DateTimeField(help_text="When this answer was last saved.")
 
 
