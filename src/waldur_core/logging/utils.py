@@ -788,9 +788,10 @@ def post_consumer_webhook(url: str, body: str, message_id: str) -> None:
             stream=True,
         )
     except requests.exceptions.SSLError as exc:
-        # Named on its own: a listener whose certificate is not trusted is fixed
-        # by adding its CA to the deployment's trust bundle, not on the consumer.
-        # The text is only searched, never kept: it embeds the URL.
+        # Named on its own: the listener's certificate is untrusted, expired or
+        # for another host, which the operator fixes on the listener or in the
+        # deployment's trust bundle. The text is only searched, never kept: it
+        # embeds the URL.
         if "CERTIFICATE_VERIFY_FAILED" in str(exc):
             raise WebhookDeliveryError("TLS certificate verification failed.") from None
         raise WebhookDeliveryError("TLS handshake failed.") from None
