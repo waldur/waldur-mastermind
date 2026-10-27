@@ -119,16 +119,6 @@ class MultiPolicyProjectPausingTest(test.APITestCase):
             quantity=1,
         )
 
-    def _add_project_cost(self, amount):
-        """Project cost not attributed to any resource (resource=None); used
-        for credit-aware cases where per-resource compensation must stay out."""
-        return invoices_factories.InvoiceItemFactory(
-            invoice=self.invoice,
-            project=self.project,
-            unit_price=amount,
-            quantity=1,
-        )
-
     def _pausing_policy(self, limit_cost, resource=None, use_credit=False):
         return policy_factories.ProjectEstimatedCostPolicyFactory(
             scope=self.project,
@@ -227,21 +217,21 @@ class MultiPolicyProjectPausingTest(test.APITestCase):
         self.assertFalse(policy.has_fired)
         self.assertFalse(self.limit_resource.paused)
 
-    def test_credit_aware_policy_defers_pausing_until_credit_is_low(self):
-        """A use_credit policy holds off while customer credit exceeds the
-        limit, and pauses once credit drops to the limit. Cost is attributed to
-        no resource so per-resource compensation stays out of the picture."""
+    def test_credit_aware_policy_defers_pausing_while_credit_pays(self):
+        """A use_credit policy holds off while the credit pays the cost, and
+        pauses once the credit pays too little of it: what is left over is
+        compared with the limit, not the credit left (#784)."""
         credit = invoices_factories.CustomerCreditFactory(
             customer=self.customer, value=100_000
         )
         self._pausing_policy(limit_cost=100, use_credit=True)  # project-wide
-        self._add_project_cost(500)  # cost > limit, but credit is ample
+        self._add_cost(self.usage_resource, 500)  # paid by the credit
 
         self._evaluate()
         self.assertFalse(self.usage_resource.paused)
         self.assertFalse(self.limit_resource.paused)
 
-        # Credit runs down to the limit -> policy now fires.
+        # The credit now pays only 100 of the 500: 400 is over the limit.
         credit.value = 100
         credit.save()
         self._evaluate()

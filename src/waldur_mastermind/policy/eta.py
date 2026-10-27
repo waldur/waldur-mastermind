@@ -75,9 +75,9 @@ def _daily_draw(credit, gross_per_day) -> decimal.Decimal | None:
 def _balance(credit, balance=None) -> decimal.Decimal:
     """The balance a projection starts from.
 
-    ``balance`` is the live balance the policy's Gate 2 reads, when the caller
-    has it; projecting from the stored value instead dates a policy that has
-    already fired days away, because the stored value only falls at month end.
+    ``balance`` is the policy's live balance, when the caller has it;
+    projecting from the stored value instead dates the end of the credit too
+    late, because the stored value only falls at month end.
     """
     if balance is not None:
         return max(decimal.Decimal(0), _decimal(balance))
@@ -104,33 +104,6 @@ def credit_days_remaining(
     return _balance(credit, balance) / daily
 
 
-def credit_days_to_limit(
-    credit, limit_cost, gross_per_day, balance=None
-) -> decimal.Decimal | None:
-    """When the credit balance itself falls to ``limit_cost``.
-
-    A cost policy does not fire on cost alone. Once the cost test passes,
-    ``is_triggered`` returns ``balance <= limit_cost``, where the balance is the
-    live one net of this month's pending usage draw — so a project whose
-    balance is still above the limit cannot trigger however much it spends, and
-    a projection made from the cost crossing alone dates an event the balance
-    forbids. This is the gate the cost projection has to clear, so it is
-    measured from the same live ``balance`` when the caller passes it.
-
-    ``0`` when no credit applies or the balance is already at or below the
-    limit; ``None`` when the balance never reaches it.
-    """
-    if credit is None:
-        return decimal.Decimal(0)
-    excess = _balance(credit, balance) - _decimal(limit_cost)
-    if excess <= 0:
-        return decimal.Decimal(0)
-    daily = _daily_draw(credit, gross_per_day)
-    if daily is None:
-        return None
-    return excess / daily
-
-
 def project_eta_days(
     *,
     limit_cost,
@@ -138,7 +111,6 @@ def project_eta_days(
     gross_this_month,
     uncompensated_this_month,
     credit_days,
-    credit_limit_days,
     period,
     today: datetime.date,
 ) -> int | None:
@@ -150,17 +122,15 @@ def project_eta_days(
     is the common case and must not be rendered as a date.
 
     ``credit_days`` comes from :func:`credit_days_remaining` and says when the
-    slow phase ends. ``credit_limit_days`` comes from
-    :func:`credit_days_to_limit` and is the gate: the policy cannot fire until
-    the balance is down to the limit, whatever the cost is doing.
+    slow phase ends. The policy fires on the cost alone, so crossing the limit
+    is the whole projection: how much credit is left is not compared with it.
     """
     limit = _decimal(limit_cost)
     current = _decimal(current_cost)
 
     # Strictly greater, to agree with `EstimatedCostPolicyMixin.evaluate`. A cost that has exactly
     # reached the limit has not crossed it.
-    cost_crossed = current > limit
-    if cost_crossed and credit_limit_days == 0:
+    if current > limit:
         return 0
 
     elapsed = decimal.Decimal(today.day)
@@ -175,9 +145,7 @@ def project_eta_days(
 
     remaining = limit - current
 
-    if cost_crossed:
-        days = decimal.Decimal(0)
-    elif slow > 0 and (credit_days is None or remaining <= slow * credit_days):
+    if slow > 0 and (credit_days is None or remaining <= slow * credit_days):
         days = remaining / slow
     elif credit_days is None:
         # The credit never runs out and nothing is accruing past it, so the
@@ -190,12 +158,6 @@ def project_eta_days(
     else:
         # Nothing is being spent at all.
         return None
-
-    if credit_limit_days is None:
-        # The balance never falls to the limit, so the gate never opens.
-        return None
-    # Both conditions have to hold, so the later of the two is when it fires.
-    days = max(days, _decimal(credit_limit_days))
 
     # Rounded up, never down: a projection of less than a day is still a day
     # away, and truncating it to 0 would claim the limit had already been

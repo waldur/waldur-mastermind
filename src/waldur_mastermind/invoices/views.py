@@ -19,6 +19,8 @@ from waldur_core.core.serializers import DetailSerializer, StatusSerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -28,7 +30,7 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import compensations
 from waldur_mastermind.invoices.models import InvoiceItem
 
-from . import filters, ledger, models, serializers, tasks, utils
+from . import filters, ledger, models, serializers, settlement, tasks, utils
 from .audit import skip_credit_audit
 
 
@@ -681,13 +683,13 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
                 "price": "{:.2f}".format(invoice["price"]),
                 "compensation": "{:.2f}".format(invoice["compensation"]),
                 "incurred": "{:.2f}".format(invoice["incurred"]),
-                "year": invoice["invoice__year"],
-                "month": invoice["invoice__month"],
+                "year": invoice["cost_year"],
+                "month": invoice["cost_month"],
             }
             if (
                 current_month_items is not None
-                and invoice["invoice__year"] == now.year
-                and invoice["invoice__month"] == now.month
+                and invoice["cost_year"] == now.year
+                and invoice["cost_month"] == now.month
             ):
                 data["items"] = current_month_items
             result_list.append(data)
@@ -716,8 +718,11 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             InvoiceItem.objects.filter(project_uuid=project_uuid),
             request.user,
         )
+        # Grouped by the month each item counts in, so that a payment of an
+        # earlier invoice lowers the month it pays, not the current one.
         invoices = (
-            invoices.values("invoice__year", "invoice__month")
+            utils.annotate_cost_month(invoices)
+            .values("cost_year", "cost_month")
             .annotate(
                 price=Sum(F("unit_price") * F("quantity")),
                 compensation=Sum(
@@ -731,10 +736,8 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
                     default=0,
                 ),
             )
-            .values(
-                "invoice__year", "invoice__month", "price", "compensation", "incurred"
-            )
-            .order_by("-invoice__year", "-invoice__month")
+            .values("cost_year", "cost_month", "price", "compensation", "incurred")
+            .order_by("-cost_year", "-cost_month")
         )
         page = self.paginate_queryset(invoices)
         if page is not None:
@@ -757,10 +760,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
 
         for n in range(period_length):
             previous_month_date = month_start - relativedelta(months=n)
-            query |= Q(
-                invoice__month=previous_month_date.month,
-                invoice__year=previous_month_date.year,
-            )
+            query |= utils.month_q(previous_month_date.year, previous_month_date.month)
 
         total_price: Decimal | None = (
             invoices.filter(query).aggregate(
@@ -1235,6 +1235,28 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     adjust_withdrawable_serializer_class = serializers.WithdrawableAdjustmentSerializer
 
 
+def can_view_project_costs(request, view, obj=None, **kwargs):
+    """Who may see a project's costs month by month: whoever sees the
+    organization's accounting (staff, support, owners, CUSTOMER.VIEW_ACCOUNTING),
+    and the project's own roles while the organization displays billing info
+    in projects, as they then see the project's invoice items
+    (`filter_project_invoice_items`)."""
+    if not obj:
+        return
+    user = request.user
+    project = obj.project
+    customer = project.customer
+    if (
+        user.is_staff
+        or user.is_support
+        or structure_permissions._has_owner_access(user, customer)
+        or has_permission(request, PermissionEnum.VIEW_CUSTOMER_ACCOUNTING, customer)
+        or (customer.display_billing_info_in_projects and project.has_user(user))
+    ):
+        return
+    raise exceptions.PermissionDenied()
+
+
 class ProjectCreditViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (
@@ -1249,6 +1271,183 @@ class ProjectCreditViewSet(core_views.ActionsViewSet):
     ).order_by("created")
     serializer_class = serializers.ProjectCreditSerializer
     filterset_class = filters.ProjectCreditFilter
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        self._pay_earlier_invoices(serializer.instance)
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        self._pay_earlier_invoices(serializer.instance)
+
+    def _pay_earlier_invoices(self, project_credit):
+        """A credit set to pay earlier invoices pays what it can whenever it
+        is saved: when staff turn it on, and when it is raised later."""
+        if not project_credit.pay_earlier_invoices:
+            return
+        payment_plan = settlement.pay_earlier_invoices(project_credit)
+        if payment_plan and payment_plan.payments:
+            project_credit.refresh_from_db()
+
+    @extend_schema(
+        summary="Pay earlier invoices from the project credit",
+        description=(
+            "Pays the uncovered cost of the project's earlier, closed invoices "
+            "from what is left of the credit after this month's usage so far, "
+            "and turns on pay_earlier_invoices so that each month end pays "
+            "more. With dry_run, returns the compensations it would write and "
+            "the balances before and after, and changes nothing."
+        ),
+        request=serializers.PayEarlierInvoicesRequestSerializer,
+        responses=serializers.PayEarlierInvoicesSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def pay_earlier_invoices(self, request, uuid=None):
+        project_credit = self.get_object()
+        params = serializers.PayEarlierInvoicesRequestSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        dry_run = params.validated_data["dry_run"]
+        compensate_in = params.validated_data.get("compensate_in")
+        bounds = {
+            field: params.validated_data[field]
+            for field in ("earlier_invoices_from", "earlier_invoices_until")
+            if field in params.validated_data
+        }
+        if dry_run:
+            period = (
+                (
+                    bounds.get(
+                        "earlier_invoices_from", project_credit.earlier_invoices_from
+                    ),
+                    bounds.get(
+                        "earlier_invoices_until",
+                        project_credit.earlier_invoices_until,
+                    ),
+                )
+                if bounds
+                else None
+            )
+            payment_plan = settlement.preview(project_credit, compensate_in, period)
+        else:
+            with transaction.atomic():
+                project_credit = models.ProjectCredit.objects.select_for_update().get(
+                    pk=project_credit.pk
+                )
+                project_credit.pay_earlier_invoices = True
+                if compensate_in:
+                    project_credit.earlier_invoices_compensate_in = compensate_in
+                for field, value in bounds.items():
+                    setattr(project_credit, field, value)
+                # Validates the bounds as any save of them does.
+                project_credit.save(
+                    update_fields=[
+                        "pay_earlier_invoices",
+                        "earlier_invoices_compensate_in",
+                        *bounds,
+                    ]
+                )
+            payment_plan = settlement.pay_earlier_invoices(project_credit)
+            if payment_plan is None:
+                raise exceptions.ValidationError(
+                    _("The organization has no credit to pay from.")
+                )
+        return Response(
+            serializers.PayEarlierInvoicesSerializer(
+                {
+                    "dry_run": dry_run,
+                    "compensate_in": payment_plan.compensate_in,
+                    "payments": [
+                        {
+                            "period": payment.period,
+                            "invoice_period": payment.invoice_period,
+                            "invoice_uuid": payment.invoice.uuid
+                            if payment.invoice
+                            else None,
+                            "resource_name": payment.item.resource.name
+                            if payment.item.resource
+                            else None,
+                            "resource_uuid": payment.item.resource.uuid
+                            if payment.item.resource
+                            else None,
+                            "item_name": payment.item.name,
+                            "amount": payment.amount,
+                        }
+                        for payment in payment_plan.payments
+                    ],
+                    "total": payment_plan.total,
+                    "project_credit_before": payment_plan.project_credit_before,
+                    "project_credit_after": payment_plan.project_credit_after,
+                    "customer_credit_before": payment_plan.customer_credit_before,
+                    "customer_credit_after": payment_plan.customer_credit_after,
+                }
+            ).data
+        )
+
+    # It changes what the organization was billed, as the setting does.
+    pay_earlier_invoices_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        summary="Earlier invoices of the project and what credit paid of them",
+        description=(
+            "Per closed month of the project, the cost the credit could pay and "
+            "how much of it credit paid, either on the month's own invoice or "
+            "later. This is the cost a period-Total cost policy keeps counting. "
+            "Every closed month is listed; in_period marks those the credit "
+            "pays, by its earlier_invoices_from / earlier_invoices_until, which "
+            "can be previewed with other bounds."
+        ),
+        parameters=[serializers.ProjectCreditEarlierInvoicesQuerySerializer],
+        responses=serializers.ProjectCreditEarlierInvoicesSerializer,
+    )
+    @action(detail=True, methods=["get"])
+    def earlier_invoices(self, request, uuid=None):
+        project_credit = self.get_object()
+        query = serializers.ProjectCreditEarlierInvoicesQuerySerializer(
+            data=request.query_params
+        )
+        query.is_valid(raise_exception=True)
+        start = query.validated_data.get(
+            "earlier_invoices_from", project_credit.earlier_invoices_from
+        )
+        end = query.validated_data.get(
+            "earlier_invoices_until", project_credit.earlier_invoices_until
+        )
+        start = start and start.replace(day=1)
+        end = end and end.replace(day=1)
+        # Every month, not only those the credit pays: a period-Total cost
+        # policy counts all of them, and its explanation lists these.
+        months = [
+            {
+                "period": month.period,
+                "cost": month.cost,
+                "covered": month.covered,
+                "uncovered": month.uncovered,
+                "in_period": (not start or month.period >= start)
+                and (not end or month.period <= end),
+            }
+            for month in settlement.earlier_months(
+                project_credit, before=datetime.date.today().replace(day=1)
+            )
+            if month.cost or month.covered
+        ]
+        uncovered = sum((month["uncovered"] for month in months), Decimal(0))
+        uncovered_in_period = sum(
+            (month["uncovered"] for month in months if month["in_period"]),
+            Decimal(0),
+        )
+        payable_now = min(uncovered_in_period, settlement.available_now(project_credit))
+        return Response(
+            serializers.ProjectCreditEarlierInvoicesSerializer(
+                {
+                    "months": months,
+                    "uncovered": uncovered,
+                    "uncovered_in_period": uncovered_in_period,
+                    "payable_now": payable_now,
+                }
+            ).data
+        )
+
+    earlier_invoices_permissions = [can_view_project_costs]
 
 
 class CustomerAffiliateViewSet(core_views.ActionsViewSet):

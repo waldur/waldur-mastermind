@@ -7,7 +7,8 @@ from uuid import UUID
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db.models import F, QuerySet, Sum
+from django.db.models import F, IntegerField, Q, QuerySet, Sum
+from django.db.models.functions import ExtractMonth, ExtractYear
 from django.db.models.functions.comparison import Coalesce
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -49,6 +50,37 @@ def get_current_month_end():
 
 def get_current_month_start():
     return core_utils.month_start(timezone.now())
+
+
+def month_q(year, month) -> Q:
+    """Invoice items whose cost counts in `year`/`month`.
+
+    An item counts in the month of its invoice, except a compensation that pays
+    an earlier invoice (`InvoiceItem.compensated_period`), which counts in the
+    month it pays. Filtering by the invoice month alone takes such a payment
+    off the cost of the month it happens to be invoiced in, and can take that
+    month below zero.
+    """
+    return Q(
+        compensated_period__isnull=True, invoice__year=year, invoice__month=month
+    ) | Q(compensated_period=datetime.date(year, month, 1))
+
+
+def annotate_cost_month(invoice_items: QuerySet) -> QuerySet:
+    """Annotate `cost_year` and `cost_month`, the month each item counts in, for
+    grouping by month; see `month_q`."""
+    return invoice_items.annotate(
+        cost_year=Coalesce(
+            ExtractYear("compensated_period"),
+            "invoice__year",
+            output_field=IntegerField(),
+        ),
+        cost_month=Coalesce(
+            ExtractMonth("compensated_period"),
+            "invoice__month",
+            output_field=IntegerField(),
+        ),
+    )
 
 
 def get_full_days(start, end):
@@ -513,9 +545,8 @@ def get_monthly_invoicing_reports():
 
 def get_billing_price_estimate_for_resources(resources):
     invoice_items = models.InvoiceItem.objects.filter(
+        month_q(get_current_year(), get_current_month()),
         resource__in=resources,
-        invoice__year=get_current_year(),
-        invoice__month=get_current_month(),
     ).select_related("invoice")
     result = {
         "total": Decimal(0.0),
@@ -577,10 +608,9 @@ def get_billing_price_estimate_for_provider(
     try:
         aggregated_data = (
             models.InvoiceItem.objects.filter(
+                month_q(get_current_year(), get_current_month()),
                 resource__offering__customer__uuid=provider_uuid,
                 invoice__customer=customer,
-                invoice__year=get_current_year(),
-                invoice__month=get_current_month(),
             )
             .annotate(
                 current_quantity=get_current_expression(),

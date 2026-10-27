@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 from waldur_mastermind.marketplace.exceptions import PolicyException
 
@@ -565,10 +566,7 @@ def _period_query(policy):
     query = Q()
     for n in range(_period_months(policy)):
         previous_month = current_month_start - relativedelta(months=n)
-        query |= Q(
-            invoice__month=previous_month.month,
-            invoice__year=previous_month.year,
-        )
+        query |= invoices_utils.month_q(previous_month.year, previous_month.month)
     return query
 
 

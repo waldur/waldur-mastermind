@@ -116,13 +116,11 @@ class ScenarioMatrixTest(test.APITestCase):
                 float(policy._uncompensated_cost_this_month(items, deduction)), 2
             ),
             credit_days=policy_eta.credit_days_remaining(credit, gross_per_day),
-            gate=policy_eta.credit_days_to_limit(credit, limit_cost, gross_per_day),
             eta=policy.get_eta_days(),
             fired=policy.is_triggered(),
         )
-        for k in ("credit_days", "gate"):
-            if row[k] is not None:
-                row[k] = round(float(row[k]), 1)
+        if row["credit_days"] is not None:
+            row["credit_days"] = round(float(row["credit_days"]), 1)
         ROWS.append(row)
 
         # Invariants that must hold in every scenario.
@@ -258,7 +256,7 @@ class ScenarioMatrixTest(test.APITestCase):
             use_credit=False,
         )
 
-        hdr = f"{'scenario':44} {'limit':>7} {'gross':>8} {'deduct':>8} {'current':>8} {'uncomp':>7} {'credit_d':>9} {'gate_d':>8} {'eta':>5} {'fires':>6}"
+        hdr = f"{'scenario':44} {'limit':>7} {'gross':>8} {'deduct':>8} {'current':>8} {'uncomp':>7} {'credit_d':>9} {'eta':>5} {'fires':>6}"
         print("\n" + "=" * len(hdr))
         print(f"today is day {d} of the month")
         print(hdr)
@@ -267,6 +265,6 @@ class ScenarioMatrixTest(test.APITestCase):
             print(
                 f"{r['label']:44} {r['limit']:>7} {r['gross']:>8} {r['deduction']:>8} "
                 f"{r['current']:>8} {r['uncomp']:>7} {str(r['credit_days']):>9} "
-                f"{str(r['gate']):>8} {str(r['eta']):>5} {str(r['fired']):>6}"
+                f"{str(r['eta']):>5} {str(r['fired']):>6}"
             )
         print("=" * len(hdr))

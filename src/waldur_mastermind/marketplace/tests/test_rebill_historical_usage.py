@@ -299,6 +299,41 @@ class RebillHistoricalUsageTest(test.APITestCase):
         self.assertIsNotNone(transaction)
         self.assertEqual(transaction.amount, decimal.Decimal("30"))
 
+    def test_credit_that_paid_the_month_later_is_not_drawn_again(self):
+        # December's 5 units ($50) were left uncovered and paid later by a
+        # project credit paying earlier invoices: a compensation on July's
+        # invoice that names December. Usage is then corrected to 8 units.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        july, _ = invoice_models.Invoice.objects.get_or_create(
+            customer=self.fixture.customer, year=2024, month=7
+        )
+        invoice_factories.InvoiceItemFactory(
+            invoice=july,
+            resource=self.resource,
+            project=self.fixture.project,
+            credit=credit,
+            unit_price=decimal.Decimal("-50"),
+            quantity=1,
+            details={"offering_component_type": "cpu", "is_compensation": True},
+            compensated_period=datetime.date(2023, 12, 1),
+        )
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        compensation = invoice.items.get(resource=self.resource, unit_price__lt=0)
+        credit.refresh_from_db()
+        # Only the $30 the correction adds is drawn; the $50 paid later stands.
+        self.assertEqual(compensation.unit_price, decimal.Decimal("-30"))
+        self.assertEqual(credit.value, decimal.Decimal("970"))
+
     def test_credit_correction_is_partial_when_credit_is_insufficient(self):
         # Corrected usage costs far more than the available credit. The
         # correction must draw only what's left, not refuse the whole

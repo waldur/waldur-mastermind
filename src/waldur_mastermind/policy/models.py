@@ -24,6 +24,7 @@ from waldur_mastermind.invoices import (
 from waldur_mastermind.invoices import (
     models as invoices_models,
 )
+from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 
@@ -190,9 +191,7 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
             self.decision = decision
         return decision
 
-    def _decision(
-        self, triggered, gate, cost, deduction, credit_value=None, credit_source=None
-    ) -> structures.PolicyDecision:
+    def _decision(self, triggered, gate, cost, deduction) -> structures.PolicyDecision:
         return structures.PolicyDecision(
             triggered=triggered,
             gate=gate,
@@ -201,8 +200,6 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
             limit_cost=self.limit_cost,
             period=self.period,
             use_credit=self.uses_credit_compensation,
-            credit_value_compared=credit_value,
-            credit_source=credit_source,
         )
 
     def _evaluated_cost(self, invoice_items, compensation=0) -> decimal.Decimal:
@@ -213,6 +210,33 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         moved twice already, and each time a client copy silently fell out of
         step.
         """
+        return self._scoped_cost(self._window_items(invoice_items)) - compensation
+
+    def get_cost_breakdown(self, compensation=None) -> structures.CostBreakdown:
+        """``current_cost`` split into the parts it is made of.
+
+        The window's items are split into cost and credit compensation by
+        ``credit__isnull``, the discriminator ``_pending_compensation`` uses, so
+        the parts add up to ``current_cost`` exactly.
+        """
+        invoice_items, pending = self._cost_inputs(compensation)
+        window = self._window_items(invoice_items)
+        month_start = core_utils.month_start(datetime.date.today())
+        return structures.CostBreakdown(
+            cost_before_credit=self._scoped_cost(window.filter(credit__isnull=True)),
+            credit_drawn=-self._scoped_cost(window.filter(credit__isnull=False)),
+            credit_pending=decimal.Decimal(pending),
+            # The pending draw is all this month's, so the earlier months' part
+            # is what their own items left, payments of them included.
+            earlier_months=self._scoped_cost(
+                window.exclude(
+                    invoices_utils.month_q(month_start.year, month_start.month)
+                )
+            ),
+        )
+
+    def _window_items(self, invoice_items):
+        """The items within the policy's period that count towards it."""
         invoice_items = self._eligible_items(invoice_items)
         month_start = core_utils.month_start(datetime.date.today())
         period = 0
@@ -226,17 +250,15 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
 
         query = Q()
 
+        # By the month an item counts in, not its invoice's: a payment of an
+        # earlier invoice sits on the current one but pays an earlier month.
         for n in range(period):
             previous_month_date = month_start - relativedelta(months=n)
-            query |= Q(
-                invoice__month=previous_month_date.month,
-                invoice__year=previous_month_date.year,
+            query |= invoices_utils.month_q(
+                previous_month_date.year, previous_month_date.month
             )
 
-        invoice_items = invoice_items.filter(query)
-
-        total = self._scoped_cost(invoice_items)
-        return total - compensation
+        return invoice_items.filter(query)
 
     @classmethod
     def _pending_compensation(cls, invoice_items, projected) -> decimal.Decimal:
@@ -251,20 +273,34 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         policy under-enforces by a month's credit draw.
 
         Only credit that will still be drawn may come off the total: the
-        projection minus what is already written for the current month. The
-        written figure carries tax while the projection does not, so any
-        rounding difference resolves towards deducting less, never twice.
+        projection minus what is already written for the current month.
+
+        The projection is in credit units, before tax, but a compensation item
+        sits on the invoice like any other, so it carries the invoice's tax, as
+        the cost it offsets does. The projection is taxed the same way before
+        the two are compared; deducting it untaxed left a fully covered project
+        on a taxed invoice with its tax as cost all month, and since #784 a
+        policy fires on that alone.
         """
         projected = decimal.Decimal(projected or 0)
         if projected <= 0:
             return decimal.Decimal(0)
         month_start = core_utils.month_start(datetime.date.today())
-        written = invoice_items.filter(
+        this_month = invoice_items.filter(
             invoice__year=month_start.year,
             invoice__month=month_start.month,
-            credit__isnull=False,
         )
-        applied = -cls._scoped_cost(written)
+        # One invoice per customer and month, so one tax rate; a policy whose
+        # items span customers deducts nothing.
+        tax_percent = (
+            this_month.values_list("invoice__tax_percent", flat=True).first() or 0
+        )
+        projected *= 1 + decimal.Decimal(tax_percent) / 100
+        # A payment of an earlier invoice written this month is not this
+        # month's credit; counted here, it would hide the month's own draw.
+        applied = -cls._scoped_cost(
+            this_month.filter(credit__isnull=False, compensated_period__isnull=True)
+        )
         return max(decimal.Decimal(0), projected - applied)
 
     @staticmethod
@@ -302,8 +338,8 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         return None
 
     def _live_credit_balance(self, compensation=None) -> decimal.Decimal | None:
-        """The live balance Gate 2 compares against `limit_cost`, or None when
-        no credit applies."""
+        """The live credit balance, or None when no credit applies. It pays a
+        new resource's cost in the creation check and dates the projection."""
         return self._live_credit_balance_with_source(compensation)[0]
 
     def _live_credit_balance_with_source(
@@ -335,52 +371,41 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
     def _credit_gates(
         self, compensation, added_cost=decimal.Decimal(0), offering=None
     ) -> structures.PolicyDecision:
-        """Both credit gates, with `added_cost` more invoiced on `offering`.
+        """The credit-aware evaluation, with `added_cost` more invoiced on
+        `offering`.
+
+        The policy fires when its cost after credit is over `limit_cost`; how
+        much credit is left is not compared with the limit. It used to be: a
+        second gate held the policy back while the credit balance stayed above
+        `limit_cost`, which turned the limit into "minimum credit left" once a
+        period-Total policy had overspent, so a larger limit fired before a
+        smaller one (#784).
 
         With nothing added this is the policy's own evaluation. The
         resource-creation check asks the same question with the new resource's
-        cost added, so the two cannot drift apart again: a separate copy kept
-        comparing the stored balance after the policy moved to the live one,
-        and let resources through while the policy was already fired.
+        cost added, so the two cannot drift apart.
         """
         gates = structures.PolicyGates
         invoice_items, deduction = self._cost_inputs(compensation)
 
-        # Gate 1: cost over the window, net of credit. Any draw on the added
-        # cost only lowers it, so a cost under the limit before the draw is
-        # under it after.
+        # Cost over the window, net of credit. Any draw on the added cost only
+        # lowers it, so a cost under the limit before the draw is under it after.
         cost = self._evaluated_cost(invoice_items, deduction) + added_cost
         if cost <= self.limit_cost:
             return self._decision(False, gates.COST_BELOW_LIMIT, cost, deduction)
 
-        # Gate 2: the policy still waits while the credit balance stays above
-        # the limit — the live balance, net of what this month's usage has
-        # already consumed, not the stored one, which only falls at month end
-        # (see `_live_balance`).
-        balance, source = self._live_credit_balance_with_source(compensation)
+        balance = self._live_credit_balance(compensation)
         if balance is None:
             return self._decision(True, gates.NO_CREDIT, cost, deduction)
+        # A new resource's cost is paid by whatever live credit is left, so
+        # only the rest of it counts towards the limit.
         draw = self._added_cost_draw(added_cost, balance, offering, compensation)
         cost -= draw
         deduction += draw
-        # The live balance counts usage only, so it falls by the whole draw.
-        remaining = balance - draw
         if cost <= self.limit_cost:
-            # Only an added cost gets here: the credit absorbs it and gate 1
-            # closes again. Gate 2 did read the balance, so report it.
-            return self._decision(
-                False, gates.COST_BELOW_LIMIT, cost, deduction, remaining, source
-            )
-        if remaining <= self.limit_cost:
-            return self._decision(
-                True, gates.CREDIT_EXHAUSTED, cost, deduction, remaining, source
-            )
-        held = (
-            gates.HELD_BY_PROJECT_CREDIT
-            if source == structures.CreditSources.PROJECT
-            else gates.HELD_BY_CUSTOMER_CREDIT
-        )
-        return self._decision(False, held, cost, deduction, remaining, source)
+            # Only an added cost gets here: the credit absorbs it.
+            return self._decision(False, gates.COST_BELOW_LIMIT, cost, deduction)
+        return self._decision(True, gates.COST_OVER_LIMIT, cost, deduction)
 
     @staticmethod
     def _eligible_items(invoice_items):
@@ -404,8 +429,7 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
     def _this_month(self, invoice_items):
         month_start = core_utils.month_start(datetime.date.today())
         return self._eligible_items(invoice_items).filter(
-            invoice__year=month_start.year,
-            invoice__month=month_start.month,
+            invoices_utils.month_q(month_start.year, month_start.month)
         )
 
     def _projection_credit(self):
@@ -463,12 +487,12 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         # the projection uses after it runs out.
         gross = self._gross_cost_this_month(invoice_items)
         gross_per_day = gross / decimal.Decimal(today.day)
-        # Projected from the same live balance Gate 2 reads in `is_triggered`;
-        # the stored one would date a policy that has already fired days away.
+        # Projected from the live balance; the stored one only falls at month
+        # end, so it would date the end of the credit too late.
         balance = (
             self._live_credit_balance(compensation) if credit is not None else None
         )
-        eta = policy_eta.project_eta_days(
+        return policy_eta.project_eta_days(
             limit_cost=self.limit_cost,
             current_cost=self._evaluated_cost(invoice_items, deduction),
             gross_this_month=gross,
@@ -478,22 +502,9 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
             credit_days=policy_eta.credit_days_remaining(
                 credit, gross_per_day, balance=balance
             ),
-            credit_limit_days=policy_eta.credit_days_to_limit(
-                credit, self.limit_cost, gross_per_day, balance=balance
-            ),
             period=self.period,
             today=today,
         )
-        if eta == 0 and not self.is_triggered():
-            # The limit is crossed, but `is_triggered` applies one more test the
-            # cost figures cannot see: a credit balance still larger than the
-            # limit holds the policy back. Reporting "already reached" while the
-            # policy itself reports False is precisely the kind of contradiction
-            # this field exists to stop a client inventing, so it is reported as
-            # no projection instead. Only reached in the crossed case, so the
-            # extra evaluation is not on the common path.
-            return None
-        return eta
 
     @staticmethod
     def _scoped_cost(invoice_items) -> decimal.Decimal:

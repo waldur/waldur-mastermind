@@ -10,7 +10,7 @@ from django.db.models.aggregates import Sum
 from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
-from rest_framework import status, test
+from rest_framework import exceptions, status, test
 
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.tests import factories as logging_factories
@@ -419,6 +419,96 @@ class ProjectCreditUpdateTest(test.APITestCase):
     def test_global_support_user_cannot_update_credit(self, user):
         response = self.update_credit(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class ProjectCreditEarlierInvoicesSettingTest(test.APITestCase):
+    """Paying earlier invoices from an allocation is a staff-only setting."""
+
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.url = factories.ProjectCreditFactory.get_url(self.fixture.project_credit)
+
+    def patch(self, user, payload):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        return self.client.patch(self.url, payload)
+
+    def test_staff_can_set_it(self):
+        response = self.patch(
+            "staff",
+            {
+                "pay_earlier_invoices": True,
+                "earlier_invoices_from": "2024-01-01",
+                "earlier_invoices_until": "2024-06-01",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        credit = self.fixture.project_credit
+        credit.refresh_from_db()
+        self.assertTrue(credit.pay_earlier_invoices)
+        self.assertEqual(credit.earlier_invoices_from, datetime.date(2024, 1, 1))
+        self.assertEqual(credit.earlier_invoices_until, datetime.date(2024, 6, 1))
+
+    @data(
+        {"pay_earlier_invoices": True},
+        {"earlier_invoices_from": "2024-01-01"},
+        {"earlier_invoices_until": "2024-06-01"},
+    )
+    def test_owner_cannot_change_it(self, payload):
+        response = self.patch("owner", payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(next(iter(payload)), response.data)
+
+    def test_owner_may_send_it_back_unchanged(self):
+        # A form sends every field, the staff-only ones included.
+        response = self.patch(
+            "owner",
+            {
+                "value": 40,
+                "pay_earlier_invoices": False,
+                "earlier_invoices_from": None,
+                "earlier_invoices_until": None,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_owner_cannot_create_a_credit_that_pays_earlier_invoices(self):
+        project = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.post(
+            factories.ProjectCreditFactory.get_list_url(),
+            {
+                "project": structure_factories.ProjectFactory.get_url(project),
+                "value": 10,
+                "pay_earlier_invoices": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("pay_earlier_invoices", response.data)
+
+    @data(
+        {"earlier_invoices_from": "2024-01-15"},
+        {"earlier_invoices_until": "2024-06-02"},
+        {"earlier_invoices_from": "2024-06-01", "earlier_invoices_until": "2024-01-01"},
+    )
+    def test_period_is_validated(self, payload):
+        response = self.patch("staff", {"pay_earlier_invoices": True, **payload})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_staff_can_set_it_while_allocations_exceed_organization_credit(self):
+        # Usage drew the organization credit below the allocation.
+        self.fixture.customer_credit.value = 10
+        self.fixture.customer_credit.save()
+
+        response = self.patch("staff", {"pay_earlier_invoices": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @ddt
@@ -871,6 +961,60 @@ class ProjectCreditTest(test.APITestCase):
             self.customer_credit.value,
             old_customer_credit_value - self.project_credit.value,
         )
+
+
+class ProjectCreditAllocationLimitTest(test.APITestCase):
+    """The allocations together may not be raised above the organization credit.
+
+    Only a growing allocation is checked: usage draws the organization credit
+    down while the allocations stay as they are, so allocations above it are a
+    normal state, and the saves that lower an allocation must keep working in
+    it.
+    """
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.customer_credit = factories.CustomerCreditFactory(
+            customer=self.customer, value=100
+        )
+        self.first = factories.ProjectCreditFactory(
+            project=structure_factories.ProjectFactory(customer=self.customer),
+            value=60,
+        )
+        self.second_project = structure_factories.ProjectFactory(customer=self.customer)
+
+    def test_allocation_above_organization_credit_is_rejected(self):
+        with self.assertRaises(exceptions.ValidationError):
+            factories.ProjectCreditFactory(project=self.second_project, value=50)
+
+    def test_allocation_within_organization_credit_is_accepted(self):
+        factories.ProjectCreditFactory(project=self.second_project, value=40)
+
+    def test_raising_an_allocation_above_organization_credit_is_rejected(self):
+        second = factories.ProjectCreditFactory(project=self.second_project, value=40)
+        second.value = 41
+        with self.assertRaises(exceptions.ValidationError):
+            second.save()
+
+    def test_lowering_an_allocation_works_when_allocations_exceed_the_credit(self):
+        second = factories.ProjectCreditFactory(project=self.second_project, value=40)
+        # Usage drew the organization credit below the allocations.
+        self.customer_credit.value = 50
+        self.customer_credit.save()
+
+        second.value = 30
+        second.save(update_fields=["value"])
+
+        second.refresh_from_db()
+        self.assertEqual(second.value, 30)
+
+    def test_other_fields_can_be_saved_when_allocations_exceed_the_credit(self):
+        second = factories.ProjectCreditFactory(project=self.second_project, value=40)
+        self.customer_credit.value = 50
+        self.customer_credit.save()
+
+        second.grace_coefficient = 10
+        second.save()
 
 
 @freeze_time("2024-01-01")

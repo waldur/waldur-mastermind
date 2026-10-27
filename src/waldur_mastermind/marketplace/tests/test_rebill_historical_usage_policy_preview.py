@@ -247,17 +247,17 @@ class ReportedCostMatchesEvaluatedCostTest(BasePolicyPreviewTest):
         print(output.rstrip())
 
         self.assertIn("WOULD FIRE", output)
-        # A policy that is about to fire cannot have a closed gate 1.
-        self.assertNotIn("gate 1: closed", output)
+        # A policy that is about to fire cannot read as under its limit.
+        self.assertNotIn("over limit: no", output)
 
 
 class GateBoundaryMatchesIsTriggeredTest(BasePolicyPreviewTest):
-    """The preview calls gate 1 open on `net_cost >= limit_cost`;
-    `EstimatedCostPolicyMixin._is_triggered` uses `>`. They disagree when the
-    cost lands exactly on the limit.
+    """The preview called the cost over the limit on `net_cost >= limit_cost`;
+    `EstimatedCostPolicyMixin.evaluate` uses `>`. They disagreed when the cost
+    landed exactly on the limit.
     """
 
-    def test_cost_exactly_on_limit_reports_gate_closed(self):
+    def test_cost_exactly_on_limit_reports_not_over(self):
         # 10 units * $10 = $100, against limit_cost = 100.
         self._create_stale_usage(2023, 12, old_amount=1, new_amount=10)
         policy_models.ProjectEstimatedCostPolicy.objects.create(
@@ -277,8 +277,8 @@ class GateBoundaryMatchesIsTriggeredTest(BasePolicyPreviewTest):
 
         self.assertIn("cost_this_window=100.0000", output)
         self.assertIn("fired: False -> False", output)
-        # Not triggered, so the gate it reports must read closed.
-        self.assertIn("(gate 1: closed)", output)
+        # Not triggered, so it must not read as over the limit.
+        self.assertIn("(over limit: no)", output)
 
 
 class AffectedResourceListMatchesActionTest(BasePolicyPreviewTest):
@@ -431,15 +431,15 @@ class CreditExhaustionOnlyCountsTheUncoveredOverageTest(BasePolicyPreviewTest):
         self.assertIn("WOULD FIRE", output)
 
 
-class ReportedCreditGateAgreesWithVerdictTest(BasePolicyPreviewTest):
-    """Gate 2 compares the live credit balance -- net of the month's usage --
+class ReportedCreditBalanceIsLiveTest(BasePolicyPreviewTest):
+    """The preview prints the live credit balance -- net of the month's usage --
     not the stored value, which only falls when the month's compensations are
-    written. The preview must print the same balance, or a policy about to
-    fire is reported with a closed gate 2 on the same line.
+    written. It is for information only: the policy no longer compares it with
+    limit_cost (#784).
     """
 
-    def test_spent_allocation_reports_gate_2_open(self):
-        # June, before any credit exists: uncovered cost keeps gate 1 open.
+    def test_spent_allocation_reports_the_live_balance(self):
+        # June, before any credit exists: uncovered cost is over the limit.
         self._bill_usage(2024, 6, 500)
         invoice_models.CustomerCredit.objects.create(
             customer=self.fixture.customer,
@@ -469,6 +469,7 @@ class ReportedCreditGateAgreesWithVerdictTest(BasePolicyPreviewTest):
         print(output.rstrip())
 
         self.assertIn("WOULD FIRE", output)
-        self.assertIn("(gate 2: open)", output)
+        self.assertIn("(over limit: yes)", output)
+        self.assertNotIn("gate 2", output)
         # The stored allocation is still 2900; the live balance is spent.
         self.assertNotIn("credit_balance=2900", output)

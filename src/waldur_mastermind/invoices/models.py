@@ -33,7 +33,7 @@ from waldur_mastermind.marketplace import billing_mode
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 
-from . import utils
+from . import enums, utils
 
 logger = logging.getLogger(__name__)
 
@@ -379,6 +379,19 @@ class InvoiceItem(
     backend_uuid = models.UUIDField(null=True, blank=True)
     credit = models.ForeignKey["CustomerCredit"](
         "CustomerCredit", on_delete=models.SET_NULL, null=True, editable=False
+    )
+    #: The month whose cost a compensation pays when that is not the month of
+    #: the invoice it is written on: a project credit paying an earlier invoice
+    #: (see `settlement`). Cost-by-month figures count such an item in this
+    #: month (`utils.month_q`), so it does not lower the cost of the month it
+    #: happens to be invoiced in.
+    compensated_period = models.DateField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=_(
+            "First day of the earlier month whose cost this compensation pays."
+        ),
     )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
@@ -858,9 +871,12 @@ class CustomerCredit(BaseCredit):
         if not invoice:
             return
 
+        # A payment of an earlier invoice is a one-off, not the month's
+        # consumption; counting it would read as a burn rate.
         items = InvoiceItem.objects.filter(
             invoice=invoice,
             credit=self,
+            compensated_period__isnull=True,
         )
         consumption = sum([i.total for i in items]) or 0
 
@@ -892,6 +908,47 @@ class ProjectCredit(BaseCredit):
     mark_unused_credit_as_spent_on_project_termination = models.BooleanField(
         default=False
     )
+    # Staff only (enforced by the serializer): what is left of the allocation
+    # also pays the cost of the project's earlier, closed invoices that no
+    # credit covered (see `settlement`). The bounds are optional and inclusive.
+    pay_earlier_invoices = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Also pay the cost of earlier, closed invoices of the project that no credit covered. Staff only."
+        ),
+    )
+    earlier_invoices_from = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "First month of earlier invoices to pay, as its first day. Empty: from the first invoice."
+        ),
+    )
+    earlier_invoices_until = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Last month of earlier invoices to pay, as its first day. Empty: up to the last closed invoice."
+        ),
+    )
+
+    CompensateIn = enums.CompensateIn
+
+    earlier_invoices_compensate_in = models.CharField(
+        max_length=20,
+        choices=CompensateIn.CHOICES,
+        default=CompensateIn.CURRENT_MONTH,
+        help_text=_(
+            "Which invoice a payment of an earlier invoice is written on: the current month's, or the paid month's own, which changes an invoice already issued."
+        ),
+    )
+
+    EARLIER_INVOICES_FIELDS = (
+        "pay_earlier_invoices",
+        "earlier_invoices_from",
+        "earlier_invoices_until",
+        "earlier_invoices_compensate_in",
+    )
 
     @property
     def consumption_last_month(self) -> float | None:
@@ -920,10 +977,13 @@ class ProjectCredit(BaseCredit):
         if not credit:
             return 0
 
+        # As on CustomerCredit: a payment of an earlier invoice is not the
+        # month's consumption.
         items = InvoiceItem.objects.filter(
             invoice=invoice,
             credit=credit,
             project=self.project,
+            compensated_period__isnull=True,
         )
         consumption = sum([i.total for i in items]) or 0
         return consumption * -1
@@ -1014,21 +1074,57 @@ class ProjectCredit(BaseCredit):
         if not customer_credit:
             raise rf_exceptions.ValidationError(_("Customer credit does not exist."))
 
-        total_value = (
-            ProjectCredit.objects.filter(project__customer=self.project.customer)
-            .exclude(pk=self.pk)
-            .aggregate(sum=Sum("value"))["sum"]
-            or 0 + self.value
-        )
+        self._validate_earlier_invoices_period(kwargs.get("update_fields"))
 
-        if total_value > customer_credit.value:
-            raise rf_exceptions.ValidationError(
-                _(
-                    "The sum of project credits cannot exceed the credit for organization."
-                )
+        # Only a new or growing allocation is checked. Usage draws the
+        # organization credit down while the allocations stay as they are, so
+        # allocations above it are a normal state (`spendable_value` caps what
+        # each can draw), and the compensation, expiry and roll-back saves that
+        # lower an allocation must keep working in it.
+        previous_value = self.tracker.previous("value") if self.pk else None
+        if previous_value is None or self.value > previous_value:
+            other_allocations = (
+                ProjectCredit.objects.filter(project__customer=self.project.customer)
+                .exclude(pk=self.pk)
+                .aggregate(sum=Sum("value"))["sum"]
+                or 0
             )
+            if other_allocations + self.value > customer_credit.value:
+                raise rf_exceptions.ValidationError(
+                    _(
+                        "The sum of project credits cannot exceed the credit for organization."
+                    )
+                )
 
         return super().save(*args, **kwargs)
+
+    def _validate_earlier_invoices_period(self, update_fields):
+        """Both bounds name a month by its first day, as `end_date` does, and
+        the period may not end before it starts."""
+        if update_fields is not None and not set(update_fields) & {
+            "earlier_invoices_from",
+            "earlier_invoices_until",
+        }:
+            return
+        errors = {
+            field: _("Must be the first day of the month.")
+            for field in ("earlier_invoices_from", "earlier_invoices_until")
+            if getattr(self, field) and getattr(self, field).day != 1
+        }
+        if errors:
+            raise rf_exceptions.ValidationError(errors)
+        if (
+            self.earlier_invoices_from
+            and self.earlier_invoices_until
+            and self.earlier_invoices_from > self.earlier_invoices_until
+        ):
+            raise rf_exceptions.ValidationError(
+                {
+                    "earlier_invoices_until": _(
+                        "Must not be before the first month of earlier invoices to pay."
+                    )
+                }
+            )
 
 
 class CreditTransaction(core_models.UuidMixin, models.Model):
@@ -1053,10 +1149,16 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
         ROLLBACK = "rollback"
         ADJUSTMENT = "adjustment"
         WITHDRAWABLE_ADJUSTMENT = "withdrawable_adjustment"
+        # A project credit paying an earlier, closed invoice (see
+        # `settlement`). Not one of the month's own draws: a compensation run
+        # never rolls it back, so a simulation of the month must not add it
+        # back either.
+        HISTORICAL_COMPENSATION = "historical_compensation"
 
         CHOICES = (
             (STAFF_GRANT, "Staff grant"),
             (COMPENSATION, "Compensation"),
+            (HISTORICAL_COMPENSATION, "Compensation of earlier invoices"),
             (MINIMAL_DRAW, "Minimal consumption draw"),
             (AFFILIATE_FEE, "Affiliate fee"),
             (TRANSFER_IN, "Transfer in"),

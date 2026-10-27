@@ -52,8 +52,8 @@ class PolicyDecisionTest(test.APITestCase):
         )
 
     def _earlier_uncovered_cost(self, amount="7701.67"):
-        # Cost in an earlier month no credit covered, so a TOTAL policy's
-        # Gate 1 is open and Gate 2 decides.
+        # Cost in an earlier month no credit covered: a TOTAL policy counts it
+        # for good, however much credit is added later.
         previous = core_utils.month_start(datetime.date.today()) - datetime.timedelta(
             days=1
         )
@@ -101,39 +101,26 @@ class PolicyDecisionTest(test.APITestCase):
         )
         self.assertIsNone(decision.credit_value_compared)
 
-    def test_held_by_project_credit(self):
+    def test_fires_on_cost_although_project_credit_is_left(self):
+        # The allocation still has 2850 left, but the cost after credit is over
+        # the limit: the credit left is no longer compared with it (#784).
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
         self._charge(50)
 
-        self._assert_decision(
-            self._project_policy(), False, PolicyGates.HELD_BY_PROJECT_CREDIT, 2850
+        decision = self._assert_decision(
+            self._project_policy(), True, PolicyGates.COST_OVER_LIMIT
         )
+        self.assertIsNone(decision.credit_value_compared)
 
-    def test_held_by_customer_credit_when_organization_balance_is_lower(self):
-        # The allocation reads 2900, but the organization credit funding it is
-        # down to 1000: that is the balance Gate 2 compares, and it holds.
-        self._earlier_uncovered_cost()
-        invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
-        invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
-        invoices_models.CustomerCredit.objects.filter(customer=self.customer).update(
-            value=1000
-        )
-
-        self._assert_decision(
-            self._project_policy(), False, PolicyGates.HELD_BY_CUSTOMER_CREDIT, 1000
-        )
-
-    def test_held_by_customer_credit_without_project_allocation(self):
+    def test_fires_on_cost_although_organization_credit_is_left(self):
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=2900)
 
-        self._assert_decision(
-            self._project_policy(), False, PolicyGates.HELD_BY_CUSTOMER_CREDIT, 2900
-        )
+        self._assert_decision(self._project_policy(), True, PolicyGates.COST_OVER_LIMIT)
 
-    def test_customer_policy_held_by_customer_credit(self):
+    def test_customer_policy_fires_on_cost_although_credit_is_left(self):
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=2900)
         policy = policy_factories.CustomerEstimatedCostPolicyFactory(
@@ -142,16 +129,31 @@ class PolicyDecisionTest(test.APITestCase):
             period=CustomerEstimatedCostPolicy.Periods.TOTAL,
         )
 
-        self._assert_decision(policy, False, PolicyGates.HELD_BY_CUSTOMER_CREDIT, 2900)
+        self._assert_decision(policy, True, PolicyGates.COST_OVER_LIMIT)
 
-    def test_credit_exhausted(self):
+    def test_cost_over_limit_with_the_credit_used_up(self):
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
         self._charge(3000)
 
+        self._assert_decision(self._project_policy(), True, PolicyGates.COST_OVER_LIMIT)
+
+    def test_the_smaller_limit_fires_first(self):
+        # 3000 overspent earlier, 1000 of credit left. The credit-balance gate
+        # held the 100 policy back (1000 > 100) while a policy whose cost was
+        # over its larger limit fired: the order the limits were meant to give
+        # was inverted. Now each policy is judged on its cost alone.
+        self._earlier_uncovered_cost("3000")
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=1000)
+
         self._assert_decision(
-            self._project_policy(), True, PolicyGates.CREDIT_EXHAUSTED, 0
+            self._project_policy(limit_cost=100), True, PolicyGates.COST_OVER_LIMIT
+        )
+        self._assert_decision(
+            self._project_policy(limit_cost=5000),
+            False,
+            PolicyGates.COST_BELOW_LIMIT,
         )
 
     def test_no_credit(self):
@@ -183,40 +185,39 @@ class PolicyDecisionTest(test.APITestCase):
         self._assert_decision(policy, True, PolicyGates.NO_CREDIT)
 
     def test_creation_check_reads_the_same_decision(self):
-        # 2900 - 2000 used leaves 900; a 1000 resource would spend it.
-        self._earlier_uncovered_cost()
+        # 2900 - 2000 used leaves 900. A 1050 resource is paid by it up to 900,
+        # so 150 counts towards the limit of 100; a 500 one is covered whole.
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
         self._charge(2000)
         policy = self._project_policy()
 
-        decision = policy.evaluate(1000, self.resource.offering)
+        decision = policy.evaluate(1050, self.resource.offering)
 
         self.assertTrue(decision.triggered)
-        self.assertEqual(decision.gate, PolicyGates.CREDIT_EXHAUSTED)
-        self.assertEqual(decision.credit_value_compared, 0)
-        self.assertTrue(policy.would_trigger(1000, self.resource.offering))
+        self.assertEqual(decision.gate, PolicyGates.COST_OVER_LIMIT)
+        self.assertEqual(decision.evaluated_cost, 150)
+        self.assertIsNone(decision.credit_value_compared)
+        self.assertTrue(policy.would_trigger(1050, self.resource.offering))
         self.assertFalse(policy.would_trigger(500, self.resource.offering))
 
     def test_hypothetical_does_not_replace_the_policy_decision(self):
         # The creation check describes a resource that may never exist; the
         # decision the policy's events report must stay its own.
-        self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
         self._charge(2000)
         policy = self._project_policy()
         own = policy.evaluate()
-        self.assertEqual(own.gate, PolicyGates.HELD_BY_PROJECT_CREDIT)
+        self.assertEqual(own.gate, PolicyGates.COST_BELOW_LIMIT)
 
-        hypothetical = policy.evaluate(1000, self.resource.offering)
+        hypothetical = policy.evaluate(1050, self.resource.offering)
 
-        self.assertEqual(hypothetical.gate, PolicyGates.CREDIT_EXHAUSTED)
+        self.assertEqual(hypothetical.gate, PolicyGates.COST_OVER_LIMIT)
         self.assertEqual(policy.decision, own)
 
-    def test_credit_absorbing_the_added_cost_reports_the_balance(self):
-        # Nothing used yet: a 1000 resource is covered by the 2900 allocation,
-        # so gate 1 closes again, and the balance left is what held it.
+    def test_credit_absorbing_the_added_cost_keeps_the_policy_clear(self):
+        # Nothing used yet: a 1000 resource is covered by the 2900 allocation.
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
 
@@ -224,7 +225,7 @@ class PolicyDecisionTest(test.APITestCase):
 
         self.assertFalse(decision.triggered)
         self.assertEqual(decision.gate, PolicyGates.COST_BELOW_LIMIT)
-        self.assertEqual(decision.credit_value_compared, 1900)
+        self.assertIsNone(decision.credit_value_compared)
 
     def test_offering_policy_refuses_an_added_cost(self):
         # Its cost spans many customers and applies to some of them only, which
@@ -241,9 +242,7 @@ class PolicyDecisionTest(test.APITestCase):
         # Creating a policy that is already over its limit fires it from the
         # serializer's save(); the actions run in an on_commit callback, which
         # must still hold the evaluated instance.
-        offering = self.resource.offering
-        offering.plugin_options.update({"supports_downscaling": True})
-        offering.save()
+        self._downscaling_offering()
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
@@ -265,13 +264,12 @@ class PolicyDecisionTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(response.data["has_fired"])
         event = logging_models.Event.objects.get(event_type="request_downscaling")
-        self.assertEqual(event.context["gate"], PolicyGates.CREDIT_EXHAUSTED)
-        self.assertEqual(event.context["credit_value_compared"], "0.00")
+        self.assertEqual(event.context["gate"], PolicyGates.COST_OVER_LIMIT)
+        # Always None now, and the event context leaves None out.
+        self.assertNotIn("credit_value_compared", event.context)
 
     def test_action_events_carry_the_decision(self):
-        offering = self.resource.offering
-        offering.plugin_options.update({"supports_downscaling": True})
-        offering.save()
+        self._downscaling_offering()
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
@@ -281,17 +279,44 @@ class PolicyDecisionTest(test.APITestCase):
         utils.evaluate_policies([policy])
 
         event = logging_models.Event.objects.get(event_type="request_downscaling")
-        self.assertEqual(event.context["gate"], PolicyGates.CREDIT_EXHAUSTED)
-        self.assertEqual(event.context["credit_value_compared"], "0.00")
+        self.assertEqual(event.context["gate"], PolicyGates.COST_OVER_LIMIT)
+        # Always None now, and the event context leaves None out.
+        self.assertNotIn("credit_value_compared", event.context)
         self.assertEqual(event.context["limit_cost"], LIMIT)
         self.assertTrue(event.context["triggered"])
         self.assertIn("evaluated_cost", event.context)
         self.assertIn("credit_deduction", event.context)
 
-    def test_reset_events_carry_the_decision(self):
+    def _downscaling_offering(self):
         offering = self.resource.offering
         offering.plugin_options.update({"supports_downscaling": True})
         offering.save()
+
+    def test_reset_events_carry_the_decision(self):
+        # This month's usage is 200 beyond the allocation, so it fires; a
+        # top-up covers it and resets the policy.
+        self._downscaling_offering()
+        invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
+        invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
+        self._charge(3100)
+        policy = self._project_policy()
+        utils.evaluate_policies([policy])
+        policy.refresh_from_db()
+        self.assertTrue(policy.has_fired)
+
+        invoices_models.ProjectCredit.objects.filter(project=self.project).update(
+            value=10000
+        )
+        utils.evaluate_policies([policy])
+
+        event = logging_models.Event.objects.get(event_type="reset_downscaling")
+        self.assertEqual(event.context["gate"], PolicyGates.COST_BELOW_LIMIT)
+        self.assertFalse(event.context["triggered"])
+
+    def test_a_top_up_does_not_reset_overspend_from_earlier_months(self):
+        # A TOTAL policy keeps counting what earlier months overspent; added
+        # credit only pays for this month's usage, so the policy stays fired.
+        self._downscaling_offering()
         self._earlier_uncovered_cost()
         invoices_factories.CustomerCreditFactory(customer=self.customer, value=100000)
         invoices_factories.ProjectCreditFactory(project=self.project, value=2900)
@@ -299,12 +324,14 @@ class PolicyDecisionTest(test.APITestCase):
         policy = self._project_policy()
         utils.evaluate_policies([policy])
 
-        # A top-up puts the allocation back above the limit.
         invoices_models.ProjectCredit.objects.filter(project=self.project).update(
             value=10000
         )
         utils.evaluate_policies([policy])
 
-        event = logging_models.Event.objects.get(event_type="reset_downscaling")
-        self.assertEqual(event.context["gate"], PolicyGates.HELD_BY_PROJECT_CREDIT)
-        self.assertFalse(event.context["triggered"])
+        policy.refresh_from_db()
+        self.assertTrue(policy.has_fired)
+        self.assertEqual(policy.decision.gate, PolicyGates.COST_OVER_LIMIT)
+        self.assertFalse(
+            logging_models.Event.objects.filter(event_type="reset_downscaling").exists()
+        )

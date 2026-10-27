@@ -143,7 +143,9 @@ Waldur supports a two-level credit system: **CustomerCredit** (organization-wide
 | `grace_coefficient` | Decimal (0-100) | Percentage discount on minimal consumption |
 | `apply_as_minimal_consumption` | Boolean | Whether to enforce minimal consumption |
 
-**ProjectCredit** is a sub-allocation of the customer credit. The sum of all project credit values cannot exceed the customer credit value.
+**ProjectCredit** is a sub-allocation of the customer credit. A new or raised allocation is refused when the allocations together would exceed the customer credit value. Usage draws the customer credit down while the allocations stay as they are, so later on the allocations can exceed it; `ProjectCredit.spendable_value` caps what each can draw.
+
+ProjectCredit also has three staff-only fields, described in [Paying earlier invoices](#paying-earlier-invoices): `pay_earlier_invoices`, `earlier_invoices_from` and `earlier_invoices_until`.
 
 Every change to either balance is recorded in the [credit ledger](../credit-ledger.md), which is what makes the drawdown below observable after the fact: the minimal-consumption tail writes no invoice item, so the ledger is the only place it is visible.
 
@@ -168,6 +170,8 @@ sequenceDiagram
     MC->>MC: save() (write compensation items + update credits)
     MC->>MC: update_linear_expected_consumption()
     MC->>DB: Update expected_consumption for LINEAR credits
+
+    T->>DB: pay_earlier_invoices_at_month_end(invoice)
 ```
 
 #### Compensation Calculation
@@ -272,6 +276,32 @@ sequenceDiagram
 
 When a grace period is used, the effective date for zeroing credits is always the 1st of the current month (not the actual finalization date). This ensures credits with `end_date` on the 1st are still applied to the previous month's invoice before being zeroed.
 
+#### Paying earlier invoices
+
+The compensation run only pays the month it closes. Cost that no credit covered stays uncovered, and a period-Total cost policy keeps counting it however much credit is added later. With `ProjectCredit.pay_earlier_invoices` on, what is left of the allocation also pays that cost (`src/waldur_mastermind/invoices/settlement.py`). Only staff may set it, because it changes what the organization was billed; owners editing the rest of the allocation get a validation error if they change it.
+
+- **What it pays.** Closed (`created` or `paid`) invoices of the project, oldest month first. `earlier_invoices_from` and `earlier_invoices_until` optionally bound the months, inclusive, each named by its first day.
+- **When it pays.**
+    - Whenever the credit is saved through the API with the option on: when staff turn it on, and when the allocation is raised later. It pays from what is left after this month's usage so far: the live balance the cost policies use, the lower of the allocation's and the organization credit's.
+    - At month end, in `process_invoice_credits`, after the closing month's own compensation, from what that left.
+- **How it pays.**
+    - It writes a credit compensation named `Credit compensation for YYYY-MM. <item>`, with `compensated_period` set to the first day of the month it pays.
+    - `earlier_invoices_compensate_in` (staff-only) picks the invoice it goes on. With `current_month` (the default) that is the open (or closing) invoice, and earlier invoices stay as they were issued; the invoice it is written on can go below zero. With `incurred_month` it is the paid month's own invoice, which changes the total of an invoice already issued, and possibly paid.
+    - Each invoice written on gets its own draw, ledgered as `historical_compensation` with that invoice as its reference and its month as `billing_period`.
+- **What a month still needs** (`earlier_months`):
+    - the project's items on that month's invoice, on offerings the credit covers, before tax;
+    - less what paid them: compensations and volume discounts on the invoice, payments made later, and staff refunds of its items (`create_compensation`) on later invoices.
+    - Items are taken by their `project`, not their resource's current project, so a moved resource does not bring its history along.
+    - Compensations are netted by sign rather than by their `credit` link, which a deleted organization credit leaves empty.
+- **Written once.**
+    - `clear_compensations` leaves payments alone, and the month's remainder is worked out from what stands. A second save, a month-end run after a mid-month payment, or the two open invoices of a grace period therefore pay nothing twice.
+    - Both writers lock the organization credit's row.
+    - Turning the option off stops further payments. It does not reverse the ones made, which takes a staff credit adjustment.
+- **Paying on request.** `POST /api/project-credits/<uuid>/pay_earlier_invoices/` (staff) pays now, turns on `pay_earlier_invoices` and stores `compensate_in` when given. With `dry_run` it returns the compensations it would write (month paid, invoice written on, resource, cost item, amount) and the project and organization credit before and after, and writes nothing. Both run the same plan (`settlement.plan`), so a preview and the payment that follows it agree.
+- **Explaining it.** `GET /api/project-credits/<uuid>/earlier_invoices/` lists every closed month with its `cost`, `covered` and `uncovered`, and `in_period` for the months the credit pays. It also gives the total `uncovered` (what a Total policy counts), `uncovered_in_period`, and `payable_now`, the part the credit would pay now. Staff, support, owners and roles with `CUSTOMER.VIEW_ACCOUNTING` see it, and so do the project's own roles while the organization displays billing info in projects, as they then see the project's invoice items. `in_period` follows the credit's own bounds, which can be previewed with others.
+
+A payment counts in the month it pays everywhere cost is shown by month: `invoices.utils.month_q` / `annotate_cost_month` are used by the cost policies, the project costs chart, costs for a period and the price estimates. Counted by its invoice's month instead, a payment would take the current month below zero. `consumption_last_month` leaves payments out, since a one-off payment is not a burn rate. `rebill_historical_usage` counts them as credit already drawn for the month.
+
 #### Credit Events
 
 | Event | Trigger |
@@ -288,39 +318,33 @@ When a grace period is used, the effective date for zeroing credits is always th
 
 #### Cost Policies and Compensation
 
-`waldur_mastermind.policy`'s `ProjectEstimatedCostPolicy` and `CustomerEstimatedCostPolicy` (`src/waldur_mastermind/policy/models.py`) net cost against credit in two independent steps inside `evaluate()` (`EstimatedCostPolicyMixin._credit_gates`), not one combined comparison. `is_triggered()` is `evaluate().triggered`; see [Decision record](#decision-record) for what else an evaluation reports.
+`waldur_mastermind.policy`'s `ProjectEstimatedCostPolicy` and `CustomerEstimatedCostPolicy` (`src/waldur_mastermind/policy/models.py`) fire when their cost after credit is over `limit_cost`, inside `evaluate()` (`EstimatedCostPolicyMixin._credit_gates`). `is_triggered()` is `evaluate().triggered`; see [Decision record](#decision-record) for what else an evaluation reports.
 
 ```mermaid
 graph TD
-    A[New invoice item / credit change] --> B{Gate 1:<br>cost this window<br>net of compensation<br>> limit_cost?}
+    A[New invoice item / credit change] --> B{cost this window<br>net of compensation<br>> limit_cost?}
     B -->|No| Z[Policy stays clear]
-    B -->|Yes| C{use_credit configured?}
-    C -->|No| F[Policy fires]
-    C -->|Yes| D{Gate 2:<br>live credit balance<br><= limit_cost?}
-    D -->|No, balance healthy| Z
-    D -->|Yes, balance depleted| F
+    B -->|Yes| F[Policy fires]
 ```
 
-**Gate 1** sums every `InvoiceItem` for the project/customer across the policy's rolling window (1/3/12 months, or all months for Total) via `EstimatedCostPolicyMixin._evaluated_cost` -- cost items and compensation items together, unfiltered by type, since a compensation item is just a negative-priced row on the same invoice. For a month whose invoice has already been finalized -- including one `rebill_historical_usage` has just corrected -- this sum is entirely real, persisted data. There's no simulation involved in reading it. It opens when that net cost is strictly greater than `limit_cost`.
+The cost sums every `InvoiceItem` for the project/customer across the policy's rolling window (1/3/12 months, or all months for Total) via `EstimatedCostPolicyMixin._evaluated_cost` -- cost items and compensation items together, unfiltered by type, since a compensation item is just a negative-priced row on the same invoice. A payment of an earlier invoice (see [Paying earlier invoices](#paying-earlier-invoices)) is counted in the month it pays, not in the month of the invoice it is written on, so it lowers a Total policy's cost and leaves a Month policy's alone. For a month whose invoice has already been finalized -- including one `rebill_historical_usage` has just corrected -- this sum is entirely real, persisted data. There's no simulation involved in reading it. The policy fires when that net cost is strictly greater than `limit_cost`.
 
-On top of that sum, the evaluation additionally subtracts the credit the customer's *current, still-mutable* invoice will still draw (`_pending_compensation`). That comes from a `MonthlyCompensation(customer, restore_written=True)` simulation, re-run in memory on every evaluation and never saved (it refuses to `save()`). It has no bearing on any past month already reflected in the sum above.
+On top of that sum, the evaluation additionally subtracts the credit the customer's *current, still-mutable* invoice will still draw (`_pending_compensation`). That comes from a `MonthlyCompensation(customer, restore_written=True)` simulation, re-run in memory on every evaluation and never saved (it refuses to `save()`). It has no bearing on any past month already reflected in the sum above. The simulation works in credit units, before tax, while a compensation item carries its invoice's tax like the cost it offsets, so the pending draw is taxed at the current invoice's rate before it comes off; otherwise a project its credit fully covers would show the tax as cost all month.
 
-**Gate 2** compares the **live** credit balance, not the stored `CustomerCredit.value` / `ProjectCredit.value`. The stored value only falls when the month's compensations are written at the month-end run, so mid-month it still contains everything this month's usage has already consumed; comparing it held every credit-funded policy back until the 1st. The live balance comes from the same simulation (`_live_credit_balance()`):
+How much credit is left is **not** compared with `limit_cost`. Until #784 a second gate held a credit-aware policy back while the live balance stayed above the limit. With period Total, once earlier uncovered cost was above the limit, that gate alone decided, so `limit_cost` worked as a minimum remaining credit and a policy with a larger limit fired before one with a smaller limit.
+
+The **live** credit balance is still computed, from the same simulation (`_live_credit_balance()`), for the resource-creation check and the ETA projection:
 
 ```text
 live balance = stored value + restored − usage draw
 ```
 
-- `restored` is what this month's applies already took (staff can apply compensations mid-month), read from the credit ledger: this billing period's `compensation`, `minimal_draw` and `rollback` rows, per organization credit and project allocation. `restore_written=True` adds it back to the simulation's in-memory credits first, so the month is simulated from its opening balance; re-simulating from a stored value an apply had already lowered would cap the draw there. The ledger is used, not the invoice items, because the minimal-consumption floor writes no item and is only partly taken when the credit left is smaller than it.
+- `restored` is what this month's applies already took (staff can apply compensations mid-month), read from the credit ledger: this billing period's `compensation`, `minimal_draw` and `rollback` rows, per organization credit and project allocation. `restore_written=True` adds it back to the simulation's in-memory credits first, so the month is simulated from its opening balance; re-simulating from a stored value an apply had already lowered would cap the draw there. The ledger is used, not the invoice items, because the minimal-consumption floor writes no item and is only partly taken when the credit left is smaller than it. A `historical_compensation` row is not added back: a payment of an earlier invoice is not one of the month's draws, and the stored value it lowered stands.
 - `usage draw` is what the simulation records usage taking off the balance this month (`customer_usage_draw`, `get_project_usage_draw(project)`). Usage only: the minimal-consumption floor is forfeited at month end whatever the usage, so counting it would make a credit with an expected consumption read as spent on day 1.
 
-A project with a `ProjectCredit` is judged on the lower of its live allocation and the organization's live balance, since the allocation can only be drawn while the organization credit funding it lasts (`ProjectCredit.spendable_value`); without one, on the organization's live balance. Gate 2 is only consulted once gate 1 is already open (`use_credit=False` policies skip it and compare gross cost instead). `get_eta_days()` projects from the same live balance, so the ETA agrees with `is_triggered()`.
+A project with a `ProjectCredit` reads the lower of its live allocation and the organization's live balance, since the allocation can only be drawn while the organization credit funding it lasts (`ProjectCredit.spendable_value`); without one, the organization's live balance. `use_credit=False` policies compare gross cost instead.
 
-The two gates read genuinely different facts -- gate 1 is a net invoiced position over a window, gate 2 is the remaining reserve -- so they can disagree for ordinary reasons. This window's net cost can be high because credit only partially covered it, correctly, if the pool was scarce at finalization time; or because a later correction's compensation update didn't fully rebalance against a sibling sharing the same credit, since `rebill_historical_usage`'s own correction is a simplified 1:1 update to the one resource being fixed, not a full cheapest-first re-run across every resource sharing that credit (see its `sibling_compensations` warning). Either way, the real balance behind it can still have plenty of untouched headroom for other resources or future spend. The policy fires only when both independently say the account is over budget.
-
-With period Total and earlier uncovered cost already above `limit_cost`, gate 1 stays open permanently and gate 2 alone decides: `limit_cost` then works as a minimum remaining credit.
-
-Verified example, from `scripts/simulate_rebill_historical_usage.py`'s scenario B: a resource billed 500 node-hours (1,425), fully compensated at finalization time from a 3,000 project credit (1,575 left over). A correction raises the reported usage to 3,000 node-hours (8,550) -- the credit correction aborts (7,125 needed, only 1,575 available), so the compensation item stays at its old value. Gate 1 for that project: 8,550 − 1,425 = 7,125, against a `limit_cost` of 3,000 -- opens. Gate 2: the live project credit balance -- with no usage in the current month, the stored 1,575 -- is also below 3,000 -- opens too.
+Verified example, from `scripts/simulate_rebill_historical_usage.py`'s scenario B: a resource billed 500 node-hours (1,425), fully compensated at finalization time from a 3,000 project credit (1,575 left over). A correction raises the reported usage to 3,000 node-hours (8,550) -- the credit correction aborts (7,125 needed, only 1,575 available), so the compensation item stays at its old value. The cost for that project: 8,550 − 1,425 = 7,125, against a `limit_cost` of 3,000 -- the policy fires.
 
 ##### Decision record
 
@@ -333,34 +357,32 @@ Verified example, from `scripts/simulate_rebill_historical_usage.py`'s scenario 
 | `evaluated_cost` | The cost compared against `limit_cost`, net of `credit_deduction` |
 | `credit_deduction` | The credit the current month will still draw that is not yet written as compensation items (`_pending_compensation`); compensation already written is part of the window's invoice total |
 | `limit_cost`, `period`, `use_credit` | The policy settings it was judged on |
-| `credit_value_compared` | The live balance gate 2 compared (after the new resource's draw, in a creation check), or empty when gate 2 did not run |
+| `credit_value_compared` | Always empty since #784, which removed the credit-balance comparison; kept so the API field keeps its shape. Events leave it out, as they do every empty value |
 
 | Gate | Fires | When |
 |------|-------|------|
-| `cost_below_limit` | No | Gate 1: the cost net of credit is at or below `limit_cost` |
-| `held_by_project_credit` | No | Cost over the limit, but the project allocation's live balance -- the lower of the two -- is above it |
-| `held_by_customer_credit` | No | Cost over the limit, but the organization credit's live balance -- the lower of the two, or the only credit -- is above it |
-| `credit_exhausted` | Yes | A credit applies and the live balance compared is at or below `limit_cost`. A project allocation whose organization credit does not exist compares 0: it cannot be drawn |
+| `cost_below_limit` | No | The cost net of credit is at or below `limit_cost` |
+| `cost_over_limit` | Yes | A credit applies and the cost net of credit is over `limit_cost` |
 | `no_credit` | Yes | Cost over the limit and no credit applies: no credit exists, or an offering policy, which spans many customers |
 | `credit_ignored` | Yes | Cost over the limit on a project policy with `use_credit=False` |
 
-For a project with a `ProjectCredit`, the gate names whichever live balance is lower and therefore binding; the organization credit is named on a tie and when it does not exist (`_live_credit_balance_with_source`).
+`held_by_project_credit`, `held_by_customer_credit` and `credit_exhausted` came from the removed credit-balance gate. They are no longer produced, but stay in `PolicyGateEnum` for the clients that still handle them, and in the context of older events.
 
 The decision of the policy's own evaluation is kept on the instance as `policy.decision`. The immediate actions and resets that an evaluation runs -- from `utils._evaluate_policies` and from the policy serializer's `save()` -- run on that instance, and `_get_cost_policy_context` (`policy_actions.py`) adds the decision's fields to the action's event context: `triggered`, `gate`, `evaluated_cost`, `credit_deduction`, `limit_cost`, `period`, `use_credit`, `credit_value_compared`. A `request_*` event therefore shows the figures that fired it, and a `reset_*` event the figures that reset it, rather than balances re-read afterwards. The older `credit_balance` / `project_credit_balance` keys -- stored balances read at the time of the event -- stay for compatibility. The "A policy %s has fired / has not fired" log lines carry the same fields. Actions run without a preceding evaluation of the instance -- threshold actions from the invoice-item handler, resets when a policy is deleted -- carry only the older keys.
 
-The resource-creation check (`_check_project_policies` / `_check_customer_policies` in `policy/handlers.py`) calls `would_trigger(cost, offering)`, which is `evaluate(cost, offering).triggered` (that hypothetical decision is not kept as `policy.decision`): the same gates with the new resource's cost added, its credit draw taken off the live balance and, for an organization policy, off gate 1 only beyond what the minimal-consumption tail already absorbs (`_deduction_increase`). When the credit absorbs the whole added cost, gate 1 closes again and the decision reads `cost_below_limit`, with the balance left after the draw in `credit_value_compared`. Offering policies are not evaluated this way -- their cost spans many customers and applies only to some -- so `evaluate()` with an added cost raises for them, and `_check_offering_policies` keeps its own check.
+The resource-creation check (`_check_project_policies` / `_check_customer_policies` in `policy/handlers.py`) calls `would_trigger(cost, offering)`, which is `evaluate(cost, offering).triggered` (that hypothetical decision is not kept as `policy.decision`): the same comparison with the new resource's cost added, less what the live credit balance can still pay for it (`_added_cost_draw`). When the credit absorbs the whole added cost, the decision reads `cost_below_limit`. Offering policies are not evaluated this way -- their cost spans many customers and applies only to some -- so `evaluate()` with an added cost raises for them, and `_check_offering_policies` keeps its own check.
 
 The kept decision is a snapshot: it stays on the instance until the next own evaluation replaces it, so code that runs an action later on the same instance should evaluate first.
 
 ##### Trigger status in the API
 
-The cost-policy endpoints (`marketplace-project-estimated-cost-policies`, `-customer-`, `-offering-`) serve the current decision as `trigger_status`, so a client can say why a policy over its limit is not firing without re-deriving the gates:
+The cost-policy endpoints (`marketplace-project-estimated-cost-policies`, `-customer-`, `-offering-`) serve the current decision as `trigger_status`, so a client can say whether and why a policy fires without re-deriving the check:
 
 ```json
 "trigger_status": {
-  "gate": "held_by_project_credit",
-  "triggered": false,
-  "credit_value_compared": "2850.00"
+  "gate": "cost_over_limit",
+  "triggered": true,
+  "credit_value_compared": null
 }
 ```
 
@@ -368,7 +390,23 @@ The cost-policy endpoints (`marketplace-project-estimated-cost-policies`, `-cust
 
 The API sends no sentence: `gate` is the `PolicyGateEnum` in the schema, and clients word the explanation themselves, in the user's language, from `gate`, `current_cost`, `limit_cost` and `credit_value_compared`.
 
-Project policies are listed by project roles too, so the organization's figures follow the rule `ProjectCreditSerializer` applies: staff, support, organization owners and roles with `CUSTOMER.VIEW_ACCOUNTING` see them; for anyone else `customer_credit` is left out, and `credit_value_compared` is null when the balance compared is the organization's (`PolicyDecision.credit_source`). The gate itself stays visible. Project credit stays visible to project roles, as on `ProjectCredit`.
+Project policies are listed by project roles too, so the organization's figures follow the rule `ProjectCreditSerializer` applies: staff, support, organization owners and roles with `CUSTOMER.VIEW_ACCOUNTING` see them; for anyone else `customer_credit` is left out. The gate itself stays visible. Project credit stays visible to project roles, as on `ProjectCredit`.
+
+##### Cost breakdown in the API
+
+The same endpoints serve `cost_breakdown`, the parts `current_cost` is made of, from `get_cost_breakdown()`:
+
+```text
+current_cost = cost_before_credit − credit_drawn − credit_pending
+```
+
+| Field | Meaning |
+|-------|---------|
+| `cost_before_credit` | The invoiced cost within the policy's period before any credit, tax included |
+| `credit_drawn` | Credit compensation already written on the period's invoices |
+| `credit_pending` | Credit the current month will still draw that is not written yet (`_pending_compensation`); 0 for a policy that does not take credit into account, which still counts the compensation already written: that shows in `credit_drawn` |
+
+The period's items are split by `credit__isnull`, the discriminator `_pending_compensation` uses, so the parts add up to `current_cost` exactly. It shares the response's `MonthlyCompensation` with `current_cost`, and a `?field=` selection without `cost_breakdown` skips it.
 
 ##### What started an evaluation, and who
 
@@ -476,5 +514,6 @@ For TOTAL period components, the system:
 | `src/waldur_mastermind/invoices/tasks.py` | `create_monthly_invoices` | Monthly invoice creation task |
 | `src/waldur_mastermind/invoices/tasks.py` | `finalize_previous_invoices` | Deferred invoice finalization (grace period) |
 | `src/waldur_mastermind/invoices/compensations.py` | `MonthlyCompensation` | Credit-based compensation logic |
+| `src/waldur_mastermind/invoices/settlement.py` | `pay_earlier_invoices`, `earlier_months` | A project credit paying earlier, uncovered invoices |
 | `src/waldur_mastermind/marketplace/enums.py` | `BillingTypes`, `LimitPeriods` | Billing type and period enums |
 | `src/waldur_mastermind/policy/models.py` | `ProjectEstimatedCostPolicy`, `CustomerEstimatedCostPolicy` | Cost Policy gate logic, consumes `MonthlyCompensation` as a projection |

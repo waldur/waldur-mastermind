@@ -1273,6 +1273,29 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
 
         raise exceptions.PermissionDenied()
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        # Owners edit the rest of their allocations, but paying earlier
+        # invoices from one changes what the organization was billed, so only
+        # staff may set it. Compared with the stored value rather than refused
+        # outright, so that a form sending every field back unchanged passes.
+        if self.context["request"].user.is_staff:
+            return attrs
+        changed = {
+            field: _("Only staff can change this setting.")
+            for field in models.ProjectCredit.EARLIER_INVOICES_FIELDS
+            if field in attrs
+            and attrs[field]
+            != (
+                getattr(self.instance, field)
+                if self.instance
+                else models.ProjectCredit._meta.get_field(field).get_default()
+            )
+        }
+        if changed:
+            raise serializers.ValidationError(changed)
+        return attrs
+
     class Meta:
         model = models.ProjectCredit
         fields = (
@@ -1300,6 +1323,10 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "grace_coefficient",
             "apply_as_minimal_consumption",
             "mark_unused_credit_as_spent_on_project_termination",
+            "pay_earlier_invoices",
+            "earlier_invoices_from",
+            "earlier_invoices_until",
+            "earlier_invoices_compensate_in",
         )
 
         extra_kwargs = {
@@ -1312,6 +1339,113 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
             },
         }
+
+
+class ProjectCreditEarlierInvoicesQuerySerializer(serializers.Serializer):
+    earlier_invoices_from = serializers.DateField(
+        required=False,
+        help_text="First month the credit pays, as its first day, to preview other bounds. Defaults to the credit's own.",
+    )
+    earlier_invoices_until = serializers.DateField(
+        required=False,
+        help_text="Last month the credit pays, as its first day, to preview other bounds. Defaults to the credit's own.",
+    )
+
+
+class EarlierInvoiceMonthSerializer(serializers.Serializer):
+    period = serializers.DateField(
+        format="%Y-%m-%d", help_text="The month, as its first day."
+    )
+    cost = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="Cost the credit could pay: the project's items on offerings the credit covers, net of volume discounts, before tax.",
+    )
+    covered = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="What paid for it: the credit compensation on the month's invoice, later payments of the month, and staff refunds of its items.",
+    )
+    uncovered = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="Cost that nothing paid for yet.",
+    )
+    in_period = serializers.BooleanField(
+        help_text="Whether the month is within the months the credit pays.",
+    )
+
+
+class ProjectCreditEarlierInvoicesSerializer(serializers.Serializer):
+    months = EarlierInvoiceMonthSerializer(many=True)
+    uncovered = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="Uncovered cost of every month listed: what a period-Total cost policy counts of them.",
+    )
+    uncovered_in_period = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="Uncovered cost of the months the credit pays.",
+    )
+    payable_now = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        help_text="What the allocation would pay now: the uncovered cost of the months it pays, capped by what is left of the allocation and of the organization credit after this month's usage so far.",
+    )
+
+
+class PayEarlierInvoicesRequestSerializer(serializers.Serializer):
+    dry_run = serializers.BooleanField(
+        default=False,
+        help_text="Return what would be written without writing anything.",
+    )
+    compensate_in = serializers.ChoiceField(
+        choices=models.ProjectCredit.CompensateIn.CHOICES,
+        required=False,
+        help_text="Which invoice the compensations go on. Defaults to the credit's earlier_invoices_compensate_in; a payment that is not a dry run also stores it there.",
+    )
+    earlier_invoices_from = serializers.DateField(
+        required=False,
+        allow_null=True,
+        help_text="First month to pay, as its first day. Defaults to the credit's own; a payment that is not a dry run also stores it.",
+    )
+    earlier_invoices_until = serializers.DateField(
+        required=False,
+        allow_null=True,
+        help_text="Last month to pay, as its first day. Defaults to the credit's own; a payment that is not a dry run also stores it.",
+    )
+
+
+class EarlierInvoicePaymentSerializer(serializers.Serializer):
+    period = serializers.DateField(
+        format="%Y-%m-%d", help_text="The month the compensation pays."
+    )
+    invoice_period = serializers.DateField(
+        format="%Y-%m-%d",
+        help_text="The month of the invoice the compensation is written on.",
+    )
+    invoice_uuid = serializers.UUIDField(
+        allow_null=True,
+        help_text="That invoice; null in a dry run while the current month has no invoice yet.",
+    )
+    resource_name = serializers.CharField(allow_null=True)
+    resource_uuid = serializers.UUIDField(allow_null=True)
+    item_name = serializers.CharField(help_text="The cost item the compensation pays.")
+    amount = serializers.DecimalField(max_digits=16, decimal_places=2)
+
+
+class PayEarlierInvoicesSerializer(serializers.Serializer):
+    dry_run = serializers.BooleanField()
+    compensate_in = serializers.ChoiceField(
+        choices=models.ProjectCredit.CompensateIn.CHOICES
+    )
+    payments = EarlierInvoicePaymentSerializer(many=True)
+    total = serializers.DecimalField(max_digits=16, decimal_places=2)
+    project_credit_before = serializers.DecimalField(max_digits=16, decimal_places=2)
+    project_credit_after = serializers.DecimalField(max_digits=16, decimal_places=2)
+    customer_credit_before = serializers.DecimalField(max_digits=16, decimal_places=2)
+    customer_credit_after = serializers.DecimalField(max_digits=16, decimal_places=2)
 
 
 class CustomerAffiliateSerializer(serializers.HyperlinkedModelSerializer):
