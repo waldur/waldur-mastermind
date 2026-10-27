@@ -389,6 +389,9 @@ class Call(
     def customer(self):
         return self.manager.customer
 
+    def has_proposals(self):
+        return Proposal.objects.filter(round__call=self).exists()
+
     def has_held_decisions(self):
         return Proposal.objects.filter(round__call=self, decision_held=True).exists()
 
@@ -429,7 +432,7 @@ class Call(
             )
 
     def clean(self):
-        """Prevent changing checklist or slug template if proposals exist."""
+        """Validate rules that span several fields or depend on related records."""
         if (
             self.panel_chair_id
             and not get_users(self, RoleEnum.CALL_PANEL_MEMBER)
@@ -460,15 +463,23 @@ class Call(
             == ResourceTemplateSelectionModes.SINGLE
         ):
             self.check_can_allow_one_request_only()
-        if self.pk and self.proposal_set.exists():
-            if self.tracker.has_changed("compliance_checklist"):
-                raise ValidationError(
-                    "Cannot change compliance checklist when proposals exist"
-                )
-            if self.tracker.has_changed("proposal_slug_template"):
-                raise ValidationError(
-                    "Cannot change proposal slug template when proposals exist"
-                )
+        # The tracker covers every field, so it knows a foreign key by its attname.
+        if (
+            self.pk
+            and self.tracker.has_changed("compliance_checklist_id")
+            and self.has_proposals()
+        ):
+            raise ValidationError(
+                "Cannot change compliance checklist when proposals exist"
+            )
+        if (
+            self.pk
+            and self.tracker.has_changed("proposal_slug_template")
+            and self.has_proposals()
+        ):
+            raise ValidationError(
+                "Cannot change proposal slug template when proposals exist"
+            )
 
 
 class CallApplicantVisibilityConfig(UserAttributeConfigBase):
