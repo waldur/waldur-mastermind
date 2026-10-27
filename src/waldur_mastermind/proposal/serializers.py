@@ -1116,6 +1116,10 @@ class CallResourceTemplateSerializer(
                 offering = requested_offering.offering
                 utils.normalize_option_values(attributes, offering)
                 _validate_prepaid_duration(attributes, offering, None)
+                # A request made from the template cannot add what it leaves
+                # out, so a required option missing here would block every
+                # proposal using it.
+                _validate_required_options(attributes, offering)
         return attrs
 
     def create(self, validated_data):
@@ -1442,6 +1446,18 @@ class RequestedOfferingSerializer(
 
 
 PREPAID_DURATION_FIELD = "attributes.prepaid_duration_months"
+
+
+def _validate_required_options(attributes, offering):
+    """Refuse values that leave a required option of ``offering`` empty."""
+    missing = models.missing_required_options(offering, attributes)
+    if missing:
+        raise serializers.ValidationError(
+            {
+                "attributes": models.REQUIRED_OPTIONS_MISSING_FIELD_MESSAGE
+                % {"options": ", ".join(missing)}
+            }
+        )
 
 
 def _validate_prepaid_duration(attributes, offering, proposal_round):
@@ -1912,6 +1928,9 @@ class AwardedResourceSerializer(serializers.ModelSerializer):
             if "attributes" in attrs:
                 attrs["attributes"] = attributes
             _validate_prepaid_duration(attributes, offering, proposal.round)
+        # On every save, as for amounts above: the decision refuses an award
+        # leaving a required option empty, so the editor says so first.
+        _validate_required_options(attributes, offering)
 
         return attrs
 
