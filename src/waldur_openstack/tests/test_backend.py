@@ -2888,3 +2888,107 @@ class IsInstanceDeletedTest(BaseBackendTest):
         self.mocked_nova.servers.get.side_effect = nova_exceptions.NotFound(code=404)
 
         self.assertTrue(self.backend.is_instance_deleted(self.instance))
+
+
+@ddt
+class IsSnapshotDeletedTest(BaseBackendTest):
+    def setUp(self):
+        super().setUp()
+        self.snapshot = self.fixture.snapshot
+        self.snapshot.backend_id = "snapshot-id"
+        self.snapshot.save()
+
+    def _backend_snapshot(self, status):
+        return mock.Mock(id=self.snapshot.backend_id, status=status)
+
+    def test_not_found_means_deleted(self):
+        self.mocked_cinder.volume_snapshots.get.side_effect = (
+            cinder_exceptions.NotFound(code=404)
+        )
+
+        self.assertTrue(self.backend.is_snapshot_deleted(self.snapshot))
+
+    def test_deleting_snapshot_is_polled_further(self):
+        self.mocked_cinder.volume_snapshots.get.return_value = self._backend_snapshot(
+            "deleting"
+        )
+
+        self.assertFalse(self.backend.is_snapshot_deleted(self.snapshot))
+
+    @data("available", "error_deleting")
+    def test_refused_deletion_fails_at_once(self, status):
+        self.mocked_cinder.volume_snapshots.get.return_value = self._backend_snapshot(
+            status
+        )
+
+        with self.assertRaises(OpenStackBackendError):
+            self.backend.is_snapshot_deleted(self.snapshot)
+
+        self.snapshot.refresh_from_db()
+        self.assertEqual(self.snapshot.runtime_state, status)
+
+    def test_snapshot_returned_to_available_is_reported_as_having_dependent_volumes(
+        self,
+    ):
+        self.mocked_cinder.volume_snapshots.get.return_value = self._backend_snapshot(
+            "available"
+        )
+
+        with self.assertRaisesRegex(OpenStackBackendError, "dependent volumes"):
+            self.backend.is_snapshot_deleted(self.snapshot)
+
+    def test_error_deleting_is_reported_as_storage_backend_error(self):
+        self.mocked_cinder.volume_snapshots.get.return_value = self._backend_snapshot(
+            "error_deleting"
+        )
+
+        with self.assertRaisesRegex(OpenStackBackendError, "storage backend"):
+            self.backend.is_snapshot_deleted(self.snapshot)
+
+    def test_throttling_is_raised_as_retryable(self):
+        self.mocked_cinder.volume_snapshots.get.side_effect = (
+            cinder_exceptions.OverLimit(code=413)
+        )
+
+        with self.assertRaises(OpenStackRateLimited):
+            self.backend.is_snapshot_deleted(self.snapshot)
+
+
+class SnapshotDeletionQuotasTest(BaseBackendTest):
+    def setUp(self):
+        super().setUp()
+        self.snapshot = self.fixture.snapshot
+        self.snapshot.backend_id = "snapshot-id"
+        self.snapshot.size = 1024
+        self.snapshot.save()
+        self.snapshot.increase_backend_quotas_usage()
+
+    def assert_quota_usage(self, snapshots, snapshots_size):
+        self.assertEqual(self.tenant.get_quota_usage("snapshots"), snapshots)
+        self.assertEqual(self.tenant.get_quota_usage("snapshots_size"), snapshots_size)
+
+    def test_delete_request_keeps_quotas_consumed(self):
+        self.backend.delete_snapshot(self.snapshot)
+
+        self.assert_quota_usage(1, 1024)
+
+    def test_confirmed_deletion_releases_quotas(self):
+        self.mocked_cinder.volume_snapshots.get.side_effect = (
+            cinder_exceptions.NotFound(code=404)
+        )
+
+        self.backend.delete_snapshot(self.snapshot)
+        self.assertTrue(self.backend.is_snapshot_deleted(self.snapshot))
+
+        self.assert_quota_usage(0, 0)
+
+    def test_refused_deletion_keeps_quotas_consumed(self):
+        self.mocked_cinder.volume_snapshots.get.return_value = mock.Mock(
+            status="available"
+        )
+
+        self.backend.delete_snapshot(self.snapshot)
+        with self.assertRaises(OpenStackBackendError):
+            self.backend.is_snapshot_deleted(self.snapshot)
+
+        self.assert_quota_usage(1, 1024)

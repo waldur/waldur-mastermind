@@ -16,7 +16,11 @@ from waldur_mastermind.marketplace_openstack.utils import (
     create_offerings_for_volume_and_instance,
 )
 from waldur_openstack.backend import OpenStackBackend
-from waldur_openstack.exceptions import OpenStackTenantNotFound
+from waldur_openstack.exceptions import (
+    OpenStackBackendError,
+    OpenStackRateLimited,
+    OpenStackTenantNotFound,
+)
 
 from . import models, signals
 
@@ -238,6 +242,48 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
             else:
                 snapshot.set_erred()
                 snapshot.save(update_fields=["state"])
+
+
+class PollBackupSnapshotsDeletedTask(core_tasks.PollBackendCheckTask):
+    """Poll every snapshot of a backup being deleted until each is settled.
+
+    A refused snapshot does not stop polling of the others, so the snapshots
+    that OpenStack did delete still release their quotas and leave the DB.
+    """
+
+    @classmethod
+    def get_description(cls, backup, *args, **kwargs):
+        return f'Check snapshots of backup "{backup}" are deleted'
+
+    def execute(self, backup):
+        pending = False
+        for snapshot in backup.snapshots.filter(state=CoreStates.DELETING):
+            try:
+                is_deleted = snapshot.get_backend().is_snapshot_deleted(snapshot)
+            except OpenStackRateLimited as e:
+                countdown = min(
+                    max(e.retry_after, self.default_retry_delay),
+                    self.max_rate_limit_delay,
+                )
+                raise self.retry(exc=e, countdown=countdown)
+            except OpenStackBackendError as e:
+                snapshot.set_erred()
+                snapshot.error_message = str(e)
+                snapshot.save(update_fields=["state", "error_message"])
+                continue
+            if is_deleted:
+                snapshot.delete()
+            else:
+                pending = True
+        if pending:
+            self.retry()
+        errors = [
+            snapshot.error_message
+            for snapshot in backup.snapshots.filter(state=CoreStates.ERRED)
+        ]
+        if errors:
+            raise OpenStackBackendError(" ".join(errors))
+        return backup
 
 
 class DeleteIncompleteInstanceTask(core_tasks.Task):
