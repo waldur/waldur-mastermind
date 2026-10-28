@@ -5230,7 +5230,6 @@ class OpenStackBackend(ServiceBackend):
             )
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
-        snapshot.decrease_backend_quotas_usage()
 
     @log_backend_action()
     def update_snapshot(self, snapshot: models.Snapshot):
@@ -5250,12 +5249,36 @@ class OpenStackBackend(ServiceBackend):
         session = get_tenant_session(snapshot.tenant)
         cinder = get_cinder_client(session)
         try:
-            cinder.volume_snapshots.get(snapshot.backend_id)
-            return False
+            backend_snapshot = cinder.volume_snapshots.get(snapshot.backend_id)
         except cinder_exceptions.NotFound:
+            # Quotas are released only once the deletion is confirmed, so a
+            # refused deletion keeps them consumed.
+            snapshot.decrease_backend_quotas_usage()
             return True
+        except cinder_exceptions.OverLimit as e:
+            raise OpenStackRateLimited(e, retry_after=e.retry_after)
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
+        if backend_snapshot.status == "deleting":
+            return False
+        # Cinder marks the snapshot as deleting before accepting the request,
+        # so any other status means the deletion has failed.
+        snapshot.runtime_state = backend_snapshot.status
+        snapshot.save(update_fields=["runtime_state"])
+        if backend_snapshot.status == "error_deleting":
+            raise OpenStackBackendError(
+                f"OpenStack failed to delete snapshot {snapshot.backend_id}: "
+                "the storage backend reported an error. Contact the service "
+                "provider."
+            )
+        # Copy-on-write backends keep volumes created from a snapshot
+        # dependent on it and return the snapshot to its previous status.
+        raise OpenStackBackendError(
+            f"OpenStack refused to delete snapshot {snapshot.backend_id}: its "
+            f"status returned to '{backend_snapshot.status}'. The snapshot may "
+            "have dependent volumes, such as volumes restored from it; delete "
+            "them first."
+        )
 
     def is_volume_availability_zone_supported(self):
         cinder = get_cinder_client(self.admin_session)

@@ -2103,13 +2103,7 @@ class BackupDeleteExecutor(core_executors.DeleteExecutor):
                     state_transition="begin_deleting",
                 )
             )
-        for serialized_snapshot in serialized_snapshots:
-            _tasks.append(
-                core_tasks.PollBackendCheckTask().si(
-                    serialized_snapshot, "is_snapshot_deleted"
-                )
-            )
-            _tasks.append(core_tasks.DeletionTask().si(serialized_snapshot))
+        _tasks.append(tasks.PollBackupSnapshotsDeletedTask().si(serialized_backup))
 
         return chain(*_tasks)
 
