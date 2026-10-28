@@ -222,7 +222,9 @@ def preserve_fields_before_update(sender, instance: User, **kwargs):
 
 def delete_error_message(sender, instance, name, source, target, **kwargs):
     """Delete error message if instance state changed from erred"""
-    if source != CoreStates.ERRED:
+    # ERRED -> ERRED is not a change: the instance is still erred, and the
+    # caller may just have set a new error message.
+    if source != CoreStates.ERRED or target == CoreStates.ERRED:
         return
     instance.error_message = ""
     instance.save(update_fields=["error_message"])
