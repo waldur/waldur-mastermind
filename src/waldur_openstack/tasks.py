@@ -381,12 +381,19 @@ class ThrottleProvisionStateTask(
 
 class ManagedTenantListPullTask(structure_tasks.BackgroundListPullTask):
     """Pulls only the tenants Waldur manages: an unmanaged one has no
-    credentials, and its shared networks are pulled through their shares."""
+    credentials, and its shared networks are pulled through their shares.
+    A tenant without a backend ID (NULL) was never provisioned, so there is
+    no project to open a session for."""
 
     model = models.Tenant
 
     def get_pulled_objects(self):
-        return super().get_pulled_objects().filter(is_managed=True)
+        return (
+            super()
+            .get_pulled_objects()
+            .filter(is_managed=True)
+            .exclude(backend_id__isnull=True)
+        )
 
 
 class TenantResourcesPullTask(structure_tasks.BackgroundPullTask):

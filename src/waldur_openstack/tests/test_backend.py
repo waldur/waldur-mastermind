@@ -504,6 +504,22 @@ class PullTenantVolumesTest(BaseBackendTest):
         )
         return vm, volume
 
+    def test_volume_without_backend_id_is_not_marked_missing(self):
+        volume = factories.VolumeFactory(
+            backend_id=None,
+            state=CoreStates.ERRED,
+            error_message="Quota exceeded.",
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.mocked_cinder.volumes.list.return_value = []
+
+        self.backend.pull_tenant_volumes(self.tenant)
+
+        volume.refresh_from_db()
+        self.assertEqual(volume.error_message, "Quota exceeded.")
+        self.assertIsNone(volume.backend_missing_since)
+
     def test_volume_of_provisioning_instance_keeps_its_attachment_fields(self):
         # The periodic tenant pull runs while an instance is still being
         # created: it must not detach the volumes of that instance.
@@ -2222,6 +2238,18 @@ class EnhancedImageDetectionTest(BaseBackendTest):
 
         # The tenant is unreachable, so the remaining instances are not tried.
         self.assertEqual(self.mocked_nova.servers.get.call_count, 1)
+
+    def test_pull_tenant_instances_skips_instance_without_backend_id(self):
+        # Its creation failed before Nova returned a server ID.
+        instance = self.make_instance(
+            None, state=CoreStates.ERRED, error_message="Quota exceeded."
+        )
+
+        self.backend.pull_tenant_instances(self.tenant)
+
+        self.mocked_nova.servers.get.assert_not_called()
+        instance.refresh_from_db()
+        self.assertEqual(instance.error_message, "Quota exceeded.")
 
 
 class GetConsoleUrlDomainOverrideTest(BaseBackendTest):

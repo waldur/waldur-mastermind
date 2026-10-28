@@ -15,7 +15,7 @@ from rest_framework import status, test
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace_openstack.tests.mocks import MockTenant
-from waldur_openstack import models
+from waldur_openstack import models, tasks
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.tests.fixtures import mock_session
@@ -60,6 +60,41 @@ class BaseBackendTestCase(test.APITestCase):
     def tearDown(self):
         super().tearDown()
         mock.patch.stopall()
+
+
+class NeverProvisionedTenantTest(BaseBackendTestCase):
+    def setUp(self):
+        super().setUp()
+        # Its creation failed before Keystone returned a project ID.
+        self.failed_tenant = factories.TenantFactory(
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            backend_id=None,
+            state=CoreStates.ERRED,
+            error_message="Quota exceeded.",
+        )
+
+    @mock.patch("waldur_openstack.signals.tenant_does_not_exist_in_backend.send")
+    def test_tenant_sync_does_not_treat_it_as_missing(self, send):
+        self.mocked_keystone.projects.list.return_value = []
+
+        self.backend.pull_tenants()
+
+        self.failed_tenant.refresh_from_db()
+        self.assertEqual(self.failed_tenant.error_message, "Quota exceeded.")
+        # Reporting it missing would terminate its marketplace resource.
+        reported = [call.kwargs["instance"] for call in send.call_args_list]
+        self.assertNotIn(self.failed_tenant, reported)
+
+    def test_periodic_tenant_pulls_skip_it(self):
+        for task in (
+            tasks.TenantResourcesListPullTask,
+            tasks.TenantSubresourcesListPullTask,
+            tasks.TenantPropertiesListPullTask,
+        ):
+            pulled = task().get_pulled_objects()
+            self.assertIn(self.tenant, pulled)
+            self.assertNotIn(self.failed_tenant, pulled)
 
 
 class TenantAuditLogNetworkEventsTest(BaseBackendTestCase):

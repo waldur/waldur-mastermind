@@ -154,6 +154,23 @@ def get_volume_pull_fields(volume: models.Volume, fields):
     return tuple(field for field in fields if field not in VOLUME_ATTACHMENT_FIELDS)
 
 
+def get_pullable_tenant_resources(model, tenant: models.Tenant):
+    """
+    Stable resources of the tenant that reached the backend. One without a
+    backend ID (NULL, as the unique constraint requires) was never provisioned,
+    for example because its creation failed, so it is not missing at backend
+    and pulling it must not overwrite the error it ended up ERRED with.
+    """
+    return (
+        model.objects.filter(
+            tenant=tenant,
+            state__in=[CoreStates.OK, CoreStates.ERRED],
+        )
+        .exclude(backend_id__isnull=True)
+        .exclude(backend_id="")
+    )
+
+
 def reraise_exceptions(func):
     @functools.wraps(func)
     def wrapped(self, *args, **kwargs):
@@ -405,9 +422,15 @@ class OpenStackBackend(ServiceBackend):
         backend_tenants_mapping = {tenant.id: tenant for tenant in backend_tenants}
         logger.info("Retrieved %d tenants from backend", len(backend_tenants_mapping))
 
-        tenants = models.Tenant.objects.filter(
-            state__in=[CoreStates.OK, CoreStates.ERRED],
-            service_settings=self.settings,
+        # A tenant without a backend ID was never provisioned: it is not missing
+        # at backend, and must not be terminated as if it were.
+        tenants = (
+            models.Tenant.objects.filter(
+                state__in=[CoreStates.OK, CoreStates.ERRED],
+                service_settings=self.settings,
+            )
+            .exclude(backend_id__isnull=True)
+            .exclude(backend_id="")
         )
         logger.info("Found %d tenants in database to sync", tenants.count())
 
@@ -4664,10 +4687,9 @@ class OpenStackBackend(ServiceBackend):
 
     def pull_tenant_volumes(self, tenant: models.Tenant):
         backend_volumes = self.get_volumes(tenant)
-        volumes = models.Volume.objects.filter(
-            tenant=tenant,
-            state__in=[CoreStates.OK, CoreStates.ERRED],
-        ).select_related("instance")
+        volumes = get_pullable_tenant_resources(models.Volume, tenant).select_related(
+            "instance"
+        )
         backend_volumes_map = {
             backend_volume.backend_id: backend_volume
             for backend_volume in backend_volumes
@@ -4687,13 +4709,7 @@ class OpenStackBackend(ServiceBackend):
 
     def pull_tenant_snapshots(self, tenant: models.Tenant):
         backend_snapshots = self.get_snapshots(tenant)
-        snapshots = models.Snapshot.objects.filter(
-            tenant=tenant,
-            state__in=[
-                CoreStates.OK,
-                CoreStates.ERRED,
-            ],
-        )
+        snapshots = get_pullable_tenant_resources(models.Snapshot, tenant)
         backend_snapshots_map = {
             backend_snapshot.backend_id: backend_snapshot
             for backend_snapshot in backend_snapshots
@@ -4712,10 +4728,7 @@ class OpenStackBackend(ServiceBackend):
                 handle_resource_update_success(snapshot)
 
     def pull_tenant_instances(self, tenant: models.Tenant):
-        instances = models.Instance.objects.filter(
-            tenant=tenant,
-            state__in=[CoreStates.OK, CoreStates.ERRED],
-        )
+        instances = get_pullable_tenant_resources(models.Instance, tenant)
         pulled = 0
         last_error = None
         for instance in instances:
