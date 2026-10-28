@@ -44,6 +44,10 @@ from waldur_core.quotas.models import SharedQuotaMixin
 from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_openstack.enums import VALID_ROUTER_INTERFACE_OWNERS
 from waldur_openstack.utils import (
     get_external_network_id,
@@ -60,6 +64,7 @@ from waldur_openstack.utils import (
 )
 
 from . import models
+from .permissions import can_manage_network_project
 
 logger = logging.getLogger(__name__)
 
@@ -2525,6 +2530,8 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
 
             attrs["tenant"] = target_tenant
             attrs["project"] = target_tenant.project
+            if target_tenant != network.tenant:
+                self._validate_owner_only_settings(attrs, network)
         elif not network.tenant.is_managed:
             raise serializers.ValidationError(
                 {
@@ -2554,6 +2561,30 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                 )
 
         return super().validate(attrs)
+
+    def _validate_owner_only_settings(self, attrs, network):
+        """Settings Neutron leaves to the network's owner on a shared network.
+
+        The tenant may attach a port and let Neutron allocate its address, but
+        choosing an address or MAC, or turning port security off, is the owner's
+        (admin-or-network-owner policy). Waldur creates the port as the cloud
+        admin, so the rule is applied here.
+        """
+        chooses = (
+            any(fixed_ip.get("ip_address") for fixed_ip in attrs.get("fixed_ips") or [])
+            or attrs.get("mac_address")
+            or attrs.get("port_security_enabled") is False
+        )
+        if chooses and not can_manage_network_project(_request_user(self), network):
+            raise serializers.ValidationError(
+                _(
+                    "Network %s belongs to another tenant: only its owner can choose "
+                    "a port's IP or MAC address there, or disable its port security. "
+                    "Leave them to OpenStack, or ask an administrator of that "
+                    "network's project."
+                )
+                % network
+            )
 
     @transaction.atomic
     def create(self, validated_data):
@@ -2721,7 +2752,7 @@ class OpenStackNetworkSerializer(
             "does not manage and only reaches tenants through an RBAC share."
         ),
     )
-    rbac_policies = NetworkRBACPolicySerializer(many=True, read_only=True)
+    rbac_policies = serializers.SerializerMethodField()
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Network
@@ -2776,6 +2807,42 @@ class OpenStackNetworkSerializer(
                 ),
             ),
         ]
+
+    @extend_schema_field(NetworkRBACPolicySerializer(many=True))
+    def get_rbac_policies(self, network: models.Network):
+        """The shares of the network that the viewer is party to.
+
+        The owner's side, staff and support see them all. A tenant the network
+        is shared with sees its own share only: a provider network shared with
+        every project would otherwise list every tenant of the cloud to each.
+        """
+        policies = network.rbac_policies.all()
+        user = _request_user(self)
+        if user is not None and not (user.is_staff or user.is_support):
+            customers, projects = self._connected_scopes(user)
+            if not (
+                network.project_id in projects
+                or network.project.customer_id in customers
+            ):
+                policies = [
+                    policy
+                    for policy in policies
+                    if policy.target_tenant.project_id in projects
+                    or policy.target_tenant.project.customer_id in customers
+                ]
+        return NetworkRBACPolicySerializer(
+            policies, many=True, context=self.context
+        ).data
+
+    def _connected_scopes(self, user):
+        """Ids of the customers and projects the user has a role on, per request."""
+        key = "_rbac_policy_viewer_scopes"
+        if key not in self.context:
+            self.context[key] = (
+                set(get_connected_customers(user)),
+                set(get_connected_projects(user)),
+            )
+        return self.context[key]
 
 
 class SetMtuSerializer(serializers.Serializer):
@@ -4986,20 +5053,6 @@ def _request_user(serializer):
     return getattr(request, "user", None) if request else None
 
 
-def _can_manage_network_project(user, network):
-    """Whether the user may act as the owner of the network's project."""
-    if user is None or not user.is_authenticated:
-        return False
-    if user.is_staff:
-        return True
-    project = network.project
-    return (
-        project.has_user(user, ProjectRole.ADMIN)
-        or project.has_user(user, ProjectRole.MANAGER)
-        or project.customer.has_user(user, CustomerRole.OWNER)
-    )
-
-
 def _validate_pinned_addresses(ports, tenant, user):
     """Choosing an address on someone else's network requires owning it.
 
@@ -5020,7 +5073,7 @@ def _validate_pinned_addresses(ports, tenant, user):
         if port.subnet.tenant_id == tenant.id:
             continue
         network = port.subnet.network
-        if _can_manage_network_project(user, network):
+        if can_manage_network_project(user, network):
             continue
         raise serializers.ValidationError(
             {
@@ -5028,6 +5081,33 @@ def _validate_pinned_addresses(ports, tenant, user):
                     "Cannot assign a specific IP address in network %s: it belongs "
                     "to another tenant. Omit ip_address to let OpenStack allocate "
                     "one, or ask an administrator of that network's project."
+                )
+                % network
+            }
+        )
+
+
+def _validate_port_security_of_shared_ports(ports, tenant, user):
+    """Turning port security off on someone else's network requires owning it.
+
+    Neutron's ``create_port:port_security_enabled`` rule is admin-or-network-owner,
+    like choosing an address (`_validate_pinned_addresses`), and for the same
+    reason: without it a tenant on a shared segment could spoof the others.
+    """
+    for port in ports:
+        if port.port_security_enabled is not False:
+            continue
+        if port.subnet.tenant_id == tenant.id:
+            continue
+        network = port.subnet.network
+        if can_manage_network_project(user, network):
+            continue
+        raise serializers.ValidationError(
+            {
+                "ports": _(
+                    "Cannot disable port security in network %s: it belongs to "
+                    "another tenant. Keep port security on, or ask an "
+                    "administrator of that network's project."
                 )
                 % network
             }
@@ -5104,6 +5184,7 @@ def _validate_instance_ports(ports, tenant, instance=None, user=None):
         )
 
     _validate_pinned_addresses(ports, tenant, user)
+    _validate_port_security_of_shared_ports(ports, tenant, user)
 
 
 def _validate_instance_security_groups(security_groups, tenant):

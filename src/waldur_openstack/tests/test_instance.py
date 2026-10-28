@@ -312,6 +312,30 @@ class InstanceCreateTest(test.APITestCase):
         self.assertIsNotNone(port)
         self.assertFalse(port.port_security_enabled)
 
+    def test_port_security_cannot_be_disabled_on_another_tenants_network(self):
+        """Neutron leaves it to the network's owner; Waldur creates ports as admin.
+
+        Otherwise a tenant reaching a shared network could turn anti-spoofing off
+        on the segment it shares with the others.
+        """
+        other_tenant = factories.TenantFactory(service_settings=self.openstack_settings)
+        network = factories.NetworkFactory(tenant=other_tenant)
+        subnet = factories.SubNetFactory(network=network, tenant=other_tenant)
+        factories.NetworkRBACPolicyFactory(network=network, target_tenant=self.tenant)
+        data = self.get_valid_data(
+            ports=[
+                {
+                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "port_security_enabled": False,
+                }
+            ]
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("port security", str(response.data))
+
     def test_port_security_enabled_defaults_to_true_during_instance_creation(self):
         subnet = self.fixture.subnet
         data = self.get_valid_data(

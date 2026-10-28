@@ -18,6 +18,7 @@ class PortSecurityToggleAuditTest(test.APITestCase):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
+            network=self.fixture.network,
             port_security_enabled=True,
             state=CoreStates.OK,
         )
