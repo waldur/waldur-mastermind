@@ -32,7 +32,7 @@ For explicit structured fields (e.g. for log aggregation queries), use `extra`:
 logger.info("Order created", extra={"order_uuid": str(order.uuid)})
 ```
 
-The `event_logger` (see below) automatically includes `event_type` and `event_context` in logs.
+The `event_logger` (see below) automatically includes `event_type` and `event_context` in logs, and marks event records with `"is_event": true`.
 
 ### Customizing logging
 

@@ -9,6 +9,7 @@ import structlog
 from django.core.servers.basehttp import WSGIRequestHandler
 from django.test import RequestFactory, SimpleTestCase
 
+from waldur_core.logging.log import EventLoggerAdapter, RequireEvent, RequireNotEvent
 from waldur_core.server.base_settings import _FOREIGN_PRE_CHAIN
 
 
@@ -44,6 +45,46 @@ class ForeignPreChainExcInfoTest(unittest.TestCase):
             self.assertIn("Traceback", record["exception"])
         finally:
             test_logger.removeHandler(handler)
+
+
+class EventLoggerAdapterTest(unittest.TestCase):
+    """structlog renders the message under "event", so the marker that tells
+    event records apart must not reuse that key."""
+
+    def setUp(self):
+        self.records = []
+        handler = logging.Handler()
+        handler.emit = self.records.append
+        self.logger = logging.getLogger("waldur_test_event_format")
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+        self.addCleanup(self.logger.removeHandler, handler)
+
+    def test_event_message_survives_the_json_formatter(self):
+        EventLoggerAdapter(self.logger).info(
+            "EVENT_LOG: Resource has been created.",
+            extra={"event_type": "resource_creation_succeeded", "event_context": {}},
+        )
+        formatter = structlog.stdlib.ProcessorFormatter(
+            processor=structlog.processors.JSONRenderer(),
+            foreign_pre_chain=_FOREIGN_PRE_CHAIN,
+        )
+
+        rendered = json.loads(formatter.format(self.records[0]))
+
+        self.assertEqual(rendered["event"], "EVENT_LOG: Resource has been created.")
+        self.assertEqual(rendered["event_type"], "resource_creation_succeeded")
+
+    def test_filters_tell_event_records_apart(self):
+        EventLoggerAdapter(self.logger).info("EVENT_LOG: An event.")
+        self.logger.info("Not an event.")
+        event_record, plain_record = self.records
+
+        self.assertTrue(RequireEvent().filter(event_record))
+        self.assertFalse(RequireNotEvent().filter(event_record))
+        self.assertFalse(RequireEvent().filter(plain_record))
+        self.assertTrue(RequireNotEvent().filter(plain_record))
 
 
 class ForeignPreChainRequestTest(SimpleTestCase):
