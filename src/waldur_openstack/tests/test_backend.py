@@ -1584,6 +1584,30 @@ class CreateInstanceTest(VolumesBaseTest):
         kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
         self.assertNotIn("scheduler_hints", kwargs)
 
+    def test_nics_follow_the_order_the_ports_were_requested_in(self):
+        instance = self.fixture.instance
+        second_port = factories.PortFactory(
+            instance=instance,
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+        )
+        # Newest first, the default order, must differ from the request order.
+        Port.objects.filter(pk=self.fixture.port.pk).update(
+            created=second_port.created - datetime.timedelta(minutes=1)
+        )
+
+        self.backend.create_instance(instance, self.flavor_id)
+
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertEqual(
+            kwargs["nics"],
+            [
+                {"port-id": self.fixture.port.backend_id},
+                {"port-id": second_port.backend_id},
+            ],
+        )
+
     def test_empty_nics_raises_clear_backend_error(self):
         # Regression: Nova microversion 2.36+ rejects an empty `nics` list with
         # a bare ValueError that escapes the ClientException handler. The
