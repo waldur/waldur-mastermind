@@ -2323,6 +2323,11 @@ class PortViewSet(structure_views.ResourceViewSet):
             )
 
     disable_port_security_validators = [no_allowed_address_pairs]
+    # Only the owner of a shared network may turn port security off on it.
+    disable_port_security_permissions = [
+        structure_permissions.is_administrator,
+        openstack_permissions.owns_network_of_port,
+    ]
 
     @extend_schema(
         summary="Enable port",
@@ -2381,6 +2386,11 @@ class PortViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     update_port_ip_serializer_class = serializers.OpenStackPortIPUpdateSerializer
+    # Only the owner of a shared network may choose addresses on it.
+    update_port_ip_permissions = [
+        structure_permissions.is_administrator,
+        openstack_permissions.owns_network_of_port,
+    ]
 
     @extend_schema(
         summary="Update port security groups",

@@ -339,6 +339,36 @@ class NetworkRBACPolicySyncTest(TestCase):
             Event.objects.filter(event_type=EventType.OPENSTACK_NETWORK_PULLED).exists()
         )
 
+    def test_wildcard_share_from_a_different_service_is_skipped_quietly(self):
+        other_service = factories.SettingsFactory()
+        other_tenant = factories.TenantFactory(
+            service_settings=other_service,
+            backend_id="other_service_tenant",
+            is_managed=False,
+        )
+        factories.NetworkFactory(tenant=other_tenant, backend_id="other_net")
+        self.mock_neutron.return_value.list_rbac_policies.return_value = {
+            "rbac_policies": [
+                {
+                    "id": "cross_service_wildcard",
+                    "object_id": "other_net",
+                    "target_tenant": "*",
+                    "action": "access_as_shared",
+                },
+            ]
+        }
+
+        self.backend.pull_tenant_network_rbac_policies(self.tenant)
+
+        self.assertFalse(
+            models.NetworkRBACPolicy.objects.filter(
+                backend_id="cross_service_wildcard"
+            ).exists()
+        )
+        self.assertFalse(
+            Event.objects.filter(event_type=EventType.OPENSTACK_NETWORK_PULLED).exists()
+        )
+
     def test_sync_handles_nonexistent_networks(self):
         """Test that policies for non-existent networks are handled gracefully."""
         factories.TenantFactory(

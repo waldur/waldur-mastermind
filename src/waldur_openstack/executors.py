@@ -182,6 +182,9 @@ def get_tenant_create_tasks(
         )
     creation_tasks += [
         core_tasks.BackendMethodTask().si(
+            serialized_tenant, "pull_tenant_network_rbac_policies_safely"
+        ),
+        core_tasks.BackendMethodTask().si(
             serialized_tenant, backend_method="pull_tenant_ports"
         ),
         core_tasks.BackendMethodTask().si(

@@ -9,6 +9,7 @@ import copy
 from unittest import mock
 
 from django.test import TestCase
+from neutronclient.common import exceptions as neutron_exceptions
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
@@ -18,7 +19,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_openstack import models, tasks
+from waldur_openstack import executors, models, tasks
 from waldur_openstack.backend import (
     OpenStackBackend,
     OpenStackBackendError,
@@ -269,8 +270,6 @@ class ImportTest(UnmanagedOwnerShareMixin, TestCase):
         self.assertEqual(self.owner().project.customer, provider)
 
     def test_vanished_network_is_skipped(self):
-        from neutronclient.common import exceptions as neutron_exceptions
-
         self.neutron.show_network.side_effect = neutron_exceptions.NotFound()
 
         self.pull()
@@ -562,6 +561,100 @@ class ApiTest(UnmanagedOwnerShareMixin, test.APITestCase):
         self.assertIn("target_tenant", response.data)
         execute.assert_not_called()
 
+    # Neutron leaves these to the network's owner; Waldur calls it as admin, so
+    # without its own check a tenant could spoof the others on the segment.
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_consumer_cannot_choose_owner_only_settings_of_a_port_on_it(self, execute):
+        self.client.force_authenticate(self.consumer_admin)
+        port = {
+            "name": "port-on-provider-lan",
+            "network": factories.NetworkFactory.get_url(self.network),
+            "target_tenant": factories.TenantFactory.get_url(self.consumer),
+            "fixed_ips": [{"subnet_id": SUBNET_ID}],
+        }
+        for owner_only in (
+            {"port_security_enabled": False},
+            {"mac_address": "fa:16:3e:00:00:01"},
+            {"fixed_ips": [{"subnet_id": SUBNET_ID, "ip_address": "10.97.0.50"}]},
+        ):
+            with self.subTest(owner_only=owner_only):
+                response = self.client.post(
+                    factories.PortFactory.get_list_url(), {**port, **owner_only}
+                )
+                self.assertEqual(
+                    response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+                )
+        execute.assert_not_called()
+
+    def consumer_port(self):
+        return factories.PortFactory(
+            network=self.network,
+            subnet=self.subnet,
+            tenant=self.consumer,
+            service_settings=self.settings,
+            project=self.consumer_project,
+            state=CoreStates.OK,
+        )
+
+    @mock.patch.object(OpenStackBackend, "disable_port_security")
+    def test_consumer_cannot_disable_port_security_on_it(self, disable):
+        port = self.consumer_port()
+        url = factories.PortFactory.get_url(port, action="disable_port_security")
+
+        self.client.force_authenticate(self.consumer_admin)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        disable.assert_not_called()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        disable.assert_called_once()
+
+    @mock.patch.object(OpenStackBackend, "update_port_ip")
+    def test_consumer_cannot_choose_the_address_of_its_port_on_it(self, update):
+        port = self.consumer_port()
+
+        self.client.force_authenticate(self.consumer_admin)
+        response = self.client.post(
+            factories.PortFactory.get_url(port, action="update_port_ip"),
+            {
+                "subnet": factories.SubNetFactory.get_url(self.subnet),
+                "ip_address": "10.97.0.50",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        update.assert_not_called()
+
+    def test_consumer_sees_only_its_own_share_of_it(self):
+        """Every tenant of the cloud may have a share of a provider network."""
+        other_customer_tenant = factories.TenantFactory(
+            service_settings=self.settings, backend_id="other-customer-tenant"
+        )
+        models.NetworkRBACPolicy.objects.create(
+            network=self.network,
+            target_tenant=other_customer_tenant,
+            backend_id=POLICY_ID,
+            policy_type="access_as_shared",
+        )
+
+        def share_targets(user):
+            self.client.force_authenticate(user)
+            response = self.client.get(factories.NetworkFactory.get_url(self.network))
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            return {
+                policy["target_tenant_name"]
+                for policy in response.data["rbac_policies"]
+            }
+
+        self.assertEqual(share_targets(self.consumer_admin), {self.consumer.name})
+        self.assertEqual(
+            share_targets(self.staff),
+            {self.consumer.name, other_customer_tenant.name},
+        )
+
 
 class ProvisionedProjectTest(UnmanagedOwnerShareMixin, TestCase):
     def test_provider_project_is_named_after_the_settings(self):
@@ -572,3 +665,137 @@ class ProvisionedProjectTest(UnmanagedOwnerShareMixin, TestCase):
         self.assertTrue(
             structure_models.Project.available_objects.filter(pk=project.pk).exists()
         )
+
+
+class WildcardShareTest(UnmanagedOwnerShareMixin, TestCase):
+    """A provider network is usually shared with every project (`*`) at once."""
+
+    def setUp(self):
+        super().setUp()
+        self.other_consumer = factories.TenantFactory(
+            service_settings=self.settings, backend_id="other-consumer-id"
+        )
+        self.share([policy(target="*")])
+
+    def test_wildcard_share_reaches_every_tenant(self):
+        self.pull()
+        self.pull(self.other_consumer)
+
+        network = models.Network.objects.get(backend_id=NETWORK_ID)
+        self.assertEqual(network.tenant, self.owner())
+        self.assertEqual(
+            set(
+                models.NetworkRBACPolicy.objects.filter(
+                    backend_id=POLICY_ID
+                ).values_list("network", "target_tenant")
+            ),
+            {(network.id, self.consumer.id), (network.id, self.other_consumer.id)},
+        )
+        subnet = models.SubNet.objects.get(backend_id=SUBNET_ID)
+        self.assertIn(subnet, self.consumer.available_subnets)
+        self.assertIn(subnet, self.other_consumer.available_subnets)
+
+    def test_repeated_pull_keeps_one_row_per_tenant(self):
+        self.pull()
+        self.pull(self.other_consumer)
+
+        self.pull()
+
+        self.assertEqual(
+            models.NetworkRBACPolicy.objects.filter(backend_id=POLICY_ID).count(), 2
+        )
+
+    def test_named_share_takes_the_place_of_the_wildcard(self):
+        self.pull()
+        self.share(
+            [
+                policy(target="*"),
+                policy("policy-2", target=self.consumer.backend_id),
+            ]
+        )
+
+        self.pull()
+
+        self.assertEqual(
+            list(
+                models.NetworkRBACPolicy.objects.filter(
+                    target_tenant=self.consumer
+                ).values_list("backend_id", flat=True)
+            ),
+            ["policy-2"],
+        )
+
+    def test_external_wildcard_is_not_imported(self):
+        self.share([policy(target="*", action="access_as_external")])
+
+        self.pull()
+
+        self.assertFalse(models.Network.objects.filter(backend_id=NETWORK_ID).exists())
+        self.neutron.show_network.assert_not_called()
+
+    def test_wildcard_share_of_a_tenant_network_is_not_imported(self):
+        """Revoking one of its rows from Waldur would unshare it for everyone."""
+        network = factories.NetworkFactory(
+            tenant=self.consumer,
+            service_settings=self.settings,
+            backend_id=NETWORK_ID,
+        )
+
+        self.pull()
+        self.pull(self.other_consumer)
+
+        self.assertFalse(network.rbac_policies.exists())
+
+    def test_network_imported_meanwhile_is_not_copied(self):
+        """Tenant pulls run at once; the later imports find the first one's."""
+        self.pull()
+
+        self.backend._import_shared_network_of_unmanaged_owner(
+            self.other_consumer, policy(target="*")
+        )
+
+        network = models.Network.objects.get(backend_id=NETWORK_ID)
+        self.assertEqual(models.Tenant.objects.filter(is_managed=False).count(), 1)
+        self.assertEqual(
+            set(network.rbac_policies.values_list("target_tenant", flat=True)),
+            {self.consumer.id, self.other_consumer.id},
+        )
+
+    def test_withdrawn_wildcard_drops_the_network_locally(self):
+        self.pull()
+        self.pull(self.other_consumer)
+        self.share([])
+
+        self.pull()
+        self.pull(self.other_consumer)
+
+        self.assertFalse(models.Network.objects.filter(backend_id=NETWORK_ID).exists())
+        self.assertFalse(models.Tenant.objects.filter(is_managed=False).exists())
+        self.neutron.delete_rbac_policy.assert_not_called()
+
+
+class SharesAtTenantCreationTest(UnmanagedOwnerShareMixin, TestCase):
+    def test_creation_pulls_the_shares(self):
+        chain = executors.get_tenant_create_tasks(self.consumer)
+
+        steps = [task.args[1] for task in chain.tasks if len(task.args) > 1]
+
+        self.assertIn("pull_tenant_network_rbac_policies_safely", steps)
+
+    def test_failed_listing_does_not_fail_the_tenant(self):
+        self.neutron.list_rbac_policies.side_effect = (
+            neutron_exceptions.NeutronClientException()
+        )
+
+        self.backend.pull_tenant_network_rbac_policies_safely(self.consumer)
+
+        self.assertFalse(models.Network.objects.filter(backend_id=NETWORK_ID).exists())
+
+    def test_failed_import_does_not_fail_the_tenant(self):
+        self.share([policy(target="*")])
+        with mock.patch.object(
+            OpenStackBackend, "pull_subnets", side_effect=RuntimeError("boom")
+        ):
+            self.backend.pull_tenant_network_rbac_policies_safely(self.consumer)
+
+        self.assertFalse(models.Network.objects.filter(backend_id=NETWORK_ID).exists())

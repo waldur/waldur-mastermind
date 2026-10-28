@@ -114,6 +114,9 @@ HARD_REBOOT_TASK_STATES = (
     "reboot_started_hard",
 )
 
+# The target project of a Neutron RBAC policy that applies to every project.
+WILDCARD_RBAC_TARGET = "*"
+
 
 def get_instance_runtime_state(backend_instance) -> str:
     """Nova's status of a server, with a hard reboot of an errored one shown.
@@ -7404,9 +7407,7 @@ class OpenStackBackend(ServiceBackend):
         # Process INCOMING network sharing policies - networks shared TO this tenant by other tenants
         # This should always run, even if tenant has no networks
 
-        incoming_policies = [
-            p for p in backend_policies if p["target_tenant"] == tenant.backend_id
-        ]
+        incoming_policies = self._incoming_network_policies(backend_policies, tenant)
         incoming_backend_ids = [p["id"] for p in incoming_policies]
 
         # Delete stale incoming policies BEFORE inserting fresh ones. When
@@ -7449,19 +7450,26 @@ class OpenStackBackend(ServiceBackend):
                 continue
 
             if (
-                not network.tenant.is_managed
-                and network.id not in refreshed_network_ids
+                backend_policy["target_tenant"] == WILDCARD_RBAC_TARGET
+                and network.tenant.is_managed
             ):
-                # Nothing else pulls a network whose owner Waldur does not manage.
-                self._pull_network_of_unmanaged_owner(network)
-                refreshed_network_ids.add(network.id)
+                # Only a provider network is shared with every tenant this way.
+                # A Waldur tenant's network shared with `*` would become a row
+                # per tenant, and revoking any one of them from Waldur deletes
+                # the single Neutron policy behind all of them.
+                continue
 
             if network.tenant.service_settings != tenant.service_settings:
                 # Skip policies whose source tenant exists in other service
                 logger.debug(
                     "Skipping RBAC policy %s because source tenant exists in the other service %s",
+                    backend_policy["id"],
                     str(network.tenant.service_settings),
                 )
+                if backend_policy["target_tenant"] == WILDCARD_RBAC_TARGET:
+                    # Reaches every tenant of these settings on every pull; an
+                    # event each time would bury the tenants' event logs.
+                    continue
                 event_logger.emit(
                     "RBAC policy %s skipped: source tenant %s from different service %s",
                     event_type=EventType.OPENSTACK_NETWORK_PULLED,
@@ -7475,15 +7483,24 @@ class OpenStackBackend(ServiceBackend):
                 )
                 continue
 
+            if (
+                not network.tenant.is_managed
+                and network.id not in refreshed_network_ids
+            ):
+                # Nothing else pulls a network whose owner Waldur does not manage.
+                self._pull_network_of_unmanaged_owner(network)
+                refreshed_network_ids.add(network.id)
+
             # Create or update the RBAC policy by its backend_id (stable
-            # identifier for a given OpenStack policy object). Stale rows that
-            # would otherwise collide on the unique trio have already been
+            # identifier for a given OpenStack policy object) and the tenant:
+            # a wildcard policy is one row per tenant it reaches. Stale rows
+            # that would otherwise collide on the unique trio have already been
             # removed above.
             policy, created = models.NetworkRBACPolicy.objects.update_or_create(
                 backend_id=backend_policy["id"],
+                target_tenant=tenant,
                 defaults={
                     "network": network,
-                    "target_tenant": tenant,
                     "policy_type": backend_policy["action"],
                 },
             )
@@ -7574,6 +7591,41 @@ class OpenStackBackend(ServiceBackend):
                     target_tenant.name,
                 )
 
+    def _incoming_network_policies(self, backend_policies, tenant: models.Tenant):
+        """The policies that give `tenant` access to a network.
+
+        Besides the policies naming the tenant, a wildcard `access_as_shared`
+        policy -- what Neutron's `shared=True` is made of, and how operators
+        usually publish a provider network -- reaches every project; it is
+        taken for networks of projects Waldur does not manage only. It counts
+        for a network only where no policy names the tenant for it: the
+        database holds one row per network, tenant and action. A wildcard
+        `access_as_external` is left to the external network sync.
+        """
+        shared = models.NetworkRBACPolicy.NetworkShareType.SHARED
+        named = [p for p in backend_policies if p["target_tenant"] == tenant.backend_id]
+        named_networks = {p["object_id"] for p in named if p["action"] == shared}
+        wildcard = [
+            p
+            for p in backend_policies
+            if p["target_tenant"] == WILDCARD_RBAC_TARGET
+            and p["action"] == shared
+            and p["object_id"] not in named_networks
+        ]
+        return named + wildcard
+
+    def pull_tenant_network_rbac_policies_safely(self, tenant: models.Tenant):
+        """Pull the shares while the tenant is being created.
+
+        The networks shared with it are then usable as soon as the tenant is,
+        rather than after the next periodic pull. Nothing here is worth failing
+        the tenant over: the periodic pull repeats it.
+        """
+        try:
+            self.pull_tenant_network_rbac_policies(tenant)
+        except Exception:
+            logger.exception("Unable to pull networks shared with tenant %s", tenant)
+
     def _import_shared_network_of_unmanaged_owner(
         self, consumer: models.Tenant, backend_policy: dict
     ):
@@ -7605,32 +7657,44 @@ class OpenStackBackend(ServiceBackend):
             return
 
         with transaction.atomic():
-            if not owner:
-                owner = self._create_unmanaged_owner(owner_backend_id)
-                if not owner:
-                    return
+            # A network shared with every project is imported by the first of
+            # many tenant pulls that run at once. One import at a time per
+            # cloud, so that the others find it rather than add a copy of the
+            # network (and of its owner and the owners' project).
+            ServiceSettings.objects.select_for_update().get(pk=self.settings.pk)
+            network = models.Network.objects.filter(
+                backend_id=backend_network["id"]
+            ).first()
+            if network and network.tenant.service_settings != self.settings:
+                return
 
-            network = self._backend_network_to_network(
-                backend_network,
-                tenant=owner,
-                service_settings=self.settings,
-                project=owner.project,
-            )
-            network.save()
-            event_logger.emit(
-                "Network %s has been imported to local cache." % network.name,
-                event_type=EventType.OPENSTACK_NETWORK_IMPORTED,
-                event_context={"network": network},
-                scopes=[network, network.tenant],
-            )
-            self.pull_subnets(network=network)
+            if not network:
+                if not owner:
+                    owner = self._create_unmanaged_owner(owner_backend_id)
+                    if not owner:
+                        return
+
+                network = self._backend_network_to_network(
+                    backend_network,
+                    tenant=owner,
+                    service_settings=self.settings,
+                    project=owner.project,
+                )
+                network.save()
+                event_logger.emit(
+                    "Network %s has been imported to local cache." % network.name,
+                    event_type=EventType.OPENSTACK_NETWORK_IMPORTED,
+                    event_context={"network": network},
+                    scopes=[network, network.tenant],
+                )
+                self.pull_subnets(network=network)
             # Created together with the network, so that another tenant's pull
             # never sees it unshared and drops it again.
             models.NetworkRBACPolicy.objects.update_or_create(
                 backend_id=backend_policy["id"],
+                target_tenant=consumer,
                 defaults={
                     "network": network,
-                    "target_tenant": consumer,
                     "policy_type": backend_policy["action"],
                 },
             )

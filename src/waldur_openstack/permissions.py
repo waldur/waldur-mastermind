@@ -1,8 +1,13 @@
 from django.conf import settings
+from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.permissions.utils import has_permission
 
 
@@ -108,3 +113,38 @@ def can_update_tenant_quotas_as_service_provider(request, view, tenant=None):
         return
 
     raise exceptions.PermissionDenied()
+
+
+def can_manage_network_project(user, network):
+    """Whether the user may act as the owner of the network's project."""
+    if user is None or not user.is_authenticated:
+        return False
+    if user.is_staff:
+        return True
+    project = network.project
+    return (
+        project.has_user(user, ProjectRole.ADMIN)
+        or project.has_user(user, ProjectRole.MANAGER)
+        or project.customer.has_user(user, CustomerRole.OWNER)
+    )
+
+
+def owns_network_of_port(request, view, port=None):
+    """Port settings Neutron leaves to the owner of the port's network.
+
+    A tenant that reaches a network through a share may attach ports to it,
+    but only the network's owner may turn their port security off or choose
+    their addresses: otherwise one tenant could spoof the others on a shared
+    segment. Waldur calls Neutron as the cloud admin, which Neutron does not
+    hold to that rule, so it is applied here.
+    """
+    if not port or not port.network_id or port.network.tenant_id == port.tenant_id:
+        return
+    if not can_manage_network_project(request.user, port.network):
+        raise exceptions.PermissionDenied(
+            _(
+                "Network %s belongs to another tenant: only its owner can change "
+                "the port security or addresses of ports on it."
+            )
+            % port.network
+        )
