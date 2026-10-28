@@ -503,6 +503,11 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Filter projects where the given user has a role.",
     )
 
+    user_role = django_filters.CharFilter(
+        method="filter_by_user_role",
+        label="Role name or UUID; narrows user_uuid_with_active_role to that role.",
+    )
+
     current_user_has_role = core_filters.CharInFilter(
         method="filter_current_user_has_role",
         label="Filter projects where the current user holds one of the given roles "
@@ -606,12 +611,22 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         except core_models.User.DoesNotExist:
             return queryset.none()
         project_ct = ContentType.objects.get_for_model(models.Project)
-        project_ids = UserRole.objects.filter(
+        user_roles = UserRole.objects.filter(
             user=user,
             is_active=True,
             content_type=project_ct,
-        ).values_list("object_id", flat=True)
+        )
+        role = self.form.cleaned_data.get("user_role")
+        if role:
+            user_roles = user_roles.filter(
+                Q(role__uuid=role) if is_uuid_like(role) else Q(role__name=role)
+            )
+        project_ids = user_roles.values_list("object_id", flat=True)
         return queryset.filter(id__in=project_ids)
+
+    def filter_by_user_role(self, queryset, name, value):
+        # Applied in filter_by_user_uuid_with_active_role.
+        return queryset
 
     def filter_query(self, queryset, name, value):
         if is_uuid_like(value):
