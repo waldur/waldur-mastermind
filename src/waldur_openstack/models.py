@@ -1740,6 +1740,12 @@ class Volume(
         )
 
     @property
+    def live_resize_enabled(self):
+        return self.service_settings.options.get(
+            "live_resize_of_volumes_enabled", False
+        )
+
+    @property
     def extend_enabled(self):
         from waldur_openstack import utils
 
