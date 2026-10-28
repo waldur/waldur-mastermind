@@ -111,7 +111,9 @@ def _fetch_json(url, timeout, cache_key, success_timeout):
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError, requests.JSONDecodeError) as e:
-        logger.error("Failed to fetch %s: %s", url, e)
+        # External network failures are expected and non-actionable — keep them
+        # out of the production error log.
+        logger.warning("Failed to fetch %s: %s", url, e)
         cache.set(cache_key, _FETCH_FAILED, timeout=CACHE_TIMEOUT_NEGATIVE)
         return None
 
