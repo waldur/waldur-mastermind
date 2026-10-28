@@ -1,8 +1,13 @@
+from unittest import mock
+
 from django.test import SimpleTestCase, TestCase
 
-from waldur_openstack import executors
+from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
+from waldur_openstack import executors, tasks
+from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.executors import InstanceCreateExecutor
-from waldur_openstack.tests import factories
+from waldur_openstack.tests import factories, fixtures
 
 
 class InstanceCreateVolumesTest(SimpleTestCase):
@@ -58,3 +63,111 @@ class TenantCreateQuotasTest(TestCase):
             self.tenant.set_quota_limit(name, value)
 
         self.assertEqual(self.get_pushed_quotas(), limits)
+
+
+class VolumeExtendExecutorTest(TestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.volume = self.fixture.volume
+
+    def get_backend_methods(self):
+        signature = executors.VolumeExtendExecutor.get_task_signature(
+            self.volume, core_utils.serialize_instance(self.volume)
+        )
+        return [
+            task.kwargs["backend_method"]
+            for task in signature.tasks
+            if "backend_method" in task.kwargs
+        ]
+
+    def attach_to_stopped_instance(self):
+        self.volume.instance = self.fixture.instance
+        self.volume.runtime_state = "in-use"
+        self.volume.save()
+
+    def set_live_resize(self, enabled):
+        settings = self.volume.service_settings
+        settings.options["live_resize_of_volumes_enabled"] = enabled
+        settings.save()
+
+    def test_attached_volume_is_detached_when_live_resize_is_disabled(self):
+        self.set_live_resize(False)
+        self.attach_to_stopped_instance()
+
+        self.assertEqual(
+            ["detach_volume", "extend_volume", "attach_volume"],
+            self.get_backend_methods(),
+        )
+
+    def test_attached_volume_is_extended_in_place_when_live_resize_is_enabled(self):
+        self.set_live_resize(True)
+        self.attach_to_stopped_instance()
+
+        self.assertEqual(["extend_volume"], self.get_backend_methods())
+
+    def test_detached_volume_is_extended_in_place(self):
+        self.set_live_resize(False)
+
+        self.assertEqual(["extend_volume"], self.get_backend_methods())
+
+    def test_failure_signature_keeps_instance_of_attached_volume(self):
+        self.attach_to_stopped_instance()
+
+        signature = executors.VolumeExtendExecutor.get_failure_signature(
+            self.volume, core_utils.serialize_instance(self.volume)
+        )
+
+        self.assertEqual(
+            self.fixture.instance.uuid.hex, signature.kwargs["instance_uuid"]
+        )
+
+
+@mock.patch("waldur_openstack.backend.OpenStackBackend.attach_volume")
+class VolumeExtendErredTaskTest(TestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.volume = self.fixture.volume
+        self.instance = self.fixture.instance
+        self.instance.state = CoreStates.UPDATING
+        self.instance.save()
+        # The extend chain has already detached the volume.
+        self.volume.state = CoreStates.UPDATING
+        self.volume.save()
+
+    def run_task(self):
+        task = tasks.VolumeExtendErredTask()
+        task.result = mock.Mock(result="Extend failed.", traceback="")
+        task.execute(
+            self.volume, instance_uuid=self.instance.uuid.hex, device="/dev/vdb"
+        )
+        self.volume.refresh_from_db()
+        self.instance.refresh_from_db()
+
+    def test_detached_volume_is_reattached_and_instance_is_erred(self, attach_volume):
+        self.run_task()
+
+        attach_volume.assert_called_once_with(
+            self.volume, self.instance.uuid.hex, "/dev/vdb"
+        )
+        self.assertEqual(CoreStates.ERRED, self.volume.state)
+        self.assertEqual(CoreStates.ERRED, self.instance.state)
+
+    def test_failed_reattach_is_reported_in_volume_error(self, attach_volume):
+        attach_volume.side_effect = OpenStackBackendError("Attach failed.")
+
+        self.run_task()
+
+        self.assertIn(self.instance.name, self.volume.error_message)
+        self.assertEqual(CoreStates.ERRED, self.volume.state)
+        self.assertEqual(CoreStates.ERRED, self.instance.state)
+
+    def test_instance_is_erred_even_if_reattach_raises_unexpectedly(
+        self, attach_volume
+    ):
+        attach_volume.side_effect = ConnectionError("Nova is unreachable.")
+
+        with self.assertRaises(ConnectionError):
+            self.run_task()
+
+        self.instance.refresh_from_db()
+        self.assertEqual(CoreStates.ERRED, self.instance.state)

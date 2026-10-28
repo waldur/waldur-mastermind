@@ -230,7 +230,7 @@ def tenant_has_ipv6(tenant: Tenant) -> bool:
 
 
 def check_volume_resize_enabled(volume):
-    if volume.service_settings.options.get("live_resize_of_volumes_enabled", False):
+    if volume.live_resize_enabled:
         return
 
     if volume.bootable:

@@ -306,10 +306,30 @@ class ForceDeleteBackupTask(core_tasks.DeletionTask):
 class VolumeExtendErredTask(core_tasks.ErrorStateTransitionTask):
     """Mark volume and its instance as erred on fail"""
 
-    def execute(self, volume):
+    def execute(self, volume, instance_uuid=None, device=None):
         super().execute(volume)
         if volume.instance is not None:
             super().execute(volume.instance)
+        elif instance_uuid:
+            # The extend chain detached the volume before failing. Mark the
+            # instance erred first so that a failed re-attach cannot leave it
+            # in UPDATING.
+            instance = models.Instance.objects.get(uuid=instance_uuid)
+            super().execute(instance)
+            self.reattach_volume(volume, instance, device)
+
+    def reattach_volume(self, volume, instance, device):
+        try:
+            volume.get_backend().attach_volume(volume, instance.uuid.hex, device)
+        except OpenStackBackendError:
+            logger.exception(
+                "Unable to re-attach volume %s to instance %s.", volume, instance
+            )
+            volume.error_message += (
+                f" Volume was detached from instance {instance.name} "
+                f"(device {device or 'unknown'}) and could not be re-attached."
+            )
+            volume.save(update_fields=["error_message"])
 
 
 class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
