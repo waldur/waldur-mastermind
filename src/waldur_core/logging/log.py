@@ -57,10 +57,12 @@ class EventLoggerAdapter(logging.LoggerAdapter):
         super().__init__(logger, {})
 
     def process(self, msg, kwargs):
+        # Not "event": structlog renders the message under that key, and
+        # ExtraAdder would overwrite it with this marker.
         if "extra" in kwargs:
-            kwargs["extra"]["event"] = True
+            kwargs["extra"]["is_event"] = True
         else:
-            kwargs["extra"] = {"event": True}
+            kwargs["extra"] = {"is_event": True}
         return msg, kwargs
 
 
@@ -68,14 +70,14 @@ class RequireEvent(logging.Filter):
     """A filter that allows only event records."""
 
     def filter(self, record):
-        return getattr(record, "event", False)
+        return getattr(record, "is_event", False)
 
 
 class RequireNotEvent(logging.Filter):
     """A filter that allows only non-event records."""
 
     def filter(self, record):
-        return not getattr(record, "event", False)
+        return not getattr(record, "is_event", False)
 
 
 class RequireNotBackgroundTask(logging.Filter):
