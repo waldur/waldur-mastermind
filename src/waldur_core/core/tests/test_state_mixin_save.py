@@ -30,6 +30,22 @@ class StateMixinSaveTest(TestCase):
         self.assertEqual(settings.state, CoreStates.OK)
         self.assertEqual(settings.error_message, "")
 
+    def test_staying_erred_keeps_the_new_error_message(self):
+        # What ErrorStateTransitionTask does when an action on an already
+        # erred object fails again.
+        settings = factories.ServiceSettingsFactory(
+            state=CoreStates.ERRED, error_message="Backend is unreachable"
+        )
+        settings = ServiceSettings.objects.get(pk=settings.pk)
+
+        settings.error_message = "Quota exceeded"
+        settings.set_erred()
+        settings.save(update_fields=["state", "error_message"])
+
+        settings.refresh_from_db()
+        self.assertEqual(settings.state, CoreStates.ERRED)
+        self.assertEqual(settings.error_message, "Quota exceeded")
+
     def test_scheduling_from_erred_saves(self):
         settings = factories.ServiceSettingsFactory(
             state=CoreStates.ERRED, error_message="Backend is unreachable"

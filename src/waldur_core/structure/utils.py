@@ -143,10 +143,15 @@ def handle_resource_not_found(resource):
     remaining warnings meaningful.
     """
     message = RESOURCE_MISSING_MESSAGE
-    was_missing = (
-        resource.state == CoreStates.ERRED and message in resource.error_message
+    has_marker = message in resource.error_message
+    # Either one says the resource was already known to be missing: rows
+    # written by older releases can carry only the marker, or only the timestamp.
+    was_missing = resource.state == CoreStates.ERRED and (
+        has_marker or getattr(resource, "backend_missing_since", None) is not None
     )
-    unchanged = was_missing and not getattr(resource, "runtime_state", "")
+    unchanged = (
+        was_missing and has_marker and not getattr(resource, "runtime_state", "")
+    )
 
     resource.set_erred()
     resource.runtime_state = ""

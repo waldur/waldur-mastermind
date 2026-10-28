@@ -522,6 +522,66 @@ class PullTenantVolumesTest(BaseBackendTest):
         self.assertIsNone(volume.instance)
         self.assertFalse(volume.bootable)
 
+    def test_missing_volume_stays_marked_across_pulls(self):
+        volume = factories.VolumeFactory(
+            state=CoreStates.OK,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.mocked_cinder.volumes.list.return_value = []
+
+        with self.assertLogs("waldur_core.structure.utils", "DEBUG") as logs:
+            self.backend.pull_tenant_volumes(self.tenant)
+            volume.refresh_from_db()
+            missing_since = volume.backend_missing_since
+
+            for _ in range(2):
+                self.backend.pull_tenant_volumes(self.tenant)
+                volume.refresh_from_db()
+                self.assertEqual(volume.state, CoreStates.ERRED)
+                self.assertEqual(volume.error_message, "Does not exist at backend.")
+                self.assertEqual(volume.backend_missing_since, missing_since)
+
+        self.assertIsNotNone(missing_since)
+        warnings = [r for r in logs.records if r.levelname == "WARNING"]
+        self.assertEqual(len(warnings), 1)
+
+    def test_missing_volume_without_marker_keeps_its_missing_since(self):
+        # Releases that wiped the marker on every other cycle left rows with
+        # only the timestamp.
+        missing_since = timezone.now() - datetime.timedelta(days=3)
+        volume = factories.VolumeFactory(
+            state=CoreStates.ERRED,
+            error_message="",
+            backend_missing_since=missing_since,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.mocked_cinder.volumes.list.return_value = []
+
+        with self.assertNoLogs("waldur_core.structure.utils", "WARNING"):
+            self.backend.pull_tenant_volumes(self.tenant)
+
+        volume.refresh_from_db()
+        self.assertEqual(volume.error_message, "Does not exist at backend.")
+        self.assertEqual(volume.backend_missing_since, missing_since)
+
+    def test_missing_erred_volume_keeps_its_error_message(self):
+        volume = factories.VolumeFactory(
+            state=CoreStates.ERRED,
+            error_message="Quota exceeded.",
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.mocked_cinder.volumes.list.return_value = []
+
+        self.backend.pull_tenant_volumes(self.tenant)
+
+        volume.refresh_from_db()
+        self.assertEqual(
+            volume.error_message, "Quota exceeded. (Does not exist at backend.)"
+        )
+
 
 class PullInstanceAvailabilityZonesTest(BaseBackendTest):
     def test_default_zone_is_not_pulled(self):
