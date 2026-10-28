@@ -5343,7 +5343,10 @@ class OpenStackBackend(ServiceBackend):
             )
 
             ports_without_backend_id = []
-            for port in instance.ports.all():
+            # In the order the ports were requested: the first is the guest's
+            # first interface, the one cloud-init reaches the metadata service
+            # on. Ports are listed newest first by default.
+            for port in instance.ports.order_by("pk"):
                 if not port.backend_id:
                     ports_without_backend_id.append(port)
                     continue
@@ -6530,10 +6533,11 @@ class OpenStackBackend(ServiceBackend):
                 except neutron_exceptions.NeutronClientException as e:
                     raise OpenStackBackendError(e)
 
-        # create or attach ports not yet on the instance
+        # create or attach ports not yet on the instance, in the order they were
+        # requested: the guest numbers its interfaces in attach order
         new_ports = instance.ports.exclude(
             backend_id__in=[ip["id"] for ip in backend_ports]
-        )
+        ).order_by("pk")
         for new_port in new_ports:
             try:
                 if new_port.backend_id:
@@ -6656,7 +6660,7 @@ class OpenStackBackend(ServiceBackend):
         security_groups = list(
             instance.security_groups.values_list("backend_id", flat=True)
         )
-        for port in instance.ports.all():
+        for port in instance.ports.order_by("pk"):
             if not port.backend_id:
                 self.create_instance_port(port, security_groups)
 
