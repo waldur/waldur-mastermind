@@ -276,6 +276,15 @@ class FetchChangelogIndexTest(TestCase):
         mock_get.assert_called_once()
 
     @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_network_failure_is_logged_as_warning(self, mock_get):
+        mock_get.side_effect = requests.ConnectionError("docs.waldur.com unreachable")
+
+        with self.assertLogs("waldur_core.changelog.utils", "WARNING") as logs:
+            fetch_changelog_index()
+
+        self.assertEqual([r.levelname for r in logs.records], ["WARNING"])
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
     def test_negatively_caches_invalid_json(self, mock_get):
         response = mock.Mock()
         response.raise_for_status.return_value = None

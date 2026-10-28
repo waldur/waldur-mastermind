@@ -1969,10 +1969,16 @@ def get_whitelabeling_logo(request, logo_type, default_image=None):
     )
 
 
+# Marks a failed fetch in the cache, so that a deployment that cannot reach
+# api.github.com does not wait out the connect timeout on every call.
+_GITHUB_TAG_FETCH_FAILED = "__failed__"
+
+
 def get_latest_github_tag(timeout=5):
     """
     Fetch the latest tag from GitHub with caching.
-    Cache timeout is 1 hour to avoid hitting GitHub API too frequently.
+    The outcome, success or failure, is cached for 1 hour to avoid hitting
+    GitHub API too frequently.
     """
     if not config.CHECK_FOR_UPDATES:
         # Update checks are disabled (e.g. deployments without egress). Skip the
@@ -1981,9 +1987,17 @@ def get_latest_github_tag(timeout=5):
 
     cache_key = "waldur_latest_github_tag"
     cached_version = cache.get(cache_key)
+    if cached_version == _GITHUB_TAG_FETCH_FAILED:
+        return None
     if cached_version:
         return cached_version
 
+    latest_tag = _fetch_latest_github_tag(timeout)
+    cache.set(cache_key, latest_tag or _GITHUB_TAG_FETCH_FAILED, timeout=3600)
+    return latest_tag
+
+
+def _fetch_latest_github_tag(timeout):
     try:
         response = requests.get(
             "https://api.github.com/repos/waldur/waldur-docs/git/refs/tags",
@@ -2002,6 +2016,10 @@ def get_latest_github_tag(timeout=5):
         logger.warning("Failed to decode JSON response from GitHub")
         return None
 
+    if not isinstance(tags, list):
+        logger.warning("Unexpected JSON response from GitHub: expected a list of tags")
+        return None
+
     # Filter to tags with valid PEP 440 version strings and sort them
     valid_tags = []
     for tag in tags:
@@ -2017,11 +2035,7 @@ def get_latest_github_tag(timeout=5):
         return None
 
     valid_tags.sort(key=lambda x: x[0])
-    latest_tag = valid_tags[-1][1]
-
-    # Cache for 1 hour
-    cache.set(cache_key, latest_tag, timeout=3600)
-    return latest_tag
+    return valid_tags[-1][1]
 
 
 # How long a PENDING/RUNNING analysis is trusted to still be in flight before

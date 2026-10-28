@@ -1,11 +1,14 @@
 from datetime import timedelta
 from unittest import mock
 
+import requests
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.views import get_latest_github_tag
 from waldur_core.structure.tests.factories import UserFactory
 
 
@@ -106,6 +109,38 @@ class VersionUpdateCheckTest(test.APITestCase):
         self.assertIn("version", response.data)
         self.assertNotIn("latest_version", response.data)
         mock_get.assert_not_called()
+
+
+@override_config(CHECK_FOR_UPDATES=True)
+@mock.patch("waldur_core.core.views.requests.get")
+class LatestGithubTagCacheTest(test.APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def test_successful_fetch_is_cached(self, mock_get):
+        mock_get.return_value.json.return_value = [{"ref": "refs/tags/2.0.0"}]
+
+        self.assertEqual(get_latest_github_tag(), "2.0.0")
+        self.assertEqual(get_latest_github_tag(), "2.0.0")
+        mock_get.assert_called_once()
+
+    def test_failed_fetch_is_cached(self, mock_get):
+        # Without egress every attempt waits out the connect timeout, so a
+        # failure must not be retried on the next call.
+        mock_get.side_effect = requests.ConnectTimeout("api.github.com unreachable")
+
+        self.assertIsNone(get_latest_github_tag())
+        self.assertIsNone(get_latest_github_tag())
+        mock_get.assert_called_once()
+
+    def test_response_that_is_not_a_tag_list_is_cached_as_failure(self, mock_get):
+        # A proxy or captive portal can answer 200 with arbitrary JSON.
+        mock_get.return_value.json.return_value = None
+
+        self.assertIsNone(get_latest_github_tag())
+        self.assertIsNone(get_latest_github_tag())
+        mock_get.assert_called_once()
 
 
 CURRENT = "8.0.7"
