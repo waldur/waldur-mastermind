@@ -2721,14 +2721,15 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
         backend = network.tenant.get_backend()
 
         try:
-            rbac_policy = models.NetworkRBACPolicy.objects.get(uuid=rbac_policy_uuid)
-            self._check_rbac_policy_permissions(
-                request.user, network, rbac_policy.target_tenant
-            )
+            # Only a share of this network: the checks below are about it.
+            rbac_policy = network.rbac_policies.get(uuid=rbac_policy_uuid)
         except models.NetworkRBACPolicy.DoesNotExist:
             raise exceptions.NotFound(
-                _("RBAC policy with backend ID %s does not exist.") % uuid
+                _("RBAC policy %s of this network does not exist.") % rbac_policy_uuid
             )
+        self._check_rbac_policy_permissions(
+            request.user, network, rbac_policy.target_tenant
+        )
 
         backend.delete_network_rbac_policy(
             rbac_id=rbac_policy.backend_id,
@@ -3953,6 +3954,10 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.NetworkRBACPolicy.objects.all().order_by("-created")
     serializer_class = serializers.NetworkRBACPolicySerializer
+    # A share is its network, target tenant and type, as the Neutron policy it
+    # mirrors is. Another share is a delete and a create, each checked below;
+    # an edited row would hand the target tenant a network nobody shared.
+    disabled_actions = ["update", "partial_update"]
     # Visibility is handled explicitly in get_queryset (outbound + inbound),
     # so we don't layer GenericRoleFilter on top — it would re-apply the
     # source-side filter and drop inbound rows.
