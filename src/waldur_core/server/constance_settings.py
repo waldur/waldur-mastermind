@@ -2009,6 +2009,13 @@ CONSTANCE_CONFIG = {
         "Serve the remote MCP endpoint (/mcp) from the `waldur mcp_server` "
         "process, so AI agent clients can act as the signed-in user.",
     ),
+    "MCP_RESOURCE_URLS": (
+        "",
+        "Public URL(s) of the MCP endpoint, space-separated "
+        "(e.g. https://api.example.com/mcp). OAuth tokens are issued only for "
+        "these resources, and for the first one when a client names none; while "
+        "empty, no OAuth token is issued.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -2456,7 +2463,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "PAT_MAX_ACL_ENTRIES",
         "PAT_MAX_AUDIT_EVENTS_PER_HOUR",
     ),
-    "MCP server": ("MCP_ENABLED",),
+    "MCP server": ("MCP_ENABLED", "MCP_RESOURCE_URLS"),
     "Site Agent Logs": ("SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY",),
 }
 
