@@ -2378,6 +2378,7 @@ class Command(BaseCommand):
                     "max_tres_per_node": qos.max_tres_per_node,
                     "max_tres_per_user": qos.max_tres_per_user,
                     "min_tres_per_job": qos.min_tres_per_job,
+                    "max_tres_mins_per_job": qos.max_tres_mins_per_job,
                     "flags": qos.flags,
                     "created": qos.created.isoformat() if qos.created else None,
                     "modified": qos.modified.isoformat() if qos.modified else None,

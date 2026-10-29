@@ -175,6 +175,84 @@ class OfferingQoSApiTest(test.APITestCase):
         names = [q["name"] for q in response.data["qos_profiles"]]
         self.assertIn("boost", names)
 
+    def test_max_tres_mins_per_job_round_trips(self):
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.post(
+            self._url("add_qos"),
+            {"name": "standard", "max_tres_mins_per_job": "node=4320"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        qos = models.SlurmOfferingQoS.objects.get(
+            offering=self.offering, name="standard"
+        )
+        self.assertEqual(qos.max_tres_mins_per_job, "node=4320")
+
+        response = self.client.patch(
+            self._url("update_qos"),
+            {"qos_uuid": qos.uuid.hex, "max_tres_mins_per_job": "node=2160"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        qos.refresh_from_db()
+        self.assertEqual(qos.max_tres_mins_per_job, "node=2160")
+
+        response = self.client.get(factories.OfferingFactory.get_url(self.offering))
+        [profile] = response.data["qos_profiles"]
+        self.assertEqual(profile["max_tres_mins_per_job"], "node=2160")
+
+
+class OfferingQoSTRESValidationTest(test.APITestCase):
+    TRES_FIELDS = (
+        "grp_tres",
+        "max_tres_per_job",
+        "max_tres_per_node",
+        "max_tres_per_user",
+        "min_tres_per_job",
+        "max_tres_mins_per_job",
+    )
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        self.client.force_login(self.fixture.offering_owner)
+        self.url = factories.OfferingFactory.get_url(self.fixture.offering, "add_qos")
+
+    def test_tres_fields_accept_slurm_format(self):
+        valid = (
+            "node=4320",
+            "cpu=512,gres/gpu=8",
+            "mem=64G",
+            "mem=64g",
+            "gres/gpu:a100=2",
+            "license/matlab@db=2",
+            "4=4320",
+            "",
+        )
+        for index, (field, value) in enumerate(
+            (f, v) for f in self.TRES_FIELDS for v in valid
+        ):
+            with self.subTest(field=field, value=value):
+                response = self.client.post(
+                    self.url, {"name": f"qos-{index}", field: value}
+                )
+                self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_tres_fields_reject_malformed_value(self):
+        invalid = (
+            "node:8",
+            "node=",
+            "=8",
+            "0=8",
+            "node=eight",
+            "cpu=1,",
+            "cpu=1 ,mem=2",
+        )
+        for field in self.TRES_FIELDS:
+            for value in invalid:
+                with self.subTest(field=field, value=value):
+                    response = self.client.post(self.url, {"name": "bad", field: value})
+                    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                    self.assertIn(field, response.data)
+
 
 class SetPartitionQoSApiTest(test.APITestCase):
     def setUp(self):

@@ -1085,7 +1085,10 @@ class ExportStructureCommandTest(TestCase):
             offering=offering, partition_name="gpu"
         )
         qos = marketplace_factories.SlurmOfferingQoSFactory(
-            offering=offering, name="boost", max_nodes=128
+            offering=offering,
+            name="boost",
+            max_nodes=128,
+            max_tres_mins_per_job="node=4320",
         )
         link = marketplace_factories.SlurmPartitionQoSFactory(
             partition=partition, qos=qos, is_default=True
@@ -1099,6 +1102,9 @@ class ExportStructureCommandTest(TestCase):
         self.assertEqual(len(data["slurm_offering_qos"]), 1)
         self.assertEqual(data["slurm_offering_qos"][0]["name"], "boost")
         self.assertEqual(data["slurm_offering_qos"][0]["max_nodes"], 128)
+        self.assertEqual(
+            data["slurm_offering_qos"][0]["max_tres_mins_per_job"], "node=4320"
+        )
         self.assertEqual(len(data["slurm_partition_qos"]), 1)
         self.assertTrue(data["slurm_partition_qos"][0]["is_default"])
 
@@ -1115,6 +1121,7 @@ class ExportStructureCommandTest(TestCase):
         restored_qos = SlurmOfferingQoS.objects.get(uuid=qos_uuid)
         self.assertEqual(restored_qos.name, "boost")
         self.assertEqual(restored_qos.max_nodes, 128)
+        self.assertEqual(restored_qos.max_tres_mins_per_job, "node=4320")
         self.assertEqual(restored_qos.offering.uuid, offering.uuid)
 
         restored_link = SlurmPartitionQoS.objects.get(uuid=link_uuid)
