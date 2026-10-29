@@ -423,11 +423,15 @@ class OpenStackBackend(ServiceBackend):
         logger.info("Retrieved %d tenants from backend", len(backend_tenants_mapping))
 
         # A tenant without a backend ID was never provisioned: it is not missing
-        # at backend, and must not be terminated as if it were.
+        # at backend, and must not be terminated as if it were. An unmanaged
+        # owner is kept for as long as it shares a network, and its project --
+        # usually the cloud's admin project -- is seldom in the domain listed
+        # above.
         tenants = (
             models.Tenant.objects.filter(
                 state__in=[CoreStates.OK, CoreStates.ERRED],
                 service_settings=self.settings,
+                is_managed=True,
             )
             .exclude(backend_id__isnull=True)
             .exclude(backend_id="")
@@ -2164,7 +2168,11 @@ class OpenStackBackend(ServiceBackend):
 
         for ext_network in external_networks:
             try:
-                network = models.Network.objects.get(backend_id=ext_network["id"])
+                # A network of a project Waldur does not manage is refreshed
+                # once per cloud, by pull_networks_of_unmanaged_owners.
+                network = models.Network.objects.get(
+                    backend_id=ext_network["id"], tenant__is_managed=True
+                )
             except models.Network.DoesNotExist:
                 continue
 
@@ -7468,7 +7476,6 @@ class OpenStackBackend(ServiceBackend):
                 "Deleted %d stale NetworkRBACPolicy objects", stale_incoming_count
             )
 
-        refreshed_network_ids = set()
         for backend_policy in incoming_policies:
             network = models.Network.objects.filter(
                 backend_id=backend_policy["object_id"]
@@ -7517,14 +7524,6 @@ class OpenStackBackend(ServiceBackend):
                     scopes=[tenant, network.tenant],
                 )
                 continue
-
-            if (
-                not network.tenant.is_managed
-                and network.id not in refreshed_network_ids
-            ):
-                # Nothing else pulls a network whose owner Waldur does not manage.
-                self._pull_network_of_unmanaged_owner(network)
-                refreshed_network_ids.add(network.id)
 
             # Create or update the RBAC policy by its backend_id (stable
             # identifier for a given OpenStack policy object) and the tenant:
@@ -7816,13 +7815,57 @@ class OpenStackBackend(ServiceBackend):
             ),
         )
 
-    def _pull_network_of_unmanaged_owner(self, network: models.Network):
+    def pull_networks_of_unmanaged_owners(self):
+        """Refresh the networks shared by projects Waldur does not manage.
+
+        Their owners have no tenant pull, and the networks belong to the cloud
+        rather than to any one of the tenants they are shared with, so they are
+        refreshed here, once, instead of in each consuming tenant's pull.
+        """
+        networks = (
+            models.Network.objects.filter(
+                service_settings=self.settings, tenant__is_managed=False
+            )
+            .select_related("tenant")
+            .order_by("pk")
+        )
+        owners = {}
+        for network in networks:
+            try:
+                found = self._pull_network_of_unmanaged_owner(network)
+            except OpenStackBackendError as e:
+                # The others are still refreshed; the next run tries again.
+                logger.warning(
+                    "Unable to refresh network %s shared by unmanaged project %s: %s",
+                    network.backend_id,
+                    network.tenant.backend_id,
+                    e,
+                )
+            except Exception:
+                logger.exception(
+                    "Unable to refresh network %s shared by unmanaged project %s.",
+                    network.backend_id,
+                    network.tenant.backend_id,
+                )
+            else:
+                if found:
+                    owners[network.tenant_id] = network.tenant
+
+        for owner in owners.values():
+            if owner.state == CoreStates.ERRED or owner.error_message:
+                # The cloud's pull of its tenants used to mark an owner outside
+                # its domain as missing; one that still shares a network is not.
+                handle_resource_update_success(owner)
+
+    def _pull_network_of_unmanaged_owner(self, network: models.Network) -> bool:
+        """Refresh the network and its subnets; False if it is gone."""
         neutron = get_neutron_client(self.admin_session)
         try:
             backend_network = neutron.show_network(network.backend_id)["network"]
         except neutron_exceptions.NotFound:
-            # Its policies go with it, and the sweep below then drops the row.
-            return
+            # Its policies go with it, and the next pull of the shares drops
+            # the row.
+            return False
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
@@ -7838,6 +7881,7 @@ class OpenStackBackend(ServiceBackend):
                 scopes=[network, network.tenant],
             )
         self.pull_subnets(network=network)
+        return True
 
     @reraise_exceptions
     def create_network_rbac_policy(

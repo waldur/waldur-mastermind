@@ -38,6 +38,11 @@ class OpenStackExtension(WaldurExtension):
                 "schedule": timedelta(hours=2),
                 "args": (),
             },
+            "openstack-pull-networks-of-unmanaged-owners": {
+                "task": "openstack.pull_networks_of_unmanaged_owners",
+                "schedule": timedelta(hours=2),
+                "args": (),
+            },
             "openstack-tenant-properties-list-pull-task": {
                 "task": "openstack.tenant_properties_list_pull_task",
                 "schedule": timedelta(hours=24),

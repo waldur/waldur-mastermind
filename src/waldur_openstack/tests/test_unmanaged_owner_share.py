@@ -16,6 +16,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.utils import handle_resource_not_found
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -25,6 +26,7 @@ from waldur_openstack.backend import (
     OpenStackBackendError,
     get_tenant_session,
 )
+from waldur_openstack.extension import OpenStackExtension
 from waldur_openstack.tests.fixtures import mock_session
 
 from . import factories, fixtures
@@ -153,19 +155,14 @@ class ImportTest(UnmanagedOwnerShareMixin, TestCase):
             marketplace_models.Offering.objects.filter(object_id=owner.id).exists()
         )
 
-    def test_repeated_pull_refreshes_without_duplicating(self):
+    def test_repeated_pull_does_not_duplicate(self):
         self.pull()
-        self.backend_network["name"] = "provider-lan-renamed"
 
         self.pull()
 
         self.assertEqual(models.Tenant.objects.filter(is_managed=False).count(), 1)
         self.assertEqual(
             models.Network.objects.filter(backend_id=NETWORK_ID).count(), 1
-        )
-        self.assertEqual(
-            models.Network.objects.get(backend_id=NETWORK_ID).name,
-            "provider-lan-renamed",
         )
         self.assertEqual(models.SubNet.objects.filter(backend_id=SUBNET_ID).count(), 1)
 
@@ -799,3 +796,135 @@ class SharesAtTenantCreationTest(UnmanagedOwnerShareMixin, TestCase):
             self.backend.pull_tenant_network_rbac_policies_safely(self.consumer)
 
         self.assertFalse(models.Network.objects.filter(backend_id=NETWORK_ID).exists())
+
+
+class CloudRefreshTest(UnmanagedOwnerShareMixin, TestCase):
+    """The network is the cloud's, so it is refreshed once per cloud."""
+
+    def setUp(self):
+        super().setUp()
+        self.other_consumer = factories.TenantFactory(
+            service_settings=self.settings,
+            backend_id="other-consumer-project-id",
+            state=CoreStates.OK,
+        )
+        self.share([policy(target="*")])
+        self.pull()
+        self.pull(self.other_consumer)
+        # Only the tenants live in the settings' domain; the admin project
+        # that owns the network does not.
+        self.keystone.projects.list.return_value = [
+            mock.Mock(id=tenant.backend_id, description="")
+            for tenant in (self.consumer, self.other_consumer)
+        ]
+        for tenant, project in zip(
+            (self.consumer, self.other_consumer),
+            self.keystone.projects.list.return_value,
+        ):
+            project.name = tenant.name
+        self.neutron.reset_mock()
+
+    def test_pulls_of_the_shares_leave_it_alone(self):
+        self.pull()
+        self.pull(self.other_consumer)
+
+        self.neutron.show_network.assert_not_called()
+        self.neutron.list_subnets.assert_not_called()
+        self.neutron.list_ports.assert_not_called()
+
+    def test_it_is_refreshed_on_a_schedule(self):
+        schedule = OpenStackExtension.celery_tasks()
+
+        self.assertIn(
+            "openstack.pull_networks_of_unmanaged_owners",
+            [entry["task"] for entry in schedule.values()],
+        )
+
+    def test_it_is_refreshed_once(self):
+        # The settings are the scope of no offering, so the cloud's pull of its
+        # resources would never run for them.
+        self.backend_network["name"] = "provider-lan-renamed"
+        self.neutron.list_subnets.return_value = {
+            "subnets": [{**BACKEND_SUBNET, "name": "provider-lan-subnet-renamed"}]
+        }
+
+        tasks.pull_networks_of_unmanaged_owners()
+
+        self.assertEqual(
+            models.Network.objects.get(backend_id=NETWORK_ID).name,
+            "provider-lan-renamed",
+        )
+        self.assertEqual(
+            models.SubNet.objects.get(backend_id=SUBNET_ID).name,
+            "provider-lan-subnet-renamed",
+        )
+        self.neutron.show_network.assert_called_once_with(NETWORK_ID)
+        self.neutron.list_subnets.assert_called_once_with(network_id=NETWORK_ID)
+
+    def test_cloud_pull_leaves_an_owner_outside_its_domain_ok(self):
+        self.backend.pull_resources()
+
+        owner = self.owner()
+        self.assertEqual(owner.state, CoreStates.OK)
+        self.assertEqual(owner.error_message, "")
+        self.consumer.refresh_from_db()
+        self.assertEqual(self.consumer.state, CoreStates.OK)
+
+    def test_owner_marked_missing_before_recovers(self):
+        owner = self.owner()
+        handle_resource_not_found(owner)
+        owner.refresh_from_db()
+        self.assertEqual(owner.state, CoreStates.ERRED)
+
+        tasks.pull_networks_of_unmanaged_owners()
+
+        owner.refresh_from_db()
+        self.assertEqual(owner.state, CoreStates.OK)
+        self.assertEqual(owner.error_message, "")
+        self.assertIsNone(owner.backend_missing_since)
+
+    def test_a_failed_network_does_not_stop_the_others(self):
+        other_network = {**BACKEND_NETWORK, "id": "provider-net-2", "name": "wan"}
+        backend_networks = {
+            NETWORK_ID: self.backend_network,
+            "provider-net-2": other_network,
+        }
+        self.neutron.show_network.side_effect = lambda network_id: {
+            "network": backend_networks[network_id]
+        }
+        self.share(
+            [policy(target="*"), policy("policy-2", "*", object_id="provider-net-2")]
+        )
+        self.pull()
+
+        # The failing network is the one imported first, so refreshed first.
+        for error in (neutron_exceptions.NeutronClientException(), KeyError("id")):
+            with self.subTest(error=type(error).__name__):
+                other_network["name"] = f"wan-after-{type(error).__name__}"
+
+                def show_network(network_id, error=error):
+                    if network_id == NETWORK_ID:
+                        raise error
+                    return {"network": backend_networks[network_id]}
+
+                self.neutron.show_network.side_effect = show_network
+
+                tasks.pull_networks_of_unmanaged_owners()
+
+                self.assertEqual(
+                    models.Network.objects.get(backend_id="provider-net-2").name,
+                    other_network["name"],
+                )
+                self.assertTrue(
+                    models.Network.objects.filter(backend_id=NETWORK_ID).exists()
+                )
+
+    def test_shared_subnets_pull_leaves_it_to_the_cloud_pull(self):
+        self.neutron.list_networks.return_value = {
+            "networks": [{**BACKEND_NETWORK, "router:external": True, "shared": True}]
+        }
+
+        self.backend.pull_shared_subnets()
+
+        self.neutron.list_subnets.assert_not_called()
+        self.neutron.list_ports.assert_not_called()
