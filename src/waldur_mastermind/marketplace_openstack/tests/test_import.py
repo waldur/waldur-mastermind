@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace_openstack.tests.mocks import (
     MOCK_LIMITS,
     MOCK_TENANT,
     MOCK_VOLUME,
+    MockVolume,
 )
 from waldur_openstack import models
 from waldur_openstack.tests.factories import (
@@ -281,6 +282,28 @@ class VolumeImportableResourcesTest(BaseVolumeImportTest):
                 }
             ],
         )
+
+    def test_volumes_cinder_is_deleting_are_not_importable(self):
+        deleting = MockVolume(name="system-volume", id="2", size=100)
+        deleting.status = "deleting"
+        self.mocked_cinder.volumes.list.return_value = [MOCK_VOLUME, deleting]
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["backend_id"] for item in response.data], ["1"])
+
+    def test_volumes_known_to_waldur_are_not_importable(self):
+        VolumeFactory(
+            service_settings=self.fixture.tenant.service_settings,
+            tenant=self.fixture.tenant,
+            backend_id=MOCK_VOLUME.id,
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
 
 
 class VolumeImportTest(BaseVolumeImportTest):

@@ -4,3 +4,4 @@ from django.dispatch import Signal
 tenant_pull_succeeded = Signal()
 tenant_does_not_exist_in_backend = Signal()
 tenant_quotas_pulled = Signal()
+tenant_resources_pulled = Signal()

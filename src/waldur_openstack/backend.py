@@ -6135,6 +6135,10 @@ class OpenStackBackend(ServiceBackend):
                 ],
             }
             for volume in self.get_volumes(tenant)
+            # Cinder deletes a server's volumes after the server is gone, so a
+            # volume Waldur has just deleted along with its instance can still
+            # be listed for a while.
+            if volume.runtime_state != "deleting"
         ]
         return self.get_importable_resources(models.Volume, volumes)
 

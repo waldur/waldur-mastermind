@@ -67,6 +67,37 @@ def sync_instances_and_volumes_of_tenant(serialized_resource: str):
 
 
 @shared_task(
+    name="waldur_mastermind.marketplace_openstack.import_new_instances_and_volumes_of_tenant",
+    is_background=True,
+)
+def import_new_instances_and_volumes_of_tenant(serialized_tenant: str):
+    """Import servers and volumes created in the tenant outside Waldur.
+
+    Runs after each background pull of the tenant's resources, which refreshes
+    only what Waldur already has. Unlike sync_instances_and_volumes_of_tenant
+    it terminates nothing: that stays with the full tenant pull.
+    """
+    tenant = cast(
+        openstack_models.Tenant,
+        core_utils.deserialize_instance(serialized_tenant),
+    )
+    if tenant.state != CoreStates.OK or not tenant.is_managed:
+        return
+    # Without both per-tenant offerings the imported rows would get no
+    # marketplace resource, and self-heal would report them on every run.
+    for offering_type in (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING):
+        if not utils.tenant_offerings(offering_type, tenant).exists():
+            logger.debug(
+                "Skipping import for tenant %s (PK: %s): it has no %s offering.",
+                tenant,
+                tenant.pk,
+                offering_type,
+            )
+            return
+    utils.import_instances_and_volumes_of_tenant(tenant)
+
+
+@shared_task(
     name="waldur_mastermind.marketplace_openstack.create_resources_for_lost_instances_and_volumes"
 )
 def create_resources_for_lost_instances_and_volumes():

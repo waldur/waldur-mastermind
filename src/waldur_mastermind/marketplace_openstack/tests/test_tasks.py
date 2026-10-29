@@ -1,6 +1,9 @@
 from unittest import mock
 
+from novaclient import exceptions as nova_exceptions
+
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.logging import models as logging_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
@@ -14,6 +17,12 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import tasks
 from waldur_openstack import models as openstack_models
+from waldur_openstack import signals as openstack_signals
+from waldur_openstack.exceptions import (
+    OpenStackAuthorizationFailed,
+    OpenStackBackendError,
+    OpenStackRateLimited,
+)
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
@@ -296,3 +305,177 @@ class TaskSyncTenantTest(BaseOpenStackTest):
         self.assertRaises(
             openstack_models.Volume.DoesNotExist, self.volume.refresh_from_db
         )
+
+
+@mock.patch("waldur_mastermind.marketplace_openstack.handlers.tasks")
+class TenantResourcesPulledHandlerTest(BaseOpenStackTest):
+    def test_background_pull_schedules_import_without_termination(self, mock_tasks):
+        tenant = openstack_factories.TenantFactory()
+
+        openstack_signals.tenant_resources_pulled.send(
+            openstack_models.Tenant, instance=tenant
+        )
+
+        mock_tasks.import_new_instances_and_volumes_of_tenant.delay.assert_called_once_with(
+            core_utils.serialize_instance(tenant)
+        )
+        mock_tasks.sync_instances_and_volumes_of_tenant.delay.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.marketplace_openstack.utils.OpenStackBackend")
+class ImportNewInstancesAndVolumesOfTenantTest(BaseOpenStackTest):
+    def setUp(self):
+        super().setUp()
+        self.instance = openstack_factories.InstanceFactory()
+        self.tenant = self.instance.tenant
+        self.volume = openstack_factories.VolumeFactory(
+            tenant=self.tenant, service_settings=self.instance.service_settings
+        )
+        marketplace_factories.OfferingFactory(
+            scope=self.tenant, type=OPENSTACK_INSTANCE_OFFERING
+        )
+        self.volume_offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant, type=OPENSTACK_VOLUME_OFFERING
+        )
+
+    def import_new(self):
+        tasks.import_new_instances_and_volumes_of_tenant(
+            core_utils.serialize_instance(self.tenant)
+        )
+
+    def has_resource(self, scope):
+        return marketplace_models.Resource.objects.filter(scope=scope).exists()
+
+    def test_servers_and_volumes_created_outside_waldur_are_imported(
+        self, mock_backend
+    ):
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": self.instance.backend_id}
+        ]
+        mock_backend().get_importable_volumes.return_value = [
+            {"backend_id": self.volume.backend_id}
+        ]
+        mock_backend().import_instance.return_value = self.instance
+        mock_backend().import_volume.return_value = self.volume
+
+        self.import_new()
+
+        self.assertTrue(self.has_resource(self.instance))
+        self.assertTrue(self.has_resource(self.volume))
+
+    def test_nothing_is_terminated(self, mock_backend):
+        mock_backend().get_importable_instances.return_value = []
+        mock_backend().get_importable_volumes.return_value = []
+
+        self.import_new()
+
+        mock_backend().get_expired_instances.assert_not_called()
+        mock_backend().get_expired_volumes.assert_not_called()
+        self.instance.refresh_from_db()
+        self.volume.refresh_from_db()
+
+    def test_server_that_fails_to_import_does_not_hold_back_the_rest(
+        self, mock_backend
+    ):
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": "broken-server"},
+            {"backend_id": "deleted-server"},
+            {"backend_id": self.instance.backend_id},
+        ]
+        mock_backend().get_importable_volumes.return_value = [
+            {"backend_id": self.volume.backend_id}
+        ]
+        mock_backend().import_instance.side_effect = [
+            OpenStackBackendError("Flavor not found"),
+            nova_exceptions.NotFound(404),
+            self.instance,
+        ]
+        mock_backend().import_volume.return_value = self.volume
+
+        self.import_new()
+
+        self.assertTrue(self.has_resource(self.instance))
+        self.assertTrue(self.has_resource(self.volume))
+
+    def test_volume_that_fails_to_import_does_not_hold_back_the_rest(
+        self, mock_backend
+    ):
+        mock_backend().get_importable_instances.return_value = []
+        mock_backend().get_importable_volumes.return_value = [
+            {"backend_id": "broken-volume"},
+            {"backend_id": self.volume.backend_id},
+        ]
+        mock_backend().import_volume.side_effect = [
+            OpenStackBackendError("Volume not found"),
+            self.volume,
+        ]
+
+        self.import_new()
+
+        self.assertTrue(self.has_resource(self.volume))
+
+    def test_tenant_wide_errors_abort_the_import(self, mock_backend):
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": self.instance.backend_id}
+        ]
+        mock_backend().import_instance.side_effect = OpenStackAuthorizationFailed(
+            "Invalid credentials"
+        )
+
+        with self.assertRaises(OpenStackAuthorizationFailed):
+            self.import_new()
+
+        mock_backend().import_volume.assert_not_called()
+
+    def test_server_the_database_rejects_does_not_hold_back_the_rest(
+        self, mock_backend
+    ):
+        # OpenStack allows a 255-character name; a marketplace resource holds 150.
+        long_named = openstack_factories.InstanceFactory(
+            tenant=self.tenant,
+            service_settings=self.instance.service_settings,
+            name="s" * 200,
+        )
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": long_named.backend_id},
+            {"backend_id": self.instance.backend_id},
+        ]
+        mock_backend().get_importable_volumes.return_value = [
+            {"backend_id": self.volume.backend_id}
+        ]
+        mock_backend().import_instance.side_effect = [long_named, self.instance]
+        mock_backend().import_volume.return_value = self.volume
+
+        self.import_new()
+
+        self.assertFalse(self.has_resource(long_named))
+        self.assertTrue(self.has_resource(self.instance))
+        self.assertTrue(self.has_resource(self.volume))
+
+    def test_rate_limiting_aborts_the_import(self, mock_backend):
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": self.instance.backend_id}
+        ]
+        mock_backend().import_instance.side_effect = OpenStackRateLimited(
+            "Too many requests"
+        )
+
+        with self.assertRaises(OpenStackRateLimited):
+            self.import_new()
+
+        mock_backend().import_volume.assert_not_called()
+
+    def test_tenant_that_is_no_longer_ok_is_skipped(self, mock_backend):
+        self.tenant.state = CoreStates.DELETING
+        self.tenant.save()
+
+        self.import_new()
+
+        mock_backend().get_importable_instances.assert_not_called()
+
+    def test_tenant_without_per_tenant_offerings_is_skipped(self, mock_backend):
+        self.volume_offering.delete()
+
+        self.import_new()
+
+        mock_backend().get_importable_instances.assert_not_called()
