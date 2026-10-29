@@ -5087,6 +5087,7 @@ QOS_LIMIT_FIELDS = (
     "max_tres_per_node",
     "max_tres_per_user",
     "min_tres_per_job",
+    "max_tres_mins_per_job",
     "flags",
 )
 

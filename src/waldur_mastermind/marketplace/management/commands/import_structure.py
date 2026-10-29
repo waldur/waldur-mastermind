@@ -2752,6 +2752,7 @@ class Command(BaseCommand):
                     "max_tres_per_node": profile.get("max_tres_per_node", ""),
                     "max_tres_per_user": profile.get("max_tres_per_user", ""),
                     "min_tres_per_job": profile.get("min_tres_per_job", ""),
+                    "max_tres_mins_per_job": profile.get("max_tres_mins_per_job", ""),
                     "flags": profile.get("flags", ""),
                 }
 

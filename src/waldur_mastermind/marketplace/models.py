@@ -5332,6 +5332,19 @@ NonNumericQoSNameValidator = RegexValidator(
     message=_("QoS name cannot consist only of digits."),
 )
 
+# SLURM TRES strings: comma-separated <tres>=<count> pairs, where <tres> is a
+# type[/name] or a numeric TRES id, e.g. "cpu=512,mem=64G,gres/gpu:a100=8" or
+# "4=4320". Mirrors what sacctmgr's slurmdb_format_tres_str accepts, minus its
+# silent coercions (a missing or non-numeric count becomes 0 there). Blank
+# means unset.
+_TRES_PAIR = r"([A-Za-z][\w/:.@-]*|[1-9]\d*)=\d+[KMGTPkmgtp]?"
+TRESStringValidator = RegexValidator(
+    regex=rf"^{_TRES_PAIR}(,{_TRES_PAIR})*$",
+    message=_(
+        "Enter comma-separated TRES limits such as 'cpu=512,mem=64G,gres/gpu=8'."
+    ),
+)
+
 
 class SlurmOfferingQoS(core_models.UuidMixin, TimeStampedModel):
     """
@@ -5374,19 +5387,38 @@ class SlurmOfferingQoS(core_models.UuidMixin, TimeStampedModel):
     grp_tres = models.CharField(
         max_length=255,
         blank=True,
+        validators=[TRESStringValidator],
         help_text=_("Aggregate TRES the QOS may allocate at once (GrpTRES)"),
     )
     max_tres_per_job = models.CharField(
-        max_length=255, blank=True, help_text=_("Max TRES per job (MaxTRESPerJob)")
+        max_length=255,
+        blank=True,
+        validators=[TRESStringValidator],
+        help_text=_("Max TRES per job (MaxTRESPerJob)"),
     )
     max_tres_per_node = models.CharField(
-        max_length=255, blank=True, help_text=_("Max TRES per node (MaxTRESPerNode)")
+        max_length=255,
+        blank=True,
+        validators=[TRESStringValidator],
+        help_text=_("Max TRES per node (MaxTRESPerNode)"),
     )
     max_tres_per_user = models.CharField(
-        max_length=255, blank=True, help_text=_("Max TRES per user (MaxTRESPerUser)")
+        max_length=255,
+        blank=True,
+        validators=[TRESStringValidator],
+        help_text=_("Max TRES per user (MaxTRESPerUser)"),
     )
     min_tres_per_job = models.CharField(
-        max_length=255, blank=True, help_text=_("Min TRES per job (MinTRESPerJob)")
+        max_length=255,
+        blank=True,
+        validators=[TRESStringValidator],
+        help_text=_("Min TRES per job (MinTRESPerJob)"),
+    )
+    max_tres_mins_per_job = models.CharField(
+        max_length=255,
+        blank=True,
+        validators=[TRESStringValidator],
+        help_text=_("Max TRES-minutes per job (MaxTRESMinsPerJob)"),
     )
     flags = models.CharField(
         max_length=255,

@@ -161,7 +161,7 @@ SLURM Quality of Service (QoS) profiles let a provider describe the scheduling p
 
 QoS is grounded in SLURM's native model, where a QoS is a **cluster-scoped** entity that carries its own limits — it is *not* owned by a partition:
 
-- **`SlurmOfferingQoS`** — an offering-scoped QoS profile: `name` plus limits (`max_nodes`, `min_nodes`, `default_time`, `max_time`, `grace_time`, `priority`, `grp_tres`, `max_tres_per_job`, `max_tres_per_node`, `max_tres_per_user`, `min_tres_per_job`, `flags`). QoS names cannot be all digits — they would collide with SLURM's numeric QoS id namespace.
+- **`SlurmOfferingQoS`** — an offering-scoped QoS profile: `name` plus limits (`max_nodes`, `min_nodes`, `default_time`, `max_time`, `grace_time`, `priority`, `grp_tres`, `max_tres_per_job`, `max_tres_per_node`, `max_tres_per_user`, `min_tres_per_job`, `max_tres_mins_per_job`, `flags`). The TRES fields take SLURM's comma-separated `<tres>=<count>` format (`cpu=512,mem=64G,gres/gpu=8`); `max_tres_mins_per_job` is `MaxTRESMinsPerJob` (sacctmgr also accepts `MaxTRESMinsPJ` and `MaxTRESMins`), so `node=4320` caps a job at 72 node-hours. QoS names cannot be all digits — they would collide with SLURM's numeric QoS id namespace.
 - **`SlurmPartitionQoS`** — the per-partition allow-list gate (SLURM `AllowQos`). A partition with no allow-list entries permits *all* of the offering's QoS (SLURM `AllowQos=ALL`). Exactly one entry may be marked the default (which seeds SLURM `DefaultQOS`); the absence of a default models a mandatory `--qos`.
 
 The catalog is exposed on the offering payload as `qos_profiles`, and each partition's allow-list as `qos_options`. The deprecated single `qos` string on `OfferingPartition` is superseded by this catalog and backfilled into it.
