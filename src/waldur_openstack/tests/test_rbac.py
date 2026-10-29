@@ -4,11 +4,13 @@ from ddt import data, ddt
 from neutronclient.common import exceptions as neutron_exceptions
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_openstack import models
+from waldur_openstack.backend import OpenStackBackend
 
 from . import factories, fixtures
 
@@ -223,6 +225,121 @@ class DeleteRbacPolicyTest(test.APITestCase):
         self.client.force_authenticate(getattr(self.fixture, "member"))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class EditRbacPolicyTest(test.APITestCase):
+    """A share is its network, target tenant and type; changing one is another
+    share, created and deleted with their own checks. Waldur's row mirrors a
+    Neutron policy, and an edited row would let the target tenant use a network
+    that was never shared with it."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.policy = factories.NetworkRBACPolicyFactory(network=self.fixture.network)
+        self.target_tenant = self.policy.target_tenant
+        self.target_project = self.target_tenant.project
+        self.other_network = factories.NetworkFactory(
+            service_settings=self.fixture.settings
+        )
+        self.url = f"/api/openstack-network-rbac-policies/{self.policy.uuid}/"
+
+    def requester(self, role):
+        if role == "staff":
+            return self.fixture.staff
+        user = structure_factories.UserFactory()
+        roles = {
+            "admin": ProjectRole.ADMIN,
+            "manager": ProjectRole.MANAGER,
+            "member": ProjectRole.MEMBER,
+        }
+        self.target_project.add_user(user, roles[role])
+        return user
+
+    @data("staff", "admin", "manager", "member")
+    def test_nobody_can_edit_a_share(self, role):
+        self.client.force_authenticate(self.requester(role))
+        repointed = {"network": factories.NetworkFactory.get_url(self.other_network)}
+
+        patched = self.client.patch(self.url, repointed, format="json")
+        put = self.client.put(
+            self.url,
+            {
+                **repointed,
+                "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
+                "policy_type": "access_as_external",
+            },
+            format="json",
+        )
+
+        self.assertEqual(patched.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(put.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.network, self.fixture.network)
+        self.assertEqual(
+            self.policy.policy_type, models.NetworkRBACPolicy.NetworkShareType.SHARED
+        )
+
+
+class DeprecatedRbacPolicyDeleteTest(test.APITestCase):
+    """The deprecated action on a network deletes only that network's shares."""
+
+    def setUp(self):
+        self.owner = fixtures.OpenStackFixture()
+        self.network = self.owner.network
+        # A consumer: the admin of another organization's project, whose tenant
+        # the owner's network is shared with, and which has a network of its own.
+        self.consumer_admin = structure_factories.UserFactory()
+        consumer_project = structure_factories.ProjectFactory()
+        consumer_project.add_user(self.consumer_admin, ProjectRole.ADMIN)
+        self.consumer_tenant = factories.TenantFactory(
+            service_settings=self.owner.settings,
+            project=consumer_project,
+            backend_id="consumer-tenant",
+        )
+        self.consumer_network = factories.NetworkFactory(
+            service_settings=self.owner.settings,
+            project=consumer_project,
+            tenant=self.consumer_tenant,
+            state=CoreStates.OK,
+        )
+        self.policy = factories.NetworkRBACPolicyFactory(
+            network=self.network,
+            target_tenant=self.consumer_tenant,
+            backend_id="owner-policy",
+        )
+        patcher = mock.patch.object(OpenStackBackend, "delete_network_rbac_policy")
+        self.addCleanup(patcher.stop)
+        self.delete_backend = patcher.start()
+
+    def url(self, network):
+        return (
+            factories.NetworkFactory.get_url(network, "rbac_policy_delete")
+            + self.policy.uuid.hex
+            + "/"
+        )
+
+    def test_a_share_of_another_network_is_not_found(self):
+        self.client.force_authenticate(self.consumer_admin)
+
+        response = self.client.delete(self.url(self.consumer_network))
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.delete_backend.assert_not_called()
+        self.assertTrue(
+            models.NetworkRBACPolicy.objects.filter(pk=self.policy.pk).exists()
+        )
+
+    def test_staff_deletes_a_share_of_the_network(self):
+        self.client.force_authenticate(self.owner.staff)
+
+        response = self.client.delete(self.url(self.network))
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.delete_backend.assert_called_once_with(rbac_id="owner-policy")
+        self.assertFalse(
+            models.NetworkRBACPolicy.objects.filter(pk=self.policy.pk).exists()
+        )
 
 
 class RbacPolicyVisibilityTest(test.APITestCase):
