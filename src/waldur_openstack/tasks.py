@@ -8,6 +8,7 @@ from django.utils import timezone
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -471,6 +472,22 @@ class TenantPropertiesListPullTask(ManagedTenantListPullTask):
 
     name = "openstack.tenant_properties_list_pull_task"
     pull_task = TenantPropertiesPullTask
+
+
+@shared_task(name="openstack.pull_networks_of_unmanaged_owners")
+def pull_networks_of_unmanaged_owners():
+    """Refresh networks that unmanaged OpenStack projects share with tenants.
+
+    Once per cloud, for every cloud with such a network. The cloud's pull of
+    its resources is not enough: it skips clouds without a live offering, whose
+    tenants are still pulled and still see these networks.
+    """
+    for service_settings in structure_models.ServiceSettings.objects.filter(
+        id__in=models.Network.objects.filter(tenant__is_managed=False).values(
+            "service_settings_id"
+        )
+    ):
+        OpenStackBackend(service_settings).pull_networks_of_unmanaged_owners()
 
 
 @shared_task
