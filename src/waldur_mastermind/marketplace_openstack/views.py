@@ -98,6 +98,9 @@ class MarketplaceTenantViewSet(ExecutorMixin, core_views.ActionsViewSet):
 class MarketplaceTenantActionsViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
+    # An image goes into the tenant's own OpenStack project: seeing the tenant
+    # is not enough to add one.
+    unsafe_methods_permissions = [is_administrator]
 
     queryset = openstack_models.Tenant.objects.all().order_by("name")
     serializer_class = serializers.TenantSerializer
@@ -171,8 +174,8 @@ class MarketplaceTenantActionsViewSet(core_views.ReadOnlyActionsViewSet):
                     "name": image["name"],
                     "status": image["status"],
                     "upload_url": reverse(
-                        "openstack-marketplace-upload-image-data",
-                        kwargs={"uuid": tenant.uuid, "image_id": image["id"]},
+                        "openstack-marketplace-tenant-upload-image-data",
+                        kwargs={"uuid": tenant.uuid.hex, "image_id": image["id"]},
                     ),
                 },
                 status=status.HTTP_201_CREATED,

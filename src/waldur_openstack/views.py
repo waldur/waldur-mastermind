@@ -2528,23 +2528,6 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
     delete_executor = executors.NetworkDeleteExecutor
     pull_executor = executors.NetworkPullExecutor
 
-    def action_permission_check(request, view, obj=None):
-        if not obj:
-            return
-
-        if request.user.is_staff:
-            return
-
-        network = obj
-        if not network.project.has_user(
-            request.user
-        ) and not network.project.customer.has_user(request.user):
-            raise exceptions.PermissionDenied()
-
-    update_permissions = destroy_permissions = set_mtu_permissions = (
-        create_subnet_permissions
-    ) = [action_permission_check]
-
     @staticmethod
     def get_related_networks(user):
         project_ids = UserRole.objects.filter(
