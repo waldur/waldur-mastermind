@@ -9,9 +9,10 @@ IMPERSONATOR_HEADER = settings.WALDUR_CORE.get("RESPONSE_HEADER_IMPERSONATOR_UUI
 
 PUBLIC_CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    # MCP clients send MCP-Protocol-Version while discovering the OAuth server.
     "Access-Control-Allow-Headers": "Accept, Content-Type, Content-Length, "
-    "Accept-Encoding",
+    "Accept-Encoding, Authorization, MCP-Protocol-Version",
     "Access-Control-Max-Age": "3600",
 }
 

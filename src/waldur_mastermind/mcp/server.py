@@ -10,8 +10,8 @@ from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
-from waldur_core.configuration import config
 from waldur_mastermind.mcp.auth import WaldurTokenVerifier, run_orm_async
+from waldur_mastermind.mcp.utils import is_mcp_enabled
 
 MCP_PATH = "/mcp"
 
@@ -27,10 +27,6 @@ def build_mcp() -> FastMCP:
         return {"uuid": claims["sub"], "username": claims["username"]}
 
     return mcp
-
-
-def is_mcp_enabled() -> bool:
-    return config.MCP_ENABLED
 
 
 class MCPEnabledGate:

@@ -81,9 +81,14 @@ INSTALLED_APPS = (
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
-# Paths any origin may POST to without credentials: the call token API that
-# Matrix clients on other origins (Element Web) use. See cors_middleware.
-PUBLIC_CORS_PATH_PREFIXES = ("/api/matrix/livekit/",)
+# Paths any origin may call without credentials: the call token API that
+# Matrix clients on other origins (Element Web) use, and the OAuth server that
+# browser-based MCP clients use. See cors_middleware.
+PUBLIC_CORS_PATH_PREFIXES = (
+    "/api/matrix/livekit/",
+    "/.well-known/oauth-authorization-server",
+    "/oauth/",
+)
 
 MIDDLEWARE = (
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -158,6 +163,10 @@ REST_FRAMEWORK = {
         # The appservice endpoints, per client address, for calls without the
         # homeserver token: the homeserver itself is not limited.
         "matrix_webhook": "10000/hour",
+        # New MCP OAuth clients per client address, by DCR or CIMD. Each one is
+        # a saved client, and with CIMD an outbound fetch too. Hosted clients
+        # register from shared addresses, so this leaves room for many users.
+        "mcp_client_registration": "60/hour",
         # Passkey ceremonies. Sign-in is anonymous and unauthenticated, so it
         # is the tighter of the two. Deliberately not wired into django-axes:
         # a counter shared with password login would let an attacker lock a
