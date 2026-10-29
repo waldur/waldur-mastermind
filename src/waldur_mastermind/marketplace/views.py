@@ -1310,6 +1310,46 @@ SERVICE_PROVIDER_UUID = OpenApiParameter(
 )
 
 
+class ServiceProviderConsumersMixin:
+    """A list of a service provider's consumers, nested under the provider.
+
+    The provider is looked up and its permission checked once per request.
+    A scoped PAT's binding is matched against the provider as well
+    (``get_pat_binding_parent``), not against each listed object: the
+    consumers belong to other organizations, which no binding of the
+    provider's reaches.
+    """
+
+    service_provider_permission: PermissionEnum
+
+    def has_service_provider_permission(self, service_provider):
+        return has_permission_on_any_source(
+            self.request,
+            self.service_provider_permission,
+            service_provider,
+            SERVICE_PROVIDER_SOURCES,
+        )
+
+    def get_service_provider(self):
+        if not hasattr(self, "_service_provider"):
+            service_provider = get_object_or_404(
+                models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
+            )
+            if not self.has_service_provider_permission(service_provider):
+                raise PermissionDenied()
+            self._service_provider = service_provider
+        return self._service_provider
+
+    def get_pat_binding_parent(self):
+        return self.get_service_provider()
+
+    def get_serializer_context(self):
+        return {
+            **super().get_serializer_context(),
+            "service_provider": self.get_service_provider(),
+        }
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List customers of a service provider",
@@ -1318,38 +1358,19 @@ SERVICE_PROVIDER_UUID = OpenApiParameter(
     )
 )
 class ServiceProviderCustomersViewSet(
-    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+    ServiceProviderConsumersMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
 ):
     serializer_class = serializers.MarketplaceProviderCustomerSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = structure_filters.CustomerFilter
     queryset = structure_models.Customer.objects.all()
-
-    def get_service_provider(self):
-        service_provider = get_object_or_404(
-            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
-        )
-        if not has_permission_on_any_source(
-            self.request,
-            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
-            service_provider,
-            SERVICE_PROVIDER_SOURCES,
-        ):
-            raise PermissionDenied()
-        return service_provider
+    service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS
 
     def get_queryset(self):
         customer_ids = utils.get_service_provider_customer_ids(
             self.get_service_provider()
         )
         return self.queryset.filter(id__in=customer_ids)
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        return {
-            **context,
-            "service_provider": self.get_service_provider(),
-        }
 
 
 @extend_schema_view(
@@ -1370,43 +1391,25 @@ class ServiceProviderCustomersViewSet(
     )
 )
 class ServiceProviderCustomerProjectsViewSet(
-    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+    ServiceProviderConsumersMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
 ):
     serializer_class = serializers.MarketplaceProviderCustomerProjectSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = structure_filters.ProjectFilter
     queryset = structure_models.Project.available_objects.all()
-
-    def get_service_provider(self):
-        service_provider = get_object_or_404(
-            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
-        )
-        if not has_permission_on_any_source(
-            self.request,
-            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS,
-            service_provider,
-            SERVICE_PROVIDER_SOURCES,
-        ):
-            raise PermissionDenied()
-        return service_provider
+    service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS
 
     def get_queryset(self):
+        service_provider = self.get_service_provider()
         customer_uuid = self.request.query_params.get("project_customer_uuid")
         if not customer_uuid or not is_uuid_like(customer_uuid):
             return self.queryset.none()
         project_ids = (
-            utils.get_service_provider_resources(self.get_service_provider())
+            utils.get_service_provider_resources(service_provider)
             .filter(project__customer__uuid=customer_uuid)
             .values_list("project_id", flat=True)
         )
         return self.queryset.filter(id__in=project_ids)
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        return {
-            **context,
-            "service_provider": self.get_service_provider(),
-        }
 
 
 @extend_schema_view(
@@ -1416,37 +1419,20 @@ class ServiceProviderCustomerProjectsViewSet(
         parameters=[SERVICE_PROVIDER_UUID],
     )
 )
-class ServiceProviderProjectsViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewSet):
+class ServiceProviderProjectsViewSet(
+    ServiceProviderConsumersMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
     serializer_class = structure_serializers.ProjectSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = structure_filters.ProjectFilter
     queryset = structure_models.Project.available_objects.all()
-
-    def get_service_provider(self):
-        service_provider = get_object_or_404(
-            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
-        )
-        if not has_permission_on_any_source(
-            self.request,
-            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS,
-            service_provider,
-            SERVICE_PROVIDER_SOURCES,
-        ):
-            raise PermissionDenied()
-        return service_provider
+    service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS
 
     def get_queryset(self):
         project_ids = utils.get_service_provider_project_ids(
             self.get_service_provider()
         )
         return self.queryset.filter(id__in=project_ids)
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        return {
-            **context,
-            "service_provider": self.get_service_provider(),
-        }
 
 
 @extend_schema_view(
@@ -1664,24 +1650,22 @@ class ServiceProviderOfferingsViewSet(
     )
 )
 class ServiceProviderUserCustomersViewSet(
-    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+    ServiceProviderConsumersMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
 ):
     serializer_class = serializers.MarketplaceProviderCustomerSerializer
     queryset = structure_models.Customer.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filterset_class = structure_filters.CustomerFilter
+    service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS
 
-    def get_service_provider(self):
-        service_provider = get_object_or_404(
-            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
+    # Checked on the provider's organization only, so a PAT is matched there too.
+    def has_service_provider_permission(self, service_provider):
+        return has_permission(
+            self.request, self.service_provider_permission, service_provider.customer
         )
-        if not has_permission(
-            self.request,
-            PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS,
-            service_provider.customer,
-        ):
-            raise PermissionDenied()
-        return service_provider
+
+    def get_pat_binding_parent(self):
+        return self.get_service_provider().customer
 
     def get_queryset(self):
         service_provider = self.get_service_provider()
@@ -1710,13 +1694,6 @@ class ServiceProviderUserCustomersViewSet(
         ).values_list("customer_id", flat=True)
 
         return self.queryset.filter(id__in=project_customers.union(valid_customers))
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        return {
-            **context,
-            "service_provider": self.get_service_provider(),
-        }
 
 
 @extend_schema_view(

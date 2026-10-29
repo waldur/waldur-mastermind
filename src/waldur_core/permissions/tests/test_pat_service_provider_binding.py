@@ -7,6 +7,7 @@ PAT checks, and the list filters match.
 """
 
 from datetime import timedelta
+from unittest import mock
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import RequestFactory
@@ -19,8 +20,10 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
     OfferingRole,
+    ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.permissions.pat_filtering import PATScopeListFilter
 from waldur_core.permissions.tests.test_pat_list_filtering import (
     _auth_header,
     _create_pat,
@@ -30,6 +33,7 @@ from waldur_core.permissions.utils import (
     get_scope_ancestors,
     has_permission,
 )
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -162,6 +166,140 @@ class PATServiceProviderBindingListFilterTest(ProviderSetup, test.APITestCase):
         uuids = self.list_uuids("/api/marketplace-provider-resource-projects/")
         self.assertIn(self.resource_project.uuid.hex, uuids)
         self.assertNotIn(self.other_resource_project.uuid.hex, uuids)
+
+
+@override_config(PAT_ENABLED=True)
+class PATServiceProviderNestedListTest(ProviderSetup, test.APITestCase):
+    """The provider's lists of its consumers, nested under the service
+    provider. The PAT binding is matched against the provider itself, so the
+    Project and Customer rules, which never reach another organization's
+    projects, must not empty them."""
+
+    scopes = [
+        PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS.value,
+        PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS.value,
+        PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS.value,
+    ]
+
+    def get(self, url, binding, scopes=None, user=None):
+        pat = _create_pat(
+            user or self.staff,
+            scopes=scopes or self.scopes,
+            bindings=[binding] if binding else [],
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+        return self.client.get(url)
+
+    def nested_lists(self):
+        base = f"/api/marketplace-service-providers/{self.provider.uuid.hex}"
+        project = self.consumer_project.uuid.hex
+        customer = self.consumer_project.customer.uuid.hex
+        return {
+            "projects": (f"{base}/projects/", project),
+            "customers": (f"{base}/customers/", customer),
+            "customer_projects": (
+                f"{base}/customer_projects/?project_customer_uuid={customer}",
+                project,
+            ),
+        }
+
+    def assert_lists_consumer(self, binding, user=None):
+        for name, (url, expected) in self.nested_lists().items():
+            with self.subTest(name):
+                response = self.get(url, binding, user=user)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual([row["uuid"] for row in response.data], [expected])
+
+    def assert_refused(self, binding, scopes=None):
+        for name, (url, _) in self.nested_lists().items():
+            with self.subTest(name):
+                response = self.get(url, binding, scopes)
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unbound_pat(self):
+        self.assert_lists_consumer(None)
+
+    def test_provider_bound_pat(self):
+        self.assert_lists_consumer(self.provider)
+
+    def test_provider_organization_bound_pat(self):
+        self.assert_lists_consumer(self.provider.customer)
+
+    def test_offering_bound_pat_is_refused(self):
+        self.assert_refused(self.offering)
+
+    def test_pat_bound_to_another_provider_is_refused(self):
+        self.assert_refused(marketplace_factories.ServiceProviderFactory())
+
+    def test_provider_bound_pat_still_needs_the_scope(self):
+        self.assert_refused(self.provider, scopes=[PermissionEnum.LIST_PROJECTS.value])
+
+    def test_customer_projects_checks_the_provider_without_a_customer(self):
+        url = f"/api/marketplace-service-providers/{self.provider.uuid.hex}/customer_projects/"
+        other = marketplace_factories.ServiceProviderFactory()
+        self.assertEqual(self.get(url, other).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_role_holders(self):
+        for role in (ServiceProviderRole.MANAGER, CustomerRole.OWNER):
+            for permission in self.scopes:
+                role.add_permission(PermissionEnum(permission))
+        manager = structure_factories.UserFactory(can_use_personal_access_tokens=True)
+        self.provider.add_user(manager, ServiceProviderRole.MANAGER)
+        owner = structure_factories.UserFactory(can_use_personal_access_tokens=True)
+        self.provider.customer.add_user(owner, CustomerRole.OWNER)
+        for user, binding in (
+            (manager, self.provider),
+            (owner, self.provider.customer),
+        ):
+            with self.subTest(binding=type(binding).__name__):
+                self.assert_lists_consumer(binding, user)
+
+    def user_customers(self, binding):
+        member = structure_factories.UserFactory()
+        self.consumer_project.add_user(member, ProjectRole.MEMBER)
+        url = (
+            f"/api/marketplace-service-providers/{self.provider.uuid.hex}"
+            f"/user_customers/?user_uuid={member.uuid.hex}"
+        )
+        scopes = [PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS.value]
+        return self.get(url, binding, scopes)
+
+    def test_user_customers(self):
+        consumer = self.consumer_project.customer.uuid.hex
+        for binding in (None, self.provider.customer):
+            with self.subTest(binding=binding):
+                response = self.user_customers(binding)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual([row["uuid"] for row in response.data], [consumer])
+
+    def test_user_customers_offering_bound_pat_is_refused(self):
+        response = self.user_customers(self.offering)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_filter_applies_the_rule_when_the_binding_misses_the_parent(self):
+        other = marketplace_factories.ServiceProviderFactory()
+        pat = _create_pat(self.staff, scopes=self.scopes, bindings=[self.provider])
+        request = RequestFactory().get("/")
+        request.user = self.staff
+        request.auth = pat
+        projects = structure_models.Project.objects.filter(id=self.consumer_project.id)
+        for parent, expected in ((self.provider, 1), (other, 0)):
+            view = mock.Mock(get_pat_binding_parent=mock.Mock(return_value=parent))
+            with self.subTest(parent=parent):
+                filtered = PATScopeListFilter().filter_queryset(request, projects, view)
+                self.assertEqual(filtered.count(), expected)
+
+    def test_global_lists_still_hide_consumers(self):
+        for url, consumer in (
+            ("/api/projects/", self.consumer_project.uuid.hex),
+            ("/api/customers/", self.consumer_project.customer.uuid.hex),
+        ):
+            with self.subTest(url):
+                unbound = self.get(url, None)
+                self.assertIn(consumer, {row["uuid"] for row in unbound.data})
+                bound = self.get(url, self.provider)
+                self.assertEqual(bound.status_code, status.HTTP_200_OK)
+                self.assertNotIn(consumer, {row["uuid"] for row in bound.data})
 
 
 @override_config(PAT_ENABLED=True)

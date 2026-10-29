@@ -478,9 +478,9 @@ backends. Detail endpoints inherit the same narrowing because DRF's
 |---|---|
 | `structure.Customer` | `customer` |
 | `structure.Project` | `customer`, `project` |
-| `marketplace.Offering` | `customer`, `offering` |
-| `marketplace.Resource` | `customer`, `project`, `offering`, `resource` |
-| `marketplace.ResourceProject` | `customer`, `project`, `offering`, `resource`, `resource_project` |
+| `marketplace.Offering` | `customer`, `offering`, `service_provider` |
+| `marketplace.Resource` | `customer` (the consumer's), `project`, `offering`, `resource`, `service_provider` |
+| `marketplace.ResourceProject` | `customer` (the consumer's), `project`, `offering`, `resource`, `resource_project`, `service_provider` |
 | `marketplace.ServiceProvider` | `customer`, `service_provider` |
 | `proposal.CallManagingOrganisation` | `customer`, `call_organizer` |
 | `proposal.Call` | `call` (no ancestor inheritance) |
@@ -489,6 +489,18 @@ backends. Detail endpoints inherit the same narrowing because DRF's
 Endpoints whose model does not appear above (e.g. `/api/marketplace-orders/`,
 `/api/invoices/`) currently pass through unfiltered. Add a builder via
 `register_pat_filter` in `pat_filtering.py` to extend coverage.
+
+**Lists nested under a parent**: the rules only follow an object's own
+ancestors, so they would empty a list of one parent's children that belong
+to other organizations. An example is a service provider's consumers under
+`/api/marketplace-service-providers/{uuid}/`: `projects/`, `customers/`,
+`customer_projects/` and `user_customers/`. Such a view names its parent in
+`get_pat_binding_parent()`. When the PAT's binding covers that parent
+(`_pat_entity_check`), the filter returns the view's queryset unchanged;
+otherwise the model's rule applies as usual. Define it only on a view whose
+`get_queryset` already limits the queryset to the parent's children. The
+service provider views share it through `ServiceProviderConsumersMixin` in
+`marketplace/views.py`.
 
 **Codepath limit**: the install only wraps `GenericAPIView.filter_queryset`.
 Views that bypass that codepath — `APIView` subclasses, custom actions
