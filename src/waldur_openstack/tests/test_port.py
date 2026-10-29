@@ -3,8 +3,12 @@ from unittest import mock
 from ddt import data, ddt
 from neutronclient.client import exceptions as neutron_exceptions
 from rest_framework import status, test
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
 from waldur_core.core.enums import CoreStates
+from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.enums import Ipv6Modes
 from waldur_openstack.exceptions import OpenStackBackendError
@@ -15,6 +19,12 @@ from waldur_openstack.serializers import (
 )
 
 from . import factories, fixtures
+
+
+def port_serializer(user, data):
+    request = Request(APIRequestFactory().post("/"))
+    request.user = user
+    return OpenStackPortSerializer(data=data, context={"request": request})
 
 
 class BasePortTest(test.APITestCase):
@@ -271,6 +281,104 @@ class PortCreateTest(BasePortTest):
         self.assertEqual(payload["security_groups"], [security_group.backend_id])
 
 
+@ddt
+class PortCreatePermissionTest(test.APITestCase):
+    """Waldur creates a port with the cloud's admin session, so Neutron checks
+    nothing: only someone who manages the tenant may put a port in it."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.subnet = self.fixture.subnet
+        self.url = factories.PortFactory.get_list_url()
+        self.port = {
+            "name": "Port",
+            "network": factories.NetworkFactory.get_url(self.subnet.network),
+            "fixed_ips": [
+                {"ip_address": "192.168.42.100", "subnet_id": self.subnet.backend_id}
+            ],
+            "mac_address": "fa:16:3e:00:00:01",
+            "port_security_enabled": False,
+        }
+
+    @data("staff", "owner", "admin", "manager")
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_who_manages_the_tenant_can_create_one(self, user, execute):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        response = self.client.post(self.url, self.port, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        execute.assert_called_once()
+
+    @data(
+        "user",
+        "member",
+        "customer_support",
+        "global_support",
+        "admin_of_another_project",
+    )
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_anyone_else_cannot(self, user, execute):
+        if user == "admin_of_another_project":
+            requester = structure_factories.UserFactory()
+            structure_factories.ProjectFactory().add_user(requester, ProjectRole.ADMIN)
+        else:
+            requester = getattr(self.fixture, user)
+        self.client.force_authenticate(requester)
+
+        response = self.client.post(self.url, self.port, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("network", response.data)
+        execute.assert_not_called()
+        self.assertFalse(Port.objects.exists())
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_address_pairs_are_not_taken_at_creation(self, execute):
+        # They are set through set_allowed_address_pairs, which checks them;
+        # creating a port does not send them to Neutron.
+        self.client.force_authenticate(self.fixture.admin)
+        self.port["allowed_address_pairs"] = [{"ip_address": "0.0.0.0/0"}]
+
+        response = self.client.post(self.url, self.port, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        port = Port.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(port.allowed_address_pairs, [])
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_refusal_says_nothing_about_the_network(self, execute):
+        self.client.force_authenticate(self.fixture.user)
+        self.port["fixed_ips"] = [{"subnet_id": "no-such-subnet"}]
+
+        response = self.client.post(self.url, self.port, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(list(response.data), ["network"])
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_port_in_a_moved_tenant_goes_to_its_new_project(self, execute):
+        old_admin = self.fixture.admin
+        new_project = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        new_admin = structure_factories.UserFactory()
+        new_project.add_user(new_admin, ProjectRole.ADMIN)
+        # A move changes the tenant's project and leaves its networks' rows.
+        tenant = self.fixture.tenant
+        tenant.project = new_project
+        tenant.save()
+
+        self.client.force_authenticate(old_admin)
+        refused = self.client.post(self.url, self.port, format="json")
+        self.client.force_authenticate(new_admin)
+        response = self.client.post(self.url, self.port, format="json")
+
+        self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        port = Port.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(port.tenant, tenant)
+        self.assertEqual(port.project, new_project)
+
+
 class PortUpdateTest(BasePortTest):
     def setUp(self) -> None:
         super().setUp()
@@ -363,7 +471,7 @@ class PortSerializerTest(test.APITestCase):
             ],
         }
 
-        serializer = OpenStackPortSerializer(data=valid_data)
+        serializer = port_serializer(self.fixture.owner, valid_data)
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
         # Test with invalid subnet_id
@@ -372,7 +480,7 @@ class PortSerializerTest(test.APITestCase):
             {"ip_address": "192.168.42.100", "subnet_id": "non-existent-subnet-id"}
         ]
 
-        serializer = OpenStackPortSerializer(data=invalid_data)
+        serializer = port_serializer(self.fixture.owner, invalid_data)
         self.assertFalse(serializer.is_valid())
 
         # Test with invalid IP address
@@ -381,7 +489,7 @@ class PortSerializerTest(test.APITestCase):
             {"ip_address": "not-an-ip-address", "subnet_id": self.subnet.backend_id}
         ]
 
-        serializer = OpenStackPortSerializer(data=invalid_data)
+        serializer = port_serializer(self.fixture.owner, invalid_data)
         self.assertFalse(serializer.is_valid())
 
 
@@ -406,7 +514,7 @@ class PortNetworkValidationTest(test.APITestCase):
             "network": factories.NetworkFactory.get_url(self.network1),
         }
 
-        serializer = OpenStackPortSerializer(data=data)
+        serializer = port_serializer(self.fixture.owner, data)
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
         # Validate that the connected entries are correctly set
@@ -433,7 +541,7 @@ class PortNetworkValidationTest(test.APITestCase):
             ],
         }
 
-        serializer = OpenStackPortSerializer(data=data)
+        serializer = port_serializer(self.fixture.owner, data)
         self.assertFalse(serializer.is_valid())
         self.assertIn("subnet", serializer.errors)
 
@@ -756,6 +864,7 @@ class PortSharedNetworkTest(test.APITestCase):
             "network": factories.NetworkFactory.get_url(self.shared_network),
             "fixed_ips": [{"subnet_id": self.shared_subnet.backend_id}],
         }
+        self.client.force_authenticate(user=self.network_owner_fixture.owner)
 
         response = self.client.post(self.url, port_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -763,6 +872,82 @@ class PortSharedNetworkTest(test.APITestCase):
         # Without target_tenant, should default to network owner's tenant
         port = Port.objects.get(uuid=response.data["uuid"])
         self.assertEqual(port.tenant, self.network_owner_tenant)
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_tenant_it_is_shared_with_cannot_put_a_port_in_the_owners_tenant(
+        self, create_port_executor_mock
+    ):
+        port_data = {
+            "name": "Port in the owner's tenant",
+            "network": factories.NetworkFactory.get_url(self.shared_network),
+            "fixed_ips": [{"subnet_id": self.shared_subnet.backend_id}],
+        }
+
+        response = self.client.post(self.url, port_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("network", response.data)
+        create_port_executor_mock.assert_not_called()
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_tenant_not_shared_with_learns_nothing_about_the_network(
+        self, create_port_executor_mock
+    ):
+        other_fixture = fixtures.OpenStackFixture()
+        port_data = {
+            "name": "Port on a network not shared with it",
+            "network": factories.NetworkFactory.get_url(self.shared_network),
+            "target_tenant": factories.TenantFactory.get_url(other_fixture.tenant),
+            "fixed_ips": [{"subnet_id": "guessed-subnet-id"}],
+        }
+        self.client.force_authenticate(user=other_fixture.owner)
+
+        response = self.client.post(self.url, port_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(list(response.data), ["target_tenant"])
+        self.assertNotIn(self.shared_network.name, str(response.data))
+        create_port_executor_mock.assert_not_called()
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_network_of_an_unmanaged_project_needs_a_target_tenant_first(
+        self, create_port_executor_mock
+    ):
+        self.network_owner_tenant.is_managed = False
+        self.network_owner_tenant.save()
+        port_data = {
+            "name": "Port without a tenant",
+            "network": factories.NetworkFactory.get_url(self.shared_network),
+            "fixed_ips": [{"subnet_id": "guessed-subnet-id"}],
+        }
+        self.client.force_authenticate(user=self.network_owner_fixture.staff)
+
+        response = self.client.post(self.url, port_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(list(response.data), ["target_tenant"])
+        create_port_executor_mock.assert_not_called()
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_stranger_cannot_put_a_port_in_a_tenant_it_is_shared_with(
+        self, create_port_executor_mock
+    ):
+        port_data = {
+            "name": "Stranger's port",
+            "network": factories.NetworkFactory.get_url(self.shared_network),
+            "target_tenant": factories.TenantFactory.get_url(
+                self.instance_owner_tenant
+            ),
+            "fixed_ips": [{"subnet_id": self.shared_subnet.backend_id}],
+        }
+        self.client.force_authenticate(user=structure_factories.UserFactory())
+
+        response = self.client.post(self.url, port_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("target_tenant", response.data)
+        create_port_executor_mock.assert_not_called()
+        self.assertFalse(Port.objects.exists())
 
     def test_shared_network_target_tenant_rbac_validation(self):
         """Test that target_tenant must have RBAC access to the network."""
@@ -777,9 +962,9 @@ class PortSharedNetworkTest(test.APITestCase):
             "fixed_ips": [{"subnet_id": self.shared_subnet.backend_id}],
         }
 
-        serializer = OpenStackPortSerializer(data=port_data)
+        serializer = port_serializer(unauthorized_fixture.owner, port_data)
         self.assertFalse(serializer.is_valid())
-        self.assertIn("target_tenant", serializer.errors)
+        self.assertIn("does not have access", str(serializer.errors["target_tenant"]))
 
     def test_shared_network_same_tenant_as_network_owner_allowed(self):
         """Test that network owner can specify themselves as target_tenant."""
@@ -792,7 +977,7 @@ class PortSharedNetworkTest(test.APITestCase):
             "fixed_ips": [{"subnet_id": self.shared_subnet.backend_id}],
         }
 
-        serializer = OpenStackPortSerializer(data=port_data)
+        serializer = port_serializer(self.network_owner_fixture.owner, port_data)
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
 
