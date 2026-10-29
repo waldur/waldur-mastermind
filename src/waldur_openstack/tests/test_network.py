@@ -354,3 +354,71 @@ class NetworkRBACTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
+
+
+@ddt
+class NetworkWritePermissionTest(BaseNetworkTest):
+    """Changing or deleting a network, or adding a subnet to it, is for those
+    who manage its project, as every other write is."""
+
+    def setUp(self):
+        super().setUp()
+        self.network = self.fixture.network
+        self.executors = {}
+        for name in (
+            "NetworkUpdateExecutor",
+            "NetworkDeleteExecutor",
+            "SetMtuExecutor",
+            "SubNetCreateExecutor",
+        ):
+            patcher = mock.patch(f"waldur_openstack.executors.{name}.execute")
+            self.addCleanup(patcher.stop)
+            self.executors[name] = patcher.start()
+
+    def url(self, action=None):
+        return factories.NetworkFactory.get_url(self.network, action)
+
+    @data("member", "customer_support", "global_support")
+    def test_who_only_sees_it_cannot_change_it(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        for method, url, payload in (
+            ("put", self.url(), {"name": "renamed"}),
+            ("patch", self.url(), {"name": "renamed"}),
+            ("post", self.url("set_mtu"), {"mtu": 1400}),
+            ("post", self.url("create_subnet"), {"name": "subnet"}),
+            ("delete", self.url(), None),
+        ):
+            with self.subTest(method=method, url=url):
+                response = getattr(self.client, method)(url, payload, format="json")
+                self.assertEqual(
+                    response.status_code, status.HTTP_403_FORBIDDEN, response.data
+                )
+        for execute in self.executors.values():
+            execute.assert_not_called()
+        self.network.refresh_from_db()
+        self.assertNotEqual(self.network.name, "renamed")
+        self.assertFalse(self.network.subnets.filter(name="subnet").exists())
+
+    @data("staff", "owner", "admin", "manager")
+    def test_who_manages_its_project_can_change_it(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        renamed = self.client.put(self.url(), {"name": "renamed"}, format="json")
+        mtu = self.client.post(self.url("set_mtu"), {"mtu": 1400}, format="json")
+        deleted = self.client.delete(self.url())
+
+        self.assertEqual(renamed.status_code, status.HTTP_200_OK, renamed.data)
+        self.assertEqual(mtu.status_code, status.HTTP_202_ACCEPTED, mtu.data)
+        self.assertEqual(deleted.status_code, status.HTTP_202_ACCEPTED, deleted.data)
+
+    @data("staff", "owner", "admin", "manager")
+    def test_who_manages_its_project_can_add_a_subnet(self, user):
+        self.network.subnets.all().delete()
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        response = self.client.post(
+            self.url("create_subnet"), {"name": "subnet"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.executors["SubNetCreateExecutor"].assert_called_once()
