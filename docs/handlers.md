@@ -604,6 +604,7 @@ td:nth-child(4) {
 | `mark_synced_fields_as_read_only` | `Custom Signal (pre_serializer_fields)` | `OfferingOptionsUpdateSerializer` | No description |
 | `mark_synced_fields_as_read_only` | `Custom Signal (pre_serializer_fields)` | `OfferingOverviewUpdateSerializer` | No description |
 | `maybe_auto_approve_order_for_project` | `Django Signal (post_save)` | `marketplace.Order` | Auto-approve a newly created PENDING_CONSUMER order if the project has |
+| `move_tenant_offerings_with_it` | `Django Signal (post_save)` | `openstack.Tenant` | A tenant's own instance and volume offerings go where it goes. |
 | `notify_about_project_details_update` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
 | `notify_about_request_based_item_creation` | `Django Signal (post_save)` | `support.Issue` | No description |
 | `notify_about_resource_end_date_change_request` | `Django Signal (post_save)` | `marketplace.ResourceEndDateChangeRequest` | Email approvers about a new request, and the requester about the verdict. |
@@ -657,6 +658,7 @@ td:nth-child(4) {
 | `resource_options_have_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle script execution when marketplace resource options are changed. |
 | `resource_state_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle resource state changes. |
 | `revoke_api_keys_of_deleted_user` | `Django Signal (pre_delete)` | `core.User` | Withdraw the API keys assigned to a user before the account is deleted. |
+| `revoke_oauth_tokens_on_deactivation` | `Django Signal (post_save)` | `core.User` | Delete a user's OAuth sessions when the user is deactivated. |
 | `revoke_roles_on_offering_deletion` | `Django Signal (pre_delete)` | `marketplace.Offering` | Revoke active user roles bound to an offering before it is deleted. |
 | `run_reset_actions_upon_cost_policy_deletion` | `Django Signal (pre_delete)` | `policy.ProjectEstimatedCostPolicy` | Execute reset actions when a cost policy is deleted. |
 | `schedule_component_usage_billing` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Thin post_save handler — schedules the async billing+policy task on commit. |
@@ -807,6 +809,7 @@ td:nth-child(4) {
 | `log_server_group_cleaned` | `Django Signal (post_delete)` | `openstack.ServerGroup` | Log server group cleanup. |
 | `log_subnet_cleaned` | `Django Signal (post_delete)` | `openstack.SubNet` | Log subnet cleanup. |
 | `log_tenant_quota_update` | `Django Signal (post_save)` | `quotas.QuotaLimit` | Log tenant quota updates. |
+| `move_tenant_objects_with_it` | `Django Signal (post_save)` | `openstack.Tenant` | A tenant's networks, ports, routers and the rest go where it goes. |
 | `remove_ssh_key_from_all_tenants_on_it_deletion` | `Django Signal (pre_delete)` | `core.SshPublicKey` | Delete key from all tenants that are accessible for user on key deletion. |
 | `remove_ssh_key_from_tenants` | `Custom Signal (role_revoked)` | `—` | Delete user ssh keys from tenants that he does not have access now. |
 
@@ -853,7 +856,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 769
+Total unique handlers found: 772
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -861,9 +864,9 @@ Total unique handlers found: 769
 - **waldur_core**: 356 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 350 handlers
+- **waldur_mastermind**: 352 handlers
 - **waldur_openportal**: 10 handlers
-- **waldur_openstack**: 14 handlers
+- **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
 - **waldur_rancher**: 12 handlers
 - **waldur_sram**: 6 handlers

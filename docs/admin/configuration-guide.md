@@ -3770,6 +3770,12 @@ Maximum audit events a single personal access token may generate per hour, count
 
 Serve the remote MCP endpoint (/mcp) from the `waldur mcp_server` process, so AI agent clients can act as the signed-in user.
 
+#### MCP_RESOURCE_URLS
+
+**Type:** str
+
+Public URL(s) of the MCP endpoint, space-separated (e.g. https://api.example.com/mcp). OAuth tokens are issued only for these resources, and for the first one when a client names none; while empty, no OAuth token is issued.
+
 ### Site Agent Logs
 
 #### SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY

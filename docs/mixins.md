@@ -115,11 +115,13 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ConnectedResourceDetailsMixin`](#connectedresourcedetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide resource details action for connected resources |
 | [`OfferingUsageMixin`](#offeringusagemixin) | `waldur_mastermind.marketplace.views` | Shared logic for customer/project per-offering usage ViewSets |
 | [`PublicViewsetMixin`](#publicviewsetmixin) | `waldur_mastermind.marketplace.views` | Mixin to allow anonymous access to offerings when configured |
+| [`ServiceProviderConsumersMixin`](#serviceproviderconsumersmixin) | `waldur_mastermind.marketplace.views` | A list of a service provider's consumers, nested under the provider |
 | [`TenantMixin`](#tenantmixin) | `waldur_mastermind.marketplace_openstack.processors` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
 | [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
+| [`OAuthTestMixin`](#oauthtestmixin) | `waldur_mastermind.mcp.tests.test_oauth` | No description available |
 | [`EstimatedCostPolicyMixin`](#estimatedcostpolicymixin) | `waldur_mastermind.policy.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
 | [`PolicyEventsMixin`](#policyeventsmixin) | `waldur_mastermind.policy.views` | Log policy changes made through the API |
@@ -1569,6 +1571,20 @@ Subclasses provide:
 
 Mixin to allow anonymous access to offerings when configured.
 
+### ServiceProviderConsumersMixin
+
+**Module:** `waldur_mastermind.marketplace.views`
+
+**Description:**
+
+A list of a service provider's consumers, nested under the provider.
+
+The provider is looked up and its permission checked once per request.
+A scoped PAT's binding is matched against the provider as well
+(``get_pat_binding_parent``), not against each listed object: the
+consumers belong to other organizations, which no binding of the
+provider's reaches.
+
 ### TenantMixin
 
 **Module:** `waldur_mastermind.marketplace_openstack.processors`
@@ -1620,6 +1636,12 @@ Reads stay open so the rooms list remains viewable, but a write would only
 enqueue a Celery task against a non-existent homeserver: the row is left
 stranded in a transient state (creating/disabling) that never resolves. The
 frontend hides these actions; this is the backstop for direct or stale calls.
+
+### OAuthTestMixin
+
+**Module:** `waldur_mastermind.mcp.tests.test_oauth`
+
+**Description:** No description available.
 
 ### EstimatedCostPolicyMixin
 
