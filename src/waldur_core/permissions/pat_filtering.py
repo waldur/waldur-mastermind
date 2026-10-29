@@ -2,8 +2,8 @@
 
 When a request authenticated by a PAT with non-empty ``allowed_scopes``
 hits a list endpoint, this backend narrows the queryset to objects whose
-ancestor chain (per :func:`get_scope_ancestors`) intersects one of the
-PAT's bindings.
+ancestor chain (per :func:`get_scope_ancestors`, plus the service provider of
+an offering in it) intersects one of the PAT's bindings.
 
 Rules are registered per-model via :func:`register_pat_filter`. Models
 without a registered rule pass through unfiltered — that's documented as
@@ -129,8 +129,12 @@ def _install_global_filter() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Per-model rules. Each rule mirrors the upward walk in
-# `get_scope_ancestors`, but expressed as queryset filters back down.
+# Per-model rules. Each rule mirrors the upward walk `_pat_entity_check` does
+# (`get_scope_ancestors`, plus the service provider of an offering via
+# `_pat_provider_binding_matches`), but expressed as queryset filters back
+# down. A rule for a model that reaches an offering must add the
+# `…customer__serviceprovider__id` clause, or this filter hides objects that
+# `_pat_entity_check` would let the PAT act on.
 # ---------------------------------------------------------------------------
 
 
@@ -161,6 +165,7 @@ def _register_rules() -> None:
         return _or(
             _ids_q("id", ids.get("offering")),
             _ids_q("customer_id", ids.get("customer")),
+            _ids_q("customer__serviceprovider__id", ids.get("service_provider")),
         )
 
     @register_pat_filter(marketplace_models.Resource)
@@ -169,26 +174,36 @@ def _register_rules() -> None:
         # ``project.customer`` — the *consumer* customer. ``get_scope_ancestors``
         # therefore only reaches ``project.customer``, never ``offering.customer``.
         # We must mirror that exactly: a binding to the offering's owner customer
-        # (e.g. a service provider) is NOT permitted to act on resources sold via
-        # that offering when the consumer is a different customer, so listing
-        # those resources here would over-disclose.
+        # is NOT permitted to act on resources sold via that offering when the
+        # consumer is a different customer, so listing those resources here
+        # would over-disclose. A binding to the offering's *service provider*
+        # is: ``_pat_provider_binding_matches`` allows it, so it is listed here too.
         return _or(
             _ids_q("id", ids.get("resource")),
             _ids_q("offering_id", ids.get("offering")),
             _ids_q("project_id", ids.get("project")),
             _ids_q("project__customer_id", ids.get("customer")),
+            _ids_q(
+                "offering__customer__serviceprovider__id",
+                ids.get("service_provider"),
+            ),
         )
 
     @register_pat_filter(marketplace_models.ResourceProject)
     def _resource_project(ids):
         # Same reasoning as ``_resource`` — only the consumer-side customer
-        # chain is reachable from ``get_scope_ancestors``.
+        # chain is reachable from ``get_scope_ancestors``, plus the service
+        # provider of the resource's offering.
         return _or(
             _ids_q("id", ids.get("resource_project")),
             _ids_q("resource_id", ids.get("resource")),
             _ids_q("resource__offering_id", ids.get("offering")),
             _ids_q("resource__project_id", ids.get("project")),
             _ids_q("resource__project__customer_id", ids.get("customer")),
+            _ids_q(
+                "resource__offering__customer__serviceprovider__id",
+                ids.get("service_provider"),
+            ),
         )
 
     @register_pat_filter(marketplace_models.ServiceProvider)
