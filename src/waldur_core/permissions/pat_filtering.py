@@ -21,7 +21,7 @@ from rest_framework.filters import BaseFilterBackend
 from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import TYPE_KEY_BY_CT
-from waldur_core.permissions.utils import _pat_allowed_pairs
+from waldur_core.permissions.utils import _pat_allowed_pairs, _pat_entity_check
 
 # Builders return None when no binding matches the model — the caller
 # should treat that as ``queryset.none()`` to deny everything.
@@ -83,6 +83,13 @@ class PATScopeListFilter(BaseFilterBackend):
     filter always runs after the viewset's own backends, regardless of
     viewset configuration. Detail endpoints get the same treatment for
     free — ``get_object`` calls ``filter_queryset`` before lookup.
+
+    A view whose queryset holds only the children of one parent object can
+    name that parent in ``get_pat_binding_parent()``. When the PAT's binding
+    covers the parent, the per-model rule is skipped. The rules only walk a
+    child's own ancestors, so they would empty lists such as a service
+    provider's consumer projects, which belong to other organizations,
+    although the binding on the provider allows them.
     """
 
     def filter_queryset(self, request, queryset, view):
@@ -93,6 +100,9 @@ class PATScopeListFilter(BaseFilterBackend):
             return queryset
         if not _pat_allowed_pairs(auth):
             # Unscoped PAT — no entity restriction to apply.
+            return queryset
+        get_parent = getattr(view, "get_pat_binding_parent", None)
+        if get_parent is not None and _pat_entity_check(auth, get_parent()):
             return queryset
 
         builder = _FILTER_BUILDERS.get(queryset.model)
