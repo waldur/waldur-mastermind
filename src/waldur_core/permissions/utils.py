@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.db.models.query import QuerySet
@@ -65,13 +66,42 @@ def _pat_allowed_pairs(auth) -> frozenset:
     return pairs
 
 
+def _pat_provider_binding_matches(ancestors, allowed_pairs) -> bool:
+    """True if a binding names the service provider of an offering in ``ancestors``.
+
+    A PAT bound to a service provider must reach the offerings it sells and the
+    resources sold through them, as ``enums.SCOPE_ANCESTORS`` declares, but
+    ``get_scope_ancestors`` stops at the offering's customer. The provider is
+    matched here only, not in ``get_scope_ancestors``, which also drives role
+    availability and event delivery. Costs no query unless the PAT has a
+    service provider binding.
+    """
+    provider_model = apps.get_model("marketplace", "ServiceProvider")
+    provider_ct_id = ContentType.objects.get_for_model(provider_model).id
+    bound_ids = {obj_id for ct_id, obj_id in allowed_pairs if ct_id == provider_ct_id}
+    if not bound_ids:
+        return False
+    offering_model = apps.get_model("marketplace", "Offering")
+    customer_ids = {
+        ancestor.customer_id
+        for ancestor in ancestors
+        if isinstance(ancestor, offering_model) and ancestor.customer_id
+    }
+    return bool(customer_ids) and (
+        provider_model.objects.filter(
+            id__in=bound_ids, customer_id__in=customer_ids
+        ).exists()
+    )
+
+
 def _pat_entity_check(auth, scope) -> bool:
     """Return True if the PAT's entity bindings allow acting on ``scope``.
 
     - Empty bindings → always allow.
     - Non-empty bindings + ``scope is None`` → deny (a scoped PAT cannot
       perform scope-less actions).
-    - Otherwise → allow iff some ancestor of ``scope`` matches a binding.
+    - Otherwise → allow iff some ancestor of ``scope`` matches a binding,
+      including the service provider of an offering in the chain.
       The walk is upward-only: a binding to a child never authorises
       actions on its parents.
     """
@@ -80,11 +110,12 @@ def _pat_entity_check(auth, scope) -> bool:
         return True
     if scope is None:
         return False
-    for ancestor in get_scope_ancestors(scope):
+    ancestors = get_scope_ancestors(scope)
+    for ancestor in ancestors:
         ct_id = ContentType.objects.get_for_model(type(ancestor)).id
         if (ct_id, ancestor.id) in allowed_pairs:
             return True
-    return False
+    return _pat_provider_binding_matches(ancestors, allowed_pairs)
 
 
 def _pat_scope_check(
