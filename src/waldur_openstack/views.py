@@ -1269,6 +1269,9 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     queryset = models.Router.objects.all().order_by("tenant__name")
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.RouterFilter
+    # Seeing a router is not enough to change it: members and support
+    # see it too. The same rule as ResourceViewSet's.
+    unsafe_methods_permissions = [structure_permissions.is_administrator]
     serializer_class = serializers.OpenStackRouterSerializer
     create_serializer_class = serializers.CreateRouterSerializer
     disabled_actions = ["update", "partial_update"]
@@ -1784,6 +1787,7 @@ class LoadBalancerViewSet(
     )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.LoadBalancerFilter
+    unsafe_methods_permissions = [structure_permissions.is_administrator]
     serializer_class = serializers.OpenStackLoadBalancerSerializer
     create_serializer_class = serializers.CreateLoadBalancerSerializer
     update_serializer_class = serializers.UpdateLoadBalancerSerializer
@@ -2001,6 +2005,7 @@ class PoolViewSet(
     queryset = models.Pool.objects.all().order_by("load_balancer__name", "name")
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.PoolFilter
+    unsafe_methods_permissions = [structure_permissions.is_administrator]
     serializer_class = serializers.OpenStackPoolSerializer
     create_serializer_class = serializers.CreatePoolSerializer
     update_serializer_class = serializers.UpdatePoolSerializer
@@ -2065,6 +2070,7 @@ class ListenerViewSet(
     )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.ListenerFilter
+    unsafe_methods_permissions = [structure_permissions.is_administrator]
     serializer_class = serializers.OpenStackListenerSerializer
     create_serializer_class = serializers.CreateListenerSerializer
     update_serializer_class = serializers.UpdateListenerSerializer
@@ -2134,6 +2140,7 @@ class PoolMemberViewSet(
     )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.PoolMemberFilter
+    unsafe_methods_permissions = [structure_permissions.is_administrator]
     serializer_class = serializers.OpenStackPoolMemberSerializer
     create_serializer_class = serializers.CreatePoolMemberSerializer
     update_serializer_class = serializers.UpdatePoolMemberSerializer
@@ -2199,6 +2206,7 @@ class HealthMonitorViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet)
     )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.HealthMonitorFilter
+    unsafe_methods_permissions = [structure_permissions.is_administrator]
     serializer_class = serializers.OpenStackHealthMonitorSerializer
     create_serializer_class = serializers.CreateHealthMonitorSerializer
     update_serializer_class = serializers.UpdateHealthMonitorSerializer
