@@ -19,6 +19,53 @@ from waldur_openstack import models, utils
 
 logger = logging.getLogger(__name__)
 
+# A tenant's own objects, with the path from each to its tenant. Instances and
+# volumes are marketplace resources of their own and are moved on their own;
+# their snapshots and backups belong with them, not with the tenant.
+TENANT_OBJECTS = (
+    (models.Network, "tenant"),
+    (models.SubNet, "tenant"),
+    (models.Port, "tenant"),
+    (models.Router, "tenant"),
+    (models.FloatingIP, "tenant"),
+    (models.SecurityGroup, "tenant"),
+    (models.ServerGroup, "tenant"),
+    (models.LoadBalancer, "tenant"),
+    (models.Pool, "load_balancer__tenant"),
+    (models.Listener, "load_balancer__tenant"),
+    (models.PoolMember, "pool__load_balancer__tenant"),
+    (models.HealthMonitor, "pool__load_balancer__tenant"),
+)
+
+
+def tenant_project_changed(tenant: models.Tenant, created, update_fields) -> bool:
+    """Whether this save of the tenant moved it to another project."""
+    if created:
+        return False
+    # The tracker follows `project_id` and is only reset for the fields a save
+    # names, so after a save of `project` alone it still reports the change.
+    if update_fields is not None and "project" not in update_fields:
+        return False
+    return tenant.tracker.has_changed("project_id")
+
+
+def move_tenant_objects_with_it(
+    sender, instance: models.Tenant, created=False, update_fields=None, **kwargs
+):
+    """A tenant's networks, ports, routers and the rest go where it goes.
+
+    Moving the tenant's marketplace resource changes only the tenant. These
+    objects are not resources of their own, and their project is what
+    permission checks and listings read: left behind, they would stay writable
+    by the old project and out of reach of the new one.
+    """
+    if not tenant_project_changed(instance, created, update_fields):
+        return
+    for model, tenant_path in TENANT_OBJECTS:
+        model.objects.filter(**{tenant_path: instance}).exclude(
+            project_id=instance.project_id
+        ).update(project_id=instance.project_id)
+
 
 def remove_ssh_key_from_tenants(sender, instance, **kwargs):
     """Delete user ssh keys from tenants that he does not have access now."""

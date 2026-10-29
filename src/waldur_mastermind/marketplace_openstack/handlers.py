@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.models import Offering, Resource
+from waldur_openstack import handlers as openstack_handlers
 from waldur_openstack import models as openstack_models
 from waldur_openstack.models import (
     FloatingIP,
@@ -557,6 +558,29 @@ def synchronize_tenant_name(
     for offering in offerings.filter(type=OPENSTACK_VOLUME_OFFERING):
         offering.name = utils.get_offering_name_for_volume(tenant)
         offering.save(update_fields=["name"])
+
+
+def move_tenant_offerings_with_it(
+    sender, instance: Tenant, created=False, update_fields=None, **kwargs
+):
+    """A tenant's own instance and volume offerings go where it goes.
+
+    They are private to the tenant's project and organization. Left behind,
+    the old project could keep ordering instances and volumes into the moved
+    tenant, and the new one could not.
+    """
+    tenant = instance
+    if not openstack_handlers.tenant_project_changed(tenant, created, update_fields):
+        return
+    offerings = marketplace_models.Offering.objects.filter(
+        object_id=tenant.id,
+        content_type=ContentType.objects.get_for_model(tenant),
+        type__in=(OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING),
+    )
+    for offering in offerings:
+        offering.project = tenant.project
+        offering.customer = tenant.project.customer
+        offering.save(update_fields=["project", "customer"])
 
 
 def synchronize_router_backend_metadata(

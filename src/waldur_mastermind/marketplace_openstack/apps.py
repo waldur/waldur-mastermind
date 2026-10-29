@@ -157,6 +157,12 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.move_tenant_offerings_with_it,
+            sender=openstack_models.Tenant,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.move_tenant_offerings_with_it",
+        )
+
+        signals.post_save.connect(
             handlers.synchronize_instance_name,
             sender=openstack_models.Instance,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_instance_name",
