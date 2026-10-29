@@ -6,8 +6,14 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tools.account.get_order import GetOrderTool
+from waldur_mastermind.chat.tools.account.get_project import GetProjectTool
+from waldur_mastermind.chat.tools.account.get_resource import GetResourceTool
 from waldur_mastermind.chat.tools.account.helpers import (
+    invalid_uuid_message,
     name_search_filter,
+    string_list,
+    text_arguments,
     user_accessible_customers,
     user_accessible_projects,
     user_consumer_resources,
@@ -15,6 +21,8 @@ from waldur_mastermind.chat.tools.account.helpers import (
     user_role_on_project,
     validate_uuid,
 )
+from waldur_mastermind.chat.tools.account.list_invoices import ListInvoicesTool
+from waldur_mastermind.chat.tools.account.list_orders import ListOrdersTool
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -25,6 +33,121 @@ class ValidateUuidTest(TestCase):
     def test_invalid_uuid_returns_false(self):
         self.assertFalse(validate_uuid("not-a-uuid"))
         self.assertFalse(validate_uuid(""))
+
+
+class StringListTest(TestCase):
+    def test_accepts_list_of_strings_and_bare_string(self):
+        self.assertEqual(string_list(["a", "b"]), ["a", "b"])
+        self.assertEqual(string_list("a"), ["a"])
+
+    def test_missing_value_is_empty(self):
+        self.assertEqual(string_list(None), [])
+        self.assertEqual(string_list(""), [])
+
+    def test_rejects_other_shapes(self):
+        for value in (4, {"a": 1}, ["a", 1], [{"a": 1}]):
+            with self.subTest(value=value):
+                self.assertIsNone(string_list(value))
+
+
+class TextArgumentsTest(TestCase):
+    def test_strips_strings_and_reads_missing_as_empty(self):
+        values, error = text_arguments({"a": "  x ", "b": None}, "a", "b", "c")
+        self.assertEqual(values, {"a": "x", "b": "", "c": ""})
+        self.assertEqual(error, "")
+
+    def test_rejects_non_strings(self):
+        for value in (12345, 0, True, False, 1.5, [], ["x"], {"a": 1}):
+            with self.subTest(value=value):
+                _, error = text_arguments({"a": value}, "a")
+                self.assertEqual(error, "a must be a string.")
+
+
+class NulArgumentTest(TestCase):
+    def test_nul_byte_is_rejected(self):
+        _, error = text_arguments({"a": "lab\x00"}, "a")
+        self.assertEqual(error, "a must not contain a NUL character.")
+
+    def test_nul_byte_in_name_search_is_validation_error(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        cases = (
+            (GetResourceTool, "resource_name"),
+            (GetProjectTool, "project_name"),
+            (ListOrdersTool, "project_name"),
+            (ListInvoicesTool, "customer_name"),
+        )
+        for tool_class, name in cases:
+            with self.subTest(tool=tool_class.__name__):
+                result = tool_class().execute(staff, {name: "agt\x00"})
+                self.assertEqual(result["type"], "validation_error")
+
+
+class InvalidUuidMessageTest(TestCase):
+    def test_hint_points_to_the_name_argument(self):
+        self.assertEqual(
+            invalid_uuid_message("project_uuid", "Agents Lab"),
+            "Invalid UUID for project_uuid: Agents Lab. "
+            "Pass the name as project_name instead.",
+        )
+
+    def test_echo_is_cut(self):
+        message = invalid_uuid_message("order_uuid", "x" * 1000)
+        self.assertIn("x" * 64 + ".", message)
+        self.assertNotIn("x" * 65, message)
+
+    def test_get_resource_suggests_name_lookup(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        result = GetResourceTool().execute(staff, {"resource_uuid": "agt-web-1"})
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("get_resource(resource_name=...)", result["summary"])
+
+
+class UnknownArgumentsTest(TestCase):
+    def test_unknown_argument_is_validation_error(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        for tool_class in (
+            GetResourceTool,
+            GetProjectTool,
+            ListOrdersTool,
+            GetOrderTool,
+            ListInvoicesTool,
+        ):
+            with self.subTest(tool=tool_class.__name__):
+                result = tool_class().execute(staff, {"resource_nam": "agt-db-1"})
+                self.assertEqual(result["type"], "validation_error")
+                self.assertTrue(
+                    result["summary"].startswith("Unknown argument: resource_nam.")
+                )
+
+
+class NonStringArgumentsTest(TestCase):
+    # Every text argument of the #801 tools, for a validation_error instead
+    # of a crash on .strip().
+    TEXT_ARGUMENTS = {
+        GetResourceTool: ("resource_uuid", "resource_name", "project_name"),
+        GetProjectTool: ("project_uuid", "project_name"),
+        ListOrdersTool: (
+            "project_uuid",
+            "project_name",
+            "resource_uuid",
+            "offering_uuid",
+            "offering_name",
+            "customer_uuid",
+            "customer_name",
+        ),
+        GetOrderTool: ("order_uuid",),
+        ListInvoicesTool: ("customer_uuid", "customer_name"),
+    }
+
+    def test_non_string_values_are_validation_errors(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        for tool_class, names in self.TEXT_ARGUMENTS.items():
+            for name in names:
+                for value in (12345, True, ["x"], {"a": 1}):
+                    with self.subTest(tool=tool_class.__name__, name=name, value=value):
+                        result = tool_class().execute(staff, {name: value})
+                        self.assertEqual(result["type"], "validation_error")
+                        self.assertEqual(result["summary"], f"{name} must be a string.")
 
 
 class NameSearchFilterTest(TestCase):

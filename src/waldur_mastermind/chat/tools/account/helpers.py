@@ -11,6 +11,8 @@ from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 
+from waldur_core.logging.models import Event
+from waldur_core.logging.utils import exclude_hidden_events, filter_events_for_scope
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -29,6 +31,89 @@ def sum_invoice_item_totals(items) -> Decimal:
     for item in items:
         total += item.total
     return total
+
+
+def decimal_or_none(value: Decimal | None) -> str | None:
+    """Fixed-point string for a Decimal, as REST prints it; None stays None.
+
+    str() switches to exponent form for small values: a zero cost stored with
+    10 places prints as "0E-10".
+    """
+    return None if value is None else f"{value:f}"
+
+
+def iso_or_none(value) -> str | None:
+    """ISO 8601 string for a date or datetime, or None when unset."""
+    return value.isoformat() if value else None
+
+
+def unknown_arguments(arguments: dict, definition) -> str:
+    """An error naming arguments the tool's inputSchema lacks, else "".
+
+    Dropping a misnamed filter would present an unfiltered list as filtered.
+    """
+    allowed = definition.inputSchema.get("properties", {})
+    unknown = sorted(set(arguments) - set(allowed))
+    if not unknown:
+        return ""
+    return (
+        f"Unknown argument: {', '.join(unknown)}. "
+        f"Valid arguments: {', '.join(allowed)}."
+    )
+
+
+def text_arguments(arguments: dict, *names: str) -> tuple[dict[str, str], str]:
+    """Stripped string values of ``names``, plus an error when one is not text.
+
+    A missing or null argument reads as "". The executor does not check
+    arguments against inputSchema, so a number or list must not reach
+    ``.strip()`` or the ORM.
+    """
+    values = {}
+    for name in names:
+        value = arguments.get(name)
+        if value is None:
+            value = ""
+        if not isinstance(value, str):
+            return {}, f"{name} must be a string."
+        # PostgreSQL text cannot hold NUL, so the query would fail.
+        if "\x00" in value:
+            return {}, f"{name} must not contain a NUL character."
+        values[name] = value.strip()
+    return values, ""
+
+
+def string_list(value) -> list[str] | None:
+    """``value`` as a list of strings, or None when it is not one.
+
+    A bare string counts as a one-item list; a missing value as empty.
+    """
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return value
+    return None
+
+
+# How to get a UUID when the model passed a name instead.
+_UUID_HINTS = {
+    "resource_uuid": "Look the resource up with get_resource(resource_name=...) "
+    "to get its UUID.",
+    "project_uuid": "Pass the name as project_name instead.",
+    "customer_uuid": "Pass the name as customer_name instead.",
+    "offering_uuid": "Pass the name as offering_name instead.",
+    "order_uuid": "Find the order's UUID with list_orders first.",
+}
+
+
+def invalid_uuid_message(name: str, value: str) -> str:
+    """Validation summary for a malformed UUID argument, with a way forward."""
+    # Cut the echo: arguments are not length-limited.
+    message = f"Invalid UUID for {name}: {value[:64]}."
+    hint = _UUID_HINTS.get(name)
+    return f"{message} {hint}" if hint else message
 
 
 def validate_uuid(value: str) -> bool:
@@ -81,6 +166,18 @@ def user_consumer_resources(user) -> QuerySet:
     if not user.is_authenticated:
         return Resource.objects.none()
     return Resource.objects.all().filter_for_service_consumer(user)
+
+
+def scope_events(user, scope) -> QuerySet | None:
+    """Events filed on ``scope``, as ``/api/events/?scope=`` lists them.
+
+    None when the user may not read the scope's events at all, so callers can
+    tell hidden events from an empty history.
+    """
+    events = filter_events_for_scope(user, scope, Event.objects.all())
+    if events is None:
+        return None
+    return exclude_hidden_events(user, events.order_by("-created", "id"))
 
 
 # Role priority for the "which role to surface on a serializer" decision.

@@ -8706,6 +8706,22 @@ def user_can_see_resource_order_workflow(user, resource, scopes=None) -> bool:
     )
 
 
+# Resource fields withheld from users that is_resource_project_only_viewer
+# matches.
+RESOURCE_PROJECT_ONLY_HIDDEN_FIELDS = (
+    "limits",
+    "current_usages",
+    "limit_usage",
+    "backend_metadata",
+    "report",
+    "available_actions",
+    "endpoints",
+    "options",
+    "error_message",
+    "username",
+)
+
+
 def is_resource_project_only_viewer(user, resource, scopes=None) -> bool:
     """True when ``user`` can only see ``resource`` via a ResourceProject role.
 

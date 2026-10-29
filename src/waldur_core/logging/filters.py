@@ -10,7 +10,6 @@ from rest_framework import filters
 from waldur_core.core import filters as core_filters
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
-from waldur_core.core.mixins import ScopeMixin
 from waldur_core.core.models import User
 from waldur_core.logging import models, utils
 from waldur_core.logging.event_logger import expand_event_groups
@@ -162,32 +161,10 @@ class EventFilterBackend(filters.BaseFilterBackend):
             field._context = {"request": request}
             scope = field.to_internal_value(request.query_params["scope"])
 
-            # Check permissions
-            visible = scope._meta.model.get_permitted_objects(request.user)
-            if not visible.filter(pk=scope.pk).exists():
+            scoped = utils.filter_events_for_scope(request.user, scope, queryset)
+            if scoped is None:
                 return queryset.none()
-            if not utils.can_view_scope_events(request.user, scope):
-                return queryset.none()
-
-            content_type = ContentType.objects.get_for_model(scope)
-            subquery = Q(feed__content_type=content_type, feed__object_id=scope.id)
-
-            # Include scope if it exists, unless its feed is closed to the user:
-            if (
-                isinstance(scope, ScopeMixin)
-                and scope.content_type
-                and scope.object_id
-                and (
-                    scope.scope is None
-                    or utils.can_view_scope_events(request.user, scope.scope)
-                )
-            ):
-                subquery |= Q(
-                    feed__content_type=scope.content_type,
-                    feed__object_id=scope.object_id,
-                )
-
-            queryset = queryset.filter(subquery)
+            queryset = scoped
 
         if (
             not has_scope_filter

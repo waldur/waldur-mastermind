@@ -9296,18 +9296,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         if request and utils.is_resource_project_only_viewer(
             getattr(request, "user", None), instance, page.scopes if page else None
         ):
-            for hidden in (
-                "limits",
-                "current_usages",
-                "limit_usage",
-                "backend_metadata",
-                "report",
-                "available_actions",
-                "endpoints",
-                "options",
-                "error_message",
-                "username",
-            ):
+            for hidden in utils.RESOURCE_PROJECT_ONLY_HIDDEN_FIELDS:
                 data.pop(hidden, None)
         return data
 

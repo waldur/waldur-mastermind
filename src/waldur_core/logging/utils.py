@@ -16,10 +16,11 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.auth_utils import AUTH_METHOD_PAT, get_auth_method
+from waldur_core.core.mixins import ScopeMixin
 from waldur_core.core.utils import validate_outbound_url
 from waldur_core.logging import backend, event_logger, models
 from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
@@ -507,6 +508,33 @@ def register_scope_event_guard(model: type, guard: Callable[[Any, Any], bool]):
 def can_view_scope_events(user, scope) -> bool:
     guard = _scope_event_guards.get(type(scope))
     return guard is None or guard(user, scope)
+
+
+def filter_events_for_scope(user, scope, queryset: QuerySet) -> QuerySet | None:
+    """Events of ``queryset`` filed on ``scope``, as ``/api/events/?scope=``
+    lists them; None when the user may not read the scope's events at all."""
+    visible = scope._meta.model.get_permitted_objects(user)
+    if not visible.filter(pk=scope.pk).exists():
+        return None
+    if not can_view_scope_events(user, scope):
+        return None
+
+    query = Q(
+        feed__content_type=ContentType.objects.get_for_model(scope),
+        feed__object_id=scope.id,
+    )
+    # Include scope if it exists, unless its feed is closed to the user:
+    if (
+        isinstance(scope, ScopeMixin)
+        and scope.content_type
+        and scope.object_id
+        and (scope.scope is None or can_view_scope_events(user, scope.scope))
+    ):
+        query |= Q(
+            feed__content_type=scope.content_type,
+            feed__object_id=scope.object_id,
+        )
+    return queryset.filter(query)
 
 
 def has_scope_event_guard(scope) -> bool:

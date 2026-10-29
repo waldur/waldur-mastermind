@@ -441,6 +441,11 @@ class ToolsByCategoryTest(TestCase):
                 ToolName.EXPLAIN_RESOURCE_PAUSED_REASON,
                 ToolName.EXPLAIN_INVOICE_COMPENSATIONS,
                 ToolName.GET_CUSTOMER_CREDIT_OVERVIEW,
+                ToolName.GET_RESOURCE,
+                ToolName.GET_PROJECT,
+                ToolName.LIST_ORDERS,
+                ToolName.GET_ORDER,
+                ToolName.LIST_INVOICES,
             },
         )
 

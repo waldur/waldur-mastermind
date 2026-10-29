@@ -20,6 +20,11 @@ _ACCOUNT_TOOLS: list[ToolName] = [
     ToolName.EXPLAIN_RESOURCE_PAUSED_REASON,
     ToolName.EXPLAIN_INVOICE_COMPENSATIONS,
     ToolName.GET_CUSTOMER_CREDIT_OVERVIEW,
+    ToolName.GET_RESOURCE,
+    ToolName.GET_PROJECT,
+    ToolName.LIST_ORDERS,
+    ToolName.GET_ORDER,
+    ToolName.LIST_INVOICES,
 ]
 
 _MARKETPLACE_TOOLS: list[ToolName] = [
