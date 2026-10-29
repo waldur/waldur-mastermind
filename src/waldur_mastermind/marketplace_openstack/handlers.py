@@ -538,6 +538,17 @@ def import_instances_and_volumes_if_tenant_has_been_imported(
     )
 
 
+def import_new_instances_and_volumes_on_tenant_resources_pulled(
+    sender, instance: Tenant, **kwargs
+):
+    serialized_tenant = core_utils.serialize_instance(instance)
+    transaction.on_commit(
+        lambda: tasks.import_new_instances_and_volumes_of_tenant.delay(
+            serialized_tenant
+        )
+    )
+
+
 def synchronize_tenant_name(
     sender, instance: Tenant, offering=None, plan=None, **kwargs
 ):

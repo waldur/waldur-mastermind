@@ -113,12 +113,11 @@ class ServiceBackend(ABC):
         return int(val / 1024 / 1024 / 1024) if val else 0
 
     def get_importable_resources(self, resource_model, remote_resources):
-        local_backend_ids = resource_model.objects.filter(
-            service_settings=self.settings
-        ).values_list("backend_id", flat=True)
-        result = []
-        for remote_resource in remote_resources:
-            if remote_resource["backend_id"] in local_backend_ids:
-                continue
-            result.append(remote_resource)
-        return result
+        remote_resources = list(remote_resources)
+        local_backend_ids = set(
+            resource_model.objects.filter(
+                service_settings=self.settings,
+                backend_id__in=[r["backend_id"] for r in remote_resources],
+            ).values_list("backend_id", flat=True)
+        )
+        return [r for r in remote_resources if r["backend_id"] not in local_backend_ids]

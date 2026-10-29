@@ -5,9 +5,10 @@ from typing import cast
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
-from django.db import transaction
+from django.db import DataError, IntegrityError, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from novaclient import exceptions as nova_exceptions
 from rest_framework import exceptions
 
 from waldur_core.core import validators as core_validators
@@ -44,6 +45,12 @@ from waldur_openstack import (
     models as openstack_models,
 )
 from waldur_openstack.backend import OpenStackBackend, OpenStackBackendError
+from waldur_openstack.exceptions import (
+    OpenStackAuthorizationFailed,
+    OpenStackRateLimited,
+    OpenStackSessionExpired,
+    OpenStackTenantNotFound,
+)
 from waldur_openstack.session import get_placement_client
 from waldur_openstack.utils import (
     is_valid_volume_type_name,
@@ -817,20 +824,62 @@ def self_heal_tenant_marketplace_model(tenant: openstack_models.Tenant) -> dict:
     return {**offering_actions, **orphan_counters}
 
 
+# Errors that concern the whole tenant or cloud rather than one server or
+# volume: importing the next one would fail the same way.
+TENANT_WIDE_IMPORT_ERRORS = (
+    OpenStackSessionExpired,
+    OpenStackAuthorizationFailed,
+    OpenStackTenantNotFound,
+    OpenStackRateLimited,
+)
+
+
+def _import_resource_of_tenant(
+    tenant: openstack_models.Tenant, import_method, kind: str, backend_id: str
+):
+    try:
+        # One savepoint per item: a row the database rejects (a name longer
+        # than the marketplace resource allows, say) rolls back only that item.
+        with transaction.atomic():
+            created = import_method(tenant, backend_id, tenant.project)
+            create_marketplace_resource_for_imported_resources(created)
+    except TENANT_WIDE_IMPORT_ERRORS:
+        raise
+    except (
+        OpenStackBackendError,
+        # import_instance re-raises NotFound as is and wraps every other
+        # Nova error into OpenStackBackendError.
+        nova_exceptions.ClientException,
+        DataError,
+        IntegrityError,
+    ) as e:
+        logger.warning(
+            "Failed to import %s %s of tenant %s (PK: %s): %s",
+            kind,
+            backend_id,
+            tenant,
+            tenant.pk,
+            e,
+        )
+
+
 def import_instances_and_volumes_of_tenant(tenant: openstack_models.Tenant):
+    """Import the tenant's servers and volumes that Waldur does not know yet.
+
+    One that fails to import is skipped, so it cannot hold back the rest of the
+    tenant. Errors that concern the whole tenant still propagate.
+    """
     backend = OpenStackBackend(tenant.service_settings)
 
     for instance in backend.get_importable_instances(tenant):
-        created_instance = backend.import_instance(
-            tenant, instance["backend_id"], tenant.project
+        _import_resource_of_tenant(
+            tenant, backend.import_instance, "instance", instance["backend_id"]
         )
-        create_marketplace_resource_for_imported_resources(created_instance)
 
     for volume in backend.get_importable_volumes(tenant):
-        created_volume = backend.import_volume(
-            tenant, volume["backend_id"], tenant.project
+        _import_resource_of_tenant(
+            tenant, backend.import_volume, "volume", volume["backend_id"]
         )
-        create_marketplace_resource_for_imported_resources(created_volume)
 
 
 def terminate_expired_instances_and_volumes_of_tenant(tenant: openstack_models.Tenant):

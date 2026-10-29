@@ -8,7 +8,7 @@ from django.utils import timezone
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
-from waldur_openstack import executors, models, tasks
+from waldur_openstack import executors, models, signals, tasks
 from waldur_openstack.exceptions import OpenStackBackendError
 
 from . import factories, fixtures
@@ -156,3 +156,32 @@ class PollBackupSnapshotsDeletedTaskTest(TestCase):
         self.assertEqual(task_names.count(tasks.PollBackupSnapshotsDeletedTask.name), 1)
         self.assertNotIn(core_tasks.PollBackendCheckTask.name, task_names)
         self.assertNotIn(core_tasks.DeletionTask.name, task_names)
+
+
+@mock.patch("waldur_openstack.tasks.OpenStackBackend")
+class TenantResourcesPullTaskTest(TestCase):
+    def setUp(self):
+        self.tenant = factories.TenantFactory(state=CoreStates.OK)
+        self.receiver = mock.Mock()
+        signals.tenant_resources_pulled.connect(self.receiver, weak=False)
+        self.addCleanup(signals.tenant_resources_pulled.disconnect, self.receiver)
+
+    def pull(self):
+        tasks.TenantResourcesPullTask().run(core_utils.serialize_instance(self.tenant))
+
+    def test_signal_is_sent_after_successful_pull(self, mocked_backend):
+        self.pull()
+
+        self.receiver.assert_called_once()
+        self.assertEqual(self.receiver.call_args.kwargs["instance"], self.tenant)
+
+    def test_signal_is_not_sent_when_pull_fails(self, mocked_backend):
+        mocked_backend().pull_tenant_instances.side_effect = OpenStackBackendError(
+            "Nova is unavailable"
+        )
+
+        self.pull()
+
+        self.receiver.assert_not_called()
+        self.tenant.refresh_from_db()
+        self.assertEqual(self.tenant.state, CoreStates.ERRED)

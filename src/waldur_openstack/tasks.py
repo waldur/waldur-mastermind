@@ -423,6 +423,12 @@ class TenantResourcesPullTask(structure_tasks.BackgroundPullTask):
         backend.pull_tenant_snapshots(tenant)
         backend.pull_tenant_instances(tenant)
 
+    def on_pull_success(self, tenant: models.Tenant):
+        super().on_pull_success(tenant)
+        # The pulls above only refresh what Waldur already has; servers and
+        # volumes created outside Waldur are imported by the receivers.
+        signals.tenant_resources_pulled.send(models.Tenant, instance=tenant)
+
 
 class TenantResourcesListPullTask(ManagedTenantListPullTask):
     """Pull OpenStack tenant resources like instances, volumes, and snapshots from backend."""
