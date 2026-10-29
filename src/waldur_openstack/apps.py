@@ -65,6 +65,12 @@ class OpenStackConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.move_tenant_objects_with_it,
+            sender=Tenant,
+            dispatch_uid="openstack.handlers.move_tenant_objects_with_it",
+        )
+
+        signals.post_save.connect(
             handlers.log_tenant_quota_update,
             sender=QuotaLimit,
             dispatch_uid="openstack.handlers.log_tenant_quota_update",
