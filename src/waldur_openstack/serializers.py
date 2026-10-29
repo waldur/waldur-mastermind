@@ -64,7 +64,7 @@ from waldur_openstack.utils import (
 )
 
 from . import models
-from .permissions import can_manage_network_project
+from .permissions import can_manage_network_project, can_manage_project
 
 logger = logging.getLogger(__name__)
 
@@ -2371,7 +2371,9 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
     network_name = serializers.CharField(source="network.name", read_only=True)
     network_uuid = serializers.UUIDField(source="network.uuid", read_only=True)
-    allowed_address_pairs = OpenStackAllowedAddressPairField(required=False)
+    # Set through set_allowed_address_pairs, which checks them: a declared field
+    # is not made read-only by Meta.read_only_fields.
+    allowed_address_pairs = OpenStackAllowedAddressPairField(read_only=True)
     floating_ips = serializers.HyperlinkedRelatedField(
         view_name="openstack-fip-detail",
         lookup_field="uuid",
@@ -2457,6 +2459,47 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                 _("Network must be specified for creation of a port.")
             )
 
+        # Waldur creates the port with the cloud's admin session, so Neutron
+        # checks nothing. The tenant it goes into, whether the user may put a
+        # port there and whether that tenant may use the network are settled
+        # first, before anything about the network is reported.
+        target_tenant = attrs.get("target_tenant")
+        tenant = target_tenant or network.tenant
+        if not tenant.is_managed:
+            raise serializers.ValidationError(
+                {
+                    "target_tenant": _(
+                        "The network belongs to an OpenStack project that Waldur "
+                        "does not manage. Choose the tenant the port is for."
+                    )
+                }
+            )
+        if not can_manage_project(_request_user(self), tenant.project):
+            raise serializers.ValidationError(
+                {
+                    "target_tenant" if target_tenant else "network": _(
+                        "You do not have permission to create a port in this tenant."
+                    )
+                }
+            )
+        if (
+            tenant != network.tenant
+            and not models.NetworkRBACPolicy.objects.filter(
+                network=network,
+                target_tenant=tenant,
+                policy_type__in=["access_as_shared", "access_as_external"],
+            ).exists()
+        ):
+            raise serializers.ValidationError(
+                {
+                    "target_tenant": _(
+                        "Target tenant %(tenant)s does not have access to this network. "
+                        "Network must be shared via RBAC policy."
+                    )
+                    % {"tenant": tenant.uuid}
+                }
+            )
+
         if fixed_ips:
             for fixed_ip in fixed_ips:
                 if "ip_address" not in fixed_ip and "subnet_id" not in fixed_ip:
@@ -2499,50 +2542,13 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                         )
 
         attrs["service_settings"] = network.service_settings
-        attrs["project"] = network.project
         attrs["network"] = network
-
-        # Use target_tenant if provided for shared networks, otherwise default to network.tenant
-        target_tenant = attrs.get("target_tenant")
-        if target_tenant:
-            # Validate that the target tenant can access this network via RBAC
-            if target_tenant != network.tenant:
-                # Check if network is shared with target_tenant via RBAC policy
-                rbac_exists = models.NetworkRBACPolicy.objects.filter(
-                    network=network,
-                    target_tenant=target_tenant,
-                    policy_type__in=["access_as_shared", "access_as_external"],
-                ).exists()
-
-                if not rbac_exists:
-                    raise serializers.ValidationError(
-                        {
-                            "target_tenant": _(
-                                "Target tenant %(tenant)s does not have access to network %(network)s. "
-                                "Network must be shared via RBAC policy."
-                            )
-                            % {
-                                "tenant": target_tenant.uuid,
-                                "network": network.name,
-                            }
-                        }
-                    )
-
-            attrs["tenant"] = target_tenant
-            attrs["project"] = target_tenant.project
-            if target_tenant != network.tenant:
-                self._validate_owner_only_settings(attrs, network)
-        elif not network.tenant.is_managed:
-            raise serializers.ValidationError(
-                {
-                    "target_tenant": _(
-                        "The network belongs to an OpenStack project that Waldur "
-                        "does not manage. Choose the tenant the port is for."
-                    )
-                }
-            )
-        else:
-            attrs["tenant"] = network.tenant
+        # The port belongs to the project the check above was made against;
+        # a network keeps its old project when its tenant is moved.
+        attrs["tenant"] = tenant
+        attrs["project"] = tenant.project
+        if tenant != network.tenant:
+            self._validate_owner_only_settings(attrs, network)
 
         security_groups = attrs.get("security_groups", [])
         if security_groups and not attrs.get("port_security_enabled", True):

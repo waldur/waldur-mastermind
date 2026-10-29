@@ -115,18 +115,22 @@ def can_update_tenant_quotas_as_service_provider(request, view, tenant=None):
     raise exceptions.PermissionDenied()
 
 
-def can_manage_network_project(user, network):
-    """Whether the user may act as the owner of the network's project."""
+def can_manage_project(user, project):
+    """Whether the user is staff, or an owner, admin or manager of the project."""
     if user is None or not user.is_authenticated:
         return False
     if user.is_staff:
         return True
-    project = network.project
     return (
         project.has_user(user, ProjectRole.ADMIN)
         or project.has_user(user, ProjectRole.MANAGER)
         or project.customer.has_user(user, CustomerRole.OWNER)
     )
+
+
+def can_manage_network_project(user, network):
+    """Whether the user may act as the owner of the network's project."""
+    return can_manage_project(user, network.project)
 
 
 def owns_network_of_port(request, view, port=None):
