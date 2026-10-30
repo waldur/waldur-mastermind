@@ -565,6 +565,7 @@ td:nth-child(4) {
 | `handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
 | `import_instances_and_volumes_if_tenant_has_been_imported` | `Custom Signal (resource_imported)` | `openstack.Tenant` | No description |
 | `import_instances_and_volumes_if_tenant_has_been_imported` | `Custom Signal (tenant_pull_succeeded)` | `openstack.Tenant` | No description |
+| `import_new_instances_and_volumes_on_tenant_resources_pulled` | `Custom Signal (tenant_resources_pulled)` | `openstack.Tenant` | No description |
 | `import_resource_metadata_when_resource_is_created` | `Django Signal (post_save)` | `marketplace.Resource` | Import OpenStack resource metadata when marketplace resource is created |
 | `import_usage_on_tenant_quotas_pulled` | `Custom Signal (tenant_quotas_pulled)` | `openstack.Tenant` | No description |
 | `init_resource_parent` | `Django Signal (post_save)` | `marketplace.Resource` | Initialize the parent resource for a newly created resource. |
@@ -856,7 +857,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 772
+Total unique handlers found: 773
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -864,7 +865,7 @@ Total unique handlers found: 772
 - **waldur_core**: 356 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 352 handlers
+- **waldur_mastermind**: 353 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
