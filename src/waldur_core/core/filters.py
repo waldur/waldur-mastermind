@@ -9,12 +9,12 @@ from django.urls import resolve
 from django_filters.constants import EMPTY_VALUES
 from django_filters.filters import MultipleChoiceFilter
 from rest_framework.filters import BaseFilterBackend
-from rest_framework.permissions import SAFE_METHODS
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates
+from waldur_core.core.permissions import has_staff_or_support_read_access
 
 
 class GenericKeyFilterBackend(BaseFilterBackend):
@@ -218,12 +218,14 @@ class CategoryFilter(django_filters.CharFilter):
 
 
 class StaffOrUserFilter(BaseFilterBackend):
-    """Staff see every row; support see every row read-only; others see their own."""
+    """Staff see every row; support see every row read-only; others see their own.
+
+    A personal access token without the staff or support scope sees only
+    its user's own rows, as a user without that role would.
+    """
 
     def filter_queryset(self, request, queryset, view):
-        if request.user.is_staff:
-            return queryset
-        if request.user.is_support and request.method in SAFE_METHODS:
+        if has_staff_or_support_read_access(request):
             return queryset
 
         return queryset.filter(user=request.user)

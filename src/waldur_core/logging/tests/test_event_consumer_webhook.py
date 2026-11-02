@@ -496,6 +496,22 @@ class WebhookConsumerApiTest(test.APITestCase):
 
         response = self.client.delete(f"/api/event-consumers/{consumer.uuid.hex}/")
 
+        # Support is read-only, so another user's consumer is not found for a
+        # delete.
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(
+            logging_models.EventConsumer.objects.filter(pk=consumer.pk).exists()
+        )
+
+    def test_non_staff_owner_cannot_deregister_webhook(self):
+        # A webhook registered by a user who has since lost staff stays with
+        # staff: support reaches its own consumer, and perform_destroy refuses.
+        former_staff = structure_factories.UserFactory(is_support=True)
+        consumer = _webhook_consumer(former_staff)
+        self.client.force_authenticate(former_staff)
+
+        response = self.client.delete(f"/api/event-consumers/{consumer.uuid.hex}/")
+
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(
             logging_models.EventConsumer.objects.filter(pk=consumer.pk).exists()
@@ -619,6 +635,35 @@ class ResyncTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertEqual(response.data["object_types"], ["user_role"])
         mock_resync.assert_called_once_with(self.consumer.uuid.hex)
+
+    @mock.patch("waldur_core.logging.event_dispatch.resync_event_consumer.delay")
+    def test_support_cannot_resync_another_users_consumer(self, mock_resync):
+        # Support is read-only, and a resync pushes every role grant to the
+        # consumer's receiver.
+        self.client.force_authenticate(structure_factories.UserFactory(is_support=True))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self._url(self.consumer))
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        mock_resync.assert_not_called()
+
+    @mock.patch("waldur_core.logging.event_dispatch.resync_event_consumer.delay")
+    def test_support_resyncs_its_own_global_consumer(self, mock_resync):
+        support = structure_factories.UserFactory(is_support=True)
+        own = logging_factories.EventConsumerFactory(
+            user=support,
+            object_types=["user_role"],
+            queue_created=True,
+            rmq_username="support-queue",
+        )
+        self.client.force_authenticate(support)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self._url(own))
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_resync.assert_called_once_with(own.uuid.hex)
 
     @mock.patch("waldur_core.logging.event_dispatch.resync_event_consumer.delay")
     def test_resync_is_throttled_and_audited(self, mock_resync):

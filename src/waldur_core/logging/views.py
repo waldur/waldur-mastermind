@@ -29,7 +29,11 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
-from waldur_core.core.permissions import has_staff_access, has_support_access
+from waldur_core.core.permissions import (
+    has_staff_access,
+    has_staff_or_support_read_access,
+    has_support_access,
+)
 from waldur_core.core.serializers import StatusSerializer
 from waldur_core.logging import (
     backend,
@@ -252,7 +256,7 @@ class EventSubscriptionViewSet(
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.request.user.is_staff or self.request.user.is_support:
+        if has_staff_or_support_read_access(self.request):
             return queryset
 
         return queryset.filter(user=self.request.user)
@@ -377,7 +381,7 @@ class EventSubscriptionQueueViewSet(
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.request.user.is_staff or self.request.user.is_support:
+        if has_staff_or_support_read_access(self.request):
             return queryset
 
         return queryset.filter(event_subscription__user=self.request.user)
@@ -1250,8 +1254,9 @@ class EventConsumerViewSet(
     filterset_class = filters.EventConsumerFilter
 
     def perform_destroy(self, instance):
-        # Support may list consumers and remove queue consumers, but a webhook
-        # is a staff-owned integration with a third party; only staff end it.
+        # Support lists every consumer but, being read-only, removes only its
+        # own (get_queryset). A webhook is a staff-owned integration with a
+        # third party; only staff end it, whoever its owner.
         if instance.is_webhook and not core_permissions.IsStaff().has_permission(
             self.request, self
         ):
@@ -1269,7 +1274,7 @@ class EventConsumerViewSet(
         # only SET_NULL. Manage those through the site-agent endpoints.
         queryset = super().get_queryset().filter(agent_identity__isnull=True)
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if has_staff_or_support_read_access(self.request):
             return queryset
         return queryset.filter(user=user)
 
@@ -1548,7 +1553,9 @@ class EventConsumerViewSet(
         description="Replay the current state to a global consumer, through its "
         "own transport and filters, so a receiver that starts late can seed "
         "itself. Every active role grant is sent as a `user_role` message with "
-        "`event_type` `role_snapshot`. Runs asynchronously. Staff/support only.",
+        "`event_type` `role_snapshot`. Runs asynchronously. Staff, or support "
+        "for its own consumers: support is read-only, so another user's "
+        "consumer is not found.",
         request=None,
         responses={
             status.HTTP_202_ACCEPTED: serializers.EventConsumerResyncResponseSerializer

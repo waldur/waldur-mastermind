@@ -1,6 +1,8 @@
 from django.db import models as django_models
 from django.db.models import Q
 
+from waldur_core.core.models import User
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.support import backend, models
@@ -20,8 +22,17 @@ SupportUserManager = django_models.Manager.from_queryset(SupportUserQuerySet)
 
 
 class AttachmentQuerySet(django_models.QuerySet):
-    def filter_for_user(self, user):
-        if not user.is_staff:
+    def filter_for_user(self, principal):
+        """Attachments of issues the user's customers own or the user called.
+
+        ``principal`` is a request or a user. A request acts as staff only if
+        a personal access token behind it carries the staff scope.
+        """
+        if isinstance(principal, User):
+            user, acts_as_staff = principal, principal.is_staff
+        else:
+            user, acts_as_staff = principal.user, has_staff_access(principal)
+        if not acts_as_staff:
             user_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
             subquery = Q(issue__customer__in=user_customers) | Q(issue__caller=user)
             return self.filter(subquery)

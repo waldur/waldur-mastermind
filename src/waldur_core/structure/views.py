@@ -49,6 +49,7 @@ from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.permissions import (
     PATScopeAwareIsAdminUser,
     has_staff_access,
+    has_staff_or_support_read_access,
     has_support_access,
 )
 from waldur_core.core.serializers import (
@@ -2619,7 +2620,7 @@ class SshKeyViewSet(
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.request.user.is_staff or self.request.user.is_support:
+        if has_staff_or_support_read_access(self.request):
             return queryset
 
         return queryset.filter(Q(user=self.request.user) | Q(is_shared=True))

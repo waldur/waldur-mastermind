@@ -706,7 +706,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             return
         active_backend = backend.get_active_backend()
         if not backend.comment_change_is_permitted(
-            request.user, obj, active_backend.comment_author_update_is_supported
+            request, obj, active_backend.comment_author_update_is_supported
         ):
             raise rf_exceptions.PermissionDenied()
 
@@ -727,7 +727,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             return
         active_backend = backend.get_active_backend()
         if not backend.comment_change_is_permitted(
-            request.user, obj, active_backend.comment_author_destroy_is_supported
+            request, obj, active_backend.comment_author_destroy_is_supported
         ):
             raise rf_exceptions.PermissionDenied()
 
@@ -737,7 +737,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        if not self.request.user.is_staff:
+        if not has_staff_access(self.request):
             subquery = Q(is_public=True) | Q(author__user=self.request.user)
             queryset = queryset.filter(subquery)
 
@@ -830,7 +830,7 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff or user.is_support:
+        if has_support_access(self.request):
             return self.queryset
 
         return self.queryset.filter(
@@ -1658,7 +1658,7 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        return queryset.filter_for_user(self.request.user)
+        return queryset.filter_for_user(self.request)
 
 
 class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):

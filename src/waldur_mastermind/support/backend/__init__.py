@@ -2,6 +2,7 @@ import importlib
 import logging
 
 from waldur_core.configuration import config
+from waldur_core.core.permissions import has_staff_access
 from waldur_mastermind.support import models
 
 logger = logging.getLogger(__name__)
@@ -211,9 +212,12 @@ def issue_is_routed(issue) -> bool:
 
 
 def comment_change_is_permitted(
-    user, comment, author_may_change: bool, is_routed=issue_is_routed
+    request, comment, author_may_change: bool, is_routed=issue_is_routed
 ) -> bool:
     """Staff may change any comment; its author only where the backend allows.
+
+    Staff here means a request that may act as staff: a staff user's personal
+    access token without the staff scope is held to the author's rule.
 
     A comment pulled in from a remote service desk has no local user behind its
     author, so it never matches and stays with staff.
@@ -227,8 +231,9 @@ def comment_change_is_permitted(
     `is_routed` answers that for the comment's ticket. A caller checking many
     comments of one ticket passes a cached one, to avoid a query per comment.
     """
-    if user.is_staff:
+    if has_staff_access(request):
         return True
+    user = request.user
     author_user_id = comment.author.user_id
     if not author_may_change or author_user_id is None or author_user_id != user.id:
         return False

@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from ddt import data, ddt
@@ -437,10 +438,14 @@ class CommentChangeIsPermittedTest(base.BaseTest):
         comment.author.save()
 
         self.assertFalse(
-            backend.comment_change_is_permitted(self.fixture.owner, comment, True)
+            backend.comment_change_is_permitted(
+                SimpleNamespace(user=self.fixture.owner), comment, True
+            )
         )
         self.assertTrue(
-            backend.comment_change_is_permitted(self.fixture.staff, comment, False)
+            backend.comment_change_is_permitted(
+                SimpleNamespace(user=self.fixture.staff), comment, False
+            )
         )
 
     def test_only_the_basic_backend_lets_authors_change_comments(self):

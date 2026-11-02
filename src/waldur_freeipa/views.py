@@ -5,6 +5,7 @@ from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import decorators, exceptions, response, status
 
 from waldur_core.core import views as core_views
+from waldur_core.core.permissions import has_staff_access
 
 from . import backend, filters, models, serializers, tasks
 
@@ -22,7 +23,7 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.is_staff:
+        if has_staff_access(self.request):
             return qs
         return qs.filter(user=self.request.user)
 
