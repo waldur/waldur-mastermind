@@ -409,7 +409,7 @@
     {
       "uuid": "f2000000000000000000000000000030",
       "name": "SLURM Research Cluster",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,

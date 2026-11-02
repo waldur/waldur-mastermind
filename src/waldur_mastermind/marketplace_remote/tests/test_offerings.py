@@ -21,7 +21,12 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
+from waldur_mastermind.marketplace.enums import (
+    LEGACY_SITE_AGENT_OFFERING,
+    REMOTE_OFFERING,
+    SITE_AGENT_OFFERING,
+    OfferingStates,
+)
 from waldur_mastermind.marketplace.serializers import (
     OrderCreateSerializer,
     ScreenshotSerializer,
@@ -29,6 +34,7 @@ from waldur_mastermind.marketplace.serializers import (
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
+from waldur_mastermind.marketplace_remote import utils as remote_utils
 from waldur_mastermind.marketplace_remote.processors import (
     RemoteCreateResourceProcessor,
 )
@@ -1096,3 +1102,19 @@ class OfferingScreenshotsTest(test.APITestCase):
                 uuid=stale_screenshot.uuid
             ).exists()
         )
+
+
+class GetRemoteOfferingsTest(test.APITestCase):
+    @mock.patch(
+        "waldur_api_client.api.marketplace_public_offerings."
+        "marketplace_public_offerings_list.sync_all",
+        return_value=[],
+    )
+    def test_provider_is_asked_for_every_name_of_a_type(self, sync_all):
+        # Providers upgrade on their own schedule: one on an earlier release
+        # only matches the legacy name.
+        remote_utils.get_remote_offerings(mock.Mock(), "customer-uuid")
+
+        requested_types = sync_all.call_args.kwargs["type_"]
+        self.assertIn(SITE_AGENT_OFFERING, requested_types)
+        self.assertIn(LEGACY_SITE_AGENT_OFFERING, requested_types)

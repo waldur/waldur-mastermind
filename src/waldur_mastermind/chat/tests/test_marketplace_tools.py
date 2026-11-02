@@ -212,10 +212,10 @@ class SerializeOfferingMinimalTest(TestCase):
         offering = mp_factories.OfferingFactory(
             name="GPU Cluster",
             description="High-end GPU for AI workloads.",
-            type="Marketplace.Slurm",
+            type="Marketplace.SiteAgent",
         )
         result = serialize_offering_minimal(offering)
-        # Plugin-level `type` (e.g. Marketplace.Slurm) and the API-level
+        # Plugin-level `type` (e.g. Marketplace.SiteAgent) and the API-level
         # `url` are deliberately NOT exposed — both leak into LLM
         # narration as noise. `homeport_url` IS exposed: the LLM drops it
         # straight into a markdown `[Open](url)` cell, never paraphrasing.
@@ -409,7 +409,7 @@ class SearchOfferingsExecuteTest(TestCase):
     def test_type_filter(self):
         mp_factories.OfferingFactory(
             name="Slurm A",
-            type="Marketplace.Slurm",
+            type="Marketplace.SiteAgent",
             shared=True,
             state=OfferingStates.ACTIVE,
         )

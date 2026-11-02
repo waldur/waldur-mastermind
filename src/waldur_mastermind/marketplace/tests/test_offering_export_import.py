@@ -9,7 +9,12 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
+from waldur_mastermind.marketplace.enums import (
+    LEGACY_SITE_AGENT_OFFERING,
+    SITE_AGENT_OFFERING,
+    BillingTypes,
+    LimitPeriods,
+)
 from waldur_mastermind.marketplace.serializers import ExportImportOfferingSerializer
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.views import (
@@ -370,6 +375,25 @@ class OfferingExportImportTestCase(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("already exists", str(response.data))
+
+    def test_import_of_an_export_with_the_legacy_type_stores_the_canonical_one(self):
+        self.client.force_authenticate(self.user)
+        yaml_data = yaml.safe_dump(
+            {"offering": {"name": "Legacy export", "type": LEGACY_SITE_AGENT_OFFERING}}
+        )
+
+        response = self.client.post(
+            reverse("marketplace-provider-offering-import-offering"),
+            {
+                "customer": self.customer.uuid.hex,
+                "category": self.category.title,
+                "offering_data": yaml_data,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        offering = models.Offering.objects.get(name="Legacy export")
+        self.assertEqual(offering.type, SITE_AGENT_OFFERING)
 
     def test_import_offering_always_creates_draft_state(self):
         """Test that all imported offerings are created in DRAFT state for security."""

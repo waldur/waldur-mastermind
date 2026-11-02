@@ -146,7 +146,7 @@ When an order fails due to transient errors, authorized users can retry it inste
 - Order must be in `ERRED` state
 - Order must have an associated resource
 
-Currently supported offering types: **Site Agent** (`Marketplace.Slurm`) and **Basic** (`Marketplace.Basic`). Other offering types can opt in by setting `supports_order_retry=True` in their `manager.register()` call.
+Currently supported offering types: **Site Agent** (`Marketplace.SiteAgent`; the former name `Marketplace.Slurm` is still accepted as an alias) and **Basic** (`Marketplace.Basic`). Other offering types can opt in by setting `supports_order_retry=True` in their `manager.register()` call.
 
 **Permission**: `APPROVE_ORDER` on the offering's customer or the offering itself (staff, offering owners, offering managers).
 

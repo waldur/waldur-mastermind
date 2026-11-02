@@ -41,6 +41,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderTypes,
     RemoteResourceSyncStatus,
     ResourceStates,
+    expand_offering_types,
 )
 from waldur_mastermind.marketplace_remote import models
 from waldur_mastermind.marketplace_remote.constants import (
@@ -1017,11 +1018,13 @@ def get_remote_offerings(
         marketplace_public_offerings_list,
     )
 
-    whitelist_types = [
+    # Providers upgrade on their own schedule, and one on an earlier release
+    # only matches the legacy name of a type.
+    whitelist_types = expand_offering_types(
         offering_type
         for offering_type in plugins.manager.get_offering_types()
         if plugins.manager.enable_remote_support(offering_type)
-    ]
+    )
 
     params = {
         "shared": True,

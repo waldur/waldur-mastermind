@@ -18,7 +18,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import BASIC_OFFERING, SITE_AGENT_OFFERING
+from waldur_mastermind.marketplace.enums import BASIC_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 # The module names start with a digit, so they cannot be imported by name.
@@ -135,7 +135,7 @@ class HandAzureToSiteAgentMigrationTest(TestCase):
         self._run()
 
         self.vm_offering.refresh_from_db()
-        self.assertEqual(self.vm_offering.type, SITE_AGENT_OFFERING)
+        self.assertEqual(self.vm_offering.type, handover.SITE_AGENT_OFFERING_TYPE)
         self.assertEqual(
             self.vm_offering.plugin_options,
             {"supports_pausing": True, "supports_downscaling": True, "keep_me": "yes"},
@@ -217,7 +217,7 @@ class HandAzureToSiteAgentMigrationTest(TestCase):
 
         self.assertEqual(self._backend_id(self.imported), "imported")
         self.vm_offering.refresh_from_db()
-        self.assertEqual(self.vm_offering.type, SITE_AGENT_OFFERING)
+        self.assertEqual(self.vm_offering.type, handover.SITE_AGENT_OFFERING_TYPE)
 
     def test_without_azure_data_nothing_changes(self):
         marketplace_models.Offering.objects.filter(

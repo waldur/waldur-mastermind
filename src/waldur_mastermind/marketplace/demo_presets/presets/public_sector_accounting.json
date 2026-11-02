@@ -1112,7 +1112,7 @@
     {
       "uuid": "5e110000000000000000000000000006",
       "name": "National HPC Cluster",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1125,7 +1125,7 @@
     {
       "uuid": "5e110000000000000000000000000007",
       "name": "AI Compute - NVIDIA H100",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1142,7 +1142,7 @@
     {
       "uuid": "5e110000000000000000000000000008",
       "name": "AI Compute - NVIDIA A100",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1157,7 +1157,7 @@
     {
       "uuid": "5e110000000000000000000000000009",
       "name": "AI Inference - NVIDIA L40S",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -13538,7 +13538,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13565,7 +13565,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13592,7 +13592,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13619,7 +13619,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13646,7 +13646,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13673,7 +13673,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13700,7 +13700,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13727,7 +13727,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13754,7 +13754,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13781,7 +13781,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13808,7 +13808,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13835,7 +13835,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13862,7 +13862,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13889,7 +13889,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13916,7 +13916,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13943,7 +13943,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13970,7 +13970,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -13997,7 +13997,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -14483,7 +14483,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14510,7 +14510,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14537,7 +14537,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14564,7 +14564,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14591,7 +14591,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14618,7 +14618,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14645,7 +14645,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14672,7 +14672,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14699,7 +14699,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14726,7 +14726,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14753,7 +14753,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14780,7 +14780,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14807,7 +14807,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14834,7 +14834,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14861,7 +14861,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14888,7 +14888,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14915,7 +14915,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14942,7 +14942,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -14969,7 +14969,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -14996,7 +14996,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -15023,7 +15023,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -15050,7 +15050,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -15077,7 +15077,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -15104,7 +15104,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -15131,7 +15131,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -15158,7 +15158,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -15185,7 +15185,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -15212,7 +15212,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -15239,7 +15239,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -15266,7 +15266,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -15293,7 +15293,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -15320,7 +15320,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -15347,7 +15347,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -15374,7 +15374,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16400,7 +16400,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16427,7 +16427,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16454,7 +16454,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16481,7 +16481,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16508,7 +16508,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16535,7 +16535,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16562,7 +16562,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16589,7 +16589,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16616,7 +16616,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16643,7 +16643,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16670,7 +16670,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16697,7 +16697,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16724,7 +16724,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16751,7 +16751,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16778,7 +16778,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16805,7 +16805,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16832,7 +16832,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16859,7 +16859,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16886,7 +16886,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16913,7 +16913,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16940,7 +16940,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -16967,7 +16967,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -16994,7 +16994,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -17021,7 +17021,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -17048,7 +17048,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -17075,7 +17075,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -17102,7 +17102,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -17129,7 +17129,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -17156,7 +17156,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -17183,7 +17183,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -17210,7 +17210,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -17237,7 +17237,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -17264,7 +17264,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -17291,7 +17291,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -17669,7 +17669,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17696,7 +17696,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17723,7 +17723,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17750,7 +17750,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17777,7 +17777,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17804,7 +17804,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17831,7 +17831,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17858,7 +17858,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17885,7 +17885,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17912,7 +17912,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17939,7 +17939,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17966,7 +17966,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -17993,7 +17993,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -18020,7 +18020,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -18047,7 +18047,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -18074,7 +18074,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -21773,7 +21773,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -21800,7 +21800,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -21827,7 +21827,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -21854,7 +21854,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -21881,7 +21881,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -21908,7 +21908,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -21935,7 +21935,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -21962,7 +21962,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -21989,7 +21989,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22016,7 +22016,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22043,7 +22043,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22070,7 +22070,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22097,7 +22097,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22124,7 +22124,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22151,7 +22151,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22178,7 +22178,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22205,7 +22205,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22232,7 +22232,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22259,7 +22259,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22286,7 +22286,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22313,7 +22313,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22340,7 +22340,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22367,7 +22367,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22394,7 +22394,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22421,7 +22421,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22448,7 +22448,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -22475,7 +22475,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -22502,7 +22502,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -23717,7 +23717,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -23744,7 +23744,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -23771,7 +23771,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -23798,7 +23798,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -23825,7 +23825,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -23852,7 +23852,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -23879,7 +23879,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -23906,7 +23906,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -23933,7 +23933,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -23960,7 +23960,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -23987,7 +23987,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24014,7 +24014,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24041,7 +24041,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24068,7 +24068,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24095,7 +24095,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24122,7 +24122,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24149,7 +24149,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24176,7 +24176,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24203,7 +24203,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24230,7 +24230,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24257,7 +24257,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24284,7 +24284,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24311,7 +24311,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24338,7 +24338,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24365,7 +24365,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24392,7 +24392,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24419,7 +24419,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24446,7 +24446,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24473,7 +24473,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -24500,7 +24500,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -24527,7 +24527,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24554,7 +24554,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24581,7 +24581,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24608,7 +24608,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24635,7 +24635,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24662,7 +24662,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24689,7 +24689,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24716,7 +24716,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24743,7 +24743,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24770,7 +24770,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24797,7 +24797,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24824,7 +24824,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24851,7 +24851,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24878,7 +24878,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA A100",
         "offering_uuid": "5e110000000000000000000000000008",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_a100_hours",
         "offering_component_name": "NVIDIA A100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24905,7 +24905,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24932,7 +24932,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24959,7 +24959,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -24986,7 +24986,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25013,7 +25013,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25040,7 +25040,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25067,7 +25067,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25094,7 +25094,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25121,7 +25121,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25148,7 +25148,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25175,7 +25175,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25202,7 +25202,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25229,7 +25229,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25256,7 +25256,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25283,7 +25283,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -25310,7 +25310,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25337,7 +25337,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25364,7 +25364,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25391,7 +25391,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25418,7 +25418,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25445,7 +25445,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25472,7 +25472,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25499,7 +25499,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25526,7 +25526,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25553,7 +25553,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25580,7 +25580,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -25607,7 +25607,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -27308,7 +27308,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27335,7 +27335,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27362,7 +27362,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27389,7 +27389,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27416,7 +27416,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27443,7 +27443,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27470,7 +27470,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27497,7 +27497,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27524,7 +27524,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27551,7 +27551,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27578,7 +27578,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27605,7 +27605,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27632,7 +27632,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27659,7 +27659,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27686,7 +27686,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27713,7 +27713,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27740,7 +27740,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27767,7 +27767,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27794,7 +27794,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27821,7 +27821,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -27848,7 +27848,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -27875,7 +27875,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -28307,7 +28307,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28334,7 +28334,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28361,7 +28361,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28388,7 +28388,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28415,7 +28415,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28442,7 +28442,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28469,7 +28469,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28496,7 +28496,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28523,7 +28523,7 @@
       "details": {
         "offering_name": "AI Inference - NVIDIA L40S",
         "offering_uuid": "5e110000000000000000000000000009",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_l40s_hours",
         "offering_component_name": "NVIDIA L40S",
         "service_provider_name": "National HPC & AI Centre",
@@ -28766,7 +28766,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -28793,7 +28793,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -28820,7 +28820,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -28847,7 +28847,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -28874,7 +28874,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -28901,7 +28901,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -28928,7 +28928,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -28955,7 +28955,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -28982,7 +28982,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -29009,7 +29009,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -29036,7 +29036,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -29063,7 +29063,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -29090,7 +29090,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "cpu_core_hours",
         "offering_component_name": "CPU",
         "service_provider_name": "National HPC & AI Centre",
@@ -29117,7 +29117,7 @@
       "details": {
         "offering_name": "National HPC Cluster",
         "offering_uuid": "5e110000000000000000000000000006",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "project_storage_tb",
         "offering_component_name": "Project storage",
         "service_provider_name": "National HPC & AI Centre",
@@ -29144,7 +29144,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -29171,7 +29171,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -29198,7 +29198,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -29225,7 +29225,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -29252,7 +29252,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",
@@ -29279,7 +29279,7 @@
       "details": {
         "offering_name": "AI Compute - NVIDIA H100",
         "offering_uuid": "5e110000000000000000000000000007",
-        "offering_type": "Marketplace.Slurm",
+        "offering_type": "Marketplace.SiteAgent",
         "offering_component_type": "gpu_h100_hours",
         "offering_component_name": "NVIDIA H100",
         "service_provider_name": "National HPC & AI Centre",

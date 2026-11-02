@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from typing import Literal
 
 from django.db import models
@@ -651,7 +652,36 @@ VMWARE_VM_OFFERING = "VMware.VirtualMachine"
 REMOTE_OFFERING = "Waldur.RemoteOffering"
 SCRIPT_OFFERING = "Marketplace.Script"
 SLURM_OFFERING = "SlurmInvoices.SlurmPackage"
-SITE_AGENT_OFFERING = "Marketplace.Slurm"
+SITE_AGENT_OFFERING = "Marketplace.SiteAgent"
+# Former name of the site-agent type, from when the agent only drove SLURM.
+# Accepted on every input path and resolved to SITE_AGENT_OFFERING; never
+# stored or returned.
+LEGACY_SITE_AGENT_OFFERING = "Marketplace.Slurm"
+
+LEGACY_OFFERING_TYPE_ALIASES = {
+    LEGACY_SITE_AGENT_OFFERING: SITE_AGENT_OFFERING,
+}
+
+
+def normalize_offering_type(offering_type: str) -> str:
+    """Return the canonical name of an offering type, resolving legacy aliases."""
+    return LEGACY_OFFERING_TYPE_ALIASES.get(offering_type, offering_type)
+
+
+def expand_offering_types(offering_types: Iterable[str]) -> list[str]:
+    """Return the given types plus every other name of the same types.
+
+    Filters use it so ``?type=Marketplace.Slurm`` keeps matching rows stored
+    under the canonical name, and vice versa.
+    """
+    canonical = {normalize_offering_type(t) for t in offering_types}
+    aliases = {
+        alias
+        for alias, target in LEGACY_OFFERING_TYPE_ALIASES.items()
+        if target in canonical
+    }
+    return sorted(canonical | aliases)
+
 
 # Offering types whose users get accounts (offering users) at the provider.
 OFFERING_USER_ALLOWED_OFFERING_TYPES = [

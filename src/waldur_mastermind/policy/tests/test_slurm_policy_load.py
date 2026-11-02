@@ -50,7 +50,7 @@ class TestSlurmPolicyLargeScale(TransactionTestCase):
         )
 
     def setUp(self):
-        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.offering = factories.OfferingFactory(type="Marketplace.SiteAgent")
         self.customer = factories.CustomerFactory()
         self.project = factories.ProjectFactory(customer=self.customer)
 

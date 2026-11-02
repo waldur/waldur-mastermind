@@ -195,6 +195,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
+    normalize_offering_type,
 )
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
@@ -3567,7 +3568,7 @@ class ProviderOfferingViewSet(
         summary="Swap offering type",
         description=(
             "Changes the offering's `type` between Marketplace.Basic and the "
-            "site-agent type (Marketplace.Slurm). Both plugins share the same "
+            "site-agent type (Marketplace.SiteAgent; the legacy name Marketplace.Slurm is accepted). Both plugins share the same "
             "data shape (the site-agent processors inherit from Basic and only "
             "delegate the send paths to the external agent), so the swap is "
             "safe in either direction. Refused if the offering's current type "
@@ -6235,6 +6236,9 @@ class ProviderOfferingViewSet(
         offering_values = _import_fields(
             models.Offering, offering_data, OFFERING_IMPORT_FIELDS, "offering"
         )
+        # An export from an earlier release may carry a legacy type name.
+        if "type" in offering_values:
+            offering_values["type"] = normalize_offering_type(offering_values["type"])
         # The name identifies the offering, both for the user and for the
         # lookup of the offering an overwriting import updates.
         offering_values["name"] = _import_lookup(
@@ -7766,7 +7770,7 @@ class PluginViewSet(views.APIView):
                 name="Example Response for Marketplace Plugins",
                 value=[
                     {
-                        "offering_type": "Marketplace.Slurm",
+                        "offering_type": "Marketplace.SiteAgent",
                         "components": [
                             {
                                 "type": "cpu",

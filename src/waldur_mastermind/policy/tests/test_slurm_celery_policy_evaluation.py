@@ -46,7 +46,7 @@ class TestSlurmCeleryPolicyEvaluation(TestCase):
 
     def setUp(self):
         """Set up test data for policy evaluation tests."""
-        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.offering = factories.OfferingFactory(type="Marketplace.SiteAgent")
         self.customer = factories.CustomerFactory()
         self.project = factories.ProjectFactory(customer=self.customer)
 
@@ -499,7 +499,7 @@ class TestSlurmPolicySignalHandlers(TestCase):
 
     def setUp(self):
         """Set up test data for signal handler tests."""
-        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.offering = factories.OfferingFactory(type="Marketplace.SiteAgent")
         self.customer = factories.CustomerFactory()
         self.project = factories.ProjectFactory(customer=self.customer)
         self.resource = factories.ResourceFactory(
@@ -604,7 +604,7 @@ class TestSlurmPolicyRecovery(TestCase):
 
     def setUp(self):
         """Set up test data for recovery tests."""
-        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.offering = factories.OfferingFactory(type="Marketplace.SiteAgent")
         self.customer = factories.CustomerFactory()
         self.project = factories.ProjectFactory(customer=self.customer)
         self.resource = factories.ResourceFactory(
@@ -746,7 +746,7 @@ class TestSlurmPolicyPerformance(TestCase):
 
     def setUp(self):
         """Set up performance test data."""
-        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.offering = factories.OfferingFactory(type="Marketplace.SiteAgent")
         self.customer = factories.CustomerFactory()
         self.project = factories.ProjectFactory(customer=self.customer)
         self.component = factories.OfferingComponentFactory(
@@ -890,7 +890,7 @@ class TestSlurmPolicyIntegration(TestCase):
     def setUp(self):
         """Set up integration test environment."""
         self.offering = factories.OfferingFactory(
-            type="Marketplace.Slurm",
+            type="Marketplace.SiteAgent",
             plugin_options={"supports_downscaling": True, "supports_pausing": True},
         )
         self.customer = factories.CustomerFactory()
@@ -1029,7 +1029,7 @@ class TestSlurmPolicyEvaluationSendsSTOMP(TestCase):
 
     def setUp(self):
         self.offering = factories.OfferingFactory(
-            type="Marketplace.Slurm",
+            type="Marketplace.SiteAgent",
             plugin_options={"supports_downscaling": True, "supports_pausing": True},
         )
         self.customer = factories.CustomerFactory()
@@ -1294,7 +1294,7 @@ class TestSlurmPolicySTOMPPayloadContent(TestCase):
 
     def setUp(self):
         self.offering = factories.OfferingFactory(
-            type="Marketplace.Slurm",
+            type="Marketplace.SiteAgent",
             plugin_options={"supports_downscaling": True, "supports_pausing": True},
         )
         self.customer = factories.CustomerFactory()
@@ -1379,7 +1379,7 @@ class TestSlurmPolicySerializerWarnings(TestCase):
     """Test that serializer warns when no site agent queue is registered."""
 
     def setUp(self):
-        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.offering = factories.OfferingFactory(type="Marketplace.SiteAgent")
         self.component = factories.OfferingComponentFactory(
             offering=self.offering, type="node-hours", name="Node hours"
         )
@@ -1432,7 +1432,7 @@ class TestGracePeriodPolicyInteraction(TestCase):
 
     def setUp(self):
         self.offering = factories.OfferingFactory(
-            type="Marketplace.Slurm",
+            type="Marketplace.SiteAgent",
             plugin_options={"supports_pausing": True},
         )
         self.customer = factories.CustomerFactory()

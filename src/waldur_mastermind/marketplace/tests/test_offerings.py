@@ -48,6 +48,7 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers, utils
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    LEGACY_SITE_AGENT_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
@@ -1812,6 +1813,21 @@ class OfferingUpdateTypeTest(BaseOfferingUpdateTest):
         self.offering.save()
 
         response = self.update_type(BASIC_OFFERING, role)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, BASIC_OFFERING)
+
+    def test_legacy_site_agent_name_is_stored_as_canonical(self):
+        response = self.update_type(LEGACY_SITE_AGENT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, SITE_AGENT_OFFERING)
+
+    def test_offering_stored_under_legacy_name_can_be_swapped(self):
+        self.offering.type = LEGACY_SITE_AGENT_OFFERING
+        self.offering.save()
+
+        response = self.update_type(BASIC_OFFERING, "staff")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.type, BASIC_OFFERING)

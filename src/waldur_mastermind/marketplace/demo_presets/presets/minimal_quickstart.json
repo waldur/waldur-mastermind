@@ -299,7 +299,7 @@
     {
       "uuid": "00500000000000000000000000000001",
       "name": "HPC Cluster Access",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,

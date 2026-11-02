@@ -58,6 +58,7 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     MissingUsagePolicies,
     RobotAccountStates,
+    normalize_offering_type,
 )
 from waldur_mastermind.marketplace.models import (
     Category,
@@ -3256,7 +3257,8 @@ class Command(BaseCommand):
                 defaults = {
                     "name": name,
                     "description": offering_data.get("description", ""),
-                    "type": offering_data.get("type", ""),
+                    # Exports and fixtures may carry a legacy type name.
+                    "type": normalize_offering_type(offering_data.get("type", "")),
                     "state": offering_data.get("state", 1),
                     "customer": customer,
                     "shared": offering_data.get("shared", False),

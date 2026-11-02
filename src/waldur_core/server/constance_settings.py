@@ -184,7 +184,11 @@ OFFERING_TYPE_CHOICES = [
     ("VMware.VirtualMachine", "VMware Virtual Machine"),
     ("Waldur.RemoteOffering", "Remote Offering"),
     ("Marketplace.Script", "Script"),
-    ("Marketplace.Slurm", "Site Agent"),
+    ("Marketplace.SiteAgent", "Site Agent"),
+    # Former name of the site-agent type. Deployment files and API clients may
+    # still send it: dropping it here would make override_constance_settings
+    # discard the whole DISABLED_OFFERING_TYPES value.
+    ("Marketplace.Slurm", "Site Agent (legacy name)"),
 ]
 
 PROPOSAL_CONFIGURABLE_FIELD_CHOICES = [

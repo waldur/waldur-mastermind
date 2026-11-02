@@ -178,7 +178,7 @@ def serialize_offering_minimal(offering) -> dict:
     """LLM-friendly compact offering dict for search and comparison results.
 
     Does NOT expose ``offering.type`` (plugin identifier like
-    ``Marketplace.Slurm`` / ``OpenStack.Tenant``) or the offering's API
+    ``Marketplace.SiteAgent`` / ``OpenStack.Tenant``) or the offering's API
     ``url`` — both leak into LLM narration as noise.
 
     DOES expose ``homeport_url``: the offering tools render results as a

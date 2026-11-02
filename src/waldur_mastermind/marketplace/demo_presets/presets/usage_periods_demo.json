@@ -134,7 +134,7 @@
     {
       "uuid": "f3000000000000000000000000004721",
       "name": "compute-m",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -163,7 +163,7 @@
     {
       "uuid": "f3000000000000000000000000004722",
       "name": "compute-q",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -183,7 +183,7 @@
     {
       "uuid": "f3000000000000000000000000004723",
       "name": "compute-y",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -203,7 +203,7 @@
     {
       "uuid": "f3000000000000000000000000004724",
       "name": "compute-s",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,

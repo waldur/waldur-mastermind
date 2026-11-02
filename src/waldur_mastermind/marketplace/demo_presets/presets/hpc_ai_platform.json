@@ -452,7 +452,7 @@
     {
       "uuid": "f3000000000000000000000000000005",
       "name": "SLURM HPC Cluster",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -473,7 +473,7 @@
     {
       "uuid": "f3000000000000000000000000000030",
       "name": "CAPSTOR HPC Storage",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -607,7 +607,7 @@
     {
       "uuid": "f3000000000000000000000000000031",
       "name": "VAST HPC Storage",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -771,7 +771,7 @@
     {
       "uuid": "f3000000000000000000000000000042",
       "name": "SLURM Batch Computing",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
