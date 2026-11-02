@@ -73,6 +73,8 @@ class PermissionEnum(StrEnum):
 
 If the permission is for managing team members (creating/updating/deleting roles) on a scope type, also add it to the `CREATE_PERMISSIONS`, `UPDATE_PERMISSIONS`, and `DELETE_PERMISSIONS` dicts in the same file.
 
+`get_create_permission` and its siblings look the scope up by the model's `_meta.model_name` (`serviceprovider`, `callmanagingorganisation`), not by the `TYPE_MAP` alias (`service_provider`, `call_organizer`), so those dicts need the model-name key: an alias-only key leaves the team to staff. When the two differ, map the model name to the alias in `_KEY_REMAP` in `print_permission_enums.py`, so that the frontend's `PermissionMap` keeps the alias. A test checks that every bindable scope type resolves.
+
 ### 2. Assign to Roles via permissions.yaml
 
 **Do NOT use data migrations to assign permissions to roles.** Instead, add the permission to the appropriate roles in `docker/rootfs/etc/waldur/permissions.yaml`:

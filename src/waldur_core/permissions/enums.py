@@ -355,6 +355,16 @@ DELETE_PERMISSIONS = {
     "resourceproject": PermissionEnum.DELETE_RESOURCE_PROJECT_PERMISSION,
 }
 
+# The same trap for ServiceProvider: its model_name is "serviceprovider", so
+# the "service_provider" key alone left its team to staff (#986). The alias
+# stays for readers keyed by scope type (the frontend PermissionMap, which
+# print_permission_enums.py folds back into one key, and
+# GLOBAL_DENIED_PERMISSIONS below); the model-name key is derived from it so
+# that the two cannot drift apart.
+for _permission_map in (CREATE_PERMISSIONS, UPDATE_PERMISSIONS, DELETE_PERMISSIONS):
+    _permission_map["serviceprovider"] = _permission_map["service_provider"]
+del _permission_map
+
 # Permissions a site-wide (global) role may not use: managing an
 # organization's or a service provider's team. Held on every object, they let
 # the holder make themselves owner of any organization, which no
