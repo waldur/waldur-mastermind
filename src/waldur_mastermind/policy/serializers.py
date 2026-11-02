@@ -1,3 +1,4 @@
+import copy
 import datetime
 import decimal
 import json
@@ -32,7 +33,7 @@ from waldur_mastermind.policy.policy_actions import (
 from . import models
 from .models import LIMIT_PERIOD_TO_POLICY_PERIOD
 from .structures import EvaluationTriggers, PolicyGates
-from .utils import system_actor_event_context
+from .utils import reconcile_idempotent_actions, system_actor_event_context
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +126,13 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         return super().create(validated_data)
 
     def save(self, **kwargs):
+        previous = self._stored_version()
         policy = super().save(**kwargs)
 
         if policy.is_triggered():
-            if not policy.has_fired:
+            if previous is not None and previous.has_fired:
+                self._apply_edit(previous, policy)
+            elif not policy.has_fired:
                 policy.has_fired = True
                 policy.fired_datetime = timezone.now()
                 policy.save()
@@ -167,6 +171,9 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
                     "Policy %s has been reset (no longer triggered).",
                     policy.uuid.hex,
                 )
+                # What the policy did was done by its version before the edit:
+                # its actions, on its scope and resource (#940).
+                fired = previous if previous is not None else policy
 
                 # Execute reset actions after transaction commit
                 def execute_reset_actions():
@@ -174,9 +181,9 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
                         trigger=EvaluationTriggers.POLICY_SAVED,
                         trigger_object_uuid=policy.uuid.hex,
                     ):
-                        for action in policy.get_all_actions():
+                        for action in fired.get_all_actions():
                             if action.reset_method:
-                                action.reset_method(policy)
+                                action.reset_method(fired)
                                 logger.info(
                                     "Reset method %s of policy %s has been executed.",
                                     action.reset_method.__name__,
@@ -186,6 +193,68 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
                 transaction.on_commit(execute_reset_actions)
 
         return policy
+
+    def _stored_version(self):
+        """The policy as stored before this save, or None on create.
+
+        `has_fired` and `fired_datetime` are re-read: an evaluation may have
+        fired or reset the policy since the request loaded it, and the save
+        writes both back.
+        """
+        if self.instance is None:
+            return None
+        self.instance.refresh_from_db(fields=["has_fired", "fired_datetime"])
+        return copy.copy(self.instance)
+
+    @staticmethod
+    def _apply_edit(previous, policy):
+        """Bring the resources in line with an edit of a fired policy.
+
+        A policy fired before the save and still triggered after it crosses no
+        limit, so neither the fire nor the reset path runs. Without this, an
+        action added by the edit waited for the periodic sweep, and an action
+        removed by it was never reset: its flag stayed set with no policy
+        owning it (#940).
+
+        The removed actions are reset as the policy was: its old actions on its
+        old scope and resource. A flag stays while another firing policy, or
+        the edited policy on its new scope, still wants it
+        (`_resources_locked_by_other_policies`). Then the sweep's own step
+        applies the current actions (`utils.reconcile_idempotent_actions`),
+        skipping resources already in that state. Like the sweep, it runs only
+        the resource-state toggles: one-shot actions such as `notify_*` or
+        `terminate_resources` run when the policy next fires.
+        """
+        old_actions = {name for name in previous.actions.split(",") if name}
+        new_actions = {name for name in policy.actions.split(",") if name}
+        moved = (previous.scope_id, getattr(previous, "resource_id", None)) != (
+            policy.scope_id,
+            getattr(policy, "resource_id", None),
+        )
+        if not moved and old_actions == new_actions:
+            return
+        removed = old_actions if moved else old_actions - new_actions
+        resets = [
+            POLICY_ACTIONS[name]
+            for name in sorted(removed)
+            if name in POLICY_ACTIONS and POLICY_ACTIONS[name].reset_method
+        ]
+
+        def execute_changes():
+            with system_actor_event_context(
+                trigger=EvaluationTriggers.POLICY_SAVED,
+                trigger_object_uuid=policy.uuid.hex,
+            ):
+                for action in resets:
+                    action.reset_method(previous)
+                    logger.info(
+                        "Reset method %s of edited policy %s has been executed.",
+                        action.reset_method.__name__,
+                        policy.uuid.hex,
+                    )
+                reconcile_idempotent_actions(policy)
+
+        transaction.on_commit(execute_changes)
 
     class Meta:
         fields = (

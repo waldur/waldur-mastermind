@@ -218,7 +218,7 @@ def _evaluate_policies(policies, reconcile_already_fired=False):
 
     ``reconcile_already_fired`` controls what happens when a policy is still
     triggered but was already fired by an earlier evaluation (see
-    ``_reconcile_idempotent_actions`` for why this matters): the frequent,
+    ``reconcile_idempotent_actions`` for why this matters): the frequent,
     per-event evaluation paths (invoice-item saves, credit changes — driven
     through ``evaluate_policies_async``) leave it ``False`` and keep the
     original "fire exactly once per edge" semantics those callers, and the
@@ -247,7 +247,7 @@ def _evaluate_policies(policies, reconcile_already_fired=False):
                 # being reached, but the CAS never matches again.
                 if reconcile_already_fired:
                     with evaluation_event_context(EvaluationTriggers.RECONCILE):
-                        _reconcile_idempotent_actions(policy)
+                        reconcile_idempotent_actions(policy)
                 continue
 
             policy.refresh_from_db()
@@ -324,7 +324,7 @@ def _decision_log_suffix(policy) -> str:
     return suffix
 
 
-def _reconcile_idempotent_actions(policy):
+def reconcile_idempotent_actions(policy):
     """Re-apply an already-fired policy's idempotent resource-state actions.
 
     Only actions with a ``reset_method`` are re-run here — that is exactly
