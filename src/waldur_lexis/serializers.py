@@ -28,7 +28,7 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
             "customer_name",
             "heappe_project_id",
         )
-        read_only_fields = ["state", "robot_account"]
+        read_only_fields = ["state", "robot_account", "heappe_project_id"]
         protected_fields = ["robot_account"]
         extra_kwargs = dict(
             url={"lookup_field": "uuid", "view_name": "lexis-link-detail"},

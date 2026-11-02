@@ -59,9 +59,7 @@ class HeappeBackend:
 
         return response.json()
 
-    def get_heappe_project(self, lexis_link):
-        heappe_session_code = self.get_heappe_session_code()
-        resource = lexis_link.robot_account.resource
+    def list_heappe_projects(self, heappe_session_code):
         response = requests.get(
             f"{self.heappe_config.heappe_url}/heappe/UserAndLimitationManagement/ProjectsForCurrentUser",
             params={"sessionCode": heappe_session_code},
@@ -73,11 +71,14 @@ class HeappeBackend:
                 f"Status code {response.status_code}, body {response.text}"
             )
 
+        return [item["Project"] for item in response.json()]
+
+    def get_heappe_project(self, lexis_link):
+        heappe_session_code = self.get_heappe_session_code()
+        resource = lexis_link.robot_account.resource
         map_project_names = {
-            (item["Project"]["Name"], item["Project"]["AccountingString"]): item[
-                "Project"
-            ]
-            for item in response.json()
+            (project["Name"], project["AccountingString"]): project
+            for project in self.list_heappe_projects(heappe_session_code)
         }
 
         return map_project_names.get((resource.name, resource.backend_id))
@@ -98,6 +99,25 @@ class HeappeBackend:
             return
 
         heappe_session_code = self.get_heappe_session_code()
+        # The stored id could be changed through the API until that was
+        # closed, and the deletion runs with the offering's HEAppE admin
+        # account. Delete only a project that belongs to the link's resource.
+        resource = lexis_link.robot_account.resource
+        belongs_to_resource = any(
+            project["Id"] == lexis_link.heappe_project_id
+            and project["AccountingString"] == resource.backend_id
+            for project in self.list_heappe_projects(heappe_session_code)
+        )
+        if not belongs_to_resource:
+            logger.warning(
+                "HEAppE project [id=%s] of %s does not belong to resource %s, "
+                "skipping project deletion",
+                lexis_link.heappe_project_id,
+                lexis_link,
+                resource,
+            )
+            return
+
         response = requests.delete(
             f"{self.heappe_config.heappe_url}/heappe/Management/Project",
             json={

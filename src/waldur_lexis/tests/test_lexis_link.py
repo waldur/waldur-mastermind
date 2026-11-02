@@ -1,11 +1,12 @@
 import responses
+from ddt import data, ddt
 from django.test import override_settings
 from django.urls import reverse
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
-from waldur_lexis import models
+from waldur_lexis import models, serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -145,6 +146,72 @@ class LexisLinkCreateTest(test.APITestCase):
         self.assertEqual(1, len(robot_account.keys))
         self.assertEqual(self.ssh_key, robot_account.keys[0])
         self.assertEqual(models.LexisLink.States.OK, lexis_link.state)
+        # The HEAppE project is the backend's to record, not the API caller's.
+        self.assertEqual(1, lexis_link.heappe_project_id)
+
+    def link_to_heappe_project(self, heappe_project_id):
+        robot_account = marketplace_models.RobotAccount.objects.create(
+            username="test_username",
+            type="hl001",
+            resource=self.resource,
+            state=RobotAccountStates.OK,
+        )
+        return models.LexisLink.objects.create(
+            robot_account=robot_account, heappe_project_id=heappe_project_id
+        )
+
+    def mock_heappe_projects(self):
+        responses.add(
+            responses.GET,
+            "https://heappy.example.com/heappe/UserAndLimitationManagement/ProjectsForCurrentUser",
+            json=[
+                {
+                    "Project": {
+                        "Id": 1,
+                        "Name": self.resource.name,
+                        "AccountingString": self.resource.backend_id,
+                    }
+                },
+                {
+                    "Project": {
+                        "Id": 2,
+                        "Name": "another resource",
+                        "AccountingString": "project_67890",
+                    }
+                },
+            ],
+        )
+        responses.add(
+            responses.DELETE,
+            "https://heappy.example.com/heappe/Management/Project",
+            json="",
+        )
+
+    def heappe_project_deletions(self):
+        return [
+            call
+            for call in responses.calls
+            if call.request.method == "DELETE"
+            and call.request.url.endswith("/heappe/Management/Project")
+        ]
+
+    def test_heappe_project_of_the_links_resource_is_deleted(self):
+        self.mock_heappe_projects()
+        lexis_link = self.link_to_heappe_project(1)
+
+        lexis_link.get_backend().delete_heappe_project(lexis_link)
+
+        self.assertEqual(1, len(self.heappe_project_deletions()))
+
+    def test_heappe_project_of_another_resource_is_not_deleted(self):
+        # The id could be changed through the API until that was closed, so a
+        # stored id may name a project that is not this resource's.
+        self.mock_heappe_projects()
+        lexis_link = self.link_to_heappe_project(2)
+
+        lexis_link.get_backend().delete_heappe_project(lexis_link)
+
+        self.assertEqual([], self.heappe_project_deletions())
 
     @override_settings(task_always_eager=True)
     def test_lexis_link_deletion_triggers_ssh_key_revoke(self):
@@ -215,3 +282,52 @@ class LexisLinkCreateTest(test.APITestCase):
         self.assertEqual(config.heappe_cluster_id, 1)
         self.assertEqual(config.heappe_local_base_path, "~/")
         self.assertEqual(config.heappe_identifier, "example-cluster")
+
+
+@ddt
+class LexisLinkUpdateTest(test.APITestCase):
+    """The HEAppE project a link points at is set by the backend alone.
+
+    Waldur uses it for every HEAppE project call it makes for the link, so
+    whoever could change it would redirect those calls to another project.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        robot_account = factories.RobotAccountFactory(
+            resource=self.fixture.resource, type="hl000", username="robot"
+        )
+        self.lexis_link = models.LexisLink.objects.create(
+            robot_account=robot_account, heappe_project_id=1
+        )
+        self.url = reverse(
+            "lexis-link-detail", kwargs={"uuid": self.lexis_link.uuid.hex}
+        )
+
+    @data(
+        "staff",
+        "owner",
+        "admin",
+        "manager",
+        "member",
+        "customer_support",
+        "global_support",
+        "user",
+    )
+    def test_nobody_can_change_the_heappe_project(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        for method in ("put", "patch"):
+            response = getattr(self.client, method)(
+                self.url, {"heappe_project_id": 999}, format="json"
+            )
+            self.assertEqual(
+                response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED, method
+            )
+
+        self.lexis_link.refresh_from_db()
+        self.assertEqual(self.lexis_link.heappe_project_id, 1)
+
+    def test_heappe_project_stays_read_only_if_updates_return(self):
+        field = serializers.LexisLinkSerializer().fields["heappe_project_id"]
+        self.assertTrue(field.read_only)
