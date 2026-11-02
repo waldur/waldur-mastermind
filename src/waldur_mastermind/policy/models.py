@@ -216,8 +216,8 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         """``current_cost`` split into the parts it is made of.
 
         The window's items are split into cost and credit compensation by
-        ``credit_compensation_q``, the discriminator ``_pending_compensation``
-        uses, so the parts add up to ``current_cost`` exactly.
+        ``credit_compensation_q``, and ``_pending_compensation`` adds only what
+        is not written yet, so the parts add up to ``current_cost`` exactly.
         """
         invoice_items, pending = self._cost_inputs(compensation)
         window = self._window_items(invoice_items)
@@ -268,13 +268,15 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         Credit compensations are ordinary invoice items with a negative
         unit_price, and `_scoped_cost` sums every item in the queryset, so once
         the monthly compensation has been written the cost total is already net
-        of it. MonthlyCompensation, however, always re-simulates the month from
-        the gross items — it has no notion of "already applied" — so deducting
-        its result wholesale subtracts the same credit a second time, and the
-        policy under-enforces by a month's credit draw.
+        of it. MonthlyCompensation, however, always re-simulates the month as if
+        the credit in place had drawn nothing — it has no notion of "already
+        applied" — so deducting its result wholesale subtracts the same credit a
+        second time, and the policy under-enforces by a month's credit draw.
 
         Only credit that will still be drawn may come off the total: the
-        projection minus what is already written for the current month.
+        projection minus what the credit in place has already written for the
+        current month. What a deleted credit wrote is out of the projection
+        already (`creditable_items`), so taking it off again would double it.
 
         The projection is in credit units, before tax, but a compensation item
         sits on the invoice like any other, so it carries the invoice's tax, as
@@ -300,10 +302,7 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         # A payment of an earlier invoice written this month is not this
         # month's credit; counted here, it would hide the month's own draw.
         applied = -cls._scoped_cost(
-            this_month.filter(
-                invoices_utils.credit_compensation_q(),
-                compensated_period__isnull=True,
-            )
+            this_month.filter(credit__isnull=False, compensated_period__isnull=True)
         )
         return max(decimal.Decimal(0), projected - applied)
 
@@ -448,8 +447,7 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         """This month's cost before any credit is applied.
 
         Compensations are ordinary invoice items with a negative unit_price, so
-        they are excluded rather than added back — `credit_compensation_q` is
-        the same discriminator `_pending_compensation` uses from the other side.
+        they are excluded rather than added back (`credit_compensation_q`).
         """
         return self._scoped_cost(
             self._this_month(invoice_items).exclude(

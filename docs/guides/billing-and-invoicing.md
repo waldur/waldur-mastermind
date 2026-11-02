@@ -184,6 +184,8 @@ sequenceDiagram
 4. Create a negative `InvoiceItem` (compensation) for each deduction
 5. After all items, enforce **minimal consumption** for both customer and project credits
 
+**What a deleted credit paid stands.** `InvoiceItem.credit` is `SET_NULL`, so a deleted organization credit's compensations stay on their invoices naming no credit. `clear_compensations` leaves them, because no balance is left to give them back to, and `creditable_items` takes them off the item they name (`compensation_of_item`), so a credit that replaces the deleted one pays only what is left. `rebill_historical_usage` works the same way. What it paid counts only against the item it paid for: if that item's cost later falls below it, nothing goes back or moves to another item, and the invoice stays below zero by the difference.
+
 ```mermaid
 sequenceDiagram
     participant MC as MonthlyCompensation
@@ -406,7 +408,7 @@ current_cost = cost_before_credit − credit_drawn − credit_pending
 | `credit_drawn` | Credit compensation already written on the period's invoices; 0 for a policy that does not take credit into account, which counts the cost credit paid as well |
 | `credit_pending` | Credit the current month will still draw that is not written yet (`_pending_compensation`); 0 for a policy that does not take credit into account |
 
-The period's items are split by `invoices.utils.credit_compensation_q`, the discriminator `_pending_compensation` uses, so the parts add up to `current_cost` exactly. It shares the response's `MonthlyCompensation` with `current_cost`, and a `?field=` selection without `cost_breakdown` skips it.
+The period's items are split by `invoices.utils.credit_compensation_q`, and `_pending_compensation` adds only what is not written yet, so the parts add up to `current_cost` exactly. It shares the response's `MonthlyCompensation` with `current_cost`, and a `?field=` selection without `cost_breakdown` skips it.
 
 ##### What started an evaluation, and who
 

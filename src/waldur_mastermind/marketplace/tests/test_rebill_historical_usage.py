@@ -19,6 +19,7 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.invoices import compensations
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace import callbacks, models
@@ -29,6 +30,9 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     OrderTypes,
     ResourceStates,
+)
+from waldur_mastermind.marketplace.management.commands.rebill_historical_usage import (
+    Command as RebillCommand,
 )
 from waldur_mastermind.marketplace.tests import factories
 
@@ -70,9 +74,9 @@ class RebillHistoricalUsageTest(test.APITestCase):
         callbacks.resource_creation_succeeded(resource)
         return resource
 
-    def _bill_usage(self, resource, plan_period, year, month, amount):
+    def _bill_usage(self, resource, plan_period, year, month, amount, day=15):
         self.client.force_authenticate(self.fixture.staff)
-        date = datetime.datetime(year, month, 15, tzinfo=datetime.UTC)
+        date = datetime.datetime(year, month, day, tzinfo=datetime.UTC)
         payload = {
             "plan_period": plan_period.uuid.hex,
             "date": date.isoformat(),
@@ -333,6 +337,515 @@ class RebillHistoricalUsageTest(test.APITestCase):
         # Only the $30 the correction adds is drawn; the $50 paid later stands.
         self.assertEqual(compensation.unit_price, decimal.Decimal("-30"))
         self.assertEqual(credit.value, decimal.Decimal("970"))
+
+    def _replace_credit_that_paid(self, invoice, amount, details=None):
+        """A credit paid `amount` of the month and was then deleted, which
+        leaves its compensation on the invoice naming no credit. Returns the
+        credit that replaced it, holding $1000. `details` overrides what
+        MonthlyCompensation writes on the row."""
+        item = invoice.items.get(resource=self.resource, unit_price__gt=0)
+        deleted = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        invoice_factories.InvoiceItemFactory(
+            invoice=invoice,
+            resource=self.resource,
+            project=self.fixture.project,
+            credit=deleted,
+            unit_price=-amount,
+            quantity=1,
+            details=details
+            or {
+                **item.details,
+                "is_compensation": True,
+                "compensation_of_item": item.uuid.hex,
+            },
+        )
+        deleted.delete()
+        return invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+
+    def _paid_by_deleted_credit(self, invoice):
+        return invoice.items.get(
+            resource=self.resource,
+            credit__isnull=True,
+            details__has_key="is_compensation",
+        ).unit_price
+
+    def test_replacement_credit_pays_only_what_the_correction_adds(self):
+        # A credit since deleted paid December's 5 units ($50), and usage is
+        # corrected to 8 units.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)
+        credit = self._replace_credit_that_paid(invoice, decimal.Decimal("50"))
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("970"))
+        self.assertEqual(
+            invoice.items.get(credit=credit).unit_price, decimal.Decimal("-30")
+        )
+        self.assertEqual(self._paid_by_deleted_credit(invoice), decimal.Decimal("-50"))
+        self.assertEqual(invoice.price, 0)
+
+    def test_replacement_credit_also_pays_what_the_deleted_credit_left(self):
+        # The deleted credit paid $30 of December's $50, and usage is corrected
+        # to 6 units. What is left is $30, not the $10 the correction adds, as
+        # it would be for a kept credit that has the balance to pay it.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=6)
+        credit = self._replace_credit_that_paid(invoice, decimal.Decimal("30"))
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("970"))
+        self.assertEqual(invoice.price, 0)
+
+    def test_replacement_credit_pays_the_rest_of_a_row_naming_nothing(self):
+        # All an old compensation may carry: 0036 marks it, and it has no copy
+        # of the plan, let alone the item, so only the component matches it.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)
+        credit = self._replace_credit_that_paid(
+            invoice,
+            decimal.Decimal("50"),
+            details={"offering_component_type": "cpu", "is_compensation": True},
+        )
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("970"))
+        self.assertEqual(invoice.price, 0)
+
+    def _bill_two_plans(self):
+        """December switches from the $10 plan to a $20 plan with 5 units on
+        each, so the component carries two items, $50 and $100. Returns the
+        second plan's period and the invoice."""
+        plan = factories.PlanFactory(offering=self.offering)
+        factories.PlanComponentFactory(
+            plan=plan, component=self.offering_component, price=20
+        )
+        switch = datetime.datetime(2023, 12, 16, tzinfo=datetime.UTC)
+        period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource, plan=plan, start=switch
+        )
+        self._bill_usage(self.resource, self.plan_period, 2023, 12, 5)
+        # Usage is reported as the month's running total.
+        self._bill_usage(self.resource, period, 2023, 12, 10, day=20)
+        self.plan_period.start = datetime.datetime(2023, 12, 1, tzinfo=datetime.UTC)
+        self.plan_period.end = switch
+        self.plan_period.save()
+        invoice = invoice_models.Invoice.objects.get(
+            customer=self.fixture.customer, year=2023, month=12
+        )
+        return period, invoice
+
+    def _correct_usage_of(self, period, amount):
+        models.ComponentUsage.objects.filter(
+            resource=self.resource, plan_period=period
+        ).update(usage=amount)
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+    def test_correction_after_a_plan_switch_moves_that_items_compensation(self):
+        period, invoice = self._bill_two_plans()
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        compensations.MonthlyCompensation(
+            self.fixture.customer, invoice=invoice
+        ).apply_compensations()
+        self._freeze_invoice(2023, 12)
+
+        self._correct_usage_of(period, 8)
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        # The $100 item is now $160: the $60 it adds is all that is drawn.
+        self.assertEqual(credit.value, decimal.Decimal("790"))
+        self.assertEqual(invoice.price, 0)
+
+    def _replace_credit_that_paid_both_plans(self, invoice, strip_item_key=False):
+        deleted = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        compensations.MonthlyCompensation(
+            self.fixture.customer, invoice=invoice
+        ).apply_compensations()
+        if strip_item_key:
+            for row in invoice.items.filter(credit=deleted):
+                del row.details["compensation_of_item"]
+                row.save(update_fields=["details"])
+        self._freeze_invoice(2023, 12)
+        deleted.delete()
+        return invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+
+    def test_replacement_credit_pays_the_rest_of_the_corrected_plan(self):
+        period, invoice = self._bill_two_plans()
+        credit = self._replace_credit_that_paid_both_plans(invoice)
+
+        self._correct_usage_of(period, 8)
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("940"))
+        self.assertEqual(invoice.price, 0)
+
+    def test_row_older_than_its_item_key_counts_against_its_own_plan(self):
+        # Before `compensation_of_item` a row had only its copy of the item's
+        # details, which name the plan, and a component has one item per plan.
+        period, invoice = self._bill_two_plans()
+        credit = self._replace_credit_that_paid_both_plans(invoice, strip_item_key=True)
+
+        self._correct_usage_of(period, 8)
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("940"))
+        self.assertEqual(invoice.price, 0)
+
+    def test_payment_of_the_other_plans_item_does_not_count(self):
+        # A project credit later paid the $50 item. The $100 item, corrected to
+        # $160, had nothing paid, so that is what the correction draws.
+        period, invoice = self._bill_two_plans()
+        self._freeze_invoice(2023, 12)
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        paid_item = invoice.items.get(
+            details__plan_period_uuid=self.plan_period.uuid.hex
+        )
+        july, _ = invoice_models.Invoice.objects.get_or_create(
+            customer=self.fixture.customer, year=2024, month=7
+        )
+        invoice_factories.InvoiceItemFactory(
+            invoice=july,
+            resource=self.resource,
+            project=self.fixture.project,
+            credit=credit,
+            unit_price=decimal.Decimal("-50"),
+            quantity=1,
+            details={
+                **paid_item.details,
+                "is_compensation": True,
+                "compensation_of_item": paid_item.uuid.hex,
+            },
+            compensated_period=datetime.date(2023, 12, 1),
+        )
+
+        self._correct_usage_of(period, 8)
+
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("840"))
+
+    def test_compensation_brought_to_zero_is_removed(self):
+        # Cost items are found by `unit_price >= 0`, so a compensation left at
+        # 0 would read as one, and the next correction would add a second row.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)
+        credit = self._replace_credit_that_paid(invoice, decimal.Decimal("50"))
+        options = {
+            "resource": self.resource.uuid.hex,
+            "execute": True,
+            "stdout": io.StringIO(),
+        }
+        call_command("rebill_historical_usage", **options)
+        self.assertEqual(
+            invoice.items.get(credit=credit).unit_price, decimal.Decimal("-30")
+        )
+
+        self._corrupt_usage(self.resource, 2023, 12, 4)
+        call_command("rebill_historical_usage", **options)
+
+        credit.refresh_from_db()
+        self.assertFalse(invoice.items.filter(credit=credit).exists())
+        self.assertEqual(credit.value, decimal.Decimal("1000"))
+
+        self._corrupt_usage(self.resource, 2023, 12, 7)
+        call_command("rebill_historical_usage", **options)
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(
+            invoice.items.get(credit=credit).unit_price, decimal.Decimal("-20")
+        )
+        self.assertEqual(credit.value, decimal.Decimal("980"))
+        self.assertEqual(invoice.price, 0)
+
+    def _bill_month_on_one_item(self):
+        """A month billed before a component had one item per plan: one item
+        naming no plan period, with the usage on the period switched to."""
+        plan = factories.PlanFactory(offering=self.offering)
+        factories.PlanComponentFactory(
+            plan=plan, component=self.offering_component, price=20
+        )
+        switch = datetime.datetime(2023, 12, 16, tzinfo=datetime.UTC)
+        period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource, plan=plan, start=switch
+        )
+        self._bill_usage(self.resource, self.plan_period, 2023, 12, 5)
+        invoice = self._freeze_invoice(2023, 12)
+        item = invoice.items.get(resource=self.resource, unit_price__gt=0)
+        del item.details["plan_period_uuid"]
+        item.save(update_fields=["details"])
+        self.plan_period.start = datetime.datetime(2023, 12, 1, tzinfo=datetime.UTC)
+        self.plan_period.end = switch
+        self.plan_period.save()
+        models.ComponentUsage.objects.filter(resource=self.resource).update(
+            plan_period=period
+        )
+        return period, invoice, item
+
+    def test_month_billed_on_one_item_stays_as_it_is_when_usage_is_unchanged(self):
+        _, invoice, item = self._bill_month_on_one_item()
+
+        out = io.StringIO()
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=out,
+        )
+
+        self.assertEqual(
+            invoice.items.get(resource=self.resource, unit_price__gt=0).pk, item.pk
+        )
+
+    def test_credit_does_not_pay_for_an_item_billed_beside_an_older_one(self):
+        # The billing pass does not adopt the older item, so corrected usage
+        # lands on a second item, possibly the same usage billed twice.
+        period, invoice, item = self._bill_month_on_one_item()
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        compensation = invoice_factories.InvoiceItemFactory(
+            invoice=invoice,
+            resource=self.resource,
+            project=self.fixture.project,
+            credit=credit,
+            unit_price=decimal.Decimal("-50"),
+            quantity=1,
+            details={
+                **item.details,
+                "is_compensation": True,
+                "compensation_of_item": item.uuid.hex,
+            },
+        )
+
+        self._correct_usage_of(period, 8)
+        self._correct_usage_of(period, 9)
+
+        credit.refresh_from_db()
+        compensation.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("1000"))
+        self.assertEqual(invoice.items.get(credit=credit).pk, compensation.pk)
+        self.assertEqual(compensation.unit_price, decimal.Decimal("-50"))
+
+    def test_older_compensation_stays_on_the_older_item(self):
+        # All it names is the component, so the item billed beside would match
+        # it just as well.
+        period, invoice, _ = self._bill_month_on_one_item()
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        compensation = invoice_factories.InvoiceItemFactory(
+            invoice=invoice,
+            resource=self.resource,
+            project=self.fixture.project,
+            credit=credit,
+            unit_price=decimal.Decimal("-50"),
+            quantity=1,
+            details={"offering_component_type": "cpu", "is_compensation": True},
+        )
+
+        self._correct_usage_of(period, 8)
+        self._correct_usage_of(period, 9)
+
+        credit.refresh_from_db()
+        compensation.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("1000"))
+        self.assertEqual(compensation.unit_price, decimal.Decimal("-50"))
+
+    def test_replacement_credit_does_not_pay_for_an_item_billed_beside(self):
+        period, invoice, _ = self._bill_month_on_one_item()
+        credit = self._replace_credit_that_paid(invoice, decimal.Decimal("50"))
+
+        self._correct_usage_of(period, 8)
+        self._correct_usage_of(period, 9)
+
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("1000"))
+        self.assertFalse(invoice.items.filter(credit=credit).exists())
+
+    def test_compensation_left_at_zero_is_not_taken_for_an_older_item(self):
+        # Older runs of this command left a compensation at 0 instead of
+        # removing it, naming no plan period, like an item from before plans.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        invoice_factories.InvoiceItemFactory(
+            invoice=invoice,
+            resource=self.resource,
+            project=self.fixture.project,
+            credit=credit,
+            unit_price=0,
+            quantity=1,
+            details={
+                "offering_component_type": "cpu",
+                "is_compensation": True,
+                "retroactive_correction": True,
+            },
+        )
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("920"))
+        self.assertEqual(invoice.price, 0)
+
+    def test_replacement_credit_pays_what_is_left_of_the_corrected_item(self):
+        # A plan switch leaves two items on one component. The deleted credit
+        # paid both, but what it paid for one is no use to the other.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)
+        item = invoice.items.get(resource=self.resource, unit_price__gt=0)
+        other_item = invoice_factories.InvoiceItemFactory(
+            invoice=invoice,
+            resource=self.resource,
+            project=self.fixture.project,
+            unit_price=decimal.Decimal("20"),
+            quantity=1,
+            details={"offering_component_type": "cpu", "plan_period_uuid": "other"},
+        )
+        deleted = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        for paid_item, amount in ((item, "50"), (other_item, "20")):
+            invoice_factories.InvoiceItemFactory(
+                invoice=invoice,
+                resource=self.resource,
+                project=self.fixture.project,
+                credit=deleted,
+                unit_price=-decimal.Decimal(amount),
+                quantity=1,
+                details={
+                    "offering_component_type": "cpu",
+                    "is_compensation": True,
+                    "compensation_of_item": paid_item.uuid.hex,
+                },
+            )
+        deleted.delete()
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("970"))
+        self.assertEqual(invoice.price, 0)
+
+    def test_second_correction_counts_what_both_credits_paid(self):
+        # After the correction above the month carries one compensation per
+        # credit, and only the replacement's may move.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)
+        credit = self._replace_credit_that_paid(invoice, decimal.Decimal("50"))
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+        self._corrupt_usage(self.resource, 2023, 12, 10)
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("950"))
+        self.assertEqual(
+            invoice.items.get(credit=credit).unit_price, decimal.Decimal("-50")
+        )
+        self.assertEqual(self._paid_by_deleted_credit(invoice), decimal.Decimal("-50"))
+        self.assertEqual(invoice.price, 0)
+
+    def test_replacement_credit_is_not_drawn_when_the_cost_is_unchanged(self):
+        # The command only corrects stale usage, so this goes to the correction
+        # itself, the step that used to write the whole month again.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=5)
+        credit = self._replace_credit_that_paid(invoice, decimal.Decimal("50"))
+        item = invoice.items.get(resource=self.resource, unit_price__gt=0)
+
+        RebillCommand(stdout=io.StringIO())._apply_credit_correction(
+            self.resource, self.offering_component, invoice, item, dry_run=False
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("1000"))
+        self.assertFalse(invoice.items.filter(credit=credit).exists())
+        self.assertEqual(invoice.price, 0)
+
+    def test_cost_below_what_a_deleted_credit_paid_gives_nothing_back(self):
+        # Corrected to 2 units ($20): the replacement has nothing left to pay,
+        # and the $30 over that has no balance to go back to.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=2)
+        credit = self._replace_credit_that_paid(invoice, decimal.Decimal("50"))
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        invoice.refresh_from_db()
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("1000"))
+        self.assertFalse(invoice.items.filter(credit=credit).exists())
+        self.assertEqual(self._paid_by_deleted_credit(invoice), decimal.Decimal("-50"))
+        self.assertEqual(invoice.price, decimal.Decimal("-30"))
 
     def test_credit_correction_is_partial_when_credit_is_insufficient(self):
         # Corrected usage costs far more than the available credit. The
