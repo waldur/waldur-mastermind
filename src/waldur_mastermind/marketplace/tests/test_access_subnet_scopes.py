@@ -318,6 +318,20 @@ class AccessSubnetConcealmentTest(test.APITestCase):
             self._consumer_list_uuids(other.owner, DENIED_IP),
         )
 
+    def _consumer_status(self, ip, action=None):
+        self.client.force_authenticate(self.consumer)
+        url = factories.ResourceFactory.get_url(self.resource, action=action)
+        return self.client.get(url, HTTP_X_FORWARDED_FOR=ip).status_code
+
+    def test_team_missing_when_address_not_allowed(self):
+        # As retrieve: the team of a concealed resource is not found.
+        self.assertEqual(self._consumer_status(DENIED_IP), 404)
+        self.assertEqual(self._consumer_status(DENIED_IP, "team"), 404)
+
+    def test_team_listed_when_address_allowed(self):
+        self.assertEqual(self._consumer_status(ALLOWED_IP), 200)
+        self.assertEqual(self._consumer_status(ALLOWED_IP, "team"), 200)
+
     @data("staff", "global_support")
     def test_staff_and_support_bypass(self, user):
         self.assertIn(

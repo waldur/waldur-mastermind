@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.permissions.enums import PermissionEnum
@@ -422,6 +423,31 @@ def can_link_robot_account_users(request, view, obj: models.Resource | None = No
     ):
         return
     raise exceptions.PermissionDenied()
+
+
+# Who UserRoleMixin.can_view_scope_team (_user_can_view_scope_team in
+# waldur_core.permissions.views) lets list a resource's team. Change the two
+# together.
+RESOURCE_TEAM_VIEW_ACCESS = access.custom(
+    "Staff and support. Otherwise a caller with an active role on the resource "
+    f"itself; with a role granting {PermissionEnum.VIEW_CUSTOMER_TEAM.value} on "
+    "the resource's organization; with a role granting "
+    f"{PermissionEnum.VIEW_PROJECT_TEAM.value} on any project of that "
+    f"organization; or with {PermissionEnum.UPDATE_OFFERING.value} on the "
+    "resource's offering, on the offering's organization or on its service "
+    "provider. A role on one of the resource's resource projects is not enough."
+)
+
+
+@access.describes(RESOURCE_TEAM_VIEW_ACCESS, needs_object=True)
+def can_view_resource_team(request, view, obj: models.Resource | None = None):
+    # The rule list_users and team_members apply, through the view so that a
+    # view's own can_view_scope_team applies too. Like them it is given the
+    # user, not the request.
+    if obj is not None and not view.can_view_scope_team(request.user, obj):
+        raise exceptions.PermissionDenied(
+            _("You do not have permission to list team members of this resource.")
+        )
 
 
 # Setting a resource end date from the consumer side takes one permission and

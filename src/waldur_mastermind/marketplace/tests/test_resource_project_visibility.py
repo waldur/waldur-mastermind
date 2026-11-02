@@ -293,6 +293,26 @@ class ResourceProjectInviteeListUsersGateTest(ResourceProjectVisibilityTest):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_rp_invitee_cannot_get_resource_team(self):
+        # team lists the members of the resource's project, as list_users
+        # does, so a role on one of its resource projects is not enough.
+        self.client.force_authenticate(self.rp_invitee)
+        response = self.client.get(_resource_url(self.resource))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for action in ("team/", "team_members/", "list_users/"):
+            response = self.client.get(_resource_url(self.resource) + action)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, action)
+
+    def test_direct_resource_invitee_can_get_resource_team(self):
+        self.client.force_authenticate(self.r_invitee)
+        response = self.client.get(_resource_url(self.resource) + "team/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_project_member_can_get_resource_team(self):
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.get(_resource_url(self.resource) + "team/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_direct_resource_invitee_cannot_list_customer_users(self):
         self.client.force_authenticate(self.r_invitee)
         url = _customer_url(self.customer) + "list_users/"
@@ -327,6 +347,7 @@ class ResourceProjectInviteeListUsersGateTest(ResourceProjectVisibilityTest):
         for url in (
             _project_url(self.project) + "list_users/",
             _resource_url(self.resource) + "list_users/",
+            _resource_url(self.resource) + "team/",
         ):
             response = self.client.get(url)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, url)

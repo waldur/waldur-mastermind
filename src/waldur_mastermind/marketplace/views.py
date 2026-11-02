@@ -9902,7 +9902,14 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             ),
         ],
     )
-    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    @action(
+        detail=True,
+        methods=["get"],
+        # Not the query filters, but a resource concealed from the caller is
+        # not found here either, as on retrieve.
+        filter_backends=[filters.ResourceAccessSubnetConcealmentFilterBackend],
+        pagination_class=None,
+    )
     def team(self, request, uuid=None):
         resource: models.Resource = self.get_object()
         users = resource.project.get_users()
@@ -9911,6 +9918,8 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
                 users, resource.offering
             )
         return utils.build_resource_team_response(resource, request, users)
+
+    team_permissions = [permissions.can_view_resource_team]
 
     def get_user_roles_queryset(self, scope, user=None):
         """Return UserRoles scoped to this resource AND all its resource projects."""
@@ -10616,6 +10625,8 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         elif request.query_params.get("has_consent", "").lower() == "true":
             users = utils.filter_users_with_active_offering_consent(users, offering)
         return utils.build_resource_team_response(resource, request, users)
+
+    team_permissions = [permissions.can_view_resource_team]
 
     @extend_schema(
         summary="List users a robot account on this resource may link",
