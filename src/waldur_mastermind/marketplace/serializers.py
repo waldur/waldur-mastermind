@@ -5755,11 +5755,11 @@ class ProviderOfferingDetailsSerializer(
             service = offering.scope
         except AttributeError:
             return {}
-        if isinstance(service, structure_models.BaseResource):
-            service = service.service_settings
-        if isinstance(service, models.Offering):
-            return {}
-        if not service:
+        # Only an offering's own settings are its to show. A per-tenant offering
+        # is scoped to the tenant, whose service settings are the provider's
+        # admin credentials: the gate above passes for the consumer who owns
+        # the offering, not for the organization that owns those settings.
+        if not isinstance(service, structure_models.ServiceSettings):
             return {}
         return {
             "backend_url": service.backend_url,

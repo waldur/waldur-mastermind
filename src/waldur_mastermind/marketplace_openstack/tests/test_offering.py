@@ -7,7 +7,7 @@ from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -33,6 +33,7 @@ from waldur_mastermind.marketplace_openstack.utils import (
     update_external_addresses_of_resource,
 )
 from waldur_openstack import models as openstack_models
+from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import fixtures as openstack_fixtures
@@ -207,6 +208,129 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         tenant.set_ok()
         tenant.save()
         return tenant
+
+
+@ddt
+class PerTenantOfferingServiceAttributesTest(BaseOpenStackTest):
+    """A per-tenant offering belongs to the consumer, the cloud it runs on does not."""
+
+    def setUp(self):
+        super().setUp()
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_OFFERINGS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+
+        self.provider = structure_factories.CustomerFactory()
+        self.settings = structure_factories.ServiceSettingsFactory(
+            type=OpenStackConfig.service_name,
+            customer=self.provider,
+            shared=True,
+            backend_url="https://keystone.example.com:5000/v3",
+            username="admin",
+            password="provider-admin-password",
+            options={"tenant_name": "admin"},
+        )
+        self.consumer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.consumer)
+        self.tenant = openstack_models.Tenant.objects.create(
+            service_settings=self.settings,
+            project=self.project,
+            state=CoreStates.CREATING,
+            user_username="tenant-user",
+            user_password="tenant-password",
+        )
+        self.resource = marketplace_factories.ResourceFactory(
+            scope=self.tenant, project=self.project
+        )
+        marketplace_factories.OrderFactory(resource=self.resource)
+        self.tenant.set_ok()
+        self.tenant.save()
+
+        self.owner = structure_factories.UserFactory()
+        self.consumer.add_user(self.owner, CustomerRole.OWNER)
+
+    def per_tenant_offering(self, offering_type=OPENSTACK_INSTANCE_OFFERING):
+        return marketplace_models.Offering.objects.get(
+            type=offering_type, project=self.project
+        )
+
+    def get_details(self, user, offering):
+        self.client.force_authenticate(user)
+        return self.client.get(marketplace_factories.OfferingFactory.get_url(offering))
+
+    @data(OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING)
+    def test_consumer_owner_gets_no_credentials(self, offering_type):
+        response = self.get_details(self.owner, self.per_tenant_offering(offering_type))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["service_attributes"], {})
+
+    def test_consumer_owner_gets_no_credentials_in_a_list(self):
+        offering = self.per_tenant_offering()
+        self.client.force_authenticate(self.owner)
+
+        response = self.client.get(marketplace_factories.OfferingFactory.get_list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(row for row in response.data if row["uuid"] == offering.uuid.hex)
+        self.assertEqual(row["service_attributes"], {})
+
+    def test_offering_manager_gets_no_credentials(self):
+        offering = self.per_tenant_offering()
+        manager = structure_factories.UserFactory()
+        offering.add_user(manager, OfferingRole.MANAGER)
+
+        response = self.get_details(manager, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["service_attributes"], {})
+
+    @data(OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING)
+    def test_offering_manager_gets_no_credentials_in_a_list(self, offering_type):
+        offering = self.per_tenant_offering(offering_type)
+        manager = structure_factories.UserFactory()
+        offering.add_user(manager, OfferingRole.MANAGER)
+        self.client.force_authenticate(manager)
+
+        response = self.client.get(marketplace_factories.OfferingFactory.get_list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(row for row in response.data if row["uuid"] == offering.uuid.hex)
+        # The key is rendered only for a caller past the provider-side gate, so
+        # an empty value comes from the scope rule rather than from the gate.
+        self.assertEqual(row["service_attributes"], {})
+
+    def test_staff_read_them_on_the_service_settings_instead(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+
+        offering_response = self.get_details(staff, self.per_tenant_offering())
+        settings_response = self.client.get(
+            structure_factories.ServiceSettingsFactory.get_url(self.settings)
+        )
+
+        self.assertEqual(offering_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(offering_response.data["service_attributes"], {})
+        self.assertEqual(settings_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            settings_response.data["options"]["password"], "provider-admin-password"
+        )
+
+    def test_provider_owner_reads_the_settings_of_their_own_offering(self):
+        owner = structure_factories.UserFactory()
+        self.provider.add_user(owner, CustomerRole.OWNER)
+        offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING,
+            scope=self.settings,
+            customer=self.provider,
+        )
+
+        response = self.get_details(owner, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["service_attributes"]["password"],
+            "provider-admin-password",
+        )
 
 
 class OfferingComponentForVolumeTypeTest(test.APITestCase):
