@@ -32,7 +32,7 @@ from waldur_core.core.filters import (
     get_generic_field_filter,
 )
 from waldur_core.core.models import User
-from waldur_core.core.utils import get_ip_address, is_uuid_like
+from waldur_core.core.utils import get_ip_address, is_uuid_like, normalize_ip_address
 from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum, RoleEnum
 from waldur_core.permissions.filters import UserPermissionFilter
@@ -589,7 +589,10 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
         user = request.user
         if user is None or not user.is_authenticated:
             return queryset
-        user_ip = get_ip_address(request)
+        # Normalised as filter_queryset_by_user_ip does: a host:port or
+        # IPv4-mapped hop is matched by its address, and an unparseable one
+        # counts as no address instead of reaching the inet lookup and 500ing.
+        user_ip = normalize_ip_address(get_ip_address(request))
         if user.is_staff or user.is_support or not user_ip:
             return queryset
 

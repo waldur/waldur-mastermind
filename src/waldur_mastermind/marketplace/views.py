@@ -38,7 +38,7 @@ from django.db.models.aggregates import Sum
 from django.db.models.fields import FloatField, IntegerField
 from django.db.models.functions import Coalesce, Lower, Trim, TruncDate, TruncMonth
 from django.db.models.functions.math import Ceil
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -596,26 +596,68 @@ class ConnectedOfferingDetailsMixin:
             return Response(status.HTTP_204_NO_CONTENT)
 
 
+# What ConnectedResourceDetailsMixin.get_connected_resource shows. Change the
+# two together.
+CONNECTED_RESOURCE_ACCESS = access.custom(
+    "Anyone who may see the requested object, for a resource that the consumer "
+    "or the provider resource view shows them. Outside staff and support, an "
+    "organization that limits portal access to some networks, and an offering "
+    "that conceals subnet-restricted resources, hide the resource from "
+    "consumers outside the allowed networks; the response is then 404."
+)
+
+
 class ConnectedResourceDetailsMixin:
     """Mixin to provide resource details action for connected resources."""
 
+    def get_connected_resource(self, connected_object) -> models.Resource:
+        """The object's resource, if a resource view shows it to the caller.
+
+        The object may be visible to callers whom the resource views refuse: an
+        order is not hidden by the network rules that hide its resource. So the
+        resource is looked up as ConsumerResourceViewSet looks it up -- consumer
+        visibility, the organization's network restriction and the offering's
+        subnet concealment -- or as ProviderResourceViewSet does, and is 404
+        when neither shows it. Those views narrow their querysets in
+        get_queryset and filter_backends; change this together with them.
+        """
+        request = self.request
+        user = request.user
+        resources = models.Resource.objects.filter(pk=connected_object.resource_id)
+        as_consumer = filter_queryset_by_user_ip(
+            resources.filter_for_service_consumer(user), request
+        )
+        as_consumer = (
+            filters.ResourceAccessSubnetConcealmentFilterBackend().filter_queryset(
+                request, as_consumer, self
+            )
+        )
+        as_provider = resources.filter_for_service_provider(user)
+        visible = resources.filter(
+            Q(pk__in=as_consumer.values("pk")) | Q(pk__in=as_provider.values("pk"))
+        )
+        try:
+            return serializers.ResourceSerializer.eager_load(visible).get()
+        except models.Resource.DoesNotExist:
+            raise Http404
+
     @extend_schema(
         summary="Get resource details",
-        description="Returns details of the resource connected to the requested object.",
+        description=(
+            "Returns details of the resource connected to the requested object, "
+            "if the consumer or provider resource view shows it to the caller; "
+            "otherwise 404."
+        ),
         responses=serializers.ResourceSerializer,
         filters=False,
     )
     @action(detail=True, methods=["get"])
     def resource(self, request, *args, **kwargs):
-        requested_object = self.get_object()
-        if hasattr(requested_object, "resource"):
-            resource = requested_object.resource
-            serializer = serializers.ResourceSerializer(
-                instance=resource, context=self.get_serializer_context()
-            )
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response(status.HTTP_204_NO_CONTENT)
+        resource = self.get_connected_resource(self.get_object())
+        serializer = serializers.ResourceSerializer(
+            instance=resource, context=self.get_serializer_context()
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(
@@ -7963,6 +8005,10 @@ class OrderViewSet(
         if self.action == "approve_by_provider":
             return self.approve_by_provider_serializer_class
         return super().get_serializer_class()
+
+    access_declarations = {
+        "resource": [CONNECTED_RESOURCE_ACCESS],
+    }
 
     def get_queryset(self):
         """
