@@ -19,9 +19,36 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    INTEGER,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "projects": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "organization_name": STRING,
+                    "organization_uuid": nullable(STRING),
+                    "role": nullable(STRING),
+                }
+            )
+        ),
+        "total": INTEGER,
+        **TRUNCATION,
+    }
+)
 
 
 class ListProjectsTool(BaseTool):
@@ -74,6 +101,9 @@ class ListProjectsTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for general project navigation or to resolve a project "
                 "name into a UUID for follow-up tools "

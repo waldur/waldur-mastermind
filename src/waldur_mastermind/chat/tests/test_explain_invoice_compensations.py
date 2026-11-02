@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.explain_invoice_compensations import (
     ExplainInvoiceCompensationsTool,
 )
@@ -69,6 +70,7 @@ class ExplainInvoiceCompensationsToolTest(TestCase):
             self.fixture.staff,
             {"project_uuid": str(self.fixture.project.uuid)},
         )
+        assert_matches_output_schema(self.tool, result)
         self.assertEqual(result["type"], "success")
         self.assertIsNone(result["data"]["invoice_summary"])
         self.assertIn("no invoice items", result["summary"].lower())
@@ -102,6 +104,7 @@ class ExplainInvoiceCompensationsToolTest(TestCase):
         # from_project_credit was always "0" (compensation FK only points at
         # CustomerCredit) — the misleading field must not be surfaced.
         self.assertNotIn("from_project_credit", s)
+        assert_matches_output_schema(self.tool, result)
 
     def test_terminated_resource_flagged_concealed(self):
         live = self._make_resource("Live VM", state=ResourceStates.OK)
@@ -119,6 +122,7 @@ class ExplainInvoiceCompensationsToolTest(TestCase):
         self.assertFalse(rows["Live VM"]["hidden_from_user"])
         self.assertEqual(Decimal(rows["Dead VM"]["compensation"]), Decimal("50"))
         self.assertEqual(Decimal(rows["Dead VM"]["net"]), Decimal("0"))
+        assert_matches_output_schema(self.tool, result)
 
     def test_manual_refund_separate_from_compensation(self):
         r = self._make_resource()
@@ -145,6 +149,7 @@ class ExplainInvoiceCompensationsToolTest(TestCase):
         self.assertEqual(
             result["data"]["manual_adjustments"][0]["name"], "Manual cost correction"
         )
+        assert_matches_output_schema(self.tool, result)
 
     def test_year_month_filter(self):
         r = self._make_resource()
@@ -162,7 +167,30 @@ class ExplainInvoiceCompensationsToolTest(TestCase):
         s = result["data"]["invoice_summary"]
         self.assertEqual(s["year"], 2020)
         self.assertEqual(s["month"], 1)
+        assert_matches_output_schema(self.tool, result)
         self.assertEqual(Decimal(s["gross"]), Decimal("0"))
+
+    def test_period_as_digit_strings_is_accepted(self):
+        result = self.tool.execute(
+            self.fixture.staff,
+            {
+                "project_uuid": str(self.fixture.project.uuid),
+                "year": "2020",
+                "month": "1",
+            },
+        )
+        assert_matches_output_schema(self.tool, result)
+        s = result["data"]["invoice_summary"]
+        self.assertEqual((s["year"], s["month"]), (2020, 1))
+
+    def test_invalid_period_is_rejected(self):
+        for period in ({"year": "last"}, {"month": True}, {"month": "³"}):
+            with self.subTest(period=period):
+                result = self.tool.execute(
+                    self.fixture.staff,
+                    {"project_uuid": str(self.fixture.project.uuid), **period},
+                )
+                self.assertEqual(result["type"], "validation_error")
 
     def test_inaccessible_project_denied(self):
         other = ProjectFixture()

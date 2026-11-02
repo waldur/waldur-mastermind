@@ -4,6 +4,7 @@ from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.get_customer_credit_overview import (
     GetCustomerCreditOverviewTool,
 )
@@ -87,6 +88,7 @@ class GetCustomerCreditOverviewToolTest(TestCase):
         self.assertEqual(data["projects"][0]["project_name"], "Over One")
         self.assertTrue(data["projects"][0]["is_overdrawn"])
         self.assertIn("1 overdrawn", result["summary"])
+        assert_matches_output_schema(self.tool, result)
 
     def test_no_customer_credit_branch(self):
         # Organization with no credit configured at all (the Crestford case).
@@ -99,6 +101,7 @@ class GetCustomerCreditOverviewToolTest(TestCase):
         self.assertIsNone(result["data"]["customer_credit"])
         self.assertEqual(result["data"]["_total_project_count"], 0)
         self.assertIn("no customer credit configured", result["summary"].lower())
+        assert_matches_output_schema(self.tool, result)
 
     def test_name_fallback(self):
         self.customer.name = "Acme Research Lab"

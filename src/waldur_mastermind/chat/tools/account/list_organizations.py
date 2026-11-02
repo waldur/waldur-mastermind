@@ -14,9 +14,35 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    INTEGER,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "organizations": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "abbreviation": STRING,
+                    "role": nullable(STRING),
+                }
+            )
+        ),
+        "total": INTEGER,
+        **TRUNCATION,
+    }
+)
 
 
 class ListOrganizationsTool(BaseTool):
@@ -55,6 +81,9 @@ class ListOrganizationsTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use when the user wants to see THEIR OWN organizations / "
                 "customers / institutions — not marketplace providers. "

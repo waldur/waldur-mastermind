@@ -5,6 +5,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import (
+    as_int,
     invalid_uuid_message,
     iso_or_none,
     string_list,
@@ -18,6 +19,14 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    INTEGER,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.invoices.models import Invoice
 
@@ -38,16 +47,30 @@ def _amounts(invoice: Invoice) -> dict:
     return {"price": str(price), "tax": str(tax), "total": str(price + tax)}
 
 
-def _as_int(value) -> int | None:
-    """``value`` as an int; digit strings count, booleans do not."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    # isdigit() also accepts superscripts such as "²", which int() rejects.
-    if isinstance(value, str) and value.strip().isdecimal():
-        return int(value)
-    return None
+OUTPUT_SCHEMA = obj(
+    {
+        "invoices": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "number": INTEGER,
+                    "organization_name": STRING,
+                    "organization_uuid": STRING,
+                    "year": INTEGER,
+                    "month": INTEGER,
+                    "state": STRING,
+                    "price": STRING,
+                    "tax": STRING,
+                    "total": STRING,
+                    "invoice_date": nullable(STRING),
+                    "due_date": nullable(STRING),
+                }
+            )
+        ),
+        "total": INTEGER,
+        **TRUNCATION,
+    }
+)
 
 
 class ListInvoicesTool(BaseTool):
@@ -97,6 +120,9 @@ class ListInvoicesTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for 'what did we pay last month', 'show our invoices for "
                 "2026', 'is the March invoice paid'. Invoices belong to "
@@ -140,7 +166,7 @@ class ListInvoicesTool(BaseTool):
             if value is None:
                 parsed[arg_name] = None
                 continue
-            number = _as_int(value)
+            number = as_int(value)
             if number is None or not low <= number <= high:
                 return {
                     "type": "validation_error",

@@ -83,6 +83,18 @@ def text_arguments(arguments: dict, *names: str) -> tuple[dict[str, str], str]:
     return values, ""
 
 
+def as_int(value) -> int | None:
+    """``value`` as an int; digit strings count, booleans do not."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    # isdigit() also accepts superscripts such as "²", which int() rejects.
+    if isinstance(value, str) and value.strip().isdecimal():
+        return int(value)
+    return None
+
+
 def string_list(value) -> list[str] | None:
     """``value`` as a list of strings, or None when it is not one.
 

@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.list_invoices import ListInvoicesTool
 from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
@@ -54,7 +55,7 @@ class ListInvoicesToolTest(APITestCase):
 
     def _tool_result(self, user, **arguments):
         result = self.tool.execute(user, arguments)
-        self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         return result["data"]
 
     def _tool_uuids(self, user, **arguments):

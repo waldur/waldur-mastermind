@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from waldur_core.structure.tests.fixtures import CustomerFixture, ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.list_orders import ListOrdersTool
 from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
@@ -49,7 +50,7 @@ class ListOrdersToolTest(APITestCase):
 
     def _tool_uuids(self, user, **arguments):
         result = self.tool.execute(user, arguments)
-        self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         return {UUID(o["uuid"]).hex for o in result["data"]["orders"]}
 
     def test_registered_in_account_category_and_role_sets(self):
@@ -152,6 +153,7 @@ class ListOrdersToolTest(APITestCase):
 
     def test_row_shape(self):
         result = self.tool.execute(self.fixture.owner, {"state": ["erred"]})
+        assert_matches_output_schema(self.tool, result)
         row = result["data"]["orders"][0]
         self.assertEqual(row["uuid"], str(self.erred.uuid))
         self.assertEqual(row["state"], "erred")

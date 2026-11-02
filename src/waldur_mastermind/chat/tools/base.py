@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 
 # Hard cap on rows returned by listing tools. The LLM produces a markdown
@@ -30,6 +31,24 @@ class ToolDefinition(BaseModel):
     # workflow_instructions: multi-step sequences involving this tool (e.g. VM creation phases).
     usage_instructions: str = ""
     workflow_instructions: str = ""
+
+    # Remote MCP server (/mcp). Exposed tools must be read-only and declare
+    # output_schema, the JSON Schema of their `data` once JSON-encoded.
+    mcp_exposed: bool = False
+    read_only: bool = False
+    output_schema: dict | None = None
+    # PAT permissions the tool's REST counterpart requires; empty means any PAT.
+    required_pat_permissions: list[PermissionEnum] = Field(default_factory=list)
+
+    def pat_allows(self, pat_scopes) -> bool:
+        """Whether a PAT holding ``pat_scopes`` may call this tool.
+
+        STAFF.ACCESS satisfies SUPPORT.ACCESS, as in check_pat_support_scope.
+        """
+        scopes = set(pat_scopes)
+        if PermissionEnum.STAFF_ACCESS.value in scopes:
+            scopes.add(PermissionEnum.SUPPORT_ACCESS.value)
+        return all(p.value in scopes for p in self.required_pat_permissions)
 
 
 class BaseTool(ABC):

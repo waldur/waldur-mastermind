@@ -10,10 +10,20 @@ from waldur_mastermind.chat.tools.marketplace.helpers import (
     is_anonymous_caller_blocked,
     offerings_queryset_for,
 )
+from waldur_mastermind.chat.tools.output_schemas import INTEGER, STRING, array, obj
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace import models as marketplace_models
 
 logger = logging.getLogger(__name__)
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "categories": array(
+            obj({"uuid": STRING, "title": STRING, "offering_count": INTEGER})
+        ),
+    }
+)
 
 
 class ListCategoriesTool(BaseTool):
@@ -34,6 +44,9 @@ class ListCategoriesTool(BaseTool):
                 "properties": {},
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use when the user asks an open-ended question about what "
                 "the marketplace offers, before they've narrowed down needs. "

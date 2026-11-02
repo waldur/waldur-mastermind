@@ -1,8 +1,10 @@
 from unittest.mock import MagicMock, patch
 
+import jsonschema
 from django.test import TestCase
 from pydantic import ValidationError
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.prompts.persona import PERSONA_TEMPLATE
 from waldur_mastermind.chat.tools import tool_sets
@@ -10,6 +12,7 @@ from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import ToolRegistry, tool_registry
 from waldur_mastermind.chat.tools.tool_sets import (
+    _ACCOUNT_TOOLS,
     _MARKETPLACE_TOOLS,
     ANONYMOUS_TOOLS,
     END_USER_TOOLS,
@@ -731,3 +734,76 @@ class AccountToolEnumTest(TestCase):
 
     def test_account_category_enum(self):
         self.assertEqual(ToolCategory.ACCOUNT.value, "account")
+
+
+MCP_TOOL_LIMIT = 25
+
+
+class MCPExposureTest(TestCase):
+    def _exposed(self):
+        return {
+            name: definition
+            for name, definition in tool_registry.definitions.items()
+            if definition.mcp_exposed
+        }
+
+    def test_exposed_tools(self):
+        self.assertEqual(
+            set(self._exposed()),
+            {*_ACCOUNT_TOOLS, ToolName.GET_USER_OVERVIEW, *_MARKETPLACE_TOOLS},
+        )
+
+    def test_exposed_tool_count_is_capped(self):
+        self.assertLessEqual(len(self._exposed()), MCP_TOOL_LIMIT)
+
+    def test_exposed_tools_are_read_only_with_valid_output_schema(self):
+        for name, definition in self._exposed().items():
+            with self.subTest(tool=name.value):
+                self.assertTrue(definition.read_only)
+                schema = definition.output_schema
+                self.assertIsNotNone(schema)
+                # MCP requires an object at the root of outputSchema.
+                self.assertEqual(schema["type"], "object")
+                jsonschema.Draft202012Validator.check_schema(schema)
+
+    def test_only_get_user_overview_requires_pat_permissions(self):
+        for name, definition in self._exposed().items():
+            with self.subTest(tool=name.value):
+                expected = (
+                    [PermissionEnum.SUPPORT_ACCESS]
+                    if name == ToolName.GET_USER_OVERVIEW
+                    else []
+                )
+                self.assertEqual(definition.required_pat_permissions, expected)
+
+
+class PatAllowsTest(TestCase):
+    def _definition(self, permissions):
+        return ToolDefinition(
+            name=ToolName.GET_USER_OVERVIEW,
+            description="x",
+            inputSchema={"type": "object", "properties": {}},
+            required_pat_permissions=permissions,
+        )
+
+    def test_no_required_permissions_allows_any_pat(self):
+        self.assertTrue(self._definition([]).pat_allows([]))
+
+    def test_requires_every_permission(self):
+        definition = self._definition(
+            [PermissionEnum.SUPPORT_ACCESS, PermissionEnum.LIST_PROJECTS]
+        )
+        self.assertFalse(definition.pat_allows([PermissionEnum.SUPPORT_ACCESS.value]))
+        self.assertTrue(
+            definition.pat_allows(
+                [
+                    PermissionEnum.SUPPORT_ACCESS.value,
+                    PermissionEnum.LIST_PROJECTS.value,
+                ]
+            )
+        )
+
+    def test_staff_access_satisfies_support_access(self):
+        definition = self._definition([PermissionEnum.SUPPORT_ACCESS])
+        self.assertTrue(definition.pat_allows([PermissionEnum.STAFF_ACCESS.value]))
+        self.assertFalse(definition.pat_allows([PermissionEnum.LIST_PROJECTS.value]))

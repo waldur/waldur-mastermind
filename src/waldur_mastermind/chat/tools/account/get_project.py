@@ -20,9 +20,67 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    BOOLEAN,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
+
+
+# Same keys whether one project or several matched: a single match fills
+# project, organization and team, several fill matches.
+OUTPUT_SCHEMA = obj(
+    {
+        "project": nullable(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "description": STRING,
+                    "type_name": STRING,
+                    "created": nullable(STRING),
+                    "start_date": nullable(STRING),
+                    "end_date": nullable(STRING),
+                    "is_terminated": BOOLEAN,
+                    "role": nullable(STRING),
+                }
+            )
+        ),
+        "organization": nullable(
+            obj({"uuid": STRING, "name": STRING, "role": nullable(STRING)})
+        ),
+        "team": nullable(
+            obj(
+                {
+                    "members": array(
+                        obj(
+                            {
+                                "user_uuid": STRING,
+                                "is_you": BOOLEAN,
+                                "full_name": STRING,
+                                "email": STRING,
+                                "role": STRING,
+                                "expiration_time": nullable(STRING),
+                            }
+                        )
+                    ),
+                    **TRUNCATION,
+                }
+            )
+        ),
+        "restricted_fields": array(STRING),
+        "matches": array(
+            obj({"uuid": STRING, "name": STRING, "organization_name": STRING})
+        ),
+        **TRUNCATION,
+    }
+)
 
 
 class GetProjectTool(BaseTool):
@@ -54,6 +112,9 @@ class GetProjectTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for 'what's in project X', 'who is in project X', 'when "
                 "does project X end', 'what's my role there'. `project.role` "

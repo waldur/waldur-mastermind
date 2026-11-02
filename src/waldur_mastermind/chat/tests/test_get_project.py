@@ -9,6 +9,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.get_project import GetProjectTool
 from waldur_mastermind.chat.tools.account.list_projects import ListProjectsTool
 from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS
@@ -76,6 +77,7 @@ class GetProjectToolTest(APITestCase):
                 result = self._execute(user)
                 if result["type"] != "success":
                     continue
+                assert_matches_output_schema(self.tool, result)
                 response = self._rest_get(user, action="list_users")
                 team = result["data"]["team"]
                 if response.status_code == status.HTTP_403_FORBIDDEN:
@@ -101,6 +103,7 @@ class GetProjectToolTest(APITestCase):
             with self.subTest(user=name):
                 user = getattr(self.fixture, name)
                 result = self._execute(user)
+                assert_matches_output_schema(self.tool, result)
                 data = result["data"]
                 self.assertEqual(data["project"]["role"], project_role)
                 self.assertEqual(data["organization"]["role"], organization_role)
@@ -140,6 +143,7 @@ class GetProjectToolTest(APITestCase):
             status.HTTP_403_FORBIDDEN,
         )
         result = self._execute(viewer)
+        assert_matches_output_schema(self.tool, result)
         self.assertIsNone(result["data"]["team"])
         self.assertEqual(result["data"]["restricted_fields"], ["team"])
         self.assertIn("may or may not have members", result["summary"])
@@ -192,6 +196,7 @@ class GetProjectToolTest(APITestCase):
             customer=self.fixture.customer, name="Lab Beta"
         )
         result = self.tool.execute(self.fixture.owner, {"project_name": "lab"})
+        assert_matches_output_schema(self.tool, result)
         data = result["data"]
         self.assertIsNone(data["project"])
         self.assertEqual(len(data["matches"]), 2)

@@ -16,10 +16,30 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import STRING, TRUNCATION, array, obj
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.invoices.models import InvoiceItem, ProjectCredit
 
 logger = logging.getLogger(__name__)
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "overdrawn_projects": array(
+            obj(
+                {
+                    "project_name": STRING,
+                    "project_uuid": STRING,
+                    "customer_name": STRING,
+                    "credit_value": STRING,
+                    "spent_to_date": STRING,
+                    "exceeded_by": STRING,
+                }
+            )
+        ),
+        **TRUNCATION,
+    }
+)
 
 
 class ListOverdrawnProjectsTool(BaseTool):
@@ -48,6 +68,9 @@ class ListOverdrawnProjectsTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for questions like 'which projects have exceeded their "
                 "credit?' or 'list overdrawn projects in <org>'. The result "

@@ -5,13 +5,18 @@ import logging
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
+    OFFERING_DETAILED_SCHEMA,
     is_anonymous_caller_blocked,
     offerings_queryset_for,
     serialize_offering_detailed,
 )
+from waldur_mastermind.chat.tools.output_schemas import obj
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
+
+
+OUTPUT_SCHEMA = obj({"offering": OFFERING_DETAILED_SCHEMA})
 
 
 class GetOfferingTool(BaseTool):
@@ -54,6 +59,9 @@ class GetOfferingTool(BaseTool):
                 },
                 # At-least-one of uuid/name is enforced in execute().
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use after search_offerings has identified an offering and "
                 "the user wants deeper detail (plans, components, "

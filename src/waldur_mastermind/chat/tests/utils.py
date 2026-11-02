@@ -1,12 +1,26 @@
 """Shared test utilities for chat module tests."""
 
+import json
 from contextlib import contextmanager
 from unittest.mock import MagicMock
+
+import jsonschema
+from django.core.serializers.json import DjangoJSONEncoder
 
 from waldur_mastermind.chat.block_schemas import blocks_to_text
 
 # Patch target for _SynchronousThread — use with @mock.patch(SYNC_THREAD_PATCH, ...)
 SYNC_THREAD_PATCH = "waldur_mastermind.chat.llm_streamer.threading.Thread"
+
+
+def assert_matches_output_schema(tool, result: dict) -> None:
+    """Fail unless a successful result's `data`, JSON-encoded as the chat and
+    MCP send it, validates against the tool's output_schema."""
+    schema = tool.definition.output_schema
+    assert result["type"] == "success", result
+    assert schema is not None, f"{tool.name.value} has no output_schema"
+    data = json.loads(json.dumps(result["data"], cls=DjangoJSONEncoder))
+    jsonschema.validate(data, schema, cls=jsonschema.Draft202012Validator)
 
 
 def markdown_block(text: str, blk_id: str = "blk_0") -> dict:

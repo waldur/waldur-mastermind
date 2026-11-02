@@ -9,9 +9,16 @@ from waldur_mastermind.chat.tools.account.helpers import (
 )
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    STRING,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import ComponentUsage
+from waldur_mastermind.marketplace.utils import is_resource_project_only_viewer
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +30,36 @@ def _current_period_bounds(today: date) -> tuple[date, date]:
     else:
         next_start = start.replace(month=start.month + 1)
     return start, next_start
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "resource": obj(
+            {
+                "uuid": STRING,
+                "name": STRING,
+                "state": STRING,
+                "offering_name": STRING,
+                "project_name": STRING,
+                "plan_name": STRING,
+            }
+        ),
+        "components": nullable(
+            array(
+                obj(
+                    {
+                        "type": STRING,
+                        "name": STRING,
+                        "measured_unit": STRING,
+                        "usage": STRING,
+                    }
+                )
+            )
+        ),
+        "period": obj({"start": STRING, "end": STRING}),
+        "restricted_fields": array(STRING),
+    }
+)
 
 
 class GetResourceUsageTool(BaseTool):
@@ -57,11 +94,16 @@ class GetResourceUsageTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for questions like 'how much CPU have I used on X'. "
                 "Prefer `resource_uuid` when you have it fresh from this "
                 "turn. Pass `resource_name` when only the name is in "
-                "context."
+                "context. When `restricted_fields` names `components`, the "
+                "usage is hidden from this user: say it is not visible to "
+                "them, never that there is no usage."
             ),
         )
 
@@ -89,21 +131,35 @@ class GetResourceUsageTool(BaseTool):
             return {"type": "error", "summary": "Resource not found."}
 
         start, next_start = _current_period_bounds(date.today())
-        usage_qs = ComponentUsage.objects.filter(
-            resource=resource, billing_period=start
-        ).select_related("component")
         state_labels = dict(ResourceStates.CHOICES)
 
-        components = [
-            {
-                "type": u.component.type,
-                "name": u.component.name,
-                "measured_unit": u.component.measured_unit,
-                # Stringified: the streamer json.dumps() the payload.
-                "usage": str(u.usage),
-            }
-            for u in usage_qs
-        ]
+        components = None
+        restricted_fields = []
+        # ResourceSerializer withholds current_usages from users who see the
+        # resource only through a ResourceProject role.
+        if is_resource_project_only_viewer(user, resource):
+            restricted_fields.append("components")
+        else:
+            usage_qs = ComponentUsage.objects.filter(
+                resource=resource, billing_period=start
+            ).select_related("component")
+            components = [
+                {
+                    "type": u.component.type,
+                    "name": u.component.name,
+                    "measured_unit": u.component.measured_unit,
+                    # Stringified: the streamer json.dumps() the payload.
+                    "usage": str(u.usage),
+                }
+                for u in usage_qs
+            ]
+
+        summary = f"Usage for {resource.name} ({start.isoformat()})."
+        if restricted_fields:
+            summary = (
+                f"Usage for {resource.name} is hidden from this user "
+                "(it may or may not have a value)."
+            )
 
         return {
             "type": "success",
@@ -125,8 +181,9 @@ class GetResourceUsageTool(BaseTool):
                     "start": start.isoformat(),
                     "end": next_start.isoformat(),
                 },
+                "restricted_fields": restricted_fields,
             },
-            "summary": f"Usage for {resource.name} ({start.isoformat()}).",
+            "summary": summary,
         }
 
 

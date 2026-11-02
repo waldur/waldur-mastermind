@@ -1,10 +1,14 @@
 import json
 from datetime import date
 
-from django.test import TestCase
+from django.contrib.contenttypes.models import ContentType
+from rest_framework.test import APITestCase
 
+from waldur_core.permissions.models import Role
+from waldur_core.permissions.utils import add_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.get_resource_usage import (
     GetResourceUsageTool,
 )
@@ -15,7 +19,7 @@ from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as mp_factories
 
 
-class GetResourceUsageToolTest(TestCase):
+class GetResourceUsageToolTest(APITestCase):
     def setUp(self):
         self.tool = GetResourceUsageTool()
         self.fixture = ProjectFixture()
@@ -60,7 +64,7 @@ class GetResourceUsageToolTest(TestCase):
             self.fixture.member,
             {"resource_uuid": str(self.resource.uuid)},
         )
-        self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         self.assertEqual(result["data"]["resource"]["name"], "test-server-1")
         components = result["data"]["components"]
         self.assertEqual(len(components), 1)
@@ -97,3 +101,43 @@ class GetResourceUsageToolTest(TestCase):
             {"resource_uuid": str(other_resource.uuid)},
         )
         self.assertEqual(result["type"], "error")
+
+    def _role(self, model, name):
+        return Role.objects.create(
+            name=name,
+            content_type=ContentType.objects.get_for_model(model),
+            is_system_role=False,
+        )
+
+    def test_usage_hidden_as_in_rest(self):
+        resource_project = mp_models.ResourceProject.objects.create(
+            resource=self.resource, name="Project A"
+        )
+        rp_viewer = structure_factories.UserFactory()
+        add_user(
+            resource_project, rp_viewer, self._role(mp_models.ResourceProject, "RP")
+        )
+        resource_viewer = structure_factories.UserFactory()
+        add_user(
+            self.resource, resource_viewer, self._role(mp_models.Resource, "Viewer")
+        )
+
+        for label, user in (("rp-only", rp_viewer), ("resource", resource_viewer)):
+            with self.subTest(user=label):
+                self.client.force_authenticate(user)
+                rest = self.client.get(
+                    mp_factories.ResourceFactory.get_url(self.resource)
+                ).data
+                result = self.tool.execute(
+                    user, {"resource_uuid": str(self.resource.uuid)}
+                )
+                assert_matches_output_schema(self.tool, result)
+                data = result["data"]
+                self.assertEqual(
+                    data["components"] is not None, "current_usages" in rest
+                )
+                self.assertEqual(
+                    data["restricted_fields"],
+                    ["components"] if label == "rp-only" else [],
+                )
+                self.assertEqual("hidden" in result["summary"], label == "rp-only")

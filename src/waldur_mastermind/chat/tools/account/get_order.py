@@ -12,6 +12,12 @@ from waldur_mastermind.chat.tools.account.helpers import (
 )
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    REF,
+    STRING,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 from waldur_mastermind.marketplace.managers import filter_orders_for_user
@@ -24,6 +30,39 @@ def _person(user):
     if user is None:
         return None
     return {"uuid": str(user.uuid), "full_name": user.full_name}
+
+
+_PERSON = nullable(obj({"uuid": STRING, "full_name": STRING}))
+
+OUTPUT_SCHEMA = obj(
+    {
+        "order": obj(
+            {
+                "uuid": STRING,
+                "type": STRING,
+                "state": STRING,
+                "error_message": STRING,
+                "consumer_rejection_comment": STRING,
+                "provider_rejection_comment": STRING,
+                "request_comment": STRING,
+                "cost": nullable(STRING),
+                "created": nullable(STRING),
+                "modified": nullable(STRING),
+                "consumer_reviewed_at": nullable(STRING),
+                "provider_reviewed_at": nullable(STRING),
+                "completed_at": nullable(STRING),
+            }
+        ),
+        "created_by": _PERSON,
+        "consumer_reviewed_by": _PERSON,
+        "provider_reviewed_by": _PERSON,
+        "offering": REF,
+        "plan": nullable(REF),
+        "resource": REF,
+        "project": REF,
+        "organization": REF,
+    }
+)
 
 
 class GetOrderTool(BaseTool):
@@ -49,6 +88,9 @@ class GetOrderTool(BaseTool):
                 },
                 "required": ["order_uuid"],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for 'why did my order fail', 'who approved order X', "
                 "'is my order still pending'. Find the order UUID with "

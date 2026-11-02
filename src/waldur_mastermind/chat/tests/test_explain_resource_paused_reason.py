@@ -10,6 +10,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.explain_resource_paused_reason import (
     ExplainResourcePausedReasonTool,
 )
@@ -66,6 +67,7 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         self.assertEqual(result["type"], "success")
         self.assertEqual(result["data"]["primary_cause"], "not_paused")
         self.assertIn("NOT paused", result["summary"])
+        assert_matches_output_schema(self.tool, result)
 
     def test_cost_policy_attribution(self):
         # Set up the spend so explain numbers reconcile.
@@ -102,6 +104,26 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         self.assertEqual(Decimal(details["current_spend"]), Decimal("250"))
         self.assertEqual(Decimal(details["exceeded_by"]), Decimal("150"))
         self.assertIn("cost policy", result["summary"])
+        assert_matches_output_schema(self.tool, result)
+
+    def test_unparseable_limit_cost_leaves_exceeded_by_unset(self):
+        attribution = _attribution_blob(
+            "ProjectEstimatedCostPolicy",
+            "93000000000000000000000000000001",
+            self.fixture.project.name,
+            limit_cost="n/a",
+        )
+        resource = self._make_resource(
+            name="Overdrawn VM",
+            paused=True,
+            attributes={"_policy_attribution": {"paused": attribution}},
+        )
+
+        result = self.tool.execute(
+            self.fixture.staff, {"resource_uuid": str(resource.uuid)}
+        )
+        assert_matches_output_schema(self.tool, result)
+        self.assertIsNone(result["data"]["policy_details"]["exceeded_by"])
 
     def test_slurm_grace_attribution(self):
         attribution = _attribution_blob(
@@ -124,6 +146,7 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         self.assertEqual(result["data"]["primary_cause"], "slurm_grace")
         self.assertEqual(result["data"]["policy_details"]["grace_ratio"], "0.2")
         self.assertIn("SLURM", result["summary"])
+        assert_matches_output_schema(self.tool, result)
 
     def test_project_grace_period_pause(self):
         self.fixture.project.end_date = date.today() - timedelta(days=1)
@@ -146,6 +169,7 @@ class ExplainResourcePausedReasonToolTest(TestCase):
             self.fixture.staff, {"resource_uuid": str(resource.uuid)}
         )
         self.assertEqual(result["data"]["primary_cause"], "project_grace_period")
+        assert_matches_output_schema(self.tool, result)
         self.assertIn("grace period", result["summary"])
 
     def test_manual_pause_no_attribution(self):
@@ -158,6 +182,7 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         self.assertEqual(result["data"]["primary_cause"], "manual")
         self.assertIsNone(result["data"]["attribution"])
         self.assertIn("manual", result["summary"].lower())
+        assert_matches_output_schema(self.tool, result)
 
     def test_project_end_date_grace_period_compounds(self):
         # Project past end_date but within grace.
@@ -182,6 +207,7 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         )
         proj = result["data"]["project"]
         self.assertTrue(proj["is_in_grace_period"])
+        assert_matches_output_schema(self.tool, result)
         self.assertIn("grace period", result["summary"])
 
     def test_project_member_spend_visibility_follows_billing_info_flag(self):
