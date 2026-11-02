@@ -9,6 +9,7 @@ from django.db.models import F, Q, Sum
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import ledger
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices.utils import credit_compensation_q
 from waldur_mastermind.marketplace import billing_discount, billing_mode
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
@@ -138,27 +139,41 @@ class Command(BaseCommand):
                 f"Invalid {label} {value!r}: expected format YYYY-MM-DD."
             )
 
-    def _find_main_item(self, invoice, resource, offering_component):
-        """Find the main (cost) invoice item for a resource/component.
+    def _find_main_item(self, invoice, resource, offering_component, plan_period, date):
+        """Find the main (cost) invoice item a plan period's usage is billed on.
 
-        Compensation and discount items copy the main item's `details`
-        wholesale (see MonthlyCompensation.calculate_current_compensations
-        and billing_discount._create_discount_item), so they also carry
-        `offering_component_type` and can match this lookup by accident.
-        Disambiguate with `unit_price__gte=0`: a real cost item's price is
-        never negative, while compensation items (only created `if
-        credit_compensation:`, i.e. nonzero) and discount items (only
-        created `if discount_amount > 0`) are always strictly negative --
-        a hard domain invariant. Do NOT rely on JSON detail keys like
-        `is_compensation`/`compensation_of_item` for this: production data
-        can predate whenever that tagging convention was added and simply
-        not carry them at all.
+        The billing pass's own lookup, so that this is the item it corrects: a
+        mid-month plan switch leaves one item per plan on the component. That
+        lookup does not adopt the single item of a month billed before then,
+        but it is still what the month's usage was billed on, so it is what
+        says whether the usage changed.
         """
-        return invoice.items.filter(
-            resource=resource,
-            details__offering_component_type=offering_component.type,
-            unit_price__gte=0,
-        ).first()
+        return BillingUsageProcessor._find_usage_invoice_item(
+            invoice, resource, offering_component, plan_period, date
+        ) or (
+            invoice.items.filter(
+                resource=resource,
+                details__offering_component_type=offering_component.type,
+                unit_price__gte=0,
+            ).first()
+        )
+
+    @staticmethod
+    def _paid_item_q(item):
+        """The compensations of `item`, among those on its component.
+
+        `compensation_of_item` names it. A row older than that key still has a
+        copy of the item's details, and a component has one item per plan, so
+        the plan tells them apart. A row with neither can only be matched on
+        the component.
+        """
+        return Q(details__compensation_of_item=item.uuid.hex) | (
+            ~Q(details__has_key="compensation_of_item")
+            & (
+                Q(details__plan_uuid=(item.details or {}).get("plan_uuid"))
+                | ~Q(details__has_key="plan_uuid")
+            )
+        )
 
     def handle(self, *args, **options):
         # `-v 2`/`-v 3` (Django's built-in --verbosity, added automatically by
@@ -412,7 +427,9 @@ class Command(BaseCommand):
             ComponentUsage.objects.filter(pk=usage.pk).update(plan_period=plan_period)
             usage.plan_period = plan_period
 
-        old_item = self._find_main_item(invoice, resource, offering_component)
+        old_item = self._find_main_item(
+            invoice, resource, offering_component, plan_period, usage.billing_period
+        )
 
         # Cheap pre-check so unaffected resource-periods never touch the
         # invoice at all (minimizes blast radius on invoices with many items).
@@ -662,7 +679,9 @@ class Command(BaseCommand):
         prefix = "[DRY RUN] " if dry_run else ""
         label = f"{resource.name} ({resource.uuid.hex}) / {offering_component.type} / {usage.billing_period}"
 
-        old_item = self._find_main_item(invoice, resource, offering_component)
+        old_item = self._find_main_item(
+            invoice, resource, offering_component, plan_period, usage.billing_period
+        )
         old_price = old_item.price if old_item else decimal.Decimal(0)
         logger.debug(
             "%s: reopening invoice (state %s -> pending)", label, invoice.state
@@ -679,7 +698,9 @@ class Command(BaseCommand):
             plan_period=plan_period,
         )
 
-        new_item = self._find_main_item(invoice, resource, offering_component)
+        new_item = self._find_main_item(
+            invoice, resource, offering_component, plan_period, usage.billing_period
+        )
         if new_item is None:
             logger.debug(
                 "%s: no invoice item after billing pass (no plan component / zero price?)",
@@ -729,8 +750,23 @@ class Command(BaseCommand):
                 )
             )
 
+        # An item from before a component had one item per plan stays on its
+        # invoice, and the billing pass bills beside it rather than adopting it.
+        # Credit follows that item on every run, so it does not pay for what may
+        # be the same usage billed twice.
+        older_item = (
+            invoice.items.filter(
+                resource=resource,
+                details__offering_component_type=offering_component.type,
+                unit_price__gte=0,
+            )
+            .exclude(details__has_key="plan_period_uuid")
+            .exclude(details__has_key="resource_limit_periods")
+            .exclude(credit_compensation_q())
+            .first()
+        )
         self._apply_credit_correction(
-            resource, offering_component, invoice, new_item, dry_run
+            resource, offering_component, invoice, older_item or new_item, dry_run
         )
 
     def _apply_discount_recompute(
@@ -843,11 +879,12 @@ class Command(BaseCommand):
         )
 
         # Matched structurally (resource + component + credit + negative
-        # price), not via the `compensation_of_item` detail key: production
-        # compensation rows can predate whenever that tagging convention was
-        # added and simply not carry it (or `is_compensation`) at all.
+        # price), and by `compensation_of_item` only where the row has it:
+        # production compensation rows can predate whenever that tagging
+        # convention was added and simply not carry it at all.
         old_compensation = decimal.Decimal(0)
         existing_compensation = invoice.items.filter(
+            self._paid_item_q(new_item),
             resource=resource,
             credit=customer_credit,
             details__offering_component_type=offering_component.type,
@@ -867,7 +904,7 @@ class Command(BaseCommand):
 
         # Net out any paired volume-discount item, mirroring
         # MonthlyCompensation.calculate_current_compensations's
-        # discount_by_item handling -- otherwise credit would be drawn
+        # reduction_by_item handling -- otherwise credit would be drawn
         # against the pre-discount gross price.
         discount_price = decimal.Decimal(0)
         for discount_item in invoice.items.filter(
@@ -881,21 +918,40 @@ class Command(BaseCommand):
         # draws that part a second time.
         paid_later = -(
             invoice_models.InvoiceItem.objects.filter(
+                self._paid_item_q(new_item),
                 compensated_period=datetime.date(invoice.year, invoice.month, 1),
                 resource=resource,
                 details__offering_component_type=offering_component.type,
             ).aggregate(total=Sum(F("unit_price") * F("quantity")))["total"]
             or 0
         )
-        new_compensation = new_item.price + discount_price - paid_later
+        # So is what a deleted credit paid. It stands (see
+        # invoice_models.creditable_items), naming no credit for the lookup
+        # above to find, so the credit in place covers only the rest.
+        paid_by_deleted_credit = -(
+            invoice.items.filter(
+                self._paid_item_q(new_item),
+                credit__isnull=True,
+                details__has_key="is_compensation",
+                resource=resource,
+                details__offering_component_type=offering_component.type,
+                compensated_period__isnull=True,
+            ).aggregate(total=Sum(F("unit_price") * F("quantity")))["total"]
+            or 0
+        )
+        new_compensation = (
+            new_item.price + discount_price - paid_later - paid_by_deleted_credit
+        )
         if new_compensation < 0:
             new_compensation = decimal.Decimal(0)
         logger.debug(
-            "%s: new_item.price=%s discount_price=%s paid_later=%s new_compensation=%s",
+            "%s: new_item.price=%s discount_price=%s paid_later=%s "
+            "paid_by_deleted_credit=%s new_compensation=%s",
             label,
             new_item.price,
             discount_price,
             paid_later,
+            paid_by_deleted_credit,
             new_compensation,
         )
 
@@ -929,7 +985,7 @@ class Command(BaseCommand):
                     f"{prefix}{label}: this credit is also drawn by other "
                     f"resources on this invoice ({', '.join(sibling_resources)}). "
                     f"This correction only adjusts {resource.name}'s own "
-                    f"compensation by its own price delta -- it does NOT "
+                    f"compensation -- it does NOT "
                     f"re-run cheapest-first credit allocation across those "
                     f"resources, so their amounts may no longer match what a "
                     f"full recompute would produce if the credit is scarce."
@@ -1014,6 +1070,10 @@ class Command(BaseCommand):
             existing_compensation.details = dict(existing_compensation.details or {})
             existing_compensation.details["compensation_of_item"] = new_item.uuid.hex
             existing_compensation.save(update_fields=["unit_price", "details"])
+            # A compensation is strictly negative, and cost lookups rely on it.
+            # Saved first all the same: price estimates refresh on save only.
+            if not new_compensation:
+                existing_compensation.delete()
         else:
             logger.debug("%s: creating new compensation item", label)
             invoice_models.InvoiceItem.objects.create(
@@ -1037,10 +1097,11 @@ class Command(BaseCommand):
                     "is_compensation": True,
                     "compensation_of_item": new_item.uuid.hex,
                     "retroactive_correction": True,
-                    # Without this, _find_main_item's own structural lookup
-                    # (which matches on this exact key) would never find
-                    # this row on a later run, creating a duplicate
-                    # compensation item every time instead of updating it.
+                    # Without this, the structural lookup of
+                    # existing_compensation (which matches on this exact key)
+                    # would never find this row on a later run, creating a
+                    # duplicate compensation item every time instead of
+                    # updating it.
                     "offering_component_type": offering_component.type,
                 },
             )

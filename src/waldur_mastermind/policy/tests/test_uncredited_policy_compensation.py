@@ -168,6 +168,42 @@ class UncreditedPolicyCompensationTest(test.APITestCase):
         self.assertEqual(breakdown.credit_drawn, PARTIAL_CREDIT)
         self.assertEqual(breakdown.credit_pending, COST - PARTIAL_CREDIT)
 
+    def test_policy_forecasts_what_a_new_credit_then_draws(self):
+        self.credit.value = PARTIAL_CREDIT
+        self.credit.save()
+        self.write_compensation()
+        self.credit.delete()
+        new_credit = invoices_factories.CustomerCreditFactory(
+            customer=self.customer, value=CREDIT
+        )
+        policy = self.make_project_policy(True)
+        forecast = policy.get_cost_breakdown().credit_pending
+
+        compensations.MonthlyCompensation(self.customer).apply_compensations()
+
+        new_credit.refresh_from_db()
+        self.assertEqual(CREDIT - new_credit.value, forecast)
+        self.assertEqual(policy.get_current_cost(), 0)
+        self.assertEqual(policy.get_cost_breakdown().credit_pending, 0)
+
+    def test_policy_forecast_counts_what_a_deleted_project_credit_paid(self):
+        invoices_factories.ProjectCreditFactory(
+            project=self.project, value=PARTIAL_CREDIT
+        )
+        self.write_compensation()
+        self.credit.delete()
+        new_credit = invoices_factories.CustomerCreditFactory(
+            customer=self.customer, value=CREDIT
+        )
+        policy = self.make_project_policy(True)
+        forecast = policy.get_cost_breakdown().credit_pending
+
+        compensations.MonthlyCompensation(self.customer).apply_compensations()
+
+        new_credit.refresh_from_db()
+        self.assertEqual(forecast, COST - PARTIAL_CREDIT)
+        self.assertEqual(CREDIT - new_credit.value, forecast)
+
     def test_customer_policy_still_counts_compensation(self):
         policy = policy_factories.CustomerEstimatedCostPolicyFactory(
             scope=self.customer,

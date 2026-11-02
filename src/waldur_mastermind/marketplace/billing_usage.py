@@ -177,38 +177,11 @@ class BillingUsageProcessor:
         return not others.exists()
 
     @classmethod
-    def _create_or_update_usage_invoice_item(
-        cls,
-        resource: marketplace_models.Resource,
-        offering_component: marketplace_models.OfferingComponent,
-        usage_to_bill,
-        date,
-        plan_period: marketplace_models.ResourcePlanPeriod,
-        is_overage=False,
+    def _find_usage_invoice_item(
+        cls, invoice, resource, offering_component, plan_period, date
     ):
-        """
-        Helper method to create or update an invoice item for usage-based components.
-        Handles both standard usage and overage billing.
-        """
-
-        from waldur_mastermind.marketplace.billing import MarketplaceBillingService
-
+        """The invoice item that this plan period's usage is billed on, if any."""
         plan = plan_period.plan
-        customer = resource.project.customer
-        invoice, _ = MarketplaceBillingService.get_or_create_invoice(customer, date)
-
-        if invoice.state not in invoice_models.Invoice.States.MUTABLE_STATES:
-            logger.warning(
-                "Skipping usage update for resource '%s' and component '%s' "
-                "because invoice %s-%02d is already in '%s' state.",
-                resource.uuid,
-                offering_component.type,
-                invoice.year,
-                invoice.month,
-                invoice.state,
-            )
-            return
-
         # Try to find an existing invoice item for this component in the current
         # period. Compensation items copy the main item's `details` wholesale
         # (see MonthlyCompensation.calculate_current_compensations), so they
@@ -245,6 +218,44 @@ class BillingUsageProcessor:
             item = legacy.filter(details__plan_uuid=plan.uuid.hex).first()
             if item is None and cls._is_only_plan_period_of_month(plan_period, date):
                 item = legacy.first()
+        return item
+
+    @classmethod
+    def _create_or_update_usage_invoice_item(
+        cls,
+        resource: marketplace_models.Resource,
+        offering_component: marketplace_models.OfferingComponent,
+        usage_to_bill,
+        date,
+        plan_period: marketplace_models.ResourcePlanPeriod,
+        is_overage=False,
+    ):
+        """
+        Helper method to create or update an invoice item for usage-based components.
+        Handles both standard usage and overage billing.
+        """
+
+        from waldur_mastermind.marketplace.billing import MarketplaceBillingService
+
+        plan = plan_period.plan
+        customer = resource.project.customer
+        invoice, _ = MarketplaceBillingService.get_or_create_invoice(customer, date)
+
+        if invoice.state not in invoice_models.Invoice.States.MUTABLE_STATES:
+            logger.warning(
+                "Skipping usage update for resource '%s' and component '%s' "
+                "because invoice %s-%02d is already in '%s' state.",
+                resource.uuid,
+                offering_component.type,
+                invoice.year,
+                invoice.month,
+                invoice.state,
+            )
+            return
+
+        item = cls._find_usage_invoice_item(
+            invoice, resource, offering_component, plan_period, date
+        )
 
         try:
             plan_component = plan.components.get(component=offering_component)

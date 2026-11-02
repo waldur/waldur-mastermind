@@ -92,7 +92,7 @@ class MonthlyCompensation:
             project_credit.value += self._project_restored_draws.get(
                 project_credit.project_id, decimal.Decimal(0)
             )
-        chargeable_items, discount_by_item = models.creditable_items(
+        chargeable_items, reduction_by_item = models.creditable_items(
             self.invoice, self.credit
         )
 
@@ -105,9 +105,10 @@ class MonthlyCompensation:
             project_credit: models.ProjectCredit = projects_credits.get(
                 item.project, None
             )
-            # Net of any volume discount paired with this item (discount prices
-            # are negative). Never draw credit below zero.
-            cost = item.price + discount_by_item.get(item.uuid.hex, decimal.Decimal(0))
+            # Net of any volume discount paired with this item and of what a
+            # deleted credit paid for it (both are negative). Never draw credit
+            # below zero.
+            cost = item.price + reduction_by_item.get(item.uuid.hex, decimal.Decimal(0))
             if cost < 0:
                 cost = decimal.Decimal(0)
 
@@ -638,7 +639,8 @@ class MonthlyCompensation:
 
         # Payments of earlier invoices (see `settlement`) are not this month's
         # compensations: a run does not write them, so it must not roll them
-        # back either. They are written once and stay.
+        # back either. They are written once and stay. So does what a deleted
+        # credit paid (see `creditable_items`), which has no balance to go back to.
         compensation_items = self.invoice.items.filter(
             credit=self.credit, compensated_period__isnull=True
         )

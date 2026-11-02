@@ -674,8 +674,9 @@ def creditable_items(
 ) -> tuple[list["InvoiceItem"], dict[str, decimal.Decimal]]:
     """Items on an invoice that a credit may be drawn against.
 
-    Returns the chargeable items and, keyed by item uuid, the volume discounts
-    paired with them.
+    Returns the chargeable items and, keyed by item uuid, what already lowers
+    each one: the volume discounts paired with it and what a deleted credit
+    paid for it.
 
     Eligibility lives here because two callers must agree on it: the monthly
     compensation run, which draws the credit, and the credit's own report of
@@ -707,39 +708,42 @@ def creditable_items(
     # discounts so compensation operates on the net cost. Filtered in Python
     # to avoid JSON-key exclude semantics dropping items whose details lack
     # the key entirely.
-    discount_by_item: dict[str, decimal.Decimal] = {}
+    reduction_by_item: dict[str, decimal.Decimal] = {}
     chargeable_items: list[InvoiceItem] = []
     for it in items_queryset:
         details = it.details or {}
-        # A compensation is a draw already made, not a cost to draw against.
-        # The compensation run clears them before recalculating, so it never
-        # sees one; the open-month report is not so lucky.
         if details.get("is_compensation"):
-            continue
-        if details.get("is_discount"):
+            # A compensation is a draw already made, not a cost to draw against.
+            # The compensation run clears them before recalculating, so it never
+            # sees one; the open-month report is not so lucky. A deleted credit's
+            # is different: with no balance to give it back to, nothing clears
+            # it, so what it paid stands and the credit in place pays the rest.
+            target = None if it.credit_id else details.get("compensation_of_item")
+        elif details.get("is_discount"):
             target = details.get("discount_of_item")
-            if target:
-                discount_by_item[target] = (
-                    discount_by_item.get(target, decimal.Decimal(0)) + it.price
-                )
         else:
             chargeable_items.append(it)
+            continue
+        if target:
+            reduction_by_item[target] = (
+                reduction_by_item.get(target, decimal.Decimal(0)) + it.price
+            )
 
-    return chargeable_items, discount_by_item
+    return chargeable_items, reduction_by_item
 
 
 def creditable_cost(invoice, credit, project=None) -> decimal.Decimal:
     """Cost on an invoice that a credit is eligible to be drawn against.
 
-    Net of paired volume discounts and floored per item, matching what the
-    compensation run will actually draw. Uncapped by the credit balance: this
-    reports the demand on the credit, not what it can afford to meet.
+    Net of what already lowers each item and floored per item, matching what
+    the compensation run will actually draw. Uncapped by the credit balance:
+    this reports the demand on the credit, not what it can afford to meet.
     """
-    chargeable_items, discount_by_item = creditable_items(invoice, credit, project)
+    chargeable_items, reduction_by_item = creditable_items(invoice, credit, project)
     return sum(
         (
             max(
-                item.price + discount_by_item.get(item.uuid.hex, decimal.Decimal(0)),
+                item.price + reduction_by_item.get(item.uuid.hex, decimal.Decimal(0)),
                 decimal.Decimal(0),
             )
             for item in chargeable_items
