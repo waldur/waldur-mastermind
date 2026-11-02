@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import json
 import logging
@@ -10,6 +11,7 @@ import time
 import traceback
 
 from celery import current_app
+from django.db import connection
 
 from waldur_core.configuration import config
 
@@ -191,6 +193,30 @@ class ScrubRequestLine(logging.Filter):
         return True
 
 
+def _close_lost_connection():
+    """Close this thread's database connection if the server has dropped it.
+
+    Django discards an unusable connection only when a request or a Celery task
+    starts or ends. A process that logs outside both, such as a Celery worker's
+    main process, otherwise keeps a lost connection for good: every later write
+    and settings lookup made through it fails, and each pool child forked from
+    that process inherits it.
+
+    Inside an atomic block the caller owns the connection, and closing it there
+    would break the caller's transaction, so it is left alone.
+
+    Returns whether it closed the connection.
+    """
+    # Called from a logging handler, which must not raise into the code that
+    # logged. Closing a lost connection does no network I/O.
+    with contextlib.suppress(Exception):
+        raw = connection.connection
+        if raw is not None and raw.closed and not connection.in_atomic_block:
+            connection.close()
+            return True
+    return False
+
+
 class DatabaseLogHandler(logging.Handler):
     """
     Custom logging handler that stores log records in PostgreSQL.
@@ -314,7 +340,8 @@ class DatabaseLogHandler(logging.Handler):
             try:
                 self._enabled = config.SYSTEM_LOG_ENABLED
             except Exception:
-                pass  # DB may not be ready during startup
+                # DB may not be ready during startup, or the connection is lost
+                _close_lost_connection()
             self._enabled_last_check = now
 
         if not self._enabled:
@@ -373,12 +400,33 @@ class DatabaseLogHandler(logging.Handler):
         return context
 
     def _write_to_db(self, records):
-        """Bulk insert records into the database. Called outside the buffer lock."""
+        """Bulk insert records into the database. Called outside the buffer lock.
+
+        A batch that failed on a lost connection is written once more on a new
+        one: those are the records from just before an outage, which are the
+        ones an operator looks for. If the server had committed it before the
+        connection dropped, it is stored twice, the lesser loss for a log. Any
+        other failure drops the batch. Nothing is logged here either way, to
+        avoid a logging loop.
+        """
+        used = connection.connection
         try:
-            model = self._get_model()
-            model.objects.bulk_create([model(**record) for record in records])
+            self._bulk_create(records)
         except Exception:
-            pass  # Avoid logging loop
+            # Django replaces a lost connection itself when the write was its
+            # own outermost transaction, as bulk_create makes a batch it splits
+            # into several inserts.
+            replaced = used is not None and connection.connection is not used
+            if not (_close_lost_connection() or replaced):
+                return
+            try:
+                self._bulk_create(records)
+            except Exception:
+                _close_lost_connection()
+
+    def _bulk_create(self, records):
+        model = self._get_model()
+        model.objects.bulk_create([model(**record) for record in records])
 
     def close(self):
         """Flush remaining records on shutdown."""

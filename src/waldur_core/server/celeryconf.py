@@ -4,6 +4,7 @@ import os
 
 from celery import Celery, signals
 from celery.signals import setup_logging
+from django.db import connections
 from django_structlog.celery.steps import DjangoStructLogInitStep
 
 from waldur_core.logging.middleware import (
@@ -67,6 +68,27 @@ def bind_event_context(sender=None, **kwargs):
 @signals.task_postrun.connect
 def unbind_event_context(sender=None, **kwargs):
     reset_event_context()
+
+
+@signals.worker_process_init.connect
+def forget_lost_database_connections(**kwargs):
+    """Let a new pool child forget the database connections it inherited lost.
+
+    A pool child starts with copies of the main process's connections, and
+    Celery's Django fixup closes their sockets in the child so that the main
+    process keeps its own. It takes the socket from ``fileno()``, which
+    psycopg 3 refuses with ``OperationalError`` once the server has dropped the
+    connection. The fixup lets that through: the error is logged, and the rest
+    of its cleanup is skipped in that child.
+
+    A lost connection has no socket left to close, so forgetting it is all the
+    child needs; its first query opens a new one. This receiver is connected
+    when this module is imported, before the fixup connects its own at worker
+    start, so it runs first.
+    """
+    for conn in connections.all(initialized_only=True):
+        if conn.connection is not None and conn.connection.closed:
+            conn.connection = None
 
 
 @setup_logging.connect

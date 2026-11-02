@@ -5,11 +5,15 @@ import sys
 from unittest import mock
 
 from ddt import data, ddt
+from django.db import DEFAULT_DB_ALIAS, OperationalError, connections, transaction
+from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.configuration.testing import override_config
-from waldur_core.logging.log import DatabaseLogHandler
+from waldur_core.core.tests.helpers import dropped_connection, lost_default_connection
+from waldur_core.logging.log import DatabaseLogHandler, _close_lost_connection
+from waldur_core.logging.models import SystemLog
 from waldur_core.logging.tests.factories import SystemLogFactory
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
@@ -177,7 +181,6 @@ class DatabaseLogHandlerScrubTest(test.APISimpleTestCase):
 class CleanupSystemLogsTaskTest(test.APITestCase):
     @override_config(SYSTEM_LOG_ENABLED=True, SYSTEM_LOG_MAX_ROWS_PER_SOURCE=5)
     def test_cleanup_deletes_oldest(self):
-        from waldur_core.logging.models import SystemLog
         from waldur_core.logging.tasks import cleanup_system_logs
 
         now = timezone.now()
@@ -219,8 +222,6 @@ class DatabaseLogHandlerTest(test.APITestCase):
 
     @override_config(SYSTEM_LOG_ENABLED=True)
     def test_records_from_a_worker_are_stored_as_such(self):
-        from waldur_core.logging.models import SystemLog
-
         handler = self.emit(["celery", "-A", "waldur_core.server", "worker"])
 
         log = SystemLog.objects.get()
@@ -231,16 +232,12 @@ class DatabaseLogHandlerTest(test.APITestCase):
 
     @override_config(SYSTEM_LOG_ENABLED=True)
     def test_records_from_beat_are_stored_as_such(self):
-        from waldur_core.logging.models import SystemLog
-
         self.emit(["celery", "-A", "waldur_core.server", "beat"])
 
         self.assertEqual(SystemLog.objects.get().source, "beat")
 
     @override_config(SYSTEM_LOG_ENABLED=False)
     def test_nothing_is_stored_while_the_feature_is_off(self):
-        from waldur_core.logging.models import SystemLog
-
         self.emit(["celery", "-A", "waldur_core.server", "worker"])
 
         self.assertFalse(SystemLog.objects.exists())
@@ -253,8 +250,6 @@ class DatabaseLogHandlerTest(test.APITestCase):
         and the test below each drive their own handler — one instance cannot
         stand in for both.
         """
-        from waldur_core.logging.models import SystemLog
-
         # buffer_size well above one record, so it is still buffered at "fork".
         handler = self.emit(["celery", "worker"], buffer_size=100)
         self.assertFalse(SystemLog.objects.exists())
@@ -268,11 +263,172 @@ class DatabaseLogHandlerTest(test.APITestCase):
 
     @override_config(SYSTEM_LOG_ENABLED=True)
     def test_the_parent_still_flushes_its_own_buffer(self):
-        from waldur_core.logging.models import SystemLog
-
         handler = self.emit(["celery", "worker"], buffer_size=100)
         self.assertFalse(SystemLog.objects.exists())
 
         handler.close()
 
         self.assertEqual(SystemLog.objects.count(), 1)
+
+
+class DatabaseLogHandlerLostConnectionTest(SimpleTestCase):
+    """A process that logs outside requests and tasks must not keep a lost connection.
+
+    Django replaces an unusable connection only when a request or a task starts
+    or ends, and the handler swallows its own failures. So a Celery worker's
+    main process whose connection the server had dropped lost every later
+    record silently, and handed the lost connection to each pool child it forked.
+
+    Not an APITestCase: that runs each test inside an atomic block, where the
+    handler leaves the connection to the transaction's owner.
+    """
+
+    databases = {DEFAULT_DB_ALIAS}
+    logger_name = "waldur_core.logging.tests.lost_connection"
+
+    def setUp(self):
+        self.addCleanup(
+            lambda: SystemLog.objects.filter(
+                logger_name__startswith=self.logger_name
+            ).delete()
+        )
+
+    def emit(self, handler, message, logger_name=None):
+        handler.emit(
+            logging.LogRecord(
+                name=logger_name or self.logger_name,
+                level=logging.INFO,
+                pathname=__file__,
+                lineno=1,
+                msg=message,
+                args=(),
+                exc_info=None,
+            )
+        )
+
+    def stored_messages(self):
+        return list(
+            SystemLog.objects.filter(logger_name=self.logger_name).values_list(
+                "message", flat=True
+            )
+        )
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_a_batch_that_hit_a_lost_connection_is_written_on_a_new_one(self):
+        handler = DatabaseLogHandler(buffer_size=1)
+        wrapper = connections[DEFAULT_DB_ALIAS]
+
+        with lost_default_connection() as lost:
+            self.emit(handler, "through the lost connection")
+
+            self.assertIsNot(wrapper.connection, lost)
+            self.assertFalse(wrapper.connection.closed)
+
+        messages = self.stored_messages()
+        self.assertEqual(len(messages), 1)
+        self.assertIn("through the lost connection", messages[0])
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_a_batch_that_finds_the_connection_dropped_is_written_on_a_new_one(self):
+        """The usual case: the write itself is the first to meet the dropped
+        connection, which psycopg still reported open."""
+        handler = DatabaseLogHandler(buffer_size=1)
+        wrapper = connections[DEFAULT_DB_ALIAS]
+
+        with lost_default_connection(noticed=False) as lost:
+            self.emit(handler, "first through the dropped connection")
+
+            self.assertTrue(lost.closed)
+            self.assertIsNot(wrapper.connection, lost)
+
+        messages = self.stored_messages()
+        self.assertEqual(len(messages), 1)
+        self.assertIn("first through the dropped connection", messages[0])
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_a_batch_is_written_after_django_replaced_the_lost_connection(self):
+        """bulk_create makes a batch it splits into several inserts one
+        transaction. When that fails on a lost connection, Django closes it and
+        opens a new one on its way out, so the handler finds a live connection."""
+        handler = DatabaseLogHandler(buffer_size=1)
+        wrapper = connections[DEFAULT_DB_ALIAS]
+        write = handler._bulk_create
+
+        def in_its_own_transaction(records):
+            with transaction.atomic(savepoint=False):
+                write(records)
+
+        with lost_default_connection(noticed=False) as lost:
+            with mock.patch.object(
+                handler, "_bulk_create", side_effect=in_its_own_transaction
+            ) as bulk_create:
+                self.emit(handler, "through the replaced connection")
+
+            self.assertIsNot(wrapper.connection, lost)
+
+        self.assertEqual(bulk_create.call_count, 2)
+        self.assertEqual(len(self.stored_messages()), 1)
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_a_retry_that_loses_its_connection_too_leaves_none_behind(self):
+        handler = DatabaseLogHandler(buffer_size=1)
+        wrapper = connections[DEFAULT_DB_ALIAS]
+        # The server drops the new connection as well, as while it restarts.
+        second = dropped_connection(noticed=False)
+        self.addCleanup(second.close)
+
+        with lost_default_connection():
+            with mock.patch.object(wrapper, "get_new_connection", return_value=second):
+                self.emit(handler, "while the database restarts")
+
+            self.assertTrue(second.closed)
+            self.assertIsNone(wrapper.connection)
+
+        self.assertEqual(self.stored_messages(), [])
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_a_batch_is_dropped_while_the_database_is_still_down(self):
+        handler = DatabaseLogHandler(buffer_size=1)
+        wrapper = connections[DEFAULT_DB_ALIAS]
+
+        with lost_default_connection():
+            with mock.patch.object(
+                wrapper,
+                "get_new_connection",
+                side_effect=OperationalError("the server is still down"),
+            ) as connect:
+                self.emit(handler, "during the outage")
+
+            self.assertEqual(connect.call_count, 1)
+            self.assertIsNone(wrapper.connection)
+
+        self.assertEqual(self.stored_messages(), [])
+
+    def test_a_lost_connection_in_a_transaction_is_left_to_its_owner(self):
+        wrapper = connections[DEFAULT_DB_ALIAS]
+        with lost_default_connection() as lost:
+            with mock.patch.object(wrapper, "in_atomic_block", True):
+                self.assertFalse(_close_lost_connection())
+
+            self.assertIs(wrapper.connection, lost)
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_a_live_connection_survives_a_failed_write(self):
+        handler = DatabaseLogHandler(buffer_size=1)
+        wrapper = connections[DEFAULT_DB_ALIAS]
+        wrapper.ensure_connection()
+        live = wrapper.connection
+
+        with mock.patch.object(
+            handler, "_bulk_create", wraps=handler._bulk_create
+        ) as bulk_create:
+            # Longer than the column, so the server rejects the insert.
+            self.emit(
+                handler, "rejected", logger_name=f"{self.logger_name}.{'x' * 255}"
+            )
+
+        self.assertEqual(bulk_create.call_count, 1, "a failed write was retried")
+        self.assertIs(wrapper.connection, live)
+        self.assertFalse(
+            SystemLog.objects.filter(logger_name__startswith=self.logger_name).exists()
+        )
