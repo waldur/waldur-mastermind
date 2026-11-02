@@ -227,9 +227,7 @@ class GlauthTreeResourceEndpointTest(test.APITestCase):
 
     def setUp(self):
         self.fixture = GlauthTreeFixture()
-        # The action is registered on ConsumerResourceViewSet but inherited by
-        # ProviderResourceViewSet; the offering side is the natural caller, so
-        # we test via the provider URL.
+        # The action exists only on the provider resource view.
         self.url = marketplace_factories.ResourceFactory.get_provider_resource_url(
             self.fixture.resource, "glauth_tree"
         )

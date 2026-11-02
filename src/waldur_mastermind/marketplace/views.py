@@ -285,6 +285,14 @@ ORDER_PROVIDER_SOURCES = [
     "offering.customer.serviceprovider",
 ]
 
+# Where an offering's provider-side settings may be administered from
+# (OFFERING_ADMIN_SOURCES, which can_see_secret_options reads), reached from
+# one of its resources.
+RESOURCE_OFFERING_ADMIN_SOURCES = [
+    "offering" if source == "*" else f"offering.{source}"
+    for source in utils.OFFERING_ADMIN_SOURCES
+]
+
 
 def readable_by_support(permission_function):
     """Let global support through a read gate otherwise held by scoped roles.
@@ -9632,6 +9640,20 @@ class BaseResourceViewSet(
         serializer = serializers.GlauthTreeSerializer(_strip_internal(tree))
         return Response(serializer.data)
 
+    # Both exports carry a hash of the offering's shared password, a secret
+    # option, and the project users' emails and SSH keys, and each call marks
+    # the offering's GLauth integration as active. So they take what reading
+    # the offering's secret options takes (can_see_secret_options): the
+    # integration permission on the offering, its organization or its
+    # ServiceProvider record. A check with sources resolves the resource
+    # before the action runs, so a refused call never reaches the stamping.
+    glauth_users_config_permissions = glauth_tree_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+            RESOURCE_OFFERING_ADMIN_SOURCES,
+        )
+    ]
+
     @extend_schema(
         summary="List offerings for sub-resources",
         description="Returns a list of offerings that can be provisioned as sub-resources of the current resource.",
@@ -9848,6 +9870,12 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     filter_backends = BaseResourceViewSet.filter_backends + (
         filters.ResourceAccessSubnetConcealmentFilterBackend,
     )
+    # The GLauth exports are the provider's: its agent and Homeport read the
+    # offering- and provider-level routes, and nothing calls these.
+    disabled_actions = BaseResourceViewSet.disabled_actions + [
+        "glauth_users_config",
+        "glauth_tree",
+    ]
 
     def get_queryset(self):
         queryset = self.queryset.filter_for_service_consumer(self.request.user)
