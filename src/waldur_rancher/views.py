@@ -567,7 +567,11 @@ class SyncDestroyMixin:
 
 
 class WorkloadViewSet(
-    OptionalReadonlyViewset, YamlMixin, SyncDestroyMixin, core_views.ActionsViewSet
+    OptionalReadonlyViewset,
+    YamlMixin,
+    SyncDestroyMixin,
+    structure_views.CreateRequiresProjectAdminMixin,
+    core_views.ActionsViewSet,
 ):
     queryset = models.Workload.objects.exclude(project__name="System")
     serializer_class = serializers.RancherWorkloadSerializer
@@ -602,6 +606,8 @@ class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceVie
     delete_executor = executors.HPADeleteExecutor
     get_yaml_method = "get_hpa_yaml"
     put_yaml_method = "put_hpa_yaml"
+    # The serializer copies the project from the workload in create().
+    create_scope_field = "workload"
     unsafe_methods_permissions = [
         is_administrator,
         utils.check_managed_cluster_permission,

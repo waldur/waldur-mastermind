@@ -1,5 +1,6 @@
 from unittest import mock
 
+from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
@@ -7,6 +8,7 @@ from waldur_core.structure.tests.factories import ProjectFactory, ServiceSetting
 from . import factories, fixtures
 
 
+@ddt
 class InstanceCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.AWSFixture()
@@ -21,6 +23,18 @@ class InstanceCreateTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         executor_mock.assert_called_once()
+
+    @data("member", "customer_support", "global_support")
+    @mock.patch("waldur_aws.executors.InstanceCreateExecutor.execute")
+    def test_who_only_sees_the_project_cannot_create_an_instance(
+        self, user, executor_mock
+    ):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        response = self.client.post(self.url, self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        executor_mock.assert_not_called()
 
     def _get_valid_payload(self):
         return {

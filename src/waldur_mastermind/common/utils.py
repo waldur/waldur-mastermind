@@ -11,6 +11,7 @@ from rest_framework.test import APIRequestFactory
 
 from waldur_core.core import models as core_models
 from waldur_core.core.authentication import refresh_token
+from waldur_core.core.utils import mark_internal_request
 from waldur_mastermind.common import mixins as common_mixins
 
 
@@ -51,6 +52,7 @@ def create_request(
     factory = APIRequestFactory()
     path = "/" if not query_params else "/" + "?" + urlencode(query_params)
     request = factory.post(path, data=json.dumps(post_data), **get_headers(user))
+    mark_internal_request(request)
     return view(request, **kwargs)
 
 

@@ -1162,3 +1162,22 @@ def get_constance_setting_type(key):
             return CONSTANCE_PYTHON_TYPE_NAMES.get(raw_type, raw_type.__name__)
         return raw_type
     return CONSTANCE_PYTHON_TYPE_NAMES.get(type(definition[0]), "string")
+
+
+# Set on a request that Waldur builds and dispatches to one of its own views,
+# for instance to carry out a marketplace order through the plugin's viewset.
+# The view can then tell work Waldur has already authorized from a call made
+# over HTTP. It is an attribute of the request object, which nothing a client
+# sends can set.
+_INTERNAL_REQUEST_ATTRIBUTE = "_waldur_internal_request"
+
+
+def mark_internal_request(request):
+    setattr(request, _INTERNAL_REQUEST_ATTRIBUTE, True)
+    return request
+
+
+def is_internal_request(request) -> bool:
+    # DRF wraps the Django request; the mark is on the wrapped one.
+    django_request = getattr(request, "_request", request)
+    return getattr(django_request, _INTERNAL_REQUEST_ATTRIBUTE, False) is True
