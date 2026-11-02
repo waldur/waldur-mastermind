@@ -105,6 +105,24 @@ class PollBackupSnapshotsDeletedTaskTest(TestCase):
         self.assertFalse(self.backup.snapshots.exists())
         self.assertEqual(self.tenant.get_quota_usage("snapshots"), 0)
 
+    def test_snapshot_never_created_is_removed_without_calling_cinder(self):
+        # Cinder refused to create it (quota full, say), so it has no backend
+        # ID; its quota usage was counted when the row was created.
+        snapshot = factories.SnapshotFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=None,
+            state=CoreStates.DELETING,
+        )
+        snapshot.increase_backend_quotas_usage()
+        self.backup.snapshots.add(snapshot)
+
+        self.task.execute(self.backup)
+
+        self.mocked_cinder.volume_snapshots.get.assert_not_called()
+        self.assertFalse(self.backup.snapshots.exists())
+        self.assertEqual(self.tenant.get_quota_usage("snapshots"), 0)
+
     def test_refused_snapshot_does_not_stop_polling_of_the_others(self):
         refused = self._add_snapshot("a", "available")
         self._add_snapshot("b", None)
