@@ -8856,6 +8856,19 @@ class OrderViewSet(
     update_attachment_validators = attachment_validators
     delete_attachment_validators = attachment_validators
 
+    # The attachment is the purchase order approve_by_consumer may require, so
+    # only those who may place the order change it: seeing the order is not
+    # enough (read-only roles and the provider side see it too).
+    attachment_permissions = [
+        permission_factory(
+            PermissionEnum.CREATE_ORDER,
+            ["project", "project.customer"],
+        )
+    ]
+
+    update_attachment_permissions = attachment_permissions
+    delete_attachment_permissions = attachment_permissions
+
     @extend_schema(
         summary="Set order backend ID",
         description="Allows a service provider or staff to set or update the backend ID associated with an order. This is useful for linking the order to an external system's identifier.",
