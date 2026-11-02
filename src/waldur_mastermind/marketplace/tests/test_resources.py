@@ -22,6 +22,10 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.permissions.tests.test_pat_list_filtering import (
+    _auth_header,
+    _create_pat,
+)
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.common import mixins as common_mixins
@@ -2181,6 +2185,167 @@ class ResourceReallocateLimitsTest(test.APITestCase):
             ).count(),
             2,
         )
+
+
+@override_config(PAT_ENABLED=True)
+class ResourceReallocateLimitsTokenTest(test.APITestCase):
+    """Targets come from the request body, so the checks on the action's object
+    do not cover them: a token's scopes and bindings apply to each one."""
+
+    def setUp(self):
+        plugins.manager.register(
+            offering_type="TEST_TYPE",
+            create_resource_processor=test_utils.TestCreateProcessor,
+            update_resource_processor=test_utils.TestUpdateScopedProcessor,
+            can_update_limits=True,
+        )
+        self.project = ProjectFactory()
+        self.customer = self.project.customer
+        self.other_project = ProjectFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(type="TEST_TYPE")
+        for component in ("vcpu", "ram"):
+            factories.OfferingComponentFactory(
+                offering=self.offering,
+                type=component,
+                billing_type=BillingTypes.LIMIT,
+            )
+        self.source = self.make_resource(self.project)
+        self.inside = self.make_resource(self.project)
+        self.outside = self.make_resource(self.other_project)
+        for role in (CustomerRole.OWNER, ProjectRole.MANAGER):
+            for permission in (
+                PermissionEnum.CREATE_ORDER,
+                PermissionEnum.LIST_RESOURCES,
+                PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            ):
+                role.add_permission(permission)
+        self.user = UserFactory(can_use_personal_access_tokens=True)
+        self.project.add_user(self.user, ProjectRole.MANAGER)
+        self.other_project.add_user(self.user, ProjectRole.MANAGER)
+
+    def make_resource(self, project):
+        return factories.ResourceFactory(
+            offering=self.offering,
+            project=project,
+            state=ResourceStates.OK,
+            limits={"vcpu": 10, "ram": 20},
+        )
+
+    def use_token(self, *bindings, user=None):
+        pat = _create_pat(
+            user or self.user,
+            scopes=[
+                PermissionEnum.CREATE_ORDER.value,
+                PermissionEnum.UPDATE_RESOURCE_LIMITS.value,
+            ],
+            bindings=bindings,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+
+    def post(self, *targets):
+        """Move 2 vCPU and 4 RAM from the source, split evenly between targets."""
+        share = {"vcpu": 2 // len(targets), "ram": 4 // len(targets)}
+        return self.client.post(
+            factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
+            {
+                "limits": {"vcpu": 2, "ram": 4},
+                "targets": [
+                    {"resource_uuid": target.uuid.hex, "allocated_limits": share}
+                    for target in targets
+                ],
+            },
+            format="json",
+        )
+
+    def reallocate(self, target, *bindings, user=None):
+        self.use_token(*bindings, user=user)
+        return self.post(target)
+
+    def assert_refused(self, response):
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("does not have permission", str(response.data))
+        self.assertFalse(models.Order.objects.exists())
+
+    def test_target_outside_the_binding_is_refused(self):
+        self.assert_refused(self.reallocate(self.outside, self.project))
+
+    def test_staff_token_is_held_to_its_binding(self):
+        staff = UserFactory(is_staff=True, can_use_personal_access_tokens=True)
+        self.assert_refused(self.reallocate(self.outside, self.project, user=staff))
+
+    def test_refused_token_learns_nothing_about_the_target(self):
+        other_offering = factories.OfferingFactory()
+        for field, value in (
+            ("state", ResourceStates.ERRED),
+            ("offering", other_offering),
+        ):
+            with self.subTest(field):
+                target = self.make_resource(self.other_project)
+                setattr(target, field, value)
+                target.save(update_fields=[field])
+                response = self.reallocate(target, self.project)
+                self.assert_refused(response)
+                self.assertNotIn(target.name, str(response.data))
+
+    def test_target_inside_the_binding_is_allowed(self):
+        response = self.reallocate(self.inside, self.project)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(models.Order.objects.filter(resource=self.inside).count(), 1)
+
+    def test_organization_binding_covers_both_projects(self):
+        response = self.reallocate(self.outside, self.customer)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(models.Order.objects.filter(resource=self.outside).count(), 1)
+
+    def test_unbound_token_needs_only_the_role(self):
+        response = self.reallocate(self.outside)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(models.Order.objects.filter(resource=self.outside).count(), 1)
+
+    def test_token_user_without_a_role_on_the_target_is_refused(self):
+        self.other_project.remove_user(self.user)
+        self.assert_refused(self.reallocate(self.outside))
+
+    def test_one_target_outside_the_binding_refuses_them_all(self):
+        self.use_token(self.project)
+        for targets in ((self.inside, self.outside), (self.outside, self.inside)):
+            with self.subTest(first=targets[0].name):
+                self.assert_refused(self.post(*targets))
+
+    def test_unbound_token_reallocates_to_every_target(self):
+        self.use_token()
+        response = self.post(self.inside, self.outside)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            set(models.Order.objects.values_list("resource_id", flat=True)),
+            {self.source.id, self.inside.id, self.outside.id},
+        )
+
+    def limits_only_user(self, *permissions):
+        """A user allowed to change the target's limits, and nothing else unless given."""
+        for permission in (
+            PermissionEnum.LIST_RESOURCES,
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            *permissions,
+        ):
+            ProjectRole.ADMIN.add_permission(permission)
+        user = UserFactory()
+        self.project.add_user(user, ProjectRole.MANAGER)
+        self.other_project.add_user(user, ProjectRole.ADMIN)
+        self.client.force_authenticate(user)
+
+    def test_target_where_the_user_may_not_order_is_refused(self):
+        self.limits_only_user()
+        response = self.post(self.outside)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("create orders for target resource", str(response.data))
+        self.assertFalse(models.Order.objects.exists())
+
+    def test_target_where_the_user_may_order_is_allowed(self):
+        self.limits_only_user(PermissionEnum.CREATE_ORDER)
+        response = self.post(self.outside)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(models.Order.objects.filter(resource=self.outside).count(), 1)
 
 
 class ResourceMoveTest(test.APITestCase):

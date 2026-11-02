@@ -8145,9 +8145,17 @@ def get_model_serializer(model: type):
         return None
 
 
-def validate_reallocation(source_resource, limits_to_reallocate, targets, user):
+# Where a reallocation target's permissions may be held: the sources the view's
+# own checks accept for the source resource.
+REALLOCATION_TARGET_SOURCES = ["project", "project.customer"]
+
+
+def validate_reallocation(source_resource, limits_to_reallocate, targets, request):
     """
     Validate reallocation of resource limits from source to target resources.
+
+    ``request`` rather than its user, so that a personal access token's scopes
+    and bindings apply to the targets as well.
     """
 
     if not limits_to_reallocate or not targets:
@@ -8176,6 +8184,7 @@ def validate_reallocation(source_resource, limits_to_reallocate, targets, user):
 
     target_resources = models.Resource.objects.filter(uuid__in=target_resource_uuids)
     for target_resource in target_resources:
+        validate_target_permissions(target_resource, request)
         if target_resource.offering != source_resource.offering:
             error_validation(
                 "Target resource %(name)s must be from the same offering as the source resource.",
@@ -8211,7 +8220,7 @@ def validate_reallocation(source_resource, limits_to_reallocate, targets, user):
                 uuid=target_uuid,
             )
         validate_target_allocation(
-            target_data, target_resource, source_limits, user, total_allocated
+            target_data, target_resource, source_limits, total_allocated
         )
 
     # Validate total allocated matches what's being reallocated
@@ -8282,8 +8291,39 @@ def validate_source_component(component, value, source_limits):
         )
 
 
+def validate_target_permissions(target_resource, request):
+    """Authorize changing a reallocation target, ahead of anything else about it.
+
+    Targets come from the request body rather than the action's object, so the
+    view's permission checks do not cover them. Each target gets its own order,
+    so order creation is authorized per target too. Refusals name the target by
+    the UUID the caller sent: its name is not theirs to learn.
+    """
+    if not permission_utils.has_permission_on_any_source(
+        request,
+        PermissionEnum.UPDATE_RESOURCE_LIMITS,
+        target_resource,
+        REALLOCATION_TARGET_SOURCES,
+    ):
+        error_validation(
+            "User does not have permission to update target resource %(uuid)s limits.",
+            uuid=target_resource.uuid.hex,
+        )
+
+    if not permission_utils.has_permission_on_any_source(
+        request,
+        PermissionEnum.CREATE_ORDER,
+        target_resource,
+        REALLOCATION_TARGET_SOURCES,
+    ):
+        error_validation(
+            "User does not have permission to create orders for target resource %(uuid)s.",
+            uuid=target_resource.uuid.hex,
+        )
+
+
 def validate_target_allocation(
-    target_data, target_resource, source_limits, user, total_allocated
+    target_data, target_resource, source_limits, total_allocated
 ):
     target_uuid = target_data["resource_uuid"]
     allocated_limits = target_data.get("allocated_limits", {})
@@ -8292,29 +8332,6 @@ def validate_target_allocation(
         error_validation(
             "Target resource %(uuid)s has no allocated limits specified.",
             uuid=target_uuid,
-        )
-
-    if not has_permission(
-        user, PermissionEnum.UPDATE_RESOURCE_LIMITS, target_resource.project
-    ) and not has_permission(
-        user, PermissionEnum.UPDATE_RESOURCE_LIMITS, target_resource.project.customer
-    ):
-        error_validation(
-            "User does not have permission to update target resource %(name)s limits.",
-            name=target_resource.name,
-        )
-
-    # Each target gets its own order, so order creation must be authorized per
-    # target as well. Targets come from the request body rather than the
-    # action's object, so the view's permission check does not cover them.
-    if not has_permission(
-        user, PermissionEnum.CREATE_ORDER, target_resource.project
-    ) and not has_permission(
-        user, PermissionEnum.CREATE_ORDER, target_resource.project.customer
-    ):
-        error_validation(
-            "User does not have permission to create orders for target resource %(name)s.",
-            name=target_resource.name,
         )
 
     target_limits = target_resource.limits or {}

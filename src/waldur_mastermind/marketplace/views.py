@@ -10225,7 +10225,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         targets = serializer.validated_data["targets"]
 
         utils.validate_reallocation(
-            source_resource, limits_to_reallocate, targets, request.user
+            source_resource, limits_to_reallocate, targets, request
         )
 
         source_new_limits = utils.calculate_new_limits(
