@@ -867,7 +867,7 @@
     {
       "uuid": "af200000000000000000000000000001",
       "name": "GPU VM - NVIDIA H100 (Passthrough)",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -916,7 +916,7 @@
     {
       "uuid": "af200000000000000000000000000002",
       "name": "GPU VM - NVIDIA L40S (Passthrough)",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -964,7 +964,7 @@
     {
       "uuid": "af200000000000000000000000000003",
       "name": "GPU VM - NVIDIA A100 (Passthrough)",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1024,7 +1024,7 @@
     {
       "uuid": "af200000000000000000000000000004",
       "name": "Shared GPU - vGPU (Development)",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1071,7 +1071,7 @@
     {
       "uuid": "af200000000000000000000000000005",
       "name": "Shared GPU - MIG Partition (H100)",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1120,7 +1120,7 @@
     {
       "uuid": "af200000000000000000000000000010",
       "name": "LLM Inference - Llama 3.1",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1181,7 +1181,7 @@
     {
       "uuid": "af200000000000000000000000000011",
       "name": "LLM Inference - Mistral",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1242,7 +1242,7 @@
     {
       "uuid": "af200000000000000000000000000012",
       "name": "LLM Inference - Qwen 2.5",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1305,7 +1305,7 @@
     {
       "uuid": "af200000000000000000000000000013",
       "name": "LLM Inference - Custom Model",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1375,7 +1375,7 @@
     {
       "uuid": "af200000000000000000000000000020",
       "name": "AI-Ready Kubernetes Cluster",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1453,7 +1453,7 @@
     {
       "uuid": "af200000000000000000000000000021",
       "name": "NVIDIA Dynamo Inference Platform",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -1509,7 +1509,7 @@
     {
       "uuid": "af200000000000000000000000000030",
       "name": "AI Model Storage",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
@@ -2661,7 +2661,7 @@
     {
       "uuid": "af200000000000000000000000000090",
       "name": "OpenNebula VDC",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,

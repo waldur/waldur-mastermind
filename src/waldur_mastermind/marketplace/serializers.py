@@ -120,6 +120,7 @@ from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_reso
 from waldur_mastermind.marketplace import offering_merge_coverage
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
+    LEGACY_SITE_AGENT_OFFERING,
     MAX_LIMIT_DECIMAL_PLACES,
     OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
@@ -150,6 +151,7 @@ from waldur_mastermind.marketplace.enums import (
     SpendingLimitPeriods,
     SwitchBillingModes,
     UsageLimitAction,
+    normalize_offering_type,
 )
 from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.plugins import manager
@@ -6076,6 +6078,8 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             )
 
     def validate_type(self, offering_type):
+        # Store the canonical name even when a legacy alias is submitted.
+        offering_type = normalize_offering_type(offering_type)
         # Validate against registered and enabled offering types
         if offering_type not in plugins.manager.get_offering_types():
             raise rf_exceptions.ValidationError(_("Invalid value."))
@@ -6324,16 +6328,23 @@ class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
 
 
 class OfferingTypeUpdateSerializer(serializers.ModelSerializer):
-    type = serializers.ChoiceField(choices=sorted(SWAPPABLE_OFFERING_TYPES))
+    # The legacy site-agent name is accepted and stored as the canonical one.
+    type = serializers.ChoiceField(
+        choices=sorted(SWAPPABLE_OFFERING_TYPES | {LEGACY_SITE_AGENT_OFFERING})
+    )
 
     class Meta:
         model = models.Offering
         fields = ("type",)
 
+    def validate_type(self, offering_type):
+        return normalize_offering_type(offering_type)
+
     def validate(self, attrs):
         if (
             self.instance is not None
-            and self.instance.type not in SWAPPABLE_OFFERING_TYPES
+            and normalize_offering_type(self.instance.type)
+            not in SWAPPABLE_OFFERING_TYPES
         ):
             raise serializers.ValidationError(
                 _(

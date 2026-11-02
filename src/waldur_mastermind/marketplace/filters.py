@@ -14,6 +14,7 @@ from django.db.models import (
 )
 from django.utils.translation import gettext_lazy as _
 from django_filters import DateFromToRangeFilter
+from django_filters.constants import EMPTY_VALUES
 from django_filters.widgets import BooleanWidget
 from drf_spectacular.plumbing import build_parameter_type
 from drf_spectacular.utils import OpenApiParameter
@@ -61,6 +62,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
+    expand_offering_types,
 )
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
@@ -72,6 +74,29 @@ from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
 from . import models, utils
+
+
+class OfferingTypeMultipleChoiceFilter(LooseMultipleChoiceFilter):
+    """Offering type filter that matches every name of the requested types.
+
+    ``?type=Marketplace.Slurm`` keeps returning site-agent offerings after the
+    type was renamed, instead of an empty list.
+    """
+
+    def filter(self, qs, value):
+        if value:
+            value = expand_offering_types(value)
+        return super().filter(qs, value)
+
+
+class OfferingTypeCharFilter(django_filters.CharFilter):
+    """Single-value offering type filter that also matches legacy names."""
+
+    def filter(self, qs, value):
+        if value in EMPTY_VALUES:
+            return qs
+        types = expand_offering_types([value])
+        return self.get_method(qs)(**{f"{self.field_name}__in": types})
 
 
 class ServiceProviderFilter(
@@ -288,7 +313,7 @@ class OfferingFilter(
             "state",
         )
     )
-    type = LooseMultipleChoiceFilter(label="Offering type")
+    type = OfferingTypeMultipleChoiceFilter(label="Offering type")
 
     def filter_allowed_customer(self, queryset, name, value):
         return queryset.filter_for_customer(value)
@@ -1340,7 +1365,7 @@ class OrderFilter(
         field_name="offering__uuid",
         label="Offering UUID",
     )
-    offering_type = core_filters.LooseMultipleChoiceFilter(
+    offering_type = OfferingTypeMultipleChoiceFilter(
         field_name="offering__type", lookup_expr="exact", label="Offering type"
     )
     category_uuid = core_filters.RelatedUUIDFilter(
@@ -1484,7 +1509,7 @@ class ResourceFilter(
         label="Search by resource UUID, name, slug, backend ID, effective ID, IPs or hypervisor",
     )
 
-    offering_type = django_filters.CharFilter(
+    offering_type = OfferingTypeCharFilter(
         field_name="offering__type", label="Offering type"
     )
     offering_billable = django_filters.BooleanFilter(
@@ -2045,7 +2070,7 @@ class ComponentUsageMonthlyFilter(django_filters.FilterSet):
         view_name="project-detail",
         field_name="component__offering__project__uuid",
     )
-    offering_type = django_filters.CharFilter(field_name="component__offering__type")
+    offering_type = OfferingTypeCharFilter(field_name="component__offering__type")
 
     class Meta:
         model = models.ComponentUsageMonthly

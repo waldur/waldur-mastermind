@@ -244,7 +244,7 @@ class RestoreCallbacksTest(test.APITestCase):
 class LimitUpdateTriggersPolicyReevaluationTest(test.APITestCase):
     def setUp(self):
         self.offering = factories.OfferingFactory(
-            type="Marketplace.Slurm",
+            type="Marketplace.SiteAgent",
             plugin_options={"supports_downscaling": True, "supports_pausing": True},
         )
         self.component = factories.OfferingComponentFactory(

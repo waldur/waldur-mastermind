@@ -483,7 +483,7 @@ A storage offering with comprehensive configuration:
 ```json
 {
   "name": "HPC Storage",
-  "type": "Marketplace.Slurm",
+  "type": "Marketplace.SiteAgent",
   "options": {
     "order": ["storage_data_type", "hard_quota_space"],
     "options": {

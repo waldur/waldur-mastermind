@@ -441,7 +441,7 @@
     {
       "uuid": "f1000000000000000000000000000005",
       "name": "Secure Government HPC",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,

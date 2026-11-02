@@ -1,11 +1,13 @@
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import utils as db_utils
 
 from waldur_core.configuration import config
+from waldur_mastermind.marketplace.enums import normalize_offering_type
 
 
 @dataclass
@@ -35,9 +37,36 @@ class Component:
 logger = logging.getLogger(__name__)
 
 
+class _AliasedBackends(dict):
+    """Plugin registry that resolves legacy offering type names on lookup.
+
+    Rows written before a type was renamed (or by raw SQL and ``bulk_create``,
+    which skip input normalization) still reach the right processors.
+    Iteration only yields the canonical names.
+    """
+
+    def __getitem__(self, key):
+        return super().__getitem__(normalize_offering_type(key))
+
+    def __contains__(self, key):
+        return super().__contains__(normalize_offering_type(key))
+
+    def get(self, key, default: Any = None) -> Any:
+        return super().get(normalize_offering_type(key), default)
+
+
 class PluginManager:
     def __init__(self):
         self.backends = {}
+
+    @property
+    def backends(self):
+        return self._backends
+
+    @backends.setter
+    def backends(self, value):
+        # Tests swap the registry for a plain dict copy; keep the aliases.
+        self._backends = _AliasedBackends(value)
 
     def register(
         self,
@@ -104,6 +133,7 @@ class PluginManager:
             disabled = set(default[0] if default else [])
         if not disabled:
             return all_types
+        disabled = {normalize_offering_type(t) for t in disabled}
         return [t for t in all_types if t not in disabled]
 
     def get_service_type(self, offering_type):

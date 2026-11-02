@@ -25,7 +25,7 @@ class BaseOrderSetStateTest(test.APITestCase):
         self.manager = self.fixture.manager
 
         self.offering = self.fixture.offering
-        self.offering.type = "Marketplace.Slurm"
+        self.offering.type = "Marketplace.SiteAgent"
         self.offering.save()
 
         self.order = self.fixture.order
@@ -103,7 +103,7 @@ class OrderSetStateDoneOptionsUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = "Marketplace.Slurm"
+        self.offering.type = "Marketplace.SiteAgent"
         self.offering.save()
 
         self.resource = self.fixture.resource

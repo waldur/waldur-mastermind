@@ -1634,7 +1634,7 @@
     {
       "uuid": "f4000000000000000000000000000005",
       "name": "SLURM HPC Allocation",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,

@@ -76,7 +76,7 @@ class MonthlyPeriodResetTest(TestCase):
 
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = "Marketplace.Slurm"
+        self.offering.type = "Marketplace.SiteAgent"
         self.offering.save()
 
         self.component = marketplace_factories.OfferingComponentFactory(
@@ -275,7 +275,7 @@ class MonthlyPeriodBoundaryTaskTest(TestCase):
 
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = "Marketplace.Slurm"
+        self.offering.type = "Marketplace.SiteAgent"
         self.offering.save()
 
         self.component = marketplace_factories.OfferingComponentFactory(
@@ -380,7 +380,7 @@ class ResetSlurmPoliciesOnPeriodBoundaryTaskTest(TestCase):
 
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = "Marketplace.Slurm"
+        self.offering.type = "Marketplace.SiteAgent"
         self.offering.save()
 
         self.component = marketplace_factories.OfferingComponentFactory(
@@ -507,7 +507,7 @@ class ForcePeriodResetAPITest(test.APITestCase):
 
         self.customer = structure_factories.CustomerFactory()
         self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
-        self.offering.type = "Marketplace.Slurm"
+        self.offering.type = "Marketplace.SiteAgent"
         self.offering.save()
 
         self.component = marketplace_factories.OfferingComponentFactory(
@@ -640,7 +640,7 @@ class CarryoverAndGraceTest(TestCase):
 
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = "Marketplace.Slurm"
+        self.offering.type = "Marketplace.SiteAgent"
         self.offering.save()
 
         self.component = marketplace_factories.OfferingComponentFactory(

@@ -631,7 +631,7 @@ class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
         self.customer = structure_factories.CustomerFactory()
         self.project = structure_factories.ProjectFactory(customer=self.customer)
         self.offering = marketplace_factories.OfferingFactory(
-            customer=self.customer, type="Marketplace.Slurm"
+            customer=self.customer, type="Marketplace.SiteAgent"
         )
         self.component = marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
@@ -868,7 +868,7 @@ class SlurmPeriodicUsagePolicyTotalPeriodCalculationTest(test.APITestCase):
         self.customer = structure_factories.CustomerFactory()
         self.project = structure_factories.ProjectFactory(customer=self.customer)
         self.offering = marketplace_factories.OfferingFactory(
-            customer=self.customer, type="Marketplace.Slurm"
+            customer=self.customer, type="Marketplace.SiteAgent"
         )
         self.component = marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,

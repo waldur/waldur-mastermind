@@ -18,6 +18,7 @@ from waldur_mastermind.chat.tools.marketplace.helpers import (
     serialize_offering_minimal,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.marketplace.enums import expand_offering_types
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ class SearchOfferingsTool(BaseTool):
                     },
                     "type": {
                         "type": "string",
-                        "description": "Optional offering type (e.g. 'Marketplace.Slurm', 'OpenStack.Tenant').",
+                        "description": "Optional offering type (e.g. 'Marketplace.SiteAgent', 'OpenStack.Tenant').",
                     },
                     "limit": {
                         "type": "integer",
@@ -118,7 +119,7 @@ class SearchOfferingsTool(BaseTool):
                 "   'I need GPU for climate modeling' → keyword='GPU'\n"
                 "   'Looking for large storage'       → keyword='storage'\n"
                 "2. Map service-shape hints to `type`:\n"
-                "   'HPC / batch / supercomputer'  → 'Marketplace.Slurm'\n"
+                "   'HPC / batch / supercomputer'  → 'Marketplace.SiteAgent'\n"
                 "   'VM / cloud server / instance' → 'OpenStack.Tenant'\n"
                 "   'consulting / help / training' → 'Marketplace.Basic'\n"
                 "3. Empty results → try ONE broader keyword "
@@ -156,7 +157,7 @@ class SearchOfferingsTool(BaseTool):
         elif category_name:
             qs = qs.filter(category__title=category_name)
         if offering_type:
-            qs = qs.filter(type=offering_type)
+            qs = qs.filter(type__in=expand_offering_types([offering_type]))
 
         qs = qs.select_related("category", "customer").prefetch_related("plans")
         total_count = qs.count()

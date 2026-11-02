@@ -60,6 +60,7 @@ from waldur_mastermind.marketplace import log as marketplace_log
 from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
 from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
@@ -1526,8 +1527,8 @@ def terminate_resources_if_project_end_date_has_been_reached():
     name="waldur_mastermind.marketplace.terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order"
 )
 def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order():
-    """Clean up erred Slurm resources that failed both creation and termination."""
-    termination_offerings_types = ["Marketplace.Slurm"]
+    """Clean up erred site-agent resources that failed both creation and termination."""
+    termination_offerings_types = [SITE_AGENT_OFFERING]
     resources = models.Resource.objects.filter(
         state=ResourceStates.ERRED,
         backend_id="",

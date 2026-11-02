@@ -164,7 +164,7 @@
     {
       "uuid": "f3000000000000000000000000000a01",
       "name": "E2E GLAuth Directory",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,

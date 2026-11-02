@@ -795,7 +795,7 @@
     {
       "uuid": "f30000000000000000000000000000a0",
       "name": "New Offering?",
-      "type": "Marketplace.Slurm",
+      "type": "Marketplace.SiteAgent",
       "state": 2,
       "shared": true,
       "billable": true,
