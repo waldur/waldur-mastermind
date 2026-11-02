@@ -116,12 +116,17 @@ class PollBackupSnapshotsDeletedTaskTest(TestCase):
         )
         snapshot.increase_backend_quotas_usage()
         self.backup.snapshots.add(snapshot)
+        # Usage reads are clamped at zero, so a second release only shows
+        # while another snapshot's usage is counted.
+        factories.SnapshotFactory(
+            tenant=self.tenant, project=self.fixture.project
+        ).increase_backend_quotas_usage()
 
         self.task.execute(self.backup)
 
         self.mocked_cinder.volume_snapshots.get.assert_not_called()
         self.assertFalse(self.backup.snapshots.exists())
-        self.assertEqual(self.tenant.get_quota_usage("snapshots"), 0)
+        self.assertEqual(self.tenant.get_quota_usage("snapshots"), 1)
 
     def test_refused_snapshot_does_not_stop_polling_of_the_others(self):
         refused = self._add_snapshot("a", "available")
