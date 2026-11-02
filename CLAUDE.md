@@ -118,9 +118,11 @@ list_permissions = [permission_factory(PermissionEnum.VIEW_RESOURCE)]
 **Every route must declare who may call it.** `AccessCoverageTest` lists the
 routes with no described check, permission class or `access_declarations` entry
 (run with `-m access_coverage`; its CI job is allowed to fail until the list is
-empty). Do not add a new route to that list. Checks made in a serializer or
-action body are declared in `access_declarations`, never by adding to
-`<action>_permissions` (which replaces the view-level checks).
+empty). Do not add a new route to that list; an app with a
+`test_access_declarations.py` fails the unit suite if it does. Move a check on the object out of the action body
+into `<action>_permissions` as a described check (`@access.describes`); declare
+a check that needs the validated request in `access_declarations`, never by
+adding to `<action>_permissions` (which replaces the view-level checks).
 
 See `docs/guides/waldur-permissions.md` for details.
 

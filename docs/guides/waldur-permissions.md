@@ -459,8 +459,37 @@ A route declares access by any of:
 - **`GenericRoleFilter`** in `filter_backends` declares that `list` and
   `retrieve` show only what the caller's roles reach (`x-visibility: role`).
   A subclass that shows more says so with its own `access_visibility`, as the
-  support issue and comment filters do (`role_caller_or_helpdesk`). Other read
-  actions on the same view declare their own access.
+  support issue and comment filters do (`role_caller_or_helpdesk`). A filter
+  backend that narrows by a rule of its own sets
+  `access_visibility = access.CUSTOM_VISIBILITY`, and the first paragraph of
+  its docstring says what it shows (`x-visibility: custom` with
+  `x-visibility-description`); without a docstring the route counts as
+  undescribed. Other read actions on the same view declare their own access.
+
+### How to declare an app's routes
+
+Prefer a check that both enforces a rule and describes it over a declaration
+next to a check made elsewhere: one statement of the rule cannot drift apart
+from itself.
+
+- A check made in an action body against the object (`get_object()` followed
+  by a test) moves into `<action>_permissions` as a check function decorated
+  with `@access.describes(..., needs_object=True)`, or as a shared check such
+  as `structure_permissions.is_staff`. It then runs while the object is looked
+  up, before the request data is validated.
+- A check that needs the validated request (the scope named in a create
+  request, say) stays where it is, and the view declares it in
+  `access_declarations`. Keep the description next to the function that makes
+  the check, so that both change together; `waldur_core.users.utils` does this
+  for `can_manage_invitation_with`.
+- A route open on purpose declares `access.public()` or `access.authenticated()`.
+
+Once every route of an app says who may call it, give the app a
+`tests/test_access_declarations.py` that calls `assert_app_routes_declared`
+(from `test_access_coverage.py`) with the app's name as the report gives it, as
+`waldur_core/users` does. The unit suite then fails if one of its routes stops
+saying so, while the report job is still allowed to fail. The test lives with
+the app because CI selects tests by the app a change touches.
 
 ## Permission System Behavior
 

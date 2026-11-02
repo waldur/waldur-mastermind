@@ -12,6 +12,7 @@ from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import serializers
 
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates
@@ -108,6 +109,14 @@ def get_invitation_token(invitation, user):
     signer = TimestampSigner()
     payload = f"{user.uuid.hex}.{invitation.uuid.hex}"
     return signer.sign(payload)
+
+
+# Who may approve or reject a requested invitation with a token that
+# parse_invitation_token accepts, for the API schema.
+SIGNED_APPROVAL_LINK = access.custom(
+    "Anyone with the signed link emailed to staff for an invitation awaiting "
+    "approval, while the staff user it names is active staff; no sign-in."
+)
 
 
 def parse_invitation_token(token):
@@ -254,6 +263,18 @@ def register_invitation_scope_overseer(predicate) -> None:
     _invitation_scope_overseers.append(predicate)
 
 
+# What can_manage_invitation_with lets through, for the API schema. Change the
+# two together.
+MANAGES_INVITATION_SCOPE = access.custom(
+    "Staff, or a caller who may grant roles in the invitation's scope: who holds "
+    "the scope's create permission (such as PROJECT.CREATE_PERMISSION) on the "
+    "scope, its project, its organization or site-wide, or for a call on the "
+    "call's managing organization; who holds CUSTOMER.CREATE_PERMISSION on its "
+    "organization; or who oversees the scope, as a call's managers oversee its "
+    "proposals. Nobody may for a deleted project."
+)
+
+
 def can_manage_invitation_with(request, scope, role_index=None):
     """Whether the user may manage an invitation whose scope is ``scope``.
 
@@ -311,6 +332,15 @@ def can_manage_invitation_with(request, scope, role_index=None):
             return True
 
     return False
+
+
+# What can_manage_permission_request lets through, for the API schema. Change
+# the two together.
+MANAGES_PERMISSION_REQUEST = access.custom(
+    "Staff, or a caller who may grant roles in the scope of the request's "
+    "invitation. For an invitation that creates a project, instead staff or "
+    "PROJECT.CREATE_PERMISSION on its organization."
+)
 
 
 def can_manage_permission_request(request, invitation, role_index=None):

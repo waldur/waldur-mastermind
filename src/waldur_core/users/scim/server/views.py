@@ -35,6 +35,7 @@ from scim2_models import (
     Schema as ScimSchema,
 )
 
+from waldur_core.core import access
 from waldur_core.users.scim.server.auth import ScimFeatureEnabled
 from waldur_core.users.scim.server.exceptions import ScimError
 from waldur_core.users.scim.server.pagination import MAX_PAGE_SIZE
@@ -61,6 +62,7 @@ class _ScimDiscoveryView(_ScimBaseView):
 
     authentication_classes: list = []
     permission_classes = [ScimFeatureEnabled]
+    access_declarations = {"get": [access.public()]}
 
 
 @extend_schema(exclude=True)
@@ -156,6 +158,11 @@ class SchemaDetailView(SchemasView):
 class ScimNotFoundView(_ScimDiscoveryView):
     """Catch-all for unknown paths under /scim/v2/ — emits a SCIM-shaped 404
     instead of the site-wide HTML error page (RFC 7644 §3.12)."""
+
+    access_declarations = {
+        method: [access.public()]
+        for method in ("get", "post", "put", "patch", "delete")
+    }
 
     def _not_found(self, request, *args, **kwargs):
         raise ScimError(404, f"Unknown SCIM endpoint {request.path!r}.")

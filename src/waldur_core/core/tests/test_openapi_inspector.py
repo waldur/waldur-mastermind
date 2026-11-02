@@ -6,8 +6,11 @@ from django.apps import apps
 from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse
 from rest_framework import serializers, status, viewsets
+from rest_framework.filters import BaseFilterBackend
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.serializers import ListSerializer
 
+from waldur_core.core import access
 from waldur_core.core import signals as core_signals
 from waldur_core.core.openapi_inspector import WaldurOpenApiInspector
 from waldur_core.core.permissions import ActionsPermission
@@ -76,6 +79,31 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(operation["x-permissions"], [{"kind": "undeclared"}])
+
+    def test_get_operation_with_custom_visibility(self):
+        """A list narrowed by a filter with a rule of its own says what it shows."""
+
+        class OwnObjectsFilter(BaseFilterBackend):
+            """Objects the caller created."""
+
+            access_visibility = access.CUSTOM_VISIBILITY
+
+        self.view.action = "list"
+        self.view.get_permissions.return_value = [IsAuthenticated()]
+        self.view.filter_backends = (OwnObjectsFilter,)
+        inspector = WaldurOpenApiInspector()
+        inspector.view = self.view
+
+        with patch.object(AutoSchema, "get_operation", return_value={}):
+            operation = inspector.get_operation(
+                "/api/dummies/", r"^/api/dummies/$", "/api/", "GET", MagicMock()
+            )
+
+        self.assertEqual(operation["x-permissions"], [{"kind": "authenticated"}])
+        self.assertEqual(operation["x-visibility"], "custom")
+        self.assertEqual(
+            operation["x-visibility-description"], "Objects the caller created."
+        )
 
     def _head_operation(
         self, *, detail, action="list", count_enabled=False, count_disabled=False
