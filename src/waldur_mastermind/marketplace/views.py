@@ -8974,9 +8974,9 @@ class BaseResourceViewSet(
 
     @extend_schema(
         summary="Unlink a resource (staff only)",
-        description="Forcefully deletes a marketplace resource and its related plugin resource from the database. This action does not schedule operations on the backend and is intended for cleaning up resources stuck in transitioning states. Requires staff permissions.",
+        description="Schedules forced deletion of a marketplace resource and its related plugin resource from the database. This action does not schedule operations on the backend and is intended for cleaning up resources stuck in transitioning states. The resource keeps its state until the deletion finishes. If the deletion fails, it is rolled back and the resource is left in the Erred state with the error recorded. Requires staff permissions.",
         request=None,
-        responses={204: None, 403: None},
+        responses={202: None, 403: None},
     )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
@@ -8986,25 +8986,12 @@ class BaseResourceViewSet(
         for removing resource stuck in transitioning state.
         """
         resource: models.Resource = self.get_object()
-        event_logger.emit(
-            "Resource {resource_name} has been unlinked.",
-            event_type=EventType.MARKETPLACE_RESOURCE_UNLINKED,
-            event_context={"resource": resource},
-            scopes=log.get_resource_scopes(resource),
-        )
         logger.info("Starting unlink for resource %s", resource.uuid)
-        try:
-            if resource.scope:
-                resource.scope.delete()
-            resource.delete()
-            logger.debug("Resource %s has been unlinked", resource.uuid)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-            logger.error(
-                "Error during resource unlink. Error %s",
-                resource,
-                str(e),
-            )
+        # Deletion cascades through quota ledgers and can outlast the request timeout.
+        # The task records the audit event, and holds the row lock while it deletes.
+        resource_uuid = resource.uuid.hex
+        transaction.on_commit(lambda: tasks.unlink_resource.delay(resource_uuid))
+        return Response(status=status.HTTP_202_ACCEPTED)
 
     unlink_permissions = [structure_permissions.is_staff]
 
