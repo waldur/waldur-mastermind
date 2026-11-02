@@ -596,6 +596,11 @@ def _cost_policy_classes():
     )
 
 
+def _targeting(policy):
+    """What a policy acts on and with which actions."""
+    return policy.scope_id, getattr(policy, "resource_id", None), policy.actions
+
+
 def _resources_locked_by_other_policies(policy, field_name):
     """Resource ids that another still-firing policy wants kept at
     ``field_name=True``.
@@ -607,6 +612,10 @@ def _resources_locked_by_other_policies(policy, field_name):
     action; ``has_fired`` is authoritative because a still-triggered policy
     keeps it set, and any stale value self-heals on that policy's next
     evaluation.
+
+    The policy itself counts when ``policy`` is an earlier version of it: an
+    edit resets what that version did (#940), and the saved version still
+    wants the flag on whatever its own scope covers.
     """
     request_action = _FIELD_TO_REQUEST_ACTION.get(field_name)
     if not request_action:
@@ -617,7 +626,10 @@ def _resources_locked_by_other_policies(policy, field_name):
     for klass in _cost_policy_classes():
         others = klass.objects.filter(has_fired=True, actions__contains=request_action)
         if isinstance(policy, klass):
-            others = others.exclude(pk=policy.pk)
+            saved = others.filter(pk=policy.pk).first()
+            others = list(others.exclude(pk=policy.pk))
+            if saved is not None and _targeting(saved) != _targeting(policy):
+                others.append(saved)
         for other in others:
             scoped = _filter_resources_by_scope(base, other)
             if scoped is not None:
