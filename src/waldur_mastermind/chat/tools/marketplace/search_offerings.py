@@ -4,6 +4,11 @@ import logging
 
 from django.db.models import Q
 
+from waldur_mastermind.chat.tools.account.helpers import (
+    invalid_uuid_message,
+    text_arguments,
+    validate_uuid,
+)
 from waldur_mastermind.chat.tools.base import (
     MAX_LIST_RESULTS,
     BaseTool,
@@ -11,11 +16,20 @@ from waldur_mastermind.chat.tools.base import (
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
+    OFFERING_MINIMAL_SCHEMA,
     cap_text,
     is_anonymous_caller_blocked,
     offering_homeport_url,
     offerings_queryset_for,
     serialize_offering_minimal,
+)
+from waldur_mastermind.chat.tools.output_schemas import (
+    INTEGER,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import expand_offering_types
@@ -42,6 +56,18 @@ def _keyword_query(keyword: str) -> Q:
         | Q(components__type__icontains=keyword)
         | Q(plans__name__icontains=keyword)
     )
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "offerings": array(OFFERING_MINIMAL_SCHEMA),
+        "total": INTEGER,
+        **TRUNCATION,
+        "keyword": STRING,
+        "category_uuid": nullable(STRING),
+        "offering_type": nullable(STRING),
+    }
+)
 
 
 class SearchOfferingsTool(BaseTool):
@@ -109,6 +135,9 @@ class SearchOfferingsTool(BaseTool):
                 },
                 "required": ["keyword"],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use to discover marketplace services from a natural-"
                 "language need.\n"
@@ -140,10 +169,20 @@ class SearchOfferingsTool(BaseTool):
                 "summary": "Marketplace browsing is currently disabled.",
             }
 
-        keyword = arguments.get("keyword", "").strip()
-        category_uuid = arguments.get("category_uuid")
-        category_name = arguments.get("category_name")
-        offering_type = arguments.get("type")
+        args, error = text_arguments(
+            arguments, "keyword", "category_uuid", "category_name", "type"
+        )
+        if error:
+            return {"type": "validation_error", "summary": error}
+        keyword = args["keyword"]
+        category_uuid = args["category_uuid"] or None
+        category_name = args["category_name"]
+        offering_type = args["type"] or None
+        if category_uuid and not validate_uuid(category_uuid):
+            return {
+                "type": "validation_error",
+                "summary": invalid_uuid_message("category_uuid", category_uuid),
+            }
         # The LLM may pass any limit; we hard-cap it to MAX_LIST_RESULTS so a
         # vague query that matches 50+ offerings doesn't dump them all into the
         # response.

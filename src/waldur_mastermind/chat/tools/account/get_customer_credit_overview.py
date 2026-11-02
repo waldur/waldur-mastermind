@@ -27,6 +27,15 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    BOOLEAN,
+    INTEGER,
+    REF,
+    STRING,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.invoices.models import (
     CustomerCredit,
@@ -35,6 +44,38 @@ from waldur_mastermind.invoices.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+CUSTOMER_CREDIT = obj(
+    {
+        "value": STRING,
+        "expected_consumption": STRING,
+        "end_date": nullable(STRING),
+        "allocated_to_projects": STRING,
+    }
+)
+
+OUTPUT_SCHEMA = obj(
+    {
+        "customer": REF,
+        "customer_credit": nullable(CUSTOMER_CREDIT),
+        "projects": array(
+            obj(
+                {
+                    "project_name": STRING,
+                    "project_uuid": STRING,
+                    "credit_value": STRING,
+                    "spent_to_date": STRING,
+                    "balance_remaining": STRING,
+                    "is_overdrawn": BOOLEAN,
+                }
+            )
+        ),
+        "overdrawn_count": INTEGER,
+        "_total_project_count": INTEGER,
+        "_truncated": BOOLEAN,
+    }
+)
 
 
 class GetCustomerCreditOverviewTool(BaseTool):
@@ -74,6 +115,9 @@ class GetCustomerCreditOverviewTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Prefer this over repeated explain_project_credit_balance "
                 "calls when the user asks about an ORGANIZATION's overall "

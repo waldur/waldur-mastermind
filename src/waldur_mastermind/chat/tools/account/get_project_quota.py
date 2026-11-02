@@ -12,9 +12,24 @@ from waldur_mastermind.chat.tools.account.helpers import (
 )
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    INTEGER,
+    REF,
+    STRING,
+    array,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "project": REF,
+        "quotas": array(obj({"name": STRING, "limit": INTEGER, "usage": INTEGER})),
+    }
+)
 
 
 class GetProjectQuotaTool(BaseTool):
@@ -49,6 +64,9 @@ class GetProjectQuotaTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for questions like 'what's my quota on project X?'. "
                 "Prefer `project_uuid` when you have it fresh from this "

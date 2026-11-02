@@ -23,11 +23,21 @@ from decimal import Decimal
 
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import (
+    as_int,
     user_accessible_projects,
     validate_uuid,
 )
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    BOOLEAN,
+    INTEGER,
+    REF,
+    STRING,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace.enums import ResourceStates
@@ -41,6 +51,53 @@ def _is_compensation(item: InvoiceItem) -> bool:
 
 def _is_manual_refund(item: InvoiceItem) -> bool:
     return item.credit_id is None and item.total < 0
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "project": REF,
+        "invoice_summary": nullable(
+            obj(
+                {
+                    "year": INTEGER,
+                    "month": INTEGER,
+                    "gross": STRING,
+                    "compensation_total": STRING,
+                    "manual_refunds_total": STRING,
+                    "net_charged_to_customer": STRING,
+                    "from_customer_credit": STRING,
+                }
+            )
+        ),
+        "per_resource": array(
+            obj(
+                {
+                    "resource_uuid": STRING,
+                    "resource_name": STRING,
+                    "state": STRING,
+                    "hidden_from_user": BOOLEAN,
+                    "gross": STRING,
+                    "compensation": STRING,
+                    "compensation_source": nullable(STRING),
+                    "net": STRING,
+                }
+            )
+        ),
+        "manual_adjustments": array(
+            obj(
+                {
+                    "name": STRING,
+                    "amount": STRING,
+                    "invoice_year": INTEGER,
+                    "invoice_month": INTEGER,
+                },
+                optional={"resource_name": STRING},
+            )
+        ),
+    },
+    # Absent when the project has no invoice items at all.
+    optional={"concealed_resource_count": INTEGER},
+)
 
 
 class ExplainInvoiceCompensationsTool(BaseTool):
@@ -84,6 +141,9 @@ class ExplainInvoiceCompensationsTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use when the user asks 'why does my invoice show 0?', "
                 "'how was my project compensated?', 'are there hidden "
@@ -98,8 +158,17 @@ class ExplainInvoiceCompensationsTool(BaseTool):
     def execute(self, user, arguments: dict) -> dict:
         project_uuid = (arguments.get("project_uuid") or "").strip()
         project_name = (arguments.get("project_name") or "").strip()
-        year = arguments.get("year")
-        month = arguments.get("month")
+        # The period is echoed into data, which the output schema types as integers.
+        period = {}
+        for arg_name in ("year", "month"):
+            value = arguments.get(arg_name)
+            period[arg_name] = None if value is None else as_int(value)
+            if value is not None and period[arg_name] is None:
+                return {
+                    "type": "validation_error",
+                    "summary": f"Invalid {arg_name}: {value}",
+                }
+        year, month = period["year"], period["month"]
 
         if not project_uuid and not project_name:
             return {

@@ -19,7 +19,7 @@ blob the production policy code writes via
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import (
@@ -29,6 +29,7 @@ from waldur_mastermind.chat.tools.account.helpers import (
 )
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import BOOLEAN, STRING, nullable, obj
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace.enums import ResourceStates
@@ -50,6 +51,56 @@ def _project_grace_context(project) -> dict | None:
             else None
         ),
     }
+
+
+# attribution and the limit_cost/grace_ratio values are copied as stored
+# in Resource.attributes, so they are left open.
+OUTPUT_SCHEMA = obj(
+    {
+        "resource": obj(
+            {
+                "uuid": STRING,
+                "name": STRING,
+                "paused": BOOLEAN,
+                "downscaled": BOOLEAN,
+                "restrict_member_access": BOOLEAN,
+                "state": STRING,
+            }
+        ),
+        "project": obj(
+            {"name": STRING, "uuid": STRING},
+            optional={
+                "end_date": STRING,
+                "is_expired": BOOLEAN,
+                "is_in_grace_period": BOOLEAN,
+                "effective_end_date": nullable(STRING),
+            },
+        ),
+        "primary_cause": {
+            "type": "string",
+            "enum": [
+                "not_paused",
+                "project_end_date",
+                "project_grace_period",
+                "cost_policy",
+                "slurm_grace",
+                "manual",
+            ],
+        },
+        "attribution": nullable({"type": "object"}),
+        "policy_details": nullable(
+            obj(
+                {"policy_kind": STRING},
+                optional={
+                    "limit_cost": {},
+                    "current_spend": STRING,
+                    "exceeded_by": nullable(STRING),
+                    "grace_ratio": {},
+                },
+            )
+        ),
+    }
+)
 
 
 class ExplainResourcePausedReasonTool(BaseTool):
@@ -96,6 +147,9 @@ class ExplainResourcePausedReasonTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use when the user asks 'why is resource X paused?', "
                 "'when did resource X get paused?', or 'is resource X "
@@ -217,7 +271,7 @@ class ExplainResourcePausedReasonTool(BaseTool):
                     policy_details["exceeded_by"] = str(
                         max(Decimal("0"), spent_to_date - limit)
                     )
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, InvalidOperation):
                     policy_details["exceeded_by"] = None
             elif klass == "SlurmPeriodicUsagePolicy":
                 primary_cause = "slurm_grace"

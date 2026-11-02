@@ -4,6 +4,7 @@ from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.explain_project_credit_balance import (
     ExplainProjectCreditBalanceTool,
 )
@@ -51,6 +52,7 @@ class ExplainProjectCreditBalanceToolTest(TestCase):
         self.assertIsNone(result["data"]["project_credit"])
         self.assertIsNone(result["data"]["customer_credit"])
         self.assertIn("no project credit configured", result["summary"].lower())
+        assert_matches_output_schema(self.tool, result)
 
     def test_overdrawn_when_spend_exceeds_value(self):
         invoices_factories.CustomerCreditFactory(
@@ -73,6 +75,7 @@ class ExplainProjectCreditBalanceToolTest(TestCase):
         self.assertEqual(result["type"], "success")
         self.assertTrue(result["data"]["project_credit"]["is_overdrawn"])
         self.assertIn("OVERDRAWN", result["summary"])
+        assert_matches_output_schema(self.tool, result)
 
     def test_within_budget_when_spend_below_value(self):
         invoices_factories.CustomerCreditFactory(
@@ -116,6 +119,7 @@ class ExplainProjectCreditBalanceToolTest(TestCase):
         # value is rendered via str(Decimal), e.g. "10000.00000".
         self.assertEqual(Decimal(cc["value"]), Decimal("10000"))
         self.assertEqual(Decimal(cc["expected_consumption"]), Decimal("8000"))
+        assert_matches_output_schema(self.tool, result)
 
     def test_name_fallback(self):
         self.fixture.project.name = "Project Yarrow"

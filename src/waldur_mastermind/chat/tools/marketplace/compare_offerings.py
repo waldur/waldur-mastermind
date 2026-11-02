@@ -7,10 +7,12 @@ from django.db.models import Q
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
+    OFFERING_MINIMAL_SCHEMA,
     is_anonymous_caller_blocked,
     offerings_queryset_for,
     serialize_offering_minimal,
 )
+from waldur_mastermind.chat.tools.output_schemas import BOOLEAN, STRING, array, obj
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
@@ -18,6 +20,16 @@ logger = logging.getLogger(__name__)
 # Count above which a table becomes unreadable — communicated to the LLM so
 # it switches from a markdown table to bullets. Not enforced server-side.
 _TABLE_READABILITY_THRESHOLD = 4
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "offerings": array(OFFERING_MINIMAL_SCHEMA),
+        # Requested UUIDs and names that matched no visible offering.
+        "missing": array(STRING),
+        "render_as_table": BOOLEAN,
+    }
+)
 
 
 class CompareOfferingsTool(BaseTool):
@@ -66,6 +78,9 @@ class CompareOfferingsTool(BaseTool):
                 # At-least-2-total is enforced in execute() because the
                 # count spans two fields.
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use when the user wants a structured comparison of 2+ "
                 "specific offerings and the data you have isn't enough. "

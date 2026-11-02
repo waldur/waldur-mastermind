@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.get_project_quota import (
     GetProjectQuotaTool,
 )
@@ -32,7 +33,7 @@ class GetProjectQuotaToolTest(TestCase):
             self.fixture.member,
             {"project_uuid": str(self.fixture.project.uuid)},
         )
-        self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         quotas = result["data"]["quotas"]
         names = [q["name"] for q in quotas]
         self.assertIn("nc_resource_count", names)

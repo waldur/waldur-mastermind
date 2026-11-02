@@ -17,6 +17,14 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    INTEGER,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 from waldur_mastermind.marketplace.managers import filter_orders_for_user
@@ -29,6 +37,36 @@ _STATE_BY_LABEL = {label: value for value, label in OrderStates.CHOICES}
 # "pending" is what people ask for; it covers every state waiting on someone.
 _PENDING_LABELS = [label for label in _STATE_BY_LABEL if label.startswith("pending-")]
 _TYPE_LABELS = dict(OrderTypes.CHOICES)
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "orders": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "type": STRING,
+                    "state": STRING,
+                    "offering_name": STRING,
+                    "resource_name": STRING,
+                    "resource_uuid": STRING,
+                    "project_name": STRING,
+                    "project_uuid": STRING,
+                    "organization_name": STRING,
+                    "organization_uuid": STRING,
+                    "cost": nullable(STRING),
+                    "created_by": STRING,
+                    "created": nullable(STRING),
+                    "error_message": STRING,
+                    "consumer_rejection_comment": STRING,
+                    "provider_rejection_comment": STRING,
+                }
+            )
+        ),
+        "total": INTEGER,
+        **TRUNCATION,
+    }
+)
 
 
 class ListOrdersTool(BaseTool):
@@ -100,6 +138,9 @@ class ListOrdersTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for 'what orders do I have', 'which orders are pending', "
                 "'did my order for X go through'. Filter by project_name when "

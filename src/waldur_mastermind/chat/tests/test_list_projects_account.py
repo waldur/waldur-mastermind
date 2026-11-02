@@ -3,6 +3,7 @@ from django.test import TestCase
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.list_projects import ListProjectsTool
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -26,6 +27,7 @@ class ListProjectsToolTest(TestCase):
 
     def test_returns_only_user_accessible_projects(self):
         result = self.tool.execute(self.fixture.member, {})
+        assert_matches_output_schema(self.tool, result)
         names = [p["name"] for p in result["data"]["projects"]]
         self.assertIn(self.fixture.project.name, names)
         self.assertNotIn(self.other_project.name, names)
@@ -48,6 +50,8 @@ class ListProjectsToolTest(TestCase):
         self.fixture.project.name = "Regular Access"
         self.fixture.project.save()
         result = self.tool.execute(self.fixture.owner, {"search": "regular"})
+        # The owner holds no project role, so role is null.
+        assert_matches_output_schema(self.tool, result)
         self.assertEqual(len(result["data"]["projects"]), 1)
 
     def test_uuid_matches_exact(self):

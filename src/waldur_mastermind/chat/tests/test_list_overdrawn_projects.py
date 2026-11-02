@@ -4,6 +4,7 @@ from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.list_overdrawn_projects import (
     ListOverdrawnProjectsTool,
 )
@@ -64,6 +65,7 @@ class ListOverdrawnProjectsToolTest(TestCase):
         self.assertEqual(result["type"], "success")
         self.assertEqual(result["data"]["_total_count"], 0)
         self.assertIn("No overdrawn", result["summary"])
+        assert_matches_output_schema(self.tool, result)
 
     def test_finds_overdrawn_projects(self):
         fixture = ProjectFixture()
@@ -82,6 +84,7 @@ class ListOverdrawnProjectsToolTest(TestCase):
         names = [p["project_name"] for p in result["data"]["overdrawn_projects"]]
         # Sorted by exceeded_by desc → severely over comes first.
         self.assertEqual(names, ["Severely Over Beta", "Over Spent Alpha"])
+        assert_matches_output_schema(self.tool, result)
 
     def test_spend_grouped_per_project_no_bleed(self):
         # Two projects on one shared invoice, each with several items. The

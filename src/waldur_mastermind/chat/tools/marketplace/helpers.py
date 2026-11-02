@@ -20,6 +20,13 @@ import nh3
 from django.contrib.auth.models import AnonymousUser
 
 from waldur_core.configuration import config
+from waldur_mastermind.chat.tools.output_schemas import (
+    BOOLEAN,
+    STRING,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -172,6 +179,56 @@ def _starting_price(offering):
     if cheapest is None:
         return None
     return f"{cheapest:.2f} {config.CURRENCY_NAME or 'EUR'}"
+
+
+OFFERING_MINIMAL_SCHEMA_PROPERTIES = {
+    "name": STRING,
+    "uuid": STRING,
+    "category_title": STRING,
+    "customer_name": STRING,
+    "country": nullable(STRING),
+    "description": STRING,
+    "starting_price": nullable(STRING),
+    "has_access_url": BOOLEAN,
+    "homeport_url": STRING,
+}
+
+# Output schema of serialize_offering_minimal().
+OFFERING_MINIMAL_SCHEMA = obj(OFFERING_MINIMAL_SCHEMA_PROPERTIES)
+
+# Output schema of serialize_offering_detailed().
+OFFERING_DETAILED_SCHEMA = obj(
+    {
+        **OFFERING_MINIMAL_SCHEMA_PROPERTIES,
+        "full_description": STRING,
+        "access_url": nullable(STRING),
+        "getting_started": nullable(STRING),
+        # Provider-defined offering attributes, open-ended by design.
+        "attributes": {"type": "object"},
+        "tags": array(STRING),
+        "plans": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "unit_price": STRING,
+                    "unit": STRING,
+                    "billing_mode": STRING,
+                }
+            )
+        ),
+        "components": array(
+            obj(
+                {
+                    "type": STRING,
+                    "name": STRING,
+                    "measured_unit": STRING,
+                    "billing_type": STRING,
+                }
+            )
+        ),
+    }
+)
 
 
 def serialize_offering_minimal(offering) -> dict:

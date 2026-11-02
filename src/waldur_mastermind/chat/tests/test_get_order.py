@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import CustomerFixture, ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.get_order import GetOrderTool
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -67,7 +68,7 @@ class GetOrderToolTest(APITestCase):
 
     def test_details(self):
         result = self._execute(self.fixture.member)
-        self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         data = result["data"]
         self.assertEqual(data["order"]["state"], "erred")
         self.assertEqual(data["order"]["error_message"], "Backend unreachable")
@@ -88,7 +89,17 @@ class GetOrderToolTest(APITestCase):
                     marketplace_factories.OrderFactory.get_url(self.order)
                 ).data
                 result = self._execute(self.fixture.owner)
+                assert_matches_output_schema(self.tool, result)
                 self.assertEqual(result["data"]["order"]["cost"], rest["cost"])
+
+    def test_plan_and_cost_may_be_unset(self):
+        self.order.plan = None
+        self.order.cost = None
+        self.order.save(update_fields=["plan", "cost"])
+        result = self._execute(self.fixture.owner)
+        assert_matches_output_schema(self.tool, result)
+        self.assertIsNone(result["data"]["plan"])
+        self.assertIsNone(result["data"]["order"]["cost"])
 
     def test_requires_valid_uuid(self):
         for arguments in ({}, {"order_uuid": "nope"}):

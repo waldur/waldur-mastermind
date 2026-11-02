@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.list_organizations import (
     ListOrganizationsTool,
 )
@@ -32,6 +33,7 @@ class ListOrganizationsToolTest(TestCase):
     def test_stranger_sees_nothing(self):
         stranger = structure_factories.UserFactory()
         result = self.tool.execute(stranger, {})
+        assert_matches_output_schema(self.tool, result)
         self.assertEqual(result["data"]["organizations"], [])
         self.assertEqual(result["data"]["total"], 0)
 
@@ -54,6 +56,7 @@ class ListOrganizationsToolTest(TestCase):
 
     def test_role_surfaced_on_direct_membership(self):
         result = self.tool.execute(self.fixture.owner, {})
+        assert_matches_output_schema(self.tool, result)
         org = next(
             o
             for o in result["data"]["organizations"]
@@ -65,6 +68,7 @@ class ListOrganizationsToolTest(TestCase):
         # fixture.member has PROJECT role only, no CUSTOMER role — but still
         # sees the customer through project membership.
         result = self.tool.execute(self.fixture.member, {})
+        assert_matches_output_schema(self.tool, result)
         names = [o["name"] for o in result["data"]["organizations"]]
         self.assertIn(self.fixture.customer.name, names)
         org = next(

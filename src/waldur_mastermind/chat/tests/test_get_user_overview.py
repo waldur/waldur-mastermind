@@ -4,6 +4,7 @@ from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.get_user_overview import (
     GetUserOverviewTool,
 )
@@ -76,7 +77,7 @@ class GetUserOverviewToolTest(TestCase):
 
     def test_bundle_payload_shape(self):
         result = self.tool.execute(self.staff, {"user_email": self.target.email})
-        self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         data = result["data"]
         self.assertEqual(data["user"]["email"], self.target.email)
         self.assertGreaterEqual(len(data["projects"]), 1)

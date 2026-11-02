@@ -5,6 +5,7 @@ from django.test import TestCase
 
 from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.marketplace.compare_offerings import (
     CompareOfferingsTool,
@@ -306,6 +307,7 @@ class SearchOfferingsExecuteTest(TestCase):
         )
         result = self.tool.execute(self.user, {"keyword": "climate"})
         self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         names = [o["name"] for o in result["data"]["offerings"]]
         self.assertEqual(names, ["GPU Climate Cluster"])
 
@@ -385,8 +387,23 @@ class SearchOfferingsExecuteTest(TestCase):
         result = self.tool.execute(
             self.user, {"keyword": "GPU", "category_uuid": str(cat_a.uuid)}
         )
+        assert_matches_output_schema(self.tool, result)
         names = [o["name"] for o in result["data"]["offerings"]]
         self.assertEqual(names, ["GPU A"])
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_malformed_filters_are_rejected(self):
+        # Filters are echoed into data, so a non-string would break the schema.
+        for arguments in (
+            {"keyword": 5},
+            {"keyword": "GPU", "category_uuid": 5},
+            {"keyword": "GPU", "category_uuid": "not-a-uuid"},
+            {"keyword": "GPU", "category_name": ["Compute"]},
+            {"keyword": "GPU", "type": {"a": 1}},
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.tool.execute(self.user, arguments)
+                self.assertEqual(result["type"], "validation_error")
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_category_name_filter(self):
@@ -422,6 +439,7 @@ class SearchOfferingsExecuteTest(TestCase):
         result = self.tool.execute(
             self.user, {"keyword": "A", "type": "Marketplace.Slurm"}
         )
+        assert_matches_output_schema(self.tool, result)
         names = [o["name"] for o in result["data"]["offerings"]]
         self.assertEqual(names, ["Slurm A"])
 
@@ -429,6 +447,7 @@ class SearchOfferingsExecuteTest(TestCase):
     def test_empty_result_returns_success_with_empty_list(self):
         result = self.tool.execute(self.user, {"keyword": "nonexistent"})
         self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         self.assertEqual(result["data"]["offerings"], [])
         self.assertEqual(result["data"]["total"], 0)
 
@@ -696,8 +715,28 @@ class GetOfferingExecuteTest(TestCase):
         )
         result = self.tool.execute(self.user, {"uuid": str(offering.uuid)})
         self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         self.assertIn("homeport_url", result["summary"])
         self.assertNotIn("access_url", result["summary"])
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_full_details_match_output_schema(self):
+        offering = mp_factories.OfferingFactory(
+            shared=True,
+            state=OfferingStates.ACTIVE,
+            country="EE",
+            access_url="https://provider.example.org/portal/",
+            getting_started="Request an account first.",
+            attributes={"gpu_type": "A100"},
+        )
+        offering.tags.add(mp_factories.TagFactory())
+        mp_factories.PlanFactory(offering=offering, unit_price=10)
+        mp_factories.OfferingComponentFactory(offering=offering)
+        result = self.tool.execute(self.user, {"uuid": str(offering.uuid)})
+        assert_matches_output_schema(self.tool, result)
+        data = result["data"]["offering"]
+        self.assertTrue(data["plans"] and data["components"] and data["tags"])
+        self.assertIsNotNone(data["starting_price"])
 
 
 class ListCategoriesRegistrationTest(TestCase):
@@ -747,6 +786,7 @@ class ListCategoriesExecuteTest(TestCase):
             category=cat, shared=True, state=OfferingStates.ACTIVE
         )
         result = self.tool.execute(self.user, {})
+        assert_matches_output_schema(self.tool, result)
         compute = next(
             c for c in result["data"]["categories"] if c["title"] == "Compute"
         )
@@ -813,6 +853,7 @@ class CompareOfferingsExecuteTest(TestCase):
             {"uuids": [str(a.uuid), "00000000-0000-0000-0000-000000000000"]},
         )
         self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         self.assertEqual(len(result["data"]["offerings"]), 1)
         self.assertIn("1 unavailable", result["summary"])
 
@@ -866,6 +907,7 @@ class CompareOfferingsExecuteTest(TestCase):
         result = self.tool.execute(
             self.user, {"uuids": [str(o.uuid) for o in offerings]}
         )
+        assert_matches_output_schema(self.tool, result)
         self.assertFalse(result["data"]["render_as_table"])
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)

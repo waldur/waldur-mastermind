@@ -14,10 +14,42 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    INTEGER,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "resources": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "state": STRING,
+                    "offering_name": STRING,
+                    "category_title": STRING,
+                    "project_name": STRING,
+                    "project_uuid": nullable(STRING),
+                    "backend_id": STRING,
+                    "plan_name": STRING,
+                    "created": nullable(STRING),
+                }
+            )
+        ),
+        "total": INTEGER,
+        **TRUNCATION,
+    }
+)
 
 
 class GetProjectResourcesTool(BaseTool):
@@ -67,6 +99,9 @@ class GetProjectResourcesTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for interrogative questions about resources ('what "
                 "is the status of X', 'do I have Y in project Z'). "

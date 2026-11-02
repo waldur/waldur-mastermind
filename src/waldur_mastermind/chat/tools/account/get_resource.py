@@ -17,6 +17,16 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    BOOLEAN,
+    NUMBER,
+    REF,
+    STRING,
+    TRUNCATION,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.utils import (
@@ -27,6 +37,69 @@ from waldur_mastermind.marketplace.utils import (
 logger = logging.getLogger(__name__)
 
 RECENT_EVENTS_LIMIT = 10
+
+
+# Same keys whether one resource or several matched: a single match fills
+# resource..recent_events, several fill matches.
+OUTPUT_SCHEMA = obj(
+    {
+        "resource": nullable(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "state": STRING,
+                    "backend_id": STRING,
+                    "error_message": nullable(STRING),
+                    "paused": BOOLEAN,
+                    "limits": nullable(
+                        {"type": "object", "additionalProperties": NUMBER}
+                    ),
+                    "created": nullable(STRING),
+                    "modified": nullable(STRING),
+                    "end_date": nullable(STRING),
+                    "restricted_fields": array(STRING),
+                }
+            )
+        ),
+        "offering": nullable(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "type": STRING,
+                    "category_title": STRING,
+                }
+            )
+        ),
+        "plan": nullable(REF),
+        "project": nullable(REF),
+        "organization": nullable(REF),
+        "recent_events": nullable(
+            array(
+                obj(
+                    {
+                        "created": nullable(STRING),
+                        "event_type": STRING,
+                        "message": STRING,
+                    }
+                )
+            )
+        ),
+        "matches": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "state": STRING,
+                    "project_name": STRING,
+                    "project_uuid": STRING,
+                }
+            )
+        ),
+        **TRUNCATION,
+    }
+)
 
 
 class GetResourceTool(BaseTool):
@@ -66,6 +139,9 @@ class GetResourceTool(BaseTool):
                 },
                 "required": [],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
             usage_instructions=(
                 "Use for questions about one resource: 'what's wrong with X', "
                 "'why did X fail', 'what plan is X on', 'what are the limits "

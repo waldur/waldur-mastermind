@@ -8,6 +8,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.utils import timezone
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_mastermind.chat.tools.account.helpers import (
     user_accessible_customers,
     user_accessible_projects,
@@ -16,6 +17,14 @@ from waldur_mastermind.chat.tools.account.helpers import (
 )
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.output_schemas import (
+    BOOLEAN,
+    INTEGER,
+    STRING,
+    array,
+    nullable,
+    obj,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import is_tool_permitted
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
@@ -26,6 +35,64 @@ logger = logging.getLogger(__name__)
 _LIST_CAP = 50
 _ERROR_CAP = 10
 _RECENT_WINDOW_DAYS = 14
+
+
+OUTPUT_SCHEMA = obj(
+    {
+        "user": obj(
+            {
+                "uuid": STRING,
+                "full_name": STRING,
+                "email": STRING,
+                "is_active": BOOLEAN,
+                "last_login": nullable(STRING),
+            }
+        ),
+        "organizations": array(
+            obj({"uuid": STRING, "name": STRING, "role": nullable(STRING)})
+        ),
+        "projects": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "name": STRING,
+                    "organization_name": STRING,
+                    "role": nullable(STRING),
+                }
+            )
+        ),
+        "resources": obj(
+            {
+                "total": INTEGER,
+                # Resource count per state label, e.g. {"OK": 3, "Erred": 1}.
+                "by_state": {"type": "object", "additionalProperties": INTEGER},
+                "erred": array(
+                    obj({"uuid": STRING, "name": STRING, "error_message": STRING})
+                ),
+            }
+        ),
+        "pending_orders": array(
+            obj(
+                {
+                    "uuid": STRING,
+                    "offering_name": STRING,
+                    "project_name": STRING,
+                    "created": nullable(STRING),
+                }
+            )
+        ),
+        "recent_errors": array(
+            obj(
+                {
+                    "resource_name": STRING,
+                    "error_message": STRING,
+                    "error_traceback_head": STRING,
+                    "when": nullable(STRING),
+                }
+            )
+        ),
+    }
+)
 
 
 class GetUserOverviewTool(BaseTool):
@@ -51,6 +118,10 @@ class GetUserOverviewTool(BaseTool):
                 },
                 "required": ["user_email"],
             },
+            mcp_exposed=True,
+            read_only=True,
+            output_schema=OUTPUT_SCHEMA,
+            required_pat_permissions=[PermissionEnum.SUPPORT_ACCESS],
             usage_instructions=(
                 "Use as the starting point when a support user says "
                 "'show me the state of user X'. Returns everything you "

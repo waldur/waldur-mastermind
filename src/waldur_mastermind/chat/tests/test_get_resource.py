@@ -10,6 +10,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.get_resource import (
     RECENT_EVENTS_LIMIT,
     GetResourceTool,
@@ -136,6 +137,7 @@ class GetResourceToolTest(APITestCase):
                 result = self.tool.execute(
                     user, {"resource_uuid": str(self.resource.uuid)}
                 )
+                assert_matches_output_schema(self.tool, result)
                 data = result["data"]["resource"]
                 self.assertEqual(
                     data["limits"] is not None, "limits" in rest, data["limits"]
@@ -164,7 +166,7 @@ class GetResourceToolTest(APITestCase):
         result = self.tool.execute(
             self.fixture.member, {"resource_uuid": str(self.resource.uuid)}
         )
-        self.assertEqual(result["type"], "success")
+        assert_matches_output_schema(self.tool, result)
         data = result["data"]
         self.assertEqual(data["resource"]["uuid"], str(self.resource.uuid))
         self.assertEqual(data["resource"]["state"], "Erred")
@@ -189,6 +191,7 @@ class GetResourceToolTest(APITestCase):
                 )
                 if result["type"] != "success":
                     continue
+                assert_matches_output_schema(self.tool, result)
                 messages = [e["message"] for e in result["data"]["recent_events"]]
                 self.assertEqual(len(messages), RECENT_EVENTS_LIMIT)
                 self.assertEqual(
@@ -231,6 +234,7 @@ class GetResourceToolTest(APITestCase):
                 project=self.fixture.project, name=f"web-{i + 2}"
             )
         result = self.tool.execute(self.fixture.member, {"resource_name": "web"})
+        assert_matches_output_schema(self.tool, result)
         data = result["data"]
         self.assertIsNone(data["resource"])
         self.assertEqual(len(data["matches"]), MAX_LIST_RESULTS)
