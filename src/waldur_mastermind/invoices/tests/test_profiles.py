@@ -1,13 +1,20 @@
 from unittest import mock
 
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from freezegun import freeze_time
 from rest_framework import status, test
+from rest_framework.test import APIRequestFactory
 
+from waldur_core.permissions import utils as permissions_utils
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.models import Role
+from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.invoices import models, serializers, tasks, utils
 from waldur_mastermind.invoices.tests import factories
 
 
@@ -90,6 +97,126 @@ class ProfileRetrieveTest(test.APITestCase):
         response = self.client.get(self.customer_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["payment_profiles"], [])
+
+
+class ProfileVisibilityForInvoiceViewersTest(test.APITestCase):
+    """The organization endpoint hands the active payment profiles to anyone
+    who may list the organization's invoices, so the invoice pages hide or show
+    prices for them exactly as they do for the owner."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.profile = factories.PaymentProfileFactory(
+            organization=self.fixture.customer,
+            payment_type=models.PaymentType.FIXED_PRICE,
+            is_active=True,
+        )
+        self.user = structure_factories.UserFactory()
+        self.role = Role.objects.create(
+            name="CUSTOMER.REPRESENTATIVE",
+            content_type=ContentType.objects.get_for_model(Customer),
+        )
+
+    def get_payment_profiles(self, customer=None):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            structure_factories.CustomerFactory.get_url(
+                customer=customer or self.fixture.customer
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["payment_profiles"]
+
+    def test_role_with_invoice_permission_gets_active_profiles(self):
+        factories.PaymentProfileFactory(
+            organization=self.fixture.customer, is_active=False
+        )
+        self.role.add_permission(PermissionEnum.LIST_INVOICES)
+        self.fixture.customer.add_user(self.user, self.role)
+
+        profiles = self.get_payment_profiles()
+
+        self.assertEqual([p["uuid"] for p in profiles], [self.profile.uuid.hex])
+
+    def test_role_with_invoice_permission_gets_no_inactive_profiles(self):
+        self.profile.is_active = False
+        self.profile.save()
+        self.role.add_permission(PermissionEnum.LIST_INVOICES)
+        self.fixture.customer.add_user(self.user, self.role)
+
+        self.assertEqual(self.get_payment_profiles(), [])
+
+    def test_role_without_invoice_permission_gets_none(self):
+        self.fixture.customer.add_user(self.user, self.role)
+
+        self.assertIsNone(self.get_payment_profiles())
+
+    def test_invoice_permission_on_another_organization_does_not_leak(self):
+        other_customer = structure_factories.CustomerFactory()
+        self.role.add_permission(PermissionEnum.LIST_INVOICES)
+        other_customer.add_user(self.user, self.role)
+        # A permission-less role, so the organization itself is visible.
+        bare_role = Role.objects.create(
+            name="CUSTOMER.BARE",
+            content_type=ContentType.objects.get_for_model(Customer),
+        )
+        self.fixture.customer.add_user(self.user, bare_role)
+
+        self.assertIsNone(self.get_payment_profiles())
+
+    def test_customer_list_checks_the_whole_page_at_once(self):
+        self.role.add_permission(PermissionEnum.LIST_INVOICES)
+        customers = [self.fixture.customer] + [
+            structure_factories.CustomerFactory() for _ in range(2)
+        ]
+        for customer in customers:
+            customer.add_user(self.user, self.role)
+
+        self.client.force_authenticate(self.user)
+        with mock.patch(
+            "waldur_mastermind.invoices.serializers.build_role_index",
+            wraps=permissions_utils.build_role_index,
+        ) as build_index:
+            response = self.client.get(
+                structure_factories.CustomerFactory.get_list_url()
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        build_index.assert_called_once()
+        _, pairs = build_index.call_args.args
+        self.assertEqual({scope.id for _, scope in pairs}, {c.id for c in customers})
+        profiles = {
+            row["uuid"]: [p["uuid"] for p in row["payment_profiles"]]
+            for row in response.data
+        }
+        self.assertEqual(
+            profiles[self.fixture.customer.uuid.hex], [self.profile.uuid.hex]
+        )
+
+    def test_page_index_answers_every_row_without_a_query(self):
+        self.role.add_permission(PermissionEnum.LIST_INVOICES)
+        customers = [structure_factories.CustomerFactory() for _ in range(3)]
+        customers[0].add_user(self.user, self.role)
+        customers[1].add_user(self.user, CustomerRole.OWNER)
+        request = APIRequestFactory().get("/")
+        request.user = self.user
+
+        access = serializers._PaymentProfileAccess(request, customers)
+        with self.assertNumQueries(0):
+            allowed = [access.allows(customer) for customer in customers]
+
+        self.assertEqual(allowed, [True, True, False])
+
+    def test_owner_without_invoice_permission_still_gets_profiles(self):
+        # Covers a custom-roles.yaml that redefines Owner without INVOICE.LIST.
+        CustomerRole.OWNER.permissions.filter(
+            permission=PermissionEnum.LIST_INVOICES
+        ).delete()
+        self.fixture.customer.add_user(self.user, CustomerRole.OWNER)
+
+        profiles = self.get_payment_profiles()
+
+        self.assertEqual([p["uuid"] for p in profiles], [self.profile.uuid.hex])
 
 
 @ddt

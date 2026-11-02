@@ -14,11 +14,14 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import build_role_index, has_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
-from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.managers import (
+    filter_queryset_for_user,
+    get_connected_customers,
+)
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import billing_mode
@@ -978,6 +981,54 @@ class ReferenceNumberSerializer(serializers.ModelSerializer):
         fields = ("reference_number",)
 
 
+class _PaymentProfileAccess:
+    """Which organizations the caller is shown the active payment profiles of.
+
+    Owners are, and so is anyone who may list the organization's invoices: the
+    invoice pages read the profile to decide whether prices are shown at all,
+    so an invoice viewer left without it would see what the owner does not.
+
+    Built once per response and kept in the serializer context, so that a page
+    of organizations costs two role queries in all rather than two per row.
+    """
+
+    _CONTEXT_KEY = "_payment_profile_access"
+
+    def __init__(self, request, customers):
+        self.request = request
+        # CUSTOMER.OWNER carries INVOICE.LIST by default, so the permission
+        # check alone covers it. The owner check still matters when a
+        # deployment's custom-roles.yaml redefines Owner without INVOICE.LIST:
+        # owners have always been shown the profiles, and must keep them.
+        self.owner_ids = set(get_connected_customers(request.user, CustomerRole.OWNER))
+        self.role_index = build_role_index(
+            request.user,
+            [(PermissionEnum.LIST_INVOICES, customer) for customer in customers],
+        )
+
+    @classmethod
+    def for_serializer(cls, serializer, customer):
+        context = serializer.context
+        access = context.get(cls._CONTEXT_KEY)
+        if access is None:
+            page = getattr(serializer.parent, "instance", None)
+            if not isinstance(serializer.parent, serializers.ListSerializer) or not (
+                isinstance(page, list | tuple)
+            ):
+                # Not a page, or a queryset that iterating here would query
+                # again. Customers missing from the index fall back to their
+                # own query, which is slower but still correct.
+                page = [customer]
+            access = cls(context["request"], page)
+            context[cls._CONTEXT_KEY] = access
+        return access
+
+    def allows(self, customer: structure_models.Customer) -> bool:
+        return customer.id in self.owner_ids or has_permission(
+            self.request, PermissionEnum.LIST_INVOICES, customer, self.role_index
+        )
+
+
 @extend_schema_field(PaymentProfileSerializer(many=True))
 def get_payment_profiles(serializer, customer: structure_models.Customer):
     user = serializer.context["request"].user
@@ -991,7 +1042,9 @@ def get_payment_profiles(serializer, customer: structure_models.Customer):
 
         # Filter in Python if needed
         if not (user.is_staff or user.is_support):
-            if structure_permissions._has_owner_access(user, customer):
+            if _PaymentProfileAccess.for_serializer(serializer, customer).allows(
+                customer
+            ):
                 profiles = [p for p in profiles if p.is_active]
             else:
                 return None
@@ -999,7 +1052,9 @@ def get_payment_profiles(serializer, customer: structure_models.Customer):
         # Fallback to original query behavior
         if user.is_staff or user.is_support:
             profiles = customer.paymentprofile_set.all()
-        elif structure_permissions._has_owner_access(user, customer):
+        elif _PaymentProfileAccess.for_serializer(serializer, customer).allows(
+            customer
+        ):
             profiles = customer.paymentprofile_set.filter(is_active=True)
         else:
             return None

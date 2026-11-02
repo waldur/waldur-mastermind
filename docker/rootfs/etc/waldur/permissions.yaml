@@ -6,6 +6,7 @@
   scope: customer
   permissions:
     - CUSTOMER.VIEW_TEAM
+    - INVOICE.LIST
     - OFFERING.LIST
     - OFFERING.CREATE
     - OFFERING.DELETE
@@ -332,6 +333,7 @@
   scope: customer
   permissions:
     - CUSTOMER.VIEW_TEAM
+    - INVOICE.LIST
     - CUSTOMER.LIST_USERS
 
 - role: CALL.MANAGER
@@ -389,6 +391,7 @@
     - RESOURCE.LIST
     - ORDER.LIST
     - INVITATION.LIST
+    - INVOICE.LIST
 
 - role: CUSTOMER.CALL_ORGANIZER
   scope: call_organizer

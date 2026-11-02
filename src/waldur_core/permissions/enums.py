@@ -248,6 +248,8 @@ class PermissionEnum(StrEnum):
 
     LIST_CUSTOMER_USERS = "CUSTOMER.LIST_USERS"
 
+    LIST_INVOICES = "INVOICE.LIST"
+
     # Team visibility (list_users). A customer-scoped role needs
     # VIEW_CUSTOMER_TEAM and a project-scoped role needs VIEW_PROJECT_TEAM
     # before its holder may enumerate the organization's or project's members.

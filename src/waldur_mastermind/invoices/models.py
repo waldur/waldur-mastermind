@@ -23,6 +23,7 @@ from reversion import revisions as reversion
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_connected_projects
 from waldur_mastermind.common import mixins as common_mixins
@@ -55,6 +56,7 @@ class Invoice(
 
     class Permissions:
         customer_path = "customer"
+        list_permission = PermissionEnum.LIST_INVOICES
 
     class Meta:
         unique_together = ("customer", "month", "year")
@@ -328,6 +330,7 @@ class InvoiceItem(
 
     class Permissions:
         customer_path = "invoice__customer"
+        list_permission = PermissionEnum.LIST_INVOICES
         build_query = filter_project_invoice_items
 
     invoice = models.ForeignKey(
