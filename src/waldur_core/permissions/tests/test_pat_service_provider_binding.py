@@ -367,12 +367,12 @@ class PATServiceProviderBindingSiteAgentTest(test.APITestCase):
         # The PAT list filter hides the resource before any permission check.
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_provider_owner_bound_pat_is_still_refused(self):
-        """Pins current behaviour, not the intended one: the owner's role is on
-        the organization, the binding on the provider, and the binding is
-        checked where the role is held."""
+    def test_provider_owner_bound_pat_can_write_back(self):
+        """The owner's role is on the organization and the binding on the
+        provider: the binding covers the resource through its offering, and
+        the role is accepted on any source."""
         owner = structure_factories.UserFactory()
         self.provider.customer.add_user(owner, CustomerRole.OWNER)
         token = self.create_pat(owner, "service_provider", self.provider)
         response = self.refresh_last_sync(token)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

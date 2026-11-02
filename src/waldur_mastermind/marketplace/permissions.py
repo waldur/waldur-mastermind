@@ -29,7 +29,7 @@ from . import models, utils
 # The traversal every update_* action on an offering applies. Shared with the
 # read gates below so those — and the flags the detail serializer renders from
 # them — cannot drift from the permission required to write.
-OFFERING_ADMIN_SOURCES = ["*", "customer", "customer.serviceprovider"]
+OFFERING_ADMIN_SOURCES = utils.OFFERING_ADMIN_SOURCES
 
 # Where RESOURCE.SET_SLUG may be held to set a resource's slug: on the consumer
 # side (project, organization) or the provider side (offering, its organization,

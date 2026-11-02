@@ -440,9 +440,52 @@ scoped PAT narrows even staff users. The rules:
 - `scope=None` request + non-empty bindings → denied. A scoped PAT cannot
   perform scope-less / global actions.
 - Otherwise → allowed iff the request scope, or any of its ancestors per
-  `get_scope_ancestors`, matches one of the PAT's bindings. The walk is
-  upward-only: a PAT bound to a child entity does **not** authorise actions
-  on its parent.
+  `get_scope_ancestors`, matches one of the PAT's bindings, or the binding is
+  on the service provider of an offering among them. The walk is upward-only:
+  a PAT bound to a child entity does **not** authorise actions on its parent.
+
+A binding limits where a token acts and a role says what it may do, so the two
+need not sit on the same object. `has_permission_on_any_source` and
+`permission_factory` check them in up to two steps:
+
+1. For each source, the rules above apply to the source and the role is looked
+   up on it. Any source passing both allows the action.
+2. Only with `binding_on_path=True`: a binding still counts if it **exactly
+   names** the target or an object on the way to a source, or the provider of an
+   offering among those. The role may then be on any source.
+
+Step 2 lets an organization owner's token bound to an offering act on that
+offering's resources through `["offering", "offering.customer"]`, and one bound to
+a project update it through `["*", "customer"]`. It does not walk upward:
+`get_scope_ancestors` reaches a resource's project and a private offering's
+project, and following them would let a consumer binding use provider-only
+sources.
+
+Opt in only for an action that changes its target and what belongs to it alone.
+An action creating a sibling of its target, writing a record other objects share
+(an offering's scope, a provider-wide account), or naming both the consumer and
+the provider side among its sources keeps the default. A read gate or a flag
+that mirrors a write gate passes the same value, so it cannot show what the
+write refuses:
+
+```python
+set_as_ok_permissions = [
+    permission_factory(
+        PermissionEnum.SET_RESOURCE_STATE,
+        OFFERING_SCOPED_SOURCES,
+        binding_on_path=True,
+    )
+]
+```
+
+The flag does not touch step 1: a token bound to the object that holds the role,
+such as an offering manager's token bound to their offering, passes on that
+source either way. A direct `has_permission(request, permission, parent)` keeps
+the binding on `parent`.
+
+Opted in today: the provider's actions on a resource that use
+`OFFERING_SCOPED_SOURCES`, the offering updates behind `can_update_offering`, and
+updating a project.
 
 ### Restrictions
 
