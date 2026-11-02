@@ -2719,6 +2719,18 @@ class CreateRequiresProjectAdminMixin:
             )
         permissions.is_administrator(request, self, scope)
 
+    def describe_create_access(self):
+        # With the view's own context: schema generation and the coverage
+        # test give it a mock request, as some serializers expect one.
+        serializer = self.get_serializer()
+        field = serializer.fields.get(self.create_scope_field)
+        if field is None or field.read_only:
+            return []
+        entry = permissions.is_administrator.describe()
+        if self.create_scope_field != "project":
+            entry = {**entry, "via": self.create_scope_field}
+        return [entry]
+
 
 class ResourceViewSet(
     CreateRequiresProjectAdminMixin,

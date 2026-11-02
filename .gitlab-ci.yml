@@ -663,6 +663,19 @@ Run type checkings:
         src/waldur_rancher/backend.py \
         src/waldur_rancher/serializers.py
 
+Check API access coverage:
+  extends: .Unit test runner
+  <<: *source_analysis_rules
+  # Lists every API route that declares nothing about who may call it, grouped
+  # by app, and fails while any remain. Allowed to fail until every app has
+  # declared its routes; once the list is empty, drop allow_failure so that no
+  # route can be added without saying who may call it.
+  allow_failure: true
+  variables:
+    DJANGO_SETTINGS_MODULE: waldur_core.server.test_settings
+  script:
+    - uv run pytest -m access_coverage src/waldur_core/core/tests/test_access_coverage.py
+
 Try building docker image:
   image: "quay.io/buildah/stable"
   stage: test

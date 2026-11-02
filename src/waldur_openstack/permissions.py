@@ -2,6 +2,7 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
+from waldur_core.core import access
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -37,7 +38,10 @@ def _check_permissions(permission):
 
         raise exceptions.PermissionDenied()
 
-    return func
+    return access.describes(
+        access.permission(permission, ["project", "project.customer"]),
+        needs_object=True,
+    )(func)
 
 
 can_manage_openstack_instance_power = _check_permissions(

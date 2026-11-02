@@ -458,6 +458,8 @@ def permission_factory(permission, sources=None, binding_on_path=False):
     # This makes the raw data available for inspection.
     setattr(permission_function, "permission", permission)
     setattr(permission_function, "sources", sources)
+    # Without an object it returns at once, letting everyone through.
+    setattr(permission_function, "needs_object", True)
 
     return permission_function
 

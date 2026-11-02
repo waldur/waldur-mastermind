@@ -83,7 +83,7 @@ from rest_framework.serializers import Serializer
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.configuration import config
-from waldur_core.core import encryption
+from waldur_core.core import access, encryption
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -299,10 +299,16 @@ def readable_by_support(permission_function):
             return
         permission_function(request, view, scope)
 
-    # Keep the wrapped permission visible to the OpenAPI x-permissions export.
+    # ActionsPermission hands the object to checks that carry `sources`.
     for attribute in ("permission", "sources"):
         if hasattr(permission_function, attribute):
             setattr(check, attribute, getattr(permission_function, attribute))
+    check.access_entries = [
+        access.any_of(
+            access.staff_or_support(), *access.describe_check(permission_function)
+        )
+    ]
+    check.needs_object = access.needs_object(permission_function)
 
     return check
 
@@ -312,8 +318,8 @@ def any_permission(*permission_functions):
 
     `sources` must stay set: ActionsPermission hands the object only to checks
     that carry it, and a permission_factory check called without one lets
-    everybody through. `permission` is left unset, because x-permissions lists
-    checks that must all pass and has no way to say "either".
+    everybody through. `permission` is left unset; the check describes itself
+    as `any_of` the checks it wraps.
     """
 
     def check(request, view, scope=None):
@@ -330,6 +336,19 @@ def any_permission(*permission_functions):
         for permission_function in permission_functions
         for source in permission_function.sources
     ]
+    check.access_entries = [
+        access.any_of(
+            *[
+                entry
+                for permission_function in permission_functions
+                for entry in access.describe_check(permission_function)
+            ]
+        )
+    ]
+    check.needs_object = any(
+        access.needs_object(permission_function)
+        for permission_function in permission_functions
+    )
     return check
 
 

@@ -3,13 +3,14 @@ from functools import reduce
 
 from rest_framework import exceptions, permissions
 
+from waldur_core.core import access
 from waldur_core.core.permissions import (
     SAFE_METHODS,
     IsAdminOrReadOnly,
     has_staff_access,
     has_support_access,
 )
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
     OfferingRole,
@@ -36,6 +37,10 @@ class IsStaffOrSupportUser(permissions.BasePermission):
             request.user.is_staff or request.user.is_support
         ) and check_pat_support_scope(request)
 
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [access.staff_or_support()]
+
 
 # TODO: this is a temporary permission filter.
 class IsAdminOrOwner(IsAdminOrReadOnly):
@@ -56,52 +61,120 @@ class IsAdminOrOwner(IsAdminOrReadOnly):
 
         return user == view.get_object()
 
-
-def is_staff(request, view, obj=None):
-    if not has_staff_access(request):
-        raise exceptions.PermissionDenied()
-
-
-def is_staff_or_support(request, view, obj=None):
-    if not has_support_access(request):
-        raise exceptions.PermissionDenied()
-
-
-def is_owner(request, view, obj=None, **kwargs):
-    if not obj:
-        return
-    customer = _get_customer(obj, **kwargs)
-    if not _has_owner_access(request.user, customer, has_staff_access(request)):
-        raise exceptions.PermissionDenied()
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        if method in SAFE_METHODS:
+            return access.read_access(requires_authentication)
+        if method == "DELETE" or not getattr(view, "detail", False):
+            return [access.staff()]
+        return [
+            access.any_of(
+                access.staff(), access.owned("The user account the request is for.")
+            )
+        ]
 
 
-def is_administrator(request, view, obj=None, **kwargs):
-    if not obj:
-        return
+class _RequestCheck(access.Check):
+    """Pass a request that ``test(request)`` accepts."""
+
+    def __init__(self, name, test, entry):
+        self.name = name
+        self.test = test
+        self.entry = entry
+
+    def __call__(self, request, view, obj=None, **kwargs):
+        if not self.test(request):
+            raise exceptions.PermissionDenied()
+
+    def describe(self):
+        return dict(self.entry)
+
+
+is_staff = _RequestCheck("is_staff", has_staff_access, access.staff())
+is_staff_or_support = _RequestCheck(
+    "is_staff_or_support", has_support_access, access.staff_or_support()
+)
+
+
+# Who acts for a customer, project or offering, as the roles that pass. Each
+# list extends the one before it, and a request acting as staff passes all of
+# them. The checks below enforce these lists and describe themselves from
+# them in the API schema, so the two cannot disagree.
+OWNER_ROLES = ((RoleEnum.CUSTOMER_OWNER, "customer"),)
+PROJECT_MANAGER_ROLES = OWNER_ROLES + ((RoleEnum.PROJECT_MANAGER, "project"),)
+PROJECT_ADMIN_ROLES = PROJECT_MANAGER_ROLES + ((RoleEnum.PROJECT_ADMIN, "project"),)
+SERVICE_MANAGER_ROLES = OWNER_ROLES + ((RoleEnum.CUSTOMER_MANAGER, "customer"),)
+OFFERING_MANAGER_ROLES = SERVICE_MANAGER_ROLES + (
+    (RoleEnum.OFFERING_MANAGER, "offering"),
+)
+
+# The role rows, looked up only when a check runs: describing a check must
+# not touch the database, since the schema is generated without one.
+_ROLE_ROWS = {
+    RoleEnum.CUSTOMER_OWNER: lambda: CustomerRole.OWNER,
+    RoleEnum.PROJECT_MANAGER: lambda: ProjectRole.MANAGER,
+    RoleEnum.PROJECT_ADMIN: lambda: ProjectRole.ADMIN,
+    RoleEnum.CUSTOMER_MANAGER: lambda: ServiceProviderRole.MANAGER,
+    RoleEnum.OFFERING_MANAGER: lambda: OfferingRole.MANAGER,
+}
+
+
+def _holds_listed_role(user, holders, scopes) -> bool:
+    return any(
+        scopes.get(scope) is not None
+        and scopes[scope].has_user(user, _ROLE_ROWS[role]())
+        for role, scope in holders
+    )
+
+
+def _customer_scopes(obj, **kwargs):
+    return {"customer": _get_customer(obj, **kwargs)}
+
+
+def _project_scopes(obj, **kwargs):
     project = _get_project(obj, **kwargs)
-    if not _has_admin_access(request.user, project, has_staff_access(request)):
-        raise exceptions.PermissionDenied()
+    return {"customer": project.customer, "project": project}
 
 
-def is_service_manager(request, view, obj=None, **kwargs):
-    if not obj:
-        return
-    customer = _get_customer(obj, **kwargs)
-    if not _has_service_manager_access(
-        request.user, customer, has_staff_access(request)
-    ):
-        raise exceptions.PermissionDenied()
+def _offering_scopes(obj, **kwargs):
+    return {"customer": _get_customer(obj, **kwargs), "offering": obj}
 
 
-def is_offering_manager(request, view, obj=None, **kwargs):
-    if not obj:
-        return
-    customer = _get_customer(obj, **kwargs)
-    if not (
-        _has_service_manager_access(request.user, customer, has_staff_access(request))
-        or obj.has_user(request.user, OfferingRole.MANAGER)
-    ):
-        raise exceptions.PermissionDenied()
+class _ObjectRoleCheck(access.Check):
+    """Pass staff, or a holder of a listed role on the object's customer,
+    project or offering. Without an object there is nothing to test."""
+
+    needs_object = True
+
+    def __init__(self, name, holders, scopes):
+        self.name = name
+        self.holders = holders
+        self.scopes = scopes
+
+    def __call__(self, request, view, obj=None, **kwargs):
+        if not obj:
+            return
+        scopes = self.scopes(obj, **kwargs)
+        if not (
+            has_staff_access(request)
+            or _holds_listed_role(request.user, self.holders, scopes)
+        ):
+            raise exceptions.PermissionDenied()
+
+    def describe(self):
+        return access.role(self.holders)
+
+
+is_owner = _ObjectRoleCheck("is_owner", OWNER_ROLES, _customer_scopes)
+is_administrator = _ObjectRoleCheck(
+    "is_administrator", PROJECT_ADMIN_ROLES, _project_scopes
+)
+is_service_manager = _ObjectRoleCheck(
+    "is_service_manager", SERVICE_MANAGER_ROLES, _customer_scopes
+)
+is_offering_manager = _ObjectRoleCheck(
+    "is_offering_manager", OFFERING_MANAGER_ROLES, _offering_scopes
+)
 
 
 # `staff` is whether the user acts as staff; permission checks pass
@@ -109,28 +182,28 @@ def is_offering_manager(request, view, obj=None, **kwargs):
 # staff scope does not. It defaults to the user's flag.
 
 
-def _has_owner_access(user, customer: models.Customer, staff=None):
+def _has_role_access(user, holders, scopes, staff=None) -> bool:
     if staff is None:
         staff = user.is_staff
-    return staff or customer.has_user(user, CustomerRole.OWNER)
+    return staff or _holds_listed_role(user, holders, scopes)
+
+
+def _has_owner_access(user, customer: models.Customer, staff=None):
+    return _has_role_access(user, OWNER_ROLES, {"customer": customer}, staff)
 
 
 def _has_manager_access(user, project: models.Project, staff=None):
-    return _has_owner_access(user, project.customer, staff) or project.has_user(
-        user, ProjectRole.MANAGER
-    )
+    scopes = {"customer": project.customer, "project": project}
+    return _has_role_access(user, PROJECT_MANAGER_ROLES, scopes, staff)
 
 
 def _has_service_manager_access(user, customer: models.Customer, staff=None):
-    return _has_owner_access(user, customer, staff) or customer.has_user(
-        user, ServiceProviderRole.MANAGER
-    )
+    return _has_role_access(user, SERVICE_MANAGER_ROLES, {"customer": customer}, staff)
 
 
 def _has_admin_access(user, project: models.Project, staff=None):
-    return _has_manager_access(user, project, staff) or project.has_user(
-        user, ProjectRole.ADMIN
-    )
+    scopes = {"customer": project.customer, "project": project}
+    return _has_role_access(user, PROJECT_ADMIN_ROLES, scopes, staff)
 
 
 def _holds_on_project(request, permission, project: models.Project):

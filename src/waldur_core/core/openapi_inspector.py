@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from drf_spectacular.drainage import get_override
@@ -12,6 +13,7 @@ from drf_spectacular.plumbing import (
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse
 from rest_framework.serializers import BaseSerializer, ListSerializer
 
+from waldur_core.core import access
 from waldur_core.core.serializers import RestrictedSerializerMixin
 from waldur_core.core.signals import pre_serializer_fields
 
@@ -106,24 +108,15 @@ class WaldurOpenApiInspector(AutoSchema):
                 elif not op_id.endswith(("_count", "_head")):
                     operation["operationId"] = op_id + "_count"
 
-        if not hasattr(self.view, "action"):
+        if operation is None:
+            # Excluded from the schema.
             return operation
-        permission_checks = getattr(self.view, self.view.action + "_permissions", [])
-        if not isinstance(permission_checks, list):
-            return operation
-
-        permissions_data = []
-        for check in permission_checks:
-            if hasattr(check, "permission"):
-                permissions_data.append(
-                    {
-                        "permission": check.permission.value,
-                        "scopes": check.sources,
-                    }
-                )
-
-        if permissions_data:
-            operation["x-permissions"] = permissions_data
+        # The view has no request here; the path names its URL arguments.
+        url_kwargs = re.findall(r"{(\w+)}", path)
+        route_access = access.access_for(self.view, method, url_kwargs)
+        operation["x-permissions"] = route_access.schema_entries()
+        if route_access.visibility:
+            operation["x-visibility"] = route_access.visibility
 
         return operation
 

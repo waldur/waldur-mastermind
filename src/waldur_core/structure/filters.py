@@ -53,6 +53,10 @@ class NameFilterSet(django_filters.FilterSet):
 
 
 class GenericRoleFilter(BaseFilterBackend):
+    # Read by waldur_core.core.access: lists and retrieves show only what the
+    # caller's roles reach.
+    access_visibility = "role"
+
     def filter_queryset(self, request, queryset, view):
         # Use optimized customer filtering for customer queries when needed
         if (

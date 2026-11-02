@@ -70,6 +70,11 @@ class SramIntegrationEnabled(BasePermission):
         "SRAM provisioning is disabled (set Constance SRAM_INTEGRATION_ENABLED=True)."
     )
 
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        # A feature switch: it says nothing about who may call the route.
+        return []
+
     def has_permission(self, request, view):
         return bool(config.SRAM_INTEGRATION_ENABLED)
 

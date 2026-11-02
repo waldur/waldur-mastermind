@@ -386,6 +386,82 @@ orders, so an order cannot start executing in between. Slugs must be unique
 per model. Every change is recorded in the event log with the old and new slug
 and the caller.
 
+## Declaring who may call an endpoint
+
+Every API route must say who may call it. `AccessCoverageTest`
+(`src/waldur_core/core/tests/test_access_coverage.py`) walks every DRF route
+and method — including `update` (PUT) and `partial_update` (PATCH) separately —
+and fails, listing by app the routes that declare nothing and the routes that
+rely on a check with neither a description nor a docstring. `IsAuthenticated`
+alone does not count, and neither does a check known only by its name. It runs in the `Check API access coverage` CI job, which
+is allowed to fail until every app has declared its routes; the sharded unit
+suite skips it. Run it locally with:
+
+```bash
+DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings_local uv run pytest \
+  -m access_coverage src/waldur_core/core/tests/test_access_coverage.py
+```
+
+The same resolver, `waldur_core.core.access.access_for`, writes `x-permissions`
+into the OpenAPI schema, so what a route declares is what the API reference shows.
+
+A route declares access by any of:
+
+- **A check in `<action>_permissions`, `safe_methods_permissions` or
+  `unsafe_methods_permissions`.** `permission_factory` checks describe
+  themselves by their permission. The shared checks in
+  `waldur_core.structure.permissions` (`is_staff`, `is_owner`,
+  `is_administrator`, ...) are built from role tables (`OWNER_ROLES`,
+  `PROJECT_ADMIN_ROLES`, ...) that drive both their enforcement and their
+  description. Any other check function is described by its docstring's first
+  paragraph; to describe it precisely, decorate it:
+
+    ```python
+    from waldur_core.core import access
+
+    @access.describes(access.owned("The caller's own SSH key."), needs_object=True)
+    def is_key_owner(request, view, obj=None):
+        ...
+    ```
+
+  A check that needs an object (`permission_factory`, the shared role checks,
+  or one declared with `needs_object=True`) does not count on a route without
+  one, such as `create`, `list` or a `detail=False` action: `ActionsPermission`
+  calls it without an object, and it lets everyone through.
+
+  On a detail route, `ActionsPermission` looks the object up itself only for
+  `permission_factory` checks with `sources` (`requires_object`). Every other
+  object check — the shared role checks among them — runs in
+  `has_object_permission`, which DRF calls from `get_object()`. A detail action
+  that never calls `get_object()` therefore skips those checks, although the
+  schema lists them; such an action must call `get_object()` or check its
+  object itself.
+- **A permission class.** Classes that pick by method describe themselves with
+  a `describe_access(view, method, requires_authentication)` classmethod;
+  others are described by their docstring. A class that narrows how a request
+  may be made rather than who makes it (a feature switch, a token-scope rule)
+  returns `[]` from `describe_access`, so it does not count.
+- **`access_declarations` on the view**, for checks made in a serializer or an
+  action body, and for routes that are open on purpose. Keys are action names
+  (or lowercase HTTP methods on a plain `APIView`):
+
+    ```python
+    access_declarations = {
+        "add_user": [access.custom("The serializer requires CUSTOMER.CREATE_PERMISSION on the scope.")],
+        "countries": [access.authenticated()],
+        "health": [access.public()],
+    }
+    ```
+
+  Never declare by adding to `<action>_permissions`: an action's own list
+  replaces the view-level `unsafe_methods_permissions`, so it would drop the
+  checks the action relied on.
+- **`GenericRoleFilter`** in `filter_backends` declares that `list` and
+  `retrieve` show only what the caller's roles reach (`x-visibility: role`).
+  A subclass that shows more says so with its own `access_visibility`, as the
+  support issue and comment filters do (`role_caller_or_helpdesk`). Other read
+  actions on the same view declare their own access.
+
 ## Permission System Behavior
 
 ### Expiration Handling
