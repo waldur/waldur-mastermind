@@ -28,6 +28,24 @@ class VirtualMachineCreateBaseTest(test.APITestCase):
         }
 
 
+@ddt.ddt
+class VirtualMachineCreatePermissionTest(VirtualMachineCreateBaseTest):
+    @ddt.data("staff", "owner", "admin", "manager")
+    def test_who_manages_the_project_can_create_a_vm(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @ddt.data("member", "customer_support", "global_support")
+    def test_who_only_sees_the_project_cannot_create_a_vm(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            models.VirtualMachine.objects.filter(name="VMware VM").exists()
+        )
+
+
 class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
     def test_create_vm(self):
         self.client.force_authenticate(self.fixture.owner)

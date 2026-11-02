@@ -78,14 +78,24 @@ class VirtualMachineCreateProcessorTest(BaseVirtualMachineOrderTest):
             state=OrderStates.EXECUTING,
         )
 
-    def process(self, order):
+    def process(self, order, user=None):
         with mock.patch.object(
             vmware_executors.VirtualMachineCreateExecutor, "execute"
         ):
             with self.captureOnCommitCallbacks(execute=True):
-                marketplace_utils.process_order(order, self.fixture.staff)
+                marketplace_utils.process_order(order, user or self.fixture.staff)
         order.refresh_from_db()
         return vmware_models.VirtualMachine.objects.get(name="vm-from-order")
+
+    def test_order_placed_by_a_project_member_is_carried_out(self):
+        # An order is carried out through the viewset as whoever placed it.
+        # A member may not create a machine through the API directly, but an
+        # order they placed was authorized when it was placed and approved.
+        order = self.create_order()
+
+        vm = self.process(order, user=self.fixture.member)
+
+        self.assertEqual(vm.project, self.fixture.project)
 
     def test_chosen_networks_reach_the_virtual_machine(self):
         order = self.create_order(

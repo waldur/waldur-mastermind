@@ -2669,7 +2669,58 @@ def check_resource_backend_id(resource):
         raise ValidationError(_("Resource does not have backend ID."))
 
 
-class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+class CreateRequiresProjectAdminMixin:
+    """Let only those who may change a resource create one.
+
+    Writes are checked with ``is_administrator`` on the object written to. A
+    create has no object yet, so that check passes without testing anything,
+    and the serializer's ``project`` queryset only asks whether the user can
+    see the project. Before anything is saved, this applies the same rule to
+    the object the resource is created under, read from the validated data.
+
+    ``create_scope_field`` names that field. A serializer that derives the
+    project from another object, and checks it there, has no writable field
+    of that name, and this check does not apply to it. Where the field is
+    writable, a create without it is refused rather than let through.
+
+    Requests Waldur dispatches to itself, such as a marketplace order carried
+    out through the plugin's viewset, are not checked again: the order was
+    authorized when it was placed and approved.
+    """
+
+    create_scope_field = "project"
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        # Some serializers write rows while validating, such as a new rancher
+        # namespace; a refused create must not leave them behind.
+        with transaction.atomic():
+            serializer.is_valid(raise_exception=True)
+            if not core_utils.is_internal_request(request):
+                self.check_create_scope(request, serializer)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data, status=status.HTTP_201_CREATED, headers=headers
+        )
+
+    def check_create_scope(self, request, serializer):
+        field = serializer.fields.get(self.create_scope_field)
+        if field is None or field.read_only:
+            return
+        scope = serializer.validated_data.get(self.create_scope_field)
+        if scope is None:
+            raise ValidationError(
+                {self.create_scope_field: _("This field is required.")}
+            )
+        permissions.is_administrator(request, self, scope)
+
+
+class ResourceViewSet(
+    CreateRequiresProjectAdminMixin,
+    core_mixins.ExecutorMixin,
+    core_views.ActionsViewSet,
+):
     """Basic view set for all resource view sets."""
 
     lookup_field = "uuid"

@@ -1,5 +1,6 @@
 from unittest import mock
 
+from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
@@ -117,6 +118,7 @@ class DropletResizeTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
 
+@ddt
 class DropletCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.DigitalOceanFixture()
@@ -129,6 +131,16 @@ class DropletCreateTest(test.APITestCase):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @data("member", "customer_support", "global_support")
+    def test_who_only_sees_the_project_cannot_create_a_droplet(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(models.Droplet.objects.filter(name=payload["name"]).exists())
 
     def _get_valid_payload(self):
         return {
