@@ -5,6 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace_site_agent import utils
@@ -24,14 +25,28 @@ class UnlinkTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.post(self.url)
-        self.assertEqual(status.HTTP_204_NO_CONTENT, response.status_code)
+        self.assertEqual(status.HTTP_202_ACCEPTED, response.status_code)
 
     def test_unlink_erred_resource(self):
         self.client.force_authenticate(self.fixture.staff)
         self.fixture.resource.state = ResourceStates.ERRED
         self.fixture.resource.save()
         response = self.client.post(self.url)
-        self.assertEqual(status.HTTP_204_NO_CONTENT, response.status_code)
+        self.assertEqual(status.HTTP_202_ACCEPTED, response.status_code)
+
+    def test_unlink_deletes_resource_and_scope_in_task(self):
+        resource = self.fixture.resource
+        resource.scope = structure_factories.TestNewInstanceFactory()
+        resource.save()
+        scope = resource.scope
+        self.client.force_authenticate(self.fixture.staff)
+        with mock.patch.object(
+            tasks.unlink_resource, "delay", side_effect=tasks.unlink_resource
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.post(self.url)
+        self.assertFalse(models.Resource.objects.filter(id=resource.id).exists())
+        self.assertFalse(type(scope).objects.filter(id=scope.id).exists())
 
 
 class ResourcePullTest(test.APITestCase):

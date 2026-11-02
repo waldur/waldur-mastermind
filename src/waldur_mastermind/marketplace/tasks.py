@@ -3,6 +3,7 @@ import datetime
 import decimal
 import functools
 import logging
+import traceback
 import uuid as uuid_mod
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
@@ -1740,6 +1741,59 @@ def delete_expired_project(project_uuid):
     )
     project.delete()
     logger.info("Expired project %s has been deleted.", project_uuid)
+
+
+@shared_task(name="waldur_mastermind.marketplace.unlink_resource")
+def unlink_resource(resource_uuid):
+    """Delete a resource and its scope from the database without touching the backend.
+
+    All or nothing, as when this ran inside the request's transaction. The row
+    lock makes a repeated unlink wait for the first and then find nothing to do.
+    """
+    try:
+        with transaction.atomic():
+            resource = (
+                models.Resource.objects.select_for_update()
+                .filter(uuid=resource_uuid)
+                .first()
+            )
+            if not resource:
+                return
+            if resource.scope:
+                resource.scope.delete()
+            # Before the delete: a deleted resource has no id for its feed entry.
+            event_logger.emit(
+                "Resource {resource_name} has been unlinked.",
+                event_type=EventType.MARKETPLACE_RESOURCE_UNLINKED,
+                event_context={"resource": resource},
+                scopes=marketplace_log.get_resource_scopes(resource),
+            )
+            resource.delete()
+    except Exception as exc:
+        _record_unlink_failure(resource_uuid, exc)
+        raise
+    logger.info("Resource %s has been unlinked.", resource_uuid)
+
+
+def _record_unlink_failure(resource_uuid, exc):
+    """Show a failed unlink on the resource. Call it while handling ``exc``.
+
+    Erred also lets bulk Unlink retry it. A duplicate task waiting on the row may
+    have unlinked the resource by now, so it can be gone.
+    """
+    with transaction.atomic():
+        resource = (
+            models.Resource.objects.select_for_update()
+            .filter(uuid=resource_uuid)
+            .first()
+        )
+        if not resource:
+            return
+        if resource.state != ResourceStates.TERMINATED:
+            resource.set_state_erred()
+        resource.error_message = str(exc)
+        resource.error_traceback = traceback.format_exc()
+        resource.save(update_fields=["state", "error_message", "error_traceback"])
 
 
 @shared_task(name="waldur_mastermind.marketplace.terminate_expired_resources")
