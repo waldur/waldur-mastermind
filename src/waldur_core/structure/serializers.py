@@ -43,7 +43,7 @@ from waldur_core.permissions.serializers import (
     MePermissionSerializer,
     PermissionSerializer,
 )
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import check_pat_permission, has_permission
 from waldur_core.structure import managers, models, utils, vies
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.filters import filter_visible_users
@@ -3460,6 +3460,24 @@ class ServiceSettingsSerializer(
             fields["options"] = serializers.SerializerMethodField("get_options")
         return fields
 
+    def can_read_credentials(self, service: models.ServiceSettings) -> bool:
+        request = self.context["request"]
+        customer = service.customer
+        if has_staff_access(request) and check_pat_permission(
+            request, PermissionEnum.STAFF_ACCESS, customer
+        ):
+            return True
+        # An owner's token needs the permission guarding these values as an
+        # offering's service attributes. A staff token needs the staff scope:
+        # unlike an offering's, these settings need not belong to any offering.
+        return bool(
+            customer
+            and customer.has_user(request.user, CustomerRole.OWNER)
+            and check_pat_permission(
+                request, PermissionEnum.UPDATE_OFFERING_INTEGRATION, customer
+            )
+        )
+
     def get_options(self, service: models.ServiceSettings) -> dict:
         options = {
             "backend_url": service.backend_url,
@@ -3469,14 +3487,8 @@ class ServiceSettingsSerializer(
             "token": service.token,
             **service.options,
         }
-        request = self.context["request"]
 
-        if request.user.is_staff:
-            return options
-
-        if service.customer and service.customer.has_user(
-            request.user, CustomerRole.OWNER
-        ):
+        if self.can_read_credentials(service):
             return options
 
         options_serializer_class = get_options_serializer_class(service.type)
