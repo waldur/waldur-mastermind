@@ -465,16 +465,13 @@ def user_can_update_thumbnail(request, view, obj: models.Offering | None = None)
     raise exceptions.PermissionDenied()
 
 
-def _has_offering_admin_permission(request, permission, instance) -> bool:
-    """Whether the user holds one provider-side permission on this offering."""
-    if isinstance(instance, list):
-        # A many=True serializer passes the whole page; every offering in it
-        # shares one serializer instance, so the first stands for all.
-        offering = instance[0] if instance else None
-    else:
-        offering = instance
+def _has_offering_admin_permission(request, permission, offering) -> bool:
+    """Whether the user holds one provider-side permission on this offering.
 
-    if not offering:
+    One offering at a time: a list serializer's page is not an offering, and
+    deciding for it on any one of them would answer for all the others.
+    """
+    if not isinstance(offering, models.Offering):
         return False
 
     return has_permission_on_any_source(

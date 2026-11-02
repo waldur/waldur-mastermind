@@ -1,10 +1,20 @@
 from ddt import data, ddt
 from rest_framework import status, test
+from rest_framework.reverse import reverse
 
 from waldur_core.configuration.testing import override_config
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
+from waldur_core.permissions.tests.test_pat_list_filtering import (
+    _auth_header,
+    _create_pat,
+)
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -1652,3 +1662,111 @@ class OfferingEndpointUpdateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         other_endpoint.refresh_from_db()
         self.assertEqual(other_endpoint.name, "Other")
+
+
+class ServiceProviderOfferingListSecretOptionsTest(test.APITestCase):
+    """The list renders a page through one serializer, but who may see an
+    offering's secret options is decided offering by offering."""
+
+    def setUp(self):
+        for role in (
+            CustomerRole.OWNER,
+            OfferingRole.MANAGER,
+            ServiceProviderRole.MANAGER,
+        ):
+            role.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        self.provider = factories.ServiceProviderFactory()
+        self.first = self.offering("aaa first")
+        self.last = self.offering("zzz last")
+        self.url = reverse(
+            "service-provider-offerings-list",
+            kwargs={"service_provider_uuid": self.provider.uuid.hex},
+        )
+
+    def offering(self, name):
+        return factories.OfferingFactory(
+            customer=self.provider.customer,
+            name=name,
+            shared=True,
+            billable=True,
+            secret_options={"token": f"{name} secret"},
+        )
+
+    def manager_of(self, offering):
+        user = structure_factories.UserFactory()
+        offering.add_user(user, OfferingRole.MANAGER)
+        return user
+
+    def secrets(self, user=None):
+        """Token shown per offering name, None where the field is absent.
+
+        Without a user, the request goes with the credentials already set."""
+        if user is not None:
+            self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            [row["name"] for row in response.data], ["aaa first", "zzz last"]
+        )
+        return {
+            row["name"]: row["secret_options"]["token"]
+            if "secret_options" in row
+            else None
+            for row in response.data
+        }
+
+    def test_manager_of_the_first_offering_sees_only_its_secrets(self):
+        self.assertEqual(
+            self.secrets(self.manager_of(self.first)),
+            {"aaa first": "aaa first secret", "zzz last": None},
+        )
+
+    def test_manager_of_the_last_offering_sees_only_its_secrets(self):
+        self.assertEqual(
+            self.secrets(self.manager_of(self.last)),
+            {"aaa first": None, "zzz last": "zzz last secret"},
+        )
+
+    def test_owner_and_staff_see_every_offerings_secrets(self):
+        owner = structure_factories.UserFactory()
+        self.provider.customer.add_user(owner, CustomerRole.OWNER)
+        staff = structure_factories.UserFactory(is_staff=True)
+        for user in (owner, staff):
+            with self.subTest(staff=user.is_staff):
+                self.assertEqual(
+                    self.secrets(user),
+                    {"aaa first": "aaa first secret", "zzz last": "zzz last secret"},
+                )
+
+    def test_service_provider_manager_sees_every_offerings_secrets(self):
+        manager = structure_factories.UserFactory()
+        self.provider.add_user(manager, ServiceProviderRole.MANAGER)
+        self.assertEqual(
+            self.secrets(manager),
+            {"aaa first": "aaa first secret", "zzz last": "zzz last secret"},
+        )
+
+    @override_config(PAT_ENABLED=True)
+    def test_owner_token_needs_the_integration_scope(self):
+        owner = structure_factories.UserFactory(can_use_personal_access_tokens=True)
+        self.provider.customer.add_user(owner, CustomerRole.OWNER)
+        for scope, shown in (
+            (PermissionEnum.UPDATE_OFFERING_INTEGRATION, True),
+            (PermissionEnum.LIST_ORDERS, False),
+        ):
+            with self.subTest(scope=scope.value):
+                pat = _create_pat(owner, scopes=[scope.value], bindings=[])
+                self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+                self.assertEqual(
+                    self.secrets(),
+                    {
+                        "aaa first": "aaa first secret" if shown else None,
+                        "zzz last": "zzz last secret" if shown else None,
+                    },
+                )
+
+    def test_unrelated_user_sees_no_secrets(self):
+        self.assertEqual(
+            self.secrets(structure_factories.UserFactory()),
+            {"aaa first": None, "zzz last": None},
+        )
