@@ -218,6 +218,19 @@ def has_support_access(request) -> bool:
     )
 
 
+def has_staff_or_support_read_access(request) -> bool:
+    """Whether the request reaches every user's rows rather than its own.
+
+    Staff always do. Global support does only to read: support is read-only, so
+    a write by support reaches its own rows like anyone else's. A personal
+    access token needs the matching scope, as for ``has_staff_access`` and
+    ``has_support_access``.
+    """
+    return has_staff_access(request) or (
+        request.method in SAFE_METHODS and has_support_access(request)
+    )
+
+
 class TokenCarriesUserRole(BasePermission):
     """Refuse a personal access token that would act with less than its
     user's staff or support role.

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.structure.models import Customer
 
 from . import enums
@@ -278,14 +279,13 @@ class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
             return fields
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        if not (user and user.is_authenticated and user.is_staff):
+        if not (user and user.is_authenticated and has_staff_access(request)):
             fields.pop("raw_response", None)
         return fields
 
     def validate(self, attrs):
         request = self.context.get("request")
-        user = getattr(request, "user", None)
-        if user and user.is_staff:
+        if has_staff_access(request):
             return attrs
         if "expires_at" in attrs:
             raise serializers.ValidationError(

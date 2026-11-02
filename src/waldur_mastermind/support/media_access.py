@@ -12,8 +12,10 @@ access.register(
     access.queryset_rule(
         Attachment,
         ["file"],
-        lambda queryset, user: queryset.filter_for_user(user),
+        lambda queryset, principal: queryset.filter_for_user(principal),
     ),
+    # A personal access token's staff scope is on the request.
+    with_request=True,
 )
 
 # Support templates are a global catalogue; TemplateViewSet is IsAdminOrReadOnly,

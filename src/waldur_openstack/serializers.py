@@ -33,6 +33,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.validators import (
     BackendURLValidator,
     is_valid_ipv4_cidr,
@@ -3716,7 +3717,7 @@ class CreateLoadBalancerSerializer(LoadBalancerWritableSerializer):
     def validate_tenant(self, tenant):
         user = self.context["request"].user
         if not (
-            user.is_staff
+            has_staff_access(self.context["request"])
             or tenant.project.customer.has_user(user, CustomerRole.OWNER)
             or tenant.project.has_user(user, ProjectRole.ADMIN)
             or tenant.project.has_user(user, ProjectRole.MANAGER)
@@ -3824,9 +3825,10 @@ class OpenStackPoolSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
-def _validate_load_balancer(load_balancer, user):
+def _validate_load_balancer(load_balancer, request):
+    user = request.user
     if not (
-        user.is_staff
+        has_staff_access(request)
         or load_balancer.project.customer.has_user(user, CustomerRole.OWNER)
         or load_balancer.project.has_user(user, ProjectRole.ADMIN)
         or load_balancer.project.has_user(user, ProjectRole.MANAGER)
@@ -3888,8 +3890,7 @@ class CreatePoolSerializer(PoolWritableSerializer):
         )
 
     def validate_load_balancer(self, load_balancer):
-        user = self.context["request"].user
-        _validate_load_balancer(load_balancer, user)
+        _validate_load_balancer(load_balancer, self.context["request"])
         return load_balancer
 
     def validate(self, attrs):
@@ -4033,8 +4034,7 @@ class CreateListenerSerializer(ListenerWritableSerializer):
         }
 
     def validate_load_balancer(self, load_balancer):
-        user = self.context["request"].user
-        _validate_load_balancer(load_balancer, user)
+        _validate_load_balancer(load_balancer, self.context["request"])
         return load_balancer
 
     def validate(self, attrs):
@@ -4144,7 +4144,7 @@ class CreatePoolMemberSerializer(PoolMemberWritingSerializer):
     def validate_pool(self, pool):
         user = self.context["request"].user
         if not (
-            user.is_staff
+            has_staff_access(self.context["request"])
             or pool.project.customer.has_user(user, CustomerRole.OWNER)
             or pool.project.has_user(user, ProjectRole.ADMIN)
             or pool.project.has_user(user, ProjectRole.MANAGER)
@@ -4312,7 +4312,7 @@ class CreateHealthMonitorSerializer(HealthMonitorWritableSerializer):
     def validate_pool(self, pool):
         user = self.context["request"].user
         if not (
-            user.is_staff
+            has_staff_access(self.context["request"])
             or pool.project.customer.has_user(user, CustomerRole.OWNER)
             or pool.project.has_user(user, ProjectRole.ADMIN)
             or pool.project.has_user(user, ProjectRole.MANAGER)
@@ -4378,7 +4378,7 @@ class CreateRouterSerializer(serializers.HyperlinkedModelSerializer):
     def validate_tenant(self, tenant):
         user = self.context["request"].user
         if not (
-            user.is_staff
+            has_staff_access(self.context["request"])
             or tenant.project.customer.has_user(user, CustomerRole.OWNER)
             or tenant.project.has_user(user, ProjectRole.ADMIN)
             or tenant.project.has_user(user, ProjectRole.MANAGER)

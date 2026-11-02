@@ -34,7 +34,7 @@ from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.core.models import DESCRIPTION_LENGTH
-from waldur_core.core.permissions import has_staff_access
+from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
@@ -807,15 +807,14 @@ class ProjectSerializer(
         ):
             fields["start_date"].read_only = True
 
-        if (
-            "max_service_accounts" in fields
-            and not self.context["request"].user.is_staff
+        if "max_service_accounts" in fields and not has_staff_access(
+            self.context["request"]
         ):
             fields["max_service_accounts"].read_only = True
 
         # Handle staff_notes field visibility and permissions
         if "staff_notes" in fields:
-            user = self.context["request"].user
+            request = self.context["request"]
             # Check if this is schema generation context (drf-spectacular)
             # When generating schema, we want to include all fields
             is_schema_generation = getattr(
@@ -823,10 +822,10 @@ class ProjectSerializer(
             )
 
             if not is_schema_generation:
-                if not (user.is_staff or user.is_support):
+                if not has_support_access(request):
                     # Remove field entirely for non-staff/non-support users
                     del fields["staff_notes"]
-                elif not user.is_staff:
+                elif not has_staff_access(request):
                     # Support users can see but not edit
                     fields["staff_notes"].read_only = True
 
@@ -834,7 +833,7 @@ class ProjectSerializer(
         for field_name in ("grace_period_days",):
             if field_name not in fields:
                 continue
-            user = self.context["request"].user
+            request = self.context["request"]
             # Check if this is schema generation context (drf-spectacular)
             # When generating schema, we want to include all fields
             is_schema_generation = getattr(
@@ -842,7 +841,7 @@ class ProjectSerializer(
             )
 
             if not is_schema_generation:
-                if not user.is_staff:
+                if not has_staff_access(request):
                     # Make field read-only for non-staff users
                     fields[field_name].read_only = True
 
@@ -981,8 +980,7 @@ class ProjectSerializer(
         affiliation = attrs.get("affiliation")
         if affiliation is not None:
             request = self.context.get("request")
-            user = request.user if request else None
-            if user is not None and not user.is_staff:
+            if request is not None and not has_staff_access(request):
                 if not customer.default_affiliations.filter(pk=affiliation.pk).exists():
                     raise serializers.ValidationError(
                         {
@@ -1591,17 +1589,16 @@ class CustomerSerializer(
     def get_fields(self):
         fields = super().get_fields()
 
-        try:
-            request = self.context["request"]
-            user = request.user
-        except (KeyError, AttributeError):
+        request = self.context.get("request")
+        if getattr(request, "user", None) is None:
             return fields
 
         # Skip field filtering during schema generation
         if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
-        if not user.is_staff:
+        acts_as_staff = has_staff_access(request)
+        if not acts_as_staff:
             staff_fields = set(self.Meta.staff_only_fields) | {"grace_period_days"}
             for field_name in staff_fields & set(fields.keys()):
                 fields[field_name].read_only = True
@@ -1609,7 +1606,7 @@ class CustomerSerializer(
         # EU VAT rules decide the rate, so a manual one would be ignored anyway.
         # They follow the country, so only staff may change it.
         if config.VAT_TAXATION_ENABLED:
-            locked = {"default_tax_percent"} | (set() if user.is_staff else {"country"})
+            locked = {"default_tax_percent"} | (set() if acts_as_staff else {"country"})
             for field_name in locked & set(fields.keys()):
                 fields[field_name].read_only = True
 
@@ -3378,7 +3375,11 @@ class ProjectRecoverySerializer(serializers.Serializer):
             )
 
         # Check staff-only permission for automatic restoration
-        if data.get("restore_team_members") and request and not request.user.is_staff:
+        if (
+            data.get("restore_team_members")
+            and request
+            and not has_staff_access(request)
+        ):
             raise serializers.ValidationError(
                 _(
                     "Only staff users can automatically restore team members. Use send_invitations_to_previous_members instead."

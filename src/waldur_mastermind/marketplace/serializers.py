@@ -65,6 +65,7 @@ from waldur_core.core.models import (
     User,
     get_ssh_key_fingerprints,
 )
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions import models as permission_models
@@ -203,11 +204,12 @@ MAX_ORDER_NOTIFICATION_ROLES = 10
 MAX_DAILY_USAGE_ITEMS = 1000
 
 
-def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options):
-    """Reject a non-staff user setting or changing auto_approve_for_roles.
-    The consumer-approval skip it grants is a staff-controlled policy, so it is
-    locked at both creation and update, regardless of who edits the offering."""
-    if user.is_staff or "auto_approve_for_roles" not in plugin_options:
+def validate_auto_approve_for_roles_is_staff_only(request, instance, plugin_options):
+    """Reject a request not acting as staff setting or changing
+    auto_approve_for_roles. The consumer-approval skip it grants is a
+    staff-controlled policy, so it is locked at both creation and update,
+    regardless of who edits the offering."""
+    if has_staff_access(request) or "auto_approve_for_roles" not in plugin_options:
         return
     old_value = (
         instance.plugin_options.get("auto_approve_for_roles", []) if instance else []
@@ -277,11 +279,12 @@ def validate_api_key_options(instance, plugin_options):
         )
 
 
-def validate_disable_grace_period_is_staff_only(user, instance, plugin_options):
-    """Reject a non-staff user setting or changing disable_grace_period.
-    Overriding the org/project grace period is a staff-controlled policy, so it is
-    locked at both creation and update, regardless of who edits the offering."""
-    if user.is_staff or "disable_grace_period" not in plugin_options:
+def validate_disable_grace_period_is_staff_only(request, instance, plugin_options):
+    """Reject a request not acting as staff setting or changing
+    disable_grace_period. Overriding the org/project grace period is a
+    staff-controlled policy, so it is locked at both creation and update,
+    regardless of who edits the offering."""
+    if has_staff_access(request) or "disable_grace_period" not in plugin_options:
         return
     old_value = (
         instance.plugin_options.get("disable_grace_period", False)
@@ -1858,7 +1861,7 @@ class ServiceProviderSerializer(
         if request.user.is_anonymous:
             fields.pop("enable_notifications", None)
 
-        if not request.user.is_staff:
+        if not has_staff_access(request):
             if "allowed_domains" in fields:
                 fields["allowed_domains"].read_only = True
 
@@ -6006,10 +6009,10 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         self._validate_derived_options(attrs)
 
         validate_auto_approve_for_roles_is_staff_only(
-            self.context["request"].user, self.instance, attrs.get("plugin_options", {})
+            self.context["request"], self.instance, attrs.get("plugin_options", {})
         )
         validate_disable_grace_period_is_staff_only(
-            self.context["request"].user, self.instance, attrs.get("plugin_options", {})
+            self.context["request"], self.instance, attrs.get("plugin_options", {})
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
         validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
@@ -6509,8 +6512,8 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
-        user = self.context["request"].user
-        if not user.is_staff:
+        request = self.context["request"]
+        if not has_staff_access(request):
             plugin_options = attrs.get("plugin_options", {})
             if "disabled_resource_actions" in plugin_options:
                 # Check if it's actually changing
@@ -6527,10 +6530,10 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                         }
                     )
         validate_auto_approve_for_roles_is_staff_only(
-            user, self.instance, attrs.get("plugin_options", {})
+            request, self.instance, attrs.get("plugin_options", {})
         )
         validate_disable_grace_period_is_staff_only(
-            user, self.instance, attrs.get("plugin_options", {})
+            request, self.instance, attrs.get("plugin_options", {})
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
         validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
@@ -11179,8 +11182,7 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
         if not value:
             return value
 
-        user = self.context["request"].user
-        if user.is_staff:
+        if has_staff_access(self.context["request"]):
             return value
 
         # Get the component usage to check if user is service provider
@@ -11542,8 +11544,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         if not value:
             return value
 
-        user = self.context["request"].user
-        if user.is_staff:
+        if has_staff_access(self.context["request"]):
             return value
 
         # Defer validation for service providers until we have access to the resource
@@ -11626,7 +11627,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     }
                 )
 
-        if date_value and not self.context["request"].user.is_staff:
+        if date_value and not has_staff_access(self.context["request"]):
             # Check if user is service provider for the resource's offering
             if has_permission_on_any_source(
                 self.context["request"],
@@ -11715,7 +11716,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     def _can_backfill_day(self, resource, day):
         # The same rule as for a dated monthly report of a usage-based component.
         request = self.context["request"]
-        if request.user.is_staff:
+        if has_staff_access(request):
             return True
         return has_permission_on_any_source(
             request,

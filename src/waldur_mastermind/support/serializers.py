@@ -19,6 +19,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
+from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.core.utils import is_uuid_like, text2html
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import models as structure_models
@@ -520,7 +521,7 @@ class IssueSerializer(
             # and `project` do — so the branch itself is what has to be gated.
             # Everyone else reports through `is_reported_manually`, which pins
             # the caller to the requesting user.
-            if not (request_user.is_staff or request_user.is_support):
+            if not has_support_access(self.context["request"]):
                 raise serializers.ValidationError(
                     _(
                         "Only staff or support can report an issue on behalf of another user. "
@@ -615,8 +616,7 @@ class IssueSerializer(
         user = self.context["request"].user
         if (
             not customer
-            or user.is_staff
-            or user.is_support
+            or has_support_access(self.context["request"])
             or customer.has_user(user, CustomerRole.OWNER)
         ):
             return customer
@@ -630,8 +630,7 @@ class IssueSerializer(
         user = self.context["request"].user
         if (
             not project
-            or user.is_staff
-            or user.is_support
+            or has_support_access(self.context["request"])
             or project.customer.has_user(user, CustomerRole.OWNER)
             or project.has_user(user, ProjectRole.MANAGER)
             or project.has_user(user, ProjectRole.ADMIN)
@@ -650,8 +649,8 @@ class IssueSerializer(
         return resource
 
     def validate_priority(self, priority):
-        user = self.context["request"].user
-        if user.is_authenticated and not user.is_staff and not user.is_support:
+        request = self.context["request"]
+        if request.user.is_authenticated and not has_support_access(request):
             raise serializers.ValidationError(
                 _("Only staff or support can specify issue priority.")
             )
@@ -861,7 +860,7 @@ class CommentSerializer(
         if request is None:
             return False
         return backend.comment_change_is_permitted(
-            request.user, obj, author_may_change, is_routed=self._issue_is_routed
+            request, obj, author_may_change, is_routed=self._issue_is_routed
         )
 
     def _issue_is_routed(self, issue) -> bool:
@@ -876,7 +875,7 @@ class CommentSerializer(
         # Visibility is the helpdesk's call. An author allowed to edit their
         # own comment could otherwise hide it from everyone else on the ticket,
         # which would also stop its notifications.
-        if self.instance is not None and not self.context["request"].user.is_staff:
+        if self.instance is not None and not has_staff_access(self.context["request"]):
             attrs.pop("is_public", None)
         return attrs
 
@@ -1165,7 +1164,7 @@ class AttachmentSerializer(
             raise serializers.ValidationError(_("Adding attachments is not available."))
 
         if (
-            user.is_staff
+            has_staff_access(self.context["request"])
             or (issue.customer and issue.customer.has_user(user, CustomerRole.OWNER))
             or issue.caller == user
         ):

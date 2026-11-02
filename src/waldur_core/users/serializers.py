@@ -7,6 +7,7 @@ from rest_framework import serializers
 from waldur_core.configuration import config
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.models import User, UserDetailsMatchMixin
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.core.validators import get_project_name_regex_error
 from waldur_core.permissions.enums import TYPE_MAP
@@ -274,7 +275,7 @@ class GroupInvitationSerializer(
         # Only staff can create public invitations
         if attrs.get("is_public", False):
             request = self.context.get("request")
-            if not (request and request.user.is_staff):
+            if not (request and has_staff_access(request)):
                 raise serializers.ValidationError(
                     {"is_public": "Only staff users can create public invitations."}
                 )
@@ -446,7 +447,7 @@ class GroupInvitationUpdateSerializer(
         # Staff-only check for is_public
         if is_public:
             request = self.context.get("request")
-            if not (request and request.user.is_staff):
+            if not (request and has_staff_access(request)):
                 raise serializers.ValidationError(
                     {"is_public": "Only staff users can create public invitations."}
                 )
