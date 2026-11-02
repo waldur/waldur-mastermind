@@ -24,6 +24,9 @@ class LexisLinkViewSet(core_views.ActionsViewSet):
     create_serializer_class = serializers.LexisLinkCreateSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.LexisLinkFilter
+    # A link has nothing for a caller to edit: its HEAppE project is recorded
+    # by the backend, and Waldur makes its HEAppE project calls with it.
+    disabled_actions = ["update", "partial_update"]
 
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
