@@ -121,8 +121,6 @@ class CreateScopeCoverageTest(SimpleTestCase):
     SCOPE_CHECKED_BY_SERIALIZER = {
         # The port's tenant decides the project; the serializer checks it.
         "waldur_openstack.views.PortViewSet",
-        # Created through the tenant's create_server_group action instead.
-        "waldur_openstack.views.ServerGroupViewSet",
         # Node creation is staff-only (is_staff on the view).
         "waldur_rancher.views.NodeViewSet",
     }

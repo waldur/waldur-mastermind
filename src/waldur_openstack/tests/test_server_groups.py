@@ -113,3 +113,24 @@ class ServerGroupDeleteTest(BaseServerGroupTest):
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+
+@ddt
+class ServerGroupCollectionCreateTest(BaseServerGroupTest):
+    """Server groups are created through the tenant's create_server_group action.
+
+    The collection route has no tenant to create one under, so it is closed
+    rather than left to fail.
+    """
+
+    @data("staff", "owner", "admin", "member", "user")
+    def test_collection_route_does_not_create_a_server_group(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        response = self.client.post(
+            factories.ServerGroupFactory.get_list_url(),
+            {"name": "server group", "policy": models.ServerGroup.AFFINITY},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertFalse(models.ServerGroup.objects.exists())
