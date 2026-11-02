@@ -957,6 +957,15 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Get customer context for this ticket",
+        description=(
+            "The original ticket's caller (full name, email and organization), "
+            "its resource, and the caller's five latest other tickets among "
+            "those the provider ticket list shows the requester: tickets routed "
+            "to a helpdesk they speak for, as an owner of the service "
+            "provider's organization or as an active agent. Staff and support "
+            "see the caller's tickets routed to any provider. Tickets kept on "
+            "the operator's own desk are not listed."
+        ),
         responses={200: serializers.CustomerContextSerializer},
     )
     @decorators.action(detail=True, methods=["get"])
@@ -983,12 +992,15 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
                 "type": getattr(parent.resource, "type", ""),
             }
 
-        # Recent tickets from same caller
+        # The caller's other tickets, from those the requester may open here:
+        # the caller's tickets with other providers or on the operator's own
+        # desk are not theirs to read.
         recent_tickets = []
         if parent and parent.caller:
             recent = (
-                models.Issue.objects.filter(caller=parent.caller)
-                .exclude(pk=parent.pk)
+                self.get_queryset()
+                .filter(caller=parent.caller)
+                .exclude(pk=issue.pk)
                 .order_by("-created")[:5]
             )
             recent_tickets = [
