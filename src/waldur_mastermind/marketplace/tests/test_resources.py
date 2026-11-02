@@ -26,6 +26,7 @@ from waldur_core.permissions.tests.test_pat_list_filtering import (
     _auth_header,
     _create_pat,
 )
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.common import mixins as common_mixins
@@ -2134,7 +2135,7 @@ class ResourceReallocateLimitsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("must be positive", str(response.data))
 
-    def test_reallocate_limits_requires_permission_for_target_resource(self):
+    def test_target_the_user_cannot_see_is_reported_as_missing(self):
         other_project = ProjectFactory()
         target_other = factories.ResourceFactory(
             offering=self.source_resource.offering,
@@ -2157,10 +2158,8 @@ class ResourceReallocateLimitsTest(test.APITestCase):
             targets,
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(
-            "User does not have permission to update target resource",
-            str(response.data),
-        )
+        self.assertIn("do not exist", str(response.data))
+        self.assertFalse(models.Order.objects.exists())
 
     @mock.patch("waldur_mastermind.marketplace.tasks.process_order")
     def test_reallocate_limits_orders_are_created_in_transaction(self, mock_task):
@@ -2190,7 +2189,8 @@ class ResourceReallocateLimitsTest(test.APITestCase):
 @override_config(PAT_ENABLED=True)
 class ResourceReallocateLimitsTokenTest(test.APITestCase):
     """Targets come from the request body, so the checks on the action's object
-    do not cover them: a token's scopes and bindings apply to each one."""
+    do not cover them: a token's scopes and bindings apply to each one. A
+    target outside them is answered as missing, as update_limits answers 404."""
 
     def setUp(self):
         plugins.manager.register(
@@ -2261,17 +2261,51 @@ class ResourceReallocateLimitsTokenTest(test.APITestCase):
         self.use_token(*bindings, user=user)
         return self.post(target)
 
-    def assert_refused(self, response):
+    def assert_refused(self, response, message="does not have permission"):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("does not have permission", str(response.data))
+        self.assertIn(message, str(response.data))
         self.assertFalse(models.Order.objects.exists())
 
+    def assert_missing(self, response):
+        self.assert_refused(response, "do not exist")
+
     def test_target_outside_the_binding_is_refused(self):
-        self.assert_refused(self.reallocate(self.outside, self.project))
+        self.assert_missing(self.reallocate(self.outside, self.project))
+
+    def test_target_outside_the_binding_is_answered_as_a_missing_one(self):
+        missing = uuid.uuid4()
+        self.use_token(self.project)
+        responses = {
+            "outside": self.post(self.outside),
+            "missing": self.client.post(
+                factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
+                {
+                    "limits": {"vcpu": 2, "ram": 4},
+                    "targets": [
+                        {
+                            "resource_uuid": missing.hex,
+                            "allocated_limits": {"vcpu": 2, "ram": 4},
+                        }
+                    ],
+                },
+                format="json",
+            ),
+        }
+        texts = {}
+        for name, response in responses.items():
+            text = str(response.data)
+            for value in (uuid.UUID(self.outside.uuid.hex), missing):
+                text = text.replace(str(value), "<uuid>").replace(value.hex, "<uuid>")
+            texts[name] = text
+        self.assertEqual(
+            responses["outside"].status_code, responses["missing"].status_code
+        )
+        self.assertEqual(texts["outside"], texts["missing"])
+        self.assertFalse(models.Order.objects.exists())
 
     def test_staff_token_is_held_to_its_binding(self):
         staff = UserFactory(is_staff=True, can_use_personal_access_tokens=True)
-        self.assert_refused(self.reallocate(self.outside, self.project, user=staff))
+        self.assert_missing(self.reallocate(self.outside, self.project, user=staff))
 
     def test_refused_token_learns_nothing_about_the_target(self):
         other_offering = factories.OfferingFactory()
@@ -2284,7 +2318,7 @@ class ResourceReallocateLimitsTokenTest(test.APITestCase):
                 setattr(target, field, value)
                 target.save(update_fields=[field])
                 response = self.reallocate(target, self.project)
-                self.assert_refused(response)
+                self.assert_missing(response)
                 self.assertNotIn(target.name, str(response.data))
 
     def test_target_inside_the_binding_is_allowed(self):
@@ -2304,13 +2338,60 @@ class ResourceReallocateLimitsTokenTest(test.APITestCase):
 
     def test_token_user_without_a_role_on_the_target_is_refused(self):
         self.other_project.remove_user(self.user)
-        self.assert_refused(self.reallocate(self.outside))
+        self.assert_missing(self.reallocate(self.outside))
+
+    def test_target_concealed_by_its_access_subnets_is_missing(self):
+        self.offering.plugin_options = {"conceal_subnet_restricted_resources": True}
+        self.offering.save(update_fields=["plugin_options"])
+        concealing = ProjectFactory()
+        concealing.add_user(self.user, ProjectRole.MANAGER)
+        subnet = structure_models.AccessSubnet.objects.create(
+            customer=concealing.customer, inet="100.100.100.100/32"
+        )
+        models.AccessSubnetOfferingScope.objects.create(
+            access_subnet=subnet, offering=self.offering
+        )
+        target = self.make_resource(concealing)
+        self.client.force_authenticate(self.user)
+
+        def reallocate(address):
+            return self.client.post(
+                factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
+                {
+                    "limits": {"vcpu": 2, "ram": 4},
+                    "targets": [
+                        {
+                            "resource_uuid": target.uuid.hex,
+                            "allocated_limits": {"vcpu": 2, "ram": 4},
+                        }
+                    ],
+                },
+                format="json",
+                HTTP_X_FORWARDED_FOR=address,
+            )
+
+        update = self.client.post(
+            factories.ResourceFactory.get_url(target, "update_limits"),
+            {"limits": {"vcpu": 12, "ram": 20}},
+            format="json",
+            HTTP_X_FORWARDED_FOR="203.0.113.7",
+        )
+        self.assertEqual(update.status_code, status.HTTP_404_NOT_FOUND)
+        self.assert_missing(reallocate("203.0.113.7"))
+
+        response = reallocate("100.100.100.100")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_session_without_access_to_the_target_is_answered_as_missing(self):
+        self.other_project.remove_user(self.user)
+        self.client.force_authenticate(self.user)
+        self.assert_missing(self.post(self.outside))
 
     def test_one_target_outside_the_binding_refuses_them_all(self):
         self.use_token(self.project)
         for targets in ((self.inside, self.outside), (self.outside, self.inside)):
             with self.subTest(first=targets[0].name):
-                self.assert_refused(self.post(*targets))
+                self.assert_missing(self.post(*targets))
 
     def test_unbound_token_reallocates_to_every_target(self):
         self.use_token()
@@ -2336,16 +2417,205 @@ class ResourceReallocateLimitsTokenTest(test.APITestCase):
 
     def test_target_where_the_user_may_not_order_is_refused(self):
         self.limits_only_user()
-        response = self.post(self.outside)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("create orders for target resource", str(response.data))
-        self.assertFalse(models.Order.objects.exists())
+        self.assert_refused(self.post(self.outside), "create orders in this project")
+
+    def test_visible_target_whose_limits_the_user_may_not_change_is_refused(self):
+        ProjectRole.MEMBER.add_permission(PermissionEnum.LIST_RESOURCES)
+        self.other_project.remove_user(self.user)
+        self.other_project.add_user(self.user, ProjectRole.MEMBER)
+        self.client.force_authenticate(self.user)
+        self.assert_refused(self.post(self.outside), "update target resource")
 
     def test_target_where_the_user_may_order_is_allowed(self):
         self.limits_only_user(PermissionEnum.CREATE_ORDER)
         response = self.post(self.outside)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(models.Order.objects.filter(resource=self.outside).count(), 1)
+
+
+class ResourceReallocateLimitsRestrictionTest(test.APITestCase):
+    """An offering restricted to designated project roles is restricted on every
+    target, as update_limits on that target would be."""
+
+    def setUp(self):
+        plugins.manager.register(
+            offering_type="TEST_TYPE",
+            create_resource_processor=test_utils.TestCreateProcessor,
+            update_resource_processor=test_utils.TestUpdateScopedProcessor,
+            can_update_limits=True,
+        )
+        self.project = ProjectFactory()
+        self.other_project = ProjectFactory(customer=self.project.customer)
+        self.offering = factories.OfferingFactory(
+            type="TEST_TYPE",
+            plugin_options={"restricted_to_roles": ["PROJECT.ADMIN"]},
+        )
+        for component in ("vcpu", "ram"):
+            factories.OfferingComponentFactory(
+                offering=self.offering,
+                type=component,
+                billing_type=BillingTypes.LIMIT,
+            )
+        self.source = self.make_resource(self.project)
+        self.inside = self.make_resource(self.project)
+        self.outside = self.make_resource(self.other_project)
+        for role in (ProjectRole.ADMIN, ProjectRole.MANAGER):
+            for permission in (
+                PermissionEnum.CREATE_ORDER,
+                PermissionEnum.LIST_RESOURCES,
+                PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            ):
+                role.add_permission(permission)
+        # The designated role in the source project only.
+        self.user = UserFactory()
+        self.project.add_user(self.user, ProjectRole.ADMIN)
+        self.other_project.add_user(self.user, ProjectRole.MANAGER)
+
+    def make_resource(self, project):
+        return factories.ResourceFactory(
+            offering=self.offering,
+            project=project,
+            state=ResourceStates.OK,
+            limits={"vcpu": 10, "ram": 20},
+        )
+
+    def reallocate(self, target, user=None):
+        self.client.force_authenticate(user or self.user)
+        return self.client.post(
+            factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
+            {
+                "limits": {"vcpu": 2, "ram": 4},
+                "targets": [
+                    {
+                        "resource_uuid": target.uuid.hex,
+                        "allocated_limits": {"vcpu": 2, "ram": 4},
+                    }
+                ],
+            },
+            format="json",
+        )
+
+    def test_update_limits_on_the_target_is_refused(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.outside, "update_limits"),
+            {"limits": {"vcpu": 12, "ram": 20}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_target_where_the_user_lacks_the_role_is_refused(self):
+        response = self.reallocate(self.outside)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("restricted to designated project roles", str(response.data))
+        self.assertFalse(models.Order.objects.exists())
+
+    def test_target_where_the_user_holds_the_role_is_allowed(self):
+        response = self.reallocate(self.inside)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(models.Order.objects.filter(resource=self.inside).count(), 1)
+
+    def test_staff_is_not_restricted(self):
+        response = self.reallocate(self.outside, UserFactory(is_staff=True))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(models.Order.objects.filter(resource=self.outside).count(), 1)
+
+    def post(self, user, *targets):
+        """Move 2 vCPU and 4 RAM from the source, split evenly between targets."""
+        self.client.force_authenticate(user)
+        share = {"vcpu": 2 // len(targets), "ram": 4 // len(targets)}
+        return self.client.post(
+            factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
+            {
+                "limits": {"vcpu": 2, "ram": 4},
+                "targets": [
+                    {"resource_uuid": target.uuid.hex, "allocated_limits": share}
+                    for target in targets
+                ],
+            },
+            format="json",
+        )
+
+    def test_one_restricted_target_refuses_them_all(self):
+        for targets in ((self.inside, self.outside), (self.outside, self.inside)):
+            with self.subTest(first=targets[0].name):
+                response = self.post(self.user, *targets)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("restricted", str(response.data))
+                self.assertFalse(models.Order.objects.exists())
+
+    def reset(self):
+        """Undo what an accepted request did, so the next one starts alike."""
+        models.Order.objects.all().delete()
+        models.Resource.objects.filter(
+            pk__in=[self.source.pk, self.inside.pk, self.outside.pk]
+        ).update(state=ResourceStates.OK, limits={"vcpu": 10, "ram": 20})
+
+    def as_caller(self, user, scopes):
+        self.client.credentials()
+        self.client.force_authenticate(None)
+        if scopes is None:
+            self.client.force_authenticate(user)
+        else:
+            pat = _create_pat(user, scopes=[s.value for s in scopes], bindings=[])
+            self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+
+    @override_config(PAT_ENABLED=True)
+    def test_a_target_is_accepted_exactly_when_update_limits_on_it_is(self):
+        """Callers who all may reallocate from the source, differing only in
+        what they hold over the target."""
+        admin_of_both = UserFactory()
+        no_role_on_target = UserFactory()
+        staff_with_token = UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
+        for user in (admin_of_both, no_role_on_target, staff_with_token):
+            self.project.add_user(user, ProjectRole.ADMIN)
+        self.other_project.add_user(admin_of_both, ProjectRole.ADMIN)
+        callers = {
+            "admin of both projects": (admin_of_both, None),
+            "manager of the target's project": (self.user, None),
+            "no role on the target": (no_role_on_target, None),
+            "staff session": (UserFactory(is_staff=True), None),
+            "staff token without the staff scope": (
+                staff_with_token,
+                [PermissionEnum.CREATE_ORDER, PermissionEnum.UPDATE_RESOURCE_LIMITS],
+            ),
+        }
+        outcomes = set()
+        for name, (user, scopes) in callers.items():
+            with self.subTest(name):
+                self.as_caller(user, scopes)
+                direct = self.client.post(
+                    factories.ResourceFactory.get_url(self.outside, "update_limits"),
+                    {"limits": {"vcpu": 12, "ram": 24}},
+                    format="json",
+                )
+                self.reset()
+                self.as_caller(user, scopes)
+                reallocation = self.client.post(
+                    factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
+                    {
+                        "limits": {"vcpu": 2, "ram": 4},
+                        "targets": [
+                            {
+                                "resource_uuid": self.outside.uuid.hex,
+                                "allocated_limits": {"vcpu": 2, "ram": 4},
+                            }
+                        ],
+                    },
+                    format="json",
+                )
+                self.reset()
+                allowed = direct.status_code == status.HTTP_200_OK
+                outcomes.add(allowed)
+                self.assertEqual(
+                    reallocation.status_code == status.HTTP_200_OK,
+                    allowed,
+                    (direct.status_code, reallocation.data),
+                )
+        # Both answers occur, so the comparison is not vacuous.
+        self.assertEqual(outcomes, {True, False})
 
 
 class ResourceMoveTest(test.APITestCase):

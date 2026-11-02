@@ -8148,17 +8148,15 @@ def get_model_serializer(model: type):
         return None
 
 
-# Where a reallocation target's permissions may be held: the sources the view's
-# own checks accept for the source resource.
-REALLOCATION_TARGET_SOURCES = ["project", "project.customer"]
-
-
-def validate_reallocation(source_resource, limits_to_reallocate, targets, request):
+def validate_reallocation(
+    source_resource, limits_to_reallocate, targets, target_resources
+):
     """
     Validate reallocation of resource limits from source to target resources.
 
-    ``request`` rather than its user, so that a personal access token's scopes
-    and bindings apply to the targets as well.
+    ``target_resources`` maps the UUIDs of the targets the caller may see to
+    those resources, already authorized; any other UUID in ``targets`` is
+    reported as missing, whether or not a resource has it.
     """
 
     if not limits_to_reallocate or not targets:
@@ -8185,9 +8183,7 @@ def validate_reallocation(source_resource, limits_to_reallocate, targets, reques
     if source_resource.uuid in target_resource_uuids:
         error_validation("Source resource cannot be a target resource.")
 
-    target_resources = models.Resource.objects.filter(uuid__in=target_resource_uuids)
-    for target_resource in target_resources:
-        validate_target_permissions(target_resource, request)
+    for target_resource in target_resources.values():
         if target_resource.offering != source_resource.offering:
             error_validation(
                 "Target resource %(name)s must be from the same offering as the source resource.",
@@ -8204,7 +8200,7 @@ def validate_reallocation(source_resource, limits_to_reallocate, targets, reques
                 "Target resource %(name)s has pending orders.",
                 name=target_resource.name,
             )
-    found_uuids = {resource.uuid for resource in target_resources}
+    found_uuids = set(target_resources)
     missing_uuids = set(target_resource_uuids) - found_uuids
     if missing_uuids:
         error_validation(
@@ -8216,7 +8212,7 @@ def validate_reallocation(source_resource, limits_to_reallocate, targets, reques
 
     for target_data in targets:
         target_uuid = target_data["resource_uuid"]
-        target_resource = target_resources.get(uuid=target_uuid)
+        target_resource = target_resources.get(target_uuid)
         if not target_resource:
             error_validation(
                 "Target resource with UUID %(uuid)s not found.",
@@ -8291,37 +8287,6 @@ def validate_source_component(component, value, source_limits):
             value=value,
             component=component,
             available=available,
-        )
-
-
-def validate_target_permissions(target_resource, request):
-    """Authorize changing a reallocation target, ahead of anything else about it.
-
-    Targets come from the request body rather than the action's object, so the
-    view's permission checks do not cover them. Each target gets its own order,
-    so order creation is authorized per target too. Refusals name the target by
-    the UUID the caller sent: its name is not theirs to learn.
-    """
-    if not permission_utils.has_permission_on_any_source(
-        request,
-        PermissionEnum.UPDATE_RESOURCE_LIMITS,
-        target_resource,
-        REALLOCATION_TARGET_SOURCES,
-    ):
-        error_validation(
-            "User does not have permission to update target resource %(uuid)s limits.",
-            uuid=target_resource.uuid.hex,
-        )
-
-    if not permission_utils.has_permission_on_any_source(
-        request,
-        PermissionEnum.CREATE_ORDER,
-        target_resource,
-        REALLOCATION_TARGET_SOURCES,
-    ):
-        error_validation(
-            "User does not have permission to create orders for target resource %(uuid)s.",
-            uuid=target_resource.uuid.hex,
         )
 
 

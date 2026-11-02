@@ -10210,6 +10210,28 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         ),
     ]
 
+    def check_reallocation_target_permissions(self, request, target):
+        """Authorize a reallocation target with the checks of update_limits.
+
+        Targets come from the request body rather than the action's object, so
+        the view's permission checks do not cover them. Each target gets an
+        update order of its own, which update_limits on that resource would
+        also create, so it runs the same checks. A refusal is reported as
+        invalid input naming the target by the UUID the caller sent, not by
+        anything the caller may not know about it.
+        """
+        for check in self.update_limits_permissions:
+            try:
+                check(request, self, target)
+            except rf_exceptions.PermissionDenied as error:
+                raise rf_exceptions.ValidationError(
+                    _(
+                        "User does not have permission to update target resource "
+                        "%(uuid)s limits: %(reason)s"
+                    )
+                    % {"uuid": target.uuid.hex, "reason": error.detail}
+                )
+
     @extend_schema(
         summary="Reallocate resource limits",
         description="Creates marketplace orders to reallocate limits from source resource to target resources.",
@@ -10244,8 +10266,19 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         limits_to_reallocate = serializer.validated_data["limits"]
         targets = serializer.validated_data["targets"]
 
+        # Looked up as update_limits looks up its resource, so a target the
+        # caller may not see is reported as missing rather than as forbidden.
+        target_resources = {
+            resource.uuid: resource
+            for resource in self.filter_queryset(self.get_queryset())
+            .filter(uuid__in=[target["resource_uuid"] for target in targets])
+            .prefetch_related(None)
+        }
+        for target_resource in target_resources.values():
+            self.check_reallocation_target_permissions(request, target_resource)
+
         utils.validate_reallocation(
-            source_resource, limits_to_reallocate, targets, request
+            source_resource, limits_to_reallocate, targets, target_resources
         )
 
         source_new_limits = utils.calculate_new_limits(
@@ -10270,9 +10303,9 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             # Create target orders (increasing limits)
             target_orders = []
             for target_data in targets:
-                target_resource = models.Resource.objects.get(
-                    uuid=target_data["resource_uuid"]
-                )
+                # The instance authorized above, so that each order goes where
+                # its permissions were checked.
+                target_resource = target_resources[target_data["resource_uuid"]]
                 self.ensure_resource_operations_allowed(target_resource)
 
                 # Calculate new limits for target resource
