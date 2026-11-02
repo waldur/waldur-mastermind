@@ -122,6 +122,16 @@ or support through must therefore ask the request, not the user:
 full staff. Not yet covered: serializer-level checks and what such a token can
 read, since `filter_queryset_for_user` receives only the user.
 
+Credentials in `GET /api/service-settings/` are the exception: a token sees them
+only with `STAFF.ACCESS` or, for an organization owner, with
+`OFFERING.UPDATE_INTEGRATION`, the permission guarding the same values on an
+offering. Its bindings must cover the organization in both cases, so a bound
+token never sees the credentials of settings that belong to no organization. A
+staff token carrying `OFFERING.UPDATE_INTEGRATION` but not `STAFF.ACCESS` reads an
+offering's service attributes but not these settings, which need not belong to any
+offering. Any other token gets the redacted options a non-owner sees. Use `check_pat_permission` for a check
+that decides the role itself and needs only the token's limits on top.
+
 ## Security
 
 ### PAT-via-PAT Blocked

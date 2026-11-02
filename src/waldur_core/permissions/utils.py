@@ -165,6 +165,15 @@ def check_pat_support_scope(request) -> bool:
     )
 
 
+def check_pat_permission(request, permission: enums.PermissionEnum, scope=None) -> bool:
+    """Return True if the request's token allows ``permission`` on ``scope``.
+
+    Non-PAT requests always pass. This applies the token's limits only and
+    looks up no role, so it is for a check that settles the role itself.
+    """
+    return _pat_scope_check(request, permission, scope) is not False
+
+
 def get_global_role_scope():
     """The single site-wide scope global roles are granted on.
 
