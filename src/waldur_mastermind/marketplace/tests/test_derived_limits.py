@@ -721,7 +721,7 @@ class ResourceDerivedLimitsUpdateTest(DerivedLimitsOrderMixin, test.APITestCase)
                 self.resource,
                 {"backup": 10},
                 [{"resource_uuid": "0" * 32, "allocated_limits": {"backup": 10}}],
-                self.fixture.owner,
+                {},
             )
         self.assertIn("cannot be reallocated", str(context.exception))
 
