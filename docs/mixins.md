@@ -70,6 +70,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`WebhookConsumerFieldsMixin`](#webhookconsumerfieldsmixin) | `waldur_core.logging.serializers` | Webhook destination and payload filters, shared by create and update |
 | [`ImageModelMixin`](#imagemodelmixin) | `waldur_core.media.mixins` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`PermissionMixin`](#permissionmixin) | `waldur_core.permissions.mixins` | Base permission management mixin for customer and project |
+| [`NotOptedInMixin`](#notoptedinmixin) | `waldur_core.permissions.tests.test_pat_binding_on_source_path` | No description available |
 | [`UserRoleMixin`](#userrolemixin) | `waldur_core.permissions.views` | Mixin to provide user role management functionality for viewsets |
 | [`ExtendableQuotaModelMixin`](#extendablequotamodelmixin) | `waldur_core.quotas.models` | Allows to add quotas to model in runtime |
 | [`QuotaModelMixin`](#quotamodelmixin) | `waldur_core.quotas.models` | Add general fields and methods to model for quotas usage |
@@ -92,6 +93,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`DashboardFeedHelpersMixin`](#dashboardfeedhelpersmixin) | `waldur_core.structure.tests.test_dashboard` | Helpers for driving the dashboard feed from throwaway providers |
 | [`ProjectMetadataTestMixin`](#projectmetadatatestmixin) | `waldur_core.structure.tests.test_project_metadata` | Shared test setup and utilities for project metadata tests |
 | [`AvailabilityCheckViewMixin`](#availabilitycheckviewmixin) | `waldur_core.structure.views` | A viewset that provides default `create()`, `retrieve()`, `update()`, `partia... |
+| [`CreateRequiresProjectAdminMixin`](#createrequiresprojectadminmixin) | `waldur_core.structure.views` | Let only those who may change a resource create one |
 | [`ScopeInvitationMixin`](#scopeinvitationmixin) | `waldur_core.users.models` | Mixin for invitations scoped to a Customer with a system Role |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_freeipa.views` | Raise exception if extension is disabled |
 | [`LLMConfigurationMixin`](#llmconfigurationmixin) | `waldur_mastermind.chat.views` | Validates that AI Assistant is enabled, the user has the required role, and t... |
@@ -108,6 +110,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
+| [`OrderResourceVisibilityMixin`](#orderresourcevisibilitymixin) | `waldur_mastermind.marketplace.tests.test_order_resource_visibility` | No description available |
 | [`ScopeHelperAgreementMixin`](#scopehelperagreementmixin) | `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission` | Each helper must list exactly the scopes has_permission allows |
 | [`GrantMixin`](#grantmixin) | `waldur_mastermind.marketplace.tests.test_slug_permissions` | No description available |
 | [`SpendingLimitsSetupMixin`](#spendinglimitssetupmixin) | `waldur_mastermind.marketplace.tests.test_spending_limits` | No description available |
@@ -119,6 +122,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`TenantMixin`](#tenantmixin) | `waldur_mastermind.marketplace_openstack.processors` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
+| [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
 | [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
 | [`OAuthTestMixin`](#oauthtestmixin) | `waldur_mastermind.mcp.tests.test_oauth` | No description available |
@@ -1050,6 +1054,12 @@ Base permission management mixin for customer and project.
 It is expected that reverse `permissions` relation is created for this model.
 Provides method to grant, revoke and check object permissions.
 
+### NotOptedInMixin
+
+**Module:** `waldur_core.permissions.tests.test_pat_binding_on_source_path`
+
+**Description:** No description available.
+
 ### UserRoleMixin
 
 **Module:** `waldur_core.permissions.views`
@@ -1342,6 +1352,29 @@ A viewset that provides default `create()`, `retrieve()`, `update()`,
 
 **Base classes:** `ModelViewSet`
 
+### CreateRequiresProjectAdminMixin
+
+**Module:** `waldur_core.structure.views`
+
+**Description:**
+
+Let only those who may change a resource create one.
+
+Writes are checked with ``is_administrator`` on the object written to. A
+create has no object yet, so that check passes without testing anything,
+and the serializer's ``project`` queryset only asks whether the user can
+see the project. Before anything is saved, this applies the same rule to
+the object the resource is created under, read from the validated data.
+
+``create_scope_field`` names that field. A serializer that derives the
+project from another object, and checks it there, has no writable field
+of that name, and this check does not apply to it. Where the field is
+writable, a create without it is refused rather than let through.
+
+Requests Waldur dispatches to itself, such as a marketplace order carried
+out through the plugin's viewset, are not checked again: the order was
+authorized when it was placed and approved.
+
 ### ScopeInvitationMixin
 
 **Module:** `waldur_core.users.models`
@@ -1511,6 +1544,12 @@ email are declared by the serializers themselves.
 
 **Description:** No description available.
 
+### OrderResourceVisibilityMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_order_resource_visibility`
+
+**Description:** No description available.
+
 ### ScopeHelperAgreementMixin
 
 **Module:** `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission`
@@ -1615,6 +1654,12 @@ class MyTestClass(SelectiveDNSMockMixin, test.APITransactionTestCase):
 **Description:**
 
 Mixin to execute scripts in containers for marketplace script processing.
+
+### ResourceGlauthAccessMixin
+
+**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access`
+
+**Description:** No description available.
 
 ### AppserviceErrorCountMixin
 
