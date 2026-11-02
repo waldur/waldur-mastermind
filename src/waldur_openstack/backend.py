@@ -5236,6 +5236,15 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def delete_snapshot(self, snapshot: models.Snapshot):
+        if not snapshot.backend_id:
+            # Cinder refused to create it, so there is nothing to delete there.
+            logger.info(
+                "Snapshot %s (PK: %s) was never created in OpenStack, "
+                "skipping its deletion there.",
+                snapshot,
+                snapshot.pk,
+            )
+            return
         session = get_tenant_session(snapshot.tenant)
         cinder = get_cinder_client(session)
         try:
@@ -5262,6 +5271,12 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action("check is snapshot deleted")
     def is_snapshot_deleted(self, snapshot: models.Snapshot):
+        if not snapshot.backend_id:
+            # Never created in Cinder, so it is gone already. Its quotas were
+            # counted when the row was created and a failed creation keeps
+            # them, so they are released here as for a confirmed deletion.
+            snapshot.decrease_backend_quotas_usage()
+            return True
         session = get_tenant_session(snapshot.tenant)
         cinder = get_cinder_client(session)
         try:

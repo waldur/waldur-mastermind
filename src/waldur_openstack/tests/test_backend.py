@@ -3081,3 +3081,36 @@ class SnapshotDeletionQuotasTest(BaseBackendTest):
             self.backend.is_snapshot_deleted(self.snapshot)
 
         self.assert_quota_usage(1, 1024)
+
+
+class NeverCreatedSnapshotDeletionTest(BaseBackendTest):
+    """A backup snapshot Cinder refused to create has no backend ID.
+
+    Its quota usage was counted when the row was created, and the failed
+    creation leaves it ERRED with that usage still counted.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.snapshot = self.fixture.snapshot
+        self.snapshot.backend_id = None
+        self.snapshot.size = 1024
+        self.snapshot.save()
+        self.snapshot.increase_backend_quotas_usage()
+
+    def test_delete_does_not_call_cinder(self):
+        self.backend.delete_snapshot(self.snapshot)
+
+        self.mocked_cinder.volume_snapshots.delete.assert_not_called()
+
+    def test_snapshot_counts_as_deleted_without_calling_cinder(self):
+        self.assertTrue(self.backend.is_snapshot_deleted(self.snapshot))
+
+        self.mocked_cinder.volume_snapshots.get.assert_not_called()
+
+    def test_confirmed_deletion_releases_quotas_counted_at_creation(self):
+        self.backend.delete_snapshot(self.snapshot)
+        self.backend.is_snapshot_deleted(self.snapshot)
+
+        self.assertEqual(self.tenant.get_quota_usage("snapshots"), 0)
+        self.assertEqual(self.tenant.get_quota_usage("snapshots_size"), 0)
