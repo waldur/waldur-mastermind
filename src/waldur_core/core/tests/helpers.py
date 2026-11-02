@@ -1,9 +1,12 @@
+import contextlib
 import copy
 import importlib.resources
 import json
 from datetime import timedelta
 
+import psycopg
 from django.conf import settings
+from django.db import DEFAULT_DB_ALIAS, connections
 from django.test.utils import override_settings
 from django.utils import timezone
 
@@ -50,3 +53,51 @@ def create_pat(user, name="test token", scopes=None, **kwargs):
         **kwargs,
     )
     return pat, full_token
+
+
+def dropped_connection(noticed=True):
+    """Open a connection to the default database, and have the server drop it.
+
+    This is what a process holds once the server has ended its connection -- a
+    restart, a failover, an idle timeout. By default the process has tried to
+    use it since: psycopg reports it closed, and ``fileno()`` raises
+    ``OperationalError``. With ``noticed=False`` it has not, so psycopg still
+    reports it open and the code under test is the first to find it dropped.
+    """
+    wrapper = connections[DEFAULT_DB_ALIAS]
+    params = wrapper.get_connection_params()
+    lost = wrapper.get_new_connection(params)
+    killer = wrapper.get_new_connection(params)
+    try:
+        (terminated,) = killer.execute(
+            "SELECT pg_terminate_backend(%s, 5000)", (lost.info.backend_pid,)
+        ).fetchone()
+    finally:
+        killer.close()
+    assert terminated, "the server did not drop the connection"
+    if noticed:
+        with contextlib.suppress(psycopg.OperationalError):
+            lost.execute("SELECT 1")
+        assert lost.closed, "psycopg did not notice the dropped connection"
+    return lost
+
+
+@contextlib.contextmanager
+def lost_default_connection(noticed=True):
+    """Put a connection the server has dropped in place of the default one.
+
+    See ``dropped_connection`` for ``noticed``. The default connection is
+    restored on exit, and one that the code under test opened in its place is
+    closed.
+    """
+    wrapper = connections[DEFAULT_DB_ALIAS]
+    lost = dropped_connection(noticed)
+    saved = wrapper.connection
+    wrapper.connection = lost
+    try:
+        yield lost
+    finally:
+        if wrapper.connection not in (None, lost):
+            wrapper.connection.close()
+        wrapper.connection = saved
+        lost.close()
