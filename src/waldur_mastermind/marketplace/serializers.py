@@ -15220,25 +15220,18 @@ class ProviderOfferingSerializer(
         resources = self.get_resources(offering)
         return get_billing_price_estimate_for_resources(resources)
 
-    def get_fields(self):
-        fields = super().get_fields()
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Decided per offering: a page is rendered by a single child
+        # serializer, so a decision taken once would apply whichever offering
+        # sorted first to every other row.
+        if "secret_options" in data and not self.can_see_secret_options(instance):
+            del data["secret_options"]
+        return data
 
-        # Check if this is schema generation context (drf-spectacular)
-        # When generating schema, we want to include all fields
-        if getattr(self.context.get("view"), "swagger_fake_view", False):
-            return fields
-
-        if (
-            self.instance
-            and not self.can_see_secret_options()
-            and "secret_options" in fields
-        ):
-            del fields["secret_options"]
-        return fields
-
-    def can_see_secret_options(self) -> bool:
+    def can_see_secret_options(self, offering: models.Offering) -> bool:
         request = self.context.get("request")
-        return request and permissions.can_see_secret_options(request, self.instance)
+        return bool(request) and permissions.can_see_secret_options(request, offering)
 
 
 class MoveOfferingSerializer(serializers.Serializer):

@@ -1625,11 +1625,14 @@ class ServiceProviderOfferingsViewSet(
         return get_object_or_404(models.ServiceProvider, customer__uuid=uuid)
 
     def get_queryset(self):
+        # Each row asks whether the caller may see its secret options, and the
+        # provider-side sources of that question are the customer and its
+        # service provider.
         return self.queryset.filter(
             customer=self.get_service_provider().customer,
             billable=True,
             shared=True,
-        )
+        ).select_related("customer__serviceprovider")
 
     @extend_schema(
         summary="List distinct offering types for a service provider",
