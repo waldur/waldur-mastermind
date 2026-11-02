@@ -3097,6 +3097,11 @@ class NeverCreatedSnapshotDeletionTest(BaseBackendTest):
         self.snapshot.size = 1024
         self.snapshot.save()
         self.snapshot.increase_backend_quotas_usage()
+        # Usage reads are clamped at zero, so a second release of this
+        # snapshot's usage only shows while another snapshot's is counted.
+        factories.SnapshotFactory(
+            tenant=self.tenant, project=self.fixture.project, size=512
+        ).increase_backend_quotas_usage()
 
     def test_delete_does_not_call_cinder(self):
         self.backend.delete_snapshot(self.snapshot)
@@ -3112,5 +3117,5 @@ class NeverCreatedSnapshotDeletionTest(BaseBackendTest):
         self.backend.delete_snapshot(self.snapshot)
         self.backend.is_snapshot_deleted(self.snapshot)
 
-        self.assertEqual(self.tenant.get_quota_usage("snapshots"), 0)
-        self.assertEqual(self.tenant.get_quota_usage("snapshots_size"), 0)
+        self.assertEqual(self.tenant.get_quota_usage("snapshots"), 1)
+        self.assertEqual(self.tenant.get_quota_usage("snapshots_size"), 512)
