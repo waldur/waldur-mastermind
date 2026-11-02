@@ -25,7 +25,10 @@ from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.managers import (
+    filter_queryset_for_user,
+    get_connected_customers_by_permission,
+)
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import compensations
@@ -289,6 +292,14 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
     def growth(self, request):
         queryset = structure_models.Customer.objects.all()
         customers = filter_queryset_for_user(queryset, request.user)
+        if not (request.user.is_staff or request.user.is_support):
+            # These are invoice totals, so they are owed only to those who may
+            # list the invoices themselves: seeing the organization is not enough.
+            customers = customers.filter(
+                id__in=get_connected_customers_by_permission(
+                    request.user, PermissionEnum.LIST_INVOICES
+                )
+            )
         customers = structure_filters.AccountingStartDateFilter().filter_queryset(
             request, customers, self
         )
