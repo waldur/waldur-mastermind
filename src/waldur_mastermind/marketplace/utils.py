@@ -67,7 +67,6 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     get_permissions,
     get_users_with_permission,
-    has_permission,
     has_user,
 )
 from waldur_core.structure import filters as structure_filters
@@ -5708,7 +5707,15 @@ def get_pending_consumer_terminate_order(resource):
     )
 
 
-def can_update_offering_in_any_scope(request, offering) -> bool:
+# Who administers an offering: a role on the offering itself, its organization,
+# or that organization's service provider. A customer without a service provider
+# record fails that last path, which the traversal skips.
+OFFERING_ADMIN_SOURCES = ["*", "customer", "customer.serviceprovider"]
+
+
+def can_update_offering_in_any_scope(
+    request, offering, binding_on_path: bool = False
+) -> bool:
     """True if the caller holds UPDATE_OFFERING on the offering, its customer,
     or that customer's service provider.
 
@@ -5723,16 +5730,12 @@ def can_update_offering_in_any_scope(request, offering) -> bool:
     permission_factory-style callable that raises and additionally applies the
     ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT config and a draft-state rule.
     """
-    return any(
-        has_permission(request, PermissionEnum.UPDATE_OFFERING, scope)
-        for scope in (
-            offering,
-            offering.customer,
-            # Not every customer has a service provider record, and a bare
-            # attribute access would raise. `has_permission` treats a None scope
-            # as False.
-            getattr(offering.customer, "serviceprovider", None),
-        )
+    return permission_utils.has_permission_on_any_source(
+        request,
+        PermissionEnum.UPDATE_OFFERING,
+        offering,
+        OFFERING_ADMIN_SOURCES,
+        binding_on_path=binding_on_path,
     )
 
 

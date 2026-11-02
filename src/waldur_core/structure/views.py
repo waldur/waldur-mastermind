@@ -1025,8 +1025,12 @@ class ProjectViewSet(
         permission_factory(PermissionEnum.DELETE_PROJECT, ["customer"])
     ]
 
+    # Changes the project alone, so a token bound to it may use a role on its
+    # organization.
     update_permissions = partial_update_permissions = [
-        permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
+        permission_factory(
+            PermissionEnum.UPDATE_PROJECT, ["*", "customer"], binding_on_path=True
+        )
     ]
 
     # Checklist permissions (view access for all project members and customer roles)

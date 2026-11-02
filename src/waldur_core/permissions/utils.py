@@ -94,6 +94,16 @@ def _pat_provider_binding_matches(ancestors, allowed_pairs) -> bool:
     )
 
 
+def _pat_binding_names_any(objects, allowed_pairs) -> bool:
+    """True if a binding names one of ``objects``, or the service provider of
+    an offering among them."""
+    for obj in objects:
+        ct_id = ContentType.objects.get_for_model(type(obj)).id
+        if (ct_id, obj.id) in allowed_pairs:
+            return True
+    return _pat_provider_binding_matches(objects, allowed_pairs)
+
+
 def _pat_entity_check(auth, scope) -> bool:
     """Return True if the PAT's entity bindings allow acting on ``scope``.
 
@@ -110,12 +120,27 @@ def _pat_entity_check(auth, scope) -> bool:
         return True
     if scope is None:
         return False
-    ancestors = get_scope_ancestors(scope)
-    for ancestor in ancestors:
-        ct_id = ContentType.objects.get_for_model(type(ancestor)).id
-        if (ct_id, ancestor.id) in allowed_pairs:
-            return True
-    return _pat_provider_binding_matches(ancestors, allowed_pairs)
+    return _pat_binding_names_any(get_scope_ancestors(scope), allowed_pairs)
+
+
+def _pat_binding_on_paths(request, permission, paths) -> bool:
+    """True if a bound PAT carrying ``permission`` may use a role on any source.
+
+    ``paths`` holds, for each source, the objects visited from the target to
+    that source. A binding has to name one of them exactly. Walking up from
+    them as ``_pat_entity_check`` does would reach the project of a private
+    offering, and with it let a consumer binding use provider-only sources.
+    """
+    if isinstance(request, User):
+        return False
+    auth = getattr(request, "auth", None)
+    if not is_pat_auth(auth) or permission.value not in auth.scopes:
+        return False
+    allowed_pairs = _pat_allowed_pairs(auth)
+    if not allowed_pairs:
+        return False
+    objects = [obj for path in paths for obj in path if obj is not None]
+    return _pat_binding_names_any(objects, allowed_pairs)
 
 
 def _pat_scope_check(
@@ -334,12 +359,26 @@ def has_all_permissions(
     return all(has_permission(request, p, scope) for p in permissions)
 
 
+def _walk_source_path(scope, path: str) -> list:
+    """The objects visited from ``scope`` along ``path``, the source last.
+
+    ``"*"`` stands for scope itself. Raises AttributeError for a path that does
+    not exist on scope.
+    """
+    visited = [scope]
+    if path != "*":
+        for part in path.split("."):
+            visited.append(getattr(visited[-1], part))
+    return visited
+
+
 def has_permission_on_any_source(
     request: "HttpRequest | User",
     permission: enums.PermissionEnum,
     scope: "Model | None",
     sources: list[str] | None = None,
     role_index: "dict | None" = None,
+    binding_on_path: bool = False,
 ) -> bool:
     """Whether the user holds permission on scope or on any of its named sources.
 
@@ -351,6 +390,18 @@ def has_permission_on_any_source(
     so that a read gate and the write gate it has to agree with can be built
     from the same rule instead of restating it.
 
+    A personal access token's binding is checked on each source together with
+    the role, so by default a token bound to an offering cannot use a role held
+    on the offering's organization.
+
+    ``binding_on_path=True`` adds a second step for such a token: a binding
+    counts if it names scope or an object on the way to a source, and the role
+    may then be on any source. A binding limits where a token acts and a role
+    what it may do. Opt in only for an action that changes scope and what
+    belongs to it alone; one creating a sibling of scope or writing a record
+    other objects share keeps the default. A read gate or a flag that mirrors a
+    write gate passes the same value, so the two cannot disagree.
+
     ``role_index`` is passed through to every ``has_permission`` call; see there.
     """
     if not scope:
@@ -359,14 +410,13 @@ def has_permission_on_any_source(
     if not sources:
         return has_permission(request, permission, scope, role_index)
 
+    paths = []
     attribute_errors = 0
     for path in sources:
         try:
-            source = scope
-            if path != "*":
-                for part in path.split("."):
-                    source = getattr(source, part)
-            if has_permission(request, permission, source, role_index):
+            visited = _walk_source_path(scope, path)
+            paths.append(visited)
+            if has_permission(request, permission, visited[-1], role_index):
                 return True
         except AttributeError:
             # Continue to next path if attribute doesn't exist
@@ -379,10 +429,15 @@ def has_permission_on_any_source(
             f"None of the attribute paths {sources} exist on the scope object"
         )
 
-    return False
+    if not binding_on_path or not _pat_binding_on_paths(request, permission, paths):
+        return False
+
+    return any(
+        has_permission(request.user, permission, path[-1], role_index) for path in paths
+    )
 
 
-def permission_factory(permission, sources=None):
+def permission_factory(permission, sources=None, binding_on_path=False):
     if not isinstance(permission, enums.PermissionEnum):
         raise ValueError(f"permission must be PermissionEnum, got {type(permission)}")
     if sources is not None and not isinstance(sources, list):
@@ -393,7 +448,7 @@ def permission_factory(permission, sources=None):
             return
 
         if has_permission_on_any_source(
-            request, permission, scope, sources, role_index
+            request, permission, scope, sources, role_index, binding_on_path
         ):
             return
 

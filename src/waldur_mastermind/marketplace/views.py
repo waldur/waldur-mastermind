@@ -251,6 +251,10 @@ logger = logging.getLogger(__name__)
 # "offering" means a role granted on the offering itself (OFFERING.MANAGER) is
 # never consulted and the caller has to hold a customer-wide role instead. Both
 # scopes are listed wherever an offering-level grant should be sufficient.
+#
+# The provider's actions on one resource that use it opt in to binding_on_path:
+# each changes the resource and what belongs to it alone, so a token bound to the
+# offering or its provider may use a role on the offering's organization.
 OFFERING_SCOPED_SOURCES = ["offering", "offering.customer"]
 
 # A service provider manager holds their role on the ServiceProvider itself,
@@ -2536,13 +2540,10 @@ def can_update_offering(request, view, obj: models.Offering | None = None):
     if has_staff_access(request):
         return
 
-    has_update_permission = any(
-        has_permission(request, PermissionEnum.UPDATE_OFFERING, scope)
-        for scope in (
-            offering,
-            offering.customer,
-            offering.customer.serviceprovider,
-        )
+    # Every action behind this gate changes the offering alone, so a token bound
+    # to it or to its provider may use a role on its organization.
+    has_update_permission = utils.can_update_offering_in_any_scope(
+        request, offering, binding_on_path=True
     )
 
     if config.ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT:
@@ -10655,6 +10656,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_ID,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
@@ -10695,6 +10697,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_ID,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
     set_effective_id_serializer_class = serializers.ResourceEffectiveIDSerializer
@@ -10736,6 +10739,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.UPDATE_RESOURCE_OPTIONS,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
     update_options_direct_serializer_class = serializers.ResourceOptionsSerializer
@@ -10760,6 +10764,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SUBMIT_RESOURCE_REPORT,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
@@ -10785,6 +10790,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
     set_state_ok_validators = [
@@ -10820,6 +10826,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -10971,6 +10978,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -11010,6 +11018,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -11046,6 +11055,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -11079,6 +11089,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -11099,6 +11110,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -11290,6 +11302,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
             OFFERING_SCOPED_SOURCES,
+            binding_on_path=True,
         )
     ]
 
