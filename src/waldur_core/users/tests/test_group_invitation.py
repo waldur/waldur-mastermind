@@ -1241,21 +1241,13 @@ class RequestDestroyTest(BaseInvitationTest):
             ).exists()
         )
 
-    def test_customer_owner_cannot_delete_permission_request(self):
-        self.client.force_authenticate(user=self.customer_owner)
-        response = self.client.delete(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(
-            models.PermissionRequest.objects.filter(
-                pk=self.permission_request.pk
-            ).exists()
-        )
-
-    @data("project_admin", "project_manager", "user")
-    def test_user_without_scope_access_cannot_delete_permission_request(self, user):
+    @data("customer_owner", "project_admin", "project_manager", "user")
+    def test_non_staff_cannot_delete_permission_request(self, user):
+        # Refused before the lookup, so whether the caller may see the request
+        # makes no difference to the answer.
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.delete(self.url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(
             models.PermissionRequest.objects.filter(
                 pk=self.permission_request.pk

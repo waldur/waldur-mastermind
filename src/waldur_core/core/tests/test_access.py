@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from ddt import data, ddt
 from django.test import SimpleTestCase, TestCase
 from rest_framework import exceptions
+from rest_framework import filters as rf_filters
 from rest_framework import permissions as rf_permissions
 
 from waldur_core.core import access
@@ -65,6 +66,20 @@ class ExampleViewSet(ActionsViewSet):
         "mixed": [access.any_of(access.staff(), access.undescribed("some.check"))],
     }
     filter_backends = (structure_filters.GenericRoleFilter,)
+
+
+class OwnObjectsFilter(rf_filters.BaseFilterBackend):
+    """Objects the caller created,
+    and those shared with them.
+
+    Further detail that is not part of the summary.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
+
+class UnexplainedFilter(rf_filters.BaseFilterBackend):
+    access_visibility = access.CUSTOM_VISIBILITY
 
 
 class UndescribedPermission(rf_permissions.BasePermission):
@@ -244,6 +259,31 @@ class AccessForTest(SimpleTestCase):
             filter_backends=(support_filters.IssueCallerOrRoleFilterBackend,),
         )
         self.assertEqual(route.visibility, "role_caller_or_helpdesk")
+
+    def test_filter_with_a_rule_of_its_own_says_what_it_shows(self):
+        route = resolve(
+            ExampleViewSet,
+            "list",
+            "GET",
+            filter_backends=(
+                rf_filters.OrderingFilter,
+                OwnObjectsFilter,
+                structure_filters.GenericRoleFilter,
+            ),
+        )
+        self.assertEqual(route.visibility, access.CUSTOM_VISIBILITY)
+        self.assertEqual(
+            route.visibility_description,
+            "Objects the caller created, and those shared with them.",
+        )
+        self.assertTrue(route.described)
+
+    def test_filter_with_a_rule_of_its_own_and_no_docstring_is_undescribed(self):
+        route = resolve(
+            ExampleViewSet, "list", "GET", filter_backends=(UnexplainedFilter,)
+        )
+        self.assertTrue(route.declared)
+        self.assertFalse(route.described)
 
     def test_descriptions_are_copies(self):
         route = resolve(ExampleViewSet, "approve", "POST")

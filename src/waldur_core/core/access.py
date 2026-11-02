@@ -25,6 +25,11 @@ Each entry is a dict with a ``kind``:
 
 Every entry of a route must pass. A request acting as staff passes
 ``permission`` and ``role`` entries.
+
+A list or retrieve narrowed by a filter backend also has a visibility, the
+backend's ``access_visibility``: ``role`` (``GenericRoleFilter``),
+``role_caller_or_helpdesk``, or ``custom``, which the backend's docstring
+describes.
 """
 
 import json
@@ -36,6 +41,10 @@ from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 # Actions whose response the view's filter backends narrow to what the caller
 # may see: list filters the queryset, retrieve looks the object up in it.
 FILTERED_ACTIONS = ("list", "retrieve")
+
+# The ``access_visibility`` of a filter backend that narrows by a rule of its
+# own; the first paragraph of its docstring says what it shows.
+CUSTOM_VISIBILITY = "custom"
 
 
 def permission(permission, scopes=None) -> dict:
@@ -233,6 +242,8 @@ class RouteAccess:
     # How a list or retrieve is narrowed to what the caller may see.
     visibility: str | None = None
     requires_authentication: bool = True
+    # What a custom visibility shows, in a sentence.
+    visibility_description: str | None = None
 
     @property
     def declared(self) -> bool:
@@ -242,6 +253,8 @@ class RouteAccess:
     @property
     def described(self) -> bool:
         """Something applies, and all of it says who may call the route."""
+        if self.visibility == CUSTOM_VISIBILITY and not self.visibility_description:
+            return False
         return self.declared and all(_is_described(entry) for entry in self.entries)
 
     def schema_entries(self) -> list[dict]:
@@ -328,9 +341,18 @@ def access_for(view, method, url_kwargs=None) -> RouteAccess:
     declarations = getattr(view, "access_declarations", None) or {}
     entries.extend(declarations.get(action or method.lower(), []))
 
-    visibility = None
+    visibility = visibility_description = None
     if method in SAFE_METHODS and action in FILTERED_ACTIONS:
         for backend in getattr(view, "filter_backends", ()):
-            visibility = visibility or getattr(backend, "access_visibility", None)
+            visibility = getattr(backend, "access_visibility", None)
+            if visibility:
+                if visibility == CUSTOM_VISIBILITY:
+                    visibility_description = _summary(backend)
+                break
 
-    return RouteAccess(_copies(entries), visibility, requires_authentication)
+    return RouteAccess(
+        _copies(entries),
+        visibility,
+        requires_authentication,
+        visibility_description=visibility_description,
+    )

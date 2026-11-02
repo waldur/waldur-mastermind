@@ -2,9 +2,13 @@
 
 The test resolves each DRF route and method with ``access_for``, the function
 the OpenAPI schema uses, and fails listing, grouped by app, the routes that
-declare nothing and those whose checks do not describe themselves. It runs in its own CI job, allowed to fail until every app has
-declared its routes; the sharded unit suite skips it (opt in with
-``-m access_coverage``).
+declare nothing and those whose checks do not describe themselves. It runs in
+its own CI job, allowed to fail until every app has declared its routes; the
+sharded unit suite skips it (opt in with ``-m access_coverage``).
+
+An app whose routes are all declared keeps them so with a test of its own that
+calls ``assert_app_routes_declared``: CI selects tests by the app that changed,
+so the test lives with the app.
 """
 
 import collections
@@ -17,8 +21,6 @@ from rest_framework.views import APIView
 
 from waldur_core.core import access
 from waldur_core.core.tests.test_actions_permission import iter_routes
-
-pytestmark = pytest.mark.access_coverage
 
 SKIPPED_METHODS = {"HEAD", "OPTIONS"}
 
@@ -115,8 +117,28 @@ def report(undeclared, undescribed):
     return "\n".join(lines)
 
 
+@pytest.mark.access_coverage
 class AccessCoverageTest(SimpleTestCase):
     def test_every_route_declares_who_may_call_it(self):
         undeclared, undescribed = unexplained_routes()
         if undeclared or undescribed:
             self.fail(report(undeclared, undescribed))
+
+
+def assert_app_routes_declared(testcase, app):
+    """Fail ``testcase`` unless every route of ``app`` says who may call it.
+
+    ``app`` is named as the report names it, e.g. ``core/users``.
+    """
+    apps = {
+        _app(f"{cls.__module__}.{cls.__name__}")
+        for callback, _ in iter_routes(get_resolver().url_patterns)
+        if isinstance(cls := getattr(callback, "cls", None), type)
+    }
+    testcase.assertIn(app, apps, "No API route belongs to this app.")
+    undeclared, undescribed = (
+        [route for route in routes if _app(route) == app]
+        for routes in unexplained_routes()
+    )
+    if undeclared or undescribed:
+        testcase.fail(report(undeclared, undescribed))

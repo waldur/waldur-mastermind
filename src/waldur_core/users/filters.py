@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rest_framework.filters import BaseFilterBackend
 
+from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
@@ -32,6 +33,14 @@ class InvitationScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 
 
 class InvitationFilterBackend(BaseFilterBackend):
+    """Invitations to scopes where the caller holds the scope's create
+    permission, those of organizations where they hold INVITATION.LIST, and
+    pending ones sent to their email; staff, support and holders of
+    INVITATION.LIST site-wide see all.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         user: User = request.user
 
@@ -84,6 +93,14 @@ class BaseInvitationFilter(django_filters.FilterSet):
 
 
 class GroupInvitationFilterBackend(BaseFilterBackend):
+    """Active public invitations, and those of organizations where the caller
+    holds INVITATION.LIST; a signed-in caller may also retrieve any invitation
+    by its UUID, which its link shares. Staff, support and holders of
+    INVITATION.LIST site-wide see all.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         user: User = request.user
 

@@ -3185,6 +3185,30 @@ class InvitationUpdateTest(BaseInvitationTest):
         # Users without permission get 404 because invitation filtering prevents them from seeing it
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_update_event_names_the_invitation_by_its_former_email(self):
+        self.client.force_authenticate(user=self.customer_owner)
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+
+        response = self.client.patch(url, {"email": "updated@example.com"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event = logging_models.Event.objects.get(event_type="user_invitation_updated")
+        self.assertIn("Invitation to original@example.com", event.message)
+        self.assertIn("original@example.com → updated@example.com", event.message)
+
+    def test_invitee_cannot_update_invitation_even_with_invalid_data(self):
+        # The invitee sees the invitation but may not manage it, so the
+        # request is refused before its data is validated.
+        self.user.email = self.project_invitation.email
+        self.user.save()
+        self.client.force_authenticate(user=self.user)
+        url = factories.ProjectInvitationFactory.get_url(self.project_invitation)
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+
+        response = self.client.patch(url, {"email": "not-an-email"})
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_staff_can_update_any_invitation(self):
         """Test that staff users can update any invitation"""
         self.client.force_authenticate(user=self.staff)

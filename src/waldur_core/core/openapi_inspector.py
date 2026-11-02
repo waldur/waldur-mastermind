@@ -117,6 +117,8 @@ class WaldurOpenApiInspector(AutoSchema):
         operation["x-permissions"] = route_access.schema_entries()
         if route_access.visibility:
             operation["x-visibility"] = route_access.visibility
+        if route_access.visibility_description:
+            operation["x-visibility-description"] = route_access.visibility_description
 
         return operation
 

@@ -14,11 +14,12 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import ReviewStates
-from waldur_core.core.permissions import has_staff_access
+from waldur_core.core.permissions import ActionsPermission, has_staff_access
 from waldur_core.core.views import (
     ActionsViewSet,
     ReadOnlyActionsViewSet,
@@ -29,13 +30,16 @@ from waldur_core.permissions.enums import TYPE_KEY_BY_CT
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_user, validate_user_restrictions
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users import filters, models, serializers, tasks
+from waldur_core.users import permissions as users_permissions
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.utils import (
+    MANAGES_INVITATION_SCOPE,
+    SIGNED_APPROVAL_LINK,
     can_manage_invitation_with,
-    can_manage_permission_request,
     get_invitation_duplicates,
     get_invitation_existing_roles,
     parse_invitation_token,
@@ -78,6 +82,41 @@ class InvitationViewSet(viewsets.ModelViewSet):
     )
     filterset_class = filters.InvitationFilter
     lookup_field = "uuid"
+    permission_classes = (rf_permissions.IsAuthenticated, ActionsPermission)
+
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        users_permissions.can_manage_invitation
+    ]
+    send_permissions = cancel_permissions = [users_permissions.can_manage_invitation]
+    delete_permissions = [structure_permissions.is_staff]
+
+    # Checked in the action, against what the request names.
+    access_declarations = {
+        "create": [MANAGES_INVITATION_SCOPE],
+        "check_duplicates": [MANAGES_INVITATION_SCOPE],
+        "approve": [SIGNED_APPROVAL_LINK],
+        "reject": [SIGNED_APPROVAL_LINK],
+        "accept": [
+            access.custom(
+                "Any signed-in user who has a pending invitation's UUID, which "
+                "the invitation email carries, and whose civil number matches "
+                "the invitation's if it names one; a deployment may also require "
+                "their email to match. The scope's membership restrictions "
+                "apply. Staff may accept one for a named user whose email "
+                "matches."
+            )
+        ],
+        "check": [access.public()],
+        "details": [
+            access.custom(
+                "Any signed-in user, for an invitation to a scope they hold a "
+                "role in, or a pending, expired or canceled one whose UUID they "
+                "have and whose civil number, if it names one, is theirs; a "
+                "deployment may also require their email to match. Staff and "
+                "support for any."
+            )
+        ],
+    }
 
     def get_serializer_class(self):
         if self.action in ["update", "partial_update"]:
@@ -86,9 +125,6 @@ class InvitationViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         invitation = self.get_object()
-        if not can_manage_invitation_with(self.request, invitation.scope):
-            # Raise NotFound instead of PermissionDenied to hide invitation existence
-            raise NotFound()
 
         # Store original values for logging
         original_values = {
@@ -104,10 +140,6 @@ class InvitationViewSet(viewsets.ModelViewSet):
         )
 
     def perform_destroy(self, instance):
-        if not can_manage_invitation_with(self.request, instance.scope):
-            # Raise NotFound instead of PermissionDenied to hide invitation existence
-            raise NotFound()
-
         # Log the deletion
         event_logger.emit(
             "Invitation to {invitation_email} for {scope_name} has been deleted by {user_username}.",
@@ -285,10 +317,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
     def send(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
 
-        if not can_manage_invitation_with(self.request, invitation.scope):
-            # Raise NotFound instead of PermissionDenied to hide invitation existence
-            raise NotFound()
-        elif invitation.state not in (
+        if invitation.state not in (
             InvitationState.PENDING,
             InvitationState.EXPIRED,
             InvitationState.CANCELED,
@@ -341,10 +370,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
     def cancel(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
 
-        if not can_manage_invitation_with(self.request, invitation.scope):
-            # Raise NotFound instead of PermissionDenied to hide invitation existence
-            raise NotFound()
-        elif invitation.state not in [
+        if invitation.state not in [
             InvitationState.PENDING,
             InvitationState.PENDING_PROJECT,
         ]:
@@ -367,10 +393,6 @@ class InvitationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def delete(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
-
-        if not has_staff_access(request):
-            raise PermissionDenied()
-
         invitation.delete()
         return Response(
             {"detail": _("Invitation has been successfully deleted.")},
@@ -502,6 +524,8 @@ class InvitationViewSet(viewsets.ModelViewSet):
         responses=serializers.InvitationCheckSerializer,
         parameters=[],
     )
+    # Public, so it runs no ActionsPermission, which would read
+    # APIView.check_permissions as the list of this action's checks.
     @action(detail=True, methods=["post"], filter_backends=[], permission_classes=[])
     def check(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
@@ -563,9 +587,31 @@ class GroupInvitationViewSet(ActionsViewSet):
         filters.GroupInvitationFilterBackend,
         DjangoFilterBackend,
     )
-    permission_classes = (rf_permissions.IsAuthenticated,)
     filterset_class = filters.GroupInvitationFilter
     lookup_field = "uuid"
+
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        users_permissions.can_manage_invitation
+    ]
+    cancel_permissions = [users_permissions.can_manage_invitation]
+
+    # Checked in the action, against what the request names.
+    access_declarations = {
+        "create": [MANAGES_INVITATION_SCOPE],
+        "projects": [
+            access.custom(
+                "Any signed-in user who has the invitation's UUID, which its "
+                "link shares."
+            )
+        ],
+        "submit_request": [
+            access.custom(
+                "Any signed-in user who has an active invitation's UUID, matches "
+                "its email and affiliation patterns, and meets the membership "
+                "restrictions of its scope."
+            )
+        ],
+    }
 
     def get_permissions(self):
         """Allow unauthenticated access for list and retrieve of public invitations."""
@@ -580,9 +626,6 @@ class GroupInvitationViewSet(ActionsViewSet):
 
     def perform_update(self, serializer):
         invitation = self.get_object()
-        if not can_manage_invitation_with(self.request, invitation.scope):
-            raise NotFound()
-
         if not invitation.is_active:
             raise ValidationError(_("Only active invitations can be edited."))
 
@@ -636,10 +679,7 @@ class GroupInvitationViewSet(ActionsViewSet):
     def cancel(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
 
-        if not can_manage_invitation_with(request, invitation.scope):
-            # Raise NotFound instead of PermissionDenied to hide invitation existence
-            raise NotFound()
-        elif not invitation.is_active:
+        if not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be canceled."))
 
         invitation.cancel()
@@ -651,10 +691,7 @@ class GroupInvitationViewSet(ActionsViewSet):
     def destroy(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
 
-        if not can_manage_invitation_with(request, invitation.scope):
-            # Raise NotFound instead of PermissionDenied to hide invitation existence
-            raise NotFound()
-        elif invitation.is_active:
+        if invitation.is_active:
             raise ValidationError(_("Only canceled invitation can be deleted."))
 
         invitation.delete()
@@ -809,14 +846,14 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     filterset_class = filters.PermissionRequestFilter
     lookup_field = "uuid"
 
+    approve_permissions = reject_permissions = [
+        users_permissions.can_review_permission_request
+    ]
+    cancel_request_permissions = [users_permissions.is_permission_request_author]
+    destroy_permissions = [structure_permissions.is_staff]
+
     def perform_action(self, request, uuid, action_name):
         permission_request: models.PermissionRequest = self.get_object()
-
-        if not can_manage_permission_request(
-            self.request, permission_request.invitation
-        ):
-            # Raise NotFound instead of PermissionDenied to hide invitation existence
-            raise NotFound()
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -856,14 +893,6 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
         """Cancel permission request. Users can cancel their own requests, staff can cancel any request."""
         permission_request: models.PermissionRequest = self.get_object()
 
-        # Check that the user canceling is the same user who created the request OR is staff
-        if permission_request.created_by != request.user and not has_staff_access(
-            request
-        ):
-            raise PermissionDenied(
-                _("You can only cancel your own permission requests.")
-            )
-
         # Check that the request is in a state that can be canceled
         if permission_request.state not in [ReviewStates.PENDING, ReviewStates.DRAFT]:
             raise ValidationError(_("Only pending or draft requests can be canceled."))
@@ -902,10 +931,6 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     )
     def destroy(self, request, uuid=None):
         permission_request = self.get_object()
-
-        if not has_staff_access(request):
-            raise PermissionDenied()
-
         permission_request.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
