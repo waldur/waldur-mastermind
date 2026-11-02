@@ -10,6 +10,7 @@ from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import signals as core_signals
 from waldur_core.core.openapi_inspector import WaldurOpenApiInspector
+from waldur_core.core.permissions import ActionsPermission
 from waldur_core.core.serializers import RestrictedSerializerMixin
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
@@ -23,9 +24,11 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
         """
         Verify that `x-permissions` field is added when a view action has a `_permissions` list.
         """
-        # Arrange
-        self.view.action = "create"
-        self.view.create_permissions = [
+        # Arrange: a detail action, where the check is given the object.
+        self.view.action = "approve"
+        self.view.detail = True
+        self.view.get_permissions.return_value = [ActionsPermission()]
+        self.view.approve_permissions = [
             permission_factory(PermissionEnum.APPROVE_ORDER, ["*", "project"])
         ]
         inspector = WaldurOpenApiInspector()
@@ -34,22 +37,34 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
         # Act
         with patch.object(AutoSchema, "get_operation", return_value={}):
             operation = inspector.get_operation(
-                "/api/dummies/", r"^/api/dummies/$", "/api/", "POST", MagicMock()
+                "/api/dummies/{uuid}/approve/",
+                r"^/api/dummies/(?P<uuid>[^/.]+)/approve/$",
+                "/api/",
+                "POST",
+                MagicMock(),
             )
 
         # Assert
         self.assertIn("x-permissions", operation)
         self.assertEqual(
             operation["x-permissions"],
-            [{"permission": "ORDER.APPROVE", "scopes": ["*", "project"]}],
+            [
+                {
+                    "kind": "permission",
+                    "permission": "ORDER.APPROVE",
+                    "scopes": ["*", "project"],
+                }
+            ],
         )
 
     def test_get_operation_without_permissions(self):
         """
-        Verify that `x-permissions` is not added if the action has no `_permissions` defined.
+        Verify that an action nothing describes is marked undeclared, not left
+        to read as open to everyone.
         """
         # Arrange
         self.view.action = "create"
+        self.view.get_permissions.return_value = [ActionsPermission()]
         inspector = WaldurOpenApiInspector()
         inspector.view = self.view
 
@@ -60,7 +75,7 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
             )
 
         # Assert
-        self.assertNotIn("x-permissions", operation)
+        self.assertEqual(operation["x-permissions"], [{"kind": "undeclared"}])
 
     def _head_operation(
         self, *, detail, action="list", count_enabled=False, count_disabled=False

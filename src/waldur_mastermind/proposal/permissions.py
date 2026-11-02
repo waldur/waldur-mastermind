@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rest_framework import exceptions, permissions
 
+from waldur_core.core import access
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.permissions import has_staff_access
 from waldur_core.permissions import models as permissions_models
@@ -142,9 +143,9 @@ def support_can_read(check):
     compliance -- must be readable to them too, or the call pages they are
     allowed to open come out broken. Writes still go through `check`.
 
-    The wrapper carries `check`'s `permission` / `sources` over: ActionsPermission
-    uses `sources` to decide the check needs the object, and the OpenAPI
-    `x-permissions` extension reads both.
+    The wrapper carries `check`'s `permission` / `sources` over, since
+    ActionsPermission uses `sources` to decide the check needs the object, and
+    describes itself as support-for-reads or `check`.
     """
 
     def wrapper(request, view, scope=None):
@@ -159,6 +160,12 @@ def support_can_read(check):
     for attr in ("permission", "sources"):
         if hasattr(check, attr):
             setattr(wrapper, attr, getattr(check, attr))
+    wrapper.access_entries = [
+        access.any_of(
+            access.custom("Global support, for reads."), *access.describe_check(check)
+        )
+    ]
+    wrapper.needs_object = access.needs_object(check)
     return wrapper
 
 

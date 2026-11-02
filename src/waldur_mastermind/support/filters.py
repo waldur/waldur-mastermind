@@ -229,6 +229,10 @@ class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
     see it.
     """
 
+    # Beyond the roles: the caller of an unscoped ticket, and the support
+    # users of the provider helpdesk it is routed to.
+    access_visibility = "role_caller_or_helpdesk"
+
     def filter_queryset(self, request, queryset, view):
         return (
             super().filter_queryset(request, queryset, view).distinct()
@@ -250,6 +254,8 @@ class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
 
 
 class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
+    access_visibility = IssueCallerOrRoleFilterBackend.access_visibility
+
     def filter_queryset(self, request, queryset, view):
         return (
             super().filter_queryset(request, queryset, view).distinct()

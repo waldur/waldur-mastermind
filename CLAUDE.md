@@ -115,6 +115,13 @@ list_permissions = [permission_factory(PermissionEnum.VIEW_RESOURCE)]
 2. Assign to roles in `docker/rootfs/etc/waldur/permissions.yaml` (NOT via data migrations)
 3. The `import_roles` management command loads permissions.yaml on deployment
 
+**Every route must declare who may call it.** `AccessCoverageTest` lists the
+routes with no described check, permission class or `access_declarations` entry
+(run with `-m access_coverage`; its CI job is allowed to fail until the list is
+empty). Do not add a new route to that list. Checks made in a serializer or
+action body are declared in `access_declarations`, never by adding to
+`<action>_permissions` (which replaces the view-level checks).
+
 See `docs/guides/waldur-permissions.md` for details.
 
 ### Media access

@@ -27,6 +27,11 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers",
+        "access_coverage: lists API routes that declare nothing about who may "
+        "call them. Opt-in via -m access_coverage; runs in its own CI job.",
+    )
+    config.addinivalue_line(
+        "markers",
         "override_config(**settings): override runtime settings for the test, "
         "including setUp and tearDown of unittest-style tests",
     )

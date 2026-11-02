@@ -14,6 +14,7 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import BasePermission
 
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core.authentication import (
     ImpersonationAuthentication,
     parse_token_from_request,
@@ -43,6 +44,10 @@ class IsScimStaff(BasePermission):
 
     message = "SCIM provisioning requires a staff service-account token."
 
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [access.staff()]
+
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
         return bool(user and user.is_authenticated and user.is_active and user.is_staff)
@@ -56,6 +61,11 @@ class ScimFeatureEnabled(BasePermission):
     """
 
     message = "SCIM inbound provisioning is disabled (set Constance SCIM_INBOUND_ENABLED=True)."
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        # A feature switch: it says nothing about who may call the route.
+        return []
 
     def has_permission(self, request, view):
         return bool(config.SCIM_INBOUND_ENABLED)

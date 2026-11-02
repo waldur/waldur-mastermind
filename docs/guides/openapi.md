@@ -54,16 +54,23 @@ This class, located in `openapi_inspector.py`, is our custom subclass of `AutoSc
 - **Purpose**: To enrich the generated "operation" object with Waldur-specific metadata and logic.
 - **Edge Cases Handled**:
     1. **HEAD method → `count` operations**: We map `HEAD` to a `_count` operation so clients can read the total via the `x-result-count` header without downloading a body (the generated SDKs expose these as `*Count` methods). This is on by default for **collections** — top-level *and* nested, since `NestedSimpleRouter` mirrors the `head`→`get` mapping of `SortedDefaultRouter`. For **detail views** the inspector returns `None` (a count of a single object is meaningless), *except* for detail-scoped list actions that opt in via the `@count_action` decorator (e.g. `UserRoleMixin.list_users` → `/api/projects/{uuid}/list_users/`). If a list route sets an explicit `@extend_schema(operation_id=…)`, its auto-added HEAD companion would inherit an id ending in `_list` and collide with the GET, so the inspector renames it to a distinct `_count` id. See [Count endpoints](#count-endpoints-count_action-and-head-efficiency) below.
-    2. **Custom Permissions Metadata**: This is a powerful feature for our frontend developers. If a view action has a `_permissions` attribute (e.g., `create_permissions`), the inspector extracts this data and injects it into the schema under a custom `x-permissions` vendor extension. This allows the frontend to understand the permissions required for an action without hardcoding them.
+    2. **Who may call it (`x-permissions`, `x-visibility`)**: every operation says who may call it, as resolved by `waldur_core.core.access.access_for` — the same function the access coverage test uses, so the schema and the guard cannot disagree. It reads the view's permission classes (through `get_permissions()`), the checks `ActionsPermission` picks for the action, the create check of `CreateRequiresProjectAdminMixin`, and the view's `access_declarations`. Every entry must pass; a request acting as staff passes `permission` and `role` entries. Kinds: `permission` (a `permission_factory` check: `permission`, `scopes`), `role` (a shared role check: `roles`, each with the scope it is held `on`, and `via` when the object comes from a request field), `staff`, `staff_or_support`, `public`, `authenticated`, `owned`, `any_of` (`of`), `custom` (a check that does not describe itself, by its docstring's first paragraph), `undescribed` (a check with neither, by name; it does not count as saying who may call the route), and `undeclared` (nothing describes the route yet). A check that needs an object (`permission_factory`, the shared role checks) is left out on routes without one, such as `create` and `list`, where it lets everyone through. List and retrieve operations narrowed by `GenericRoleFilter` also carry `x-visibility: role`; the support issue and comment filters, which also show a ticket to its caller and to the helpdesk it is routed to, say `role_caller_or_helpdesk`.
 
     ```yaml
-    # Example Output
-    "/api/projects/":
-      post:
-        summary: "Create a new project"
+    "/api/projects/{uuid}/":
+      delete:
         x-permissions:
-          - permission: "project.create"
-            scopes: ["customer"]
+          - kind: permission
+            permission: PROJECT.DELETE
+            scopes: [customer]
+    "/api/openstack-ports/{uuid}/":
+      patch:
+        x-permissions:
+          - kind: role
+            roles:
+              - {role: CUSTOMER.OWNER, on: customer}
+              - {role: PROJECT.MANAGER, on: project}
+              - {role: PROJECT.ADMIN, on: project}
     ```
 
 #### Count endpoints (`@count_action`) and HEAD efficiency

@@ -1,6 +1,8 @@
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from waldur_core.configuration import config
+from waldur_core.core import access
+from waldur_core.core.access import has_lookup, requires_object
 from waldur_core.core.exceptions import IncompleteProfileException
 from waldur_core.core.user_attributes import get_user_missing_mandatory_attributes
 from waldur_core.permissions.utils import check_pat_staff_scope, check_pat_support_scope
@@ -16,20 +18,11 @@ class IsAdminOrReadOnly(BasePermission):
             and check_pat_staff_scope(request)
         )
 
-
-def requires_object(check) -> bool:
-    """Whether a permission check is scoped to an object (permission_factory with sources)."""
-    return bool(getattr(check, "sources", None))
-
-
-def has_lookup(view) -> bool:
-    """Whether the request URL names the single object view.get_object() looks up."""
-    if not hasattr(view, "get_object"):
-        return False
-    lookup = getattr(view, "lookup_url_kwarg", None) or getattr(
-        view, "lookup_field", None
-    )
-    return bool(lookup) and lookup in (getattr(view, "kwargs", None) or {})
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        if method in SAFE_METHODS:
+            return access.read_access(requires_authentication)
+        return [access.staff()]
 
 
 class ActionsPermission(BasePermission):
@@ -133,6 +126,10 @@ class IsSupport(BasePermission):
             and check_pat_support_scope(request)
         )
 
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [access.staff_or_support()]
+
 
 class IsSupportOrReadOnly(BasePermission):
     def has_permission(self, request, view):
@@ -144,6 +141,12 @@ class IsSupportOrReadOnly(BasePermission):
             and check_pat_support_scope(request)
         )
 
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        if method in SAFE_METHODS:
+            return access.read_access(requires_authentication)
+        return [access.staff_or_support()]
+
 
 class IsStaff(BasePermission):
     def has_permission(self, request, view):
@@ -153,12 +156,20 @@ class IsStaff(BasePermission):
             and check_pat_staff_scope(request)
         )
 
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [access.staff()]
+
 
 class PATScopeAwareIsAdminUser(BasePermission):
     """Drop-in replacement for DRF's IsAdminUser that also enforces PAT scopes."""
 
     def has_permission(self, request, view):
         return request.user and request.user.is_staff and check_pat_staff_scope(request)
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [access.staff()]
 
 
 class IsStaffWriterOrSupportReader(BasePermission):
@@ -178,6 +189,12 @@ class IsStaffWriterOrSupportReader(BasePermission):
                 request
             )
         return user.is_staff and check_pat_staff_scope(request)
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        if method in SAFE_METHODS:
+            return [access.staff_or_support()]
+        return [access.staff()]
 
 
 def has_staff_access(request) -> bool:
@@ -212,6 +229,11 @@ class TokenCarriesUserRole(BasePermission):
 
     message = "This personal access token needs the staff or support scope here."
 
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        # Narrows how a request may be made, not who may make it.
+        return []
+
     def has_permission(self, request, view):
         user = request.user
         if getattr(user, "is_staff", False) and not has_staff_access(request):
@@ -244,6 +266,11 @@ class RequiresCompleteProfile(BasePermission):
     applied to any ViewSets by default. To enable enforcement, add it
     to the permission_classes of specific ViewSets.
     """
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        # Narrows how a request may be made, not who may make it.
+        return []
 
     def has_permission(self, request, view):
         if not config.ENFORCE_MANDATORY_USER_ATTRIBUTES:
