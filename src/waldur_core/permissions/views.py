@@ -1,6 +1,7 @@
 import logging
 import uuid
 
+from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Value
@@ -544,10 +545,12 @@ def _user_can_view_scope_team(user, scope) -> bool:
 
     Provider-side (only Resource / ResourceProject)
         A caller holding ``UPDATE_OFFERING`` on the offering selling this
-        scope, or on the offering's customer. This covers
+        scope, on the offering's customer, or on that customer's service
+        provider -- the sources the offering-update gate accepts. This covers
         ``OFFERING.MANAGER`` (offering-scoped), ``CUSTOMER.OWNER`` and
-        ``SERVICE_PROVIDER.MANAGER`` (customer-scoped) on the provider side.
-        Resolved in a single SQL EXISTS that mirrors the consumer-side query.
+        ``SERVICE_PROVIDER.MANAGER`` (customer- or service-provider-scoped) on
+        the provider side. Resolved in a single SQL EXISTS that mirrors the
+        consumer-side query.
 
     Returns False for ``Project`` / ``Customer`` scopes that fail the
     consumer-side check (the provider-side branch is short-circuited via
@@ -600,18 +603,29 @@ def _user_can_view_scope_team(user, scope) -> bool:
     # Provider-side: caller manages the offering selling this scope.
     # Only Resource and ResourceProject scopes have an offering — Project
     # and Customer scopes fall through and the function returns False.
-    # Accept UPDATE_OFFERING on EITHER the offering itself (OFFERING.MANAGER
-    # role) OR the offering's customer (CUSTOMER.OWNER /
-    # SERVICE_PROVIDER.MANAGER roles). Folded into a single SQL EXISTS to
-    # mirror the consumer-side query above.
+    # Accept UPDATE_OFFERING on the offering itself (OFFERING.MANAGER role),
+    # on the offering's customer (CUSTOMER.OWNER / SERVICE_PROVIDER.MANAGER
+    # roles) or on that customer's ServiceProvider, where
+    # ServiceProviderViewSet.add_user grants a service provider manager --
+    # the sources marketplace's OFFERING_ADMIN_SOURCES lets update the
+    # offering. Folded into a single SQL EXISTS to mirror the consumer-side
+    # query above.
     offering = _get_offering_for_scope(scope)
     if offering is None:
         return False
     offering_ct = ContentType.objects.get_for_model(type(offering))
     provider_q = Q(content_type=offering_ct, object_id=offering.id)
     if offering.customer_id:
-        customer_ct = ContentType.objects.get_for_model(type(offering.customer))
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
         provider_q |= Q(content_type=customer_ct, object_id=offering.customer_id)
+        # By app label, as waldur_core cannot import marketplace models.
+        service_provider_model = apps.get_model("marketplace", "ServiceProvider")
+        provider_q |= Q(
+            content_type=ContentType.objects.get_for_model(service_provider_model),
+            object_id__in=service_provider_model.objects.filter(
+                customer_id=offering.customer_id
+            ).values("id"),
+        )
     return (
         models.UserRole.objects.filter(
             user=user,

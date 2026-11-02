@@ -243,7 +243,10 @@ before the administration screen can create the role. The grant screen uses
 ## Team visibility
 
 Listing the members of a scope (`GET .../list_users/`) is gated on a
-permission, not on role membership. Staff and support always pass. Otherwise
+permission, not on role membership. The resource routes that list the same
+people, `team_members` and `team` on `marketplace-resources` and `team` on
+`marketplace-provider-resources`, apply the same rule; seeing the resource is
+not enough. Staff and support always pass. Otherwise
 the caller needs an active role that is one of the following:
 
 - on the organization, and grants `CUSTOMER.VIEW_TEAM`
@@ -253,8 +256,11 @@ the caller needs an active role that is one of the following:
 - on the scope itself, when that scope is not an organization or a project
   (resource, offering, call, proposal). No permission is needed here.
 
-Provider-side access to a resource's team (`OFFERING.UPDATE` on the offering or
-its organization) is unchanged.
+Provider-side access to a resource's team takes `OFFERING.UPDATE` on the
+offering, on its organization or on that organization's service provider -- the
+places a service provider manager's role may be held. Another role on the
+provider organization, such as `CUSTOMER.SUPPORT` or `CUSTOMER.READER`, shows
+the resource but not its team.
 
 `permissions.yaml` grants `CUSTOMER.VIEW_TEAM` to `CUSTOMER.OWNER`,
 `CUSTOMER.SUPPORT` and `CUSTOMER.READER`. It grants `PROJECT.VIEW_TEAM` to

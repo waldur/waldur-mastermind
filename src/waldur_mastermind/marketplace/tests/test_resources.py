@@ -13,6 +13,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import status, test
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core import access
 from waldur_core.core.utils import month_start
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
@@ -33,8 +34,10 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
+from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace import views as marketplace_views
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SUPPORT_OFFERING,
@@ -3099,6 +3102,89 @@ class ResourceGetTeamTest(test.APITestCase):
         response = self.client.get(self.customer_url)
         self.assertEqual(200, response.status_code)
         self.assertEqual(1, len(response.data))
+
+
+@ddt
+class ProviderResourceTeamAccessTest(test.APITestCase):
+    """The provider team lists the project's members, so it takes what the
+    provider list_users takes: OFFERING.UPDATE on the offering, on its
+    organization or on that organization's service provider. Seeing the
+    resource is not enough."""
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.fixture.admin  # a project member for the team to list
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="team"
+        )
+        self.detail_url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource
+        )
+        # As permissions.yaml grants them; the test database does not load it.
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.SUPPORT.add_permission(PermissionEnum.VIEW_CUSTOMER_TEAM)
+        CustomerRole.READER.add_permission(PermissionEnum.VIEW_CUSTOMER_TEAM)
+
+    def provider_reader(self):
+        user = UserFactory()
+        self.fixture.offering_customer.add_user(user, CustomerRole.READER)
+        return user
+
+    def service_provider_manager(self):
+        # Held on the ServiceProvider itself, as its add_user grants it.
+        user = UserFactory()
+        self.fixture.service_provider.add_user(user, ServiceProviderRole.MANAGER)
+        return user
+
+    def user(self, name):
+        method = getattr(self, name, None)
+        return method() if method else getattr(self.fixture, name)
+
+    @data("offering_support", "provider_reader")
+    def test_provider_member_without_offering_update_cannot_get_team(self, name):
+        user = self.user(name)
+        self.client.force_authenticate(user)
+        # The caller sees the resource ...
+        response = self.client.get(self.detail_url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        # ... but not the members of its project.
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+    @data(
+        "offering_manager",
+        "provider_owner",
+        "service_manager",
+        "service_provider_manager",
+        "staff",
+        "global_support",
+    )
+    def test_offering_managers_get_team(self, name):
+        self.client.force_authenticate(self.user(name))
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(
+            [self.fixture.admin.username], [row["username"] for row in response.data]
+        )
+
+    def test_route_says_who_may_call_it(self):
+        for view_class in (
+            marketplace_views.ConsumerResourceViewSet,
+            marketplace_views.ProviderResourceViewSet,
+        ):
+            with self.subTest(view=view_class.__name__):
+                view = view_class()
+                view.action = "team"
+                view.detail = True
+                route = access.access_for(view, "GET")
+                self.assertTrue(route.described)
+                self.assertEqual(
+                    [marketplace_permissions.RESOURCE_TEAM_VIEW_ACCESS],
+                    route.entries,
+                )
 
 
 @override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)

@@ -263,6 +263,19 @@ class ProviderResourceListUsersTest(test.APITestCase):
         response = self.client.get(self._provider_resource_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_service_provider_manager_can_list_users_on_resource(self):
+        # Held on the ServiceProvider, where ServiceProviderViewSet.add_user
+        # grants it, rather than on the organization as provider_manager is.
+        manager = structure_factories.UserFactory()
+        self.fixture.service_provider.add_user(manager, ServiceProviderRole.MANAGER)
+        self.client.force_authenticate(manager)
+        for url in (
+            self._provider_resource_url(),
+            self._provider_resource_project_url(),
+        ):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, url)
+
     def test_provider_owner_can_list_users_on_resource_project(self):
         self.client.force_authenticate(self.fixture.provider_owner)
         response = self.client.get(self._provider_resource_project_url())
