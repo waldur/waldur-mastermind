@@ -8,7 +8,10 @@ from freezegun import freeze_time
 
 from waldur_core.configuration.testing import override_config
 from waldur_mastermind.support import models
-from waldur_mastermind.support.backend import SupportBackendError
+from waldur_mastermind.support.backend import (
+    SupportBackendError,
+    get_backend_for_provider,
+)
 from waldur_mastermind.support.backend.basic import BasicBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 from waldur_mastermind.support.tests import factories
@@ -475,3 +478,199 @@ class TestBackendGetConfigFallback(TestCase):
         )
         # Even if Constance has a different value, override wins
         self.assertEqual(backend._get_config("ZAMMAD_COMMENT_COOLDOWN_DURATION"), 42)
+
+
+OPERATOR_CONNECTION = {
+    "ATLASSIAN_API_URL": "https://operator-jira.example/",
+    "ATLASSIAN_USERNAME": "operator-user",
+    "ATLASSIAN_PASSWORD": "operator-password",
+    "ATLASSIAN_EMAIL": "agent@operator.example",
+    "ATLASSIAN_TOKEN": "operator-token",
+    "ATLASSIAN_PERSONAL_ACCESS_TOKEN": "operator-pat",
+    "ATLASSIAN_OAUTH2_CLIENT_ID": "operator-oauth-client",
+    "ATLASSIAN_OAUTH2_CLIENT_SECRET": "operator-oauth-secret",
+    "ZAMMAD_API_URL": "https://operator-zammad.example/",
+    "ZAMMAD_TOKEN": "operator-token",
+    "SMAX_API_URL": "https://operator-smax.example/",
+    "SMAX_TENANT_ID": "operator-tenant",
+    "SMAX_LOGIN": "operator-login",
+    "SMAX_PASSWORD": "operator-password",
+}
+
+
+@override_config(**OPERATOR_CONNECTION)
+class TestProviderBackendConnection(TestCase):
+    """A provider helpdesk's backend connects with the operator's URL and
+    credentials, or with its own, and never with a mix of the two."""
+
+    def _backend(self, backend_type, settings):
+        helpdesk = models.ProviderHelpdesk(backend_type=backend_type, settings=settings)
+        return get_backend_for_provider(helpdesk)
+
+    def _atlassian(self, settings):
+        backend = self._backend(
+            models.ProviderHelpdesk.BackendTypes.ATLASSIAN, settings
+        )
+        return backend.settings
+
+    def _atlassian_credentials(self, settings):
+        return {
+            settings.username,
+            settings.password,
+            settings.email,
+            settings.token,
+            settings.personal_access_token,
+            settings.oauth2_client_id,
+            settings.oauth2_client_secret,
+            settings.oauth2_access_token,
+        }
+
+    def test_atlassian_url_of_its_own_gets_no_operator_credentials(self):
+        settings = self._atlassian({"ATLASSIAN_API_URL": "https://provider.example/"})
+        self.assertEqual(settings.backend_url, "https://provider.example/")
+        self.assertTrue(
+            self._atlassian_credentials(settings).isdisjoint(
+                OPERATOR_CONNECTION.values()
+            )
+        )
+
+    def test_atlassian_credentials_of_its_own_do_not_go_to_operator_url(self):
+        settings = self._atlassian({"ATLASSIAN_TOKEN": "provider-token"})
+        self.assertNotEqual(
+            settings.backend_url, OPERATOR_CONNECTION["ATLASSIAN_API_URL"]
+        )
+        self.assertEqual(settings.token, "provider-token")
+
+    def test_atlassian_complete_set_of_its_own_is_used_alone(self):
+        settings = self._atlassian(
+            {
+                "ATLASSIAN_API_URL": "https://provider.example/",
+                "ATLASSIAN_EMAIL": "agent@provider.example",
+                "ATLASSIAN_TOKEN": "provider-token",
+            }
+        )
+        self.assertEqual(settings.backend_url, "https://provider.example/")
+        self.assertEqual(settings.email, "agent@provider.example")
+        self.assertEqual(settings.token, "provider-token")
+        self.assertTrue(
+            self._atlassian_credentials(settings).isdisjoint(
+                OPERATOR_CONNECTION.values()
+            )
+        )
+
+    def test_atlassian_complete_set_of_its_own_does_not_use_operator_oauth2(self):
+        backend = self._backend(
+            models.ProviderHelpdesk.BackendTypes.ATLASSIAN,
+            {
+                "ATLASSIAN_API_URL": "https://provider.example/",
+                "ATLASSIAN_EMAIL": "agent@provider.example",
+                "ATLASSIAN_TOKEN": "provider-token",
+            },
+        )
+        with (
+            patch(
+                "waldur_mastermind.support.backend.atlassian.ServiceDesk"
+            ) as service_desk,
+            patch(
+                "waldur_mastermind.support.backend.atlassian.ClientCredentialsAuth"
+            ) as client_credentials_auth,
+        ):
+            backend.manager  # noqa: B018 -- builds the client
+        client_credentials_auth.assert_not_called()
+        service_desk.assert_called_once()
+        self.assertEqual(
+            service_desk.call_args.kwargs["url"], "https://provider.example/"
+        )
+        self.assertEqual(
+            service_desk.call_args.kwargs["username"], "agent@provider.example"
+        )
+        self.assertEqual(service_desk.call_args.kwargs["password"], "provider-token")
+        sent = repr((service_desk.call_args.args, service_desk.call_args.kwargs))
+        for value in OPERATOR_CONNECTION.values():
+            self.assertNotIn(value, sent)
+
+    def test_atlassian_without_connection_settings_uses_operator_set(self):
+        settings = self._atlassian({"ATLASSIAN_PROJECT_ID": "PROV"})
+        self.assertEqual(settings.backend_url, OPERATOR_CONNECTION["ATLASSIAN_API_URL"])
+        self.assertEqual(settings.token, OPERATOR_CONNECTION["ATLASSIAN_TOKEN"])
+        self.assertEqual(settings.email, OPERATOR_CONNECTION["ATLASSIAN_EMAIL"])
+
+    def _zammad_client_args(self, settings):
+        backend = self._backend(models.ProviderHelpdesk.BackendTypes.ZAMMAD, settings)
+        with patch(
+            "waldur_mastermind.support.backend.zammad_utils.ZammadAPI"
+        ) as zammad_api:
+            # Building the API client is what reads the URL and the token.
+            backend.manager.manager  # noqa: B018
+        (url,), kwargs = zammad_api.call_args
+        return url, kwargs["http_token"]
+
+    def test_zammad_url_of_its_own_gets_no_operator_token(self):
+        url, token = self._zammad_client_args(
+            {"ZAMMAD_API_URL": "https://provider.example/"}
+        )
+        self.assertEqual(url, "https://provider.example/api/v1/")
+        self.assertNotEqual(token, OPERATOR_CONNECTION["ZAMMAD_TOKEN"])
+
+    def test_zammad_token_of_its_own_does_not_go_to_operator_url(self):
+        url, token = self._zammad_client_args({"ZAMMAD_TOKEN": "provider-token"})
+        self.assertFalse(url.startswith(OPERATOR_CONNECTION["ZAMMAD_API_URL"]))
+        self.assertEqual(token, "provider-token")
+
+    def test_zammad_without_connection_settings_uses_operator_set(self):
+        url, token = self._zammad_client_args({"ZAMMAD_GROUP": "Provider"})
+        self.assertEqual(url, "https://operator-zammad.example/api/v1/")
+        self.assertEqual(token, OPERATOR_CONNECTION["ZAMMAD_TOKEN"])
+
+    def _smax_login_request(self, settings):
+        backend = self._backend(models.ProviderHelpdesk.BackendTypes.SMAX, settings)
+        with patch(
+            "waldur_mastermind.support.backend.smax_utils.requests.post"
+        ) as post:
+            post.return_value.status_code = 200
+            backend.manager.auth()
+        (url,), kwargs = post.call_args
+        return url, kwargs["json"]
+
+    def test_smax_url_of_its_own_gets_no_operator_credentials(self):
+        url, credentials = self._smax_login_request(
+            {"SMAX_API_URL": "https://provider.example/"}
+        )
+        self.assertTrue(url.startswith("https://provider.example/"))
+        self.assertTrue(
+            set(credentials.values()).isdisjoint(OPERATOR_CONNECTION.values())
+        )
+
+    def test_smax_tenant_of_its_own_keeps_operator_url_and_account(self):
+        # Like Atlassian's project id, the tenant selects where on the
+        # operator's SMAX the helpdesk works; it carries no credentials.
+        url, credentials = self._smax_login_request(
+            {"SMAX_TENANT_ID": "provider-tenant"}
+        )
+        self.assertTrue(url.startswith(OPERATOR_CONNECTION["SMAX_API_URL"]))
+        self.assertTrue(url.endswith("TENANTID=provider-tenant"))
+        self.assertEqual(
+            credentials,
+            {
+                "login": OPERATOR_CONNECTION["SMAX_LOGIN"],
+                "password": OPERATOR_CONNECTION["SMAX_PASSWORD"],
+            },
+        )
+
+    def test_smax_credentials_of_its_own_do_not_go_to_operator_url(self):
+        url, credentials = self._smax_login_request(
+            {"SMAX_LOGIN": "provider-login", "SMAX_PASSWORD": "provider-password"}
+        )
+        self.assertFalse(url.startswith(OPERATOR_CONNECTION["SMAX_API_URL"]))
+        self.assertEqual(credentials["login"], "provider-login")
+
+    def test_smax_without_connection_settings_uses_operator_set(self):
+        url, credentials = self._smax_login_request({"SMAX_PROJECT_FIELD": "Project"})
+        self.assertTrue(url.startswith(OPERATOR_CONNECTION["SMAX_API_URL"]))
+        self.assertEqual(
+            credentials,
+            {
+                "login": OPERATOR_CONNECTION["SMAX_LOGIN"],
+                "password": OPERATOR_CONNECTION["SMAX_PASSWORD"],
+            },
+        )

@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tests import factories as structure_factories
@@ -226,6 +227,222 @@ class ProviderHelpdeskUpdateTest(ProviderHelpdeskBaseTest):
         self.assertIn(
             response.status_code,
             [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )
+
+    def _staff_writable_changes(self):
+        return {
+            "backend_type": models.ProviderHelpdesk.BackendTypes.ATLASSIAN,
+            "settings": {"ATLASSIAN_API_URL": "https://elsewhere.example/"},
+            "service_provider": marketplace_factories.ServiceProviderFactory().uuid.hex,
+        }
+
+    def _staff_writable_values(self):
+        self.helpdesk.refresh_from_db()
+        return {
+            "backend_type": self.helpdesk.backend_type,
+            "settings": self.helpdesk.settings,
+            "service_provider": self.helpdesk.service_provider.uuid.hex,
+        }
+
+    def test_owner_cannot_change_backend_settings_or_service_provider(self):
+        # Only staff may create a helpdesk, and so only staff choose what it
+        # connects to and whose it is.
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderHelpdeskFactory.get_url(self.helpdesk)
+        before = self._staff_writable_values()
+        for field, value in self._staff_writable_changes().items():
+            with self.subTest(field=field):
+                response = self.client.patch(
+                    url,
+                    {field: value, "notification_email": "desk@example.com"},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(
+                    response.data[field], ["Only staff can change this field."]
+                )
+                self.assertEqual(self._staff_writable_values()[field], before[field])
+                self.assertEqual(self.helpdesk.notification_email, "")
+
+    def test_owner_may_send_back_unchanged_values(self):
+        # The helpdesk form sends backend_type along with the rest on edit.
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderHelpdeskFactory.get_url(self.helpdesk)
+        data = {
+            **self._staff_writable_values(),
+            "notification_email": "desk@example.com",
+        }
+        response = self.client.patch(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.helpdesk.refresh_from_db()
+        self.assertEqual(self.helpdesk.notification_email, "desk@example.com")
+
+    def test_staff_can_change_backend_settings_and_service_provider(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProviderHelpdeskFactory.get_url(self.helpdesk)
+        changes = self._staff_writable_changes()
+        response = self.client.patch(url, changes, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.helpdesk.refresh_from_db()
+        self.assertEqual(self.helpdesk.backend_type, changes["backend_type"])
+        self.assertEqual(self.helpdesk.settings, changes["settings"])
+        self.assertEqual(
+            self.helpdesk.service_provider.uuid.hex, changes["service_provider"]
+        )
+
+
+OPERATOR_SECRETS = (
+    "agent@operator.example",
+    "operator-token",
+    "operator-oauth-client",
+    "operator-oauth-secret",
+    "operator-oauth-token",
+)
+
+
+@override_config(
+    ATLASSIAN_API_URL="https://operator-jira.example/",
+    ATLASSIAN_EMAIL="agent@operator.example",
+    ATLASSIAN_TOKEN="operator-token",
+)
+class ProviderHelpdeskOperatorCredentialsTest(ProviderHelpdeskBaseTest):
+    """The operator's helpdesk credentials only ever go to the operator's URL."""
+
+    def setUp(self):
+        super().setUp()
+        parent = factories.IssueFactory(backend_id="WLD-P1")
+        self.child_issue = factories.IssueFactory(
+            parent_issue=parent, provider_helpdesk=self.helpdesk, backend_id="WLD-C1"
+        )
+        self.service_desk = mock.patch(
+            "waldur_mastermind.support.backend.atlassian.ServiceDesk"
+        ).start()
+        self.service_desk.return_value.create_request_comment.return_value = {
+            "id": "10001"
+        }
+        self.client_credentials_auth = mock.patch(
+            "waldur_mastermind.support.backend.atlassian.ClientCredentialsAuth"
+        ).start()
+
+    def _comment(self):
+        self.client.force_authenticate(self.owner)
+        return self.client.post(
+            _provider_ticket_url(self.child_issue, "comment"),
+            {"description": "hello"},
+            format="json",
+        )
+
+    def _point_at_another_host(self):
+        self.helpdesk.backend_type = models.ProviderHelpdesk.BackendTypes.ATLASSIAN
+        self.helpdesk.settings = {"ATLASSIAN_API_URL": "https://elsewhere.example/"}
+        self.helpdesk.save()
+
+    def _assert_operator_credentials_not_sent(self):
+        # Positional and keyword arguments alike, nested ones (the oauth2
+        # dict) included, of the client and of its token source.
+        calls = (
+            self.service_desk.call_args_list
+            + self.client_credentials_auth.call_args_list
+        )
+        for call in calls:
+            sent = repr((call.args, call.kwargs))
+            for secret in OPERATOR_SECRETS:
+                self.assertNotIn(secret, sent)
+
+    def test_owner_cannot_point_the_helpdesk_at_another_host(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.patch(
+            factories.ProviderHelpdeskFactory.get_url(self.helpdesk),
+            {
+                "backend_type": models.ProviderHelpdesk.BackendTypes.ATLASSIAN,
+                "settings": {"ATLASSIAN_API_URL": "https://elsewhere.example/"},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.helpdesk.refresh_from_db()
+        self.assertEqual(
+            self.helpdesk.backend_type, models.ProviderHelpdesk.BackendTypes.BASIC
+        )
+        self.assertEqual(self.helpdesk.settings, {})
+        self._comment()
+        self._assert_operator_credentials_not_sent()
+
+    def test_helpdesk_url_never_receives_operator_credentials(self):
+        self._point_at_another_host()
+        self._comment()
+        self.service_desk.assert_called()
+        self.assertEqual(
+            self.service_desk.call_args.kwargs["url"], "https://elsewhere.example/"
+        )
+        self._assert_operator_credentials_not_sent()
+
+    @override_config(
+        ATLASSIAN_OAUTH2_CLIENT_ID="operator-oauth-client",
+        ATLASSIAN_OAUTH2_ACCESS_TOKEN="operator-oauth-token",
+    )
+    def test_helpdesk_url_never_receives_operator_oauth2_token(self):
+        self._point_at_another_host()
+        self._comment()
+        self.service_desk.assert_called()
+        self.assertEqual(
+            self.service_desk.call_args.kwargs["url"], "https://elsewhere.example/"
+        )
+        self._assert_operator_credentials_not_sent()
+
+    @override_config(
+        ATLASSIAN_OAUTH2_CLIENT_ID="operator-oauth-client",
+        ATLASSIAN_OAUTH2_CLIENT_SECRET="operator-oauth-secret",
+    )
+    def test_helpdesk_url_never_gets_operator_oauth2_client(self):
+        self._point_at_another_host()
+        self._comment()
+        self.service_desk.assert_called()
+        self.client_credentials_auth.assert_not_called()
+        self._assert_operator_credentials_not_sent()
+
+
+class ProviderHelpdeskSettingsMaskingTest(ProviderHelpdeskBaseTest):
+    """Settings are plain JSON; the credentials in them go to staff alone."""
+
+    def setUp(self):
+        super().setUp()
+        self.helpdesk.backend_type = models.ProviderHelpdesk.BackendTypes.ATLASSIAN
+        self.helpdesk.settings = {
+            "ATLASSIAN_API_URL": "https://provider-jira.example/",
+            "ATLASSIAN_EMAIL": "agent@provider.example",
+            "ATLASSIAN_TOKEN": "provider-token",
+            "ATLASSIAN_OAUTH2_CLIENT_SECRET": "",
+        }
+        self.helpdesk.save()
+
+    def _settings_seen_by(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            factories.ProviderHelpdeskFactory.get_url(self.helpdesk)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["settings"]
+
+    def test_owner_and_support_see_credentials_masked(self):
+        for who, user in (
+            ("owner", self.owner),
+            ("support", self.fixture.global_support),
+        ):
+            with self.subTest(user=who):
+                self.assertEqual(
+                    self._settings_seen_by(user),
+                    {
+                        "ATLASSIAN_API_URL": "https://provider-jira.example/",
+                        "ATLASSIAN_EMAIL": "agent@provider.example",
+                        "ATLASSIAN_TOKEN": "***",
+                        "ATLASSIAN_OAUTH2_CLIENT_SECRET": "",
+                    },
+                )
+
+    def test_staff_see_credentials(self):
+        self.assertEqual(
+            self._settings_seen_by(self.fixture.staff), self.helpdesk.settings
         )
 
 

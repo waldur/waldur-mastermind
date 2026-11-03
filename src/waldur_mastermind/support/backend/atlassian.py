@@ -26,7 +26,7 @@ from waldur_core.core.models import User
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models
 
-from . import SupportBackend, SupportBackendType
+from . import SupportBackend, SupportBackendType, provider_settings_override
 
 PADDING = 3
 CHARS_LIMIT = 255
@@ -437,10 +437,28 @@ class ServiceDeskBackend(SupportBackend):
             return self._settings_override[key]
         return getattr(config, key, default)
 
+    #: Where the backend connects and with which credentials. A provider
+    #: helpdesk takes all of these from the operator or none of them.
+    connection_settings = (
+        "ATLASSIAN_API_URL",
+        "ATLASSIAN_USERNAME",
+        "ATLASSIAN_PASSWORD",
+        "ATLASSIAN_EMAIL",
+        "ATLASSIAN_TOKEN",
+        "ATLASSIAN_PERSONAL_ACCESS_TOKEN",
+        "ATLASSIAN_OAUTH2_CLIENT_ID",
+        "ATLASSIAN_OAUTH2_CLIENT_SECRET",
+        "ATLASSIAN_OAUTH2_ACCESS_TOKEN",
+    )
+
     @classmethod
     def from_settings(cls, settings_dict):
         """Create a ServiceDeskBackend with provider-specific settings."""
-        return cls(settings_override=settings_dict)
+        return cls(
+            settings_override=provider_settings_override(
+                settings_dict, cls.connection_settings
+            )
+        )
 
     @cached_property
     def manager(self):

@@ -20,7 +20,7 @@ from waldur_mastermind.support.backend.zammad_utils import (
     ZammadBackendError,
 )
 
-from . import SupportBackend, SupportBackendType
+from . import SupportBackend, SupportBackendType, provider_settings_override
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +56,18 @@ class ZammadServiceBackend(SupportBackend):
             return self._settings_override[key]
         return getattr(config, key, default)
 
+    #: Where the backend connects and with which credentials. A provider
+    #: helpdesk takes all of these from the operator or none of them.
+    connection_settings = ("ZAMMAD_API_URL", "ZAMMAD_TOKEN")
+
     @classmethod
     def from_settings(cls, settings_dict):
         """Create a ZammadServiceBackend with provider-specific settings."""
-        return cls(settings_override=settings_dict)
+        return cls(
+            settings_override=provider_settings_override(
+                settings_dict, cls.connection_settings
+            )
+        )
 
     def comment_destroy_is_available(self, comment):
         if not comment.backend_id:
