@@ -15,15 +15,3 @@ class FirecrestExtension(WaldurExtension):
         from .urls import register_in
 
         return register_in
-
-    @staticmethod
-    def celery_tasks():
-        from datetime import timedelta
-
-        return {
-            "waldur-firecrest-pull-jobs": {
-                "task": "waldur_firecrest.pull_jobs",
-                "schedule": timedelta(hours=1),
-                "args": (),
-            },
-        }

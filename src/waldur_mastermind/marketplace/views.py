@@ -226,6 +226,7 @@ from . import (
     api_key_spending_limits,
     filters,
     log,
+    maintenance_reservations,
     models,
     offering_merge,
     offering_merge_coverage,
@@ -3812,6 +3813,69 @@ class ProviderOfferingViewSet(
         )
     ]
     update_integration_validators = update_validators
+
+    @extend_schema(
+        summary="Maintenance reservations the cluster should hold",
+        description="For site agents with maintenance sync enabled on the offering "
+        "(plugin option slurm_maintenance_sync_enabled): the Slurm MAINT "
+        "reservations that published maintenance announcements call for. The agent "
+        "creates, updates and removes reservations named with `prefix` to match "
+        "this list and leaves every other reservation alone.",
+        responses={200: serializers.MaintenanceReservationListSerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def maintenance_reservations(self, request, uuid=None):
+        offering = self.get_object()
+        data = {
+            "enabled": maintenance_reservations.is_enabled(offering),
+            "prefix": maintenance_reservations.RESERVATION_PREFIX,
+            "reservations": maintenance_reservations.desired_reservations(offering),
+        }
+        return Response(serializers.MaintenanceReservationListSerializer(data).data)
+
+    maintenance_reservations_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
+        )
+    ]
+
+    @extend_schema(
+        summary="Import the cluster's maintenance reservations as drafts",
+        description="Site agents report the MAINT reservations made on the cluster; "
+        "each becomes a draft maintenance announcement for the provider to review "
+        "and publish. Reservations named with the Waldur prefix are ignored. Only "
+        "when maintenance sync is enabled on the offering.",
+        request=serializers.MaintenanceReservationImportSerializer,
+        responses={200: serializers.MaintenanceReservationImportResultSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def import_maintenance_reservations(self, request, uuid=None):
+        offering = self.get_object()
+        if not maintenance_reservations.is_enabled(offering):
+            raise ValidationError("Maintenance sync is not enabled for this offering.")
+        serializer = serializers.MaintenanceReservationImportSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        result = maintenance_reservations.import_site_reservations(
+            offering,
+            [
+                maintenance_reservations.SiteReservation(**item)
+                for item in serializer.validated_data["reservations"]
+            ],
+            request.user,
+        )
+        return Response(
+            serializers.MaintenanceReservationImportResultSerializer(result).data
+        )
+
+    import_maintenance_reservations_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
+        )
+    ]
     update_integration_serializer_class = (
         serializers.OfferingIntegrationUpdateSerializer
     )

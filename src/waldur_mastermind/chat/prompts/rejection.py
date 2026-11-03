@@ -22,6 +22,7 @@ REJECTION_SYSTEM_PROMPT_TEMPLATE = (
 CATEGORY_PHRASES: dict[ToolCategory, str] = {
     ToolCategory.MARKETPLACE: "exploring marketplace offerings",
     ToolCategory.VM: "creating VMs",
+    ToolCategory.HPC: "running and following HPC jobs",
     ToolCategory.ACCOUNT: "viewing your resources or projects",
     ToolCategory.PROPOSALS_RESEARCHER: "proposal-call workflows",
     ToolCategory.PROPOSALS_REVIEWER: "reviewing proposals",

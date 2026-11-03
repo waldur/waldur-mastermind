@@ -30,8 +30,10 @@ class ToolExecutor:
     - Consistent error handling (permission denied, unexpected exceptions)
     """
 
-    def __init__(self, user):
+    def __init__(self, user, delegated=False):
         self.user = user
+        # The caller is not the user's own sign-in (see is_delegated).
+        self.delegated = delegated
 
     @property
     def _is_anonymous(self) -> bool:
@@ -66,7 +68,7 @@ class ToolExecutor:
 
             # Before the guards, so a forbidden call is a plain denial, not
             # an injection block with an audit event.
-            if not is_tool_permitted(self.user, tool_name):
+            if not is_tool_permitted(self.user, tool_name, self.delegated):
                 raise PermissionDenied
 
             injection_block = self._check_injection(tool_name, arguments)

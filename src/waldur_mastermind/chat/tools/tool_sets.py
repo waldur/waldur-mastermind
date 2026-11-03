@@ -9,6 +9,21 @@ _VM_TOOLS: list[ToolName] = [
     ToolName.DISPLAY_USER_RESOURCES,
 ]
 
+_HPC_TOOLS: list[ToolName] = [
+    ToolName.LIST_HPC_ALLOCATIONS,
+    ToolName.GET_HPC_CLUSTER_STATUS,
+    ToolName.FIND_HPC_SOFTWARE,
+    ToolName.PLAN_HPC_JOB,
+    ToolName.SUBMIT_HPC_JOB,
+    ToolName.LIST_HPC_JOBS,
+    ToolName.GET_HPC_JOB,
+    ToolName.CANCEL_HPC_JOB,
+    ToolName.GET_HPC_ALLOCATION_USAGE,
+    ToolName.GET_HPC_JOB_STATS,
+    ToolName.GET_HPC_CLUSTER_LOAD,
+    ToolName.PLOT_HPC_OUTPUT,
+]
+
 _ACCOUNT_TOOLS: list[ToolName] = [
     ToolName.LIST_ORGANIZATIONS,
     ToolName.LIST_PROJECTS,
@@ -62,6 +77,7 @@ _META_TOOLS: list[ToolName] = [ToolName.SEARCH_TOOLS, ToolName.ASK_USER]
 
 STAFF_TOOLS: list[ToolName] = [
     *_VM_TOOLS,
+    *_HPC_TOOLS,
     *_ACCOUNT_TOOLS,
     ToolName.GET_USER_OVERVIEW,
     *_MARKETPLACE_TOOLS,
@@ -73,6 +89,7 @@ STAFF_TOOLS: list[ToolName] = [
 
 SUPPORT_TOOLS: list[ToolName] = [
     *_VM_TOOLS,
+    *_HPC_TOOLS,
     *_ACCOUNT_TOOLS,
     ToolName.GET_USER_OVERVIEW,
     *_MARKETPLACE_TOOLS,
@@ -83,6 +100,7 @@ SUPPORT_TOOLS: list[ToolName] = [
 
 END_USER_TOOLS: list[ToolName] = [
     *_VM_TOOLS,
+    *_HPC_TOOLS,
     *_ACCOUNT_TOOLS,
     *_MARKETPLACE_TOOLS,
     *_PROPOSALS_RESEARCHER_TOOLS,
@@ -102,7 +120,14 @@ ANONYMOUS_TOOLS: list[ToolName] = [
 ]
 
 
-def get_tool_set_for_user(user) -> list[ToolName]:
+# Tools that act as the user on an HPC cluster with their identity provider
+# token. No permission scopes them down, so a delegated caller (a personal
+# access token, an identity provider token or impersonation, see
+# ``is_delegated``) does not get them.
+_OWN_SIGN_IN_TOOLS = frozenset(_HPC_TOOLS)
+
+
+def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     """Return the tool list permitted for ``user``'s role.
 
     ``None`` and AnonymousUser both map to ``ANONYMOUS_TOOLS`` — the
@@ -116,15 +141,19 @@ def get_tool_set_for_user(user) -> list[ToolName]:
     if user is None or getattr(user, "is_anonymous", False):
         return ANONYMOUS_TOOLS
     if user.is_staff:
-        return STAFF_TOOLS
-    if user.is_support:
-        return SUPPORT_TOOLS
-    return END_USER_TOOLS
+        tools = STAFF_TOOLS
+    elif user.is_support:
+        tools = SUPPORT_TOOLS
+    else:
+        tools = END_USER_TOOLS
+    if delegated:
+        return [tool for tool in tools if tool not in _OWN_SIGN_IN_TOOLS]
+    return tools
 
 
-def is_tool_permitted(user, tool_name: str | ToolName) -> bool:
+def is_tool_permitted(user, tool_name: str | ToolName, delegated=False) -> bool:
     """Return True if ``tool_name`` is in the tool set for ``user``'s role.
 
     Unknown names are never permitted.
     """
-    return ToolName.parse(tool_name) in get_tool_set_for_user(user)
+    return ToolName.parse(tool_name) in get_tool_set_for_user(user, delegated)

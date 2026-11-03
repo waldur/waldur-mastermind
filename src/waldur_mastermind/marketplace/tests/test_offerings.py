@@ -1498,6 +1498,7 @@ class OfferingCreateTest(test.APITestCase):
             "resource_project_role_map": {},
             "resource_role_group_template": "${resource_slug}_${role_name}",
             "resource_role_map": {},
+            "slurm_maintenance_sync_enabled": False,
             "slurm_periodic_policy_enabled": False,
         }
         self.assertEqual(offering.plugin_options, default_plugin_options)
