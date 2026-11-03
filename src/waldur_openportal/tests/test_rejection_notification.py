@@ -48,10 +48,9 @@ class RejectionNotificationViewTest(APITestCase):
         unprivileged = structure_factories.UserFactory()
         self.client.force_authenticate(unprivileged)
         response = self.client.post(self.url, {"comment": "..."})
-        self.assertIn(
-            response.status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        # The user has no role on the template's or project's organizations,
+        # so the managed project is not found for them (#1015).
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         mock_delay.assert_not_called()
 
 
