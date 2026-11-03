@@ -350,3 +350,41 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=marketplace_models.Resource,
             dispatch_uid="waldur_mastermind.marketplace_openstack.populate_volume_metadata_on_resource_creation",
         )
+
+        # Objects of a tenant, instance or volume are concealed with it.
+        # Instances and volumes are resources of their own and follow them.
+        from waldur_mastermind.marketplace.filters import register_concealment_parent
+
+        for model, path, scope_model in (
+            (openstack_models.Snapshot, "tenant", openstack_models.Tenant),
+            (openstack_models.Snapshot, "source_volume", openstack_models.Volume),
+            (openstack_models.Backup, "tenant", openstack_models.Tenant),
+            (openstack_models.Backup, "instance", openstack_models.Instance),
+            (openstack_models.SecurityGroup, "tenant", openstack_models.Tenant),
+            (openstack_models.ServerGroup, "tenant", openstack_models.Tenant),
+            (openstack_models.FloatingIP, "tenant", openstack_models.Tenant),
+            (openstack_models.FloatingIP, "port__instance", openstack_models.Instance),
+            (openstack_models.Router, "tenant", openstack_models.Tenant),
+            (openstack_models.Network, "tenant", openstack_models.Tenant),
+            (openstack_models.SubNet, "tenant", openstack_models.Tenant),
+            (openstack_models.Port, "tenant", openstack_models.Tenant),
+            (openstack_models.Port, "instance", openstack_models.Instance),
+            (openstack_models.LoadBalancer, "tenant", openstack_models.Tenant),
+            (openstack_models.Pool, "load_balancer__tenant", openstack_models.Tenant),
+            (
+                openstack_models.Listener,
+                "load_balancer__tenant",
+                openstack_models.Tenant,
+            ),
+            (
+                openstack_models.PoolMember,
+                "pool__load_balancer__tenant",
+                openstack_models.Tenant,
+            ),
+            (
+                openstack_models.HealthMonitor,
+                "pool__load_balancer__tenant",
+                openstack_models.Tenant,
+            ),
+        ):
+            register_concealment_parent(model, path, scope_model)

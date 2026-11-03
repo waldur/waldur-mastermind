@@ -77,3 +77,12 @@ class MarketplaceOpenPortalRemoteConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace_openportal_remote."
             "sync_offering_resource_options",
         )
+
+        # Associations of a remote allocation are concealed with it.
+        from waldur_mastermind.marketplace.filters import register_concealment_parent
+
+        register_concealment_parent(
+            openportal_models.RemoteAssociation,
+            "allocation",
+            openportal_models.RemoteAllocation,
+        )

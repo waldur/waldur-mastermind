@@ -52,6 +52,17 @@ class NameFilterSet(django_filters.FilterSet):
     )
 
 
+class ExternalResourceVisibilityBackend(ExternalFilterBackend):
+    """Rules from other apps that hide objects the caller's roles reach.
+
+    GenericRoleFilter runs them after the role and network filters, so every
+    view that filters with it applies them. A registered filter receives every
+    model GenericRoleFilter is used on and must leave the ones it has no rule
+    for unchanged. Marketplace registers its subnet concealment here, which
+    structure cannot apply itself without depending on marketplace.
+    """
+
+
 class GenericRoleFilter(BaseFilterBackend):
     # Read by waldur_core.core.access: lists and retrieves show only what the
     # caller's roles reach.
@@ -69,7 +80,10 @@ class GenericRoleFilter(BaseFilterBackend):
             queryset = self._filter_customers_optimized(queryset, request.user)
         else:
             queryset = filter_queryset_for_user(queryset, request.user)
-        return filter_queryset_by_user_ip(queryset, request)
+        queryset = filter_queryset_by_user_ip(queryset, request)
+        return ExternalResourceVisibilityBackend().filter_queryset(
+            request, queryset, view
+        )
 
     def _filter_customers_optimized(self, queryset, user):
         """Optimized customer filtering to avoid complex permission queries."""
