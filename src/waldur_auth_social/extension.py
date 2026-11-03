@@ -38,4 +38,9 @@ class AuthSocialExtension(WaldurExtension):
                 "schedule": timedelta(hours=11),
                 "args": (),
             },
+            "waldur-cleanup-stale-oauth-tokens": {
+                "task": "waldur_auth_social.cleanup_stale_oauth_tokens",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }

@@ -16,11 +16,13 @@ the caller checks through FirecREST before asking for samples.
 """
 
 import datetime
+import logging
 import math
 import re
 import statistics
 import time
 from collections import defaultdict
+from urllib.parse import urlparse
 
 import requests
 
@@ -28,6 +30,8 @@ from waldur_core.configuration import config
 from waldur_mastermind.chat.chart_spec import MAX_SERIES, chart, series
 
 from . import insights
+
+logger = logging.getLogger(__name__)
 
 API_URL_OPTION = "slurm_monitor_api_url"
 CLUSTER_OPTION = "slurm_monitor_cluster_name"
@@ -74,13 +78,24 @@ def is_monitoring_enabled(offering) -> bool:
 class MonitorClient:
     """slurm-monitor's REST API (``/api/v2``), as one user."""
 
-    def __init__(self, api_url, cluster, access_token, timeout=DEFAULT_TIMEOUT):
+    def __init__(
+        self, api_url, cluster, access_token, timeout=DEFAULT_TIMEOUT, on_behalf_of=""
+    ):
         self.api_url = api_url.rstrip("/")
         self.cluster = cluster
         self.timeout = timeout
         self.headers = {"Authorization": f"Bearer {access_token}"}
+        # Who the token belongs to, for the audit log line of each call.
+        self.on_behalf_of = on_behalf_of
 
     def _get(self, path, **params):
+        logger.info(
+            "slurm-monitor GET %s/cluster/%s%s as %s",
+            urlparse(self.api_url).netloc,
+            self.cluster,
+            path,
+            self.on_behalf_of or "unknown user",
+        )
         try:
             response = requests.get(
                 f"{self.api_url}/cluster/{self.cluster}{path}",

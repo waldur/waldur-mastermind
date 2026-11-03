@@ -1771,6 +1771,12 @@ CONSTANCE_CONFIG = {
         "job performance from, one per line or comma-separated. Waldur forwards a "
         "user's identity provider token only to these URLs.",
     ),
+    "OIDC_TOKEN_MAX_IDLE_DAYS": (
+        30,
+        "Days without a sign-in after which Waldur deletes and revokes a user's "
+        "stored identity provider refresh token. The user signs in again to use "
+        "HPC services.",
+    ),
     # Identity Bridge settings
     "FEDERATED_IDENTITY_SYNC_ENABLED": (
         False,
@@ -2423,6 +2429,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "HPC workspace": (
         "FIRECREST_ALLOWED_API_URLS",
         "SLURM_MONITOR_ALLOWED_API_URLS",
+        "OIDC_TOKEN_MAX_IDLE_DAYS",
     ),
     "Usage Polling": ("USAGE_POLL_RECORD_RETENTION_MONTHS",),
     "Custom Metrics": (

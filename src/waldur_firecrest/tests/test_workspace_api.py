@@ -9,6 +9,7 @@ from django.urls import reverse
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_auth_social import oauth_tokens
 from waldur_auth_social.models import IdentityProvider, OAuthToken
 from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
@@ -77,15 +78,14 @@ class HpcWorkspaceTestBase(test.APITestCase):
             username=USERNAME,
             state=OfferingUserStates.OK,
         )
+        cache.clear()
         # FirecREST's view of the user agrees; IdentityTest covers the check.
         cache.set(identity_cache_key(self.user, self.offering, ACCOUNT), True)
         self.token = make_token()
         OAuthToken.objects.create(
-            user=self.user,
-            provider="keycloak",
-            access_token=self.token,
-            refresh_token="refresh-1",
+            user=self.user, provider="keycloak", refresh_token="refresh-1"
         )
+        oauth_tokens.cache_access_token(self.user, self.token)
         self.client.force_authenticate(self.user)
 
     def url(self, action=None, **kwargs):
@@ -356,9 +356,7 @@ class TokenTest(HpcWorkspaceTestBase):
 
     @responses.activate
     def test_expired_token_is_refreshed_and_rotated(self):
-        OAuthToken.objects.filter(user=self.user).update(
-            access_token=make_token(expires_in=-10)
-        )
+        oauth_tokens.forget_access_tokens(self.user.pk)
         fresh = make_token()
         responses.post(
             "http://keycloak:8080/realms/e2e/protocol/openid-connect/token",
@@ -375,9 +373,7 @@ class TokenTest(HpcWorkspaceTestBase):
 
     @responses.activate
     def test_failed_refresh_asks_to_sign_in_again(self):
-        OAuthToken.objects.filter(user=self.user).update(
-            access_token=make_token(expires_in=-10)
-        )
+        oauth_tokens.forget_access_tokens(self.user.pk)
         responses.post(
             "http://keycloak:8080/realms/e2e/protocol/openid-connect/token",
             status=400,
@@ -388,12 +384,12 @@ class TokenTest(HpcWorkspaceTestBase):
         self.assertIn("Sign in again", response.data["detail"])
         self.assertEqual(response.data["code"], "identity_provider_sign_in_required")
         self.assertEqual(response.data["identity_provider"], "keycloak")
+        # A refresh token the identity provider refused is useless: drop it.
+        self.assertFalse(OAuthToken.objects.filter(user=self.user).exists())
 
     @responses.activate
     def test_overview_names_the_provider_to_sign_in_again_with(self):
-        OAuthToken.objects.filter(user=self.user).update(
-            access_token=make_token(expires_in=-10)
-        )
+        oauth_tokens.forget_access_tokens(self.user.pk)
         responses.post(
             "http://keycloak:8080/realms/e2e/protocol/openid-connect/token",
             status=400,
@@ -406,6 +402,7 @@ class TokenTest(HpcWorkspaceTestBase):
 
     def test_user_without_oidc_login_gets_explanation(self):
         OAuthToken.objects.filter(user=self.user).delete()
+        oauth_tokens.forget_access_tokens(self.user.pk)
         response = self.client.get(self.url("jobs"))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("identity provider", str(response.data))

@@ -1,4 +1,4 @@
-from waldur_auth_social.revocation import forget_oauth_tokens
+from waldur_auth_social.revocation import RevocationReason, forget_oauth_tokens
 
 
 def forget_oauth_tokens_on_deactivation(sender, instance, **kwargs):
@@ -9,9 +9,9 @@ def forget_oauth_tokens_on_deactivation(sender, instance, **kwargs):
     if old_values is None:
         return
     if old_values.get("is_active") and not instance.is_active:
-        forget_oauth_tokens(instance)
+        forget_oauth_tokens(instance, RevocationReason.DEACTIVATED)
 
 
 def forget_oauth_tokens_on_deletion(sender, instance, **kwargs):
     """Revoke them before the row goes; the cascade would only delete them."""
-    forget_oauth_tokens(instance)
+    forget_oauth_tokens(instance, RevocationReason.DELETED)

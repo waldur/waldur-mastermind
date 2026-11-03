@@ -306,6 +306,7 @@ class OAuthViewCompleteTest(test.APITestCase):
             status=status.HTTP_200_OK,
         )
 
+    @override_config(FIRECREST_ALLOWED_API_URLS="https://firecrest.example.org")
     def test_successful_login_new_user(self):
         user_info = {
             "sub": "test_sub",
@@ -381,6 +382,7 @@ class OAuthViewCompleteTest(test.APITestCase):
         user = User.objects.get(username=user_info["sub"])
         self.assertEqual(user.birth_date.isoformat(), "1983-01-21")
 
+    @override_config(FIRECREST_ALLOWED_API_URLS="https://firecrest.example.org")
     def test_successful_login_existing_user(self):
         user_info = {
             "sub": "existing_user",

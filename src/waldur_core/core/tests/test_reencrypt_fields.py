@@ -214,6 +214,8 @@ class EncryptedFieldDiscoveryTest(SimpleTestCase):
                 "matrix_chat.MatrixUserProfile.recovery_key",
                 "structure.ServiceSettings.password",
                 "structure.ServiceSettings.token",
+                "waldur_auth_social.IdentityProvider.client_secret",
+                "waldur_auth_social.OAuthToken.refresh_token",
             },
         )
         self.assertEqual(

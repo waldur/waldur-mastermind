@@ -1,14 +1,22 @@
 from django.conf import settings
 from django.db import models
 
+from waldur_core.core.fields import EncryptedTextField
+
 
 class OAuthToken(models.Model):
+    """The refresh token of a user's last OIDC sign-in, for acting as that user.
+
+    Only the refresh token is kept, encrypted: access tokens are minted from it
+    when needed and live in the cache until they expire (see
+    ``waldur_auth_social.oauth_tokens``).
+    """
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, related_name="auth_profile", on_delete=models.CASCADE
     )
     provider = models.CharField(max_length=32)
-    access_token = models.TextField()
-    refresh_token = models.TextField()
+    refresh_token = EncryptedTextField()
 
     class Meta:
         unique_together = ("user", "provider")
@@ -21,9 +29,7 @@ class IdentityProvider(models.Model):
     client_id = models.CharField(
         help_text="ID of application used for OAuth authentication.", max_length=200
     )
-    client_secret = models.CharField(
-        help_text="Application secret key.", max_length=200
-    )
+    client_secret = EncryptedTextField(help_text="Application secret key.")
     verify_ssl = models.BooleanField(default=True)
     enable_post_logout_redirect = models.BooleanField(default=True)
     enable_pkce = models.BooleanField(default=False)

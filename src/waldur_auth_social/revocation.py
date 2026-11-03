@@ -1,12 +1,15 @@
 """
-Revoking the identity provider tokens Waldur keeps for a user.
+Revoking the identity provider token Waldur keeps for a user.
 
-A sign-in through an OIDC provider stores the provider's access and refresh
-tokens in ``OAuthToken`` so Waldur can call services as the user later (the
-HPC workspace calls FirecREST with them). Ending the provider's browser session
-at logout does not invalidate an offline refresh token, so when the user logs
-out, is deactivated or is deleted, the stored token is revoked at the
-provider (RFC 7009) and removed.
+A sign-in through an OIDC provider stores the provider's refresh token in
+``OAuthToken``, encrypted, so Waldur can call services as the user later (the
+HPC workspace calls FirecREST with access tokens minted from it, see
+``waldur_auth_social.oauth_tokens``). Ending the provider's browser session at
+logout does not invalidate an offline refresh token, so the stored token is
+revoked at the provider (RFC 7009) and removed when the user logs out, is
+deactivated or is deleted, after ``OIDC_TOKEN_MAX_IDLE_DAYS`` without a
+sign-in, while the HPC workspace is off, and when a sign-in in another session
+replaces it. A token the provider refuses to refresh is removed too.
 
 Removal always happens. Revocation is best effort: a provider without a
 revocation endpoint, or one that cannot be reached, is logged and skipped, so
@@ -20,7 +23,11 @@ import requests
 from django.core.cache import cache
 from django.db import transaction
 
-from waldur_auth_social.models import IdentityProvider, OAuthToken
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
+
+from .models import IdentityProvider, OAuthToken
+from .token_cache import forget_access_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +37,16 @@ REQUEST_TIMEOUT = 5
 # The revocation endpoint rarely changes; a provider without one is cached too
 # (as an empty string), so it is not looked up again on every logout.
 ENDPOINT_CACHE_TIMEOUT = 60 * 60
+
+
+class RevocationReason:
+    LOGOUT = "logout"
+    DEACTIVATED = "deactivated"
+    DELETED = "deleted"
+    IDLE = "idle"
+    DISABLED = "disabled"
+    REPLACED = "replaced"
+    REJECTED = "rejected"
 
 
 def _endpoint_cache_key(idp: IdentityProvider) -> str:
@@ -60,8 +77,12 @@ def get_revocation_endpoint(idp: IdentityProvider) -> str | None:
     return endpoint or None
 
 
-def revoke_at_provider(provider: str, token: str, token_type_hint: str) -> bool:
-    """Ask the provider to revoke *token*. Returns whether it confirmed."""
+def revoke_at_provider(provider: str, refresh_token: str) -> bool:
+    """Ask the provider to revoke *refresh_token*. Returns whether it confirmed.
+
+    Revoking the refresh token ends the provider session it belongs to, and
+    with it the access tokens issued from it.
+    """
     try:
         idp = IdentityProvider.objects.get(provider=provider)
     except IdentityProvider.DoesNotExist:
@@ -78,8 +99,8 @@ def revoke_at_provider(provider: str, token: str, token_type_hint: str) -> bool:
         response = requests.post(
             endpoint,
             data={
-                "token": token,
-                "token_type_hint": token_type_hint,
+                "token": refresh_token,
+                "token_type_hint": "refresh_token",
                 "client_id": idp.client_id,
                 "client_secret": idp.client_secret,
             },
@@ -100,31 +121,49 @@ def revoke_at_provider(provider: str, token: str, token_type_hint: str) -> bool:
     return True
 
 
-def forget_oauth_tokens(user) -> None:
-    """Remove the user's stored identity provider tokens and revoke them.
-
-    The rows are deleted at once, in the caller's transaction; the provider is
-    called once it commits, so a rolled-back deactivation keeps the token.
-    """
-    stored = list(
-        OAuthToken.objects.filter(user=user).values_list(
-            "provider", "access_token", "refresh_token"
-        )
+def _emit_revoked(user, provider, reason):
+    event_logger.emit(
+        "Stored identity provider token of {affected_user_username} was "
+        "revoked ({reason}).",
+        event_type=EventType.OIDC_TOKEN_REVOKED,
+        event_context={"affected_user": user, "provider": provider, "reason": reason},
+        scopes=[user],
     )
-    if not stored:
-        return
-    OAuthToken.objects.filter(user=user).delete()
-    for provider, access_token, refresh_token in stored:
-        # Revoking the refresh token ends the provider session it belongs to,
-        # and with it the access tokens issued from it.
-        if refresh_token:
-            token, hint = refresh_token, "refresh_token"
-        elif access_token:
-            token, hint = access_token, "access_token"
-        else:
-            continue
-        transaction.on_commit(
-            lambda provider=provider, token=token, hint=hint: revoke_at_provider(
-                provider, token, hint
-            )
+
+
+def _revoke_after_commit(provider, refresh_token):
+    """Call the provider once the transaction commits, so a rolled-back change
+    keeps the token. The token only travels in this process's memory, never
+    through the task broker."""
+    transaction.on_commit(lambda: revoke_at_provider(provider, refresh_token))
+
+
+def forget_oauth_tokens(user, reason: str, notify_provider: bool = True) -> None:
+    """Remove the user's stored identity provider token and revoke it.
+
+    The row is deleted at once, in the caller's transaction, and the access
+    tokens minted from it leave the cache. *notify_provider* is False for a
+    token the provider has already refused.
+    """
+    with transaction.atomic():
+        # Waits for a refresh in progress, so the token it rotates to is the
+        # one revoked, and the access token it caches is dropped below.
+        stored = list(
+            OAuthToken.objects.select_for_update()
+            .filter(user=user)
+            .values_list("provider", "refresh_token")
         )
+        if stored:
+            OAuthToken.objects.filter(user=user).delete()
+    forget_access_tokens(user.pk)
+    for provider, refresh_token in stored:
+        if notify_provider and refresh_token:
+            _revoke_after_commit(provider, refresh_token)
+        _emit_revoked(user, provider, reason)
+
+
+def revoke_replaced_token(user, provider, refresh_token) -> None:
+    """Revoke a token a new sign-in has replaced; the caller removed it."""
+    if refresh_token:
+        _revoke_after_commit(provider, refresh_token)
+    _emit_revoked(user, provider, RevocationReason.REPLACED)

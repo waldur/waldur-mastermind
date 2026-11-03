@@ -9,7 +9,7 @@ from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.utils import pull_remote_eduteams_user, sync_user_ssh_keys
 from waldur_core.core.models import User
 
-from . import utils
+from . import oauth_tokens, utils
 
 logger = logging.getLogger(__name__)
 
@@ -64,3 +64,8 @@ def rotate_remote_eduteams_token():
             "Failed to rotate eduTEAMS refresh token. "
             "The token may expire if this persists."
         )
+
+
+@shared_task(name="waldur_auth_social.cleanup_stale_oauth_tokens")
+def cleanup_stale_oauth_tokens():
+    oauth_tokens.forget_stale_oauth_tokens()

@@ -6,7 +6,7 @@ import responses
 from django.core.cache import cache
 from django.test import TestCase
 
-from waldur_auth_social.models import OAuthToken
+from waldur_auth_social import oauth_tokens
 from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_firecrest.workspace import identity_cache_key
@@ -67,6 +67,7 @@ class HpcToolsTestBase(TestCase):
             username="hpc_9000",
             state=OfferingUserStates.OK,
         )
+        cache.clear()
         # FirecREST's view of the user agrees; IdentityTest covers the check.
         cache.set(identity_cache_key(self.user, self.offering, ACCOUNT), True)
         factories.OfferingPartitionFactory(
@@ -75,9 +76,7 @@ class HpcToolsTestBase(TestCase):
         token = jwt.encode(
             {"exp": int(time.time()) + 3600}, "k" * 32, algorithm="HS256"
         )
-        OAuthToken.objects.create(
-            user=self.user, provider="keycloak", access_token=token, refresh_token=""
-        )
+        oauth_tokens.cache_access_token(self.user, token)
         self.job_args = {
             "name": "sim",
             "commands": "srun ./model",

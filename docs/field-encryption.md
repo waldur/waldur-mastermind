@@ -26,6 +26,8 @@ accepted limitations. For the resource API key lifecycle specifically, see
 | `matrix_chat.MatrixBotIdentity.access_token` | whole value | the Matrix bot's access token for its own device |
 | `matrix_chat.MatrixHistoryExport.data_key` | whole value | key a Matrix history export's files are encrypted under; without it the export is unreadable |
 | `matrix_chat.MatrixTicketDraft.content` | whole value | a pending `!ticket` support ticket draft, which holds a summary of the room's conversation; erased once the draft is sent, cancelled or expires |
+| `waldur_auth_social.IdentityProvider.client_secret` | whole value | the OIDC client secret Waldur signs users in and refreshes tokens with |
+| `waldur_auth_social.OAuthToken.refresh_token` | whole value | refresh token of a user's last OIDC sign-in, kept only while the HPC workspace is enabled; access tokens are not stored |
 | Constance settings of type `secret_field` | whole value | see [Secret settings](#secret-settings) |
 
 Encryption is transparent: values are encrypted at the database-serialization
