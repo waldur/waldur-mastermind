@@ -2,17 +2,20 @@ from typing import cast
 
 from celery import chain
 from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core.models import User
 from waldur_core.core.utils import serialize_instance
 from waldur_core.core.views import ReadOnlyActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
+from waldur_mastermind.marketplace import filters as marketplace_filters
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import RANCHER_OFFERING
 from waldur_mastermind.marketplace.serializers import ResourceSerializer
@@ -34,6 +37,20 @@ class ManagedRancherViewSet(ReadOnlyActionsViewSet):
     ).select_related("offering__customer__serviceprovider")
     lookup_field = "uuid"
     serializer_class = ResourceSerializer
+    # As the consumer resource routes show resources: add_node is the
+    # consumer's, and its resource is looked up here too.
+    filter_backends = (
+        DjangoFilterBackend,
+        marketplace_filters.ResourceAccessSubnetConcealmentFilterBackend,
+    )
+
+    @access.shows(marketplace_filters.CONSUMER_ACCESS_VISIBILITY)
+    def get_queryset(self):
+        return ResourceSerializer.eager_load(
+            marketplace_filters.filter_resources_by_consumer_access(
+                self.queryset, self.request
+            )
+        )
 
     @extend_schema(
         request=ManagedRancherCreateNodeSerializer,

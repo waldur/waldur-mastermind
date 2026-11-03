@@ -10063,13 +10063,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         "suggest_name": [serializers.SUGGEST_NAME_ACCESS],
     }
 
-    # The second sentence is filter_queryset_by_user_ip's rule, which
-    # filter_resources_by_consumer_access applies. Change the two together.
-    @access.shows(
-        f"{ResourceQuerySet.CONSUMER_VISIBILITY} Except to staff, support and "
-        "requests without a client address, an organization that limits portal "
-        "access to some networks hides its resources from callers outside them."
-    )
+    @access.shows(filters.CONSUMER_ACCESS_VISIBILITY)
     def get_queryset(self):
         queryset = filters.filter_resources_by_consumer_access(
             self.queryset, self.request
