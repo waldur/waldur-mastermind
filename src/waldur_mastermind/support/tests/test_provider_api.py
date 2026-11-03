@@ -1085,6 +1085,73 @@ class ProviderTicketCustomerContextTest(ProviderHelpdeskBaseTest):
         self.assertEqual(response.data["caller"]["full_name"], "")
 
 
+class ProviderTicketCustomerContextRecentTicketsTest(ProviderHelpdeskBaseTest):
+    """The caller's recent tickets are the ones the requester can open as provider."""
+
+    def setUp(self):
+        super().setUp()
+        self.caller = structure_factories.UserFactory()
+        parent = factories.IssueFactory(caller=self.caller, summary="Original")
+        # Routing copies the caller onto the provider's ticket.
+        self.ticket = self.route(parent, self.helpdesk, "Routed here")
+        self.same_provider = self.route(
+            factories.IssueFactory(caller=self.caller), self.helpdesk, "Also here"
+        )
+        self.other_provider = self.route(
+            factories.IssueFactory(caller=self.caller),
+            factories.ProviderHelpdeskFactory(),
+            "Routed elsewhere",
+        )
+        self.built_in_desk = factories.IssueFactory(
+            caller=self.caller, summary="Kept on the built-in desk"
+        )
+        self.agent = structure_factories.UserFactory()
+        factories.ProviderSupportUserFactory(
+            provider_helpdesk=self.helpdesk, user=self.agent, is_active=True
+        )
+
+    def route(self, parent, helpdesk, summary):
+        return factories.IssueFactory(
+            parent_issue=parent,
+            provider_helpdesk=helpdesk,
+            caller=parent.caller,
+            summary=summary,
+        )
+
+    def recent_summaries(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            _provider_ticket_url(self.ticket, action="customer_context")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {ticket["summary"] for ticket in response.data["recent_tickets"]}
+
+    def test_agent_sees_only_the_callers_tickets_with_their_helpdesk(self):
+        self.assertEqual(self.recent_summaries(self.agent), {"Also here"})
+
+    def test_provider_owner_sees_only_the_callers_tickets_with_their_helpdesk(self):
+        self.assertEqual(self.recent_summaries(self.owner), {"Also here"})
+
+    def test_every_listed_ticket_opens_through_the_provider_routes(self):
+        self.client.force_authenticate(self.agent)
+        response = self.client.get(
+            _provider_ticket_url(self.ticket, action="customer_context")
+        )
+        self.assertTrue(response.data["recent_tickets"])
+        for ticket in response.data["recent_tickets"]:
+            issue = models.Issue.objects.get(uuid=ticket["uuid"])
+            self.assertEqual(
+                self.client.get(_provider_ticket_url(issue)).status_code,
+                status.HTTP_200_OK,
+            )
+
+    def test_staff_see_the_callers_routed_tickets_only(self):
+        self.assertEqual(
+            self.recent_summaries(self.fixture.staff),
+            {"Also here", "Routed elsewhere"},
+        )
+
+
 class ProviderTicketStatsTest(ProviderHelpdeskBaseTest):
     def setUp(self):
         super().setUp()
