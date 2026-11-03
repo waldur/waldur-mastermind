@@ -14,14 +14,14 @@ from waldur_core.structure import views as structure_views
 from . import executors, filters, models, serializers
 
 
-class ImageViewSet(structure_views.BaseServicePropertyViewSet):
+class ImageViewSet(structure_views.GeneralServicePropertyViewSet):
     queryset = models.Image.objects.all().order_by("name")
     serializer_class = serializers.DigitalOceanImageSerializer
     filterset_class = filters.ImageFilter
     lookup_field = "uuid"
 
 
-class RegionViewSet(structure_views.BaseServicePropertyViewSet):
+class RegionViewSet(structure_views.GeneralServicePropertyViewSet):
     queryset = models.Region.objects.all()
     serializer_class = serializers.DigitalOceanRegionSerializer
     filterset_class = filters.RegionFilter
@@ -31,7 +31,7 @@ class RegionViewSet(structure_views.BaseServicePropertyViewSet):
         return models.Region.objects.order_by("name")
 
 
-class SizeViewSet(structure_views.BaseServicePropertyViewSet):
+class SizeViewSet(structure_views.GeneralServicePropertyViewSet):
     queryset = models.Size.objects.all().order_by("name")
     serializer_class = serializers.DigitalOceanSizeSerializer
     filterset_class = filters.SizeFilter

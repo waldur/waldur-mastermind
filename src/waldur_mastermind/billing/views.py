@@ -2,11 +2,12 @@ import uuid
 
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import exceptions, generics, response, status
 from rest_framework import filters as rf_filters
+from rest_framework import generics, response, status
+from rest_framework.permissions import IsAuthenticated
 
 from waldur_core.core import views as core_views
-from waldur_core.core.permissions import has_support_access
+from waldur_core.core.permissions import IsSupport
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoices_models
@@ -16,6 +17,7 @@ from . import filters, serializers
 
 
 class TotalCustomerCostView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, IsSupport]
     filter_backends = []
     serializer_class = serializers.TotalCustomerCostSerializer
     pagination_class = None
@@ -35,9 +37,6 @@ class TotalCustomerCostView(generics.GenericAPIView):
         ]
     )
     def get(self, request, format=None):
-        if not has_support_access(request):
-            raise exceptions.PermissionDenied()
-
         customers = structure_models.Customer.objects.all()
         customers = structure_filters.AccountingStartDateFilter().filter_queryset(
             request, customers, self

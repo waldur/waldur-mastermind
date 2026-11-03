@@ -10,6 +10,7 @@ from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from waldur_core.core import access
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import StatusSerializer
@@ -38,6 +39,7 @@ class LimitViewSet(RetrieveModelMixin, GenericViewSet):
     )
     lookup_field = "uuid"
     serializer_class = serializers.VmwareLimitSerializer
+    access_declarations = {"retrieve": [access.authenticated()]}
 
 
 class VirtualMachineViewSet(

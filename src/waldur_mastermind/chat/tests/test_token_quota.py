@@ -539,6 +539,32 @@ class QuotaUsageAPITest(test.APITestCase):
         AI_ASSISTANT_API_URL="https://example.com/stream",
         AI_ASSISTANT_API_TOKEN="dummy-token",
     )
+    def test_support_can_view_other_user_usage(self):
+        support = structure_factories.UserFactory(is_support=True)
+        other_user = structure_factories.UserFactory()
+        self.client.force_authenticate(user=support)
+
+        response = self.client.get(self.usage_url, {"user_uuid": str(other_user.uuid)})
+
+        self.assertEqual(response.status_code, 200)
+
+    @override_constance_config(
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+    )
+    def test_user_may_name_themselves(self):
+        response = self.client.get(self.usage_url, {"user_uuid": str(self.user.uuid)})
+
+        self.assertEqual(response.status_code, 200)
+
+    @override_constance_config(
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+    )
     def test_user_cannot_view_other_user_usage(self):
         """User cannot view usage for other users."""
         other_user = structure_factories.UserFactory()

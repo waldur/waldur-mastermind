@@ -10,6 +10,7 @@ from django_filters.constants import EMPTY_VALUES
 from django_filters.filters import MultipleChoiceFilter
 from rest_framework.filters import BaseFilterBackend
 
+from waldur_core.core import access
 from waldur_core.core import fields as core_fields
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
@@ -223,6 +224,10 @@ class StaffOrUserFilter(BaseFilterBackend):
     A personal access token without the staff or support scope sees only
     its user's own rows, as a user without that role would.
     """
+
+    # Read by waldur_core.core.access: the first paragraph of the docstring
+    # says what lists and retrieves show.
+    access_visibility = access.CUSTOM_VISIBILITY
 
     def filter_queryset(self, request, queryset, view):
         if has_staff_or_support_read_access(request):

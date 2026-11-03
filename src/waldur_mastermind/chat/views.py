@@ -30,10 +30,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from waldur_core.configuration import config
+from waldur_core.core import access as core_access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.models import User
-from waldur_core.core.permissions import has_support_access
+from waldur_core.core.permissions import (
+    has_staff_or_support_read_access,
+    has_support_access,
+)
 from waldur_core.core.views import (
     ActionsViewSet,
     ConstanceCheckExtensionMixin,
@@ -77,14 +81,15 @@ class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
 
     extension_name = "AI_ASSISTANT"
 
-    def initial(self, request, *args, **kwargs):
-        # Check AI_ASSISTANT_ENABLED boolean via ConstanceCheckExtensionMixin
-        super().initial(request, *args, **kwargs)
+    def get_permissions(self):
+        # RBAC: AI_ASSISTANT_ENABLED_ROLES, after the view's own checks, so an
+        # anonymous request is refused as unauthenticated first.
+        return [*super().get_permissions(), access.AssistantRoleEnabled()]
 
-        # RBAC: check enabled roles
-        refusal = access.role_refusal(request.user)
-        if refusal:
-            raise rf_exceptions.PermissionDenied(refusal)
+    def initial(self, request, *args, **kwargs):
+        # Check AI_ASSISTANT_ENABLED boolean via ConstanceCheckExtensionMixin;
+        # the permission checks, the role gate among them, run in super().
+        super().initial(request, *args, **kwargs)
 
         # Validate additional API settings
         if not config.AI_ASSISTANT_API_URL:
@@ -115,6 +120,14 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
     """
 
     permission_classes = [IsAuthenticated, core_permissions.TokenCarriesUserRole]
+    access_declarations = {
+        "stream": [
+            core_access.owned(
+                "A message continues or edits only a thread of the caller's own; "
+                "without a thread it starts one."
+            ),
+        ]
+    }
 
     def get_exception_handler(self):
         # Lets ``CapacityException.headers`` (Retry-After) flow onto the
@@ -449,6 +462,21 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         )
 
 
+@core_access.describes(
+    core_access.any_of(
+        core_access.owned("The caller's own quota."),
+        core_access.staff_or_support(),
+    )
+)
+def can_view_token_quota(request, view, obj=None):
+    """Let a caller read their own quota, and staff or support anyone's."""
+    requested_user_uuid = request.query_params.get("user_uuid")
+    if requested_user_uuid is None or requested_user_uuid == str(request.user.uuid):
+        return
+    if not has_support_access(request):
+        raise rf_exceptions.PermissionDenied("You can only view your own usage.")
+
+
 class TokenQuotaViewSet(ActionsViewSet):
     """
     Access to user token quota and usage.
@@ -479,7 +507,7 @@ class TokenQuotaViewSet(ActionsViewSet):
                 name="user_uuid",
                 type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
-                required=True,
+                required=False,
                 description="UUID of user to view quota for (staff/support only). Omit to view your own quota.",
                 extensions={"x-waldur-operation-id": "users_retrieve"},
             ),
@@ -500,16 +528,9 @@ class TokenQuotaViewSet(ActionsViewSet):
     def usage(self, request):
         user = request.user
 
-        # Permission check: users can only view their own usage
+        # usage_permissions let the caller read this user's quota.
         if "user_uuid" in request.query_params:
             requested_user_uuid = request.query_params.get("user_uuid")
-            if str(user.uuid) != requested_user_uuid and not (
-                has_support_access(request)
-            ):
-                raise rf_exceptions.PermissionDenied(
-                    "You can only view your own usage."
-                )
-            # Allow staff/support to view any user
             try:
                 user = User.objects.get(uuid=requested_user_uuid)
             except User.DoesNotExist:
@@ -558,12 +579,20 @@ class TokenQuotaViewSet(ActionsViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
+    usage_permissions = [can_view_token_quota]
     set_quota_permissions = [permissions.is_staff_or_support]
     set_quota_serializer_class = serializers.SetTokenQuotaSerializer
 
 
 class ToolViewSet(LLMConfigurationMixin, viewsets.ViewSet):
     permission_classes = [IsAuthenticated, core_permissions.TokenCarriesUserRole]
+    access_declarations = {
+        "execute_tool": [
+            core_access.custom(
+                "The tool must be one the caller's role may use; it acts as the caller."
+            ),
+        ]
+    }
 
     @extend_schema(
         request=serializers.ToolExecuteSerializer,
@@ -762,6 +791,11 @@ class ChatSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
         core_permissions.ActionsPermission,
     ]
     disabled_actions = ["create", "update", "partial_update", "destroy"]
+    access_declarations = {
+        "current": [
+            core_access.owned("The caller's own session, created if missing."),
+        ],
+    }
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -779,6 +813,12 @@ class ChatSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
         """Get or create current user's chat session."""
         session, _created = models.ChatSession.objects.get_or_create(user=request.user)
         return Response(serializers.ChatSessionSerializer(session).data)
+
+
+ARCHIVES_THREAD = core_access.any_of(
+    core_access.owned("The caller's own thread."),
+    core_access.staff(),
+)
 
 
 class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
@@ -799,12 +839,24 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
     ]
     disabled_actions = ["create", "destroy", "update", "partial_update"]
     filterset_class = ThreadSessionFilter
+    access_filtered_actions = ("stats",)
+    access_declarations = {
+        # archive and unarchive look the thread up in get_queryset, where
+        # support, which only reads, reaches its own threads alone.
+        "archive": [ARCHIVES_THREAD],
+        "unarchive": [ARCHIVES_THREAD],
+        "cancel": [core_access.owned("The caller's own thread.")],
+    }
 
+    @core_access.shows("The caller's own threads; staff and support see every thread.")
     def get_queryset(self):
-        """Filter threads to current user's threads; staff/support see all."""
+        """Filter threads to current user's threads; staff/support see all.
+
+        Support only reads: a write by support reaches its own threads alone.
+        """
         qs = models.ThreadSession.objects.all()
 
-        if not (self.request.user.is_staff or self.request.user.is_support):
+        if not has_staff_or_support_read_access(self.request):
             qs = qs.filter(chat_session__user=self.request.user)
 
         return (
@@ -1024,10 +1076,18 @@ class MessageViewSet(LLMConfigurationMixin, ActionsViewSet):
 
     # Feedback permissions are enforced by thread__chat_session__user filter
     feedback_serializer_class = serializers.MessageFeedbackSerializer
+    access_declarations = {
+        "feedback": [
+            core_access.owned("A message in one of the caller's own threads."),
+        ],
+    }
 
+    @core_access.shows(
+        "Messages of the caller's own threads; staff and support see every message."
+    )
     def get_queryset(self):
         """Filter messages to current user's; staff/support see all."""
-        if self.request.user.is_staff or self.request.user.is_support:
+        if has_staff_or_support_read_access(self.request):
             qs = models.Message.objects.all()
         else:
             qs = models.Message.objects.filter(

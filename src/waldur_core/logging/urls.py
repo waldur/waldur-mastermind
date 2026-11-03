@@ -1,6 +1,6 @@
 from django.urls import include, re_path
-from rest_framework.routers import DefaultRouter
 
+from waldur_core.core.routers import SortedDefaultRouter
 from waldur_core.logging import views
 
 
@@ -35,7 +35,7 @@ def register_in(router):
 
 
 # Debug router for staff-only debugging endpoints under /api/debug/
-debug_router = DefaultRouter()
+debug_router = SortedDefaultRouter()
 debug_router.register(r"pubsub", views.PubsubDebugViewSet, basename="pubsub-debug")
 debug_router.register(r"email", views.EmailDebugViewSet, basename="email-debug")
 
