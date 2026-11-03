@@ -303,6 +303,27 @@ class TestAtlassianSettingsDiscoveryViewSet(test.APITestCase):
     def get_save_settings_url(self):
         return "/api/support/settings/atlassian/save_settings/"
 
+    def test_inherited_crud_routes_are_not_allowed(self):
+        # The view keeps no records, so only its actions do anything.
+        collection = "/api/support/settings/atlassian/"
+        detail = collection + "1/"
+        for user in (self.regular_user, self.staff_user):
+            self.client.force_authenticate(user)
+            for method, url in (
+                ("get", collection),
+                ("post", collection),
+                ("get", detail),
+                ("put", detail),
+                ("patch", detail),
+                ("delete", detail),
+            ):
+                response = getattr(self.client, method)(url, {}, format="json")
+                assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED, (
+                    method,
+                    url,
+                    response.status_code,
+                )
+
     def test_validate_credentials_requires_staff(self):
         self.client.force_authenticate(self.regular_user)
         response = self.client.post(

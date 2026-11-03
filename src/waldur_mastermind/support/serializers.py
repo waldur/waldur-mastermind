@@ -84,6 +84,19 @@ class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
         )
 
 
+# What IssueSerializer.validate, validate_customer, validate_project,
+# validate_resource and validate_priority let through on create, for the API
+# schema. Change them together.
+REPORTS_ISSUE = access.custom(
+    "Any signed-in user, for an issue of their own (is_reported_manually); "
+    "staff and support may also report one for another user. An issue about an "
+    "organization needs one of its owners, and one about a project or a "
+    "resource an owner of its organization or a manager, admin or member of "
+    "the project; staff and support may name any. Only staff and support may "
+    "set the priority."
+)
+
+
 class IssueSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -1284,6 +1297,16 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = dict(
             url={"lookup_field": "uuid", "view_name": "support-template-detail"},
         )
+
+
+# What CreateFeedbackSerializer.validate lets through, for the API schema.
+# Change the two together.
+SIGNED_FEEDBACK_TOKEN = access.custom(
+    "Anyone with the signed token from an issue's feedback email, within "
+    "ISSUE_FEEDBACK_TOKEN_PERIOD days (7 by default) and once per issue; no "
+    "sign-in. The email is sent when an issue is resolved, if "
+    "ISSUE_FEEDBACK_ENABLE is on; it is off by default."
+)
 
 
 class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):

@@ -78,6 +78,20 @@ def get_provider_helpdesk_ids(user) -> set:
     return set(owned) | set(agent_of)
 
 
+# Who ProviderTicketViewSet.get_queryset shows a routed ticket to, and so who
+# may act on it, for the API schema. Change them together.
+PROVIDER_TICKETS_SHOWN = (
+    "Tickets routed to a provider helpdesk the caller speaks for, as an owner "
+    "of the organization of its service provider or as one of its active "
+    "agents; staff and support see every routed ticket."
+)
+SPEAKS_FOR_TICKET_HELPDESK = access.custom(
+    "Staff, support, an owner of the organization of the service provider "
+    "whose helpdesk the ticket is routed to, or an active agent of that "
+    "helpdesk: whoever the ticket list shows the ticket to."
+)
+
+
 def validate_status_change_allowed(issue):
     """Only Waldur's own, unrouted issues may have their status written here."""
     if not backend.get_active_backend().update_is_available(issue):
@@ -109,6 +123,12 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     filterset_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
 
+    # Checked by the serializer, against what the request names.
+    access_declarations = {"create": [serializers.REPORTS_ISSUE]}
+
+    @access.describes(
+        access.custom("The signed-in user's profile has an email and a full name.")
+    )
     def can_create_user(request, view, obj=None):
         if not request.user.email:
             raise rf_exceptions.ValidationError(
@@ -562,6 +582,10 @@ class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.PrioritySerializer
     filterset_class = filters.PriorityFilter
     lookup_field = "uuid"
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
 
 class RequestTypeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -575,6 +599,10 @@ class RequestTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.RequestType.objects.filter(is_active=True)
     serializer_class = serializers.RequestTypeSerializer
     lookup_field = "uuid"
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
 
 class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -664,16 +692,9 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().comment_update_is_available(comment):
             raise ValidationError("Updating is not available.")
 
-    def _update_permission(request, view, obj=None):
-        if obj is None:
-            return
-        active_backend = backend.get_active_backend()
-        if not backend.comment_change_is_permitted(
-            request, obj, active_backend.comment_author_update_is_supported
-        ):
-            raise rf_exceptions.PermissionDenied()
-
-    update_permissions = partial_update_permissions = [_update_permission]
+    update_permissions = partial_update_permissions = [
+        support_permissions.can_edit_comment
+    ]
     update_validators = partial_update_validators = [_update_is_available_validator]
 
     @transaction.atomic()
@@ -685,16 +706,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().comment_destroy_is_available(comment):
             raise ValidationError("Comment cannot be destroyed.")
 
-    def _destroy_permission(request, view, obj=None):
-        if obj is None:
-            return
-        active_backend = backend.get_active_backend()
-        if not backend.comment_change_is_permitted(
-            request, obj, active_backend.comment_author_destroy_is_supported
-        ):
-            raise rf_exceptions.PermissionDenied()
-
-    destroy_permissions = [_destroy_permission]
+    destroy_permissions = [support_permissions.can_delete_comment]
     destroy_validators = [_destroy_is_available_validator]
 
     def get_queryset(self):
@@ -791,6 +803,29 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     filterset_class = filters.ProviderTicketFilter
     disabled_actions = ["create", "destroy"]
 
+    access_filtered_actions = ("stats",)
+    # Whoever the queryset shows a ticket to may act on it; nothing else is
+    # checked, except for claim, which has a check of its own.
+    access_declarations = {
+        action: [SPEAKS_FOR_TICKET_HELPDESK]
+        for action in ("update", "partial_update", "comment", "resolve", "assign")
+    } | {
+        "customer_context": [
+            access.custom(
+                "Whoever the ticket list shows the ticket to: staff, support, "
+                "owners of the organization of the service provider whose "
+                "helpdesk it is routed to, and that helpdesk's active agents. "
+                "Beyond the ticket, it shows the full name and email of the "
+                "original ticket's caller, the name of the original ticket's "
+                "organization, the name and type of its resource, and the "
+                "UUID, key, summary, status and creation time of the caller's "
+                "five latest other tickets among those the ticket list shows "
+                "the requester."
+            )
+        ],
+    }
+
+    @access.shows(PROVIDER_TICKETS_SHOWN)
     def get_queryset(self):
         user = self.request.user
         if has_support_access(self.request):
@@ -905,18 +940,19 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     @decorators.action(detail=True, methods=["post"])
     def claim(self, request, uuid=None):
         issue = self.get_object()
-        provider_user = models.ProviderSupportUser.objects.filter(
-            user=request.user,
-            provider_helpdesk=issue.provider_helpdesk,
-            is_active=True,
-        ).first()
-        if not provider_user:
-            raise ValidationError(
-                "You are not a support user in this provider's helpdesk."
-            )
+        provider_user = support_permissions.active_agent(
+            request.user, issue.provider_helpdesk
+        )
+        # claim_permissions has found one already. Should the account have been
+        # deactivated since, the ticket must not be left unassigned behind a
+        # "claimed" answer.
+        if provider_user is None:
+            raise support_permissions.not_an_agent()
         issue.provider_assignee = provider_user
         issue.save(update_fields=["provider_assignee"])
         return response.Response({"status": "claimed"})
+
+    claim_permissions = [support_permissions.is_agent_of_ticket_helpdesk]
 
     @extend_schema(
         summary="Get customer context for this ticket",
@@ -1044,6 +1080,10 @@ class ProviderHelpdeskViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProviderHelpdeskFilter
 
+    @access.shows(
+        "Helpdesks of service providers whose organization the caller owns; "
+        "staff and support see all."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support:
@@ -1051,22 +1091,11 @@ class ProviderHelpdeskViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         provider_customers = get_connected_customers(user, CustomerRole.OWNER)
         return self.queryset.filter(service_provider__customer__in=provider_customers)
 
-    def _is_owner_or_staff(request, view, obj=None):
-        if has_staff_access(request):
-            return
-        # DRF invokes permissions at view-level with obj=None before the object
-        # is loaded; defer to the object-level check instead of rejecting owners.
-        if obj is None:
-            return
-        if obj.service_provider.customer.has_user(request.user, CustomerRole.OWNER):
-            return
-        raise rf_exceptions.PermissionDenied()
-
     # Creation has no object-level stage, so it stays staff-only; the owner
     # object-level check only makes sense for detail actions below.
     create_permissions = [structure_permissions.is_staff]
     update_permissions = partial_update_permissions = destroy_permissions = [
-        _is_owner_or_staff
+        support_permissions.owns_helpdesk
     ]
 
     @extend_schema(
@@ -1098,7 +1127,7 @@ class ProviderHelpdeskViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    validate_permissions = [_is_owner_or_staff]
+    validate_permissions = [support_permissions.owns_helpdesk]
 
 
 class ProviderSupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -1108,6 +1137,22 @@ class ProviderSupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet)
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProviderSupportUserFilter
 
+    # team_workload reads get_queryset() without the filter backends, so it is
+    # declared rather than named in access_filtered_actions.
+    access_declarations = {
+        "team_workload": [
+            access.custom(
+                "Any signed-in user. It lists the active agents of helpdesks of "
+                "service providers whose organization the caller owns; staff "
+                "and support see every helpdesk's."
+            )
+        ],
+    }
+
+    @access.shows(
+        "Agents of helpdesks of service providers whose organization the "
+        "caller owns; staff and support see all."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support:
@@ -1117,24 +1162,11 @@ class ProviderSupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet)
             provider_helpdesk__service_provider__customer__in=provider_customers
         )
 
-    def _is_owner_or_staff(request, view, obj=None):
-        if has_staff_access(request):
-            return
-        # DRF invokes permissions at view-level with obj=None before the object
-        # is loaded; defer to the object-level check instead of rejecting owners.
-        if obj is None:
-            return
-        if obj.provider_helpdesk.service_provider.customer.has_user(
-            request.user, CustomerRole.OWNER
-        ):
-            return
-        raise rf_exceptions.PermissionDenied()
-
     # Creation has no object-level stage, so it stays staff-only; the owner
     # object-level check only makes sense for detail actions below.
     create_permissions = [structure_permissions.is_staff]
     update_permissions = partial_update_permissions = destroy_permissions = [
-        _is_owner_or_staff
+        support_permissions.owns_helpdesk_of
     ]
 
     @extend_schema(
@@ -1164,6 +1196,22 @@ class ProviderCannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewS
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProviderCannedResponseFilter
 
+    # Only the queryset decides who may render a response; render is a POST,
+    # so it does not share the visibility of list and retrieve.
+    access_declarations = {
+        "render": [
+            access.custom(
+                "Staff, support, or an owner of the organization of the service "
+                "provider whose helpdesk the response belongs to: whoever the "
+                "list shows the response to."
+            )
+        ],
+    }
+
+    @access.shows(
+        "Canned responses of helpdesks of service providers whose organization "
+        "the caller owns; staff and support see all."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support:
@@ -1173,24 +1221,11 @@ class ProviderCannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewS
             provider_helpdesk__service_provider__customer__in=provider_customers
         )
 
-    def _is_owner_or_staff(request, view, obj=None):
-        if has_staff_access(request):
-            return
-        # DRF invokes permissions at view-level with obj=None before the object
-        # is loaded; defer to the object-level check instead of rejecting owners.
-        if obj is None:
-            return
-        if obj.provider_helpdesk.service_provider.customer.has_user(
-            request.user, CustomerRole.OWNER
-        ):
-            return
-        raise rf_exceptions.PermissionDenied()
-
     # Creation has no object-level stage, so it stays staff-only; the owner
     # object-level check only makes sense for detail actions below.
     create_permissions = [structure_permissions.is_staff]
     update_permissions = partial_update_permissions = destroy_permissions = [
-        _is_owner_or_staff
+        support_permissions.owns_helpdesk_of
     ]
 
     @extend_schema(
@@ -1318,6 +1353,17 @@ class ProviderWebhookView(views.APIView):
     authentication_classes = ()
     permission_classes = ()
     serializer_class = serializers.WebhookPayloadSerializer
+
+    # Checked in post(); change the two together.
+    access_declarations = {
+        "post": [
+            access.custom(
+                "No sign-in. The X-Webhook-Secret header must match the webhook "
+                "secret of the active provider helpdesk named in the URL; a "
+                "helpdesk without a secret accepts nothing."
+            )
+        ],
+    }
 
     def post(self, request, provider_uuid, backend_type):
         helpdesk = get_object_or_404(
@@ -1466,6 +1512,19 @@ class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
     serializer_class = serializers.SupportStatsSerializer
     pagination_class = None
 
+    # Checked in get(); change the two together.
+    access_declarations = {
+        "get": [
+            access.custom(
+                "Staff and support, for every ticket. While provider routing is "
+                "on (WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED, off by default), "
+                "also an owner of the organization of a service provider with a "
+                "helpdesk, or an active agent of one, for the tickets routed to "
+                "those helpdesks."
+            )
+        ],
+    }
+
     def get(self, request, format=None):
         today = date.today()
         user = request.user
@@ -1543,10 +1602,27 @@ def _webhook_shared_secret_check(request, constance_setting_name):
     return None
 
 
+def _webhook_shared_secret_access(constance_setting_name):
+    """What _webhook_shared_secret_check lets through, for the API schema.
+
+    Change the two together.
+    """
+    return {
+        "post": [
+            access.custom(
+                f"No sign-in. When {constance_setting_name} is set, the "
+                "X-Webhook-Secret header must match it. It is empty by default, "
+                "and then anyone may call."
+            )
+        ]
+    }
+
+
 class WebHookReceiverView(CheckExtensionMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
     serializer_class = serializers.WebHookReceiverSerializer
+    access_declarations = _webhook_shared_secret_access("JIRA_WEBHOOK_SHARED_SECRET")
 
     def post(self, request):
         rejection = _webhook_shared_secret_check(request, "JIRA_WEBHOOK_SHARED_SECRET")
@@ -1694,6 +1770,8 @@ class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     disabled_actions = ["update", "partial_update", "destroy"]
     permission_classes = (core_permissions.ActionsPermission,)
     create_permissions = ()
+    # Checked by the serializer, against the token the request carries.
+    access_declarations = {"create": [serializers.SIGNED_FEEDBACK_TOKEN]}
     create_serializer_class = serializers.CreateFeedbackSerializer
     serializer_class = serializers.FeedbackSerializer
     create_executor = executors.FeedbackExecutor
@@ -1743,6 +1821,7 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
     filter_backends = []
     serializer_class = EmptySerializer
     pagination_class = None
+    access_declarations = _webhook_shared_secret_access("ZAMMAD_WEBHOOK_SHARED_SECRET")
 
     def post(self, request):
         rejection = _webhook_shared_secret_check(
@@ -1832,6 +1911,7 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
     permission_classes = ()
     filter_backends = ()
     serializer_class = serializers.SmaxWebHookReceiverSerializer
+    access_declarations = _webhook_shared_secret_access("SMAX_WEBHOOK_SHARED_SECRET")
 
     def post(self, request):
         rejection = _webhook_shared_secret_check(request, "SMAX_WEBHOOK_SHARED_SECRET")
@@ -1905,10 +1985,10 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
     description="This view triggers synchronization of issues from backend.",
 )
 @decorators.api_view(["GET", "POST"])
+@decorators.permission_classes(
+    [permissions.IsAuthenticated, core_permissions.IsSupport]
+)
 def sync_issues(request):
-    if not request.user.is_active or not has_support_access(request):
-        return response.Response(status=status.HTTP_403_FORBIDDEN)
-
     tasks.sync_issues.delay()
     return response.Response(status=status.HTTP_202_ACCEPTED)
 
@@ -1971,10 +2051,17 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
 
     queryset = models.Issue.objects.none()  # No model, stateless operations
     serializer_class = EmptySerializer
-
-    def is_staff(request, view, obj=None):
-        if not has_staff_access(request):
-            raise rf_exceptions.PermissionDenied()
+    # Only the actions below do anything. With no records behind the view, the
+    # inherited routes answered any signed-in user with an empty list, a 404 or
+    # a server error.
+    disabled_actions = [
+        "list",
+        "retrieve",
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
+    ]
 
     def _get_discovery_service(self, credentials_data: dict):
         """Create discovery service from validated credentials."""
@@ -2014,7 +2101,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
         return response.Response(result, status=status.HTTP_200_OK)
 
     validate_credentials_serializer_class = serializers.AtlassianCredentialsSerializer
-    validate_credentials_permissions = [is_staff]
+    validate_credentials_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=serializers.DiscoverProjectsRequestSerializer,
@@ -2045,7 +2132,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
         return response.Response(response_serializer.data, status=status.HTTP_200_OK)
 
     discover_projects_serializer_class = serializers.DiscoverProjectsRequestSerializer
-    discover_projects_permissions = [is_staff]
+    discover_projects_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=serializers.DiscoverRequestTypesRequestSerializer,
@@ -2082,7 +2169,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     discover_request_types_serializer_class = (
         serializers.DiscoverRequestTypesRequestSerializer
     )
-    discover_request_types_permissions = [is_staff]
+    discover_request_types_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=serializers.DiscoverCustomFieldsRequestSerializer,
@@ -2120,7 +2207,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     discover_custom_fields_serializer_class = (
         serializers.DiscoverCustomFieldsRequestSerializer
     )
-    discover_custom_fields_permissions = [is_staff]
+    discover_custom_fields_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=serializers.DiscoverPrioritiesRequestSerializer,
@@ -2153,7 +2240,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     discover_priorities_serializer_class = (
         serializers.DiscoverPrioritiesRequestSerializer
     )
-    discover_priorities_permissions = [is_staff]
+    discover_priorities_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=serializers.AtlassianSettingsPreviewSerializer,
@@ -2248,7 +2335,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
         )
 
     preview_settings_serializer_class = serializers.AtlassianSettingsPreviewSerializer
-    preview_settings_permissions = [is_staff]
+    preview_settings_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=serializers.AtlassianSettingsSaveSerializer,
@@ -2377,7 +2464,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
             )
 
     save_settings_serializer_class = serializers.AtlassianSettingsSaveSerializer
-    save_settings_permissions = [is_staff]
+    save_settings_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         responses={200: None},
@@ -2444,4 +2531,4 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
 
         return response.Response(settings_data, status=status.HTTP_200_OK)
 
-    current_settings_permissions = [is_staff]
+    current_settings_permissions = [structure_permissions.is_staff]

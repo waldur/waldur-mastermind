@@ -211,6 +211,8 @@ def issue_is_routed(issue) -> bool:
     return issue.parent_issue_id is not None or issue.child_issues.exists()
 
 
+# support.permissions describes this rule in the API schema (_changes_comment);
+# change the two together.
 def comment_change_is_permitted(
     request, comment, author_may_change: bool, is_routed=issue_is_routed
 ) -> bool:

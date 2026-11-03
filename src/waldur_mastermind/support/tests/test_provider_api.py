@@ -1210,6 +1210,21 @@ class ProviderTicketClaimTest(ProviderHelpdeskBaseTest):
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_agent_deactivated_after_the_check_does_not_claim(self):
+        # The check finds the agent account; by the time the action looks it up
+        # again it is gone. The ticket stays unassigned and the answer says so.
+        self.customer.add_user(self.support_agent_user, CustomerRole.OWNER)
+        self.client.force_authenticate(self.support_agent_user)
+        url = _provider_ticket_url(self.child_issue, action="claim")
+        with mock.patch(
+            "waldur_mastermind.support.permissions.active_agent",
+            side_effect=[self.support_agent, None],
+        ):
+            response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.child_issue.refresh_from_db()
+        self.assertIsNone(self.child_issue.provider_assignee)
+
 
 class ProviderTicketCustomerContextTest(ProviderHelpdeskBaseTest):
     def setUp(self):
