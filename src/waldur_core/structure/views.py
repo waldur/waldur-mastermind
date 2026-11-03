@@ -3229,6 +3229,9 @@ class NotificationTemplateViewSet(ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.NotificationTemplateFilter
+    # Templates are registered by load_notifications. Deleting one drops its
+    # content override, and changing its path moves the override elsewhere.
+    unsafe_methods_permissions = [permissions.is_staff]
 
     @extend_schema(
         summary="Override notification template content",

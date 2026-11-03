@@ -213,6 +213,99 @@ class NotificationTemplateListTest(test.APITestCase):
 
 
 @ddt
+class NotificationTemplateWriteTest(test.APITestCase):
+    """Only staff may create, change or delete a notification template.
+
+    Deleting a template also drops its content override, and changing its path
+    points the override at another notification, so neither is for everyone.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.template = factories.NotificationTemplateFactory(
+            path="structure/change_email_request_message.html",
+            name="change_email_request_message",
+            content="Staff override",
+        )
+        self.url = factories.NotificationTemplateFactory.get_url(self.template)
+        self.list_url = factories.NotificationTemplateFactory.get_list_url()
+
+    def assert_template_unchanged(self):
+        self.template.refresh_from_db()
+        self.assertEqual(
+            self.template.path, "structure/change_email_request_message.html"
+        )
+        self.assertEqual(self.template.name, "change_email_request_message")
+        self.assertEqual(self.template.content, "Staff override")
+
+    @data("user", "global_support")
+    def test_other_can_not_create_template(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(
+            self.list_url, {"path": "structure/new.html", "name": "new"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            NotificationTemplate.objects.filter(path="structure/new.html").exists()
+        )
+
+    @data("user", "global_support")
+    def test_other_can_not_rename_template(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.patch(self.url, {"path": "structure/other.html"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_template_unchanged()
+
+    @data("user", "global_support")
+    def test_other_can_not_replace_template(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.put(
+            self.url, {"path": "structure/other.html", "name": "other"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_template_unchanged()
+
+    @data("user", "global_support")
+    def test_other_can_not_delete_template(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_template_unchanged()
+
+    @data("staff", "user")
+    def test_everyone_can_retrieve_template(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["path"], self.template.path)
+
+    def test_staff_can_create_template(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.list_url, {"path": "structure/new.html", "name": "new"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            NotificationTemplate.objects.filter(path="structure/new.html").exists()
+        )
+
+    def test_staff_can_rename_template(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"path": "structure/other.html"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.template.refresh_from_db()
+        self.assertEqual(self.template.path, "structure/other.html")
+
+    def test_staff_can_delete_template(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            NotificationTemplate.objects.filter(pk=self.template.pk).exists()
+        )
+
+
+@ddt
 class NotificationTemplateFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
