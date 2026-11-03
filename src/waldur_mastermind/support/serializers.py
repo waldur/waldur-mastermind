@@ -1474,6 +1474,10 @@ class ProviderTicketSerializer(
             "resolution_deadline",
             "first_response_at",
             "sla_breached",
+            # Whose ticket it is: the consumer's side decides that, and a
+            # provider moving it would show it to another organization.
+            "customer",
+            "project",
         )
         extra_kwargs = dict(
             url={"lookup_field": "uuid", "view_name": "provider-ticket-detail"},
