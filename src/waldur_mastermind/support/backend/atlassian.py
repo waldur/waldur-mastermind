@@ -26,7 +26,13 @@ from waldur_core.core.models import User
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models
 
-from . import SupportBackend, SupportBackendType, provider_settings_override
+from . import (
+    SupportBackend,
+    SupportBackendType,
+    attachment_backend_name_for,
+    operator_desk_issues,
+    provider_settings_override,
+)
 
 PADDING = 3
 CHARS_LIMIT = 255
@@ -209,8 +215,13 @@ class AttachmentSynchronizer:
 
     def perform_update(self):
         if self.stale_attachment_ids:
-            models.Attachment.objects.filter(
+            # This ticket's only: ids are unique within one desk, and another
+            # ticket's attachment with the same number is another desk's.
+            self.current_issue.attachments.filter(
                 backend_id__in=self.stale_attachment_ids
+            ).exclude(
+                # Still on its way to the desk.
+                models.forwarding_q()
             ).delete()
 
         for attachment_id in self.new_attachment_ids:
@@ -293,6 +304,7 @@ class AttachmentSynchronizer:
             issue=issue,
             backend_id=backend_attachment.get("id")
             or backend_attachment["_links"]["jiraRest"].split("/")[-1],
+            backend_name=attachment_backend_name_for(issue),
             state=CoreStates.OK,
         )
         try:
@@ -439,6 +451,8 @@ class ServiceDeskBackend(SupportBackend):
 
     #: Where the backend connects and with which credentials. A provider
     #: helpdesk takes all of these from the operator or none of them.
+    desk_settings = ("ATLASSIAN_API_URL",)
+
     connection_settings = (
         "ATLASSIAN_API_URL",
         "ATLASSIAN_USERNAME",
@@ -1578,7 +1592,7 @@ class ServiceDeskBackend(SupportBackend):
             issue_id: Optional issue ID to sync a single issue.
                       If None, syncs all issues with this backend.
         """
-        issues = models.Issue.objects.filter(backend_name=self.backend_name)
+        issues = operator_desk_issues(self.backend_name)
 
         if issue_id:
             issues = issues.filter(id=issue_id)

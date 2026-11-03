@@ -78,3 +78,15 @@ class SupportConfig(AppConfig):
             sender=Comment,
             dispatch_uid="waldur_mastermind.support.handlers.propagate_comment_to_parent",
         )
+
+        signals.post_save.connect(
+            handlers.forward_attachment_to_children,
+            sender=Attachment,
+            dispatch_uid="waldur_mastermind.support.handlers.forward_attachment_to_children",
+        )
+
+        signals.post_save.connect(
+            handlers.propagate_attachment_to_parent,
+            sender=Attachment,
+            dispatch_uid="waldur_mastermind.support.handlers.propagate_attachment_to_parent",
+        )

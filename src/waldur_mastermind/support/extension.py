@@ -58,4 +58,9 @@ class SupportExtension(WaldurExtension):
                 "schedule": timedelta(minutes=30),
                 "args": (),
             },
+            "retry-attachment-forwarding": {
+                "task": "waldur_mastermind.support.retry_attachment_forwarding",
+                "schedule": timedelta(minutes=15),
+                "args": (),
+            },
         }

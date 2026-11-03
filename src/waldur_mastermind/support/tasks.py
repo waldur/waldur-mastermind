@@ -1,12 +1,17 @@
 import copy
 import logging
+import os
 import uuid
 from datetime import timedelta
 from smtplib import SMTPException
 
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
+from django.conf import settings
 from django.core import signing
-from django.db.models import Q
+from django.core.files.base import ContentFile
+from django.db import DatabaseError, IntegrityError, transaction
+from django.db.models import F, Q
 from django.template import Context, Template
 from django.template.loader import get_template
 from django.utils import timezone
@@ -15,6 +20,7 @@ from markdownify import markdownify
 from waldur_core.configuration import config
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import broadcast_mail, text2html
 
 from . import backend, models
@@ -487,7 +493,8 @@ def create_provider_child_issue(issue, provider_helpdesk, resource=None):
 
     Shared by automatic routing (route_issue_to_provider) and manual routing
     (IssueViewSet.route_to_provider). Raises on backend failure; the caller decides
-    how to handle it (retry vs. surfacing an error).
+    how to handle it (retry vs. surfacing an error). The parent's attachments are
+    copied by ``forward_parent_attachments`` once the child is committed.
     """
     from .utils import build_provider_context
 
@@ -528,7 +535,380 @@ def create_provider_child_issue(issue, provider_helpdesk, resource=None):
     )
     issue.save(update_fields=["processing_log"])
 
+    # The customer's files follow once the child is committed, in a task that
+    # can retry a desk that is down without holding the routing back.
+    child_issue_id = child_issue.id
+    transaction.on_commit(lambda: forward_parent_attachments.delay(child_issue_id))
+
     return child_issue
+
+
+def attachment_is_forwardable(attachment) -> bool:
+    """May the attachment travel to the other side of a routing?
+
+    Not a copy, which has travelled already, nor a file from an internal note,
+    which stays with whoever wrote it, as the note does. A row whose file has
+    not been saved yet has nothing to copy; the save that adds the file
+    forwards it.
+    """
+    return (
+        not attachment.is_forwarded and attachment.is_public and bool(attachment.file)
+    )
+
+
+#: How many pushes of one copy before it is given up as ERRED.
+MAX_PUSH_ATTEMPTS = 24
+#: How many stuck copies one run of ``retry_attachment_forwarding`` pushes.
+PUSH_RETRY_BATCH = 100
+#: How long a copy left waiting rests before the periodic task pushes it, so
+#: as not to race the forwarding task's own retries.
+PUSH_RETRY_PAUSE = timedelta(minutes=15)
+
+
+def push_claim_timeout() -> timedelta:
+    """How long a push may hold its claim on a copy.
+
+    A claim older than this was left by a worker that died, and the copy may
+    be pushed again. Twice the hard task time limit, so that no live push,
+    which Celery kills by then, is taken over.
+    """
+    limit = getattr(settings, "CELERY_TASK_TIME_LIMIT", None) or 1800
+    return timedelta(seconds=2 * limit)
+
+
+def forward_attachment(attachment, issue, issue_backend):
+    """Copy an attachment to the other side of a routing, once.
+
+    ``issue`` is the parent or a child of the attachment's issue, and
+    ``issue_backend`` the backend that owns it. The copy is pushed there, as
+    an upload to that ticket would be.
+
+    The copy is marked forwarded, so it never travels back, and records its
+    original, so routing and forwarding racing each other make one copy, not
+    two. It gets a stored file of its own, so deleting or erasing either
+    attachment leaves the other readable. It is committed before it is pushed,
+    and waits in ``CREATION_SCHEDULED`` until its desk has it (see
+    ``push_copy``).
+
+    Returns the copy, or None when the attachment is not to be forwarded.
+    Raises when the desk does not take the file, leaving the copy for the next
+    attempt.
+    """
+    if not attachment_is_forwardable(attachment):
+        return None
+    forwarded = _commit_copy(attachment, issue)
+    push_copy(forwarded, issue_backend)
+    try:
+        forwarded.refresh_from_db()
+    except models.Attachment.DoesNotExist:
+        return None
+    return forwarded
+
+
+def _commit_copy(attachment, issue):
+    """The copy of ``attachment`` on ``issue``, committed: the one there is,
+    or a new one waiting to be pushed."""
+    existing = issue.attachments.filter(forwarded_from=attachment).first()
+    if existing:
+        return existing
+    try:
+        with transaction.atomic():
+            with attachment.file.open("rb") as source:
+                content = source.read()
+            forwarded = models.Attachment(
+                issue=issue,
+                author=attachment.author,
+                is_forwarded=True,
+                forwarded_from=attachment,
+                state=CoreStates.CREATION_SCHEDULED,
+                # The provider's desk numbers attachments from a sequence of
+                # its own; its name keeps those ids apart from everyone else's.
+                backend_name=backend.attachment_backend_name_for(issue),
+            )
+            # A placeholder the desk replaces with its own id. One still in
+            # place after the push means the desk took nothing.
+            forwarded.backend_id = backend.build_backend_id(
+                forwarded.uuid, PLACEHOLDER_MARKER
+            )
+            forwarded.file.save(
+                os.path.basename(attachment.file.name),
+                ContentFile(content),
+                save=False,
+            )
+            forwarded.save()
+    except IntegrityError:
+        # Another task made the copy while this one was making it. The
+        # unique constraint held this insert back until that one committed.
+        existing = issue.attachments.filter(forwarded_from=attachment).first()
+        if existing:
+            return existing
+        raise
+    return forwarded
+
+
+#: Marks the placeholder id of a copy not yet on its desk.
+PLACEHOLDER_MARKER = "AF"
+
+
+def _has_placeholder(attachment) -> bool:
+    # Read off the id itself rather than rebuilt, so that a key prefix changed
+    # since the copy was made does not make a placeholder look like a desk's.
+    return (attachment.backend_id or "").endswith(
+        f"-{PLACEHOLDER_MARKER}-{attachment.uuid.hex[:8].upper()}"
+    )
+
+
+def push_copy(forwarded, issue_backend):
+    """Push a committed copy to the desk of its ticket, unless it is there.
+
+    Three steps, so that no transaction is open while the desk is called: a
+    slow desk then holds no database connection idle in a transaction, and a
+    reroute deleting the ticket does not wait for it.
+
+    1. Claim the copy (``CREATING``) in a short transaction. Only a copy
+       waiting to be pushed, or one whose claim a dead worker left behind,
+       can be claimed, so two tasks never push the same copy at once.
+    2. Call the desk.
+    3. Record the result in another short transaction.
+
+    A desk that has replaced the placeholder id has taken the file, even when
+    saving the id then fails: the copy is recorded as pushed, not sent again.
+    Should recording fail too, a copy whose desk id reached the row is
+    recognised as pushed on the next attempt. Raises when the desk did not
+    take the file, after handing the copy back to wait for another attempt.
+    """
+    claimed = _claim_copy(forwarded)
+    if claimed is None:
+        return
+
+    try:
+        issue_backend.create_attachment(claimed)
+    except Exception:
+        if _has_placeholder(claimed):
+            _release_copy(claimed)
+            raise
+        logger.exception(
+            "The desk took attachment %s as %s, but saving that failed; "
+            "recording it again.",
+            claimed.uuid.hex,
+            claimed.backend_id,
+        )
+    if _has_placeholder(claimed):
+        _release_copy(claimed)
+        raise backend.SupportBackendError(
+            f"The desk did not take attachment {claimed.uuid.hex}."
+        )
+    _record_push(claimed)
+
+
+def _claim_copy(forwarded):
+    """Claim a copy for one push, or None if it is not to be pushed now."""
+    now = timezone.now()
+    with transaction.atomic():
+        copy_row = (
+            models.Attachment.objects.select_for_update()
+            .filter(pk=forwarded.pk)
+            .first()
+        )
+        if copy_row is None:
+            # Gone with its ticket, which a reroute withdrew.
+            return None
+        if copy_row.state == CoreStates.CREATING:
+            if copy_row.modified > now - push_claim_timeout():
+                # Another worker is pushing it.
+                return None
+        elif copy_row.state != CoreStates.CREATION_SCHEDULED:
+            # On its desk already, or given up.
+            return None
+
+        if not _has_placeholder(copy_row):
+            # The desk took it on an earlier attempt and the backend saved its
+            # id, but recording the push failed.
+            models.Attachment.objects.filter(pk=copy_row.pk).update(
+                state=CoreStates.OK, modified=now
+            )
+            return None
+        if copy_row.push_attempts >= MAX_PUSH_ATTEMPTS:
+            models.Attachment.objects.filter(pk=copy_row.pk).update(
+                state=CoreStates.ERRED,
+                modified=now,
+                error_message=(
+                    f"The desk did not take the file in {copy_row.push_attempts} "
+                    "attempts."
+                ),
+            )
+            return None
+
+        models.Attachment.objects.filter(pk=copy_row.pk).update(
+            state=CoreStates.CREATING,
+            modified=now,
+            push_attempts=F("push_attempts") + 1,
+        )
+    copy_row.state = CoreStates.CREATING
+    copy_row.push_attempts += 1
+    # The claim: the push records its result only while the row still holds
+    # it, and the backend's own save leaves it alone (Attachment.save).
+    copy_row.modified = now
+    copy_row.pushing = True
+    return copy_row
+
+
+def _release_copy(claimed):
+    """Hand a copy the desk did not take back to wait for another attempt."""
+    try:
+        models.Attachment.objects.filter(
+            pk=claimed.pk, state=CoreStates.CREATING, modified=claimed.modified
+        ).update(state=CoreStates.CREATION_SCHEDULED, modified=timezone.now())
+    except DatabaseError:
+        # The claim stays, and lapses after push_claim_timeout().
+        logger.exception("Failed to release attachment %s.", claimed.uuid.hex)
+
+
+def _record_push(claimed):
+    """Record that the desk has the copy, under the id it gave it."""
+    try:
+        with transaction.atomic():
+            recorded = models.Attachment.objects.filter(
+                pk=claimed.pk, state=CoreStates.CREATING, modified=claimed.modified
+            ).update(
+                backend_id=claimed.backend_id,
+                backend_name=claimed.backend_name,
+                state=CoreStates.OK,
+                modified=timezone.now(),
+            )
+        if not recorded:
+            logger.info(
+                "Attachment %s is gone with its ticket, or another push took it "
+                "over; this push is not recorded.",
+                claimed.uuid.hex,
+            )
+        return
+    except DatabaseError as e:
+        logger.exception(
+            "The desk took attachment %s as %s, but recording it failed.",
+            claimed.uuid.hex,
+            claimed.backend_id,
+        )
+        error = e
+    try:
+        models.Attachment.objects.filter(
+            pk=claimed.pk, state=CoreStates.CREATING, modified=claimed.modified
+        ).update(
+            state=CoreStates.ERRED,
+            error_message=(
+                f"The desk took the file as {claimed.backend_id}, but recording "
+                f"that failed: {error}"
+            ),
+        )
+    except DatabaseError:
+        # Nothing can be written now. If the backend saved the desk's id, the
+        # next attempt finds it there and records the push without sending
+        # the file again.
+        logger.exception(
+            "Failed to record attachment %s as erred either.", claimed.uuid.hex
+        )
+
+
+def _note_not_forwarded(parent_issue, failed):
+    """Note on the parent's processing log the files the other side is
+    without, as ``(original, issue, copy, reason)``; the original or the copy
+    may be None."""
+    if not failed:
+        return
+    parent_issue.refresh_from_db(fields=["processing_log"])
+    for original, issue, forwarded, reason in failed:
+        parent_issue.append_processing_log(
+            "attachment_not_forwarded",
+            {
+                "attachment_uuid": original.uuid.hex if original else None,
+                "issue_uuid": issue.uuid.hex,
+                "copy_uuid": forwarded.uuid.hex if forwarded else None,
+                "reason": reason,
+            },
+        )
+    parent_issue.save(update_fields=["processing_log"])
+
+
+def _give_up(forwarded, reason):
+    """Mark a copy on its way as ERRED for ``reason``, and note it once."""
+    given_up = models.Attachment.objects.filter(
+        models.forwarding_q(), pk=forwarded.pk
+    ).update(
+        state=CoreStates.ERRED,
+        modified=timezone.now(),
+        error_message=f"Not forwarded: {reason}.",
+    )
+    if given_up:
+        issue = forwarded.issue
+        _note_not_forwarded(
+            issue.parent_issue or issue,
+            [(forwarded.forwarded_from, issue, forwarded, reason)],
+        )
+
+
+def _reason_erred(forwarded) -> str:
+    if forwarded.push_attempts >= MAX_PUSH_ATTEMPTS:
+        return "given_up"
+    return "not_recorded"
+
+
+def _forward_attachments(task, parent_issue, pairs):
+    """Forward each ``(attachment, issue)`` pair, retrying ``task`` while a
+    desk refuses any of them.
+
+    Every pair is tried before the task retries, and a retry only pushes the
+    copies still waiting for their desk. Once the retries are spent, what is
+    still waiting is logged and noted on the parent's processing log, as is a
+    copy whose push could not be recorded, so staff can see what the other
+    side is without. ``retry_attachment_forwarding`` takes over from there.
+    """
+    backends = {}
+    waiting = []
+    erred = []
+    for attachment, issue in pairs:
+        if backend.is_orphaned(issue):
+            # Its helpdesk is gone: nothing more reaches its desk, and what
+            # was on the way is given up.
+            for forwarded in issue.attachments.filter(
+                models.forwarding_q(), forwarded_from=attachment
+            ):
+                _give_up(forwarded, "helpdesk_deleted")
+            continue
+        if issue.attachments.filter(
+            forwarded_from=attachment, state=CoreStates.ERRED
+        ).exists():
+            # Noted when it erred; it waits for a person.
+            continue
+        try:
+            if issue.id not in backends:
+                backends[issue.id] = backend.get_backend_for_issue(issue)
+            forwarded = forward_attachment(attachment, issue, backends[issue.id])
+        except Exception:
+            logger.exception(
+                "Failed to forward attachment %s to issue %s.",
+                attachment.uuid.hex,
+                issue.key,
+            )
+            waiting.append((attachment, issue))
+        else:
+            if forwarded is not None and forwarded.state == CoreStates.ERRED:
+                erred.append((attachment, issue, forwarded, _reason_erred(forwarded)))
+
+    if waiting and task.request.retries < task.max_retries:
+        raise task.retry()
+    _note_not_forwarded(
+        parent_issue,
+        [
+            (
+                attachment,
+                issue,
+                issue.attachments.filter(forwarded_from=attachment).first(),
+                "not_taken",
+            )
+            for attachment, issue in waiting
+        ]
+        + erred,
+    )
 
 
 def reroute_issue_to_provider(issue, new_helpdesk):
@@ -573,6 +953,10 @@ def reroute_issue_to_provider(issue, new_helpdesk):
                     child.key,
                     old_helpdesk,
                 )
+        # The rows go with the child; their stored files would stay behind.
+        # Each is the child's own, copies included, so nothing else loses it.
+        for attachment in child.attachments.all():
+            attachment.file.delete(save=False)
         child.delete()
 
     issue.append_processing_log(
@@ -986,6 +1370,154 @@ def propagate_comment_to_parent(comment_id):
         child_issue.key,
         parent_issue.key,
     )
+
+
+@shared_task(
+    name="waldur_mastermind.support.forward_parent_attachments",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def forward_parent_attachments(self, child_issue_id):
+    """Copy the parent's attachments to a child issue routing has created.
+
+    The customer's files belong with the ticket, as its description does. On
+    a reroute, those an earlier provider sent back stay behind, as its
+    comments do.
+    """
+    try:
+        child_issue = models.Issue.objects.select_related(
+            "parent_issue", "provider_helpdesk"
+        ).get(id=child_issue_id)
+    except models.Issue.DoesNotExist:
+        # Withdrawn by a reroute before its files were copied.
+        return
+
+    parent_issue = child_issue.parent_issue
+    if not parent_issue:
+        return
+
+    _forward_attachments(
+        self,
+        parent_issue,
+        [(attachment, child_issue) for attachment in parent_issue.attachments.all()],
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.support.forward_attachment_to_child",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def forward_attachment_to_child(self, attachment_id):
+    """Forward an attachment from a parent issue to its child issues.
+
+    The children are looked up here rather than when the file was saved: a
+    file saved while routing is still creating the child would otherwise
+    reach neither.
+    """
+    try:
+        attachment = models.Attachment.objects.select_related("issue").get(
+            id=attachment_id
+        )
+    except models.Attachment.DoesNotExist:
+        logger.error("Attachment %s not found for forwarding.", attachment_id)
+        return
+
+    parent_issue = attachment.issue
+    children = parent_issue.child_issues.select_related("provider_helpdesk")
+    _forward_attachments(
+        self, parent_issue, [(attachment, child_issue) for child_issue in children]
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.support.propagate_attachment_to_parent",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def propagate_attachment_to_parent(self, attachment_id):
+    """Propagate an attachment from a child issue back to its parent issue.
+
+    The copy is pushed to the parent's own backend, which comments
+    propagated back are not: a remote service desk's sync drops attachments
+    it does not hold, so a copy kept only here would vanish from the
+    customer's ticket.
+    """
+    try:
+        attachment = models.Attachment.objects.select_related(
+            "issue__parent_issue"
+        ).get(id=attachment_id)
+    except models.Attachment.DoesNotExist:
+        logger.error("Attachment %s not found for propagation.", attachment_id)
+        return
+
+    parent_issue = attachment.issue.parent_issue
+    if not parent_issue or backend.is_orphaned(attachment.issue):
+        return
+
+    _forward_attachments(self, parent_issue, [(attachment, parent_issue)])
+
+
+@shared_task(name="waldur_mastermind.support.retry_attachment_forwarding")
+def retry_attachment_forwarding():
+    """Push again the copies the forwarding tasks could not deliver.
+
+    A copy left waiting once a task's retries are spent, because its desk was
+    down for longer, or left claimed by a worker that died mid-push, would
+    otherwise stay hidden and off its desk for good. Each is pushed again
+    until it has had ``MAX_PUSH_ATTEMPTS`` pushes, and is then given up as
+    ``ERRED`` and noted on the processing log of the routed ticket.
+    """
+    if not config.WALDUR_SUPPORT_ENABLED:
+        return
+    if not models.Issue.objects.filter(
+        Q(parent_issue__isnull=False) | Q(provider_helpdesk__isnull=False)
+    ).exists():
+        # Nothing was ever routed, so nothing was forwarded. A routed ticket
+        # whose parent was deleted still has its helpdesk.
+        return
+
+    now = timezone.now()
+    stuck = models.Attachment.objects.filter(is_forwarded=True).filter(
+        Q(state=CoreStates.CREATION_SCHEDULED, modified__lt=now - PUSH_RETRY_PAUSE)
+        | Q(state=CoreStates.CREATING, modified__lt=now - push_claim_timeout())
+    )
+    stuck = stuck.select_related("issue__parent_issue").order_by("modified")
+    for forwarded in stuck[:PUSH_RETRY_BATCH]:
+        issue = forwarded.issue
+        if backend.is_orphaned(issue):
+            _give_up(forwarded, "helpdesk_deleted")
+            continue
+        try:
+            push_copy(forwarded, backend.get_backend_for_issue(issue))
+        except SoftTimeLimitExceeded:
+            raise
+        except Exception:
+            logger.exception(
+                "Failed to push attachment %s to issue %s again.",
+                forwarded.uuid.hex,
+                issue.key,
+            )
+        try:
+            forwarded.refresh_from_db(fields=["state", "push_attempts"])
+        except models.Attachment.DoesNotExist:
+            # Deleted, with its ticket or by hand, while this run went on.
+            continue
+        if forwarded.state == CoreStates.ERRED:
+            _note_not_forwarded(
+                issue.parent_issue or issue,
+                [
+                    (
+                        forwarded.forwarded_from,
+                        issue,
+                        forwarded,
+                        _reason_erred(forwarded),
+                    )
+                ],
+            )
 
 
 @shared_task(name="waldur_mastermind.support.check_sla_breaches")
