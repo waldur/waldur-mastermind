@@ -131,7 +131,7 @@ from waldur_core.permissions.utils import (
     holds_global_permission,
     permission_factory,
 )
-from waldur_core.permissions.views import UserRoleMixin
+from waldur_core.permissions.views import TEAM_VIEW_ACCESS, UserRoleMixin
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -198,6 +198,7 @@ from waldur_mastermind.marketplace.enums import (
     normalize_offering_type,
 )
 from waldur_mastermind.marketplace.managers import (
+    ORDERS_VISIBLE_TO_USER,
     ResourceQuerySet,
     filter_offering_permissions,
     filter_orders_for_user,
@@ -8020,10 +8021,17 @@ class OrderViewSet(
             return self.approve_by_provider_serializer_class
         return super().get_serializer_class()
 
+    # Read actions that look the order up as retrieve does.
+    access_filtered_actions = ("offering", "resource")
+
     access_declarations = {
+        "dashboard_my_orders": [
+            access.owned("The caller's own orders awaiting approval or processing.")
+        ],
         "resource": [CONNECTED_RESOURCE_ACCESS],
     }
 
+    @access.shows(ORDERS_VISIBLE_TO_USER)
     def get_queryset(self):
         """
         Orders are available to both service provider and service consumer,
@@ -8109,6 +8117,15 @@ class OrderViewSet(
         ),
     ]
 
+    @access.describes(
+        access.custom(
+            "Staff and support. Otherwise who holds "
+            f"{PermissionEnum.CREATE_ORDER.value} on the order's project, its "
+            "organization or site-wide and, for an offering restricted to "
+            "designated roles, holds one of them in the project or its "
+            "organization."
+        )
+    )
     @staticmethod
     def check_create_permissions(request, view, obj=None):
         user = request.user
@@ -8780,6 +8797,8 @@ class OrderViewSet(
         structure_utils.check_customer_blocked_or_archived,
     ]
 
+    unlink_permissions = [structure_permissions.is_staff]
+
     @extend_schema(
         summary="Unlink an order (staff only)",
         description="Forcefully deletes an order from the database without affecting the backend resource. This is a staff-only administrative action used to clean up stuck or invalid orders.",
@@ -8788,8 +8807,6 @@ class OrderViewSet(
     )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
-        if not has_staff_access(request):
-            raise PermissionDenied()
         order: models.Order = self.get_object()
         logger.info("Starting unlink for order %s", order.uuid)
         event_logger.emit(
@@ -9011,6 +9028,25 @@ class BaseResourceViewSet(
             ["project", "project.customer", "offering", "offering.customer"],
         )
     ]
+
+    # Read actions that look the resource up as retrieve does, so show it to
+    # whom retrieve does.
+    access_filtered_actions = (
+        "details",
+        "offering",
+        "offering_for_subresources",
+        "plan_periods",
+        "team",
+    )
+
+    access_declarations = {
+        "pull": [
+            access.custom(
+                "Anyone who may see the resource. It only schedules a refresh "
+                "from the backend."
+            )
+        ],
+    }
 
     def ensure_resource_operations_allowed(self, resource: models.Resource) -> None:
         if resource.offering.state == OfferingStates.UNAVAILABLE:
@@ -9949,6 +9985,18 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         "glauth_tree",
     ]
 
+    access_declarations = {
+        "team_members": [TEAM_VIEW_ACCESS],
+        "suggest_name": [serializers.SUGGEST_NAME_ACCESS],
+    }
+
+    # The second sentence is filter_queryset_by_user_ip's rule, which
+    # filter_resources_by_consumer_access applies. Change the two together.
+    @access.shows(
+        f"{ResourceQuerySet.CONSUMER_VISIBILITY} Except to staff, support and "
+        "requests without a client address, an organization that limits portal "
+        "access to some networks hides its resources from callers outside them."
+    )
     def get_queryset(self):
         queryset = filters.filter_resources_by_consumer_access(
             self.queryset, self.request
@@ -10645,6 +10693,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     )
 )
 class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
+    @access.shows(ResourceQuerySet.PROVIDER_VISIBILITY)
     def get_queryset(self):
         # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
         queryset = self.queryset.filter_for_service_provider(self.request.user)

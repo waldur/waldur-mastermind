@@ -591,6 +591,14 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
 
     FLAG = "conceal_subnet_restricted_resources"
 
+    # What filter_queryset hides, for the API reference. Change the two
+    # together.
+    access_visibility_note = (
+        "An offering set to conceal subnet-restricted resources hides a "
+        "resource from callers outside its access subnets, except staff, "
+        "support and requests without a client address."
+    )
+
     def filter_queryset(self, request, queryset, view):
         user_ip = self.caller_address(request)
         if not user_ip:
