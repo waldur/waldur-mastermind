@@ -18,7 +18,12 @@ from waldur_mastermind.support.backend.smax_utils import (
     User,
 )
 
-from . import SupportBackend, SupportBackendType, SupportedFormat
+from . import (
+    SupportBackend,
+    SupportBackendType,
+    SupportedFormat,
+    provider_settings_override,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +41,20 @@ class SmaxServiceBackend(SupportBackend):
             return self._settings_override[key]
         return getattr(config, key, default)
 
+    #: Where the backend connects and with which credentials. A provider
+    #: helpdesk takes all of these from the operator or none of them. The
+    #: tenant is not among them: a tenant of its own on the operator's SMAX,
+    #: with the operator's account, sends no credentials anywhere else.
+    connection_settings = ("SMAX_API_URL", "SMAX_LOGIN", "SMAX_PASSWORD")
+
     @classmethod
     def from_settings(cls, settings_dict):
         """Create a SmaxServiceBackend with provider-specific settings."""
-        return cls(settings_override=settings_dict)
+        return cls(
+            settings_override=provider_settings_override(
+                settings_dict, cls.connection_settings
+            )
+        )
 
     summary_max_length = 140
     message_format = SupportedFormat.HTML

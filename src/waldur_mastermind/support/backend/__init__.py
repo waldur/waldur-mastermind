@@ -240,13 +240,33 @@ def comment_change_is_permitted(
     return not (comment.is_forwarded or is_routed(comment.issue))
 
 
+def provider_settings_override(settings_dict, connection_settings):
+    """The settings a provider helpdesk's backend reads before the operator's.
+
+    A provider backend takes every setting the helpdesk leaves out from the
+    operator's configuration. That fallback must not cover the settings that
+    say where the backend connects and with which credentials, the
+    ``connection_settings``, one at a time: a helpdesk that named only its
+    own URL would have the operator's credentials sent there.
+
+    So a helpdesk connects either with the operator's connection settings,
+    all of them, or with its own alone. Once it gives any of them a value,
+    the ones it leaves out are blank rather than the operator's.
+    """
+    if not any(settings_dict.get(key) for key in connection_settings):
+        return settings_dict
+    return {**dict.fromkeys(connection_settings, ""), **settings_dict}
+
+
 def get_backend_for_provider(provider_helpdesk) -> SupportBackend:
     """Factory to create a backend instance for a given ProviderHelpdesk.
 
     For each backend type, creates a provider-scoped backend using the
     provider's settings dict. If settings are empty/incomplete, backends
     fall back to global Constance settings — so a provider with no custom
-    settings effectively uses the operator's global backend config.
+    settings effectively uses the operator's global backend config. The
+    connection settings, its URL and credentials, fall back only as a whole;
+    see `provider_settings_override`.
     """
     backend_type = provider_helpdesk.backend_type
     settings_dict = provider_helpdesk.settings or {}

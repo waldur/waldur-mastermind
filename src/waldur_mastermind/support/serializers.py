@@ -13,7 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 
-from waldur_core.configuration import config
+from waldur_core.configuration import config, registry
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.clean_html import clean_html
@@ -1297,12 +1297,43 @@ class RouteToProviderSerializer(serializers.Serializer):
     )
 
 
+class StaffWritableFieldsMixin:
+    """Lets staff alone change the fields in ``Meta.staff_writable_fields``.
+
+    Only staff may create the provider helpdesk objects, but an owner of the
+    service provider's organization may update them. The fields that creation
+    reserves for staff stay reserved on update. Anyone may still read them,
+    and send one back as it is, as a form resubmitting what it read does; a
+    changed value is refused. A request that cannot be told to be staff's,
+    or none at all, is held to that.
+    """
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if request is None or not has_staff_access(request):
+            errors = {}
+            for name in self.Meta.staff_writable_fields:
+                field = self.fields.get(name)
+                if field is None or field.source not in attrs:
+                    continue
+                if self.instance is None or attrs[field.source] != getattr(
+                    self.instance, field.source
+                ):
+                    errors[name] = [_("Only staff can change this field.")]
+            if errors:
+                raise serializers.ValidationError(errors)
+        return super().validate(attrs)
+
+
 class ProviderHelpdeskSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    StaffWritableFieldsMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     service_provider = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=marketplace_models.ServiceProvider.objects.all(),
+        help_text=_("Service provider the helpdesk serves. Only staff can change it."),
     )
     service_provider_name = serializers.ReadOnlyField(
         source="service_provider.customer.name"
@@ -1340,10 +1371,25 @@ class ProviderHelpdeskSerializer(
             "last_health_check",
             "failed_routing_count",
         )
+        # What the helpdesk connects to, and with which credentials, and whose
+        # helpdesk it is.
+        staff_writable_fields = ("service_provider", "backend_type", "settings")
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
                 "view_name": "provider-helpdesk-detail",
+            },
+            "backend_type": {
+                "help_text": _(
+                    "Helpdesk system the helpdesk connects to. "
+                    "Only staff can change it."
+                ),
+            },
+            "settings": {
+                "help_text": _(
+                    "Backend-specific configuration. Only staff can change it, "
+                    "and only staff see the credentials in it."
+                ),
             },
         }
 
@@ -1352,6 +1398,19 @@ class ProviderHelpdeskSerializer(
         # Mask webhook secret in output
         if data.get("webhook_secret"):
             data["webhook_secret"] = "***"
+        # Settings are stored as plain JSON. The credentials among them, the
+        # keys the operator's own configuration treats as secret, go to staff
+        # alone.
+        request = self.context.get("request")
+        helpdesk_settings = data.get("settings")
+        if isinstance(helpdesk_settings, dict) and not (
+            request is not None and has_staff_access(request)
+        ):
+            secret_keys = registry.secret_keys()
+            data["settings"] = {
+                key: "***" if key in secret_keys and value else value
+                for key, value in helpdesk_settings.items()
+            }
         return data
 
 
