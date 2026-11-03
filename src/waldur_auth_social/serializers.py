@@ -13,6 +13,7 @@ from waldur_auth_social.const import (
 )
 from waldur_auth_social.utils import validate_safe_remote_url
 from waldur_core.core.enums import GENDER_CHOICES
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
 
 from . import models
@@ -153,10 +154,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
     def get_fields(self):
         fields = super().get_fields()
 
-        try:
-            request = self.context["request"]
-            user = request.user
-        except (KeyError, AttributeError):
+        request = self.context.get("request")
+        if request is None or not hasattr(request, "user"):
             return fields
 
         # Check if this is schema generation context (drf-spectacular)
@@ -167,7 +166,9 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         if self.instance:
             fields["provider"].read_only = True
 
-        if not user.is_staff:
+        # A staff user's personal access token without the staff scope acts
+        # as the user without staff, so it does not see the credentials.
+        if not has_staff_access(request):
             for field in SECRET_PROVIDER_FIELDS:
                 del fields[field]
 

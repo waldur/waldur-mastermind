@@ -1086,7 +1086,9 @@ class ProviderHelpdeskViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     )
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff or user.is_support:
+        # A staff or support user's personal access token without the matching
+        # scope acts as the user without that role.
+        if has_staff_access(self.request) or has_support_access(self.request):
             return self.queryset
         provider_customers = get_connected_customers(user, CustomerRole.OWNER)
         return self.queryset.filter(service_provider__customer__in=provider_customers)
