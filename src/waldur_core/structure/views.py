@@ -1038,6 +1038,7 @@ class ProjectViewSet(
     checklist_permissions = [permissions.has_project_access]
     completion_status_permissions = [permissions.has_project_access]
     submit_answers_permissions = [permissions.can_answer_project_metadata]
+    checklist_template_permissions = [permissions.can_create_project_in_parent]
 
     def get_checklist_completion(self, obj):
         """Get checklist completion for project metadata."""
@@ -1064,9 +1065,17 @@ class ProjectViewSet(
         return None
 
     def get_parent_object_for_checklist(self, parent_uuid):
-        """Get customer object for checklist template lookup."""
+        """Get customer object for checklist template lookup.
+
+        Among the organizations the caller can see, as the customer field of
+        the project-creation form offers them: a site-wide PROJECT.CREATE
+        without that visibility cannot create a project there either.
+        """
+        customers = filter_queryset_for_user(
+            models.Customer.objects.all(), self.request.user
+        )
         try:
-            return models.Customer.objects.get(uuid=parent_uuid)
+            return customers.get(uuid=parent_uuid)
         except models.Customer.DoesNotExist:
             return None
 

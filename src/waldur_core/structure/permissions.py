@@ -248,6 +248,27 @@ def has_project_access(request, view, obj=None, **kwargs):
         raise exceptions.PermissionDenied()
 
 
+@access.describes(
+    access.custom(
+        "Staff, or PROJECT.CREATE on the organization named by parent_uuid: "
+        "the template is shown on the form that creates a project there."
+    )
+)
+def can_create_project_in_parent(request, view, obj=None):
+    """Check if user may create a project in the organization named by parent_uuid."""
+    parent_uuid = request.query_params.get("parent_uuid")
+    if not parent_uuid:
+        # The action answers that the parameter is required.
+        return
+    customer = view.get_parent_object_for_checklist(parent_uuid)
+    if customer is None or not has_permission(
+        request, PermissionEnum.CREATE_PROJECT, customer
+    ):
+        # As for an organization that does not exist, so that the answer does
+        # not tell the caller that it does.
+        raise exceptions.NotFound("Parent object not found")
+
+
 def _get_parent_by_permission_path(obj, permission_path):
     path = getattr(obj.Permissions, permission_path, None)
     if path is None:

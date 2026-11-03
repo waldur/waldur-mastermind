@@ -10,7 +10,9 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.tests.helpers import create_pat
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, GlobalRole
 from waldur_core.permissions.models import Role, RolePermission
+from waldur_core.permissions.utils import grant_global_role
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -87,6 +89,11 @@ class ProjectMetadataTestMixin:
 class CustomerProjectMetadataTest(ProjectMetadataTestMixin, test.APITestCase):
     """Test customer project metadata configuration."""
 
+    def setUp(self):
+        super().setUp()
+        # The checklist template is for the project-creation form.
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+
     def test_customer_metadata_config_creation(self):
         """Test that Customer can have a project metadata checklist assigned."""
         # Set the checklist on customer
@@ -149,6 +156,102 @@ class CustomerProjectMetadataTest(ProjectMetadataTestMixin, test.APITestCase):
         response = self.client.get(url, {"parent_uuid": fake_uuid})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("Parent object not found", response.data["detail"])
+
+    def get_checklist_template(self, user, customer=None):
+        self.client.force_authenticate(user)
+        customer = customer or self.customer
+        return self.client.get(
+            "/api/projects/checklist-template/", {"parent_uuid": customer.uuid.hex}
+        )
+
+    def assert_checklist_template_hidden(self, response):
+        # Not found, as for an organization that does not exist, so that the
+        # answer does not tell the caller that the organization exists.
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertNotIn("questions", response.data)
+
+    def test_stranger_cannot_get_checklist_template(self):
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        response = self.get_checklist_template(self.fixture.user)
+        self.assert_checklist_template_hidden(response)
+
+    def test_owner_of_another_organization_cannot_get_checklist_template(self):
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        other = structure_fixtures.ProjectFixture()
+        response = self.get_checklist_template(other.owner)
+        self.assert_checklist_template_hidden(response)
+
+    @data("manager", "admin", "member", "customer_support", "global_support")
+    def test_role_without_project_create_cannot_get_checklist_template(self, user):
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        response = self.get_checklist_template(getattr(self.fixture, user))
+        self.assert_checklist_template_hidden(response)
+
+    def test_staff_can_get_checklist_template(self):
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        response = self.get_checklist_template(self.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["questions"]), 3)
+
+    def test_project_create_on_the_organization_opens_checklist_template(self):
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        role = Role.objects.create(
+            name="CUSTOMER.PROJECT_CREATOR_TEST",
+            content_type=ContentType.objects.get_for_model(Customer),
+        )
+        RolePermission.objects.create(
+            role=role, permission=PermissionEnum.CREATE_PROJECT.value
+        )
+        user = structure_factories.UserFactory()
+        self.customer.add_user(user, role)
+        response = self.get_checklist_template(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["questions"]), 3)
+
+    def grant_site_wide(self, user, role_name):
+        role = GlobalRole.get(role_name)
+        role.add_permission(PermissionEnum.CREATE_PROJECT)
+        grant_global_role(user, role)
+
+    def test_site_wide_project_create_without_visibility_gets_no_template(self):
+        # Creating a project there is refused too: the customer field offers
+        # only organizations the caller can see.
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        user = structure_factories.UserFactory()
+        self.grant_site_wide(user, "GLOBAL.PROJECT_CREATOR")
+        response = self.get_checklist_template(user)
+        self.assert_checklist_template_hidden(response)
+
+    def test_support_with_site_wide_project_create_gets_template(self):
+        # Support sees every organization, so it may create a project in one.
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        support = self.fixture.global_support
+        self.grant_site_wide(support, "GLOBAL.PROJECT_SUPPORT_CREATOR")
+        response = self.get_checklist_template(support)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["questions"]), 3)
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_without_project_create_scope_cannot_get_checklist_template(self):
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+        owner = self.owner
+        owner.can_use_personal_access_tokens = True
+        owner.save(update_fields=["can_use_personal_access_tokens"])
+        _, token = create_pat(owner, scopes=[PermissionEnum.LIST_PROJECTS.value])
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        response = self.client.get(
+            "/api/projects/checklist-template/",
+            {"parent_uuid": self.customer.uuid.hex},
+        )
+        self.assert_checklist_template_hidden(response)
 
     def test_checklist_template_with_no_checklist_configured(self):
         """Test getting checklist template when customer has no checklist configured."""
