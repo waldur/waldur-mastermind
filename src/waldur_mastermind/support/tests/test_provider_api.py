@@ -1071,6 +1071,52 @@ class ProviderTicketAssignTest(ProviderHelpdeskBaseTest):
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_cannot_assign_inactive_support_user(self):
+        # An inactive agent can no longer act on the ticket: claim refuses
+        # them, and the provider ticket list no longer shows it to them.
+        inactive_agent = factories.ProviderSupportUserFactory(
+            provider_helpdesk=self.helpdesk, is_active=False
+        )
+        self.client.force_authenticate(self.support_agent_user)
+        url = _provider_ticket_url(self.child_issue, action="assign")
+        data = {"provider_support_user": inactive_agent.uuid.hex}
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.child_issue.refresh_from_db()
+        self.assertIsNone(self.child_issue.provider_assignee)
+
+
+class ProviderTicketEscalationFieldTest(ProviderHelpdeskBaseTest):
+    """Escalation is the consumer side's call, made through its escalate action."""
+
+    def setUp(self):
+        super().setUp()
+        self.child_issue = factories.IssueFactory(
+            parent_issue=factories.IssueFactory(backend_id="WLD-P1"),
+            provider_helpdesk=self.helpdesk,
+            backend_id="WLD-C1",
+        )
+        self.agent = structure_factories.UserFactory()
+        factories.ProviderSupportUserFactory(
+            provider_helpdesk=self.helpdesk, user=self.agent, is_active=True
+        )
+
+    def test_provider_cannot_write_escalated_at(self):
+        for who, user in (("agent", self.agent), ("owner", self.owner)):
+            with self.subTest(user=who):
+                models.Issue.objects.filter(pk=self.child_issue.pk).update(
+                    escalated_at=None
+                )
+                self.client.force_authenticate(user)
+                response = self.client.patch(
+                    _provider_ticket_url(self.child_issue),
+                    {"escalated_at": "2020-01-01T00:00:00Z"},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.child_issue.refresh_from_db()
+                self.assertIsNone(self.child_issue.escalated_at)
+
 
 class ProviderTicketClaimTest(ProviderHelpdeskBaseTest):
     def setUp(self):

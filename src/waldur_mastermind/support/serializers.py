@@ -1470,6 +1470,8 @@ class ProviderTicketSerializer(
             "parent_issue_key",
             "parent_issue_uuid",
             "is_escalated",
+            # Set with is_escalated by the support issue's escalate action.
+            "escalated_at",
             "first_response_deadline",
             "resolution_deadline",
             "first_response_at",
@@ -1496,9 +1498,10 @@ class ProviderCommentSerializer(serializers.Serializer):
 
 
 class ProviderAssignSerializer(serializers.Serializer):
+    # Claim refuses an inactive agent, and so does assigning one.
     provider_support_user = serializers.SlugRelatedField(
         slug_field="uuid",
-        queryset=models.ProviderSupportUser.objects.all(),
+        queryset=models.ProviderSupportUser.objects.filter(is_active=True),
     )
 
 
