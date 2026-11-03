@@ -83,3 +83,16 @@ class PolicyConfig(AppConfig):
 
         if policy_actions.policies_keep_paused not in marketplace_utils.PAUSE_KEEPERS:
             marketplace_utils.PAUSE_KEEPERS.append(policy_actions.policies_keep_paused)
+        if (
+            policy_actions.policies_keep_downscaled
+            not in marketplace_utils.DOWNSCALE_KEEPERS
+        ):
+            marketplace_utils.DOWNSCALE_KEEPERS.append(
+                policy_actions.policies_keep_downscaled
+            )
+
+        signals.post_delete.connect(
+            handlers.lift_slurm_actions_upon_policy_deletion,
+            sender=models.SlurmPeriodicUsagePolicy,
+            dispatch_uid="waldur_mastermind.policy.lift_slurm_actions_upon_policy_deletion",
+        )

@@ -543,6 +543,35 @@ def run_reset_actions_upon_cost_policy_deletion(
         )
 
 
+def lift_slurm_actions_upon_policy_deletion(
+    sender, instance: models.SlurmPeriodicUsagePolicy, **kwargs
+) -> None:
+    """Lift the pause and downscale a deleted SLURM policy held.
+
+    Its SLURM actions have no reset method -- they lift their flags on their
+    own next run, which a deleted policy never has. Runs after commit, so the
+    deleted policy no longer counts as a keeper; a failure is only logged.
+    """
+    policy = instance
+    policy_uuid = utils.uuid_hex(policy)
+    actions = [name for name in (policy.actions or "").split(",") if name]
+
+    def lift():
+        from . import policy_actions
+
+        try:
+            with utils.system_actor_event_context(
+                EvaluationTriggers.POLICY_DELETED, policy_uuid
+            ):
+                policy_actions.lift_slurm_actions(policy, actions)
+        except Exception:
+            logger.exception(
+                "Failed to lift SLURM actions of deleted policy %s", policy_uuid
+            )
+
+    transaction.on_commit(lift)
+
+
 _BLOCKING_ACTION = "block_creation_of_new_resources"
 
 
