@@ -2,6 +2,7 @@ import logging
 
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers as rf_serializers
 from rest_framework import status
@@ -314,6 +315,7 @@ class DiskViewSet(structure_views.ResourceViewSet):
 
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Template.objects.all().order_by("name")
+    filter_backends = (DjangoFilterBackend, filters.UsableSettingsFilterBackend)
     serializer_class = serializers.VmwareTemplateSerializer
     filterset_class = filters.TemplateFilter
     lookup_field = "uuid"
@@ -321,6 +323,7 @@ class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
 
 class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Cluster.objects.all().order_by("name")
+    filter_backends = (DjangoFilterBackend, filters.UsableSettingsFilterBackend)
     serializer_class = serializers.VmwareClusterSerializer
     filterset_class = filters.ClusterFilter
     lookup_field = "uuid"
@@ -328,6 +331,7 @@ class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
 
 class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Network.objects.all().order_by("name")
+    filter_backends = (DjangoFilterBackend, filters.UsableSettingsFilterBackend)
     serializer_class = serializers.VmwareNetworkSerializer
     filterset_class = filters.NetworkFilter
     lookup_field = "uuid"
@@ -335,6 +339,7 @@ class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
 
 class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Datastore.objects.all().order_by("name")
+    filter_backends = (DjangoFilterBackend, filters.UsableSettingsFilterBackend)
     serializer_class = serializers.VmwareDatastoreSerializer
     filterset_class = filters.DatastoreFilter
     lookup_field = "uuid"
@@ -342,6 +347,7 @@ class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
 
 class FolderViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Folder.objects.all().order_by("name")
+    filter_backends = (DjangoFilterBackend, filters.UsableSettingsFilterBackend)
     serializer_class = serializers.VmwareFolderSerializer
     filterset_class = filters.FolderFilter
     lookup_field = "uuid"
