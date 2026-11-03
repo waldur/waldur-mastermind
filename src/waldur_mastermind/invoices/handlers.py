@@ -19,6 +19,7 @@ from waldur_mastermind.invoices import ledger, models, tasks, vat
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
+from waldur_mastermind.marketplace import billing_discount
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
@@ -234,6 +235,12 @@ def projects_customer_has_been_changed(
         invoice.items.filter(project=project).delete()
     else:
         invoice.items.filter(project=project).update(invoice=new_invoice)
+
+    # The project's estimated discount lines went with it, at the old
+    # customer's rate, and both customers' volumes changed.
+    billing_discount.refresh_open_invoices(
+        models.Invoice.objects.filter(pk__in=(invoice.pk, new_invoice.pk))
+    )
 
 
 def create_carried_over_usage_if_invoice_has_been_created(

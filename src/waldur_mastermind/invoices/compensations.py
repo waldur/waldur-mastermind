@@ -724,3 +724,27 @@ class MonthlyCompensation:
     def apply_compensations(self):
         self.clear_compensations()
         self.save()
+
+
+def projected_net_price(invoice: models.Invoice) -> decimal.Decimal:
+    """The net price an open invoice will close at, as far as the month so far
+    tells: the base an affiliate fee is accrued on (`accrue_affiliate_fee`).
+
+    `invoice.price` already carries the estimated volume discounts. What month
+    close still changes is the credit compensation: it clears what the credit in
+    place wrote for the month and draws again, so the written part comes out and
+    the simulated draw goes in. Simulated from the balance the month started
+    with, as staff may have applied compensation mid-month. A payment of an
+    earlier invoice, which the close may also write, is not projected.
+    """
+    simulation = MonthlyCompensation(
+        invoice.customer, invoice=invoice, restore_written=True
+    )
+    price = invoice.price
+    if simulation.credit:
+        written = invoice.items.filter(
+            credit=simulation.credit, compensated_period__isnull=True
+        )
+        price -= sum((item.price for item in written), decimal.Decimal(0))
+    price += sum((item.price for item in simulation.compensations), decimal.Decimal(0))
+    return price

@@ -71,32 +71,57 @@ the component's billing type — the discount is supported on all of them:
 | LIMIT | the limit quantity | `price × duration-multiplied quantity` |
 | USAGE | the reported usage for the period | `price × reported usage` |
 
+Each main line records the volume that feeds the formula in
+`details["discount_usage"]` when it is billed. A separate pass
+(`billing_discount.apply_aggregated_volume_discounts`) then builds the discount
+lines for the whole invoice:
+
 ```mermaid
 flowchart TB
-    MAIN["Main component line item created<br/>(FIXED / LIMIT / USAGE / one-time)"]
-    CALL["upsert_component_discount_item(usage, unit_price, quantity)"]
-    EVAL{"discount_formula set<br/>and percent > 0?"}
-    SKIP["No discount line item"]
-    NEG["Create/update negative<br/>discount line item"]
+    ITEMS["Main lines carrying<br/>details.discount_usage"]
+    GROUP["Group by plan component<br/>(per customer or per resource)"]
+    EVAL{"Formula on the group's<br/>summed volume: percent > 0?"}
+    LINES["One negative line per main line<br/>(percent x its charge)"]
+    NONE["No discount lines"]
     ERR["Formula error: log and skip<br/>(billing never blocked)"]
 
-    MAIN --> CALL
-    CALL --> EVAL
-    EVAL -->|no| SKIP
-    EVAL -->|yes| NEG
-    CALL -.->|on FormulaError| ERR
+    ITEMS --> GROUP --> EVAL
+    EVAL -->|yes| LINES
+    EVAL -->|no| NONE
+    EVAL -.->|on FormulaError| ERR
 ```
+
+### Estimated on the open invoice, final at month close
+
+The pass runs at month close, before credit compensation and affiliate fees.
+It also runs on the open invoice, so that the invoice total, the project credit
+forecast (`creditable_cost_this_month`) and the estimated-cost policies show
+what the month will be charged, not the gross figure:
+
+- **When.** Daily, in `update-invoices-total-cost`, and shortly after a resource
+  is created or terminated, or switches plan or limit. Changes are debounced per
+  customer, so a burst of changes is rebuilt once. Usage reports wait for the
+  daily pass: usage only grows a line, so its discount lags behind and never
+  runs ahead.
+- **Marked as estimates.** A line on an open invoice carries
+  `details["is_estimate"] = true` and says "estimated" in its name. It is
+  computed on the volume so far. For a limit component that volume is the limit,
+  so the estimate already equals the final discount. For a usage component the
+  volume grows during the month, so the estimate understates the final discount.
+- **Final at close.** Month close builds the lines once more and drops the
+  marker. The invoice serializer reports the lines' sum as `volume_discounts`, a
+  negative amount like `compensations`, and it is already included in `price`.
 
 Key properties:
 
-- **One shared code path.** All billing types call the same
-  `upsert_component_discount_item` helper, so the discount semantics are
-  identical everywhere.
-- **Idempotent.** The USAGE path re-reports usage repeatedly; the paired
-  discount item is created, updated, or removed to match — never duplicated. If
-  usage later drops below the threshold (percent → 0), the stale discount item
-  is removed.
-- **Never blocks billing.** A broken formula is logged and skipped; the main
+- **Updated in place.** Each line is matched to its main line by
+  `details["discount_of_item"]`. A pass changes only the lines whose amount or
+  label moved, creates the missing ones and removes those that no longer apply,
+  for example when usage drops below a tier. A pass over an unchanged invoice
+  writes nothing and logs nothing.
+- **Serialised per invoice.** A pass locks the invoice row, so the daily pass, a
+  queued refresh and month close never create the same line twice.
+- **Never blocks billing.** A broken formula is logged and skipped. The main
   component line is always billed.
 - **Overage is not discounted.** Prepaid overage top-ups are premium-priced and
   bypass the discount.

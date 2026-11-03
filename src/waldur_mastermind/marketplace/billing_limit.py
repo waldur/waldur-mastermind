@@ -199,7 +199,7 @@ class LimitPeriodProcessor:
             return
         if not resource.plan:
             return
-        # Discount items produced at invoice finalization carry the same
+        # Discount items (estimates on an open invoice, final at close) carry the same
         # offering_component_type; they are bookkeeping lines, not billed
         # quantity, so they must not participate in the already-billed total.
         # has_key (not details__is_discount=True) because exclude() on a JSON
@@ -261,7 +261,7 @@ class LimitPeriodProcessor:
         # earlier TOTAL items yields the current total limit, so tier formulas
         # evaluate on the net limit after increases and decreases alike.
         # Compensation items (negative delta) can never produce a discount line
-        # themselves — billing_discount._create_discount_item skips items whose
+        # themselves — billing_discount._discount_line skips items whose
         # discount amount is not positive.
         details[billing_discount.DISCOUNT_USAGE_KEY] = float(diff)
 
@@ -594,7 +594,7 @@ class LimitPeriodProcessor:
         # Record the volume that feeds the org-aggregated volume discount: the
         # raw component quantity (the limit), while the discount later applies
         # to the actual line charge (price x duration-multiplied total_quantity).
-        # The discount is materialized at invoice finalization (billing_discount).
+        # The discount lines are built by billing_discount.
         details[billing_discount.DISCOUNT_USAGE_KEY] = float(quantity)
 
         invoice_models.InvoiceItem.objects.create(

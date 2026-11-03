@@ -318,17 +318,21 @@ the old link, not creating a new one.
 ## API
 
 All endpoints live under `/api/customer-affiliates/` and return `404` while
-`AFFILIATES_ENABLED` is off.
+`AFFILIATES_ENABLED` is off. Staff and global support see every link. Anyone
+else sees the links whose affiliate is an organization they hold a role on:
+owner, support or reader alike. A role on its service provider or projects
+does not count, and the referred customer sees none of them. HomePort shows
+the *Affiliate earnings* page to the same people.
 
 | Method & path | Who | Purpose |
 |---------------|-----|---------|
-| `GET /api/customer-affiliates/` | staff, affiliate owners | List links (affiliates see only their own). |
+| `GET /api/customer-affiliates/` | staff, support, affiliate organization roles | List links (affiliates see only their own). |
 | `POST /api/customer-affiliates/` | **staff only** | Create a link. |
-| `GET /api/customer-affiliates/{uuid}/` | staff, affiliate owner | Retrieve a link. |
+| `GET /api/customer-affiliates/{uuid}/` | staff, support, affiliate organization roles | Retrieve a link. |
 | `PATCH/PUT /api/customer-affiliates/{uuid}/` | **staff only** | Update fee terms. |
 | `DELETE /api/customer-affiliates/{uuid}/` | **staff only** | Remove a link and its accruals. |
-| `GET /api/customer-affiliates/{uuid}/accruals/` | staff, affiliate owner | Per-invoice fees (amount + period only). |
-| `GET /api/customer-affiliates/{uuid}/earnings/` | staff, affiliate owner | Lifetime total, per-month series, withdrawable balance. |
+| `GET /api/customer-affiliates/{uuid}/accruals/` | staff, support, affiliate organization roles | Per-invoice fees (amount + period only). |
+| `GET /api/customer-affiliates/{uuid}/earnings/` | staff, support, affiliate organization roles | Lifetime total, per-month series, withdrawable balance, and the fee the current month is expected to earn. |
 
 Validation on create/update:
 
@@ -358,22 +362,38 @@ GET /api/customer-affiliates/<uuid>/earnings/
 {
   "total_earned": "30.00000",
   "withdrawable_balance": "30.00000",
-  "per_month": [{"year": 2026, "month": 6, "amount": "30.00000"}]
+  "per_month": [{"year": 2026, "month": 6, "amount": "30.00000"}],
+  "upcoming": {"year": 2026, "month": 7, "amount": "12.40000"}
 }
 ```
+
+`upcoming` is the fee the current month is expected to earn: the accrual rule
+applied to the referred customer's open invoice as it stands. It is computed on
+the invoice's net price after the estimated volume discounts (see
+[Component discounts](component-discounts.md)) and after the credit that month
+close is expected to draw. It changes until the month closes, and becomes an
+accrual only then. A payment of an earlier invoice from credit, which month
+close may also write, is not projected. `upcoming` is `null` when the link is
+not active on the first day of the month, when the referred customer has no
+open invoice, or when the month would earn nothing. Like an accrual, it carries
+the period and amount only.
 
 ## Privacy model
 
 The program is designed so an affiliate **never** sees what the referred
 customer bought:
 
-- Affiliate owners get **read-only** access to their own links, accruals and
-  earnings; they cannot view the referred customer's invoices (those return
-  `404`).
+- Members of the affiliate organization, whatever their role there, get
+  **read-only** access to its links, accruals and earnings. They cannot view
+  the referred customer's invoices (those return `404`).
 - The accrual representation exposes the fee `amount` and the invoice
   `year`/`month` only — never a link or embed of the `Invoice` object.
 - Audit events for earned fees carry the period and amount only, scoped to the
   affiliate organization.
+- The amounts still reveal totals, not contents. An accrual is `fee_percent` of
+  a closed invoice's net price, so it shows that month's total. `upcoming` does
+  the same for the open month, and it follows the running total as the month
+  goes on.
 
 ## Audit events
 

@@ -340,11 +340,15 @@ def format_invoice_csv(invoices):
 
 @shared_task(name="invoices.update_invoices_total_cost")
 def update_invoices_total_cost():
-    """Update cached total cost for current month invoices."""
+    """Refresh current month invoices: the estimated volume discounts of the
+    open ones first, as they lower the total, then the cached total cost."""
     year = utils.get_current_year()
     month = utils.get_current_month()
+    invoices = models.Invoice.objects.filter(year=year, month=month)
 
-    for invoice in models.Invoice.objects.filter(year=year, month=month):
+    billing_discount.refresh_open_invoices(invoices)
+
+    for invoice in invoices:
         invoice.update_cache()
 
 

@@ -371,6 +371,80 @@ class AffiliatePrivacyTest(BaseAffiliateTest):
         self.assertEqual(len(response.data), 0)
 
 
+@freeze_time("2024-03-15")
+class AffiliateUpcomingFeeTest(BaseAffiliateTest):
+    """The fee the open month is expected to earn, from the referred customer's
+    open invoice as it stands, on the base the accrual will use."""
+
+    def _upcoming(self):
+        self.client.force_authenticate(self.fixture.affiliate_owner)
+        response = self.client.get(
+            factories.CustomerAffiliateFactory.get_url(self.link, action="earnings")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["upcoming"]
+
+    def test_open_invoice_projects_the_fee(self):
+        # invoice price: 10 x 30 = 300, fee: 10% = 30
+        self.fixture.invoice_item
+
+        upcoming = self._upcoming()
+
+        # Period and amount only: nothing about the referred customer's invoice.
+        self.assertEqual(set(upcoming), {"year", "month", "amount"})
+        self.assertEqual((upcoming["year"], upcoming["month"]), (2024, 3))
+        self.assertEqual(decimal.Decimal(upcoming["amount"]), decimal.Decimal("30"))
+
+    def test_estimated_volume_discount_lowers_the_fee(self):
+        self.fixture.invoice_item
+        factories.InvoiceItemFactory(
+            invoice=self.fixture.invoice,
+            resource=self.fixture.resource,
+            project=self.fixture.project,
+            unit_price=-100,
+            quantity=1,
+            details={"is_discount": True, "is_estimate": True},
+        )
+
+        # 10% of 300 - 100
+        self.assertEqual(
+            decimal.Decimal(self._upcoming()["amount"]), decimal.Decimal("20")
+        )
+
+    def test_credit_the_month_will_draw_lowers_the_fee(self):
+        self.fixture.invoice_item
+        factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("100")
+        )
+
+        # Month close will draw the 100 of credit: 10% of 300 - 100.
+        self.assertEqual(
+            decimal.Decimal(self._upcoming()["amount"]), decimal.Decimal("20")
+        )
+
+    def test_no_upcoming_fee_when_credit_covers_the_month(self):
+        # No accrual will be written for the month, so nothing is upcoming.
+        self.fixture.invoice_item
+        factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+
+        self.assertIsNone(self._upcoming())
+
+    def test_no_upcoming_fee_for_a_link_that_starts_after_the_first(self):
+        # Accrual checks the link on the first day of the invoice month.
+        self.link.start_date = "2024-03-10"
+        self.link.save()
+        self.fixture.invoice_item
+
+        self.assertIsNone(self._upcoming())
+
+    def test_no_upcoming_fee_once_the_invoice_is_closed(self):
+        self.finalize_invoice()
+
+        self.assertIsNone(self._upcoming())
+
+
 class AffiliateFeatureToggleTest(BaseAffiliateTest):
     """The affiliate program is opt-in via the AFFILIATES_ENABLED Constance
     setting: when disabled (the default), the API responds 404 and no fees

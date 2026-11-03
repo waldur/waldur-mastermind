@@ -436,8 +436,8 @@ class MarketplaceBillingService:
             # raw limit (never the duration-multiplied upfront quantity, so a
             # long prepaid period cannot push a small volume over a tier
             # threshold), other one-time and plan-switch charges on their
-            # billed quantity. The discount itself is computed and
-            # materialized at invoice finalization (billing_discount).
+            # billed quantity. The discount lines themselves are built by
+            # billing_discount.
             if is_fixed:
                 discount_volume = plan_component.amount
             elif discount_volume is None:

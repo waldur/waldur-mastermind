@@ -340,6 +340,32 @@ class ComponentStatsTest(StatsBaseTest):
             ],
         )
 
+    def test_component_stats_leave_out_discount_and_compensation_lines(self):
+        self.resource.offering.type = SUPPORT_OFFERING
+        self.resource.offering.save()
+        self.offering_component.billing_type = BillingTypes.FIXED
+        self.offering_component.save()
+
+        item = self._create_items().get()
+        # Both kinds copy the component type of the item they lower, with
+        # quantity 1; neither is usage.
+        for extra in (
+            {"is_discount": True, "discount_of_item": item.uuid.hex},
+            {"is_compensation": True, "compensation_of_item": item.uuid.hex},
+        ):
+            invoices_models.InvoiceItem.objects.create(
+                invoice=item.invoice,
+                resource=item.resource,
+                project=item.project,
+                unit_price=-1,
+                quantity=1,
+                details={**item.details, **extra},
+            )
+
+        self.client.force_authenticate(self.fixture.staff)
+        result = self.client.get(self.url, {"start": "2020-03", "end": "2020-03"})
+        self.assertEqual(result.data[0]["usage"], 31)
+
     def test_handler(self):
         self.resource.offering.type = SUPPORT_OFFERING
         self.resource.offering.save()

@@ -1465,9 +1465,10 @@ class ProjectCreditViewSet(core_views.ActionsViewSet):
 
 
 class CustomerAffiliateViewSet(core_views.ActionsViewSet):
-    """Affiliate links are configured by staff only. Affiliate organization
-    owners get read-only access to their own links, earnings and accruals;
-    they never gain access to the referred customer's invoices.
+    """Affiliate links are configured by staff only. Anyone holding a role on
+    the affiliate organization (owner, support or reader) gets read-only
+    access to its links, earnings and accruals, as do staff and support; they
+    never gain access to the referred customer's invoices.
 
     The whole API is gated behind the opt-in ``AFFILIATES_ENABLED``
     Constance setting and responds with 404 while the feature is disabled.
@@ -1540,8 +1541,8 @@ class CustomerAffiliateViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         description="Earnings summary of this affiliate link: lifetime total, "
-        "per-month series and the affiliate organization's withdrawable "
-        "credit balance.",
+        "per-month series, the affiliate organization's withdrawable credit "
+        "balance and the fee the current month is expected to earn.",
         responses=serializers.AffiliateEarningsSerializer,
     )
     @action(detail=True, methods=["get"])
@@ -1567,9 +1568,33 @@ class CustomerAffiliateViewSet(core_views.ActionsViewSet):
                     }
                     for row in per_month
                 ],
+                "upcoming": self._upcoming_fee(link),
             }
         )
         return Response(serializer.data)
+
+    @staticmethod
+    def _upcoming_fee(link: models.CustomerAffiliate):
+        """The fee the current month is expected to earn: the accrual rule
+        applied to the referred customer's open invoice as it stands. Period and
+        amount only, like an accrual; None when the month will accrue nothing
+        for this link."""
+        year, month = utils.get_current_year(), utils.get_current_month()
+        if not link.is_active_on(datetime.date(year, month, 1)):
+            return None
+        invoice = models.Invoice.objects.filter(
+            customer=link.customer,
+            year=year,
+            month=month,
+            state__in=models.Invoice.States.MUTABLE_STATES,
+        ).first()
+        if not invoice:
+            return None
+        amount = link.calculate_fee(compensations.projected_net_price(invoice))
+        if amount <= 0:
+            # Accrual writes nothing for such a month either.
+            return None
+        return {"year": year, "month": month, "amount": amount}
 
     earnings_serializer_class = serializers.AffiliateEarningsSerializer
 
