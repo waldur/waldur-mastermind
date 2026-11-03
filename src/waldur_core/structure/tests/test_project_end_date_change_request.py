@@ -8,10 +8,12 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.enums import ReviewStates
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure import models
 from waldur_core.structure.tests import factories, fixtures
 
@@ -322,6 +324,210 @@ class ProjectEndDateChangeRequestApproveRejectTest(test.APITestCase):
         self.assertEqual(self.request.state, ReviewStates.PENDING)
         self.project.refresh_from_db()
         self.assertNotEqual(self.project.end_date, self.request.requested_end_date)
+
+
+@override_config(PAT_ENABLED=True)
+class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
+    """A personal access token acts within its scopes and bindings.
+
+    Approving or rejecting needs PROJECT.UPDATE among the token's scopes, on
+    the project or its organization, as changing the end date directly does.
+    A token bound elsewhere neither sees a project's requests nor files one.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        self.addCleanup(
+            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+        )
+        self.owner = self.fixture.owner
+        self.manager = self.fixture.manager
+        self.other_customer = factories.CustomerFactory()
+        self.other_customer.add_user(self.owner, CustomerRole.OWNER)
+        self.other_project = factories.ProjectFactory(customer=self.other_customer)
+        self.other_project.add_user(self.manager, ProjectRole.MANAGER)
+        self.request = factories.ProjectEndDateChangeRequestFactory(
+            project=self.project,
+            created_by=self.manager,
+            state=ReviewStates.PENDING,
+            requested_end_date=(timezone.now() + timedelta(days=90)).date(),
+        )
+
+    def review(self, action):
+        return self.client.post(
+            factories.ProjectEndDateChangeRequestFactory.get_url(
+                self.request, action=action
+            )
+        )
+
+    def assert_still_pending(self):
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.PENDING)
+
+    def test_token_without_update_scope_cannot_approve(self):
+        use_pat(self.client, self.owner, PermissionEnum.LIST_PROJECTS.value)
+        self.assertEqual(self.review("approve").status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_still_pending()
+
+    def test_token_without_update_scope_cannot_reject(self):
+        use_pat(self.client, self.owner, PermissionEnum.LIST_PROJECTS.value)
+        self.assertEqual(self.review("reject").status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_still_pending()
+
+    def test_token_bound_to_another_organization_cannot_approve(self):
+        # Bound elsewhere, the token does not find the request at all.
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.UPDATE_PROJECT.value,
+            bindings=[self.other_customer],
+        )
+        self.assertEqual(self.review("approve").status_code, status.HTTP_404_NOT_FOUND)
+        self.assert_still_pending()
+
+    def test_token_with_update_scope_can_approve(self):
+        use_pat(self.client, self.owner, PermissionEnum.UPDATE_PROJECT.value)
+        self.assertEqual(self.review("approve").status_code, status.HTTP_200_OK)
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.APPROVED)
+
+    def test_token_bound_to_the_organization_can_reject(self):
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.UPDATE_PROJECT.value,
+            bindings=[self.fixture.customer],
+        )
+        self.assertEqual(self.review("reject").status_code, status.HTTP_200_OK)
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.REJECTED)
+
+    def test_token_bound_to_the_project_can_approve(self):
+        # As for changing the end date directly, a token bound to the project
+        # may use its owner's role on the project's organization.
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.UPDATE_PROJECT.value,
+            bindings=[self.project],
+        )
+        self.assertEqual(self.review("approve").status_code, status.HTTP_200_OK)
+
+    def test_token_bound_elsewhere_does_not_list_or_retrieve_request(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.other_project],
+        )
+        response = self.client.get(
+            factories.ProjectEndDateChangeRequestFactory.get_list_url()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+        response = self.client.get(
+            factories.ProjectEndDateChangeRequestFactory.get_url(self.request)
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_token_bound_to_the_project_lists_request(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.project],
+        )
+        response = self.client.get(
+            factories.ProjectEndDateChangeRequestFactory.get_list_url()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["uuid"] for item in response.data], [str(self.request.uuid)]
+        )
+
+    def test_token_bound_elsewhere_cannot_cancel_request(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.other_project],
+        )
+        self.assertEqual(self.review("cancel").status_code, status.HTTP_404_NOT_FOUND)
+        self.assert_still_pending()
+
+    def test_token_bound_to_the_project_can_cancel_request(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.project],
+        )
+        self.assertEqual(self.review("cancel").status_code, status.HTTP_200_OK)
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.CANCELED)
+
+    def create_request(self):
+        return self.client.post(
+            factories.ProjectEndDateChangeRequestFactory.get_list_url(),
+            {
+                "project": factories.ProjectFactory.get_url(self.project),
+                "requested_end_date": self.new_end_date.isoformat(),
+            },
+        )
+
+    @property
+    def new_end_date(self):
+        return (timezone.now() + timedelta(days=60)).date()
+
+    def assert_not_created(self, response):
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project", response.data)
+        self.assertFalse(
+            models.ProjectEndDateChangeRequest.objects.filter(
+                project=self.project, requested_end_date=self.new_end_date
+            ).exists()
+        )
+
+    def test_token_bound_elsewhere_cannot_create_request(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.other_project],
+        )
+        self.assert_not_created(self.create_request())
+
+    def test_token_bound_to_the_project_can_create_request(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.project],
+        )
+        self.assertEqual(self.create_request().status_code, status.HTTP_201_CREATED)
+
+    def test_unbound_token_can_create_request(self):
+        use_pat(self.client, self.manager, PermissionEnum.LIST_PROJECTS.value)
+        self.assertEqual(self.create_request().status_code, status.HTTP_201_CREATED)
+
+    def test_support_without_a_role_cannot_create_request(self):
+        # Support sees every project, but only to read.
+        self.client.force_authenticate(self.fixture.global_support)
+        self.assert_not_created(self.create_request())
+
+    def test_support_token_without_a_role_cannot_create_request(self):
+        use_pat(
+            self.client, self.fixture.global_support, PermissionEnum.LIST_PROJECTS.value
+        )
+        self.assert_not_created(self.create_request())
+
+    def test_support_with_a_project_role_can_create_request(self):
+        support = self.fixture.global_support
+        self.project.add_user(support, ProjectRole.MEMBER)
+        self.client.force_authenticate(support)
+        self.assertEqual(self.create_request().status_code, status.HTTP_201_CREATED)
 
 
 class ProjectEndDateChangeRequestCancelTest(test.APITestCase):

@@ -597,8 +597,9 @@ source either way. A direct `has_permission(request, permission, parent)` keeps
 the binding on `parent`.
 
 Opted in today: the provider's actions on a resource that use
-`OFFERING_SCOPED_SOURCES`, the offering updates behind `can_update_offering`, and
-updating a project.
+`OFFERING_SCOPED_SOURCES`, the offering updates behind `can_update_offering`,
+updating a project, and approving or rejecting a project end date change
+request, which changes the project as updating it does.
 
 ### Restrictions
 
@@ -642,9 +643,14 @@ backends. Detail endpoints inherit the same narrowing because DRF's
 | `proposal.Call` | `call` (no ancestor inheritance) |
 | `proposal.Proposal` | `proposal` (no ancestor inheritance) |
 
-Endpoints whose model does not appear above (e.g. `/api/marketplace-orders/`,
+Apps register rules for their own models from `ready()`:
+`structure.AccessSubnet` is reachable from `customer` only, and
+`matrix_chat.MatrixHistoryExport` from the room's `customer` or `project`.
+
+Endpoints whose model has no rule (e.g. `/api/marketplace-orders/`,
 `/api/invoices/`) currently pass through unfiltered. Add a builder via
-`register_pat_filter` in `pat_filtering.py` to extend coverage.
+`register_pat_filter`, in `pat_filtering.py` or the app's `ready()`, to extend
+coverage.
 
 **Lists nested under a parent**: the rules only follow an object's own
 ancestors, so they would empty a list of one parent's children that belong

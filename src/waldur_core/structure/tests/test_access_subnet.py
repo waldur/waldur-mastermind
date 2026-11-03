@@ -3,8 +3,10 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -188,6 +190,91 @@ class AccessSubnetGetTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
+
+
+@override_config(PAT_ENABLED=True)
+class AccessSubnetTokenTest(test.APITestCase):
+    """A personal access token sees only the access subnets of organizations
+    its bindings reach, and acts as staff or support only with that scope."""
+
+    def setUp(self):
+        self.user = factories.UserFactory()
+        self.target = factories.CustomerFactory()
+        self.bound = factories.CustomerFactory()
+        self.target.add_user(self.user, CustomerRole.OWNER)
+        self.bound.add_user(self.user, CustomerRole.OWNER)
+        self.target_subnet = factories.AccessSubnetFactory(customer=self.target)
+        self.bound_subnet = factories.AccessSubnetFactory(customer=self.bound)
+
+    def listed(self):
+        response = self.client.get(factories.AccessSubnetFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {item["uuid"] for item in response.data}
+
+    def resource_impact(self, customer):
+        return self.client.get(
+            "/api/access-subnets/resource_impact/",
+            {"customer_uuid": customer.uuid.hex},
+        )
+
+    def test_bound_token_lists_only_subnets_of_its_organization(self):
+        use_pat(
+            self.client,
+            self.user,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.bound],
+        )
+        self.assertEqual(self.listed(), {self.bound_subnet.uuid.hex})
+        response = self.client.get(
+            factories.AccessSubnetFactory.get_url(self.target_subnet)
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_bound_token_cannot_see_resource_impact_of_another_organization(self):
+        use_pat(
+            self.client,
+            self.user,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.bound],
+        )
+        response = self.resource_impact(self.target)
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+        self.assertNotIn("resources", response.data)
+        self.assertEqual(
+            self.resource_impact(self.bound).status_code, status.HTTP_200_OK
+        )
+
+    def test_unbound_token_lists_every_organization_it_has_a_role_in(self):
+        use_pat(self.client, self.user, PermissionEnum.LIST_PROJECTS.value)
+        self.assertEqual(
+            self.listed(), {self.bound_subnet.uuid.hex, self.target_subnet.uuid.hex}
+        )
+        self.assertEqual(
+            self.resource_impact(self.target).status_code, status.HTTP_200_OK
+        )
+
+    def test_staff_and_support_tokens_without_their_scope_see_no_other_subnets(self):
+        for flag in ("is_staff", "is_support"):
+            with self.subTest(flag=flag):
+                user = factories.UserFactory(**{flag: True})
+                use_pat(self.client, user, PermissionEnum.LIST_PROJECTS.value)
+                self.assertEqual(self.listed(), set())
+
+    def test_staff_and_support_tokens_with_their_scope_see_every_subnet(self):
+        for flag, scope in (
+            ("is_staff", PermissionEnum.STAFF_ACCESS),
+            ("is_support", PermissionEnum.SUPPORT_ACCESS),
+        ):
+            with self.subTest(flag=flag):
+                user = factories.UserFactory(**{flag: True})
+                use_pat(self.client, user, scope.value)
+                self.assertEqual(
+                    self.listed(),
+                    {self.bound_subnet.uuid.hex, self.target_subnet.uuid.hex},
+                )
 
 
 class AccessSubnetOrderingTest(test.APITestCase):
