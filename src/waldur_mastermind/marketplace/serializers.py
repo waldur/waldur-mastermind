@@ -49,7 +49,7 @@ from rest_framework.reverse import reverse
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.configuration import config
-from waldur_core.core import encryption
+from waldur_core.core import access, encryption
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -8482,6 +8482,13 @@ class BackendMetadataSerializer(serializers.Serializer):
     instance_name = serializers.CharField(
         read_only=True, allow_null=True, help_text="Name of the backend instance"
     )
+
+
+# Who ResourceSuggestNameSerializer.get_fields lets suggest a name. Change the
+# two together.
+SUGGEST_NAME_ACCESS = access.custom(
+    "Any signed-in user, for a project they can see and an offering they may order."
+)
 
 
 class ResourceSuggestNameSerializer(serializers.ModelSerializer):

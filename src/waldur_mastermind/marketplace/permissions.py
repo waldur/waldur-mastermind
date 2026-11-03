@@ -244,6 +244,13 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
     return has_project_permission(user, PermissionEnum.APPROVE_ORDER, order.project)
 
 
+@access.describes(
+    access.any_of(
+        access.owned("The order's creator."),
+        access.permission(PermissionEnum.REJECT_ORDER, ["project", "project.customer"]),
+    ),
+    needs_object=True,
+)
 def user_can_reject_order_as_consumer(request, view, order=None):
     if not order:
         return
@@ -390,6 +397,15 @@ def validate_resource_terminate_state(resource: models.Resource) -> None:
     )
 
 
+@access.describes(
+    access.any_of(
+        access.staff_or_support(),
+        access.permission(
+            PermissionEnum.SET_RESOURCE_END_DATE, ["offering.customer", "offering"]
+        ),
+    ),
+    needs_object=True,
+)
 def user_can_set_end_date_by_provider(
     request, view, obj: models.Resource | None = None
 ):
@@ -409,6 +425,17 @@ def user_can_set_end_date_by_provider(
     raise exceptions.PermissionDenied()
 
 
+@access.describes(
+    access.any_of(
+        access.permission(
+            PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT, ["offering.customer"]
+        ),
+        access.permission(
+            PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT, ["offering.customer"]
+        ),
+    ),
+    needs_object=True,
+)
 def can_link_robot_account_users(request, view, obj: models.Resource | None = None):
     # Listing who a robot account may link is part of creating or editing one,
     # so it takes the same permissions as RobotAccountSerializer.validate.

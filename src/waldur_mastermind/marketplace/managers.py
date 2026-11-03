@@ -260,6 +260,15 @@ class OfferingManager(MixinManager):
 
 
 class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
+    # What filter_for_service_consumer leaves. Change the two together.
+    CONSUMER_VISIBILITY = (
+        f"Resources of projects where the caller holds "
+        f"{PermissionEnum.LIST_RESOURCES.value} on the project or its "
+        "organization, and resources they hold a role on, directly or on one "
+        "of their resource projects. Staff, support and holders of "
+        f"{PermissionEnum.LIST_RESOURCES.value} site-wide see all."
+    )
+
     def filter_for_service_consumer(self, user):
         if user.is_anonymous or user.is_staff or user.is_support:
             return self
@@ -284,6 +293,14 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
             | Q(id__in=direct_resource_ids)
             | Q(id__in=rp_resource_ids)
         ).distinct()
+
+    # What filter_for_service_provider leaves. Change the two together.
+    PROVIDER_VISIBILITY = (
+        "Resources of offerings of organizations where the caller holds any "
+        "role, of offerings of a service provider they hold a role on, and of "
+        "offerings they hold a role on. Staff, support and holders of "
+        f"{PermissionEnum.LIST_RESOURCES.value} site-wide see all."
+    )
 
     def filter_for_service_provider(self, user):
         if user.is_staff or user.is_support:
@@ -475,6 +492,15 @@ def get_connected_offerings_by_permission(
     """
     content_type = ContentType.objects.get_for_model(models.Offering)
     return get_scope_ids(user, content_type, permission=permission)
+
+
+# What filter_orders_for_user leaves. Change the two together.
+ORDERS_VISIBLE_TO_USER = (
+    f"Orders of projects where the caller holds {PermissionEnum.LIST_ORDERS.value} "
+    "on the project or its organization, and orders for offerings where they "
+    "hold it on the offering, on the offering's organization or on its service "
+    "provider. Staff, support and holders of it site-wide see all."
+)
 
 
 def filter_orders_for_user(queryset, user):
