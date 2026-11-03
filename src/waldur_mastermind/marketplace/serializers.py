@@ -65,7 +65,7 @@ from waldur_core.core.models import (
     User,
     get_ssh_key_fingerprints,
 )
-from waldur_core.core.permissions import has_staff_access
+from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions import models as permission_models
@@ -7753,8 +7753,8 @@ class OrderProviderRejectionSerializer(
 
 def validate_public_offering(order: models.Order, request):
     """Validate that the customer is allowed to order a public offering."""
-    # Staff users can override access policy restrictions
-    if request.user.is_staff:
+    # Staff can override access policy restrictions
+    if has_staff_access(request):
         return
 
     # Order is ok if organization groups are not defined for offering
@@ -7779,10 +7779,10 @@ def validate_public_offering(order: models.Order, request):
 
 def validate_private_offering(order: models.Order, request):
     """Validate that the customer is allowed to order a private offering."""
-    # Staff users can override access policy restrictions, unless the resource
+    # Staff can override access policy restrictions, unless the resource
     # would be rejected later for using private service settings of another
     # organization.
-    if request.user.is_staff:
+    if has_staff_access(request):
         scope = order.offering.scope
         if not isinstance(
             scope, structure_models.ServiceSettings
@@ -7809,7 +7809,7 @@ def confirm_order_request_user_has_offering_consent(
     order: models.Order, request
 ) -> None:
     """Check that the user has accepted the offering's Terms of Service for an order request."""
-    if request.user.is_staff or request.user.is_support:
+    if has_support_access(request):
         return
 
     if not order.offering.plugin_options.get(
@@ -8118,7 +8118,6 @@ class OrderCreateSerializer(
 
         # Extract Context
         request = self.context["request"]
-        user: User = request.user
         offering: models.Offering = attrs["offering"]
         project: structure_models.Project = attrs["project"]
         attributes = attrs.get("attributes", {})
@@ -8126,7 +8125,7 @@ class OrderCreateSerializer(
 
         # Execute Validation Blocks
         self._validate_resource_name(attributes)
-        self._validate_terms_of_service(user, offering, accepting_tos)
+        self._validate_terms_of_service(request, offering, accepting_tos)
         self._validate_project_not_terminated(project)
         self._validate_project_policy_constraints(project, offering, attributes)
         self._validate_plan_for_create(attrs, offering)
@@ -8164,7 +8163,7 @@ class OrderCreateSerializer(
                 }
             )
 
-    def _validate_terms_of_service(self, user, offering, accepting_tos):
+    def _validate_terms_of_service(self, request, offering, accepting_tos):
         """
         Checks if ToS are required and if the user has accepted them.
         """
@@ -8175,11 +8174,11 @@ class OrderCreateSerializer(
             return
 
         # Staff and support are exempt
-        if user.is_staff or user.is_support:
+        if has_support_access(request):
             return
 
         # Check if accepted in this request or previously
-        if not accepting_tos and not offering.check_user_consent(user):
+        if not accepting_tos and not offering.check_user_consent(request.user):
             raise ValidationError(
                 _("Terms of service for offering '%s' have not been accepted.")
                 % offering

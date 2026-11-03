@@ -298,14 +298,14 @@ user_can_terminate_resource = permission_factory(
 )
 
 
-def check_offering_restriction(user, project, offering):
+def check_offering_restriction(request, project, offering):
     """Raise unless the user holds one of the roles the offering is restricted
     to, in the given project or its customer. Staff and support outrank the
-    restriction."""
-    if user.is_authenticated and (user.is_staff or user.is_support):
+    restriction; a personal access token only with the staff or support scope."""
+    if has_support_access(request):
         return
     if offering_is_restricted(offering) and not user_holds_restricted_role(
-        user, project, offering
+        request.user, project, offering
     ):
         raise exceptions.PermissionDenied(
             _("This offering is restricted to designated project roles.")
@@ -327,13 +327,12 @@ def check_order_creation_permission(request, view, resource: models.Resource = N
     if resource is None:
         return
 
-    user = request.user
     if has_support_access(request):
         return
 
     project = resource.project
 
-    check_offering_restriction(user, project, resource.offering)
+    check_offering_restriction(request, project, resource.offering)
 
     if not has_project_permission(request, PermissionEnum.CREATE_ORDER, project):
         raise exceptions.PermissionDenied(

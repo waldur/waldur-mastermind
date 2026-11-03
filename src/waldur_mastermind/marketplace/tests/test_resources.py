@@ -2484,19 +2484,7 @@ class ResourceReallocateLimitsRestrictionTest(test.APITestCase):
 
     def reallocate(self, target, user=None):
         self.client.force_authenticate(user or self.user)
-        return self.client.post(
-            factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
-            {
-                "limits": {"vcpu": 2, "ram": 4},
-                "targets": [
-                    {
-                        "resource_uuid": target.uuid.hex,
-                        "allocated_limits": {"vcpu": 2, "ram": 4},
-                    }
-                ],
-            },
-            format="json",
-        )
+        return self.reallocate_as_client(target)
 
     def test_update_limits_on_the_target_is_refused(self):
         self.client.force_authenticate(self.user)
@@ -2619,6 +2607,58 @@ class ResourceReallocateLimitsRestrictionTest(test.APITestCase):
                 )
         # Both answers occur, so the comparison is not vacuous.
         self.assertEqual(outcomes, {True, False})
+
+    @override_config(PAT_ENABLED=True)
+    def test_staff_token_is_restricted_without_the_staff_scope(self):
+        """A staff token acts as the user without staff unless it carries the
+        staff scope (#973): no role on the target, so both paths refuse it."""
+        staff = UserFactory(is_staff=True, can_use_personal_access_tokens=True)
+        self.project.add_user(staff, ProjectRole.ADMIN)
+        self.other_project.add_user(staff, ProjectRole.MANAGER)
+        scopes = [PermissionEnum.CREATE_ORDER, PermissionEnum.UPDATE_RESOURCE_LIMITS]
+        for name, extra, allowed in (
+            ("without the staff scope", [], False),
+            ("with the staff scope", [PermissionEnum.STAFF_ACCESS], True),
+        ):
+            with self.subTest(name):
+                self.reset()
+                self.as_caller(staff, scopes + extra)
+                direct = self.client.post(
+                    factories.ResourceFactory.get_url(self.outside, "update_limits"),
+                    {"limits": {"vcpu": 12, "ram": 24}},
+                    format="json",
+                )
+                self.assertEqual(
+                    direct.status_code,
+                    status.HTTP_200_OK if allowed else status.HTTP_403_FORBIDDEN,
+                    direct.data,
+                )
+                self.reset()
+                self.as_caller(staff, scopes + extra)
+                reallocation = self.reallocate_as_client(self.outside)
+                self.assertEqual(
+                    reallocation.status_code,
+                    status.HTTP_200_OK if allowed else status.HTTP_400_BAD_REQUEST,
+                    reallocation.data,
+                )
+                if not allowed:
+                    self.assertIn("restricted", str(reallocation.data))
+
+    def reallocate_as_client(self, target):
+        """``reallocate`` without re-authenticating the client."""
+        return self.client.post(
+            factories.ResourceFactory.get_url(self.source, "reallocate_limits"),
+            {
+                "limits": {"vcpu": 2, "ram": 4},
+                "targets": [
+                    {
+                        "resource_uuid": target.uuid.hex,
+                        "allocated_limits": {"vcpu": 2, "ram": 4},
+                    }
+                ],
+            },
+            format="json",
+        )
 
 
 class ResourceMoveTest(test.APITestCase):

@@ -8128,7 +8128,6 @@ class OrderViewSet(
     )
     @staticmethod
     def check_create_permissions(request, view, obj=None):
-        user = request.user
         if has_support_access(request):
             return
         serializer = view.get_serializer(data=request.data)
@@ -8136,7 +8135,9 @@ class OrderViewSet(
         project = serializer.validated_data.get("project")
         offering = serializer.validated_data.get("offering")
         if project and offering:
-            marketplace_permissions.check_offering_restriction(user, project, offering)
+            marketplace_permissions.check_offering_restriction(
+                request, project, offering
+            )
         if project and marketplace_permissions.has_project_permission(
             request, PermissionEnum.CREATE_ORDER, project
         ):
