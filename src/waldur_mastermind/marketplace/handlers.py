@@ -4,6 +4,7 @@ from functools import partial
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import F, ProtectedError, Q, QuerySet, signals
@@ -33,7 +34,11 @@ from waldur_core.users.scim import tasks as scim_tasks
 from waldur_core.users.tasks import process_invitation
 from waldur_freeipa.models import Profile
 from waldur_mastermind.common.utils import price_has_changed
-from waldur_mastermind.marketplace import model_lists, resource_api_keys
+from waldur_mastermind.marketplace import (
+    billing_discount,
+    model_lists,
+    resource_api_keys,
+)
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
@@ -3109,24 +3114,80 @@ def process_billing_on_resource_save(
         return
 
     tracker = resource.tracker
+    billed = False
 
     if (
         resource.state == ResourceStates.OK
         and tracker.previous("state") == ResourceStates.CREATING
     ):
         MarketplaceBillingService.handle_resource_creation(resource)
+        billed = True
 
     if (
         resource.state == ResourceStates.TERMINATED
         and tracker.previous("state") == ResourceStates.TERMINATING
     ):
         MarketplaceBillingService.handle_resource_termination(resource)
+        billed = True
 
     if resource.state != ResourceStates.CREATING and tracker.has_changed("plan_id"):
         MarketplaceBillingService.handle_plan_change(resource)
+        billed = True
 
     if resource.state != ResourceStates.CREATING and tracker.has_changed("limits"):
         MarketplaceBillingService.handle_limits_change(resource)
+        billed = True
+
+    if billed:
+        queue_volume_discount_refresh(resource.project.customer_id)
+
+
+def queue_volume_discount_refresh(customer_id):
+    """Have the estimated volume discounts of the customer's open invoices
+    rebuilt shortly.
+
+    A new resource, a termination, a plan switch or a limit change moves the
+    volume the formula sees for every resource in the group, so every line of
+    it is off until rebuilt; after a lower limit a line even keeps its earlier
+    amount and can exceed the item it discounts. Usage reports do not queue
+    one: usage only grows the item, so its discount lags behind, never ahead,
+    until the daily pass. Debounced per customer, and skipped on a deployment
+    with no discount formula at all.
+    """
+    if not models.PlanComponent.objects.filter(discount_formula__gt="").exists():
+        return
+
+    def queue():
+        # Claimed only once the change has committed: claimed earlier, a
+        # rolled-back change would hold the key and drop the refresh of the
+        # next real one for the whole window.
+        key = billing_discount.refresh_debounce_key(customer_id)
+        claimed = False
+        try:
+            claimed = cache.add(
+                key, True, billing_discount.REFRESH_DEBOUNCE_SECONDS * 2
+            )
+            if claimed:
+                tasks.refresh_volume_discounts.apply_async(
+                    args=(customer_id,),
+                    countdown=billing_discount.REFRESH_DEBOUNCE_SECONDS,
+                )
+        except Exception:
+            # Runs after the commit: an error here would skip the callbacks
+            # registered after this one and fail a request whose change is
+            # saved. The daily pass catches up; release the key so that the
+            # next change queues again.
+            logger.exception(
+                "Unable to queue a volume discount refresh for customer %s.",
+                customer_id,
+            )
+            if claimed:
+                try:
+                    cache.delete(key)
+                except Exception:
+                    logger.exception("Unable to release %s.", key)
+
+    transaction.on_commit(queue)
 
 
 def update_resource_scope_availability_on_offering_state_change(

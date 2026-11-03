@@ -162,6 +162,7 @@ from waldur_core.users.utils import get_invitation_duplicates
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
+from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import (
     billing_mode,
     callbacks,
@@ -4048,6 +4049,11 @@ class ProviderOfferingViewSet(
                 invoice_items.filter(
                     details__offering_component_type__in=offering_components_map.keys()
                 )
+                # Discount and compensation lines copy the component type of
+                # the item they lower, each with quantity 1: summed here they
+                # would read as one unit of usage apiece.
+                .exclude(details__has_key="is_discount")
+                .exclude(invoice_utils.credit_compensation_q())
                 .values(
                     "details__offering_component_type",
                     "invoice__year",

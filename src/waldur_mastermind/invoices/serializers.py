@@ -353,6 +353,7 @@ class InvoiceSerializer(
     due_date = serializers.DateField()
     compensations = serializers.SerializerMethodField()
     incurred_costs = serializers.SerializerMethodField()
+    volume_discounts = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Invoice
@@ -378,6 +379,7 @@ class InvoiceSerializer(
             "reference_number",
             "compensations",
             "incurred_costs",
+            "volume_discounts",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -410,6 +412,17 @@ class InvoiceSerializer(
             incurred=Sum(F("quantity") * F("unit_price"), default=0)
         ).get("incurred", 0)
         return Decimal(incurred_costs)
+
+    @extend_schema_field(Decimal)
+    def get_volume_discounts(self, invoice: models.Invoice):
+        """What the volume discount lines take off, as a negative amount like
+        `compensations`. Already part of `price` and `incurred_costs`; on an
+        open invoice the lines are estimates."""
+        items = invoice.items.filter(details__is_discount=True)
+        discounts = items.aggregate(
+            discounts=Sum(F("quantity") * F("unit_price"), default=0)
+        ).get("discounts", 0)
+        return Decimal(discounts)
 
 
 class InvoiceItemCostsForPeriodSerializer(serializers.Serializer):
@@ -1638,6 +1651,15 @@ class AffiliateEarningsSerializer(serializers.Serializer):
     total_earned = serializers.DecimalField(max_digits=16, decimal_places=5)
     withdrawable_balance = serializers.DecimalField(max_digits=16, decimal_places=5)
     per_month = AffiliateEarningsMonthSerializer(many=True)
+    upcoming = AffiliateEarningsMonthSerializer(
+        allow_null=True,
+        help_text=_(
+            "Fee the current month is expected to earn from the referred "
+            "customer's open invoice, after its estimated volume discounts and "
+            "credit compensation. Null when the month will earn nothing on "
+            "this link. Not yet accrued: the amount changes until month close."
+        ),
+    )
 
 
 class WithdrawableAdjustmentSerializer(serializers.Serializer):

@@ -16,6 +16,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Count, Exists, F, OuterRef, Q, Subquery, Sum
 from django.utils import timezone
@@ -47,6 +48,7 @@ from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import (
     api_key_spending_limits,
+    billing_discount,
     exceptions,
     models,
     offering_merge,
@@ -2068,6 +2070,17 @@ def copy_future_price_to_current_price():
     ).exclude(future_price__isnull=True):
         component.price = component.future_price
         component.save(update_fields=["price"])
+
+
+@shared_task(name="waldur_mastermind.marketplace.refresh_volume_discounts")
+def refresh_volume_discounts(customer_id):
+    """Rebuild the estimated volume discounts of a customer's open invoices
+    after a billing change; see `handlers.queue_volume_discount_refresh`."""
+    # Released first, so a change made while this runs queues the next pass.
+    cache.delete(billing_discount.refresh_debounce_key(customer_id))
+    billing_discount.refresh_open_invoices(
+        invoices_models.Invoice.objects.filter(customer_id=customer_id)
+    )
 
 
 @shared_task(name="waldur_mastermind.marketplace.process_pending_start_date_orders")

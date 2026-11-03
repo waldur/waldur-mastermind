@@ -293,7 +293,7 @@ class BillingUsageProcessor:
                 item.details["plan_period_uuid"] = plan_period.uuid.hex
                 update_fields.append("details")
             # Keep the aggregation volume in sync with re-reported usage; the
-            # org-aggregated discount is materialized at invoice finalization.
+            # discount lines follow on the next pass of billing_discount.
             if plan_component is not None and not is_overage:
                 item.details[billing_discount.DISCOUNT_USAGE_KEY] = float(
                     converted_usage

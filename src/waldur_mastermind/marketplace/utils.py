@@ -87,6 +87,7 @@ from waldur_mastermind.invoices.structures import InvoiceResourceLimitPeriodDict
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import (
     attribute_types,
+    billing_discount,
     billing_mode,
     derived_limits,
     spending_limits,
@@ -1375,6 +1376,7 @@ def move_resource(resource: models.Resource, project):
         )
     )
 
+    touched_invoice_ids = set()
     for invoice_item in invoice_models.InvoiceItem.objects.filter(
         resource=resource,
         invoice__state__in=invoice_models.Invoice.States.MUTABLE_STATES,
@@ -1405,6 +1407,14 @@ def move_resource(resource: models.Resource, project):
 
         start_invoice.update_cache()
         target_invoice.update_cache()
+        touched_invoice_ids.update((start_invoice.pk, target_invoice.pk))
+
+    # The resource's estimated discount lines moved with it, still at the old
+    # customer's rate, and the lines it leaves behind were computed with its
+    # volume included: both customers' open invoices are off until rebuilt.
+    billing_discount.refresh_open_invoices(
+        invoice_models.Invoice.objects.filter(pk__in=touched_invoice_ids)
+    )
 
 
 def get_invoice_item_for_component_usage(component_usage: models.ComponentUsage):
