@@ -157,6 +157,55 @@ class ThreadSessionViewSetTest(test.APITestCase):
         thread.refresh_from_db()
         self.assertTrue(thread.is_archived)
 
+    def test_support_reads_but_does_not_archive_another_users_thread(self):
+        """Support only reads: archive reaches its own threads alone."""
+        support = structure_factories.UserFactory(is_support=True)
+        thread = ThreadSession.objects.create(
+            chat_session=self.other_session, is_archived=False
+        )
+        self.client.force_authenticate(user=support)
+
+        detail = self.client.get(
+            reverse("chat-thread-detail", kwargs={"uuid": thread.uuid})
+        )
+        archive = self.client.post(
+            reverse("chat-thread-archive", kwargs={"uuid": thread.uuid})
+        )
+
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(archive.status_code, status.HTTP_404_NOT_FOUND)
+        thread.refresh_from_db()
+        self.assertFalse(thread.is_archived)
+
+    def test_staff_archives_another_users_thread(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        thread = ThreadSession.objects.create(
+            chat_session=self.other_session, is_archived=False
+        )
+        self.client.force_authenticate(user=staff)
+
+        response = self.client.post(
+            reverse("chat-thread-archive", kwargs={"uuid": thread.uuid})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        thread.refresh_from_db()
+        self.assertTrue(thread.is_archived)
+
+    @override_constance_config(AI_ASSISTANT_ENABLED_ROLES="staff")
+    def test_enabled_roles_refuse_a_user_they_do_not_admit(self):
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("staff users only", str(response.data["detail"]))
+
+    def test_anonymous_request_is_refused_as_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_unarchive_thread(self):
         """unarchive action sets is_archived to False."""
         thread = ThreadSession.objects.create(

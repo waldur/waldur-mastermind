@@ -18,6 +18,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import exceptions, generics, permissions, status, viewsets
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import SubquerySum, get_ordering
 from waldur_core.quotas.models import QuotaUsage
@@ -66,6 +67,16 @@ CUSTOMER_UUID_PARAMETER = OpenApiParameter(
 
 class DailyQuotaHistoryViewSet(generics.GenericAPIView):
     filter_backends = []
+    # The serializer resolves the scope URL among the rows the caller's roles
+    # reach (``GenericRelatedField`` and ``filter_queryset_for_user``).
+    access_declarations = {
+        "get": [
+            access.custom(
+                "The scope must be a project or organization that the caller's "
+                "roles reach; staff and support may name any."
+            )
+        ]
+    }
     pagination_class = None
     serializer_class = EmptySerializer
 
@@ -73,9 +84,10 @@ class DailyQuotaHistoryViewSet(generics.GenericAPIView):
         parameters=[
             OpenApiParameter(
                 name="scope",
-                description="UUID of the scope object",
-                type=OpenApiTypes.UUID,
+                description="URL of the project or organization",
+                type=OpenApiTypes.URI,
                 location=OpenApiParameter.QUERY,
+                required=True,
             ),
             OpenApiParameter(
                 name="quota_names",
@@ -148,6 +160,10 @@ class BaseQuotasViewSet(viewsets.GenericViewSet):
     model = None
     customer_lookup = None
 
+    @access.shows(
+        "Projects or organizations, as the route names, that the caller's "
+        "roles reach; staff and support see all."
+    )
     def get_queryset(self) -> QuerySet:
         qs = self.model
         if hasattr(qs, "available_objects"):

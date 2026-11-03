@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.routers import DefaultRouter
 
+from waldur_core.core import access
+
 
 class SortedDefaultRouter(DefaultRouter):
     def get_api_root_view(self, api_urls=None):
@@ -21,6 +23,8 @@ class SortedDefaultRouter(DefaultRouter):
         class APIRootView(views.APIView):
             _ignore_model_permissions = True
             schema = None
+            # The names and URLs of the routes, not what they hold.
+            access_declarations = {"get": [access.authenticated()]}
 
             def get(self, request, *args, **kwargs):
                 # Return a plain {"name": "hyperlink"} response.

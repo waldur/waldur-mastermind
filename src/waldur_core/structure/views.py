@@ -2760,6 +2760,19 @@ class BaseServicePropertyViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.BaseServicePropertyFilter
 
 
+class GeneralServicePropertyViewSet(BaseServicePropertyViewSet):
+    """A provider's public catalog, such as its regions, images and sizes.
+
+    No service settings own these rows (``GeneralServiceProperty``), so there
+    is nothing to narrow them by: every signed-in user may read all of them.
+    """
+
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
+
+
 def check_resource_backend_id(resource):
     if not resource.backend_id:
         raise ValidationError(_("Resource does not have backend ID."))

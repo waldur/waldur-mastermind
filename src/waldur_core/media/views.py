@@ -45,6 +45,7 @@ def _serve_inline(file: models.File) -> bool:
 class MediaView(GenericAPIView):
     permission_classes = ()
     filter_backends = ()
+    access_declarations = {"get": [access.SERVES_FILE_TO]}
 
     @extend_schema(
         description="Get media file",

@@ -21,6 +21,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model, Q
 from django.utils.module_loading import autodiscover_modules
 
+from waldur_core.core import access as core_access
 from waldur_core.core.models import User
 
 from . import models
@@ -135,6 +136,14 @@ def has_rule(name: str) -> bool:
     ``name`` may be a full storage path or a bare prefix.
     """
     return _match_prefix(name) is not None
+
+
+# Who ``MediaView`` serves a file to, as ``user_can_access_file`` decides it.
+SERVES_FILE_TO = core_access.custom(
+    "Whoever the access rule registered for the file's upload path admits, "
+    "signed in or not; a file with no rule is served to no one. A refused "
+    "request is answered as if the file did not exist."
+)
 
 
 def user_can_access_file(file: models.File, user: User, request=None) -> bool:

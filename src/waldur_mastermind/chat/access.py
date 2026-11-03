@@ -5,8 +5,11 @@ the assistant's model on a user's behalf (the Matrix bot's ``!ticket``).
 """
 
 from django.utils.translation import gettext_lazy as _
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import BasePermission
 
 from waldur_core.configuration import config
+from waldur_core.core import access as core_access
 
 
 def role_refusal(user):
@@ -26,3 +29,26 @@ def role_refusal(user):
     if enabled_roles not in ("all", "anonymous"):
         return _("AI Assistant access is not configured correctly.")
     return None
+
+
+class AssistantRoleEnabled(BasePermission):
+    """Let through only the users AI_ASSISTANT_ENABLED_ROLES admits.
+
+    The assistant's views list it after ``IsAuthenticated``, so it sees a
+    signed-in user; it answers with ``role_refusal``'s reason.
+    """
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [
+            core_access.custom(
+                "AI_ASSISTANT_ENABLED_ROLES admits the caller: every user, staff "
+                "and support only, staff only, or no one, as configured."
+            )
+        ]
+
+    def has_permission(self, request, view):
+        refusal = role_refusal(request.user)
+        if refusal:
+            raise PermissionDenied(refusal)
+        return True

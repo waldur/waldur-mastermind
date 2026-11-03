@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
-from rest_framework import decorators, response, status, viewsets
+from rest_framework import decorators, response, status
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import validators as core_validators
@@ -12,21 +12,21 @@ from waldur_core.structure import views as structure_views
 from . import executors, filters, models, serializers
 
 
-class RegionViewSet(structure_views.BaseServicePropertyViewSet):
+class RegionViewSet(structure_views.GeneralServicePropertyViewSet):
     queryset = models.Region.objects.all()
     serializer_class = serializers.AwsRegionSerializer
     filterset_class = filters.RegionFilter
     lookup_field = "uuid"
 
 
-class ImageViewSet(structure_views.BaseServicePropertyViewSet):
+class ImageViewSet(structure_views.GeneralServicePropertyViewSet):
     queryset = models.Image.objects.all()
     serializer_class = serializers.AwsImageSerializer
     filterset_class = filters.ImageFilter
     lookup_field = "uuid"
 
 
-class SizeViewSet(viewsets.ReadOnlyModelViewSet):
+class SizeViewSet(structure_views.GeneralServicePropertyViewSet):
     queryset = models.Size.objects.all()
     serializer_class = serializers.AwsSizeSerializer
     filterset_class = filters.SizeFilter

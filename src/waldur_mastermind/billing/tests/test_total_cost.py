@@ -40,3 +40,18 @@ class TotalCostTest(test.APITestCase):
         response = self.client.get("/api/billing-total-cost/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(value, response.data["total"])
+
+    def test_support_may_read_total_cost(self):
+        self.client.force_authenticate(self.fixture1.global_support)
+        response = self.client.get("/api/billing-total-cost/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(200, response.data["total"])
+
+    def test_owner_may_not_read_total_cost(self):
+        self.client.force_authenticate(self.fixture1.owner)
+        response = self.client.get("/api/billing-total-cost/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonymous_may_not_read_total_cost(self):
+        response = self.client.get("/api/billing-total-cost/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
