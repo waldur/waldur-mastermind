@@ -13,7 +13,7 @@ from model_utils import FieldTracker
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.mixins import ReviewMixin
-from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_connected_customers, get_project_users
@@ -954,6 +954,13 @@ class UserInfo(models.Model):
     to create the local username
     """
 
+    class Permissions:
+        # The shortname is the user's local account name: shown to whom the
+        # user is shown.
+        @staticmethod
+        def build_query(user):
+            return Q(user__in=core_models.User.get_permitted_objects(user))
+
     user = models.OneToOneField(
         to=settings.AUTH_USER_MODEL,
         related_name="op-userinfo-user+",
@@ -1128,6 +1135,12 @@ class ProjectInfo(models.Model):
     only instances that start with "brics.aip1." can be attached to
     this project.
     """
+
+    class Permissions:
+        # As the project itself is scoped, list permission included.
+        customer_path = "project__customer"
+        project_path = "project"
+        list_permission = PermissionEnum.LIST_PROJECTS
 
     project = models.OneToOneField(
         to=structure_models.Project,
