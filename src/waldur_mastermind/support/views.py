@@ -27,6 +27,7 @@ from rest_framework.exceptions import ValidationError
 
 from waldur_core.configuration import config
 from waldur_core.configuration.models import Setting, Source
+from waldur_core.core import access
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
@@ -380,15 +381,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    def _escalate_permission(request, view, obj=None):
-        user = request.user
-        if has_support_access(request):
-            return
-        if obj and obj.caller == user:
-            return
-        raise rf_exceptions.PermissionDenied()
-
-    escalate_permissions = [_escalate_permission]
+    escalate_permissions = [structure_permissions.is_staff_or_support]
     escalate_serializer_class = serializers.EscalateIssueSerializer
 
     @extend_schema(
@@ -1294,15 +1287,23 @@ class SavedFilterViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         structure_permissions.is_staff_or_support
     ]
 
+    @access.describes(
+        access.any_of(access.staff(), access.owned("The filter's owner.")),
+        needs_object=True,
+    )
     def _is_owner_or_staff(request, view, obj=None):
-        if has_staff_access(request):
+        # ActionsPermission calls this first without the filter; the owner can
+        # only be told once the object is there.
+        if obj is None or has_staff_access(request):
             return
-        if obj and obj.user == request.user:
-            return
-        raise rf_exceptions.PermissionDenied()
+        if obj.user_id != request.user.id:
+            raise rf_exceptions.PermissionDenied()
 
+    # Saved filters are a staff and support tool: an owner who has since lost
+    # that role may no longer change theirs, as they may no longer read it.
     update_permissions = partial_update_permissions = destroy_permissions = [
-        _is_owner_or_staff
+        structure_permissions.is_staff_or_support,
+        _is_owner_or_staff,
     ]
 
 
