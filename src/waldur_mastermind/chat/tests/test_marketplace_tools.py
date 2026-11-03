@@ -511,6 +511,26 @@ class SerializeOfferingDetailedTest(TestCase):
         self.assertIsNone(result["access_url"])
         self.assertIsNone(result["getting_started"])
 
+    def test_includes_public_link_fields(self):
+        offering = mp_factories.OfferingFactory(
+            documentation_url="https://docs.example.org/slurm/",
+            helpdesk_url="https://support.example.org/",
+            privacy_policy_link="https://example.org/privacy/",
+        )
+        result = serialize_offering_detailed(offering)
+        self.assertEqual(result["documentation_url"], "https://docs.example.org/slurm/")
+        self.assertEqual(result["helpdesk_url"], "https://support.example.org/")
+        self.assertEqual(result["privacy_policy_link"], "https://example.org/privacy/")
+
+    def test_public_link_fields_none_when_blank(self):
+        # None (not "") when unset, same convention as access_url: the LLM
+        # says "not published" instead of narrating an empty string.
+        offering = mp_factories.OfferingFactory()
+        result = serialize_offering_detailed(offering)
+        self.assertIsNone(result["documentation_url"])
+        self.assertIsNone(result["helpdesk_url"])
+        self.assertIsNone(result["privacy_policy_link"])
+
     def test_getting_started_html_stripped(self):
         offering = mp_factories.OfferingFactory(
             getting_started="<p>Step <strong>one</strong>:  register.</p>"

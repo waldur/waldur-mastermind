@@ -203,6 +203,9 @@ OFFERING_DETAILED_SCHEMA = obj(
         "full_description": STRING,
         "access_url": nullable(STRING),
         "getting_started": nullable(STRING),
+        "documentation_url": nullable(STRING),
+        "helpdesk_url": nullable(STRING),
+        "privacy_policy_link": nullable(STRING),
         # Provider-defined offering attributes, open-ended by design.
         "attributes": {"type": "object"},
         "tags": array(STRING),
@@ -281,6 +284,12 @@ def serialize_offering_detailed(offering) -> dict:
                 _GETTING_STARTED_CHARS,
             )
             or None,
+            # Provider-published links, same None-when-unset convention as
+            # access_url so the LLM says "not published" instead of
+            # narrating an empty string.
+            "documentation_url": offering.documentation_url or None,
+            "helpdesk_url": offering.helpdesk_url or None,
+            "privacy_policy_link": offering.privacy_policy_link or None,
             "attributes": offering.attributes or {},
             "tags": [t.name for t in offering.tags.all()],
             "plans": [
