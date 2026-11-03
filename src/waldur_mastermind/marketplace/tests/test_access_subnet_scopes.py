@@ -18,6 +18,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -352,6 +353,99 @@ class AccessSubnetConcealmentTest(test.APITestCase):
             self.resource.uuid.hex,
             self._consumer_list_uuids(self.consumer, "8.8.8.8"),
         )
+
+
+@ddt
+class ConcealedResourceStatsTest(test.APITestCase):
+    """The organization and project stats and the organization's providers
+    leave out a resource that the consumer resource list conceals."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        offering = self.fixture.offering
+        offering.plugin_options = {"conceal_subnet_restricted_resources": True}
+        offering.save()
+        self.fixture.service_provider  # noqa: B018 - the offering's organization provides
+        factories.OfferingComponentFactory(
+            offering=offering, type="cores", billing_type=BillingTypes.LIMIT
+        )
+        self.resource = self.fixture.resource
+        self.resource.limits = {"cores": 5}
+        self.resource.save()
+        _create_subnet(
+            self.fixture, inet=f"{ALLOWED_IP}/32", offerings=[self.fixture.offering]
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
+
+    def get(self, user, url, ip):
+        self.client.force_authenticate(user)
+        response = self.client.get(url, HTTP_X_FORWARDED_FOR=ip)
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data
+
+    def provider_uuids(self, user, ip):
+        url = structure_factories.CustomerFactory.get_url(
+            self.fixture.customer, action="providers"
+        )
+        return {item["uuid"] for item in self.get(user, url, ip)}
+
+    def cores_limits(self, user, url, ip):
+        return [
+            component["limit"]
+            for component in self.get(user, url, ip)["components"]
+            if component["type"] == "cores"
+        ]
+
+    def customer_cores(self, user, ip):
+        url = structure_factories.CustomerFactory.get_url(
+            self.fixture.customer, action="stats"
+        )
+        return self.cores_limits(user, url, ip)
+
+    def project_cores(self, user, ip):
+        url = structure_factories.ProjectFactory.get_url(
+            self.fixture.project, action="stats"
+        )
+        return self.cores_limits(user, url, ip)
+
+    def test_providers_leave_out_concealed_resource(self):
+        provider = self.fixture.service_provider.uuid.hex
+        self.assertNotIn(provider, self.provider_uuids(self.fixture.owner, DENIED_IP))
+        self.assertIn(provider, self.provider_uuids(self.fixture.owner, ALLOWED_IP))
+
+    def test_customer_stats_leave_out_concealed_resource(self):
+        self.assertEqual(self.customer_cores(self.fixture.owner, DENIED_IP), [])
+        self.assertEqual(self.customer_cores(self.fixture.owner, ALLOWED_IP), [5])
+
+    def test_project_stats_leave_out_concealed_resource(self):
+        self.assertEqual(self.project_cores(self.fixture.owner, DENIED_IP), [])
+        self.assertEqual(self.project_cores(self.fixture.owner, ALLOWED_IP), [5])
+
+    @data("staff", "global_support")
+    def test_staff_and_support_count_it_from_anywhere(self, user):
+        user = getattr(self.fixture, user)
+        provider = self.fixture.service_provider.uuid.hex
+        self.assertIn(provider, self.provider_uuids(user, DENIED_IP))
+        self.assertEqual(self.customer_cores(user, DENIED_IP), [5])
+        self.assertEqual(self.project_cores(user, DENIED_IP), [5])
+        self.assertEqual(self.affiliation_stats(user, DENIED_IP), (1, 7))
+
+    def affiliation_stats(self, user, ip):
+        affiliation = structure_factories.AffiliatedOrganizationFactory()
+        self.fixture.customer.default_affiliations.add(affiliation)
+        self.fixture.project.affiliation = affiliation
+        self.fixture.project.save(update_fields=["affiliation"])
+        # Directly, as saving a resource recomputes its cost.
+        models.Resource.objects.filter(pk=self.resource.pk).update(cost=7)
+        url = structure_factories.AffiliatedOrganizationFactory.get_url(
+            affiliation, action="stats"
+        )
+        data = self.get(user, url, ip)
+        return data["resources_count"], float(data["estimated_monthly_cost"])
+
+    def test_affiliation_stats_leave_out_concealed_resource(self):
+        self.assertEqual(self.affiliation_stats(self.fixture.owner, DENIED_IP), (0, 0))
+        self.assertEqual(self.affiliation_stats(self.fixture.owner, ALLOWED_IP), (1, 7))
 
 
 class ConsumerCustomerOfferingFilterTest(test.APITestCase):

@@ -119,6 +119,7 @@ from waldur_core.users.utils import get_manageable_permission_requests
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import OrderTypes, ResourceStates
+from waldur_mastermind.marketplace.filters import filter_resources_for_consumer
 
 logger = logging.getLogger(__name__)
 
@@ -403,7 +404,7 @@ class CustomerViewSet(
         resources = marketplace_models.Resource.objects.filter(
             project__customer=customer
         )
-        resources = filter_queryset_for_user(resources, request.user)
+        resources = filter_resources_for_consumer(resources, request, self)
 
         for_current_month = (
             request.query_params.get("for_current_month", "").lower()
@@ -435,7 +436,7 @@ class CustomerViewSet(
         resources = marketplace_models.Resource.objects.filter(
             project__customer=customer
         ).exclude(state=ResourceStates.TERMINATED)
-        resources = filter_queryset_for_user(resources, request.user)
+        resources = filter_resources_for_consumer(resources, request, self)
 
         provider_customer_ids = resources.values_list(
             "offering__customer_id", flat=True
@@ -1269,7 +1270,7 @@ class ProjectViewSet(
         project = self.get_object()
 
         resources = marketplace_models.Resource.objects.filter(project=project)
-        resources = filter_queryset_for_user(resources, request.user)
+        resources = filter_resources_for_consumer(resources, request, self)
 
         for_current_month = (
             request.query_params.get("for_current_month", "").lower()
@@ -2971,21 +2972,15 @@ class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
             projects = filter_queryset_for_user(projects, user)
 
         active_projects_count = projects.count()
-        resources_count = (
-            marketplace_models.Resource.objects.filter(
-                project__in=projects,
-            )
-            .exclude(state=ResourceStates.TERMINATED)
-            .count()
+        resources = filter_resources_for_consumer(
+            marketplace_models.Resource.objects.filter(project__in=projects).exclude(
+                state=ResourceStates.TERMINATED
+            ),
+            request,
+            self,
         )
-        estimated_monthly_cost = (
-            marketplace_models.Resource.objects.filter(
-                project__in=projects,
-            )
-            .exclude(state=ResourceStates.TERMINATED)
-            .aggregate(total=Sum("cost"))["total"]
-            or 0
-        )
+        resources_count = resources.count()
+        estimated_monthly_cost = resources.aggregate(total=Sum("cost"))["total"] or 0
 
         data = {
             "active_projects_count": active_projects_count,

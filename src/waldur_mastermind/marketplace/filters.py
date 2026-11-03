@@ -776,6 +776,31 @@ def filter_orders_by_resource_visibility(orders, request):
     )
 
 
+def filter_resources_by_consumer_access(queryset, request):
+    """The resources of ``queryset`` the caller's consumer roles reach, within
+    the organization's network restriction.
+
+    ConsumerResourceViewSet.get_queryset starts from this; its filter backends
+    then conceal subnet-restricted resources.
+    """
+    return filter_queryset_by_user_ip(
+        queryset.filter_for_service_consumer(request.user), request
+    )
+
+
+def filter_resources_for_consumer(queryset, request, view=None):
+    """The resources of ``queryset`` that the consumer resource list shows.
+
+    What ConsumerResourceViewSet shows: filter_resources_by_consumer_access,
+    which its get_queryset applies, and the subnet concealment of
+    ResourceAccessSubnetConcealmentFilterBackend, among its filter backends.
+    For views that count or summarize resources rather than list them.
+    """
+    return ResourceAccessSubnetConcealmentFilterBackend().filter_queryset(
+        request, filter_resources_by_consumer_access(queryset, request), view
+    )
+
+
 class OfferingImportableFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset: QuerySet[models.Offering], view):
         if "importable" in request.query_params:

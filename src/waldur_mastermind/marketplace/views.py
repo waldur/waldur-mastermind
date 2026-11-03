@@ -9950,8 +9950,9 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     ]
 
     def get_queryset(self):
-        queryset = self.queryset.filter_for_service_consumer(self.request.user)
-        queryset = filter_queryset_by_user_ip(queryset, self.request)
+        queryset = filters.filter_resources_by_consumer_access(
+            self.queryset, self.request
+        )
         return serializers.ResourceSerializer.eager_load(queryset)
 
     @extend_schema(
