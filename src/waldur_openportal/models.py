@@ -608,6 +608,11 @@ class RemoteAllocation(
 
 
 class Association(core_models.UuidMixin):
+    class Permissions:
+        # Scoped through the allocation, as the allocation itself is (#1005).
+        customer_path = "allocation__project__customer"
+        project_path = "allocation__project"
+
     # This is the allocation to which the user is associated.
     allocation = models.ForeignKey(
         to=Allocation,
@@ -739,6 +744,11 @@ class Association(core_models.UuidMixin):
 
 
 class RemoteAssociation(core_models.UuidMixin):
+    class Permissions:
+        # Scoped through the allocation, as the allocation itself is (#1005).
+        customer_path = "allocation__project__customer"
+        project_path = "allocation__project"
+
     # This is the allocation to which the user is associated.
     allocation = models.ForeignKey(
         to=RemoteAllocation,
@@ -766,6 +776,11 @@ class AllocationUserUsage(UsageMixin):
     """
     Allocation usage per user. This model is responsible for the allocation usage definition for particular user.
     """
+
+    class Permissions:
+        # Scoped through the allocation, as the allocation itself is (#1005).
+        customer_path = "allocation__project__customer"
+        project_path = "allocation__project"
 
     allocation = models.ForeignKey(
         to=Allocation,
