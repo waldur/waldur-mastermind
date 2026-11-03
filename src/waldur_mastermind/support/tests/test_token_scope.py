@@ -86,6 +86,80 @@ class ProviderTicketTokenScopeTest(ProviderHelpdeskBaseTest):
 
 
 @override_config(PAT_ENABLED=True)
+class ProviderHelpdeskListTokenScopeTest(ProviderHelpdeskBaseTest):
+    """Every provider's helpdesk is listed to staff and support; anyone else,
+    a staff or support token without its scope included, sees the helpdesks of
+    the providers whose organization they own (#977)."""
+
+    def setUp(self):
+        super().setUp()
+        self.other_helpdesk = factories.ProviderHelpdeskFactory()
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.support = structure_factories.UserFactory(is_support=True)
+
+    def listed(self):
+        response = self.client.get(factories.ProviderHelpdeskFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {item["uuid"] for item in response.data}
+
+    def retrieve_other(self):
+        return self.client.get(
+            factories.ProviderHelpdeskFactory.get_url(self.other_helpdesk)
+        )
+
+    def all_helpdesks(self):
+        return {self.helpdesk.uuid.hex, self.other_helpdesk.uuid.hex}
+
+    def assert_lists_all(self):
+        self.assertEqual(self.listed(), self.all_helpdesks())
+        self.assertEqual(self.retrieve_other().status_code, status.HTTP_200_OK)
+
+    def assert_lists_only_owned(self, owned):
+        self.assertEqual(self.listed(), owned)
+        self.assertEqual(self.retrieve_other().status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_staff_session_lists_all(self):
+        self.client.force_authenticate(self.staff)
+        self.assert_lists_all()
+
+    def test_support_session_lists_all(self):
+        self.client.force_authenticate(self.support)
+        self.assert_lists_all()
+
+    def test_staff_token_with_staff_scope_lists_all(self):
+        use_pat(self.client, self.staff, STAFF)
+        self.assert_lists_all()
+
+    def test_support_token_with_support_scope_lists_all(self):
+        use_pat(self.client, self.support, SUPPORT)
+        self.assert_lists_all()
+
+    def test_staff_token_without_staff_scope_lists_none(self):
+        use_pat(self.client, self.staff)
+        self.assert_lists_only_owned(set())
+
+    def test_support_token_without_support_scope_lists_none(self):
+        use_pat(self.client, self.support)
+        self.assert_lists_only_owned(set())
+
+    def test_staff_owner_token_without_staff_scope_lists_own_helpdesk(self):
+        self.customer.add_user(self.staff, CustomerRole.OWNER)
+        use_pat(self.client, self.staff)
+        self.assert_lists_only_owned({self.helpdesk.uuid.hex})
+
+    def test_support_owner_token_without_support_scope_lists_own_helpdesk(self):
+        self.customer.add_user(self.support, CustomerRole.OWNER)
+        use_pat(self.client, self.support)
+        self.assert_lists_only_owned({self.helpdesk.uuid.hex})
+
+    def test_owner_session_and_token_list_own_helpdesk(self):
+        self.client.force_authenticate(self.owner)
+        self.assert_lists_only_owned({self.helpdesk.uuid.hex})
+        use_pat(self.client, self.owner)
+        self.assert_lists_only_owned({self.helpdesk.uuid.hex})
+
+
+@override_config(PAT_ENABLED=True)
 class CommentChangeTokenScopeTest(base.BaseTest):
     """Staff may change any comment, including whether it is public."""
 

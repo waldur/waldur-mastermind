@@ -479,7 +479,7 @@ class IdentityProvidersViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if not self.request.user.is_staff:
+        if not has_staff_access(self.request):
             return qs.filter(is_active=True)
         return qs
 
