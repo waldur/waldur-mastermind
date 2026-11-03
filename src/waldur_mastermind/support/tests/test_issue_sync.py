@@ -73,6 +73,39 @@ class IssueSyncAPITest(test.APITestCase):
         self.assertEqual(str(ctx.exception), "Sync failed")
 
 
+@ddt
+class SyncAllIssuesAPITest(test.APITestCase):
+    """Who may start the synchronization of every issue (/api/sync-issues/)."""
+
+    url = "/api/sync-issues/"
+
+    @data(
+        ("staff", status.HTTP_202_ACCEPTED),
+        ("support", status.HTTP_202_ACCEPTED),
+        ("user", status.HTTP_403_FORBIDDEN),
+    )
+    @mock.patch("waldur_mastermind.support.views.tasks")
+    def test_only_staff_and_support_may_sync(self, case, tasks):
+        role, expected = case
+        user = structure_factories.UserFactory(
+            is_staff=role == "staff", is_support=role == "support"
+        )
+        self.client.force_authenticate(user)
+
+        for method in (self.client.get, self.client.post):
+            self.assertEqual(method(self.url).status_code, expected)
+
+        self.assertEqual(
+            tasks.sync_issues.delay.call_count,
+            2 if expected == status.HTTP_202_ACCEPTED else 0,
+        )
+
+    def test_anonymous_user_cannot_sync(self):
+        self.assertEqual(
+            self.client.post(self.url).status_code, status.HTTP_401_UNAUTHORIZED
+        )
+
+
 class SyncSingleIssueTest(test.APITestCase):
     """Tests for the sync_single_issue method."""
 

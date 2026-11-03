@@ -10,7 +10,7 @@ from waldur_core.core import access
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.permissions import PROJECT_ADMIN_ROLES
-from waldur_mastermind.support import models
+from waldur_mastermind.support import backend, models
 
 
 def comments_on_issue(via=None) -> dict:
@@ -81,3 +81,100 @@ def can_delete_attachment(request, view, obj: models.Attachment | None = None):
     if obj.author is None or obj.author.user_id != request.user.id:
         raise exceptions.PermissionDenied()
     can_comment_on_issue(request, view, obj.issue)
+
+
+def _changes_comment(verb):
+    # What backend.comment_change_is_permitted lets through. Change the two
+    # together.
+    return access.custom(
+        f"Staff, or the comment's author where the active support backend "
+        f"(WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE) lets authors {verb} their own "
+        "comments, as the built-in desk, the default, does; Atlassian, Zammad "
+        "and SMAX do not. The author may not once the comment's ticket is "
+        "routed to or from a provider helpdesk, nor for a comment forwarded "
+        "between such tickets."
+    )
+
+
+@access.describes(_changes_comment("edit"), needs_object=True)
+def can_edit_comment(request, view, obj: models.Comment | None = None):
+    if obj is None:
+        return
+    active_backend = backend.get_active_backend()
+    if not backend.comment_change_is_permitted(
+        request, obj, active_backend.comment_author_update_is_supported
+    ):
+        raise exceptions.PermissionDenied()
+
+
+@access.describes(_changes_comment("delete"), needs_object=True)
+def can_delete_comment(request, view, obj: models.Comment | None = None):
+    if obj is None:
+        return
+    active_backend = backend.get_active_backend()
+    if not backend.comment_change_is_permitted(
+        request, obj, active_backend.comment_author_destroy_is_supported
+    ):
+        raise exceptions.PermissionDenied()
+
+
+def _owns_service_provider_of(request, helpdesk: models.ProviderHelpdesk) -> bool:
+    return helpdesk.service_provider.customer.has_user(request.user, CustomerRole.OWNER)
+
+
+@access.describes(
+    access.any_of(
+        access.staff(),
+        access.custom(
+            "An owner of the organization of the helpdesk's service provider."
+        ),
+    ),
+    needs_object=True,
+)
+def owns_helpdesk(request, view, obj: models.ProviderHelpdesk | None = None):
+    if has_staff_access(request) or obj is None:
+        return
+    if not _owns_service_provider_of(request, obj):
+        raise exceptions.PermissionDenied()
+
+
+@access.describes(
+    access.any_of(
+        access.staff(),
+        access.custom(
+            "An owner of the organization of the service provider whose "
+            "helpdesk it belongs to."
+        ),
+    ),
+    needs_object=True,
+)
+def owns_helpdesk_of(request, view, obj=None):
+    """For a record of a provider helpdesk, such as an agent or a canned response."""
+    if has_staff_access(request) or obj is None:
+        return
+    if not _owns_service_provider_of(request, obj.provider_helpdesk):
+        raise exceptions.PermissionDenied()
+
+
+def active_agent(user, helpdesk) -> models.ProviderSupportUser | None:
+    """The user's active agent account in ``helpdesk``, if they have one."""
+    return models.ProviderSupportUser.objects.filter(
+        user=user, provider_helpdesk=helpdesk, is_active=True
+    ).first()
+
+
+def not_an_agent() -> exceptions.ValidationError:
+    # A validation error rather than a refusal, as when the claim action
+    # itself made this check.
+    return exceptions.ValidationError(
+        "You are not a support user in this provider's helpdesk."
+    )
+
+
+@access.describes(
+    access.custom("An active agent of the helpdesk the ticket is routed to."),
+    needs_object=True,
+)
+def is_agent_of_ticket_helpdesk(request, view, obj: models.Issue | None = None):
+    if obj is not None and not active_agent(request.user, obj.provider_helpdesk):
+        raise not_an_agent()
