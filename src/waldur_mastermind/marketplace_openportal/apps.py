@@ -72,3 +72,14 @@ class MarketplaceOpenPortalConfig(AppConfig):
             sender=openportal_models.AllocationUserUsage,
             dispatch_uid="waldur_mastermind.marketplace_openportal.sync_component_user_usage_when_allocation_user_usage_is_submitted",
         )
+
+        # Associations and per-user usage of an allocation are concealed with it.
+        from waldur_mastermind.marketplace.filters import register_concealment_parent
+
+        for model in (
+            openportal_models.Association,
+            openportal_models.AllocationUserUsage,
+        ):
+            register_concealment_parent(
+                model, "allocation", openportal_models.Allocation
+            )

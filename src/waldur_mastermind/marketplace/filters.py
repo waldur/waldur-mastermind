@@ -32,7 +32,12 @@ from waldur_core.core.filters import (
     get_generic_field_filter,
 )
 from waldur_core.core.models import User
-from waldur_core.core.utils import get_ip_address, is_uuid_like, normalize_ip_address
+from waldur_core.core.utils import (
+    get_ip_address,
+    is_internal_request,
+    is_uuid_like,
+    normalize_ip_address,
+)
 from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum, RoleEnum
 from waldur_core.permissions.filters import UserPermissionFilter
@@ -586,20 +591,36 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
     FLAG = "conceal_subnet_restricted_resources"
 
     def filter_queryset(self, request, queryset, view):
+        user_ip = self.caller_address(request)
+        if not user_ip:
+            return queryset
+        return queryset.exclude(self.concealed(user_ip))
+
+    @staticmethod
+    def caller_address(request) -> str | None:
+        """The address to check the caller by, or None when they are exempt."""
         user = request.user
         if user is None or not user.is_authenticated:
-            return queryset
+            return None
+        if user.is_staff or user.is_support:
+            return None
+        # A processor replaying a view for the user it acts for (an order's
+        # creator, say) has no client of its own: the user's own request was
+        # already checked, and the replay carries the loopback address.
+        if is_internal_request(request):
+            return None
         # Normalised as filter_queryset_by_user_ip does: a host:port or
         # IPv4-mapped hop is matched by its address, and an unparseable one
         # counts as no address instead of reaching the inet lookup and 500ing.
-        user_ip = normalize_ip_address(get_ip_address(request))
-        if user.is_staff or user.is_support or not user_ip:
-            return queryset
+        return normalize_ip_address(get_ip_address(request))
 
+    @classmethod
+    def concealed(cls, user_ip: str) -> Q:
+        """Matches the marketplace resources concealed from ``user_ip``."""
         concealing = Q(
             **{
-                "offering__plugin_options__has_key": self.FLAG,
-                f"offering__plugin_options__{self.FLAG}": True,
+                "offering__plugin_options__has_key": cls.FLAG,
+                f"offering__plugin_options__{cls.FLAG}": True,
             }
         )
 
@@ -636,7 +657,79 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
         allowed = Q(customer_list(inet__net_contains_or_equals=user_ip)) | Q(
             offering_id__in=offerings_allowing_ip
         )
-        return queryset.exclude(restricted & ~allowed)
+        return restricted & ~allowed
+
+
+# Plugin models whose objects belong to a marketplace resource's scope without
+# being the scope themselves, mapped to (path to the scope, scope model) pairs.
+# Filled in by the plugins' marketplace apps; see register_concealment_parent.
+_concealment_parents: dict[type, list[tuple[str, type]]] = {}
+
+
+def register_concealment_parent(model, path: str, scope_model) -> None:
+    """Conceal a ``model`` object with the resource whose scope ``path`` reaches.
+
+    ``path`` is a lookup from ``model`` to a ``scope_model`` object, such as
+    ``"tenant"`` for an OpenStack network or ``"instance"`` for a volume. A
+    model may register several paths; an object is hidden when any of them
+    leads to a concealed resource's scope. A null path hides nothing.
+
+    Register only objects that are not marketplace resources themselves. An
+    OpenStack instance in a concealed tenant is the scope of its own resource,
+    of its own offering, and follows that resource: hiding it with the tenant
+    would hide it from the plugin API while the consumer resource view lists
+    it.
+    """
+    _concealment_parents.setdefault(model, []).append((path, scope_model))
+
+
+class PluginResourceConcealmentFilter(BaseFilterBackend):
+    """Offering subnet concealment, applied to the plugin APIs.
+
+    The consumer resource view hides a concealed marketplace resource
+    (ResourceAccessSubnetConcealmentFilterBackend); the plugin views serve the
+    object behind it, such as an OpenStack instance, and the objects that
+    belong to it, such as its volumes. This hides those as well. Registered
+    with structure's ExternalResourceVisibilityBackend, so it runs in every view
+    that filters with GenericRoleFilter.
+
+    Exempt, as on the consumer resource view: staff, support and requests
+    without a client address. A caller who sees the marketplace resource
+    through the provider resource view keeps its objects, as with orders.
+    """
+
+    def filter_queryset(self, request, queryset, view):
+        model = getattr(queryset, "model", None)
+        if model is None:
+            return queryset
+        is_scope = issubclass(model, structure_models.BaseResource)
+        parents = _concealment_parents.get(model, [])
+        if not is_scope and not parents:
+            return queryset
+        user_ip = ResourceAccessSubnetConcealmentFilterBackend.caller_address(request)
+        if not user_ip:
+            return queryset
+
+        concealed = models.Resource.objects.filter(
+            ResourceAccessSubnetConcealmentFilterBackend.concealed(user_ip)
+        )
+        # Bounded by the concealed resources, which are few, rather than by
+        # every resource the caller provides.
+        as_provider = concealed.filter_for_service_provider(request.user)
+        concealed = concealed.exclude(pk__in=as_provider.values("pk"))
+
+        def scope_ids(scope_model):
+            # Not null: a NULL in the ids would make the NOT IN of the
+            # exclude below match nothing, and hide every row.
+            return concealed.filter(
+                content_type=ContentType.objects.get_for_model(scope_model),
+                object_id__isnull=False,
+            ).values("object_id")
+
+        hidden = Q(pk__in=scope_ids(model)) if is_scope else Q()
+        for path, scope_model in parents:
+            hidden |= Q(**{f"{path}__in": scope_ids(scope_model)})
+        return queryset.exclude(hidden)
 
 
 class OfferingImportableFilterBackend(BaseFilterBackend):
@@ -3321,6 +3414,9 @@ def user_extra_query(user):
 
 
 structure_filters.ExternalCustomerFilterBackend.register(CustomerResourceFilter())
+structure_filters.ExternalResourceVisibilityBackend.register(
+    PluginResourceConcealmentFilter()
+)
 structure_filters.ExternalCustomerFilterBackend.register(
     ServiceProviderOfferingFilter()
 )

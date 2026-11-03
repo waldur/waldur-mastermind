@@ -39,6 +39,7 @@ def get_headers(user: core_models.User) -> dict[str, str]:
 def get_request(view: Callable, user: core_models.User, **extra) -> Response:
     factory = APIRequestFactory()
     request = factory.get("/", **get_headers(user))
+    mark_internal_request(request)
     return view(request, **extra)
 
 
@@ -64,6 +65,7 @@ def update_request(
 ) -> Response:
     factory = APIRequestFactory()
     request = factory.patch("/", data=json.dumps(post_data), **get_headers(user))
+    mark_internal_request(request)
     return view(request, **kwargs)
 
 
@@ -75,6 +77,7 @@ def delete_request(
     if query_params:
         path = "?" + urlencode(query_params)
     request = factory.delete(path, **get_headers(user))
+    mark_internal_request(request)
     return view(request, **extra)
 
 

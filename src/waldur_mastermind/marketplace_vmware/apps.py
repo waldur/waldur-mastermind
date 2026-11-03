@@ -63,3 +63,9 @@ class MarketplaceVMwareConfig(AppConfig):
             dispatch_uid="marketplace_vmware.handlers."
             "update_marketplace_resource_limits_when_vm_is_updated",
         )
+
+        # Disks and ports of a virtual machine are concealed with it.
+        from waldur_mastermind.marketplace.filters import register_concealment_parent
+
+        for model in (vmware_models.Disk, vmware_models.Port):
+            register_concealment_parent(model, "vm", vmware_models.VirtualMachine)

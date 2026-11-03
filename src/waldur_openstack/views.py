@@ -2541,7 +2541,18 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
     pull_executor = executors.NetworkPullExecutor
 
     @staticmethod
-    def get_related_networks(user):
+    def get_related_networks(user, request=None):
+        """The caller's own networks and the networks shared into their tenants.
+
+        Given the request, the rules other apps register with
+        ExternalResourceVisibilityBackend (subnet concealment) apply:
+        - an own network those rules hide stays hidden, even when it is also
+          shared into one of the caller's tenants: the share must not undo the
+          concealment for the network's own users, who could then edit it;
+        - a shared network is reached through its target tenant, so it is
+          shown when that tenant is visible to the caller, whatever the owner
+          organization's rules say, and hidden when the tenant is not.
+        """
         project_ids = UserRole.objects.filter(
             is_active=True,
             content_type=ContentType.objects.get_for_model(structure_models.Project),
@@ -2560,10 +2571,20 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
         all_project_ids = set(project_ids) | set(org_project_ids)
 
         own_networks = models.Network.objects.filter(project_id__in=all_project_ids)
+        target_tenants = models.Tenant.objects.filter(project_id__in=all_project_ids)
+        hidden_own = models.Network.objects.none()
+        if request is not None:
+            visibility = structure_filters.ExternalResourceVisibilityBackend()
+            shown_own = visibility.filter_queryset(request, own_networks, None)
+            hidden_own = own_networks.exclude(pk__in=shown_own.values("pk"))
+            own_networks = shown_own
+            target_tenants = visibility.filter_queryset(request, target_tenants, None)
         rbac_policies = models.NetworkRBACPolicy.objects.filter(
-            target_tenant__project_id__in=all_project_ids
+            target_tenant__in=target_tenants
         ).values_list("network_id", flat=True)
-        rbac_networks = models.Network.objects.filter(id__in=rbac_policies)
+        rbac_networks = models.Network.objects.filter(id__in=rbac_policies).exclude(
+            pk__in=hidden_own.values("pk")
+        )
         return (own_networks | rbac_networks).distinct()
 
     def get_queryset(self):
@@ -2576,7 +2597,9 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
         if not user.is_authenticated:
             return queryset.none()
 
-        return NetworkViewSet.get_related_networks(user).order_by("name", "id")
+        return NetworkViewSet.get_related_networks(user, self.request).order_by(
+            "name", "id"
+        )
 
     @extend_schema(
         summary="Create subnet",
@@ -2778,7 +2801,7 @@ class SubNetViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSet
         if not user.is_authenticated:
             return queryset.none()
 
-        all_networks = NetworkViewSet.get_related_networks(user)
+        all_networks = NetworkViewSet.get_related_networks(user, self.request)
         return queryset.filter(network__in=all_networks)
 
     @extend_schema(

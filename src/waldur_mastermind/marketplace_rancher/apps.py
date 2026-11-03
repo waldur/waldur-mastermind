@@ -67,3 +67,20 @@ class MarketplaceRancherConfig(AppConfig):
             sender=openstack_models.FloatingIP,
             dispatch_uid="waldur_mastermind.marketplace_rancher.create_public_cluster_ip_for_floating_ip",
         )
+
+        # Objects of a cluster are concealed with it.
+        from waldur_mastermind.marketplace.filters import register_concealment_parent
+
+        for model, path in (
+            (rancher_models.Node, "cluster"),
+            (rancher_models.Workload, "cluster"),
+            (rancher_models.HPA, "cluster"),
+            (rancher_models.Application, "cluster"),
+            (rancher_models.Ingress, "cluster"),
+            (rancher_models.Service, "namespace__project__cluster"),
+            (rancher_models.ClusterSecurityGroup, "cluster"),
+            (rancher_models.Project, "cluster"),
+            (rancher_models.Namespace, "project__cluster"),
+            (rancher_models.Template, "cluster"),
+        ):
+            register_concealment_parent(model, path, rancher_models.Cluster)
