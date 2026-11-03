@@ -38,6 +38,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.models import Answer, ChecklistCompletion, Question
 from waldur_core.checklist.utils import latest_answers_by_question
 from waldur_core.configuration import config as constance_config
+from waldur_core.core import access
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -94,6 +95,10 @@ from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
     get_project_users,
+)
+from waldur_core.structure.serializers import (
+    CREATES_ACCESS_SUBNET,
+    REQUESTS_PROJECT_END_DATE_CHANGE,
 )
 from waldur_core.structure.serializers_data_access import (
     UserDataAccessLogSerializer,
@@ -213,6 +218,10 @@ class CustomerViewSet(
     queryset = models.Customer.objects.all().order_by("name")
     serializer_class = serializers.CustomerSerializer
     lookup_field = "uuid"
+    permission_classes = (
+        rf_permissions.IsAuthenticated,
+        core_permissions.ActionsPermission,
+    )
     filter_backends = (
         filters.CustomerUserFilter,
         filters.CustomerRoleFilter,
@@ -233,6 +242,22 @@ class CustomerViewSet(
         "registration_code",
     )
     filterset_class = filters.CustomerFilter
+
+    create_permissions = destroy_permissions = [permissions.is_staff]
+    update_permissions = partial_update_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CUSTOMER)
+    ]
+    contact_permissions = [permissions.can_update_customer_contact]
+    update_organization_groups_permissions = [permissions.is_staff]
+    update_default_affiliations_permissions = [permissions.is_staff]
+    project_digest_config_permissions = update_project_digest_config_permissions = [
+        permissions.can_update_customer
+    ]
+    project_digest_send_test_permissions = project_digest_preview_permissions = [
+        permissions.can_update_customer
+    ]
+
+    access_declarations = {"countries": [access.authenticated()]}
 
     def get_queryset(self):
         user = self.request.user
@@ -264,20 +289,20 @@ class CustomerViewSet(
 
         return queryset
 
-    def get_object(self):
-        customer = super().get_object()
+    def check_object_permissions(self, request, obj):
         # A service provider manager may read the provider's organization, but
         # every other action on it stays out of reach, exactly as before it
-        # became visible to them.
+        # became visible to them. Checked before the action's own checks, so
+        # that they get not found rather than denied.
         if (
             self.action != "retrieve"
-            and customer.id
+            and obj.id
             in managers.get_service_provider_manager_only_customer_ids(
-                self.request.user, [customer.id]
+                request.user, [obj.id]
             )
         ):
             raise Http404
-        return customer
+        super().check_object_permissions(request, obj)
 
     def _get_project_prefetch(self, user):
         """Returns a Prefetch object restricted by user permissions"""
@@ -301,9 +326,6 @@ class CustomerViewSet(
         return super().destroy(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        if not has_staff_access(self.request):
-            raise PermissionDenied()
-
         customer: models.Customer = serializer.save()
 
         if django_settings.WALDUR_CORE.get(
@@ -317,18 +339,10 @@ class CustomerViewSet(
             project.save()
 
     def perform_update(self, serializer):
-        if not has_permission(
-            self.request, PermissionEnum.UPDATE_CUSTOMER, serializer.instance
-        ):
-            raise PermissionDenied()
-
         utils.check_customer_blocked_or_archived(serializer.instance)
         return super().perform_update(serializer)
 
     def perform_destroy(self, instance):
-        if not has_staff_access(self.request):
-            raise PermissionDenied()
-
         utils.check_customer_blocked_or_archived(instance)
 
         return super().perform_destroy(instance)
@@ -371,13 +385,6 @@ class CustomerViewSet(
     @action(detail=True, methods=["post"], url_path="contact")
     def contact(self, request, uuid=None):
         customer: models.Customer = self.get_object()
-        if not (
-            has_staff_access(request)
-            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
-            or has_permission(request, PermissionEnum.CUSTOMER_CONTACT_UPDATE, customer)
-        ):
-            raise PermissionDenied()
-
         utils.check_customer_blocked_or_archived(customer)
 
         serializer = serializers.CustomerContactUpdateSerializer(
@@ -464,8 +471,6 @@ class CustomerViewSet(
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
-        if not has_staff_access(request):
-            raise PermissionDenied()
         customer: models.Customer = self.get_object()
         serializer = marketplace_serializers.OrganizationGroupsSerializer(
             instance=customer, context={"request": request}, data=request.data
@@ -489,11 +494,6 @@ class CustomerViewSet(
             raise ValidationError(_("Project digest feature is disabled."))
 
         customer = self.get_object()
-        if not (
-            has_staff_access(request)
-            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
-        ):
-            raise PermissionDenied()
 
         try:
             config = customer.project_digest_config
@@ -519,11 +519,6 @@ class CustomerViewSet(
             raise ValidationError(_("Project digest feature is disabled."))
 
         customer = self.get_object()
-        if not (
-            has_staff_access(request)
-            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
-        ):
-            raise PermissionDenied()
 
         try:
             config = customer.project_digest_config
@@ -556,11 +551,6 @@ class CustomerViewSet(
             raise ValidationError(_("Project digest feature is disabled."))
 
         customer = self.get_object()
-        if not (
-            has_staff_access(request)
-            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
-        ):
-            raise PermissionDenied()
 
         send_digest_for_customer_preview(customer, request.user)
         return Response(
@@ -584,11 +574,6 @@ class CustomerViewSet(
             raise ValidationError(_("Project digest feature is disabled."))
 
         customer = self.get_object()
-        if not (
-            has_staff_access(request)
-            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
-        ):
-            raise PermissionDenied()
 
         serializer = serializers.ProjectDigestPreviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -615,8 +600,6 @@ class CustomerViewSet(
     )
     @action(detail=True, methods=["post"])
     def update_default_affiliations(self, request, uuid=None):
-        if not has_staff_access(request):
-            raise PermissionDenied()
         customer = self.get_object()
         serializer = serializers.CustomerDefaultAffiliationsUpdateSerializer(
             instance=customer, data=request.data, context={"request": request}
@@ -645,6 +628,15 @@ class CustomerUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     ]
     filterset_class = filters.BaseUserFilter
     queryset = core_models.User.objects.none()
+    # Checked in get_queryset. Change the two together.
+    access_declarations = {
+        "list": [
+            access.custom(
+                "Staff, global support, or a holder of CUSTOMER.LIST_USERS on "
+                "the organization in the URL, there or site-wide."
+            )
+        ],
+    }
 
     def get_customer(self) -> models.Customer:
         """The organization in the URL, among those a token's bindings reach,
@@ -664,6 +656,10 @@ class CustomerUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         ctx["customer"] = self.get_customer()
         return ctx
 
+    @access.shows(
+        "Active users with a role in the organization or in one of its "
+        "projects, deleted projects aside."
+    )
     def get_queryset(self) -> QuerySet[core_models.User]:
         customer = self.get_customer()
         if not (
@@ -720,6 +716,10 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
     update_permissions = partial_update_permissions = [
         permission_factory(PermissionEnum.UPDATE_ACCESS_SUBNET, ["customer"])
     ]
+    access_declarations = {
+        # Checked by the serializer, against the organization the request names.
+        "create": [CREATES_ACCESS_SUBNET],
+    }
 
     @extend_schema(
         summary="Show which resources the access subnets reach",
@@ -908,6 +908,10 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProjectTypeFilter
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
 
 @extend_schema_view(
@@ -1058,6 +1062,23 @@ class ProjectViewSet(
     completion_status_permissions = [permissions.has_project_access]
     submit_answers_permissions = [permissions.can_answer_project_metadata]
     checklist_template_permissions = [permissions.can_create_project_in_parent]
+
+    # Checked in perform_create and ProjectSerializer (its customer field and
+    # validate), against the organization the request names. Change them
+    # together.
+    access_declarations = {
+        "create": [
+            access.custom(
+                "Staff, or a holder of PROJECT.CREATE on the organization the "
+                "request names, there or site-wide, who also sees that "
+                "organization: through a role on it or on one of its projects, "
+                "or as global support. Setting end_date also needs "
+                "PROJECT.DELETE on that organization, so with "
+                "PROJECT_END_DATE_MANDATORY on (off by default) creating needs "
+                "both."
+            )
+        ],
+    }
 
     def get_checklist_completion(self, obj):
         """Get checklist completion for project metadata."""
@@ -1631,6 +1652,11 @@ class ProjectOtherUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     filterset_class = filters.BaseUserFilter
     queryset = core_models.User.objects.none()
 
+    @access.shows(
+        "Users with a role in another project of the same organization in "
+        "which the caller also holds a role, when the caller sees the project "
+        "in the URL; a token sees only the projects its bindings reach."
+    )
     def get_queryset(self) -> QuerySet[core_models.User]:
         project = self.get_project()
         projects = models.Project.available_objects.filter(
@@ -1706,6 +1732,21 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
     )
     filterset_class = filters.UserFilter
+    access_declarations = {
+        "confirm_email": [
+            access.custom(
+                "Anyone with the code of an email change request that has not "
+                "expired, which is emailed to the new address; no sign-in."
+            )
+        ],
+    }
+
+    def get_permissions(self):
+        # confirm_email is open: the code, emailed to the new address, is what
+        # authorizes it. Only its POST is, as other methods resolve no action.
+        if self.action == "confirm_email":
+            return []
+        return super().get_permissions()
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1892,11 +1933,6 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    def check_permissions(self, request):
-        if self.action == "confirm_email":
-            return
-        super().check_permissions(request)
-
     @extend_schema(
         responses={status.HTTP_200_OK: serializers.UserMeSerializer},
         summary="Get current user details",
@@ -2059,12 +2095,6 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     def data_access(self, request, uuid=None):
         user = self.get_object()
 
-        # Only allow users to view their own data access, or staff/support
-        if not (request.user == user or has_support_access(request)):
-            raise PermissionDenied(
-                _("You do not have permission to view this user's data access.")
-            )
-
         # Tiered visibility: staff/support see individual admin records,
         # regular users see only counts for administrative access
         include_admin_details = request.user.is_staff or request.user.is_support
@@ -2106,12 +2136,6 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     def data_access_history(self, request, uuid=None):
         user = self.get_object()
 
-        # Only allow users to view their own history, or staff/support
-        if not (request.user == user or has_support_access(request)):
-            raise PermissionDenied(
-                _("You do not have permission to view this user's data access history.")
-            )
-
         # Get access logs for the user
         queryset = UserDataAccessLog.objects.filter(target_user=user).select_related(
             "accessor"
@@ -2141,6 +2165,9 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             queryset, many=True, context={"request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    data_access_permissions = [permissions.can_view_data_access]
+    data_access_history_permissions = [permissions.can_view_data_access_history]
 
     @extend_schema(
         summary="Synchronize user details from eduTEAMS",
@@ -2487,6 +2514,16 @@ class CustomerPermissionReviewViewSet(
     )
     filterset_class = filters.CustomerPermissionReviewFilter
     lookup_field = "uuid"
+    # Nothing is checked beyond the lookup, so whoever sees a review may close it.
+    access_declarations = {
+        "close": [
+            access.custom(
+                "Who sees the review: staff, global support, and holders of "
+                "CUSTOMER.LIST_PERMISSION_REVIEWS on its organization or "
+                "site-wide."
+            )
+        ],
+    }
 
     @extend_schema(
         summary="Close customer permission review",
@@ -2520,6 +2557,16 @@ class ProjectPermissionReviewViewSet(
     )
     filterset_class = filters.ProjectPermissionReviewFilter
     lookup_field = "uuid"
+    # Nothing is checked beyond the lookup, so whoever sees a review may close it.
+    access_declarations = {
+        "close": [
+            access.custom(
+                "Who sees the review: staff, global support, and holders of "
+                "PROJECT.REVIEW_MEMBERSHIP on its project, the project's "
+                "organization or site-wide."
+            )
+        ],
+    }
 
     @extend_schema(
         summary="Close project permission review",
@@ -2557,6 +2604,9 @@ class ProjectEndDateChangeRequestViewSet(
             binding_on_path=True,
         )
     ]
+    cancel_permissions = [permissions.is_end_date_change_request_author]
+    # Checked by the create serializer, against the project the request names.
+    access_declarations = {"create": [REQUESTS_PROJECT_END_DATE_CHANGE]}
     serializer_class = serializers.ProjectEndDateChangeRequestSerializer
     create_serializer_class = serializers.ProjectEndDateChangeRequestCreateSerializer
     filter_backends = [filters.GenericRoleFilter, DjangoFilterBackend]
@@ -2607,10 +2657,6 @@ class ProjectEndDateChangeRequestViewSet(
     @action(detail=True, methods=["post"])
     def cancel(self, request, **kwargs):
         review_request: models.ProjectEndDateChangeRequest = self.get_object()
-        if review_request.created_by != request.user:
-            raise PermissionDenied(
-                _("You can only cancel your own project end date change requests.")
-            )
         review_request.cancel()
         return Response(
             {"detail": _("Project end date change request has been canceled.")},
@@ -2664,7 +2710,13 @@ class SshKeyViewSet(
         core_permissions.ActionsPermission,
     )
     destroy_permissions = [permissions.can_delete_ssh_key]
+    # A new key belongs to the caller.
+    access_declarations = {"create": [access.authenticated()]}
 
+    @access.shows(
+        "The caller's own keys and every shared key; staff and global support "
+        "see all keys."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         if has_staff_or_support_read_access(self.request):
@@ -2939,7 +2991,11 @@ class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
     filterset_class = filters.AffiliatedOrganizationFilter
-    permission_classes = (core_permissions.IsAdminOrReadOnly,)
+    # ActionsPermission applies report_permissions.
+    permission_classes = (
+        core_permissions.IsAdminOrReadOnly,
+        core_permissions.ActionsPermission,
+    )
     ordering_fields = ("name", "projects_count", "created")
 
     def get_queryset(self):
@@ -2994,8 +3050,6 @@ class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
     )
     @action(detail=False, methods=["get"])
     def report(self, request):
-        if not has_staff_access(request):
-            raise PermissionDenied()
         rows = []
         for org in models.AffiliatedOrganization.objects.all().order_by("name"):
             projects = org.projects.filter(is_removed=False)
@@ -3133,6 +3187,11 @@ class UserAgreementsViewSet(ActionsViewSet):
     serializer_class = serializers.UserAgreementSerializer
     permission_classes = (core_permissions.ActionsPermission,)
     unsafe_methods_permissions = [permissions.is_staff]
+    # Read before sign-up and sign-in, so anyone may.
+    access_declarations = {
+        "list": [access.public()],
+        "retrieve": [access.public()],
+    }
     filterset_class = filters.UserAgreementsFilter
     lookup_field = "uuid"
     queryset = models.UserAgreement.objects.all()
@@ -3229,6 +3288,10 @@ class NotificationTemplateViewSet(ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.NotificationTemplateFilter
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
     # Templates are registered by load_notifications. Deleting one drops its
     # content override, and changing its path moves the override elsewhere.
     unsafe_methods_permissions = [permissions.is_staff]
@@ -3308,6 +3371,14 @@ class ExternalLinkViewSet(viewsets.ModelViewSet):
     ordering_fields = ("name", "url")
 
 
+# What the get_customer of the four compliance views below lets through.
+# Change them together.
+LISTS_ORGANIZATION_PROJECTS = access.custom(
+    "Staff, or a holder of PROJECT.LIST on the organization in the URL, there "
+    "or site-wide."
+)
+
+
 @extend_schema(
     parameters=[CUSTOMER_UUID_PARAMETER],
     summary="Get project metadata compliance overview",
@@ -3324,6 +3395,7 @@ class CustomerProjectMetadataComplianceOverviewViewSet(
 
     serializer_class = serializers.ComplianceOverviewSerializer
     queryset = models.Customer.objects.none()
+    access_declarations = {"list": [LISTS_ORGANIZATION_PROJECTS]}
 
     def get_customer(self):
         """Get customer and check permissions."""
@@ -3425,6 +3497,7 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
 
     queryset = models.Project.objects.none()  # Required for schema generation
     serializer_class = serializers.ProjectDetailsResponseSerializer
+    access_declarations = {"list": [LISTS_ORGANIZATION_PROJECTS]}
 
     def get_customer(self):
         """Get customer and check permissions."""
@@ -3723,6 +3796,7 @@ class CustomerProjectMetadataComplianceProjectsViewSet(
 
     queryset = models.Project.objects.none()  # Required for schema generation
     serializer_class = serializers.ProjectAnswerSerializer
+    access_declarations = {"list": [LISTS_ORGANIZATION_PROJECTS]}
 
     def get_customer(self):
         """Get customer and check permissions."""
@@ -3837,6 +3911,7 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
 
     queryset = Question.objects.none()  # Required for schema generation
     serializer_class = serializers.QuestionAnswerSerializer
+    access_declarations = {"list": [LISTS_ORGANIZATION_PROJECTS]}
 
     def get_customer(self):
         """Get customer and check permissions."""

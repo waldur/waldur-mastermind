@@ -913,6 +913,14 @@ class UserConfirmEmailTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
+    def test_only_post_to_confirm_email_is_open_to_anonymous_callers(self):
+        self.client.force_authenticate(None)
+        url = factories.UserFactory.get_list_url("confirm_email")
+        self.assertEqual(
+            self.client.options(url).status_code, status.HTTP_401_UNAUTHORIZED
+        )
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_401_UNAUTHORIZED)
+
     @mock.patch("waldur_core.structure.handlers.tasks")
     def test_send_mail_notification(self, mock_tasks):
         response = self.client.post(self.url, self.valid_payload)

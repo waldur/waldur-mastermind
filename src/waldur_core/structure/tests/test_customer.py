@@ -14,6 +14,7 @@ from rest_framework import status, test
 
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import models as core_models
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import override_waldur_core_settings
@@ -231,6 +232,15 @@ class CustomerDeleteTest(CustomerBaseTest):
         response = self.client.delete(self._get_customer_url(self.fixture.customer))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_non_staff_is_refused_before_the_lookup(self):
+        # The caller cannot see the organization, but is refused for not being
+        # staff before it is looked up.
+        self.client.force_authenticate(user=self.fixture.user)
+
+        response = self.client.delete(self._get_customer_url(self.fixture.customer))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Customer.objects.filter(pk=self.fixture.customer.pk).exists())
+
     def test_user_can_delete_customer_with_associated_projects_if_he_is_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
@@ -289,6 +299,12 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         response = self.client.post(
             factories.CustomerFactory.get_list_url(), self._get_valid_payload()
         )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_non_staff_is_refused_before_the_data_is_validated(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        response = self.client.post(factories.CustomerFactory.get_list_url(), {})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_waldur_core_settings(CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION=True)
@@ -374,6 +390,17 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
             status.HTTP_200_OK,
             "Error message: %s" % response.data,
         )
+
+    def test_caller_who_may_not_update_is_refused_before_the_data_is_validated(
+        self,
+    ):
+        # A project member sees the organization but may not change it.
+        self.client.force_authenticate(user=self.fixture.member)
+
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer), {"name": ""}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_cannot_change_single_customer_field_he_is_not_owner_of(self):
         self.client.force_authenticate(user=self.fixture.user)
@@ -622,6 +649,45 @@ class CustomerContactUpdateTest(CustomerBaseTest):
         response = self.client.post(self.url, self.payload)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+@override_config(ENABLE_PROJECT_DIGEST=True)
+class CustomerProjectDigestConfigAccessTest(CustomerBaseTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.ProjectFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
+        self.url = (
+            self._get_customer_url(self.fixture.customer) + "project-digest-config/"
+        )
+
+    @data("staff", "owner")
+    def test_who_may_update_the_organization_gets_the_configuration(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("manager", "admin", "member", "global_support")
+    def test_who_sees_but_may_not_update_the_organization_is_denied(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_who_does_not_see_the_organization_does_not_find_it(self):
+        self.client.force_authenticate(user=self.fixture.user)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_disabled_feature_is_reported_before_the_caller_is_checked(self):
+        self.client.force_authenticate(user=self.fixture.member)
+
+        with override_config(ENABLE_PROJECT_DIGEST=False):
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class CustomerQuotasTest(test.APITestCase):
