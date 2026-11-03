@@ -58,6 +58,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`TranslatedModelSerializerMixin`](#translatedmodelserializermixin) | `waldur_core.core.serializers` | A `ModelSerializer` is just a regular `Serializer`, except that:  * A set of ... |
 | [`UserEmailPatternsValidatorMixin`](#useremailpatternsvalidatormixin) | `waldur_core.core.serializers` | Provides validate_user_email_patterns for serializers with a user_email_patte... |
 | [`ExtensionTaskMixin`](#extensiontaskmixin) | `waldur_core.core.tasks` | This mixin allows to skip task scheduling if extension is disabled |
+| [`ExportMixin`](#exportmixin) | `waldur_core.core.tests.test_access` | No description available |
 | [`ActionMethodMixin`](#actionmethodmixin) | `waldur_core.core.views` | Implements helper methods for viewset when use separate nested endpoints for ... |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_core.core.views` | Raise exception if extension is disabled |
 | [`ConstanceCheckExtensionMixin`](#constancecheckextensionmixin) | `waldur_core.core.views` | Raise exception if extension is disabled |
@@ -114,12 +115,14 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ScopeHelperAgreementMixin`](#scopehelperagreementmixin) | `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission` | Each helper must list exactly the scopes has_permission allows |
 | [`GrantMixin`](#grantmixin) | `waldur_mastermind.marketplace.tests.test_slug_permissions` | No description available |
 | [`SpendingLimitsSetupMixin`](#spendinglimitssetupmixin) | `waldur_mastermind.marketplace.tests.test_spending_limits` | No description available |
+| [`OrderValidationTokenScopeMixin`](#ordervalidationtokenscopemixin) | `waldur_mastermind.marketplace.tests.test_token_scope_order_validation` | A subclass builds the offering and says how the limit refuses an order (``ref... |
 | [`ConnectedOfferingDetailsMixin`](#connectedofferingdetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide offering details action for connected resources |
 | [`ConnectedResourceDetailsMixin`](#connectedresourcedetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide resource details action for connected resources |
 | [`OfferingUsageMixin`](#offeringusagemixin) | `waldur_mastermind.marketplace.views` | Shared logic for customer/project per-offering usage ViewSets |
 | [`PublicViewsetMixin`](#publicviewsetmixin) | `waldur_mastermind.marketplace.views` | Mixin to allow anonymous access to offerings when configured |
 | [`ServiceProviderConsumersMixin`](#serviceproviderconsumersmixin) | `waldur_mastermind.marketplace.views` | A list of a service provider's consumers, nested under the provider |
 | [`TenantMixin`](#tenantmixin) | `waldur_mastermind.marketplace_openstack.processors` | No description available |
+| [`ConcealmentMixin`](#concealmentmixin) | `waldur_mastermind.marketplace_openstack.tests.test_plugin_resource_concealment` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
@@ -128,6 +131,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`OAuthTestMixin`](#oauthtestmixin) | `waldur_mastermind.mcp.tests.test_oauth` | No description available |
 | [`EstimatedCostPolicyMixin`](#estimatedcostpolicymixin) | `waldur_mastermind.policy.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
+| [`SlurmFlagTestMixin`](#slurmflagtestmixin) | `waldur_mastermind.policy.tests.test_slurm_flag_keepers` | A resource on an offering that pauses and downscales, with SLURM usage per po... |
 | [`PolicyEventsMixin`](#policyeventsmixin) | `waldur_mastermind.policy.views` | Log policy changes made through the API |
 | [`CallNotArchivedCreateMixin`](#callnotarchivedcreatemixin) | `waldur_mastermind.proposal.serializers` | Provide the ``validate_call_not_archived`` hook used by ``ActionMethodMixin |
 | [`ApplicantIdentityTestMixin`](#applicantidentitytestmixin) | `waldur_mastermind.proposal.tests.test_applicant_identity_paths` | No description available |
@@ -140,9 +144,13 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`InvitationAcceptanceMixin`](#invitationacceptancemixin) | `waldur_mastermind.proposal.views` | Mixin providing common logic for accepting/declining reviewer pool invitations |
 | [`BackendNameMixin`](#backendnamemixin) | `waldur_mastermind.support.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`FileMixin`](#filemixin) | `waldur_mastermind.support.models` | Mixin to provide file-related functionality and properties |
+| [`StaffWritableFieldsMixin`](#staffwritablefieldsmixin) | `waldur_mastermind.support.serializers` | Lets staff alone change the fields in ``Meta |
+| [`TicketBackendMixin`](#ticketbackendmixin) | `waldur_mastermind.support.serializers` | Answers availability from the backend that holds each ticket |
 | [`SettingsFileMixin`](#settingsfilemixin) | `waldur_mastermind.support.tests.test_constance_override` | No description available |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_mastermind.support.views` | Raise exception if extension is disabled |
 | [`UsageMixin`](#usagemixin) | `waldur_openportal.models` | Make subclasses preserve the alters_data attribute on overridden methods |
+| [`TemplateVisibilityMixin`](#templatevisibilitymixin) | `waldur_openportal.tests.test_template_visibility` | No description available |
+| [`InfoVisibilityMixin`](#infovisibilitymixin) | `waldur_openportal.tests.test_userinfo_visibility` | No description available |
 | [`ActionDetailsMixin`](#actiondetailsmixin) | `waldur_openstack.admin` | Encapsulate all admin options and functionality for a given model |
 | [`ImageMetadataMixin`](#imagemetadatamixin) | `waldur_openstack.admin` | Encapsulate all admin options and functionality for a given model |
 | [`MetadataMixin`](#metadatamixin) | `waldur_openstack.admin` | Encapsulate all admin options and functionality for a given model |
@@ -903,6 +911,12 @@ Subclasses should implement "is_extension_disabled" method which returns boolean
 
 **Base classes:** `Task`
 
+### ExportMixin
+
+**Module:** `waldur_core.core.tests.test_access`
+
+**Description:** No description available.
+
 ### ActionMethodMixin
 
 **Module:** `waldur_core.core.views`
@@ -1570,6 +1584,15 @@ Each helper must list exactly the scopes has_permission allows.
 
 **Description:** No description available.
 
+### OrderValidationTokenScopeMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_token_scope_order_validation`
+
+**Description:**
+
+A subclass builds the offering and says how the limit refuses an order
+(``refused_status``) and whether support is exempt from it, as staff are.
+
 ### ConnectedOfferingDetailsMixin
 
 **Module:** `waldur_mastermind.marketplace.views`
@@ -1627,6 +1650,12 @@ provider's reaches.
 ### TenantMixin
 
 **Module:** `waldur_mastermind.marketplace_openstack.processors`
+
+**Description:** No description available.
+
+### ConcealmentMixin
+
+**Module:** `waldur_mastermind.marketplace_openstack.tests.test_plugin_resource_concealment`
 
 **Description:** No description available.
 
@@ -1795,6 +1824,14 @@ or uses URL name specified in a model of serialized object.
 
 **Base classes:** `AugmentedSerializerMixin`
 
+### SlurmFlagTestMixin
+
+**Module:** `waldur_mastermind.policy.tests.test_slurm_flag_keepers`
+
+**Description:**
+
+A resource on an offering that pauses and downscales, with SLURM usage per policy.
+
 ### PolicyEventsMixin
 
 **Module:** `waldur_mastermind.policy.views`
@@ -1892,6 +1929,34 @@ Make subclasses preserve the alters_data attribute on overridden methods.
 
 Mixin to provide file-related functionality and properties.
 
+### StaffWritableFieldsMixin
+
+**Module:** `waldur_mastermind.support.serializers`
+
+**Description:**
+
+Lets staff alone change the fields in ``Meta.staff_writable_fields``.
+
+Only staff may create the provider helpdesk objects, but an owner of the
+service provider's organization may update them. The fields that creation
+reserves for staff stay reserved on update. Anyone may still read them,
+and send one back as it is, as a form resubmitting what it read does; a
+changed value is refused. A request that cannot be told to be staff's,
+or none at all, is held to that.
+
+### TicketBackendMixin
+
+**Module:** `waldur_mastermind.support.serializers`
+
+**Description:**
+
+Answers availability from the backend that holds each ticket.
+
+A ticket routed to a provider is held by the provider helpdesk's backend,
+which is also where the views send changes to it. One backend is built
+per helpdesk, and the active one reused for the operator's tickets, as a
+list reuses one serializer for every row.
+
 ### SettingsFileMixin
 
 **Module:** `waldur_mastermind.support.tests.test_constance_override`
@@ -1917,6 +1982,18 @@ Raise exception if extension is disabled
 Make subclasses preserve the alters_data attribute on overridden methods.
 
 **Base classes:** `Model`
+
+### TemplateVisibilityMixin
+
+**Module:** `waldur_openportal.tests.test_template_visibility`
+
+**Description:** No description available.
+
+### InfoVisibilityMixin
+
+**Module:** `waldur_openportal.tests.test_userinfo_visibility`
+
+**Description:** No description available.
 
 ### ActionDetailsMixin
 
