@@ -6,6 +6,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from waldur_core.core import access
 from waldur_core.core.models import User
 from waldur_core.core.serializers import (
     RestrictedSerializerMixin,
@@ -15,9 +16,12 @@ from waldur_core.core.serializers import (
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions import hygiene
 from waldur_core.permissions.enums import (
+    CREATE_PERMISSIONS,
+    DELETE_PERMISSIONS,
     GLOBAL_DENIED_PERMISSIONS,
     TYPE_KEYS,
     TYPE_MAP,
+    UPDATE_PERMISSIONS,
     PermissionEnum,
 )
 from waldur_core.permissions.utils import (
@@ -697,6 +701,28 @@ class MePermissionSerializer(PermissionSerializer):
             "resource_uuid",
             "expiration_time",
         )
+
+
+def _role_change_access(permissions, change):
+    """Who UserRoleMutateSerializer.validate lets ``change`` a role.
+
+    Change the two together.
+    """
+    names = ", ".join(sorted({permission.value for permission in permissions.values()}))
+    return access.custom(
+        f"Staff, or who holds the permission to {change} roles in the scope's "
+        f"type ({names}) on the scope's organization, on the scope itself or "
+        "site-wide; a site-wide grant does not reach an organization's or a "
+        "service provider's team. A view may also let those who oversee the "
+        "scope do so for some roles. Only staff and holders on the "
+        "organization or site-wide may change their own role in a scope below "
+        "the organization."
+    )
+
+
+GRANT_ROLE_ACCESS = _role_change_access(CREATE_PERMISSIONS, "grant")
+UPDATE_ROLE_ACCESS = _role_change_access(UPDATE_PERMISSIONS, "change")
+REVOKE_ROLE_ACCESS = _role_change_access(DELETE_PERMISSIONS, "revoke")
 
 
 class UserRoleMutateSerializer(serializers.Serializer):

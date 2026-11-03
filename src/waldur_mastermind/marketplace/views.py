@@ -699,6 +699,16 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
 
+    # The role permission tables key a service provider as "service_provider",
+    # but the lookup goes by model name ("serviceprovider") and finds nothing,
+    # so UserRoleMutateSerializer admits staff alone. Say so until the tables
+    # match; then drop these and the mixin's description applies.
+    access_declarations = {
+        "add_user": [access.staff()],
+        "update_user": [access.staff()],
+        "delete_user": [access.staff()],
+    }
+
     @extend_schema(
         operation_id="service_provider_api_secret_code_retrieve",
         summary="Get service provider API secret code",

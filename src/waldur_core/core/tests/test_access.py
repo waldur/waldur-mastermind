@@ -9,8 +9,11 @@ from rest_framework import permissions as rf_permissions
 from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.views import ActionsViewSet
+from waldur_core.permissions import serializers as permissions_serializers
+from waldur_core.permissions import views as permissions_views
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import permission_factory
+from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -80,6 +83,46 @@ class OwnObjectsFilter(rf_filters.BaseFilterBackend):
 
 class UnexplainedFilter(rf_filters.BaseFilterBackend):
     access_visibility = access.CUSTOM_VISIBILITY
+
+
+class OfficeHoursFilter(rf_filters.BaseFilterBackend):
+    access_visibility_note = "Outside office hours it hides everything."
+
+
+class NarrowedViewSet(ActionsViewSet):
+    __test__ = False
+    lookup_field = "uuid"
+    filter_backends = (structure_filters.GenericRoleFilter, OfficeHoursFilter)
+    access_filtered_actions = ("details", "refresh")
+
+    @access.shows("Objects of the caller's own projects.")
+    def get_queryset(self):
+        return super().get_queryset()
+
+
+class FurtherNarrowedViewSet(NarrowedViewSet):
+    __test__ = False
+    filter_backends = ()
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+
+class ExportMixin:
+    access_declarations = {
+        "export": [access.custom("The serializer checks the export target.")],
+        "preview": [access.authenticated()],
+    }
+
+
+class ExportingViewSet(ExportMixin, ExampleViewSet):
+    __test__ = False
+    access_declarations = {"preview": [access.staff()]}
+
+
+class TeamViewSet(UserRoleMixin, ActionsViewSet):
+    __test__ = False
+    lookup_field = "uuid"
 
 
 class UndescribedPermission(rf_permissions.BasePermission):
@@ -284,6 +327,126 @@ class AccessForTest(SimpleTestCase):
         )
         self.assertTrue(route.declared)
         self.assertFalse(route.described)
+
+    def test_queryset_narrowed_by_the_view_says_what_it_shows(self):
+        for action in ("list", "retrieve"):
+            with self.subTest(action=action):
+                route = resolve(NarrowedViewSet, action, "GET")
+                # Over what GenericRoleFilter would say, with what the other
+                # backend adds.
+                self.assertEqual(route.visibility, access.CUSTOM_VISIBILITY)
+                self.assertEqual(
+                    route.visibility_description,
+                    "Objects of the caller's own projects. "
+                    "Outside office hours it hides everything.",
+                )
+                self.assertEqual(route.schema_entries(), [access.authenticated()])
+                self.assertTrue(route.described)
+
+    def test_queryset_narrowed_by_the_view_holds_with_no_filter_backends(self):
+        # As in an action declared with filter_backends=[], which drops what
+        # the backends add.
+        route = resolve(NarrowedViewSet, "details", "GET", filter_backends=[])
+        self.assertEqual(
+            route.visibility_description, "Objects of the caller's own projects."
+        )
+
+    def test_backend_note_follows_a_custom_filter_too(self):
+        route = resolve(
+            ExampleViewSet,
+            "list",
+            "GET",
+            filter_backends=(OwnObjectsFilter, OfficeHoursFilter),
+        )
+        self.assertEqual(
+            route.visibility_description,
+            "Objects the caller created, and those shared with them. "
+            "Outside office hours it hides everything.",
+        )
+
+    def test_backend_note_leaves_a_role_visibility_alone(self):
+        # The reference renders a description in place of the role sentence.
+        route = resolve(
+            ExampleViewSet,
+            "list",
+            "GET",
+            filter_backends=(structure_filters.GenericRoleFilter, OfficeHoursFilter),
+        )
+        self.assertEqual(route.visibility, "role")
+        self.assertIsNone(route.visibility_description)
+
+    def test_get_queryset_overridden_without_saying_what_it_shows_declares_nothing(
+        self,
+    ):
+        route = resolve(FurtherNarrowedViewSet, "list", "GET")
+        self.assertIsNone(route.visibility)
+        self.assertFalse(route.declared)
+
+    def test_named_read_actions_share_the_visibility_of_retrieve(self):
+        route = resolve(NarrowedViewSet, "details", "GET")
+        self.assertEqual(route.visibility, access.CUSTOM_VISIBILITY)
+        self.assertTrue(route.declared)
+
+        route = resolve(
+            ExampleViewSet,
+            "countries",
+            "GET",
+            detail=False,
+            access_filtered_actions=("countries",),
+        )
+        self.assertEqual(route.visibility, "role")
+
+    def test_named_actions_share_no_visibility_for_writes(self):
+        route = resolve(NarrowedViewSet, "refresh", "POST")
+        self.assertIsNone(route.visibility)
+        self.assertFalse(route.declared)
+
+    def test_unnamed_read_actions_share_no_visibility(self):
+        route = resolve(NarrowedViewSet, "summary", "GET")
+        self.assertIsNone(route.visibility)
+        self.assertFalse(route.declared)
+
+    def test_mixin_declares_the_actions_it_adds(self):
+        route = resolve(ExportingViewSet, "export", "POST")
+        self.assertIn(
+            access.custom("The serializer checks the export target."), route.entries
+        )
+        # The view's own declarations still apply.
+        route = resolve(ExportingViewSet, "import_resource", "POST")
+        self.assertIn(
+            access.custom("The serializer checks the project."), route.entries
+        )
+
+    def test_view_replaces_what_a_mixin_declares_for_an_action(self):
+        route = resolve(ExportingViewSet, "preview", "GET", detail=False)
+        self.assertEqual(route.entries, [access.staff()])
+
+    def test_team_actions_say_who_may_call_them(self):
+        expected = {
+            ("list_users", "GET"): permissions_views.TEAM_VIEW_ACCESS,
+            ("add_user", "POST"): permissions_serializers.GRANT_ROLE_ACCESS,
+            ("update_user", "POST"): permissions_serializers.UPDATE_ROLE_ACCESS,
+            ("delete_user", "POST"): permissions_serializers.REVOKE_ROLE_ACCESS,
+        }
+        for (action, method), entry in expected.items():
+            with self.subTest(action=action):
+                route = resolve(TeamViewSet, action, method)
+                self.assertIn(entry, route.entries)
+                self.assertTrue(route.described)
+
+    def test_team_descriptions_name_the_permissions_that_are_checked(self):
+        self.assertIn(
+            PermissionEnum.CREATE_PROJECT_PERMISSION.value,
+            permissions_serializers.GRANT_ROLE_ACCESS["description"],
+        )
+        self.assertIn(
+            PermissionEnum.DELETE_RESOURCE_PERMISSION.value,
+            permissions_serializers.REVOKE_ROLE_ACCESS["description"],
+        )
+        self.assertIn(
+            PermissionEnum.VIEW_PROJECT_TEAM.value,
+            permissions_views.TEAM_VIEW_ACCESS["description"],
+        )
 
     def test_descriptions_are_copies(self):
         route = resolve(ExampleViewSet, "approve", "POST")
