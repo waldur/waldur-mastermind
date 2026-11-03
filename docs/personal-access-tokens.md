@@ -118,18 +118,36 @@ or support through must therefore ask the request, not the user:
 - the function permissions `structure_permissions.is_staff` and
   `is_staff_or_support`, which call them
 
-`request.user.is_staff` alone lets a token scoped to, say, `LIST_ORDERS` act as
-full staff. Not yet covered: serializer-level checks and what such a token can
-read, since `filter_queryset_for_user` receives only the user.
+A token that lacks the scope its user's role needs also reads as the user without
+that role. `PATAuthentication` hands such a request a `TokenScopedUser`, a proxy of
+`User` whose `is_staff` and `is_support` read as the token allows:
+
+| Account | Token carries | `is_staff` | `is_support` |
+|---|---|---|---|
+| staff | neither scope | false | false |
+| staff | `SUPPORT.ACCESS` only | false | true |
+| support | neither scope | false | false |
+
+Every check on the user's flags follows the token, without the check changing:
+`filter_queryset_for_user`, `GenericRoleFilter`, serializer `get_fields`, media
+access rules and the staff bypass in `has_permission`. Such a token therefore
+sees and does only what the user's roles allow. `/api/users/me/` reports the
+flags the token acts with.
+
+The proxy never writes the narrowed flags: `save`, `delete` and
+`refresh_from_db` run as a plain `User`, so the database and receivers of `User`
+signals see the account's flags; `save` leaves `is_staff` / `is_support` out; and
+assigning them raises. `account_is_staff` / `account_is_support` read the account's
+flags, which `TokenCarriesUserRole` needs. A task given the user, or its id, loads
+it again and sees the account's flags.
 
 Credentials in `GET /api/service-settings/` are the exception: a token sees them
 only with `STAFF.ACCESS` or, for an organization owner, with
 `OFFERING.UPDATE_INTEGRATION`, the permission guarding the same values on an
 offering. Its bindings must cover the organization in both cases, so a bound
 token never sees the credentials of settings that belong to no organization. A
-staff token carrying `OFFERING.UPDATE_INTEGRATION` but not `STAFF.ACCESS` reads an
-offering's service attributes but not these settings, which need not belong to any
-offering. Any other token gets the redacted options a non-owner sees. Use `check_pat_permission` for a check
+staff token without `STAFF.ACCESS` reads as not staff, so it sees these settings
+only as far as its user's roles reach. Any other token gets the redacted options a non-owner sees. Use `check_pat_permission` for a check
 that decides the role itself and needs only the token's limits on top.
 
 ## Security

@@ -1957,7 +1957,9 @@ class AgentQueueAttributionTest(test.APITestCase):
         user = self.fixture.staff
         user.can_use_personal_access_tokens = True
         user.save(update_fields=["can_use_personal_access_tokens"])
-        pat, plaintext = create_pat(user, name="site agent")
+        pat, plaintext = create_pat(
+            user, name="site agent", scopes=[PermissionEnum.STAFF_ACCESS.value]
+        )
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {plaintext}")
 
         consumer = self._register(user)

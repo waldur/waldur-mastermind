@@ -142,9 +142,13 @@ class PATServiceProviderBindingPermissionTest(ProviderSetup, test.APITestCase):
 @override_config(PAT_ENABLED=True)
 class PATServiceProviderBindingListFilterTest(ProviderSetup, test.APITestCase):
     def list_uuids(self, url):
+        # STAFF.ACCESS: a staff user's token acts as staff only with it (#987).
         pat = _create_pat(
             self.staff,
-            scopes=[PermissionEnum.LIST_PROJECTS.value],
+            scopes=[
+                PermissionEnum.STAFF_ACCESS.value,
+                PermissionEnum.LIST_PROJECTS.value,
+            ],
             bindings=[self.provider],
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
@@ -182,9 +186,13 @@ class PATServiceProviderNestedListTest(ProviderSetup, test.APITestCase):
     ]
 
     def get(self, url, binding, scopes=None, user=None):
+        scopes = list(scopes or self.scopes)
+        if user is None:
+            # A staff user's token acts as staff only with STAFF.ACCESS (#987).
+            scopes.append(PermissionEnum.STAFF_ACCESS.value)
         pat = _create_pat(
             user or self.staff,
-            scopes=scopes or self.scopes,
+            scopes=scopes,
             bindings=[binding] if binding else [],
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))

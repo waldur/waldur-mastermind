@@ -39,6 +39,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.passkeys.models import is_session_verified
+from waldur_core.permissions.enums import PermissionEnum
 
 logger = logging.getLogger(__name__)
 
@@ -299,6 +300,16 @@ class PATAuthentication(BaseAuthentication):
             return None
 
         user, pat = result
+        # A token without the staff or support scope acts as the user without
+        # that role, for reads as well as writes: the request's user reads
+        # is_staff / is_support as the token allows (#987).
+        scopes = set(pat.scopes or ())
+        staff_scope = PermissionEnum.STAFF_ACCESS.value in scopes
+        user = models.TokenScopedUser.narrow(
+            user,
+            staff_scope=staff_scope,
+            support_scope=staff_scope or PermissionEnum.SUPPORT_ACCESS.value in scopes,
+        )
         set_user_context(user, skip_token_check=True)
         return (user, pat)
 

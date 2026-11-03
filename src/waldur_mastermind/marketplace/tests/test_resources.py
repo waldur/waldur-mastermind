@@ -2235,12 +2235,13 @@ class ResourceReallocateLimitsTokenTest(test.APITestCase):
             limits={"vcpu": 10, "ram": 20},
         )
 
-    def use_token(self, *bindings, user=None):
+    def use_token(self, *bindings, user=None, scopes=()):
         pat = _create_pat(
             user or self.user,
             scopes=[
                 PermissionEnum.CREATE_ORDER.value,
                 PermissionEnum.UPDATE_RESOURCE_LIMITS.value,
+                *scopes,
             ],
             bindings=bindings,
         )
@@ -2261,8 +2262,8 @@ class ResourceReallocateLimitsTokenTest(test.APITestCase):
             format="json",
         )
 
-    def reallocate(self, target, *bindings, user=None):
-        self.use_token(*bindings, user=user)
+    def reallocate(self, target, *bindings, user=None, scopes=()):
+        self.use_token(*bindings, user=user, scopes=scopes)
         return self.post(target)
 
     def assert_refused(self, response, message="does not have permission"):
@@ -2309,7 +2310,14 @@ class ResourceReallocateLimitsTokenTest(test.APITestCase):
 
     def test_staff_token_is_held_to_its_binding(self):
         staff = UserFactory(is_staff=True, can_use_personal_access_tokens=True)
-        self.assert_missing(self.reallocate(self.outside, self.project, user=staff))
+        # STAFF.ACCESS, as a staff user's token acts as staff only with it (#987).
+        response = self.reallocate(
+            self.outside,
+            self.project,
+            user=staff,
+            scopes=[PermissionEnum.STAFF_ACCESS.value],
+        )
+        self.assert_missing(response)
 
     def test_refused_token_learns_nothing_about_the_target(self):
         other_offering = factories.OfferingFactory()
@@ -3421,7 +3429,19 @@ class ResourceTerminatePendingOrderTokenTest(test.APITestCase):
         self.assert_still_pending(self.terminate(self.fixture.owner, self.TERMINATE))
 
     def test_staff_token_without_staff_scope_does_not_approve(self, _):
+        # The token reads as the user without staff (#987), so the staff user
+        # owns the organization here, as the owner does, to reach the approval
+        # check rather than be refused before it. The owner role lists
+        # resources, as permissions.yaml grants it.
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
+        self.fixture.customer.add_user(self.fixture.staff, CustomerRole.OWNER)
         self.assert_still_pending(self.terminate(self.fixture.staff, self.TERMINATE))
+
+    def test_staff_token_without_staff_scope_and_role_does_not_find_it(self, _):
+        response = self.terminate(self.fixture.staff, self.TERMINATE)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.PENDING_CONSUMER)
 
     def test_owner_token_with_approve_scope_approves(self, _):
         response = self.terminate(self.fixture.owner, self.TERMINATE, self.APPROVE)

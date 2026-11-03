@@ -110,6 +110,8 @@ class CustomerStaffOnlyFieldsTest(test.APITestCase):
         self.assertEqual(self.patch(), "AGR-42")
 
     def test_staff_token_without_staff_scope_cannot_set_staff_only_field(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        self.customer.add_user(self.staff, CustomerRole.OWNER)
         use_pat(self.client, self.staff, PermissionEnum.UPDATE_CUSTOMER.value)
         self.assertEqual(self.patch(), "")
 
@@ -149,6 +151,10 @@ class ProjectRecoveryTokenScopeTest(test.APITestCase):
         self.assert_restored(self.recover(), True)
 
     def test_staff_token_without_staff_scope_cannot_restore_the_team(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
+        self.fixture.customer.add_user(self.staff, CustomerRole.OWNER)
         use_pat(self.client, self.staff, PermissionEnum.CREATE_PROJECT.value)
         self.assert_restored(self.recover(), False)
 

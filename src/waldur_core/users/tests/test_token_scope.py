@@ -52,6 +52,8 @@ class PublicInvitationTokenScopeTest(test.APITestCase):
         self.assertTrue(invitations.exists())
 
     def test_staff_token_without_staff_scope_cannot_create_public_invitation(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        self.customer.add_user(self.staff, CustomerRole.OWNER)
         use_pat(self.client, self.staff, CREATE_PERMISSION)
         response, invitations = self.create()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -191,11 +191,15 @@ class CommentChangeTokenScopeTest(base.BaseTest):
         self.assert_changed(True)
 
     def test_staff_token_without_staff_scope_cannot_change(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        self.fixture.customer.add_user(self.fixture.staff, CustomerRole.OWNER)
         use_pat(self.client, self.fixture.staff)
         self.assertEqual(self.hide().status_code, status.HTTP_403_FORBIDDEN)
         self.assert_changed(False)
 
     def test_staff_token_without_staff_scope_cannot_delete(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        self.fixture.customer.add_user(self.fixture.staff, CustomerRole.OWNER)
         use_pat(self.client, self.fixture.staff)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

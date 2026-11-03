@@ -735,6 +735,154 @@ class ImpersonatedUser(User):
         return super().__str__() + f" impersonator: {self.impersonator}"
 
 
+# The account flags a personal access token's scopes can take away (#987).
+TOKEN_SCOPED_FLAGS = frozenset({"is_staff", "is_support"})
+
+
+class TokenScopedUser(User):
+    """The user of a request whose personal access token lacks its staff or
+    support scope.
+
+    ``is_staff`` and ``is_support`` read as the token allows, so every check
+    on the user's flags, from ``filter_queryset_for_user`` to the staff bypass
+    in ``has_permission``, follows the token. A staff user's token without
+    ``STAFF.ACCESS`` reads as not staff, and as support if it carries
+    ``SUPPORT.ACCESS``; a support user's token without ``SUPPORT.ACCESS`` or
+    ``STAFF.ACCESS`` reads as not support. ``account_is_staff`` and
+    ``account_is_support`` give the account's own flags.
+
+    The account's values stay where Django keeps them, in ``__dict__``; only
+    reading through this class narrows them. They cannot reach the database:
+    ``save``, ``delete`` and ``refresh_from_db`` run as a plain ``User``, so
+    the ORM, the field tracker and signal receivers connected to ``User`` see
+    the account's values, and ``save`` never writes the two columns. The flags
+    cannot be assigned while narrowed.
+
+    An instance loaded without a token, through this proxy's manager, has no
+    narrowing and reads like a ``User``.
+    """
+
+    class Meta:
+        proxy = True
+
+    # (acts as staff, acts as support) as the token allows; None for an
+    # instance that was not narrowed.
+    _token_grants: tuple[bool, bool] | None = None
+
+    @classmethod
+    def narrow(cls, user: User, staff_scope: bool, support_scope: bool) -> User:
+        """Make ``user`` act with only the role its token's scopes allow.
+
+        ``staff_scope`` says the token carries ``STAFF.ACCESS``;
+        ``support_scope`` that it carries ``STAFF.ACCESS`` or
+        ``SUPPORT.ACCESS``. Returns ``user`` itself, unchanged when the token
+        takes nothing away, so a regular user or a fully scoped token keeps a
+        plain ``User``.
+        """
+        if not (
+            (user.is_staff and not staff_scope)
+            or (user.is_support and not support_scope)
+        ):
+            return user
+        # In place, so that the token's ``user`` and the request's are the
+        # same object and agree.
+        user.__class__ = cls
+        user._token_grants = (staff_scope, support_scope)
+        return user
+
+    def _account_flag(self, name: str) -> bool:
+        if name not in self.__dict__:
+            self.refresh_from_db(fields=[name])
+        return self.__dict__[name]
+
+    def _set_account_flag(self, name: str, value: bool) -> None:
+        if self._token_grants is not None:
+            raise AttributeError(
+                f"{name} cannot be changed through a user narrowed by a "
+                "personal access token."
+            )
+        self.__dict__[name] = value
+
+    @property
+    def account_is_staff(self) -> bool:
+        return self._account_flag("is_staff")
+
+    @property
+    def account_is_support(self) -> bool:
+        return self._account_flag("is_support")
+
+    @property
+    def is_staff(self) -> bool:  # type: ignore[override]
+        if self._token_grants is None:
+            return self.account_is_staff
+        return self.account_is_staff and self._token_grants[0]
+
+    @is_staff.setter
+    def is_staff(self, value: bool) -> None:
+        self._set_account_flag("is_staff", value)
+
+    @property
+    def is_support(self) -> bool:  # type: ignore[override]
+        if self._token_grants is None or self.is_staff:
+            return self.account_is_support
+        # A staff user's token with only the support scope acts as support.
+        return (self.account_is_support or self.account_is_staff) and (
+            self._token_grants[1]
+        )
+
+    @is_support.setter
+    def is_support(self, value: bool) -> None:
+        self._set_account_flag("is_support", value)
+
+    def save(self, **kwargs):
+        if self._token_grants is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None:
+                deferred = self.get_deferred_fields()
+                update_fields = [
+                    f.name
+                    for f in self._meta.concrete_fields
+                    if not f.primary_key and f.attname not in deferred
+                ]
+            kwargs["update_fields"] = [
+                name for name in update_fields if name not in TOKEN_SCOPED_FLAGS
+            ]
+            if not kwargs["update_fields"]:
+                return
+        with _AsAccount(self):
+            User.save(self, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        with _AsAccount(self):
+            return User.delete(self, *args, **kwargs)
+
+    def refresh_from_db(self, *args, **kwargs):
+        with _AsAccount(self):
+            return User.refresh_from_db(self, *args, **kwargs)
+
+
+class _AsAccount:
+    """Let a ``TokenScopedUser`` act as a plain ``User`` for the duration.
+
+    Swapping the class rather than copying the instance keeps one object, so
+    the primary key, ``_state`` and the field tracker (which holds a reference
+    to the instance) all stay consistent, and signals are sent with
+    ``sender=User``.
+    """
+
+    def __init__(self, user: TokenScopedUser):
+        self.user = user
+
+    def __enter__(self):
+        self.previous = self.user.__class__
+        self.user.__class__ = User
+        return self.user
+
+    def __exit__(self, *exc):
+        self.user.__class__ = self.previous
+        return False
+
+
 class ChangeEmailRequest(UuidMixin, TimeStampedModel):
     """
     Model for handling user email change requests.
