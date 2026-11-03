@@ -1561,18 +1561,22 @@ class CustomerContextSerializer(serializers.Serializer):
 
 
 class ProviderSupportUserSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    StaffWritableFieldsMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     user = serializers.HyperlinkedRelatedField(
         view_name="user-detail",
         lookup_field="uuid",
         queryset=User.objects.all(),
+        help_text=_("User who is the agent. Only staff can change it."),
     )
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     user_email = serializers.ReadOnlyField(source="user.email")
     provider_helpdesk = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.ProviderHelpdesk.objects.all(),
+        help_text=_("Helpdesk the agent answers for. Only staff can change it."),
     )
     open_ticket_count = serializers.SerializerMethodField()
     has_capacity = serializers.SerializerMethodField()
@@ -1611,6 +1615,8 @@ class ProviderSupportUserSerializer(
             "created",
             "modified",
         )
+        # Who the agent is and whose helpdesk they answer for.
+        staff_writable_fields = ("user", "provider_helpdesk")
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
@@ -1628,11 +1634,14 @@ class TeamWorkloadSerializer(serializers.Serializer):
 
 
 class ProviderCannedResponseSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    StaffWritableFieldsMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     provider_helpdesk = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.ProviderHelpdesk.objects.all(),
+        help_text=_("Helpdesk the response belongs to. Only staff can change it."),
     )
 
     class Meta:
@@ -1649,6 +1658,8 @@ class ProviderCannedResponseSerializer(
             "modified",
         )
         read_only_fields = ("usage_count",)
+        # Whose helpdesk the response belongs to.
+        staff_writable_fields = ("provider_helpdesk",)
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",

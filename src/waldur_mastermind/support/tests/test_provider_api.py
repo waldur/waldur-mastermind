@@ -290,6 +290,53 @@ class ProviderHelpdeskUpdateTest(ProviderHelpdeskBaseTest):
             self.helpdesk.service_provider.uuid.hex, changes["service_provider"]
         )
 
+    def test_owner_cannot_move_helpdesk_to_another_service_provider(self):
+        # Service provider UUIDs are public; with routing on, the other
+        # provider's tickets would reach this helpdesk's agents.
+        other_provider = marketplace_factories.ServiceProviderFactory()
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderHelpdeskFactory.get_url(self.helpdesk)
+        response = self.client.patch(
+            url,
+            {"service_provider": other_provider.uuid.hex, "is_active": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["service_provider"], ["Only staff can change this field."]
+        )
+        self.helpdesk.refresh_from_db()
+        self.assertEqual(self.helpdesk.service_provider, self.service_provider)
+        self.assertTrue(self.helpdesk.is_active)
+        self.assertFalse(
+            models.ProviderHelpdesk.objects.filter(
+                service_provider=other_provider
+            ).exists()
+        )
+
+    def test_owner_may_send_back_the_service_provider_unchanged(self):
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderHelpdeskFactory.get_url(self.helpdesk)
+        response = self.client.patch(
+            url,
+            {"service_provider": self.service_provider.uuid.hex, "is_active": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.helpdesk.refresh_from_db()
+        self.assertFalse(self.helpdesk.is_active)
+
+    def test_staff_can_move_helpdesk_to_another_service_provider(self):
+        other_provider = marketplace_factories.ServiceProviderFactory()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProviderHelpdeskFactory.get_url(self.helpdesk)
+        response = self.client.patch(
+            url, {"service_provider": other_provider.uuid.hex}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.helpdesk.refresh_from_db()
+        self.assertEqual(self.helpdesk.service_provider, other_provider)
+
 
 OPERATOR_SECRETS = (
     "agent@operator.example",
@@ -1441,6 +1488,114 @@ class ProviderSupportUserUpdateTest(ProviderHelpdeskBaseTest):
         response = self.client.patch(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def _other_provider_helpdesk(self):
+        return factories.ProviderHelpdeskFactory(
+            service_provider=marketplace_factories.ServiceProviderFactory()
+        )
+
+    def _user_url(self, user):
+        return "http://testserver" + reverse(
+            "user-detail", kwargs={"uuid": user.uuid.hex}
+        )
+
+    def test_owner_cannot_change_who_the_agent_is(self):
+        # Only staff may add an agent, so an owner may not turn an existing
+        # agent into somebody else, themselves included.
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderSupportUserFactory.get_url(self.support_user)
+        agent_user = self.support_user.user
+        response = self.client.patch(
+            url,
+            {"user": self._user_url(self.owner), "max_open_tickets": 30},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["user"], ["Only staff can change this field."])
+        self.support_user.refresh_from_db()
+        self.assertEqual(self.support_user.user, agent_user)
+        self.assertEqual(self.support_user.max_open_tickets, 20)
+        self.assertFalse(
+            models.ProviderSupportUser.objects.filter(user=self.owner).exists()
+        )
+
+    def test_owner_cannot_move_the_agent_to_another_helpdesk(self):
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderSupportUserFactory.get_url(self.support_user)
+        response = self.client.patch(
+            url,
+            {"provider_helpdesk": self._other_provider_helpdesk().uuid.hex},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["provider_helpdesk"], ["Only staff can change this field."]
+        )
+        self.support_user.refresh_from_db()
+        self.assertEqual(self.support_user.provider_helpdesk, self.helpdesk)
+
+    def test_owner_may_send_back_the_agent_unchanged(self):
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderSupportUserFactory.get_url(self.support_user)
+        response = self.client.patch(
+            url,
+            {
+                "user": self._user_url(self.support_user.user),
+                "provider_helpdesk": self.helpdesk.uuid.hex,
+                "max_open_tickets": 30,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.support_user.refresh_from_db()
+        self.assertEqual(self.support_user.max_open_tickets, 30)
+
+    def test_owner_cannot_reach_another_providers_tickets_through_an_agent(self):
+        other_helpdesk = self._other_provider_helpdesk()
+        other_ticket = factories.IssueFactory(
+            parent_issue=factories.IssueFactory(backend_id="WLD-P1"),
+            provider_helpdesk=other_helpdesk,
+            backend_id="WLD-C1",
+        )
+        self.client.force_authenticate(self.owner)
+        response = self.client.patch(
+            factories.ProviderSupportUserFactory.get_url(self.support_user),
+            {
+                "provider_helpdesk": other_helpdesk.uuid.hex,
+                "user": self._user_url(self.owner),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.assertFalse(
+            models.ProviderSupportUser.objects.filter(
+                provider_helpdesk=other_helpdesk
+            ).exists()
+        )
+        response = self.client.get(_provider_ticket_list_url())
+        self.assertNotIn(
+            other_ticket.uuid.hex, [ticket["uuid"] for ticket in response.data]
+        )
+        response = self.client.post(_provider_ticket_url(other_ticket, "claim"))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_staff_can_change_who_the_agent_is_and_where(self):
+        other_helpdesk = self._other_provider_helpdesk()
+        new_user = structure_factories.UserFactory()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            factories.ProviderSupportUserFactory.get_url(self.support_user),
+            {
+                "provider_helpdesk": other_helpdesk.uuid.hex,
+                "user": self._user_url(new_user),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.support_user.refresh_from_db()
+        self.assertEqual(self.support_user.provider_helpdesk, other_helpdesk)
+        self.assertEqual(self.support_user.user, new_user)
+
 
 class ProviderSupportUserDeleteTest(ProviderHelpdeskBaseTest):
     def setUp(self):
@@ -1628,6 +1783,51 @@ class ProviderCannedResponseUpdateTest(ProviderHelpdeskBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.canned_response.refresh_from_db()
         self.assertEqual(self.canned_response.name, "Updated Response Name")
+
+    def test_owner_cannot_move_canned_response_to_another_helpdesk(self):
+        other_helpdesk = factories.ProviderHelpdeskFactory(
+            service_provider=marketplace_factories.ServiceProviderFactory()
+        )
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderCannedResponseFactory.get_url(self.canned_response)
+        name = self.canned_response.name
+        response = self.client.patch(
+            url,
+            {"provider_helpdesk": other_helpdesk.uuid.hex, "name": "Renamed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["provider_helpdesk"], ["Only staff can change this field."]
+        )
+        self.canned_response.refresh_from_db()
+        self.assertEqual(self.canned_response.provider_helpdesk, self.helpdesk)
+        self.assertEqual(self.canned_response.name, name)
+
+    def test_owner_may_send_back_the_canned_response_helpdesk_unchanged(self):
+        self.client.force_authenticate(self.owner)
+        url = factories.ProviderCannedResponseFactory.get_url(self.canned_response)
+        response = self.client.patch(
+            url,
+            {"provider_helpdesk": self.helpdesk.uuid.hex, "name": "Renamed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.canned_response.refresh_from_db()
+        self.assertEqual(self.canned_response.name, "Renamed")
+
+    def test_staff_can_move_canned_response_to_another_helpdesk(self):
+        other_helpdesk = factories.ProviderHelpdeskFactory(
+            service_provider=marketplace_factories.ServiceProviderFactory()
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProviderCannedResponseFactory.get_url(self.canned_response)
+        response = self.client.patch(
+            url, {"provider_helpdesk": other_helpdesk.uuid.hex}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.canned_response.refresh_from_db()
+        self.assertEqual(self.canned_response.provider_helpdesk, other_helpdesk)
 
 
 class ProviderCannedResponseDeleteTest(ProviderHelpdeskBaseTest):
