@@ -6,14 +6,23 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core import access
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.support import models
+from waldur_mastermind.support import models, views
 from waldur_mastermind.support.backend import SupportBackendError, SupportBackendType
 from waldur_mastermind.support.backend.email_backend import EmailSupportBackend
 from waldur_mastermind.support.tests import base, factories, fixtures
+
+
+def _route_access(view_class, action, method):
+    """What the API schema says about a detail route of ``view_class``."""
+    view = view_class()
+    view.action = action
+    view.detail = True
+    return access.access_for(view, method)
 
 
 def _provider_ticket_url(issue, action=None):
@@ -2071,9 +2080,9 @@ class IssueEscalateTest(ProviderHelpdeskBaseTest):
 
     @mock.patch("waldur_mastermind.support.views.tasks")
     def test_caller_cannot_escalate_due_to_permission_design(self, mock_tasks):
-        # The _escalate_permission check receives obj=None in has_permission
-        # stage, so non-staff/non-support callers are blocked before
-        # has_object_permission (where obj is passed) is reached.
+        # Escalation is for staff and support. The check it used to have also
+        # named the issue's caller, but never got the issue before refusing
+        # everyone else, so the caller has never been able to escalate.
         self.client.force_authenticate(self.issue.caller)
         url = factories.IssueFactory.get_url(self.issue, action="escalate")
         data = {"reason": "No response in 48 hours"}
@@ -2095,6 +2104,17 @@ class IssueEscalateTest(ProviderHelpdeskBaseTest):
         url = factories.IssueFactory.get_url(self.issue, action="escalate")
         response = self.client.post(url, {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch("waldur_mastermind.support.views.tasks")
+    def test_global_support_can_escalate(self, mock_tasks):
+        self.client.force_authenticate(self.fixture.global_support)
+        url = factories.IssueFactory.get_url(self.issue, action="escalate")
+        response = self.client.post(url, {"reason": "Stuck"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_schema_says_staff_or_support_may_escalate(self):
+        route = _route_access(views.IssueViewSet, "escalate", "POST")
+        self.assertEqual(route.entries, [access.staff_or_support()])
 
 
 class IssueBulkUpdateTest(ProviderHelpdeskBaseTest):
@@ -2396,6 +2416,70 @@ class SavedFilterCRUDTest(ProviderHelpdeskBaseTest):
         data = {"name": "Hacked"}
         response = self.client.patch(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_support_user_can_update_and_delete_own_filter(self):
+        own = factories.SavedFilterFactory(
+            user=self.fixture.global_support, name="Original"
+        )
+        self.client.force_authenticate(self.fixture.global_support)
+        url = factories.SavedFilterFactory.get_url(own)
+
+        response = self.client.patch(url, {"name": "Mine"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        own.refresh_from_db()
+        self.assertEqual(own.name, "Mine")
+
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.SavedFilter.objects.filter(pk=own.pk).exists())
+
+    def test_staff_can_update_and_delete_other_users_shared_filter(self):
+        shared = factories.SavedFilterFactory(
+            user=self.fixture.global_support, is_shared=True
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.SavedFilterFactory.get_url(shared)
+
+        response = self.client.patch(url, {"name": "Renamed"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_owner_who_is_no_longer_support_cannot_change_their_filter(self):
+        former_support = structure_factories.UserFactory(is_support=True)
+        own = factories.SavedFilterFactory(user=former_support, name="Mine")
+        former_support.is_support = False
+        former_support.save(update_fields=["is_support"])
+        self.client.force_authenticate(former_support)
+        url = factories.SavedFilterFactory.get_url(own)
+
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.patch(
+            url, {"name": "Shared now", "is_shared": True}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.delete(url).status_code, status.HTTP_403_FORBIDDEN)
+        own.refresh_from_db()
+        self.assertEqual((own.name, own.is_shared), ("Mine", False))
+
+    def test_schema_says_staff_or_support_and_staff_or_the_owner(self):
+        for action, method in (
+            ("update", "PUT"),
+            ("partial_update", "PATCH"),
+            ("destroy", "DELETE"),
+        ):
+            with self.subTest(action=action):
+                route = _route_access(views.SavedFilterViewSet, action, method)
+                self.assertEqual(
+                    route.entries,
+                    [
+                        access.staff_or_support(),
+                        access.any_of(
+                            access.staff(), access.owned("The filter's owner.")
+                        ),
+                    ],
+                )
 
     def test_support_user_cannot_delete_other_users_filter(self):
         staff_filter = factories.SavedFilterFactory(
