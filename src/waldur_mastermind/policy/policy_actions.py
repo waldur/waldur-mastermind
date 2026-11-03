@@ -1,5 +1,6 @@
 import logging
 import re
+from collections import defaultdict
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -239,6 +240,10 @@ def request_slurm_resource_downscaling(policy: models.Policy):
                     }
                 )
             elif resource.downscaled and usage_percentage < 100:
+                if marketplace_utils.another_reason_keeps_downscaled(
+                    resource, exclude_policy=policy
+                ):
+                    continue
                 _save_resource_with_reversion(
                     resource,
                     policy,
@@ -297,6 +302,27 @@ def policies_keep_paused(resource) -> bool:
     paused while a firing cost policy with ``request_pausing`` covers it, or its
     usage is over the grace limit of a SLURM periodic policy that pauses.
     """
+    return _cost_policies_want(resource, "request_pausing") or _slurm_policies_want(
+        resource, "paused"
+    )
+
+
+def policies_keep_downscaled(resource, exclude_policy=None) -> bool:
+    """Whether a policy still wants ``resource`` downscaled, whoever set the flag.
+
+    Registered as a marketplace downscale keeper: a SLURM policy under its
+    limit leaves the resource downscaled while a firing cost policy with
+    ``request_downscaling`` covers it, or its usage is at or over 100 % of
+    another SLURM periodic policy that downscales. ``exclude_policy`` is the
+    SLURM policy asking, whose own usage it has already weighed.
+    """
+    return _cost_policies_want(resource, "request_downscaling") or _slurm_policies_want(
+        resource, "downscaled", exclude_policy=exclude_policy
+    )
+
+
+def _cost_policies_want(resource, request_action) -> bool:
+    """Whether a firing cost policy with ``request_action`` covers ``resource``."""
     single = marketplace_models.Resource.objects.filter(pk=resource.pk)
     # Only policies scoped to this resource's project, customer or offering can
     # cover it; the scope filter below still applies their narrower selection.
@@ -307,17 +333,65 @@ def policies_keep_paused(resource) -> bool:
     }
     for klass in _cost_policy_classes():
         for policy in klass.objects.filter(
-            has_fired=True, actions__contains="request_pausing", scope=scopes[klass]
+            has_fired=True, actions__contains=request_action, scope=scopes[klass]
         ):
             scoped = _filter_resources_by_scope(single, policy)
             if scoped is not None and scoped.exists():
                 return True
+    return False
+
+
+# The resource flag each SLURM action sets -> the action that sets it.
+SLURM_FLAG_ACTIONS = {
+    "paused": "request_slurm_resource_pausing",
+    "downscaled": "request_slurm_resource_downscaling",
+}
+
+
+def _slurm_threshold(policy, field_name) -> float:
+    """Usage percentage at or above which a SLURM policy wants ``field_name`` set."""
+    if field_name == "paused":
+        return (1 + policy.grace_ratio) * 100
+    return 100
+
+
+def _slurm_policies_by_offering(field_name) -> dict:
+    """The SLURM periodic policies with the action that sets ``field_name``, by offering id.
+
+    Loaded once by a caller that checks many resources; there is at most one
+    SLURM policy per offering.
+    """
+    by_offering = defaultdict(list)
     for policy in models.SlurmPeriodicUsagePolicy.objects.filter(
-        scope=resource.offering,
-        actions__contains="request_slurm_resource_pausing",
+        actions__contains=SLURM_FLAG_ACTIONS[field_name]
     ):
-        grace_limit = (1 + policy.grace_ratio) * 100
-        if policy.get_resource_usage_percentage(resource) >= grace_limit:
+        by_offering[policy.scope_id].append(policy)
+    return by_offering
+
+
+def _slurm_policies_want(
+    resource, field_name, by_offering=None, exclude_policy=None
+) -> bool:
+    """Whether a SLURM periodic policy on the resource's offering wants ``field_name`` set.
+
+    A SLURM policy holds a flag for as long as the resource's usage is over its
+    threshold: the grace limit for pausing, 100 % for downscaling.
+    ``by_offering`` is a preloaded ``_slurm_policies_by_offering``;
+    ``exclude_policy`` is not considered.
+    """
+    if by_offering is None:
+        policies = models.SlurmPeriodicUsagePolicy.objects.filter(
+            scope_id=resource.offering_id,
+            actions__contains=SLURM_FLAG_ACTIONS[field_name],
+        )
+    else:
+        policies = by_offering.get(resource.offering_id, ())
+    for policy in policies:
+        if exclude_policy is not None and policy.pk == exclude_policy.pk:
+            continue
+        if policy.get_resource_usage_percentage(resource) >= _slurm_threshold(
+            policy, field_name
+        ):
             return True
     return False
 
@@ -396,6 +470,112 @@ def request_slurm_resource_pausing(policy: models.Policy):
                     {
                         "message": f"SLURM usage policy has removed pausing of resource {resource.name}. Usage: {usage_percentage:.1f}%.",
                         "event_type": EventType.RESET_PAUSING,
+                        "event_context": {
+                            "policy_uuid": policy.uuid.hex,
+                            "resource_name": resource.name,
+                            "resource_uuid": resource.uuid.hex,
+                        },
+                        "scopes": [resource] + base_scopes,
+                    }
+                )
+
+    _emit_events_bulk(pending_events)
+
+
+_SLURM_ACTION_FLAGS = {action: field for field, action in SLURM_FLAG_ACTIONS.items()}
+
+
+def lift_slurm_actions(policy, action_names):
+    """Lift the flags SLURM actions held once they no longer belong to ``policy``.
+
+    ``request_slurm_resource_pausing`` and ``request_slurm_resource_downscaling``
+    have no reset method: the action lifts its flag itself on the next
+    evaluation under the limit. Removed from the policy, or with the policy
+    deleted, nothing runs it again, and the flag it holds would stay set with no
+    policy owning it.
+
+    Every flag of the action's kind on the policy's offering is lifted, whatever
+    the resource's usage now is. Over the threshold the action held it; under
+    it, the policy's next evaluation would have lifted it -- but usage can drop
+    (a new period, a raised allocation) before that evaluation runs, and a
+    deleted policy has none. Telling the action's own flags apart is not an
+    option: the per-resource evaluation does not record who set them. A flag
+    staff set by hand (``set_paused`` / ``set_downscaled``) is lifted too, as
+    the policy's own evaluation already lifts one under the threshold.
+
+    The flag stays where another reason still wants it: a usage-limit
+    restriction, a firing cost policy or another SLURM policy
+    (``PAUSE_KEEPERS`` / ``DOWNSCALE_KEEPERS``). A pause none of them holds but
+    the project grace period wants is handed to the grace period, which lifts it
+    when the project leaves it. Run after the edit or delete is committed, so
+    the policy itself no longer counts as a keeper.
+    """
+    fields = sorted(
+        _SLURM_ACTION_FLAGS[name]
+        for name in action_names
+        if name in _SLURM_ACTION_FLAGS
+    )
+    if not fields:
+        return
+
+    base_scopes = _get_base_policy_scopes(policy)
+    system_robot = get_system_robot()
+    pending_events = []
+
+    with transaction.atomic():
+        for field_name in fields:
+            resources = (
+                marketplace_models.Resource.objects.filter(
+                    offering_id=policy.scope_id, **{field_name: True}
+                )
+                .exclude(
+                    state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING)
+                )
+                .select_related("offering", "project__customer")
+                .select_for_update(of=("self",))
+                .order_by("pk")
+            )
+            for resource in resources:
+                if field_name == "paused":
+                    # Keepers first: a pause another mechanism holds is theirs
+                    # to lift, and must not be handed to the grace period.
+                    if marketplace_utils.another_reason_keeps_paused(resource):
+                        continue
+                    if _keep_paused_for_project_grace(resource, hand_over=True):
+                        continue
+                elif marketplace_utils.another_reason_keeps_downscaled(resource):
+                    continue
+                usage_percentage = policy.get_resource_usage_percentage(resource)
+
+                action_name = SLURM_FLAG_ACTIONS[field_name]
+                _save_resource_with_reversion(
+                    resource,
+                    policy,
+                    action_name,
+                    field_name,
+                    False,
+                    extra_comment=(
+                        f"Action removed from the policy. Usage: {usage_percentage:.1f}%."
+                    ),
+                    system_robot=system_robot,
+                )
+                logger.info(
+                    "SLURM resource %s: %s lifted, %s is no longer on policy %s",
+                    resource.uuid,
+                    field_name,
+                    action_name,
+                    policy.uuid.hex,
+                )
+                what = "pausing" if field_name == "paused" else "downscaling"
+                pending_events.append(
+                    {
+                        "message": (
+                            f"SLURM usage policy no longer requests {what}, so "
+                            f"{what} of resource {resource.name} has been removed."
+                        ),
+                        "event_type": EventType.RESET_PAUSING
+                        if field_name == "paused"
+                        else EventType.RESET_DOWNSCALING,
                         "event_context": {
                             "policy_uuid": policy.uuid.hex,
                             "resource_name": resource.name,
@@ -637,6 +817,18 @@ def _resources_locked_by_other_policies(policy, field_name):
     return locked
 
 
+def _held_outside_cost_policies(resource, field_name, slurm_policies) -> bool:
+    """Whether a mechanism other than cost policies holds ``resource``'s pause or downscale.
+
+    A usage-limit restriction of that flag (its value is the flag's name), or a
+    SLURM policy whose usage for the resource is still over its threshold; each
+    lifts the flag itself when its own reason ends.
+    """
+    return resource.usage_limit_restriction == field_name or _slurm_policies_want(
+        resource, field_name, by_offering=slurm_policies
+    )
+
+
 def _apply_generic_action(
     policy, action_name, field_name, new_value, event_type, queryset
 ):
@@ -671,6 +863,13 @@ def _apply_generic_action(
         if new_value is False
         else set()
     )
+    # Pauses and downscales are also held outside cost policies; loaded once,
+    # not per resource under the row locks below.
+    slurm_policies = (
+        _slurm_policies_by_offering(field_name)
+        if new_value is False and field_name in SLURM_FLAG_ACTIONS
+        else None
+    )
 
     base_scopes = _get_base_policy_scopes(policy)
     system_robot = get_system_robot()
@@ -686,6 +885,10 @@ def _apply_generic_action(
             if current_value == new_value:
                 continue
             if new_value is False and resource.pk in locked:
+                continue
+            if slurm_policies is not None and _held_outside_cost_policies(
+                resource, field_name, slurm_policies
+            ):
                 continue
             # A reset fires once per policy cycle, so a pause this policy set is
             # handed to the grace period rather than left without an owner.

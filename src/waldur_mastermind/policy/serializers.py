@@ -27,7 +27,9 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, ResourceStates
 from waldur_mastermind.policy.policy_actions import (
     POLICY_ACTIONS,
+    SLURM_FLAG_ACTIONS,
     _filter_resources_by_scope,
+    lift_slurm_actions,
 )
 
 from . import models
@@ -928,6 +930,49 @@ class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
             "warnings",
         )
         extra_kwargs = OfferingUsagePolicySerializer.Meta.extra_kwargs
+
+    def save(self, **kwargs):
+        previous = copy.copy(self.instance) if self.instance is not None else None
+        policy = super().save(**kwargs)
+        if previous is not None:
+            self._lift_removed_slurm_actions(previous, policy)
+        return policy
+
+    @staticmethod
+    def _lift_removed_slurm_actions(previous, policy):
+        """Lift what the SLURM actions an edit removed were holding.
+
+        They have no reset method, so the cost-policy edit path
+        (`PolicySerializer._apply_edit`) cannot undo them. Moving the policy to
+        another offering removes them all from the old one.
+        """
+        old_actions = {name for name in previous.actions.split(",") if name}
+        new_actions = {name for name in policy.actions.split(",") if name}
+        removed = (
+            old_actions
+            if previous.scope_id != policy.scope_id
+            else old_actions - new_actions
+        )
+        removed &= set(SLURM_FLAG_ACTIONS.values())
+        if not removed:
+            return
+
+        def lift():
+            # The edit is already committed: a failure here is logged, never
+            # turned into an error response for a save that succeeded.
+            try:
+                with system_actor_event_context(
+                    trigger=EvaluationTriggers.POLICY_SAVED,
+                    trigger_object_uuid=policy.uuid.hex,
+                ):
+                    lift_slurm_actions(previous, removed)
+            except Exception:
+                logger.exception(
+                    "Failed to lift removed SLURM actions of policy %s",
+                    policy.uuid.hex,
+                )
+
+        transaction.on_commit(lift)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

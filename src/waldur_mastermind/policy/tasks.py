@@ -229,11 +229,18 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
                         f"Resource {resource.uuid} downscaled due to {usage_percentage:.1f}% usage"
                     )
             elif resource.downscaled and usage_percentage < 100:
-                resource.downscaled = False
-                resource.save()
-                logger.info(
-                    f"Resource {resource.uuid} downscaling removed - usage {usage_percentage:.1f}% below threshold"
-                )
+                if marketplace_utils.another_reason_keeps_downscaled(
+                    resource, exclude_policy=policy
+                ):
+                    logger.info(
+                        f"Resource {resource.uuid} remains downscaled - a usage limit or another policy holds it"
+                    )
+                else:
+                    resource.downscaled = False
+                    resource.save()
+                    logger.info(
+                        f"Resource {resource.uuid} downscaling removed - usage {usage_percentage:.1f}% below threshold"
+                    )
 
             # Handle notifications (always send, don't persist state)
             if "notify" in actions_needed:

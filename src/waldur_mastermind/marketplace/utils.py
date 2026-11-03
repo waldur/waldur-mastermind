@@ -2601,6 +2601,27 @@ def another_reason_keeps_paused(resource) -> bool:
     ] or any(keeper(resource) for keeper in PAUSE_KEEPERS)
 
 
+# Checks (resource -> bool) telling whether a mechanism that downscales
+# resources on its own still wants a resource downscaled. The downscale
+# counterpart of PAUSE_KEEPERS, registered the same way.
+DOWNSCALE_KEEPERS = []
+
+
+def another_reason_keeps_downscaled(resource, exclude_policy=None) -> bool:
+    """Whether a usage-limit restriction or a registered keeper still wants ``resource`` downscaled.
+
+    Checked before an automatic mechanism lifts a downscale it does not own
+    alone: SLURM policies lifting a downscale under their limit, and a SLURM
+    action removed from its policy. ``exclude_policy`` is the policy asking,
+    passed on so keepers need not weigh it again; keepers take it as a keyword.
+    """
+    return resource.usage_limit_restriction == UsageLimitAction.FLAG[
+        UsageLimitAction.DOWNSCALE
+    ] or any(
+        keeper(resource, exclude_policy=exclude_policy) for keeper in DOWNSCALE_KEEPERS
+    )
+
+
 def release_project_grace_pauses(resources) -> list:
     """Lift the grace-period pause from resources whose project left the grace period.
 
