@@ -24,10 +24,10 @@ from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.models import Checklist, ChecklistCompletion
 from waldur_core.checklist.utils import serialize_completion_answers
 from waldur_core.configuration import config
+from waldur_core.core import access, template_utils
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core import template_utils
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.auth_utils import is_pat_auth
@@ -1870,6 +1870,13 @@ class ScopedOfferingSerializer(serializers.Serializer):
     has_live_resources = serializers.BooleanField()
 
 
+# Who AccessSubnetSerializer.validate lets create an entry: the permission
+# held on the organization the request names. Change the two together.
+CREATES_ACCESS_SUBNET = access.permission(
+    PermissionEnum.CREATE_ACCESS_SUBNET, ["customer"]
+)
+
+
 class AccessSubnetSerializer(
     core_serializers.AccessSubnetMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -2266,6 +2273,17 @@ class ProjectPermissionReviewSerializer(BasePermissionReviewSerializer):
         )
         read_only_fields = BasePermissionReviewSerializer.Meta.read_only_fields
         extra_kwargs = BasePermissionReviewSerializer.Meta.extra_kwargs
+
+
+# Who ProjectEndDateChangeRequestCreateSerializer.validate_project lets
+# request a change. Change the two together.
+REQUESTS_PROJECT_END_DATE_CHANGE = access.custom(
+    "A caller who sees the project the request names through a role (any role "
+    "on the project, PROJECT.LIST on its organization or site-wide, or a role "
+    "on one of its resources) or as global support, and who may not change "
+    "its end date directly: not staff, and without PROJECT.UPDATE on the "
+    "project, its organization or site-wide."
+)
 
 
 class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):

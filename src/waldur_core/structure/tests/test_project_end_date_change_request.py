@@ -564,6 +564,13 @@ class ProjectEndDateChangeRequestCancelTest(test.APITestCase):
         self.request.refresh_from_db()
         self.assertEqual(self.request.state, ReviewStates.PENDING)
 
+    def test_other_user_is_refused_before_the_state_is_checked(self):
+        self.request.state = ReviewStates.APPROVED
+        self.request.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_cannot_cancel_non_pending_request(self):
         """Cannot cancel request that is not pending."""
         self.request.state = ReviewStates.APPROVED

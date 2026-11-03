@@ -212,10 +212,10 @@ def _holds_on_project(request, permission, project: models.Project):
 
 
 def can_answer_project_metadata(request, view, obj=None, **kwargs):
-    """Check if user may answer the project's metadata checklist.
+    """Staff, the organization's owners, the project's managers, and holders
+    of PROJECT.UPDATE_METADATA on the project, its organization or site-wide.
 
-    Owners and project managers may by their role, and so may anyone holding
-    PROJECT.UPDATE_METADATA on the project or on its organization.
+    Pass who may answer the project's metadata checklist.
     """
     if not obj:
         return
@@ -228,11 +228,14 @@ def can_answer_project_metadata(request, view, obj=None, **kwargs):
 
 
 def has_project_access(request, view, obj=None, **kwargs):
-    """Check if user may read the project's metadata checklist.
+    """Staff and global support, the organization's owners, the project's
+    managers, administrators and members, and holders of
+    PROJECT.UPDATE_METADATA or PROJECT.UPDATE on the project, its
+    organization or site-wide.
 
-    That is anyone with a project role, an owner, global support, anyone who
-    may answer it, and anyone who may update the project, which shows them the
-    checklist on its settings page.
+    Pass who may read the project's metadata checklist: anyone with a project
+    role, an owner, anyone who may answer it, and anyone who may update the
+    project, which shows them the checklist on its settings page.
     """
     if not obj:
         return
@@ -352,3 +355,65 @@ def can_move_project(request, view, obj=None):
 
     if not (has_source_permission and has_target_permission):
         raise exceptions.PermissionDenied()
+
+
+# Checks of particular structure views. Each enforces one rule on the object
+# the view looks up and describes it in the API schema.
+
+
+@access.describes(access.permission(PermissionEnum.UPDATE_CUSTOMER), needs_object=True)
+def can_update_customer(request, view, obj=None):
+    if obj is not None and not (
+        has_staff_access(request)
+        or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, obj)
+    ):
+        raise exceptions.PermissionDenied()
+
+
+@access.describes(
+    access.any_of(
+        access.permission(PermissionEnum.UPDATE_CUSTOMER),
+        access.permission(PermissionEnum.CUSTOMER_CONTACT_UPDATE),
+    ),
+    needs_object=True,
+)
+def can_update_customer_contact(request, view, obj=None):
+    if obj is not None and not (
+        has_staff_access(request)
+        or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, obj)
+        or has_permission(request, PermissionEnum.CUSTOMER_CONTACT_UPDATE, obj)
+    ):
+        raise exceptions.PermissionDenied()
+
+
+@access.describes(access.owned("The request's author."), needs_object=True)
+def is_end_date_change_request_author(request, view, obj=None):
+    if obj is not None and obj.created_by != request.user:
+        raise exceptions.PermissionDenied(
+            _("You can only cancel your own project end date change requests.")
+        )
+
+
+def _is_user_or_support(message):
+    """A check that passes the user the object is, and staff or support."""
+
+    @access.describes(
+        access.any_of(
+            access.owned("The user account the request is for."),
+            access.staff_or_support(),
+        ),
+        needs_object=True,
+    )
+    def check(request, view, obj=None):
+        if obj is not None and not (request.user == obj or has_support_access(request)):
+            raise exceptions.PermissionDenied(message)
+
+    return check
+
+
+can_view_data_access = _is_user_or_support(
+    _("You do not have permission to view this user's data access.")
+)
+can_view_data_access_history = _is_user_or_support(
+    _("You do not have permission to view this user's data access history.")
+)
