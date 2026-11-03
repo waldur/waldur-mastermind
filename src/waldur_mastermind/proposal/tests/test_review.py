@@ -7,7 +7,10 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.enums import ProposalStates
@@ -253,6 +256,77 @@ class ReviewDeleteTest(test.APITestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         return self.client.delete(self.url)
+
+
+@override_config(PAT_ENABLED=True)
+class ReviewTokenTest(test.APITestCase):
+    """Assigning and removing a review with a personal access token needs
+    PROPOSAL.MANAGE_REVIEW among its scopes and a binding that covers the call."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.manager = self.fixture.call_manager
+        self.other_call = factories.CallFactory()
+        self.other_call.add_user(self.manager, CallRole.MANAGER)
+        self.review = self.fixture.review
+
+    def create(self):
+        return self.client.post(
+            factories.ReviewFactory.get_list_url(),
+            {
+                "proposal": factories.ProposalFactory.get_url(
+                    self.fixture.proposal_submitted
+                ),
+                "reviewer": structure_factories.UserFactory.get_url(
+                    self.fixture.reviewer_2
+                ),
+            },
+        )
+
+    def delete(self):
+        return self.client.delete(factories.ReviewFactory.get_url(self.review))
+
+    def assert_refused(self):
+        self.assertEqual(self.create().status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            models.Review.objects.filter(reviewer=self.fixture.reviewer_2).exists()
+        )
+        self.assertEqual(self.delete().status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.Review.objects.filter(pk=self.review.pk).exists())
+
+    def assert_allowed(self):
+        self.assertEqual(self.create().status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.delete().status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_token_without_manage_review_scope_is_refused(self):
+        use_pat(self.client, self.manager, PermissionEnum.LIST_CALLS.value)
+        self.assert_refused()
+
+    def test_token_bound_to_another_call_is_refused(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW.value,
+            bindings=[self.other_call],
+        )
+        self.assert_refused()
+
+    def test_token_with_scope_is_allowed(self):
+        use_pat(self.client, self.manager, PermissionEnum.MANAGE_PROPOSAL_REVIEW.value)
+        self.assert_allowed()
+
+    def test_token_bound_to_the_call_is_allowed(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW.value,
+            bindings=[self.fixture.call],
+        )
+        self.assert_allowed()
+
+    def test_session_is_allowed(self):
+        self.client.force_authenticate(self.manager)
+        self.assert_allowed()
 
 
 @ddt

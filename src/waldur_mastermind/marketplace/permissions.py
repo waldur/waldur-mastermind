@@ -6,6 +6,7 @@ from rest_framework import exceptions
 from waldur_core.configuration import config
 from waldur_core.core import access
 from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core.models import User
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
@@ -140,12 +141,21 @@ def user_holds_restricted_role_anywhere(user, offering, held_role_names=None) ->
     return bool(set(role_names) & held_role_names)
 
 
-def user_can_approve_order_as_consumer(user, order: models.Order) -> bool:
-    if user.is_staff:
+def user_can_approve_order_as_consumer(request_or_user, order: models.Order) -> bool:
+    """Whether ORDER.APPROVE is held on the order's project or its organization.
+
+    The rule of ``approve_by_consumer``. Pass the request where there is one,
+    so that a personal access token needs ORDER.APPROVE among its scopes and a
+    binding covering the project, and a staff token the staff scope.
+    """
+    if isinstance(request_or_user, User) and request_or_user.is_staff:
         return True
-    return has_permission(
-        user, PermissionEnum.APPROVE_ORDER, order.project
-    ) or has_permission(user, PermissionEnum.APPROVE_ORDER, order.project.customer)
+    return has_permission_on_any_source(
+        request_or_user,
+        PermissionEnum.APPROVE_ORDER,
+        order,
+        ["project", "project.customer"],
+    )
 
 
 def order_is_held_for_purchase_order(order: models.Order) -> bool:

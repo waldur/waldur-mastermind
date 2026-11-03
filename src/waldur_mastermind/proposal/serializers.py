@@ -2340,6 +2340,10 @@ class ProtectedCallSerializer(PublicCallSerializer):
     def validate_manager(self, manager: models.CallManagingOrganisation):
         user = self.context["request"].user
 
+        # The user's roles, not the request, deliberately: manager is set on
+        # create only, and create() checks CALL.CREATE on it with the request,
+        # applying a token's scopes and bindings. Checking the request here too
+        # would also require CALL.CREATE_PERMISSION among a token's scopes.
         if (
             manager
             and not user.is_staff

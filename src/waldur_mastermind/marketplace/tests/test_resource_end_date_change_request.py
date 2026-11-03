@@ -18,6 +18,7 @@ from waldur_core.core.enums import ReviewStates
 from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models, tasks, views
 from waldur_mastermind.marketplace.enums import (
@@ -276,6 +277,118 @@ class EndDateChangeRequestApproveTest(BaseEndDateChangeRequestTest):
         response = self.client.post(self.approve_url)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@override_config(PAT_ENABLED=True)
+class EndDateChangeRequestTokenTest(BaseEndDateChangeRequestTest):
+    """A personal access token decides a request only where it could set the
+    end date itself: RESOURCE.SET_END_DATE among its scopes, on the project or
+    its organization."""
+
+    def setUp(self):
+        super().setUp()
+        self.request_obj = self.make_request()
+        self.owner = self.fixture.owner
+        self.other_customer = structure_factories.CustomerFactory()
+        self.other_customer.add_user(self.owner, CustomerRole.OWNER)
+
+    def decide(self, action):
+        return self.client.post(
+            f"/api/marketplace-resource-end-date-change-requests/"
+            f"{self.request_obj.uuid.hex}/{action}/"
+        )
+
+    def assert_refused(self, action):
+        self.assertEqual(self.decide(action).status_code, status.HTTP_403_FORBIDDEN)
+        self.request_obj.refresh_from_db()
+        self.resource.refresh_from_db()
+        self.assertEqual(self.request_obj.state, ReviewStates.PENDING)
+        self.assertNotEqual(self.resource.end_date, self.requested_end_date)
+
+    def test_token_without_end_date_scope_cannot_approve(self):
+        use_pat(self.client, self.owner, PermissionEnum.LIST_PROJECTS.value)
+        self.assert_refused("approve")
+
+    def test_token_without_end_date_scope_cannot_reject(self):
+        use_pat(self.client, self.owner, PermissionEnum.LIST_PROJECTS.value)
+        self.assert_refused("reject")
+
+    def test_token_bound_to_another_organization_cannot_approve(self):
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.SET_RESOURCE_END_DATE.value,
+            bindings=[self.other_customer],
+        )
+        self.assert_refused("approve")
+
+    def test_token_bound_to_another_organization_cannot_reject(self):
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.SET_RESOURCE_END_DATE.value,
+            bindings=[self.other_customer],
+        )
+        self.assert_refused("reject")
+
+    def test_token_with_scope_can_approve(self):
+        use_pat(self.client, self.owner, PermissionEnum.SET_RESOURCE_END_DATE.value)
+        self.assertEqual(self.decide("approve").status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, self.requested_end_date)
+
+    def test_token_bound_to_the_organization_can_reject(self):
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.SET_RESOURCE_END_DATE.value,
+            bindings=[self.fixture.customer],
+        )
+        self.assertEqual(self.decide("reject").status_code, status.HTTP_200_OK)
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.state, ReviewStates.REJECTED)
+
+    def test_owner_token_bound_to_the_project_cannot_decide(self):
+        # The owner's role is on the organization, above a project binding.
+        # Setting the end date directly refuses such a token, so deciding does too.
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.SET_RESOURCE_END_DATE.value,
+            bindings=[self.fixture.project],
+        )
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "set_end_date"),
+            {"end_date": self.requested_end_date.isoformat()},
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_refused("approve")
+        self.assert_refused("reject")
+
+    def create(self, *bindings):
+        use_pat(
+            self.client,
+            self.fixture.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=bindings,
+        )
+        return self.client.post(self.list_url, self.create_request_payload())
+
+    def test_token_bound_elsewhere_cannot_file_a_request(self):
+        other_project = structure_factories.ProjectFactory()
+        other_project.add_user(self.fixture.manager, ProjectRole.MANAGER)
+        response = self.create(other_project)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("resource", response.data)
+        self.assertFalse(
+            models.ResourceEndDateChangeRequest.objects.filter(
+                created_by=self.fixture.manager
+            ).exists()
+        )
+
+    def test_token_bound_to_the_project_files_a_request(self):
+        response = self.create(self.fixture.project)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
 
 class EndDateChangeRequestFilterTest(BaseEndDateChangeRequestTest):

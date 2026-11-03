@@ -4,6 +4,7 @@ from rest_framework import exceptions, permissions
 
 from waldur_core.core import access
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.core.models import User
 from waldur_core.core.permissions import has_staff_access
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
@@ -307,18 +308,27 @@ def user_can_view_internal_notes(user, proposal, staff=None):
     ).exists()
 
 
-def user_can_manage_held_decision(user, proposal, staff=None):
+def user_can_manage_held_decision(request_or_user, proposal, staff=None):
     """True iff the user may change a decision held for the round's publication.
 
     Staff, and whoever holds CALL.UPDATE on the call or on its managing
     organisation. Not support, who only read. The applicant is refused even
     when they also manage the call, as for internal notes.
+
+    Given a request, a personal access token's scopes and bindings apply to
+    the CALL.UPDATE check, and ``staff`` defaults to ``has_staff_access``.
     """
+    if isinstance(request_or_user, User):
+        user = request_or_user
+    else:
+        user = request_or_user.user
+        if staff is None:
+            staff = has_staff_access(request_or_user)
     if _acts_as_staff(user, staff):
         return True
     if user.id == proposal.created_by_id:
         return False
-    return oversees_proposal_call(user, proposal)
+    return oversees_proposal_call(request_or_user, proposal)
 
 
 def user_can_view_held_decisions_of_call(user, call):
@@ -422,7 +432,7 @@ def can_reopen_held_decision(request, view, obj=None):
     """ActionsPermission check for reopening a held allocation decision."""
     if obj is None:
         return
-    if not user_can_manage_held_decision(request.user, obj, has_staff_access(request)):
+    if not user_can_manage_held_decision(request, obj):
         raise exceptions.PermissionDenied(
             "Only the call's managers can reopen a held decision."
         )

@@ -2321,6 +2321,8 @@ class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 _("You don't have access to this project.")
             )
+        # The user's roles, not the request, deliberately: a True answer only
+        # refuses the request, so a token's limits cannot be widened here.
         if has_permission(
             user, PermissionEnum.UPDATE_PROJECT, project
         ) or has_permission(user, PermissionEnum.UPDATE_PROJECT, project.customer):

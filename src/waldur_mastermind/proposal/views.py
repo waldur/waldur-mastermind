@@ -53,10 +53,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
-from waldur_core.permissions.utils import (
-    has_permission,
-    permission_factory,
-)
+from waldur_core.permissions.utils import permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.managers import (
@@ -1990,7 +1987,6 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @staticmethod
     def _check_available_checklists_permission(request, view, obj=None):
         """Check if user has CREATE_CALL permission on call managing organization."""
-        user = request.user
         if has_support_access(request):
             return
 
@@ -2004,7 +2000,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 customer=customer
             )
             if not permissions_utils.has_permission(
-                user, PermissionEnum.CREATE_CALL, call_managing_org
+                request, PermissionEnum.CREATE_CALL, call_managing_org
             ):
                 raise exceptions.PermissionDenied(
                     "You do not have permission to create calls for this organization."
@@ -4845,35 +4841,30 @@ class ReviewViewSet(ActionsViewSet):
             review: models.Review = serializer.save()
         tasks.notify_reviewer_about_assignment.delay(review.uuid)
 
+    # Assigning or removing a review needs PROPOSAL.MANAGE_REVIEW on the call
+    # or its managing organisation. The request, not the user, is checked so
+    # that a personal access token's scopes and bindings apply.
     def check_create_permissions(request, view, obj=None):
         """Check permissions for creating reviews."""
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         proposal = serializer.validated_data["proposal"]
 
-        user = request.user
-        permission = PermissionEnum.MANAGE_PROPOSAL_REVIEW
-        call = proposal.round.call
-
-        if not (
-            has_permission(user, permission, call)
-            or has_permission(user, permission, call.manager)
+        if not permissions_utils.has_permission_on_any_source(
+            request,
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            proposal.round.call,
+            CALL_PERMISSION_SOURCES,
         ):
             raise exceptions.PermissionDenied()
 
     def check_destroy_permissions(request, view, obj=None):
         """Check permissions for destroying reviews."""
-        if obj and not (
-            has_permission(
-                request.user,
-                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-                obj.proposal.round.call,
-            )
-            or has_permission(
-                request.user,
-                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-                obj.proposal.round.call.manager,
-            )
+        if obj and not permissions_utils.has_permission_on_any_source(
+            request,
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            obj.proposal.round.call,
+            CALL_PERMISSION_SOURCES,
         ):
             raise exceptions.PermissionDenied()
 
