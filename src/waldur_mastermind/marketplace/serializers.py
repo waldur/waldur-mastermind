@@ -1101,6 +1101,15 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         "carryover logic, and fairshare decay for site-agent managed SLURM offerings.",
         default=False,
     )
+    slurm_maintenance_sync_enabled = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="When enabled, the site agent turns published maintenance "
+        "announcements for this offering into Slurm MAINT reservations "
+        "(full outage: all nodes; partial outage: the named partitions), so the "
+        "scheduler holds back jobs that would run into them, and imports "
+        "maintenance reservations made on the cluster as draft announcements.",
+    )
     enforce_qos = serializers.BooleanField(
         required=False,
         default=False,
@@ -1199,6 +1208,41 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
                     % (action, ", ".join(valid_actions))
                 )
         return value
+
+
+class FirecrestPluginOptionsSerializer(serializers.Serializer):
+    # BackendURLValidator, not URLField: FirecREST commonly sits next to
+    # Waldur under a single-label service name (http://firecrest:5000).
+    firecrest_api_url = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        validators=[BackendURLValidator(schemes=["http", "https"])],
+        help_text="FirecREST v2 API URL users of this SLURM offering work through "
+        "(jobs, files, cluster status). Must also be listed in the "
+        "FIRECREST_ALLOWED_API_URLS setting. Leave empty to disable the HPC workspace.",
+    )
+    firecrest_system_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Name of the cluster in FirecREST's systems list.",
+    )
+    slurm_monitor_api_url = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        validators=[BackendURLValidator(schemes=["http", "https"])],
+        help_text="slurm-monitor API URL (ending in /api/v2) with the cluster's "
+        "per-job samples (GPU, CPU, memory over time). Must also be listed in the "
+        "SLURM_MONITOR_ALLOWED_API_URLS setting. Leave empty to hide job performance.",
+    )
+    slurm_monitor_cluster_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Name of the cluster in slurm-monitor (Sonar's cluster name).",
+    )
 
 
 class ScriptPluginOptionsSerializer(serializers.Serializer):
@@ -1410,6 +1454,7 @@ class MergedPluginOptionsSerializer(
     SupportPluginOptionsSerializer,
     RancherPluginOptionsSerializer,
     AgentPluginOptionsSerializer,
+    FirecrestPluginOptionsSerializer,
     ScriptPluginOptionsSerializer,
     OfferingResourceDisplayOptionsSerializer,
 ):
@@ -16329,6 +16374,13 @@ class BackendResourceRequestSetErredSerializer(
 
 class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSerializer):
     impact_level_display = serializers.SerializerMethodField()
+    affected_partitions = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        required=False,
+        help_text="Partitions the maintenance takes down; empty means all. "
+        "A site agent with maintenance sync reserves only these for a "
+        "partial outage.",
+    )
     offering_name = serializers.CharField(read_only=True, source="offering.name")
 
     def get_impact_level_display(
@@ -16351,6 +16403,7 @@ class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSeri
             "impact_level",
             "impact_level_display",
             "impact_description",
+            "affected_partitions",
             "offering_name",
         ]
         extra_kwargs = {
@@ -16387,6 +16440,13 @@ class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSeri
                 "Only shared offerings can be included in maintenance announcements."
             )
         return value
+
+    def validate_affected_partitions(self, value):
+        if not isinstance(value, list) or not all(
+            isinstance(name, str) and name.strip() for name in value
+        ):
+            raise serializers.ValidationError("Must be a list of partition names.")
+        return sorted({name.strip() for name in value})
 
 
 class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
@@ -19525,3 +19585,61 @@ class OfferingMergeSuggestedMappingSerializer(serializers.Serializer):
     )
     unmatched_plans = OfferingMergeUnmatchedPlanSerializer(many=True)
     unmatched_components = OfferingMergeUnmatchedComponentSerializer(many=True)
+
+
+class MaintenanceReservationSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text="Slurm reservation name to use.")
+    maintenance_uuid = serializers.UUIDField()
+    maintenance_name = serializers.CharField()
+    state = serializers.CharField()
+    impact_level = serializers.CharField()
+    start = serializers.DateTimeField()
+    end = serializers.DateTimeField()
+    partitions = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Partitions to reserve; empty means all nodes.",
+    )
+    flags = serializers.ListField(child=serializers.CharField())
+
+
+class MaintenanceReservationListSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField(
+        help_text="Maintenance sync is enabled for the offering."
+    )
+    prefix = serializers.CharField(
+        help_text="Reservations with this name prefix are Waldur's to manage."
+    )
+    reservations = MaintenanceReservationSerializer(many=True)
+
+
+class SiteMaintenanceReservationSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=200)
+    start = serializers.DateTimeField()
+    end = serializers.DateTimeField()
+    partitions = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        required=False,
+        default=list,
+        help_text="Affected partitions; empty means the whole cluster.",
+    )
+    node_list = serializers.CharField(required=False, allow_blank=True, default="")
+    flags = serializers.ListField(
+        child=serializers.CharField(max_length=50), required=False, default=list
+    )
+
+    def validate(self, attrs):
+        if attrs["end"] <= attrs["start"]:
+            raise serializers.ValidationError({"end": "Must be after start."})
+        attrs["flags"] = tuple(attrs["flags"])
+        return attrs
+
+
+class MaintenanceReservationImportSerializer(serializers.Serializer):
+    reservations = SiteMaintenanceReservationSerializer(many=True, max_length=500)
+
+
+class MaintenanceReservationImportResultSerializer(serializers.Serializer):
+    created = serializers.ListField(child=serializers.CharField())
+    updated = serializers.ListField(child=serializers.CharField())
+    unchanged = serializers.ListField(child=serializers.CharField())
+    skipped = serializers.ListField(child=serializers.CharField())

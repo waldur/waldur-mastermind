@@ -3370,6 +3370,12 @@ class MaintenanceAnnouncementFilter(django_filters.FilterSet):
         field_name="service_provider__uuid",
         label="Service provider UUID",
     )
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="affected_offerings__offering__uuid",
+        distinct=True,
+        label="Affected offering UUID",
+    )
     maintenance_type = django_filters.NumberFilter(
         field_name="maintenance_type", label="Maintenance type"
     )

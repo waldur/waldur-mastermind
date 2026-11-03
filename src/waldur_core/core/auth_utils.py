@@ -52,3 +52,21 @@ def get_auth_method(auth) -> str:
 
 def is_pat_auth(auth) -> bool:
     return get_auth_method(auth) == AUTH_METHOD_PAT
+
+
+# How the web UI authenticates: the user's Waldur API token, or a session.
+FIRST_PARTY_AUTH_METHODS = (AUTH_METHOD_TOKEN, AUTH_METHOD_SESSION)
+
+
+def is_delegated(request) -> bool:
+    """Whether the caller acts for the user other than through their own
+    sign-in: with a personal access token (scoped for a script), an OIDC
+    access token (which may belong to another client of the identity
+    provider), or as staff impersonating them.
+
+    An allowlist, so a new kind of authentication counts as delegated until
+    it is considered.
+    """
+    return get_auth_method(getattr(request, "auth", None)) not in (
+        FIRST_PARTY_AUTH_METHODS
+    ) or bool(getattr(request.user, "impersonator", None))

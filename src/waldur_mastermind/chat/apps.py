@@ -11,6 +11,7 @@ class ChatConfig(AppConfig):
         from waldur_mastermind.chat.tools import (  # noqa: F401
             account,
             ask_user,
+            hpc,
             marketplace,
             proposals_researcher,
             proposals_reviewer,

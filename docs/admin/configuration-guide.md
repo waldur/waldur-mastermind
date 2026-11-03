@@ -3406,6 +3406,20 @@ Billing export check interval in hours for reconciliation
 
 Number of days to retain SLURM policy evaluation log entries before automatic cleanup.
 
+### HPC workspace
+
+#### FIRECREST_ALLOWED_API_URLS
+
+**Type:** str
+
+FirecREST API URLs that SLURM offerings may connect to, one per line or comma-separated. Waldur forwards a user's identity provider token only to these URLs; an offering pointing elsewhere has no HPC workspace.
+
+#### SLURM_MONITOR_ALLOWED_API_URLS
+
+**Type:** str
+
+slurm-monitor API URLs (ending in /api/v2) that SLURM offerings may read job performance from, one per line or comma-separated. Waldur forwards a user's identity provider token only to these URLs.
+
 ### Usage Polling
 
 #### USAGE_POLL_RECORD_RETENTION_MONTHS

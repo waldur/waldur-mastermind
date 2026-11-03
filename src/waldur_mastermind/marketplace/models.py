@@ -6549,6 +6549,15 @@ class MaintenanceAnnouncementOffering(core_models.UuidMixin, TimeStampedModel):
         blank=True,
         help_text=_("Specific description of how this offering will be affected"),
     )
+    affected_partitions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "Partitions of the offering's cluster the maintenance takes down; "
+            "empty means all of them. A site agent reserves only these "
+            "for a partial outage."
+        ),
+    )
 
     class Meta:
         unique_together = ("maintenance", "offering")

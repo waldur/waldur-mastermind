@@ -89,6 +89,33 @@ _CANCEL_CHECK_INTERVAL = 5
 # gets a narrated response.
 _MAX_TOOL_ROUNDS = 5
 
+# Fields of the tool-emitted cards persisted into Message.blocks
+# (see block_schemas for their validation).
+_HPC_JOB_BLOCK_FIELDS = (
+    "name",
+    "allocation",
+    "allocation_uuid",
+    "account",
+    "cluster",
+    "partition",
+    "script",
+    "errors",
+    "warnings",
+    "job_id",
+)
+_CHART_BLOCK_FIELDS = (
+    "chart_type",
+    "title",
+    "subtitle",
+    "x",
+    "y",
+    "y2",
+    "series",
+    "annotations",
+    "link",
+    "empty_message",
+)
+
 
 class _StreamDone:
     """Sentinel placed on queue to signal the worker has finished."""
@@ -104,7 +131,7 @@ class _StreamError:
         self.ndjson_lines = ndjson_lines
 
 
-def validate_tool_call(tool_name, user):
+def validate_tool_call(tool_name, user, delegated=False):
     """Validates that the user is authenticated, the tool exists, and the
     tool is in the caller's role-permitted set.
 
@@ -123,7 +150,7 @@ def validate_tool_call(tool_name, user):
             }
         )
 
-    if not is_tool_permitted(user, tool_name):
+    if not is_tool_permitted(user, tool_name, delegated):
         raise rf_exceptions.PermissionDenied(
             _("Tool '%(tool_name)s' is not available for your role.")
             % {"tool_name": tool_name}
@@ -164,6 +191,7 @@ class LLMStreamer:
         preload_all_tools=False,
         worker_timeout: int | None = None,
         tool_choice_override: str | None = None,
+        delegated=False,
     ):
         import openai
 
@@ -196,6 +224,8 @@ class LLMStreamer:
         # search outcome.
         self.search_results: list[dict] = []
         self.user = user
+        # The caller is not the user's own sign-in (see is_delegated).
+        self.delegated = delegated
         self.input_tokens = None
         self.output_tokens = None
         self.model = ""
@@ -346,7 +376,7 @@ class LLMStreamer:
         completion_kwargs = (
             _completion_kwargs if isinstance(_completion_kwargs, dict) else {}
         )
-        user_tools = get_tool_set_for_user(self.user)
+        user_tools = get_tool_set_for_user(self.user, self.delegated)
 
         # Lazy tool loading: only expose tools the LLM has actually asked
         # for via search_tools in this turn (plus search_tools itself).
@@ -533,7 +563,14 @@ class LLMStreamer:
                 )
             return
 
-        if kind in ("vm_order", "homeport_nav", "resource_list", "ask_user_form"):
+        if kind in (
+            "vm_order",
+            "hpc_job",
+            "chart",
+            "homeport_nav",
+            "resource_list",
+            "ask_user_form",
+        ):
             # Tool result chunks arrive here directly now that load chunks
             # are no longer emitted. Persist as top-level blocks so they
             # survive into Message.blocks and render in thread history via
@@ -612,6 +649,17 @@ class LLMStreamer:
                 "ssh_key_name",
                 "system_volume_size",
             ):
+                if field in chunk:
+                    base[field] = chunk[field]
+        elif kind == "hpc_job":
+            # The card's own status would clash with the block lifecycle.
+            for field in _HPC_JOB_BLOCK_FIELDS:
+                if field in chunk:
+                    base[field] = chunk[field]
+            if "status" in chunk:
+                base["job_status"] = chunk["status"]
+        elif kind == "chart":
+            for field in _CHART_BLOCK_FIELDS:
                 if field in chunk:
                     base[field] = chunk[field]
         elif kind == "resource_list":
@@ -1015,7 +1063,7 @@ class LLMStreamer:
 
     def _execute_tool_calls_worker(self, tool_calls: dict[int, dict]):
         """Execute all streamed tool calls and enqueue UI component results."""
-        tool_executor = ToolExecutor(self.user)
+        tool_executor = ToolExecutor(self.user, delegated=self.delegated)
 
         # Build call_id → metadata lookup for the blocks accumulator. The
         # wire chunks do not carry call_id (to preserve the frontend

@@ -98,6 +98,53 @@ ui_registry.register(
 
 
 ui_registry.register(
+    key="hpc_job",
+    name="HPC Job",
+    description="Batch job preview, validation errors or submission result from plan_hpc_job/submit_hpc_job",
+    schema={
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": {
+            "status": {"type": "string"},  # preview / error / submitted
+            "name": {"type": "string"},  # job name
+            "allocation": {"type": "string"},  # Waldur resource name
+            "allocation_uuid": {"type": "string"},
+            "account": {"type": "string"},  # Slurm account the job is charged to
+            "cluster": {"type": "string"},  # FirecREST system name
+            "partition": {"type": "string"},
+            "script": {"type": "string"},  # rendered batch script
+            "errors": {"type": "array"},  # limit violations (status=error)
+            "warnings": {"type": "array"},
+            "job_id": {"type": "string"},  # status=submitted
+        },
+    },
+)
+
+
+ui_registry.register(
+    key="chart",
+    name="Chart",
+    description="Data-only chart spec (chat.chart_spec) from the HPC insight tools",
+    schema={
+        "type": "object",
+        "required": ["chart_type", "title", "series"],
+        "properties": {
+            "chart_type": {"type": "string"},
+            "title": {"type": "string"},
+            "subtitle": {"type": "string"},
+            "x": {"type": "object"},
+            "y": {"type": "object"},
+            "y2": {"type": "object"},
+            "series": {"type": "array"},
+            "annotations": {"type": "array"},
+            "link": {"type": "object"},
+            "empty_message": {"type": "string"},
+        },
+    },
+)
+
+
+ui_registry.register(
     key="resource_list",
     name="Resource List",
     description="Signals the frontend to render a paginated resource table via the marketplace API",

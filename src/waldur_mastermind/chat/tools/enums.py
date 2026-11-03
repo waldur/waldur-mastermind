@@ -44,6 +44,18 @@ class ToolName(Enum):
     GET_OFFERING = "get_offering"
     LIST_CATEGORIES = "list_categories"
     COMPARE_OFFERINGS = "compare_offerings"
+    LIST_HPC_ALLOCATIONS = "list_hpc_allocations"
+    GET_HPC_CLUSTER_STATUS = "get_hpc_cluster_status"
+    FIND_HPC_SOFTWARE = "find_hpc_software"
+    PLAN_HPC_JOB = "plan_hpc_job"
+    SUBMIT_HPC_JOB = "submit_hpc_job"
+    LIST_HPC_JOBS = "list_hpc_jobs"
+    GET_HPC_JOB = "get_hpc_job"
+    CANCEL_HPC_JOB = "cancel_hpc_job"
+    GET_HPC_ALLOCATION_USAGE = "get_hpc_allocation_usage"
+    GET_HPC_JOB_STATS = "get_hpc_job_stats"
+    GET_HPC_CLUSTER_LOAD = "get_hpc_cluster_load"
+    PLOT_HPC_OUTPUT = "plot_hpc_output"
     # Meta-tool: lazy-loads tool schemas by name to reduce system-prompt bloat.
     SEARCH_TOOLS = "search_tools"
     # Meta-tool: ask the user 1–4 structured multiple-choice questions when
@@ -75,6 +87,7 @@ class ToolCategory(str, Enum):
 
     MARKETPLACE = "marketplace"
     VM = "vm"
+    HPC = "hpc"
     ACCOUNT = "account"
     PROPOSALS_RESEARCHER = "proposals_researcher"
     PROPOSALS_REVIEWER = "proposals_reviewer"

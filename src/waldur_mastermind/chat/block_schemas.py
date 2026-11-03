@@ -9,11 +9,15 @@ import re
 
 from rest_framework import serializers
 
+from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
+
 BLOCK_KINDS = (
     "markdown",
     "code",
     "mermaid",
     "vm_order",
+    "hpc_job",
+    "chart",
     "resource_list",
     "homeport_nav",
     "ask_user_form",
@@ -54,6 +58,30 @@ class _VmOrderBlockSerializer(_BaseBlockSerializer):
     network = serializers.CharField(required=False, allow_blank=True)
     ssh_key_name = serializers.CharField(required=False, allow_blank=True)
     system_volume_size = serializers.IntegerField(required=False, allow_null=True)
+
+
+class _HpcJobBlockSerializer(_BaseBlockSerializer):
+    """hpc_job: `preview` and `error` from plan_hpc_job, `submitted` from submit_hpc_job.
+
+    The card's own status travels as `job_status` (like vm_order's
+    `order_status`): `status` is the block lifecycle.
+    """
+
+    job_status = serializers.CharField(required=False, allow_blank=True)
+    name = serializers.CharField(allow_blank=True)
+    allocation = serializers.CharField(required=False, allow_blank=True)
+    allocation_uuid = serializers.CharField(required=False, allow_blank=True)
+    account = serializers.CharField(required=False, allow_blank=True)
+    cluster = serializers.CharField(required=False, allow_blank=True)
+    partition = serializers.CharField(required=False, allow_blank=True)
+    script = serializers.CharField(required=False, allow_blank=True)
+    errors = serializers.ListField(required=False, child=serializers.CharField())
+    warnings = serializers.ListField(required=False, child=serializers.CharField())
+    job_id = serializers.CharField(required=False, allow_blank=True)
+
+
+class _ChartBlockSerializer(_BaseBlockSerializer, ChartSpecSerializer):
+    """chart: a data-only chart spec (see chart_spec) emitted by insight tools."""
 
 
 class _ResourceListBlockSerializer(_BaseBlockSerializer):
@@ -127,6 +155,8 @@ _KIND_TO_SERIALIZER = {
     "code": _TextBlockSerializer,
     "mermaid": _TextBlockSerializer,
     "vm_order": _VmOrderBlockSerializer,
+    "hpc_job": _HpcJobBlockSerializer,
+    "chart": _ChartBlockSerializer,
     "resource_list": _ResourceListBlockSerializer,
     "homeport_nav": _HomeportNavBlockSerializer,
     "ask_user_form": _AskUserFormBlockSerializer,

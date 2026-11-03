@@ -32,6 +32,7 @@ from rest_framework.response import Response
 from waldur_core.configuration import config
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core.auth_utils import is_delegated
 from waldur_core.core.models import User
 from waldur_core.core.permissions import has_support_access
 from waldur_core.core.views import (
@@ -441,6 +442,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             canned_response=canned_response,
             pii_warning=pii_warning,
             worker_timeout=config.AI_ASSISTANT_STREAM_TIMEOUT_SECONDS,
+            delegated=is_delegated(request),
         )
 
         return StreamingHttpResponse(
@@ -578,9 +580,10 @@ class ToolViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         tool_name = serializer.validated_data["tool"]
         arguments = serializer.validated_data["arguments"]
 
-        validate_tool_call(tool_name, request.user)
+        delegated = is_delegated(request)
+        validate_tool_call(tool_name, request.user, delegated)
 
-        tool_executor = ToolExecutor(request.user)
+        tool_executor = ToolExecutor(request.user, delegated=delegated)
         result = tool_executor.execute_tool(tool_name, arguments)
 
         # ToolExecutor returns {"type": "error", ...} for injection blocks and other errors

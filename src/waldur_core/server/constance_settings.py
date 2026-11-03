@@ -1758,6 +1758,19 @@ CONSTANCE_CONFIG = {
         90,
         "Number of days to retain SLURM policy evaluation log entries before automatic cleanup.",
     ),
+    # HPC workspace (FirecREST) settings
+    "FIRECREST_ALLOWED_API_URLS": (
+        "",
+        "FirecREST API URLs that SLURM offerings may connect to, one per line or "
+        "comma-separated. Waldur forwards a user's identity provider token only to "
+        "these URLs; an offering pointing elsewhere has no HPC workspace.",
+    ),
+    "SLURM_MONITOR_ALLOWED_API_URLS": (
+        "",
+        "slurm-monitor API URLs (ending in /api/v2) that SLURM offerings may read "
+        "job performance from, one per line or comma-separated. Waldur forwards a "
+        "user's identity provider token only to these URLs.",
+    ),
     # Identity Bridge settings
     "FEDERATED_IDENTITY_SYNC_ENABLED": (
         False,
@@ -2407,6 +2420,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ARROW_BILLING_CHECK_INTERVAL_HOURS",
     ),
     "SLURM Policy": ("SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS",),
+    "HPC workspace": (
+        "FIRECREST_ALLOWED_API_URLS",
+        "SLURM_MONITOR_ALLOWED_API_URLS",
+    ),
     "Usage Polling": ("USAGE_POLL_RECORD_RETENTION_MONTHS",),
     "Custom Metrics": (
         "METRICS_LATE_DATA_DAYS",

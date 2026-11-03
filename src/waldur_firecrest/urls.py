@@ -2,4 +2,6 @@ from . import views
 
 
 def register_in(router):
-    router.register(r"slurm-jobs", views.FirecrestJobViewSet, basename="slurm-job")
+    router.register(
+        r"hpc-workspaces", views.HpcWorkspaceViewSet, basename="hpc-workspace"
+    )
