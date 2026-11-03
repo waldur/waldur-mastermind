@@ -20,9 +20,13 @@ from waldur_mastermind.support.backend.smax_utils import (
 
 from . import (
     SupportBackend,
+    SupportBackendError,
     SupportBackendType,
     SupportedFormat,
+    attachment_backend_name_for,
+    operator_desk_issues,
     provider_settings_override,
+    synced_attachments,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,6 +50,8 @@ class SmaxServiceBackend(SupportBackend):
     #: tenant is not among them: a tenant of its own on the operator's SMAX,
     #: with the operator's account, sends no credentials anywhere else.
     connection_settings = ("SMAX_API_URL", "SMAX_LOGIN", "SMAX_PASSWORD")
+    #: Entity ids are per tenant, so another tenant is another desk.
+    desk_settings = ("SMAX_API_URL", "SMAX_TENANT_ID")
 
     @classmethod
     def from_settings(cls, settings_dict):
@@ -243,11 +249,21 @@ class SmaxServiceBackend(SupportBackend):
             # update attachments
             issue_attachments = backend_issue.attachments
 
+            backend_name = attachment_backend_name_for(issue) or self.backend_name
             for backend_attachment in issue_attachments:
-                waldur_attachment = models.Attachment.objects.filter(
-                    backend_name=self.backend_name, backend_id=backend_attachment.id
-                )
-                if waldur_attachment.exists():
+                # Ids are unique within the desk, and so on the ticket, whatever
+                # name a copy is filed under (see synced_attachments).
+                if issue.attachments.filter(backend_id=backend_attachment.id).exists():
+                    continue
+                if models.Attachment.objects.filter(
+                    backend_name=backend_name, backend_id=backend_attachment.id
+                ).exists():
+                    logger.warning(
+                        "SMAX attachment %s of issue %s is already recorded on "
+                        "another issue; skipping.",
+                        backend_attachment.id,
+                        issue.id,
+                    )
                     continue
 
                 backend_user = self.manager.get_user(backend_attachment.backend_user_id)
@@ -295,7 +311,7 @@ class SmaxServiceBackend(SupportBackend):
                 waldur_attachment = models.Attachment.objects.create(
                     issue=issue,
                     backend_id=backend_attachment.id,
-                    backend_name=self.backend_name,
+                    backend_name=backend_name,
                     state=CoreStates.OK,
                     author=support_user,
                 )
@@ -307,10 +323,7 @@ class SmaxServiceBackend(SupportBackend):
 
             issue_attachments_ids = [a.id for a in issue_attachments]
             count = (
-                models.Attachment.objects.filter(
-                    backend_name=self.backend_name,
-                    issue=issue,
-                )
+                synced_attachments(issue, self.backend_name)
                 .exclude(backend_id__in=issue_attachments_ids)
                 .delete()[0]
             )
@@ -350,7 +363,7 @@ class SmaxServiceBackend(SupportBackend):
         self.update_waldur_issue_from_smax(issue)
 
     def sync_issues(self, issue_id=None):
-        issues = models.Issue.objects.filter(backend_name=self.backend_name)
+        issues = operator_desk_issues(self.backend_name)
 
         if issue_id:
             issues = issues.filter(id=issue_id)
@@ -445,10 +458,16 @@ class SmaxServiceBackend(SupportBackend):
         ):
             return
 
-        if not attachment.author:
-            return
+        # A file with no author, such as the purchase order of a marketplace
+        # order, is uploaded as the user the ticket was filed as.
+        uploader = attachment.author or attachment.issue.reporter
+        if not uploader:
+            raise SupportBackendError(
+                "SMAX needs a user to upload the file as, and the file has no "
+                "author and its ticket no reporter."
+            )
 
-        backend_user_id = self.get_smax_user_id_for_support_user(attachment.author)
+        backend_user_id = self.get_smax_user_id_for_support_user(uploader)
 
         file_name = os.path.basename(attachment.file.name)
         mime_type = attachment.mime_type
@@ -469,7 +488,7 @@ class SmaxServiceBackend(SupportBackend):
             file_content,
         )
         attachment.backend_id = backend_attachment.id
-        attachment.backend_name = self.backend_name
+        attachment.backend_name = self.get_attachment_backend_name()
         attachment.save()
         return
 
@@ -478,7 +497,7 @@ class SmaxServiceBackend(SupportBackend):
             not attachment.issue.backend_id
             or attachment.issue.backend_name != self.backend_name
             or not attachment.backend_id
-            or attachment.backend_name != self.backend_name
+            or not self.holds_attachment(attachment)
         ):
             return
 

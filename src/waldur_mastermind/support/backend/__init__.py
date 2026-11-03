@@ -1,5 +1,8 @@
 import importlib
 import logging
+from urllib.parse import urlsplit, urlunsplit
+
+from django.db.models import Q
 
 from waldur_core.configuration import config
 from waldur_core.core.permissions import has_staff_access
@@ -80,6 +83,29 @@ class SupportBackend:
     #: account would rewrite it under that account's name.
     comment_author_update_is_supported = False
     comment_author_destroy_is_supported = False
+
+    #: The ``backend_name`` of the attachments this backend holds, where it is
+    #: not ``backend_name``. ``get_backend_for_provider`` sets one per helpdesk.
+    attachment_backend_name: str | None = None
+
+    #: The settings that say which desk a remote backend's tickets live on:
+    #: the same id names the same ticket only on the same desk. None for a
+    #: backend whose tickets live in Waldur itself.
+    desk_settings: tuple[str, ...] | None = None
+
+    def get_attachment_backend_name(self) -> str:
+        return self.attachment_backend_name or self.backend_name
+
+    def holds_attachment(self, attachment) -> bool:
+        """Is the attachment filed under a name this desk files under?
+
+        A provider helpdesk's desk files new attachments under the helpdesk's
+        name, but a file an earlier sync pulled in carries the plain one.
+        """
+        return attachment.backend_name in (
+            self.backend_name,
+            self.get_attachment_backend_name(),
+        )
 
     def create_issue(self, issue):
         return
@@ -242,6 +268,17 @@ def comment_change_is_permitted(
     return not (comment.is_forwarded or is_routed(comment.issue))
 
 
+def provider_attachment_backend_name(provider_helpdesk) -> str:
+    """The ``backend_name`` of attachments held by a provider helpdesk's desk.
+
+    A remote desk numbers attachments from its own sequence, so two providers
+    on Jira, or a provider and the operator, hand out the same ids, and
+    ``(backend_name, backend_id)`` is unique. A name per helpdesk keeps them
+    apart.
+    """
+    return f"{provider_helpdesk.backend_type}:{provider_helpdesk.uuid.hex}"
+
+
 def provider_settings_override(settings_dict, connection_settings):
     """The settings a provider helpdesk's backend reads before the operator's.
 
@@ -276,25 +313,160 @@ def get_backend_for_provider(provider_helpdesk) -> SupportBackend:
     if backend_type == "basic":
         from .basic import BasicBackend
 
-        return BasicBackend.from_settings(settings_dict)
+        instance = BasicBackend.from_settings(settings_dict)
     elif backend_type == "email":
         from .email_backend import EmailSupportBackend
 
-        return EmailSupportBackend.from_settings(settings_dict, provider_helpdesk)
+        instance = EmailSupportBackend.from_settings(settings_dict, provider_helpdesk)
     elif backend_type == SupportBackendType.ATLASSIAN:
         from .atlassian import ServiceDeskBackend
 
-        return ServiceDeskBackend.from_settings(settings_dict)
+        instance = ServiceDeskBackend.from_settings(settings_dict)
     elif backend_type == SupportBackendType.ZAMMAD:
         from .zammad import ZammadServiceBackend
 
-        return ZammadServiceBackend.from_settings(settings_dict)
+        instance = ZammadServiceBackend.from_settings(settings_dict)
     elif backend_type == SupportBackendType.SMAX:
         from .smax import SmaxServiceBackend
 
-        return SmaxServiceBackend.from_settings(settings_dict)
+        instance = SmaxServiceBackend.from_settings(settings_dict)
     else:
         raise SupportBackendError(f"Unknown provider backend type: {backend_type}")
+
+    instance.attachment_backend_name = provider_attachment_backend_name(
+        provider_helpdesk
+    )
+    return instance
+
+
+def attachment_backend_name_for(issue) -> str | None:
+    """The ``backend_name`` an attachment of ``issue`` is filed under, when
+    it is not the operator's: that of the provider helpdesk the issue is
+    routed to."""
+    if issue.provider_helpdesk_id:
+        return provider_attachment_backend_name(issue.provider_helpdesk)
+    return None
+
+
+def _remote_backend_class(backend_type):
+    """The backend class of a remote desk type, or None for a desk in Waldur."""
+    if backend_type == SupportBackendType.ATLASSIAN:
+        from .atlassian import ServiceDeskBackend
+
+        return ServiceDeskBackend
+    if backend_type == SupportBackendType.ZAMMAD:
+        from .zammad import ZammadServiceBackend
+
+        return ZammadServiceBackend
+    if backend_type == SupportBackendType.SMAX:
+        from .smax import SmaxServiceBackend
+
+        return SmaxServiceBackend
+    return None
+
+
+def _desk_value(key, value) -> str:
+    """A desk setting as compared: a URL by scheme, host, port and path, so
+    that the same server written differently is the same desk."""
+    value = "" if value is None else str(value).strip()
+    if not key.endswith("_URL") or not value:
+        return value
+    parts = urlsplit(value)
+    scheme = parts.scheme.lower()
+    port = parts.port
+    if port == {"http": 80, "https": 443}.get(scheme):
+        port = None
+    host = parts.hostname or ""
+    if ":" in host:
+        # An IPv6 address keeps its brackets, or its last group would read
+        # as a port.
+        host = f"[{host}]"
+    netloc = host + (f":{port}" if port else "")
+    return urlunsplit((scheme, netloc, parts.path.rstrip("/"), parts.query, ""))
+
+
+def routed_elsewhere_q(backend_name) -> Q:
+    """Tickets that live on a provider's desk rather than the operator's.
+
+    The operator's sync and webhooks ask the operator's server, where a
+    provider's ticket id names some other ticket. Those of a helpdesk of
+    another type, or on a desk of its own, are left to it, and so are the
+    children of a deleted helpdesk (``is_orphaned``), whose desk is not known.
+
+    A helpdesk shares the operator's desk when ``get_backend_for_provider``
+    would connect it to the same one: its ``desk_settings``, read through
+    ``provider_settings_override`` with the operator's settings as the
+    fallback, match the operator's. Computed from the settings alone, with
+    the operator's read once. A helpdesk whose settings cannot be read counts
+    as elsewhere.
+    """
+    other_types = Q(provider_helpdesk__isnull=False) & ~Q(
+        provider_helpdesk__backend_type=backend_name
+    )
+    orphaned = Q(parent_issue__isnull=False, provider_helpdesk__isnull=True)
+    helpdesks = models.ProviderHelpdesk.objects.filter(
+        backend_type=backend_name
+    ).values_list("id", "settings")
+    desk_class = _remote_backend_class(backend_name)
+    if desk_class is None:
+        # No server to ask: such tickets live in Waldur.
+        return other_types | orphaned
+
+    keys = desk_class.desk_settings
+    operator = {key: getattr(config, key, None) for key in keys}
+    operator_desk = tuple(_desk_value(key, operator[key]) for key in keys)
+    elsewhere = []
+    for helpdesk_id, settings_dict in helpdesks:
+        try:
+            override = provider_settings_override(
+                settings_dict or {}, desk_class.connection_settings
+            )
+            desk = tuple(
+                _desk_value(key, override[key] if key in override else operator[key])
+                for key in keys
+            )
+        except Exception:
+            logger.warning(
+                "Cannot tell which desk provider helpdesk %s uses; leaving its "
+                "tickets out of the operator's sync.",
+                helpdesk_id,
+                exc_info=True,
+            )
+            desk = None
+        if desk != operator_desk:
+            elsewhere.append(helpdesk_id)
+    return other_types | orphaned | Q(provider_helpdesk_id__in=elsewhere)
+
+
+def operator_desk_issues(backend_name):
+    """The tickets the operator's own desk of this type holds."""
+    return models.Issue.objects.filter(backend_name=backend_name).exclude(
+        routed_elsewhere_q(backend_name)
+    )
+
+
+def synced_attachments(issue, backend_name):
+    """The attachments of ``issue`` a sync of its desk may delete as stale.
+
+    Those filed under the desk's name or under the provider helpdesk's,
+    whichever backend runs the sync: a provider helpdesk with no settings of
+    its own shares the operator's desk, and the operator's sync then syncs the
+    provider's tickets too. A copy still being pushed is not on the desk yet,
+    and is left alone.
+    """
+    names = {backend_name, attachment_backend_name_for(issue)} - {None}
+    return issue.attachments.filter(backend_name__in=names).exclude(
+        models.forwarding_q()
+    )
+
+
+def is_orphaned(issue) -> bool:
+    """A child whose provider helpdesk has been deleted.
+
+    Its desk is not known any more, and the operator's desk, where its id
+    names some other ticket, is not it.
+    """
+    return issue.parent_issue_id is not None and issue.provider_helpdesk_id is None
 
 
 def get_backend_for_issue(issue) -> "SupportBackend":
@@ -303,8 +475,22 @@ def get_backend_for_issue(issue) -> "SupportBackend":
     A ticket routed to a provider helpdesk is handled by that provider's own
     backend (often the built-in basic desk), not the operator's globally
     configured one. Everything else -- operator tickets and the parents of
-    routed ones -- goes to the active backend.
+    routed ones -- goes to the active backend. Raises for a child whose
+    helpdesk has been deleted (``is_orphaned``), as nothing may reach a desk
+    on its behalf.
     """
     if issue.provider_helpdesk_id:
         return get_backend_for_provider(issue.provider_helpdesk)
+    if is_orphaned(issue):
+        raise SupportBackendError(
+            f"Issue {issue.uuid.hex} was routed to a provider helpdesk that has "
+            "been deleted, so its desk is not known."
+        )
     return get_active_backend()
+
+
+def find_backend_for_issue(issue) -> "SupportBackend | None":
+    """``get_backend_for_issue``, or None for a child of a deleted helpdesk."""
+    if is_orphaned(issue):
+        return None
+    return get_backend_for_issue(issue)

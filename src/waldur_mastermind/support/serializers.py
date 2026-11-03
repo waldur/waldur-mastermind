@@ -388,8 +388,11 @@ class IssueSerializer(
         backend instead let a routed child advertise commenting the provider's
         desk would reject. One backend is cached per ``provider_helpdesk_id``
         (and the active backend reused for operator tickets) so a list view
-        does not build one per row.
+        does not build one per row. None for a child whose helpdesk was
+        deleted, which no backend holds.
         """
+        if backend.is_orphaned(issue):
+            return None
         if not issue.provider_helpdesk_id:
             return self._active_backend
         cache = self.__dict__.setdefault("_provider_backend_cache", {})
@@ -409,10 +412,12 @@ class IssueSerializer(
         return self._active_backend.get_available_statuses(obj)
 
     def get_add_comment_is_available(self, obj: models.Issue) -> bool:
-        return self._backend_for(obj).comment_create_is_available(obj)
+        issue_backend = self._backend_for(obj)
+        return bool(issue_backend and issue_backend.comment_create_is_available(obj))
 
     def get_add_attachment_is_available(self, obj: models.Issue) -> bool:
-        return self._backend_for(obj).attachment_create_is_available(obj)
+        issue_backend = self._backend_for(obj)
+        return bool(issue_backend and issue_backend.attachment_create_is_available(obj))
 
     def get_is_routed(self, obj: models.Issue) -> bool:
         # Consume the prefetch cache (see IssueViewSet.get_queryset).
@@ -832,8 +837,36 @@ def render_comment_description(description: str, user) -> str:
     return clean_html(description)
 
 
+class TicketBackendMixin:
+    """Answers availability from the backend that holds each ticket.
+
+    A ticket routed to a provider is held by the provider helpdesk's backend,
+    which is also where the views send changes to it. One backend is built
+    per helpdesk, and the active one reused for the operator's tickets, as a
+    list reuses one serializer for every row.
+    """
+
+    @cached_property
+    def _active_backend(self):
+        return backend.get_active_backend()
+
+    def _backend_for(self, issue):
+        # None for a child whose helpdesk was deleted, which no backend holds.
+        if backend.is_orphaned(issue):
+            return None
+        if not issue.provider_helpdesk_id:
+            return self._active_backend
+        cache = self.__dict__.setdefault("_provider_backend_cache", {})
+        key = issue.provider_helpdesk_id
+        if key not in cache:
+            cache[key] = backend.get_backend_for_provider(issue.provider_helpdesk)
+        return cache[key]
+
+
 class CommentSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    TicketBackendMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     # should be initialized with issue in context on creation
     author_user = serializers.HyperlinkedRelatedField(
@@ -883,22 +916,24 @@ class CommentSerializer(
         )
         protected_fields = ("remote_id",)
 
-    @cached_property
-    def _active_backend(self):
-        return backend.get_active_backend()
-
     # Both answer for the requesting user, not just the backend: the UI enables
     # its edit and delete buttons from these, so a comment the user may not
     # change has to read as unavailable to them.
     def get_update_is_available(self, obj) -> bool:
+        issue_backend = self._backend_for(obj.issue)
+        if issue_backend is None:
+            return False
         return self._user_may_change(
-            obj, self._active_backend.comment_author_update_is_supported
-        ) and bool(self._active_backend.comment_update_is_available(obj))
+            obj, issue_backend.comment_author_update_is_supported
+        ) and bool(issue_backend.comment_update_is_available(obj))
 
     def get_destroy_is_available(self, obj) -> bool:
+        issue_backend = self._backend_for(obj.issue)
+        if issue_backend is None:
+            return False
         return self._user_may_change(
-            obj, self._active_backend.comment_author_destroy_is_supported
-        ) and bool(self._active_backend.comment_destroy_is_available(obj))
+            obj, issue_backend.comment_author_destroy_is_supported
+        ) and bool(issue_backend.comment_destroy_is_available(obj))
 
     def _user_may_change(self, obj, author_may_change) -> bool:
         request = self.context.get("request")
@@ -1001,7 +1036,11 @@ class SupportUserSerializer(
 
     @extend_schema_field(serializers.IntegerField())
     def get_attachments_count(self, obj):
-        return obj.attachments.count()
+        attachments = obj.attachments.all()
+        request = self.context.get("request")
+        if request is not None and not has_staff_access(request):
+            attachments = attachments.filter(models.public_attachments_q(request.user))
+        return attachments.count()
 
 
 class SupportUserIssueBriefSerializer(serializers.ModelSerializer):
@@ -1138,8 +1177,13 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return validated_data
 
     def get_issue(self, key):
+        # Not a ticket on a provider's own Jira, whose key the operator's Jira
+        # may give to another ticket.
+        issues = models.Issue.objects.exclude(
+            backend.routed_elsewhere_q(backend.SupportBackendType.ATLASSIAN)
+        )
         try:
-            issue = models.Issue.objects.get(backend_id=key)
+            issue = issues.get(backend_id=key)
         except models.Issue.DoesNotExist:
             raise serializers.ValidationError("Issue with id %s does not exist." % key)
 
@@ -1158,6 +1202,7 @@ ATTACHES_TO_ISSUE = [
 
 
 class AttachmentSerializer(
+    TicketBackendMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1169,6 +1214,14 @@ class AttachmentSerializer(
             "Whether the caller may delete this attachment, by the check the "
             "delete route runs. Whether the support backend allows deleting it "
             "is destroy_is_available."
+        )
+    )
+    delete_is_local_only = serializers.SerializerMethodField(
+        help_text=_(
+            "True when the attachment's ticket was routed to a provider "
+            "helpdesk that has since been removed from Waldur: deleting "
+            "removes the file from Waldur only, and any copy on the "
+            "provider's helpdesk stays."
         )
     )
 
@@ -1187,6 +1240,7 @@ class AttachmentSerializer(
             "backend_id",
             "destroy_is_available",
             "can_delete",
+            "delete_is_local_only",
         )
         read_only_fields = (
             "mime_type",
@@ -1223,7 +1277,16 @@ class AttachmentSerializer(
         return file_name
 
     def get_destroy_is_available(self, obj) -> bool:
-        return backend.get_active_backend().attachment_destroy_is_available(obj)
+        if backend.is_orphaned(obj.issue):
+            # Deleted in Waldur alone (delete_is_local_only).
+            return True
+        issue_backend = self._backend_for(obj.issue)
+        return bool(
+            issue_backend and issue_backend.attachment_destroy_is_available(obj)
+        )
+
+    def get_delete_is_local_only(self, obj) -> bool:
+        return backend.is_orphaned(obj.issue)
 
     def get_can_delete(self, attachment) -> bool:
         request = self.context.get("request")

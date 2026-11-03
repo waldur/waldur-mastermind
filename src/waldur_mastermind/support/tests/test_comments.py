@@ -373,6 +373,9 @@ class CommentAuthorChangeOnRoutedTicketTest(AuthorCommentTestBase):
     def _make_child_ticket(self):
         parent = factories.IssueFactory()
         self.fixture.issue.parent_issue = parent
+        # A child is routed to a helpdesk; one whose helpdesk was deleted has
+        # no desk left, and nothing on it may be changed.
+        self.fixture.issue.provider_helpdesk = factories.ProviderHelpdeskFactory()
         self.fixture.issue.save()
 
     def _make_forwarded_copy(self):

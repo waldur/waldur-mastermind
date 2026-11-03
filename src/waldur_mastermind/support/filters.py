@@ -7,7 +7,7 @@ from django.db.models import Q
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
-from waldur_core.core.permissions import has_support_access
+from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.core.resolvers import filter_by_resource_attribute
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -284,10 +284,17 @@ def filter_attachments_for_request(queryset, request):
     """Attachments of the issues the requester may see.
 
     An attachment is part of its issue, so it is shown to whoever sees the
-    issue, and to nobody else.
+    issue, and to nobody else. Of those, a file from an internal note, and a
+    copy still on its way to its desk, are for staff alone, as internal
+    comments are (``models.public_attachments_q``).
     """
     issues = filter_issues_for_request(models.Issue.objects.all(), request)
-    return queryset.filter(issue__in=issues)
+    queryset = queryset.filter(issue__in=issues)
+    if not hasattr(request, "user"):
+        request = SimpleNamespace(user=request, META={})
+    if has_staff_access(request):
+        return queryset
+    return queryset.filter(models.public_attachments_q(request.user))
 
 
 class AttachmentIssueFilterBackend(BaseFilterBackend):

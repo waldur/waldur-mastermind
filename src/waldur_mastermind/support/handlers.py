@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 
 from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
@@ -305,6 +306,67 @@ def propagate_comment_to_parent(
 
     comment_id = instance.id
     transaction.on_commit(lambda: tasks.propagate_comment_to_parent.delay(comment_id))
+
+
+def _file_landed(attachment: models.Attachment, created: bool, update_fields) -> bool:
+    """Has this save put a file on an attachment that may travel?
+
+    That is when its row is created with the file, as an API upload is, or
+    when a later save adds the file: the remote service desks' syncs save the
+    row first and the file afterwards. The other saves only record what a
+    backend did with the file, and cost nothing here.
+    """
+    if not tasks.attachment_is_forwardable(attachment):
+        return False
+    if created:
+        return True
+    if update_fields is not None and "file" not in update_fields:
+        return False
+    return attachment.tracker.has_changed("file")
+
+
+def forward_attachment_to_children(
+    sender, instance: models.Attachment, created=False, update_fields=None, **kwargs
+):
+    """Forward new attachments from parent issues to child issues.
+
+    Scheduled whether or not the issue has children yet: routing may be
+    creating one now, and the task looks them up once this file is committed.
+    """
+    if not _file_landed(instance, created, update_fields):
+        return
+
+    issue = instance.issue
+    if issue.parent_issue_id:
+        return
+
+    # The ticket has a child only if a helpdesk took it, and gains one only
+    # while some helpdesk takes tickets: one query, made only for a new file.
+    if not models.ProviderHelpdesk.objects.filter(
+        Q(is_active=True) | Q(issues__parent_issue_id=issue.id)
+    ).exists():
+        return
+
+    attachment_id = instance.id
+    transaction.on_commit(
+        lambda: tasks.forward_attachment_to_child.delay(attachment_id)
+    )
+
+
+def propagate_attachment_to_parent(
+    sender, instance: models.Attachment, created=False, update_fields=None, **kwargs
+):
+    """Propagate new attachments from child issues back to parent issues."""
+    if not _file_landed(instance, created, update_fields):
+        return
+
+    if not instance.issue.parent_issue_id:
+        return
+
+    attachment_id = instance.id
+    transaction.on_commit(
+        lambda: tasks.propagate_attachment_to_parent.delay(attachment_id)
+    )
 
 
 def dispatch_routing_on_issue_create(

@@ -67,7 +67,8 @@ def can_comment_on_issue(request, view, obj: models.Issue | None = None):
         access.staff(),
         access.owned(
             "The attachment's uploader, while they may still comment on "
-            "its issue, as attaching requires."
+            "its issue, as attaching requires. Not on a ticket whose provider "
+            "helpdesk has been deleted, where only staff may delete."
         ),
     ),
     needs_object=True,
@@ -79,6 +80,9 @@ def can_delete_attachment(request, view, obj: models.Attachment | None = None):
     if obj is None or has_staff_access(request):
         return
     if obj.author is None or obj.author.user_id != request.user.id:
+        raise exceptions.PermissionDenied()
+    if backend.is_orphaned(obj.issue):
+        # Deleted in Waldur alone, and no desk keeps a copy: staff decide.
         raise exceptions.PermissionDenied()
     can_comment_on_issue(request, view, obj.issue)
 
@@ -100,9 +104,14 @@ def _changes_comment(verb):
 def can_edit_comment(request, view, obj: models.Comment | None = None):
     if obj is None:
         return
-    active_backend = backend.get_active_backend()
+    # The backend that holds the ticket decides: on a ticket routed to a
+    # provider, that is the provider helpdesk's, not the operator's. A ticket
+    # whose helpdesk was deleted has none, and its author may not change it.
+    issue_backend = backend.find_backend_for_issue(obj.issue)
     if not backend.comment_change_is_permitted(
-        request, obj, active_backend.comment_author_update_is_supported
+        request,
+        obj,
+        bool(issue_backend and issue_backend.comment_author_update_is_supported),
     ):
         raise exceptions.PermissionDenied()
 
@@ -111,9 +120,11 @@ def can_edit_comment(request, view, obj: models.Comment | None = None):
 def can_delete_comment(request, view, obj: models.Comment | None = None):
     if obj is None:
         return
-    active_backend = backend.get_active_backend()
+    issue_backend = backend.find_backend_for_issue(obj.issue)
     if not backend.comment_change_is_permitted(
-        request, obj, active_backend.comment_author_destroy_is_supported
+        request,
+        obj,
+        bool(issue_backend and issue_backend.comment_author_destroy_is_supported),
     ):
         raise exceptions.PermissionDenied()
 

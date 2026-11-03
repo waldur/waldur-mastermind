@@ -20,7 +20,13 @@ from waldur_mastermind.support.backend.zammad_utils import (
     ZammadBackendError,
 )
 
-from . import SupportBackend, SupportBackendType, provider_settings_override
+from . import (
+    SupportBackend,
+    SupportBackendType,
+    attachment_backend_name_for,
+    provider_settings_override,
+    synced_attachments,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +65,7 @@ class ZammadServiceBackend(SupportBackend):
     #: Where the backend connects and with which credentials. A provider
     #: helpdesk takes all of these from the operator or none of them.
     connection_settings = ("ZAMMAD_API_URL", "ZAMMAD_TOKEN")
+    desk_settings = ("ZAMMAD_API_URL",)
 
     @classmethod
     def from_settings(cls, settings_dict):
@@ -177,7 +184,10 @@ class ZammadServiceBackend(SupportBackend):
                 issue=comment.issue,
                 author=comment.author,
                 backend_id=zammad_attachment.id,
-                backend_name=self.backend_name,
+                backend_name=attachment_backend_name_for(comment.issue)
+                or self.backend_name,
+                # A file in an internal note is as internal as the note.
+                is_public=comment.is_public,
             )
 
             waldur_attachment.file.save(
@@ -194,9 +204,9 @@ class ZammadServiceBackend(SupportBackend):
     def del_waldur_attachments_from_zammad(self, issue):
         zammad_attachments = self.manager.get_ticket_attachments(issue.backend_id)
 
-        for attachment in issue.attachments.filter(
-            backend_name=self.backend_name
-        ).exclude(backend_id__in=[a.id for a in zammad_attachments]):
+        for attachment in synced_attachments(issue, self.backend_name).exclude(
+            backend_id__in=[a.id for a in zammad_attachments]
+        ):
             attachment.delete()
             logger.info("Attachment %s has been deleted.", attachment.id)
 
@@ -413,14 +423,14 @@ class ZammadServiceBackend(SupportBackend):
             waldur_user_email=waldur_user_email,
         )
         attachment.backend_id = zammad_attachment.id
-        attachment.backend_name = self.backend_name
+        attachment.backend_name = self.get_attachment_backend_name()
         attachment.save()
 
     def delete_attachment(self, attachment):
         if (
             not attachment.backend_id
             or not attachment.issue.backend_id
-            or attachment.backend_name != self.backend_name
+            or not self.holds_attachment(attachment)
         ):
             return
 

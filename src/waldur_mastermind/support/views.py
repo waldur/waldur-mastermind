@@ -279,7 +279,8 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     destroy_validators = [_destroy_is_available_validator]
 
     def _comment_create_is_available_validator(issue):
-        if not backend.get_backend_for_issue(issue).comment_create_is_available(issue):
+        issue_backend = backend.find_backend_for_issue(issue)
+        if not issue_backend or not issue_backend.comment_create_is_available(issue):
             raise ValidationError("Creating is not available.")
 
     @extend_schema(responses={status.HTTP_201_CREATED: serializers.CommentSerializer})
@@ -680,16 +681,19 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Comment.objects.select_related("author__user", "issue").all()
     disabled_actions = ["create"]
 
+    # A comment on a ticket routed to a provider is held by the provider's
+    # desk, so changing or removing it goes there, as posting it did.
     @transaction.atomic()
     def perform_update(self, serializer):
         # Read by the notification handler, which must tell an author's own edit
         # from staff correcting someone else's comment.
         serializer.instance._edited_by = self.request.user
         comment: models.Comment = serializer.save()
-        backend.get_active_backend().update_comment(comment)
+        backend.get_backend_for_issue(comment.issue).update_comment(comment)
 
     def _update_is_available_validator(comment):
-        if not backend.get_active_backend().comment_update_is_available(comment):
+        issue_backend = backend.find_backend_for_issue(comment.issue)
+        if not issue_backend or not issue_backend.comment_update_is_available(comment):
             raise ValidationError("Updating is not available.")
 
     update_permissions = partial_update_permissions = [
@@ -699,11 +703,12 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_destroy(self, comment):
-        backend.get_active_backend().delete_comment(comment)
+        backend.get_backend_for_issue(comment.issue).delete_comment(comment)
         comment.delete()
 
     def _destroy_is_available_validator(comment):
-        if not backend.get_active_backend().comment_destroy_is_available(comment):
+        issue_backend = backend.find_backend_for_issue(comment.issue)
+        if not issue_backend or not issue_backend.comment_destroy_is_available(comment):
             raise ValidationError("Comment cannot be destroyed.")
 
     destroy_permissions = [support_permissions.can_delete_comment]
@@ -740,11 +745,16 @@ class SupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     @decorators.action(detail=True, methods=["get"])
     def connections(self, request, uuid=None):
         support_user = self.get_object()
+        attachments = support_user.attachments.select_related("issue")
+        if not has_staff_access(request):
+            # Global support reads this too, and sees attachments as anyone
+            # but staff does.
+            attachments = attachments.filter(models.public_attachments_q(request.user))
         data = {
             "reported_issues": support_user.reported_issues.all(),
             "assigned_issues": support_user.issues.all(),
             "comments": support_user.comments.select_related("issue"),
-            "attachments": support_user.attachments.select_related("issue"),
+            "attachments": attachments,
         }
         serializer = self.get_serializer(data)
         return response.Response(serializer.data)
@@ -1702,13 +1712,28 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     # Checked by the serializer, against the issue the request names.
     access_declarations = {"create": serializers.ATTACHES_TO_ISSUE}
 
+    # An attachment of a ticket routed to a provider is held by the provider's
+    # desk, under that desk's id. Asking the operator's desk to remove it would
+    # remove whatever the operator holds under the same number. On a ticket
+    # whose helpdesk was deleted, no desk holds it any more: staff delete it,
+    # and its stored file, in Waldur alone (delete_is_local_only).
     @transaction.atomic()
     def perform_destroy(self, attachment):
-        backend.get_active_backend().delete_attachment(attachment)
+        if backend.is_orphaned(attachment.issue):
+            attachment.file.delete(save=False)
+        else:
+            backend.get_backend_for_issue(attachment.issue).delete_attachment(
+                attachment
+            )
         attachment.delete()
 
     def _destroy_is_available_validator(attachment):
-        if not backend.get_active_backend().attachment_destroy_is_available(attachment):
+        if backend.is_orphaned(attachment.issue):
+            return
+        issue_backend = backend.find_backend_for_issue(attachment.issue)
+        if not issue_backend or not issue_backend.attachment_destroy_is_available(
+            attachment
+        ):
             raise ValidationError("Destroying is not available.")
 
     destroy_permissions = [support_permissions.can_delete_attachment]
@@ -1716,8 +1741,17 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_create(self, serializer):
-        attachment: models.Attachment = serializer.save()
-        backend.get_active_backend().create_attachment(attachment)
+        # Push to the backend that owns the ticket: a provider-routed ticket
+        # has its own helpdesk backend, not the operator's global one, and
+        # files its attachments under a name of its own.
+        issue = serializer.validated_data["issue"]
+        issue_backend = backend.find_backend_for_issue(issue)
+        if issue_backend is None:
+            raise ValidationError("Adding attachments is not available.")
+        attachment: models.Attachment = serializer.save(
+            backend_name=backend.attachment_backend_name_for(issue)
+        )
+        issue_backend.create_attachment(attachment)
 
 
 class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -1834,7 +1868,12 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
         if not ticket_id:
             raise ValidationError("Key ticket.id is required.")
 
-        issue: models.Issue = get_object_or_404(models.Issue, backend_id=ticket_id)
+        # Only a ticket on the operator's own desk: the id alone may also name
+        # a ticket of another desk, or one on a provider's own Zammad.
+        issue: models.Issue = get_object_or_404(
+            backend.operator_desk_issues(ZammadServiceBackend.backend_name),
+            backend_id=ticket_id,
+        )
         logger.info(
             f"Updating issue {issue.key} based on data from ticket with id {ticket_id}."
         )
@@ -1923,9 +1962,8 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
             raise ValidationError("Key id is required.")
 
         issue: models.Issue = get_object_or_404(
-            models.Issue,
+            backend.operator_desk_issues(SmaxServiceBackend.backend_name),
             backend_id=issue_id,
-            backend_name=SmaxServiceBackend.backend_name,
         )
         logger.info(
             f"Syncing issue {issue.key} based on data from ticket with id {issue_id}."

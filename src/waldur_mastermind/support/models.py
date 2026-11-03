@@ -7,6 +7,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core import validators
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
@@ -530,12 +531,48 @@ class Attachment(
     class Meta:
         unique_together = ("backend_name", "backend_id")
         ordering = ["created", "id"]
+        constraints = [
+            # A file reaches each ticket of a routing once, however routing and
+            # forwarding interleave.
+            models.UniqueConstraint(
+                fields=["issue", "forwarded_from"],
+                name="support_attachment_one_copy_per_issue",
+            ),
+        ]
 
     issue = models.ForeignKey(
         on_delete=models.CASCADE, to=Issue, related_name="attachments"
     )
     file = models.FileField(upload_to="support_attachments")
     backend_id = models.CharField(max_length=255)
+    is_public = models.BooleanField(
+        default=True,
+        help_text=_(
+            "Whether the attachment came with a public comment. One from an "
+            "internal note is not forwarded to a provider helpdesk."
+        ),
+    )
+    is_forwarded = models.BooleanField(
+        default=False,
+        help_text=_("Whether this attachment was forwarded from a parent/child issue."),
+    )
+    # Kept apart from is_forwarded: deleting the original clears this link,
+    # and a copy must still never travel again once it has.
+    forwarded_from = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="forwarded_copies",
+        help_text=_("The attachment this one was copied from."),
+    )
+    push_attempts = models.PositiveSmallIntegerField(
+        default=0,
+        help_text=_("How many times a copy has been pushed to its ticket's desk."),
+    )
+    # Tells the save that adds a file from the saves that only record what a
+    # backend did with it.
+    tracker = cast(FieldInstanceTracker, FieldTracker(fields=["file"]))
     author = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SupportUser,
@@ -543,6 +580,21 @@ class Attachment(
         blank=True,
         null=True,
     )
+
+    #: Set while ``tasks.push_copy`` hands this copy to a desk.
+    pushing = False
+
+    def save(self, *args, **kwargs):
+        if self.pushing:
+            # A backend saves the copy once the desk has taken it, in full as
+            # Zammad's and SMAX's do. Only what the desk gave it is its to
+            # write. The push records the rest under its claim, the row's
+            # `modified`, which a save would move.
+            type(self).objects.filter(pk=self.pk).update(
+                backend_id=self.backend_id, backend_name=self.backend_name
+            )
+            return
+        super().save(*args, **kwargs)
 
     @classmethod
     def get_url_name(cls):
@@ -553,6 +605,26 @@ class Attachment(
 
     def get_log_fields(self):
         return ("uuid", "issue", "author", "backend_id")
+
+
+#: States of a copy that is not on its ticket's desk yet: waiting to be
+#: pushed, and claimed by the push under way.
+FORWARDING_STATES = (CoreStates.CREATION_SCHEDULED, CoreStates.CREATING)
+
+
+def forwarding_q() -> Q:
+    """Copies on their way to the desk that holds their ticket."""
+    return Q(is_forwarded=True, state__in=FORWARDING_STATES)
+
+
+def public_attachments_q(user) -> Q:
+    """What of a ticket's files someone other than staff sees.
+
+    Not a file from an internal note, unless they attached it, as
+    ``CommentViewSet`` hides internal comments. Nor a copy still on its way
+    to the desk that holds its ticket, which is not on that ticket yet.
+    """
+    return (Q(is_public=True) | Q(author__user=user)) & ~forwarding_q()
 
 
 class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
