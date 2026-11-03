@@ -34,11 +34,16 @@ from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.core.models import DESCRIPTION_LENGTH
-from waldur_core.core.permissions import has_staff_access, has_support_access
+from waldur_core.core.permissions import (
+    has_staff_access,
+    has_staff_or_support_read_access,
+    has_support_access,
+)
 from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.pat_filtering import PATScopeListFilter
 from waldur_core.permissions.serializers import (
     MePermissionSerializer,
     PermissionSerializer,
@@ -2277,14 +2282,22 @@ class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
         fields = ("project", "requested_end_date", "comment", "uuid", "state")
 
     def validate_project(self, project):
-        user = self.context["request"].user
+        request = self.context["request"]
+        user = request.user
         if user.is_staff:
             raise serializers.ValidationError(
                 _("Staff users should use project edit instead of creating a request.")
             )
+        # A write: global support, which only reads, reaches only the projects
+        # its roles do, like anyone else.
         accessible = filter_queryset_for_user(
             models.Project.available_objects.filter(pk=project.pk),
             user,
+            sees_all=has_staff_or_support_read_access(request),
+        )
+        # A personal access token reaches only the projects its bindings do.
+        accessible = PATScopeListFilter().filter_queryset(
+            request, accessible, self.context.get("view")
         )
         if not accessible.exists():
             raise serializers.ValidationError(

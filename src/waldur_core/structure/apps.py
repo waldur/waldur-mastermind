@@ -19,8 +19,9 @@ class StructureConfig(AppConfig):
 
         from waldur_core.core.models import ChangeEmailRequest
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.permissions.pat_filtering import register_pat_filter
         from waldur_core.quotas import signals as quota_signals
-        from waldur_core.structure import handlers
+        from waldur_core.structure import handlers, managers
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.executors import check_cleanup_executors
         from waldur_core.structure.models import (
@@ -191,6 +192,11 @@ class StructureConfig(AppConfig):
             handlers.log_project_end_date_change_request_events,
             sender=ProjectEndDateChangeRequest,
             dispatch_uid="waldur_core.structure.log_project_end_date_change_request_events",
+        )
+
+        register_pat_filter(AccessSubnet)(managers.pat_filter_access_subnets)
+        register_pat_filter(ProjectEndDateChangeRequest)(
+            managers.pat_filter_end_date_change_requests
         )
 
     def _register_digest_providers(self):

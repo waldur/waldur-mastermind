@@ -11,6 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.models import User
 from waldur_core.permissions.mixins import PermissionMixin
+from waldur_core.permissions.pat_filtering import _ids_q, _or
 from waldur_core.permissions.utils import (
     get_scope_ids,
     get_user_ids,
@@ -29,8 +30,17 @@ T = TypeVar("T", bound=Model)
 
 
 def filter_queryset_for_user[T: Model](
-    queryset: QuerySet[T], user: User
+    queryset: QuerySet[T], user: User, *, sees_all: bool | None = None
 ) -> QuerySet[T]:
+    """The rows of ``queryset`` the user's roles reach.
+
+    ``sees_all`` says whether the caller reaches every row instead. It
+    defaults to the user's staff or support flag; a write path passes
+    ``has_staff_or_support_read_access(request)``, so that support, which
+    only reads, and a token without the staff or support scope reach only
+    what the user's roles do.
+    """
+
     def get_customer_subquery(path):
         if list_permission:
             connected_customers = get_connected_customers_by_permission(
@@ -55,7 +65,9 @@ def filter_queryset_for_user[T: Model](
     if user is None or not user.is_authenticated or not user.is_active:
         return queryset.none()
 
-    if user.is_staff or user.is_support:
+    if sees_all is None:
+        sees_all = user.is_staff or user.is_support
+    if sees_all:
         return queryset
 
     try:
@@ -283,6 +295,25 @@ class SharedServiceSettingsManager(ServiceSettingsManager):
 class PrivateServiceSettingsManager(ServiceSettingsManager):
     def get_queryset(self):
         return super().get_queryset().filter(shared=False)
+
+
+def pat_filter_access_subnets(ids):
+    """The access subnets a personal access token's bindings reach.
+
+    An access subnet belongs to an organization, so only a binding on that
+    organization reaches it: a binding on one of its projects or offerings
+    does not reach the organization, and so not its subnets either.
+    """
+    return _ids_q("customer_id", ids.get("customer"))
+
+
+def pat_filter_end_date_change_requests(ids):
+    """The project end date change requests a token's bindings reach: those
+    of a project it is bound to, or of a project of an organization it is."""
+    return _or(
+        _ids_q("project_id", ids.get("project")),
+        _ids_q("project__customer_id", ids.get("customer")),
+    )
 
 
 def get_connected_customers(user, role=None) -> QuerySet[int]:

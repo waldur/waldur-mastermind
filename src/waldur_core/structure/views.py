@@ -758,7 +758,12 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
             raise ValidationError(
                 {"customer_uuid": _("A valid customer_uuid is required.")}
             )
-        customer = get_object_or_404(models.Customer, uuid=customer_uuid)
+        # Looked up outside get_object(), so the personal access token filter
+        # is applied here: a token bound elsewhere does not find the customer.
+        customers = PATScopeListFilter().filter_queryset(
+            request, models.Customer.objects.all(), self
+        )
+        customer = get_object_or_404(customers, uuid=customer_uuid)
         if not has_support_access(request):
             # Membership is tested with the same `__in` idiom get_queryset uses.
             # `customer in get_connected_customers(...)` looks equivalent and is
@@ -880,7 +885,7 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = super().get_queryset()
-        if user.is_staff or user.is_support:
+        if has_staff_or_support_read_access(self.request):
             return qs
         connected_customers = get_connected_customers(user=user)
         return models.AccessSubnet.objects.filter(customer__in=connected_customers)
@@ -2537,25 +2542,19 @@ class ProjectPermissionReviewViewSet(
         return Response(status=status.HTTP_200_OK)
 
 
-def user_can_approve_project_end_date_change_request(
-    request, view, obj: models.ProjectEndDateChangeRequest | None = None
-):
-    """Only users with UPDATE_PROJECT on customer or project can approve/reject."""
-    if not obj:
-        return
-    if has_permission(
-        request.user, PermissionEnum.UPDATE_PROJECT, obj.project.customer
-    ) or has_permission(request.user, PermissionEnum.UPDATE_PROJECT, obj.project):
-        return
-    raise PermissionDenied()
-
-
 class ProjectEndDateChangeRequestViewSet(
     core_mixins.EagerLoadMixin, core_views.ActionsViewSet
 ):
     queryset = models.ProjectEndDateChangeRequest.objects.all()
+    # The rule for changing the end date directly (ProjectViewSet's update),
+    # so that a personal access token approves exactly where it could make
+    # the change itself.
     approve_permissions = reject_permissions = [
-        user_can_approve_project_end_date_change_request
+        permission_factory(
+            PermissionEnum.UPDATE_PROJECT,
+            ["project", "project.customer"],
+            binding_on_path=True,
+        )
     ]
     serializer_class = serializers.ProjectEndDateChangeRequestSerializer
     create_serializer_class = serializers.ProjectEndDateChangeRequestCreateSerializer
