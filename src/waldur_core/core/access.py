@@ -29,7 +29,12 @@ Every entry of a route must pass. A request acting as staff passes
 A list or retrieve narrowed by a filter backend also has a visibility, the
 backend's ``access_visibility``: ``role`` (``GenericRoleFilter``),
 ``role_caller_or_helpdesk``, or ``custom``, which the backend's docstring
-describes.
+describes. A view that narrows its queryset in ``get_queryset`` says what it
+shows with ``shows``, and a backend that narrows a custom visibility further
+adds its ``access_visibility_note`` where it runs. Other read actions that
+look their object up as
+retrieve does are named in the view's ``access_filtered_actions`` and share
+its visibility.
 """
 
 import json
@@ -139,6 +144,23 @@ def describes(*entries, needs_object=False):
         if needs_object:
             check.needs_object = True
         return check
+
+    return decorate
+
+
+def shows(description):
+    """Say what a view's ``get_queryset`` narrows its queryset to.
+
+    List and retrieve then show the caller ``description`` (a ``custom``
+    visibility) in place of what the view's filter backends say. It describes
+    ``get_queryset`` alone: a backend that narrows further says how in its
+    ``access_visibility_note``, which is added wherever the backend runs. A
+    subclass that overrides ``get_queryset`` describes its own.
+    """
+
+    def decorate(get_queryset):
+        get_queryset.access_shows = description
+        return get_queryset
 
     return decorate
 
@@ -297,6 +319,23 @@ def _copies(entries):
     return result
 
 
+def _declarations(view) -> dict:
+    """The view's ``access_declarations``, over those of its bases.
+
+    A mixin declares the actions it adds; a class's own entry for an action
+    replaces what its bases declare for it.
+    """
+    declarations = {}
+    for klass in reversed(type(view).__mro__):
+        own = vars(klass).get("access_declarations")
+        if isinstance(own, dict):
+            declarations.update(own)
+    own = getattr(view, "__dict__", {}).get("access_declarations")
+    if isinstance(own, dict):
+        declarations.update(own)
+    return declarations
+
+
 def access_for(view, method, url_kwargs=None) -> RouteAccess:
     """What protects ``method`` on ``view``, a view instance with its action set.
 
@@ -338,17 +377,35 @@ def access_for(view, method, url_kwargs=None) -> RouteAccess:
     if action == "create" and describe_create_access is not None:
         entries.extend(describe_create_access())
 
-    declarations = getattr(view, "access_declarations", None) or {}
+    declarations = _declarations(view)
     entries.extend(declarations.get(action or method.lower(), []))
 
     visibility = visibility_description = None
-    if method in SAFE_METHODS and action in FILTERED_ACTIONS:
-        for backend in getattr(view, "filter_backends", ()):
-            visibility = getattr(backend, "access_visibility", None)
-            if visibility:
-                if visibility == CUSTOM_VISIBILITY:
-                    visibility_description = _summary(backend)
-                break
+    filtered_actions = FILTERED_ACTIONS + tuple(
+        getattr(view, "access_filtered_actions", ())
+    )
+    if method in SAFE_METHODS and action in filtered_actions:
+        # The backends this action runs: an action may name its own.
+        backends = tuple(getattr(view, "filter_backends", None) or ())
+        shown = getattr(getattr(view, "get_queryset", None), "access_shows", None)
+        if isinstance(shown, str):
+            visibility, visibility_description = CUSTOM_VISIBILITY, shown
+        else:
+            for backend in backends:
+                visibility = getattr(backend, "access_visibility", None)
+                if visibility:
+                    if visibility == CUSTOM_VISIBILITY:
+                        visibility_description = _summary(backend)
+                    break
+        if visibility == CUSTOM_VISIBILITY and visibility_description:
+            notes = [
+                note
+                for backend in backends
+                if isinstance(
+                    note := getattr(backend, "access_visibility_note", None), str
+                )
+            ]
+            visibility_description = " ".join([visibility_description, *notes])
 
     return RouteAccess(
         _copies(entries),

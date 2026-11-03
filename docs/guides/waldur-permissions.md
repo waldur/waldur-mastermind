@@ -453,6 +453,11 @@ A route declares access by any of:
     }
     ```
 
+  A mixin declares the actions it adds: a view's declarations add to those of
+  its bases, and its entry for an action replaces theirs. `UserRoleMixin`
+  declares `list_users`, `add_user`, `update_user` and `delete_user` this way,
+  for every view that uses it.
+
   Never declare by adding to `<action>_permissions`: an action's own list
   replaces the view-level `unsafe_methods_permissions`, so it would drop the
   checks the action relied on.
@@ -464,7 +469,33 @@ A route declares access by any of:
   `access_visibility = access.CUSTOM_VISIBILITY`, and the first paragraph of
   its docstring says what it shows (`x-visibility: custom` with
   `x-visibility-description`); without a docstring the route counts as
-  undescribed. Other read actions on the same view declare their own access.
+  undescribed.
+- **`@access.shows(...)` on `get_queryset`**, for a view that narrows its
+  queryset itself rather than in a filter backend. It says what list and
+  retrieve show (`x-visibility: custom`), in place of what the filter backends
+  say. It describes `get_queryset` alone. A backend that narrows further
+  says how in a sentence of its own, `access_visibility_note`, which is added
+  to a custom visibility on the routes that run the backend; an action
+  declared with `filter_backends=[]` drops it, as it drops the narrowing. A
+  subclass that overrides `get_queryset` says what its own shows.
+
+    ```python
+    @access.shows("Resources of projects and organizations where the caller holds a role.")
+    def get_queryset(self):
+        return self.queryset.filter_for_service_consumer(self.request.user)
+    ```
+
+- **`access_filtered_actions` on the view**, for other read actions that look
+  their object up with `get_object()` as retrieve does, or list
+  `filter_queryset(get_queryset())` as list does. They share the visibility
+  of list and retrieve. Name no action that reads past the queryset (a
+  `get_queryset()` without `filter_queryset`, a model manager, another
+  view's objects): the schema would call it narrowed when it is not. Any
+  other read action declares its own access.
+
+    ```python
+    access_filtered_actions = ("details", "offering", "plan_periods")
+    ```
 
 ### How to declare an app's routes
 

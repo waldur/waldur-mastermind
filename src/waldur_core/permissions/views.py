@@ -27,6 +27,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
+from waldur_core.core import access
 from waldur_core.core.models import User
 from waldur_core.core.permissions import (
     IsAdminOrReadOnly,
@@ -524,6 +525,21 @@ class RoleAvailabilityViewSet(ActionsViewSet):
         return qs
 
 
+# Who _user_can_view_scope_team lets through. Change the two together.
+TEAM_VIEW_ACCESS = access.custom(
+    "Staff and support. Otherwise a caller with an active role on the scope "
+    "itself, when the scope is neither an organization nor a project; with a "
+    "role granting "
+    f"{enums.TEAM_VIEW_PERMISSIONS[enums.TYPE_MAP['customer']].value} on the "
+    "scope's organization; or with a role granting "
+    f"{enums.TEAM_VIEW_PERMISSIONS[enums.TYPE_MAP['project']].value} on any "
+    "project of that organization. For a resource or resource project, also a "
+    f"caller with {enums.PermissionEnum.UPDATE_OFFERING.value} on its offering "
+    "or on the offering's organization. A view may let in others who oversee "
+    "the scope."
+)
+
+
 def _user_can_view_scope_team(user, scope) -> bool:
     """Authorise ``UserRoleMixin.list_users`` against a single scope.
 
@@ -647,6 +663,15 @@ def _get_offering_for_scope(scope):
 
 class UserRoleMixin:
     """Mixin to provide user role management functionality for viewsets."""
+
+    # The actions check in their body, and the serializers they validate
+    # with, so that they hold whatever permission classes the view runs.
+    access_declarations = {
+        "list_users": [TEAM_VIEW_ACCESS],
+        "add_user": [serializers.GRANT_ROLE_ACCESS],
+        "update_user": [serializers.UPDATE_ROLE_ACCESS],
+        "delete_user": [serializers.REVOKE_ROLE_ACCESS],
+    }
 
     def can_view_scope_team(self, user, scope) -> bool:
         """Authorise list_users / team listing for ``scope``.

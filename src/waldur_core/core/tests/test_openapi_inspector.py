@@ -105,6 +105,33 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
             operation["x-visibility-description"], "Objects the caller created."
         )
 
+    def test_get_operation_with_queryset_narrowed_by_the_view(self):
+        """A read action narrowed in get_queryset says what it shows."""
+        self.view.action = "details"
+        self.view.access_filtered_actions = ("details",)
+        self.view.get_permissions.return_value = [IsAuthenticated()]
+        self.view.filter_backends = ()
+        self.view.get_queryset = MagicMock(
+            access_shows="Objects of the caller's projects."
+        )
+        inspector = WaldurOpenApiInspector()
+        inspector.view = self.view
+
+        with patch.object(AutoSchema, "get_operation", return_value={}):
+            operation = inspector.get_operation(
+                "/api/dummies/{uuid}/details/",
+                r"^/api/dummies/(?P<uuid>[^/.]+)/details/$",
+                "/api/",
+                "GET",
+                MagicMock(),
+            )
+
+        self.assertEqual(operation["x-permissions"], [{"kind": "authenticated"}])
+        self.assertEqual(operation["x-visibility"], "custom")
+        self.assertEqual(
+            operation["x-visibility-description"], "Objects of the caller's projects."
+        )
+
     def _head_operation(
         self, *, detail, action="list", count_enabled=False, count_disabled=False
     ):
