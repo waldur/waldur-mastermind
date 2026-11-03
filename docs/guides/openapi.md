@@ -356,25 +356,35 @@ The process begins in the `waldur-mastermind` pipeline in a job named `Generate 
 
 ### 2. Automated SDK and Tooling Generation
 
-The generated schema artifact immediately triggers a series of parallel jobs, each responsible for generating a specific client SDK or tool. This "schema-first" approach ensures that our client libraries are always perfectly in sync with the API they are meant to consume.
+The SDKs and tools are not generated in this repository. The `waldur-docs` pipeline orchestrates them: each of its `Generate and release …` jobs triggers a downstream pipeline in the generator's own repository, which fetches the schema built by `Generate OpenAPI schema` and regenerates from it. This "schema-first" approach keeps the client libraries in sync with the API they consume.
 
-- `Generate TypeScript SDK`: For Waldur HomePort and other web frontends.
-- `Generate Python SDK`: For scripting, integrations, and internal tools.
-- `Generate Go SDK`: For command-line tools and backend services.
-- `Generate Ansible modules`: Creates Ansible collections for configuration management and automation.
+| `waldur-docs` job | Repository | Produces |
+|---|---|---|
+| `Generate and release TypeScript SDK` | `waldur/js-client` | `waldur-js-client` on npm, used by HomePort |
+| `Generate and release Python SDK` | `waldur/py-client` | `waldur-api-client` on PyPI |
+| `Generate and release Go SDK` | `waldur/go-client` | Go client |
+| `Generate and release Rust SDK` | `waldur/rs-client` | Rust client |
+| `Generate and release Waldur CLI` | `waldur/waldur-cli-generator` | Waldur CLI |
+| `Generate and release Terraform provider` | `waldur/terraform-provider-waldur-generator` | Terraform provider |
+| `Generate and release Ansible collection` | `waldur/ansible-waldur-generator` | Ansible collection |
+| `Generate and release API docs` | `waldur/api-docs` | API reference and API changes pages on [api-docs.waldur.com](https://api-docs.waldur.com/) |
 
 ### 3. Continuous Delivery of SDKs
 
-For development builds (from the `develop` branch), the newly generated SDKs are automatically committed and pushed to the `main` or `develop` branch of their respective GitHub repositories. This provides a continuous delivery pipeline for our API clients, allowing developers to immediately access and test the latest API changes through their preferred language.
+Development builds come from `develop`: the `Build nightly SDK` schedule of `waldur-docs` runs the triggers above, publishing dev versions of the SDKs and the `main` version of the API reference. Each takes the schema from the newest of this repository's last ten `develop` pipelines whose `Generate OpenAPI schema` job passed, even if the rest of that pipeline is still running or later fails. The schedule can also be played on demand when a just-merged endpoint is needed before the next nightly run, once that merge's `Generate OpenAPI schema` job has passed:
+
+```bash
+glab api -X POST projects/waldur%2Fwaldur-docs/pipeline_schedules/25/play
+```
 
 ### 4. Release and Versioning Workflow
 
-For tagged releases, the workflow is more extensive:
+A release is run from the `waldur-docs` pipeline for the release tag. Once it has tagged this repository and the tag's `Generate OpenAPI schema` job has finished:
 
-1. **API Diff Generation**: A job named `Generate OpenAPI schema diff` is triggered. It fetches the schema of the *previous* release from the `waldur-docs` repository and compares it against the newly generated schema using `oasdiff`. It produces a human-readable Markdown file (`openapi-diff.md`) detailing exactly what has changed (endpoints added, fields removed, etc.).
-2. **Documentation Deployment**: The new versioned schema (`waldur-openapi-schema-1.2.3.yaml`) and the diff file are automatically committed to the `waldur-docs` repository. The documentation site is then rebuilt, archiving the new schema and making the API changes visible in the release notes.
-3. **Changelog Integration**: The main `CHANGELOG.md` in the `waldur-docs` repository is automatically updated with links to the new schema file and the API diff page. This provides unparalleled clarity for integrators, showing them precisely what changed in a new release.
-4. **SDK Release**: The tagged version of each SDK is released, often involving bumping the version in configuration files (`pyproject.toml`, `package.json`) and pushing a corresponding version tag to the SDK's repository.
+1. **Versioned schema**: The `waldur-docs` job `Generate OpenAPI schema` commits the schema as `docs/API/waldur-openapi-schema-<version>.yaml` and adds two links to the release's changelog entry: the schema, and the release's API changes page.
+2. **API changes page**: `Generate and release API docs` triggers `waldur/api-docs`, whose `Generate OpenAPI schema diff` job compares the schema with the previous release's using [`oasdiff`](https://github.com/oasdiff/oasdiff). The API changes page it publishes leads with a summary and lists breaking changes first, then warnings, then everything else; the full structural diff, description edits included, is on a linked page. Every release's page is listed under *API changes* on [api-docs.waldur.com](https://api-docs.waldur.com/latest/integrator-guide/APIs/api-changes/).
+3. **SDK release**: The other triggers release the tagged version of each SDK and tool.
+4. **Verification**: `Verify release completed` fails the release if the schema is not committed, the changelog entry lacks either link, or the versioned documentation or API changes page is not served.
 
 This automated, schema-driven workflow provides immense benefits:
 
