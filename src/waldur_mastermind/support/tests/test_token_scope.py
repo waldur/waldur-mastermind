@@ -11,6 +11,7 @@ from waldur_core.media import models as media_models
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.tests.pat_utils import STAFF, SUPPORT, use_pat
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace.tests.factories import OfferingFactory
 from waldur_mastermind.support import models
 from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.test_issues import IssueCreateBaseTest
@@ -173,6 +174,51 @@ class IssueOnBehalfTokenScopeTest(IssueCreateBaseTest):
         self.client.force_authenticate(self.fixture.user)
         response = self.client.post(self.url, data=self._get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@override_config(PAT_ENABLED=True)
+class IssueOfferingTokenScopeTest(IssueCreateBaseTest):
+    """Staff and support may name any offering, as the token's scope allows."""
+
+    def setUp(self):
+        super().setUp()
+        # Another organization's private offering, outside every catalog.
+        self.offering = OfferingFactory(
+            customer=structure_factories.CustomerFactory(), shared=False
+        )
+
+    def report(self, user, *scopes):
+        use_pat(self.client, user, *scopes)
+        payload = self._get_valid_payload(
+            offering=self.offering.uuid.hex, is_reported_manually=True
+        )
+        return self.client.post(self.url, data=payload)
+
+    def issues(self):
+        return models.Issue.objects.filter(offering=self.offering)
+
+    def test_staff_token_with_staff_scope_names_any_offering(self):
+        response = self.report(self.fixture.staff, STAFF)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(self.issues().exists())
+
+    def test_support_token_with_support_scope_names_any_offering(self):
+        response = self.report(self.fixture.global_support, SUPPORT)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_staff_token_without_staff_scope_cannot_name_a_hidden_offering(self):
+        response = self.report(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering", response.data)
+        self.assertFalse(self.issues().exists())
+
+    def test_support_token_without_support_scope_cannot_name_a_hidden_offering(
+        self,
+    ):
+        response = self.report(self.fixture.global_support)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering", response.data)
+        self.assertFalse(self.issues().exists())
 
 
 @override_config(PAT_ENABLED=True)

@@ -1,4 +1,5 @@
 import json
+import uuid
 from unittest import mock
 
 # Mock objects for testing - will be replaced with proper mocks
@@ -16,6 +17,7 @@ from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.serializers import clone_role_for_customer
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
     ResourceFactory,
@@ -429,6 +431,78 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("customer", response.data)
         self.assertFalse(models.Issue.objects.filter(customer=provider).exists())
+
+    @data(
+        {"shared": False, "state": OfferingStates.ACTIVE},
+        {"shared": True, "state": OfferingStates.DRAFT},
+    )
+    def test_offering_the_caller_cannot_see_is_refused(self, attributes):
+        # Naming an offering is enough to route the request to its provider, so
+        # it must be one the caller can see: in the catalog, or their own.
+        offering = OfferingFactory(
+            customer=structure_factories.CustomerFactory(), **attributes
+        )
+        self.client.force_authenticate(self.fixture.user)
+        payload = self._get_valid_payload(
+            offering=offering.uuid.hex, is_reported_manually=True
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("does not exist", str(response.data["offering"]))
+        self.assertFalse(models.Issue.objects.filter(offering=offering).exists())
+
+    def test_hidden_offering_is_answered_as_a_made_up_one(self):
+        hidden = OfferingFactory(
+            customer=structure_factories.CustomerFactory(), shared=False
+        )
+        self.client.force_authenticate(self.fixture.user)
+
+        def refusal(sent):
+            payload = self._get_valid_payload(offering=sent, is_reported_manually=True)
+            response = self.client.post(self.url, data=payload)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            return [str(error) for error in response.data["offering"]]
+
+        # Sent with dashes, which the stored hex form does not have: each
+        # answer echoes the value as sent, so the two cannot be told apart.
+        for sent in (str(uuid.UUID(hidden.uuid.hex)), str(uuid.uuid4())):
+            with self.subTest(sent=sent):
+                self.assertEqual(
+                    refusal(sent), [f"Object with uuid={sent} does not exist."]
+                )
+
+    def test_owner_can_name_a_private_offering_of_their_organization(self):
+        offering = OfferingFactory(customer=self.fixture.customer, shared=False)
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self._get_valid_payload(
+            offering=offering.uuid.hex, is_reported_manually=True
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        issue = models.Issue.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(issue.offering, offering)
+
+    @data("staff", "global_support")
+    def test_staff_and_support_can_name_any_offering(self, user):
+        offering = OfferingFactory(
+            customer=structure_factories.CustomerFactory(),
+            shared=False,
+            state=OfferingStates.DRAFT,
+        )
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_payload(
+            offering=offering.uuid.hex, is_reported_manually=True
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        issue = models.Issue.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(issue.offering, offering)
 
     @data("staff", "global_support", "owner", "admin", "manager")
     def test_user_with_access_to_project_can_create_project_issue(self, user):

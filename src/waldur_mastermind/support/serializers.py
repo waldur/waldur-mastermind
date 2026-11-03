@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 from datetime import timedelta
@@ -9,6 +10,7 @@ from django.db import transaction
 from django.template import Context, Template
 from django.template import exceptions as template_exceptions
 from django.template.loader import get_template
+from django.utils.encoding import smart_str
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
@@ -578,6 +580,34 @@ class IssueSerializer(
             config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
             == backend.SupportBackendType.BASIC
         )
+
+    def validate_offering(self, offering):
+        """Naming an offering routes the request to its provider's helpdesk, so
+        it must be one the caller may see in the marketplace: in the catalog
+        they may order from, or one they are connected to. Staff and support
+        may name any. Any other is answered as if it did not exist."""
+        request = self.context["request"]
+        if offering is None or has_support_access(request):
+            return offering
+        user = request.user
+        if user.is_staff or user.is_support:
+            # A personal access token without the staff or support scope acts
+            # as its user without that role; the offering filters read the
+            # role flags off the user, so they are handed a copy without them.
+            user = copy.copy(user)
+            user.is_staff = user.is_support = False
+        offerings = marketplace_models.Offering.objects.filter(pk=offering.pk)
+        if not (
+            offerings.filter_for_user(user).exists()
+            or offerings.filter_by_ordering_availability_for_user(user).exists()
+        ):
+            # Worded as DRF words a UUID that matches nothing, value as sent.
+            self.fields["offering"].fail(
+                "does_not_exist",
+                slug_name="uuid",
+                value=smart_str(self.initial_data.get("offering")),
+            )
+        return offering
 
     def validate_first_comment(self, first_comment):
         if self.instance is not None:
