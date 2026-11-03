@@ -8,6 +8,7 @@ from rest_framework import status, test
 
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION
 from waldur_core.media.utils import dummy_image
@@ -15,6 +16,7 @@ from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole, CustomerRole, GlobalRole
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.permissions.utils import grant_global_role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -1124,6 +1126,19 @@ class AvailableChecklistsTest(test.APITestCase):
             self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_needs_create_call_scope(self):
+        for scope, expected in (
+            (permissions_enums.PermissionEnum.LIST_CALLS, status.HTTP_403_FORBIDDEN),
+            (permissions_enums.PermissionEnum.CREATE_CALL, status.HTTP_200_OK),
+        ):
+            with self.subTest(scope=scope):
+                use_pat(self.client, self.fixture.call_organizer_user, scope.value)
+                response = self.client.get(
+                    self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
+                )
+                self.assertEqual(response.status_code, expected)
 
     def test_customer_uuid_is_required(self):
         self.client.force_authenticate(self.fixture.staff)

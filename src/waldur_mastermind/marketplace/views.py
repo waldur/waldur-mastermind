@@ -9212,8 +9212,10 @@ class BaseResourceViewSet(
 
         pending_order = utils.get_pending_consumer_terminate_order(resource)
         if pending_order:
+            # Confirming approves the pending order, so the request is checked
+            # as approve_by_consumer checks it.
             if not permissions.user_can_approve_order_as_consumer(
-                request.user, pending_order
+                request, pending_order
             ):
                 raise ValidationError(_("Pending order for resource already exists."))
             self.ensure_resource_operations_allowed(resource)
@@ -20213,15 +20215,19 @@ class MarketplaceProjectUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericView
 def user_can_approve_resource_limit_change_request(
     request, view, obj: models.ResourceLimitChangeRequest | None = None
 ):
-    """Only users with UPDATE_RESOURCE_LIMITS on customer or project can approve/reject."""
+    """Only users with UPDATE_RESOURCE_LIMITS on customer or project can approve/reject.
+
+    The rule of ``update_limits`` on the resource, checked on the request so
+    that a personal access token approves only where it could change the
+    limits itself.
+    """
     if not obj:
         return
-    if has_permission(
-        request.user,
+    if has_permission_on_any_source(
+        request,
         PermissionEnum.UPDATE_RESOURCE_LIMITS,
-        obj.resource.project.customer,
-    ) or has_permission(
-        request.user, PermissionEnum.UPDATE_RESOURCE_LIMITS, obj.resource.project
+        obj.resource,
+        ["project", "project.customer"],
     ):
         return
     raise PermissionDenied()
@@ -20388,15 +20394,17 @@ def user_can_approve_resource_end_date_change_request(
     Deliberately not ORDER.APPROVE: there is no order here, and that permission
     is also granted on the offering, which would hand a consumer-side decision
     to the provider.
+
+    Checked on the request, as ``user_can_set_end_date_as_consumer`` is, so
+    that a personal access token's scopes and bindings apply.
     """
     if not obj:
         return
-    if has_permission(
-        request.user,
+    if has_permission_on_any_source(
+        request,
         PermissionEnum.SET_RESOURCE_END_DATE,
-        obj.resource.project.customer,
-    ) or has_permission(
-        request.user, PermissionEnum.SET_RESOURCE_END_DATE, obj.resource.project
+        obj.resource,
+        ["project.customer", "project"],
     ):
         return
     raise PermissionDenied()

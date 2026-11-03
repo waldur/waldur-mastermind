@@ -432,6 +432,9 @@ def has_permission_on_any_source(
     if not binding_on_path or not _pat_binding_on_paths(request, permission, paths):
         return False
 
+    # The user, deliberately: _pat_binding_on_paths has just applied the
+    # token's scope and binding, and the token's binding must not be checked
+    # again on the source itself.
     return any(
         has_permission(request.user, permission, path[-1], role_index) for path in paths
     )

@@ -4,9 +4,11 @@ from unittest.mock import patch
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tests.factories import (
@@ -110,6 +112,37 @@ class MigrationTest(test.APITestCase):
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
+
+    @override_config(PAT_ENABLED=True)
+    @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
+    def test_token_needs_approve_scope_when_consumer_review_applies(self, _):
+        """A migration creates the resource without an order, so a token stands
+        in for consumer approval only if it carries ORDER.APPROVE."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.offering.plugin_options["disable_autoapprove"] = True
+        self.offering.save()
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        for scopes, expected in (
+            ([PermissionEnum.LIST_RESOURCES.value], status.HTTP_400_BAD_REQUEST),
+            ([PermissionEnum.APPROVE_ORDER.value], status.HTTP_201_CREATED),
+        ):
+            with self.subTest(scopes=scopes):
+                use_pat(self.client, self.fixture.owner, *scopes)
+                response = self.client.post(
+                    reverse("openstack-migrations-list"),
+                    {
+                        "name": "replicated vpc",
+                        "src_resource": resource.uuid.hex,
+                        "dst_offering": self.offering.uuid.hex,
+                        "dst_plan": plan.uuid.hex,
+                    },
+                )
+                self.assertEqual(response.status_code, expected, response.data)
 
     def test_tenant_has_credentials(self):
         plan = PlanFactory(offering=self.offering)

@@ -1,14 +1,16 @@
 from unittest import mock
 
 from django.core import mail
-from rest_framework import status, test
+from rest_framework import exceptions, status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.enums import ReviewStates
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace import models, tasks, views
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -474,6 +476,164 @@ class ResourceLimitChangeRequestApproveRejectTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.request.refresh_from_db()
         self.assertEqual(self.request.state, ReviewStates.PENDING)
+
+
+@override_config(PAT_ENABLED=True)
+class ResourceLimitChangeRequestTokenTest(test.APITestCase):
+    """A personal access token approves or rejects only where it could change
+    the limits itself: RESOURCE.UPDATE_LIMITS among its scopes, on the project
+    or its organization. Approving also submits an order, so it needs
+    ORDER.CREATE as well."""
+
+    APPROVE_SCOPES = (
+        PermissionEnum.UPDATE_RESOURCE_LIMITS.value,
+        PermissionEnum.CREATE_ORDER.value,
+    )
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        self.resource.offering.shared = True
+        self.resource.offering.save()
+        set_limit_change_requests(self.resource.offering)
+        factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            type="storage",
+            billing_type=BillingTypes.LIMIT,
+        )
+        for permission in (
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            PermissionEnum.CREATE_ORDER,
+        ):
+            CustomerRole.OWNER.add_permission(permission)
+            self.addCleanup(
+                lambda permission=permission: CustomerRole.OWNER.delete_permission(
+                    permission
+                )
+            )
+        self.request = factories.ResourceLimitChangeRequestFactory(
+            resource=self.resource,
+            created_by=self.fixture.manager,
+            state=ReviewStates.PENDING,
+            requested_limits={"storage": 500},
+        )
+        self.approve_url = factories.ResourceLimitChangeRequestFactory.get_url(
+            self.request, action="approve"
+        )
+        self.reject_url = factories.ResourceLimitChangeRequestFactory.get_url(
+            self.request, action="reject"
+        )
+        self.owner = self.fixture.owner
+        self.other_customer = structure_factories.CustomerFactory()
+        self.other_customer.add_user(self.owner, CustomerRole.OWNER)
+
+    def assert_refused(self, url):
+        response = self.client.post(url, {"comment": "token"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.PENDING)
+
+    def test_token_without_limits_scope_cannot_approve(self):
+        # ORDER.CREATE alone passes the order check; the limits check refuses.
+        use_pat(self.client, self.owner, PermissionEnum.CREATE_ORDER.value)
+        self.assert_refused(self.approve_url)
+
+    def test_token_without_limits_scope_cannot_reject(self):
+        use_pat(self.client, self.owner, PermissionEnum.LIST_PROJECTS.value)
+        self.assert_refused(self.reject_url)
+
+    def test_token_bound_to_another_organization_fails_the_approval_rule(self):
+        # Through the endpoint, the order creation check that approve also runs
+        # refuses this token first, so the approval rule is checked directly.
+        pat = use_pat(
+            self.client,
+            self.owner,
+            *self.APPROVE_SCOPES,
+            bindings=[self.other_customer],
+        )
+        with self.assertRaises(exceptions.PermissionDenied):
+            views.user_can_approve_resource_limit_change_request(
+                mock.Mock(user=self.owner, auth=pat), None, self.request
+            )
+        self.assert_refused(self.approve_url)
+
+    def test_owner_token_bound_to_the_project_cannot_decide(self):
+        # The owner's role is on the organization, above a project binding.
+        # update_limits refuses such a token, so approving and rejecting do too.
+        use_pat(
+            self.client,
+            self.owner,
+            *self.APPROVE_SCOPES,
+            bindings=[self.fixture.project],
+        )
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "update_limits"),
+            {"limits": {"storage": 500}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_refused(self.reject_url)
+        self.assert_refused(self.approve_url)
+
+    def create(self, *bindings):
+        use_pat(
+            self.client,
+            self.fixture.member,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=bindings,
+        )
+        return self.client.post(
+            factories.ResourceLimitChangeRequestFactory.get_list_url(),
+            {"resource": self.resource.uuid.hex, "requested_limits": {"storage": 600}},
+            format="json",
+        )
+
+    def test_token_bound_elsewhere_cannot_file_a_request(self):
+        other_project = structure_factories.ProjectFactory()
+        other_project.add_user(self.fixture.member, ProjectRole.MEMBER)
+        response = self.create(other_project)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("resource", response.data)
+        self.assertEqual(
+            models.ResourceLimitChangeRequest.objects.filter(
+                requested_limits={"storage": 600}
+            ).count(),
+            0,
+        )
+
+    def test_token_bound_to_the_project_files_a_request(self):
+        response = self.create(self.fixture.project)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_token_bound_to_another_organization_cannot_reject(self):
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.UPDATE_RESOURCE_LIMITS.value,
+            bindings=[self.other_customer],
+        )
+        self.assert_refused(self.reject_url)
+
+    def test_token_with_scopes_can_approve(self):
+        use_pat(self.client, self.owner, *self.APPROVE_SCOPES)
+        response = self.client.post(self.approve_url, {"comment": "token"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.APPROVED)
+
+    def test_token_bound_to_the_organization_can_reject(self):
+        use_pat(
+            self.client,
+            self.owner,
+            PermissionEnum.UPDATE_RESOURCE_LIMITS.value,
+            bindings=[self.fixture.customer],
+        )
+        response = self.client.post(self.reject_url, {"comment": "token"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.REJECTED)
 
 
 class ResourceLimitChangeRequestCancelTest(test.APITestCase):

@@ -23,6 +23,7 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.permissions.tests.test_pat_list_filtering import (
     _auth_header,
     _create_pat,
@@ -3319,6 +3320,149 @@ class ResourceUsageLimitsTest(test.APITestCase):
         # Current month has usage=10, previous year has usage=5
         # With limit_period='month' → current month only → 10
         self.assertEqual(response.data["limit_usage"], {"cpu": 10})
+
+
+@override_config(PAT_ENABLED=True)
+@mock.patch("waldur_mastermind.marketplace.tasks.process_order.delay")
+class ResourceTerminatePendingOrderTokenTest(test.APITestCase):
+    """Terminating a resource with a pending consumer terminate order approves
+    that order, so a personal access token needs ORDER.APPROVE among its scopes,
+    as approve_by_consumer requires. A staff token acts as staff only with
+    STAFF.ACCESS."""
+
+    TERMINATE = PermissionEnum.TERMINATE_RESOURCE.value
+    APPROVE = PermissionEnum.APPROVE_ORDER.value
+
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+        self.plan = factories.PlanFactory()
+        self.offering = self.plan.offering
+        self.resource = models.Resource.objects.create(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            state=ResourceStates.OK,
+        )
+        for permission in (
+            PermissionEnum.TERMINATE_RESOURCE,
+            PermissionEnum.APPROVE_ORDER,
+        ):
+            CustomerRole.OWNER.add_permission(permission)
+        self.order = factories.OrderFactory(
+            resource=self.resource,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.PENDING_CONSUMER,
+            created_by=self.fixture.admin,
+        )
+
+    def terminate(self, user, *scopes):
+        use_pat(self.client, user, *scopes)
+        return self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "terminate")
+        )
+
+    def assert_still_pending(self, response):
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.PENDING_CONSUMER)
+        self.assertIsNone(self.order.consumer_reviewed_by)
+
+    def assert_approved(self, response, user):
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.EXECUTING)
+        self.assertEqual(self.order.consumer_reviewed_by, user)
+
+    def test_owner_token_without_approve_scope_does_not_approve(self, _):
+        self.assert_still_pending(self.terminate(self.fixture.owner, self.TERMINATE))
+
+    def test_staff_token_without_staff_scope_does_not_approve(self, _):
+        self.assert_still_pending(self.terminate(self.fixture.staff, self.TERMINATE))
+
+    def test_owner_token_with_approve_scope_approves(self, _):
+        response = self.terminate(self.fixture.owner, self.TERMINATE, self.APPROVE)
+        self.assert_approved(response, self.fixture.owner)
+
+    def test_staff_token_with_staff_scope_approves(self, _):
+        response = self.terminate(
+            self.fixture.staff,
+            self.TERMINATE,
+            self.APPROVE,
+            PermissionEnum.STAFF_ACCESS.value,
+        )
+        self.assert_approved(response, self.fixture.staff)
+
+    def test_session_approves(self, _):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "terminate")
+        )
+        self.assert_approved(response, self.fixture.owner)
+
+
+@override_config(PAT_ENABLED=True)
+class UserCanApproveOrderAsConsumerTest(test.APITestCase):
+    """The binding rule of approve_by_consumer: a binding on the project or its
+    organization covers the order, a binding elsewhere does not.
+
+    Checked on the helper itself: through terminate, a token bound elsewhere
+    never reaches it, because terminate refuses it first."""
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.owner = self.fixture.owner
+        self.other_customer = structure_models.Customer.objects.create(name="Other")
+        self.other_customer.add_user(self.owner, CustomerRole.OWNER)
+        self.order = factories.OrderFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+            state=OrderStates.PENDING_CONSUMER,
+        )
+
+    def can_approve(self, *bindings, scopes=(PermissionEnum.APPROVE_ORDER.value,)):
+        pat = _create_pat(self.owner, scopes=list(scopes), bindings=list(bindings))
+        request = mock.Mock(user=self.owner, auth=pat)
+        return marketplace_permissions.user_can_approve_order_as_consumer(
+            request, self.order
+        )
+
+    def test_binding_elsewhere_does_not_cover_the_order(self):
+        self.assertFalse(self.can_approve(self.other_customer))
+
+    def test_binding_on_the_organization_covers_the_order(self):
+        self.assertTrue(self.can_approve(self.fixture.customer))
+
+    def test_project_binding_does_not_reach_a_role_on_the_organization(self):
+        # As for approve_by_consumer: the binding is checked on each source
+        # together with the role, and the owner's role is above the project.
+        self.assertFalse(self.can_approve(self.fixture.project))
+
+    def test_token_without_the_scope_does_not_approve(self):
+        self.assertFalse(
+            self.can_approve(scopes=(PermissionEnum.TERMINATE_RESOURCE.value,))
+        )
+
+    def test_user_callers_are_unchanged(self):
+        self.assertTrue(
+            marketplace_permissions.user_can_approve_order_as_consumer(
+                self.owner, self.order
+            )
+        )
+        self.assertTrue(
+            marketplace_permissions.user_can_approve_order_as_consumer(
+                self.fixture.staff, self.order
+            )
+        )
+        self.assertFalse(
+            marketplace_permissions.user_can_approve_order_as_consumer(
+                self.fixture.member, self.order
+            )
+        )
 
 
 @ddt

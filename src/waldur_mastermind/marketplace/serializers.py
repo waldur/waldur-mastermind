@@ -72,6 +72,7 @@ from waldur_core.permissions import models as permission_models
 from waldur_core.permissions import serializers as permission_serializers
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.pat_filtering import PATScopeListFilter
 from waldur_core.permissions.utils import (
     build_role_index,
     count_users,
@@ -10338,6 +10339,10 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
             models.Resource.objects.filter(pk=resource.pk),
             user,
         )
+        # A personal access token reaches only the resources its bindings do.
+        accessible = PATScopeListFilter().filter_queryset(
+            self.context["request"], accessible, self.context.get("view")
+        )
         if not accessible.exists():
             raise serializers.ValidationError(
                 _("You don't have access to this resource.")
@@ -10350,6 +10355,9 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
         # redirected to that route when they can do both. Holding the limits
         # permission alone leaves the request flow as their way forward,
         # otherwise they would have no route at all.
+        # The user's roles, not the request, deliberately: a True answer only
+        # refuses the request, so a token's limits cannot be widened here, and
+        # the direct route applies them on its own.
         can_update_directly = (
             has_permission(
                 user, PermissionEnum.UPDATE_RESOURCE_LIMITS, resource.project
@@ -10373,6 +10381,10 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
         accessible = filter_queryset_for_user(
             models.Resource.objects.filter(pk=resource.pk),
             user,
+        )
+        # A personal access token reaches only the resources its bindings do.
+        accessible = PATScopeListFilter().filter_queryset(
+            self.context["request"], accessible, self.context.get("view")
         )
         if not accessible.exists():
             raise serializers.ValidationError(
@@ -10435,6 +10447,10 @@ class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
             models.Resource.objects.filter(pk=resource.pk),
             user,
         )
+        # A personal access token reaches only the resources its bindings do.
+        accessible = PATScopeListFilter().filter_queryset(
+            self.context["request"], accessible, self.context.get("view")
+        )
         if not accessible.exists():
             raise serializers.ValidationError(
                 _("You don't have access to this resource.")
@@ -10445,7 +10461,9 @@ class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
             )
         # Mirrors permissions.user_can_set_end_date_as_consumer: this permission
         # writes the date directly, so a request would be an approval the user
-        # could grant themselves. Everyone else asks.
+        # could grant themselves. Everyone else asks. The user's roles, not the
+        # request, deliberately: a True answer only refuses the request, so a
+        # token's limits cannot be widened here.
         if any(
             has_permission(user, PermissionEnum.SET_RESOURCE_END_DATE, scope)
             for scope in (resource.project, resource.project.customer)

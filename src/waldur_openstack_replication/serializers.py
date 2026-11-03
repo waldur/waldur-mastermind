@@ -188,9 +188,11 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             created_by=user,
             type=OrderTypes.CREATE,
         )
+        # A migration creates the resource without an order, so this stands in
+        # for consumer approval and is checked on the request.
         if not order_should_not_be_reviewed_by_consumer(
             order
-        ) and not user_can_approve_order_as_consumer(user, order):
+        ) and not user_can_approve_order_as_consumer(self.context["request"], order):
             raise serializers.ValidationError(
                 "User does not have enough permissions to migrate resource.",
             )

@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.models import Event, Feed
 from waldur_core.logging.tests import factories as logging_factories
@@ -20,6 +21,7 @@ from waldur_core.media.utils import get_image_hash
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, CustomerRole, ProposalRole
 from waldur_core.permissions.models import Role
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import (
     call_transfer,
@@ -954,6 +956,89 @@ class ReopenHeldDecisionTest(LifecycleTestBase):
         self.assertEqual(
             self.allocation_instance(proposal).status,
             WorkflowStepInstanceStatuses.COMPLETED,
+        )
+
+
+@override_config(PAT_ENABLED=True)
+@mock.patch(STEP_EVENT)
+@mock.patch(DECISION_EMAIL)
+class ReopenHeldDecisionTokenTest(LifecycleTestBase):
+    """Reopening with a personal access token needs CALL.UPDATE among its
+    scopes and a binding covering the call; a staff token acts as staff only
+    with STAFF.ACCESS."""
+
+    UPDATE = PermissionEnum.UPDATE_CALL.value
+
+    def setUp(self):
+        super().setUp()
+        self.other_call = factories.CallFactory(state=CallStates.ACTIVE)
+        self.other_call.add_user(self.call_manager, CallRole.MANAGER)
+        self.proposal = self.make_decidable()
+        self.decide(self.proposal)
+
+    def reopen_with_token(self, user, *scopes, bindings=()):
+        self.client.force_authenticate(None)
+        use_pat(self.client, user, *scopes, bindings=bindings)
+        url = factories.ProposalFactory.get_url(self.proposal, action="reopen_decision")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(url, {"reason": "Board changed the outcome"})
+        self.proposal.refresh_from_db()
+        return response
+
+    def assert_refused(self, response):
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+        self.assertTrue(self.proposal.decision_held)
+        self.assertFalse(self.events("proposal_decision_reopened").exists())
+
+    def assert_reopened(self, response):
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertFalse(self.proposal.decision_held)
+
+    def test_token_without_update_scope_is_refused(self, decision_email, step_event):
+        response = self.reopen_with_token(
+            self.call_manager, PermissionEnum.LIST_PROPOSALS.value
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_refused(response)
+
+    def test_token_bound_to_another_call_is_refused(self, decision_email, step_event):
+        # Only a proposal binding reaches a proposal, so this token does not
+        # find it at all.
+        self.assert_refused(
+            self.reopen_with_token(
+                self.call_manager, self.UPDATE, bindings=[self.other_call]
+            )
+        )
+
+    def test_token_bound_to_the_proposal_is_refused(self, decision_email, step_event):
+        # The token finds the proposal, but the manager's role is on the call,
+        # above the binding, as for every CALL.UPDATE check on the call.
+        response = self.reopen_with_token(
+            self.call_manager, self.UPDATE, bindings=[self.proposal]
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_refused(response)
+
+    def test_staff_token_without_staff_scope_is_refused(
+        self, decision_email, step_event
+    ):
+        response = self.reopen_with_token(
+            self.staff, PermissionEnum.LIST_PROPOSALS.value
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_refused(response)
+
+    def test_token_with_scope_reopens(self, decision_email, step_event):
+        self.assert_reopened(self.reopen_with_token(self.call_manager, self.UPDATE))
+
+    def test_staff_token_with_staff_scope_reopens(self, decision_email, step_event):
+        self.assert_reopened(
+            self.reopen_with_token(
+                self.staff, self.UPDATE, PermissionEnum.STAFF_ACCESS.value
+            )
         )
 
 
