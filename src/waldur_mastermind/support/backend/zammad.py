@@ -76,19 +76,17 @@ class ZammadServiceBackend(SupportBackend):
         if comment.is_public:
             return False
 
-        if now() - comment.created < datetime.timedelta(
+        return now() - comment.created < datetime.timedelta(
             minutes=self._get_config("ZAMMAD_COMMENT_COOLDOWN_DURATION")
-        ):
-            return True
+        )
 
     def attachment_destroy_is_available(self, attachment):
         if not attachment.backend_id:
             return True
 
-        if now() - attachment.created < datetime.timedelta(
+        return now() - attachment.created < datetime.timedelta(
             minutes=self._get_config("ZAMMAD_COMMENT_COOLDOWN_DURATION")
-        ):
-            return True
+        )
 
     def comment_update_is_available(self, comment=None):
         return False

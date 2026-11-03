@@ -113,7 +113,7 @@ class ClosedTicketIsReadOnlyTest(test.APITestCase):
 
     def test_the_caller_is_refused_too_not_just_staff(self):
         # The reported scenario, and a different branch through
-        # `_comment_permission` than the staff path the other cases take. The
+        # `can_comment_on_issue` than the staff path the other cases take. The
         # caller needs no project role to reach the validator.
         caller = self.issue.caller
         self.close(resolved=True)

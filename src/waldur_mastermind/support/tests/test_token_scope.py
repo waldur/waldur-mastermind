@@ -9,6 +9,7 @@ from rest_framework import status
 from waldur_core.configuration.testing import override_config
 from waldur_core.media import models as media_models
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.tests.pat_utils import STAFF, SUPPORT, use_pat
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
@@ -267,7 +268,9 @@ class AttachmentTokenScopeTest(base.BaseTest):
 
     def test_staff_token_without_staff_scope_cannot_add_delete_or_download(self):
         use_pat(self.client, self.fixture.staff)
-        self.assertEqual(self.add().status_code, status.HTTP_403_FORBIDDEN)
+        # Without its scope the token sees the issue as its user would without
+        # staff, which is not at all, so the issue does not exist for it.
+        self.assertEqual(self.add().status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
             self.client.get(self.media_url).status_code, status.HTTP_404_NOT_FOUND
         )
@@ -283,9 +286,44 @@ class AttachmentTokenScopeTest(base.BaseTest):
             self.client.get(self.media_url).status_code, status.HTTP_200_OK
         )
 
-    def test_project_admin_cannot_add_or_delete(self):
-        self.client.force_authenticate(self.fixture.admin)
-        self.assertEqual(self.add().status_code, status.HTTP_403_FORBIDDEN)
+    def test_support_token_with_support_scope_can_download(self):
+        use_pat(self.client, self.fixture.global_support, SUPPORT)
         self.assertEqual(
-            self.client.delete(self.url).status_code, status.HTTP_404_NOT_FOUND
+            self.client.get(self.media_url).status_code, status.HTTP_200_OK
+        )
+
+    def test_support_token_without_support_scope_cannot_download(self):
+        use_pat(self.client, self.fixture.global_support)
+        self.assertEqual(
+            self.client.get(self.media_url).status_code, status.HTTP_404_NOT_FOUND
+        )
+        self.assertEqual(
+            self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND
+        )
+
+    def test_can_delete_follows_the_tokens_staff_scope(self):
+        # The staff user also owns the issue's organization, so a token without
+        # the staff scope still sees the attachment, as an owner who did not
+        # upload it.
+        staff = self.fixture.staff
+        self.fixture.customer.add_user(staff, CustomerRole.OWNER)
+        use_pat(self.client, staff)
+        self.assertIs(self.client.get(self.url).data["can_delete"], False)
+        use_pat(self.client, staff, STAFF)
+        self.assertIs(self.client.get(self.url).data["can_delete"], True)
+
+    def test_project_admin_adds_and_deletes_only_their_own(self):
+        # A project admin sees the issue and may comment on it, so they may
+        # attach to it; deleting someone else's attachment is for staff.
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.add()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            self.client.delete(self.url).status_code, status.HTTP_403_FORBIDDEN
+        )
+        own = factories.AttachmentFactory.get_url(
+            models.Attachment.objects.get(uuid=response.data["uuid"])
+        )
+        self.assertEqual(
+            self.client.delete(own).status_code, status.HTTP_204_NO_CONTENT
         )

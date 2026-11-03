@@ -543,7 +543,6 @@ class Attachment(
         blank=True,
         null=True,
     )
-    objects = managers.AttachmentManager()
 
     @classmethod
     def get_url_name(cls):
