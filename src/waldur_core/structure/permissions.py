@@ -1,6 +1,7 @@
 import logging
 from functools import reduce
 
+from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, permissions
 
 from waldur_core.core import access
@@ -246,6 +247,26 @@ def has_project_access(request, view, obj=None, **kwargs):
         or has_support_access(request)
     ):
         raise exceptions.PermissionDenied()
+
+
+@access.describes(
+    access.any_of(
+        access.staff(), access.owned("The caller's own SSH key, unless it is shared.")
+    ),
+    needs_object=True,
+)
+def can_delete_ssh_key(request, view, obj=None):
+    # Global support sees every key but, as elsewhere, only reads them.
+    if obj is None or has_staff_access(request):
+        return
+    if obj.is_shared:
+        raise exceptions.PermissionDenied(
+            _("Only staff users are allowed to delete shared SSH public key.")
+        )
+    if obj.user != request.user:
+        raise exceptions.PermissionDenied(
+            _("Only the owner of an SSH public key or staff may delete it.")
+        )
 
 
 @access.describes(
