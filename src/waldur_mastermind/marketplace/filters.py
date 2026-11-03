@@ -784,12 +784,22 @@ def filter_orders_by_resource_visibility(orders, request):
     )
 
 
+# What filter_resources_by_consumer_access shows; the second sentence is
+# filter_queryset_by_user_ip's rule. Change the three together.
+CONSUMER_ACCESS_VISIBILITY = (
+    f"{ResourceQuerySet.CONSUMER_VISIBILITY} Except to staff, support and "
+    "requests without a client address, an organization that limits portal "
+    "access to some networks hides its resources from callers outside them."
+)
+
+
 def filter_resources_by_consumer_access(queryset, request):
     """The resources of ``queryset`` the caller's consumer roles reach, within
     the organization's network restriction.
 
-    ConsumerResourceViewSet.get_queryset starts from this; its filter backends
-    then conceal subnet-restricted resources.
+    ConsumerResourceViewSet.get_queryset and ManagedRancherViewSet.get_queryset
+    start from this; their filter backends then conceal subnet-restricted
+    resources.
     """
     return filter_queryset_by_user_ip(
         queryset.filter_for_service_consumer(request.user), request
