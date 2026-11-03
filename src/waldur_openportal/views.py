@@ -281,11 +281,16 @@ class UserInfoViewSet(core_views.ActionsViewSet):
         IsAdminOrReadOnly,
     )
 
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.UserInfoFilter
 
-    def _get(self, user):
-        user = core_models.User.objects.get(uuid=user)
+    def _visible_user(self, uuid):
+        # Before anything is created or synced: a user the caller may not
+        # see is not found.
+        visible = core_models.User.get_permitted_objects(self.request.user)
+        return visible.get(uuid=uuid)
 
+    def _get(self, user):
         userinfo, created = models.UserInfo.objects.get_or_create(user=user)
         userinfo.sanitise()
 
@@ -299,7 +304,7 @@ class UserInfoViewSet(core_views.ActionsViewSet):
     def retrieve(self, request, pk=None, user=None):
         logger.info(f"Retrieving UserInfo {pk} : {request} : {user}")
         try:
-            userinfo = self._get(user)
+            userinfo = self._get(self._visible_user(user))
         except Exception as e:
             logger.error(f"Error retrieving user {user} : {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -319,7 +324,7 @@ class UserInfoViewSet(core_views.ActionsViewSet):
         logger.info(f"Retrieving UserInfo for 'me'=user {request.user}")
 
         try:
-            userinfo = self._get(request.user.uuid)
+            userinfo = self._get(request.user)
         except Exception as e:
             logger.error(f"Error retrieving user {request.user}: {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -343,18 +348,22 @@ class UserInfoViewSet(core_views.ActionsViewSet):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            userinfo = self._get(user)
+            user = self._visible_user(user)
         except Exception as e:
             logger.error(f"Error retrieving user {user}: {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-        user = userinfo.user
 
         if request.user != user and not has_staff_access(request):
             logger.error(
                 f"User {request.user} is not allowed to set shortname for user {user}"
             )
             return Response(status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            userinfo = self._get(user)
+        except Exception as e:
+            logger.error(f"Error retrieving user {user}: {e}")
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         try:
             userinfo.set_shortname(shortname)
@@ -379,11 +388,18 @@ class ProjectInfoViewSet(core_views.ActionsViewSet):
         IsAdminOrOwner,
         IsAdminOrReadOnly,
     )
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ProjectInfoFilter
 
-    def _get(self, project):
-        project = structure_models.Project.objects.get(uuid=project)
+    def _visible_project(self, uuid):
+        # Before anything is created or synced: a project the caller may not
+        # see is not found, as on the project endpoint.
+        projects = structure_filters.GenericRoleFilter().filter_queryset(
+            self.request, structure_models.Project.objects.all(), self
+        )
+        return projects.get(uuid=uuid)
 
+    def _get(self, project):
         projectinfo, created = models.ProjectInfo.objects.get_or_create(project=project)
         projectinfo.sanitise()
 
@@ -397,7 +413,7 @@ class ProjectInfoViewSet(core_views.ActionsViewSet):
     def retrieve(self, request, pk=None, project=None):
         logger.info(f"Retrieving ProjectInfo {pk} : {request} : {project}")
         try:
-            projectinfo = self._get(project)
+            projectinfo = self._get(self._visible_project(project))
         except Exception as e:
             logger.error(f"Error retrieving project {project} : {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -421,18 +437,22 @@ class ProjectInfoViewSet(core_views.ActionsViewSet):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            projectinfo = self._get(project)
+            project = self._visible_project(project)
         except Exception as e:
             logger.error(f"Error retrieving project {project}: {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-        project = projectinfo.project
 
         if not has_staff_access(request):
             logger.error(
                 f"User {request.user} is not allowed to set shortname for project {project}"
             )
             return Response(status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            projectinfo = self._get(project)
+        except Exception as e:
+            logger.error(f"Error retrieving project {project}: {e}")
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         try:
             projectinfo.set_shortname(shortname)
@@ -460,18 +480,22 @@ class ProjectInfoViewSet(core_views.ActionsViewSet):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            projectinfo = self._get(project)
+            project = self._visible_project(project)
         except Exception as e:
             logger.error(f"Error retrieving project {project}: {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-        project = projectinfo.project
 
         if not has_staff_access(request):
             logger.error(
                 f"User {request.user} is not allowed to set allowed_destinations for project {project}"
             )
             return Response(status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            projectinfo = self._get(project)
+        except Exception as e:
+            logger.error(f"Error retrieving project {project}: {e}")
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         try:
             projectinfo.set_allowed_destinations(allowed_destinations)
