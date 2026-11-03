@@ -2659,6 +2659,11 @@ class SshKeyViewSet(
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.SshKeyFilter
+    permission_classes = (
+        rf_permissions.IsAuthenticated,
+        core_permissions.ActionsPermission,
+    )
+    destroy_permissions = [permissions.can_delete_ssh_key]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -2666,14 +2671,6 @@ class SshKeyViewSet(
             return queryset
 
         return queryset.filter(Q(user=self.request.user) | Q(is_shared=True))
-
-    def perform_destroy(self, instance):
-        if instance.is_shared and not has_staff_access(self.request):
-            raise PermissionDenied(
-                _("Only staff users are allowed to delete shared SSH public key.")
-            )
-        else:
-            instance.delete()
 
     def perform_create(self, serializer):
         user = self.request.user
