@@ -1763,13 +1763,18 @@ CONSTANCE_CONFIG = {
         "",
         "FirecREST API URLs that SLURM offerings may connect to, one per line or "
         "comma-separated. Waldur forwards a user's identity provider token only to "
-        "these URLs; an offering pointing elsewhere has no HPC workspace.",
+        "these URLs; an offering pointing elsewhere has no HPC workspace. Append "
+        "|audience (and optionally |client-scope) to an entry to send a token "
+        "exchanged for that audience instead of the sign-in token, e.g. "
+        "https://firecrest.example.org|firecrest.",
     ),
     "SLURM_MONITOR_ALLOWED_API_URLS": (
         "",
         "slurm-monitor API URLs (ending in /api/v2) that SLURM offerings may read "
         "job performance from, one per line or comma-separated. Waldur forwards a "
-        "user's identity provider token only to these URLs.",
+        "user's identity provider token only to these URLs. Append |audience (and "
+        "optionally |client-scope) to an entry to send a token exchanged for that "
+        "audience instead of the sign-in token.",
     ),
     "OIDC_TOKEN_MAX_IDLE_DAYS": (
         30,

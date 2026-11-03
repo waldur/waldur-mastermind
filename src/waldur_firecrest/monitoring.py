@@ -18,7 +18,6 @@ the caller checks through FirecREST before asking for samples.
 import datetime
 import logging
 import math
-import re
 import statistics
 import time
 from collections import defaultdict
@@ -29,7 +28,7 @@ import requests
 from waldur_core.configuration import config
 from waldur_mastermind.chat.chart_spec import MAX_SERIES, chart, series
 
-from . import insights
+from . import allowlist, insights
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +54,13 @@ class MonitorException(Exception):
 
 
 def allowed_api_urls() -> set[str]:
-    return {
-        url.strip().rstrip("/")
-        for url in re.split(r"[,\s]+", config.SLURM_MONITOR_ALLOWED_API_URLS or "")
-        if url.strip()
-    }
+    return set(allowlist.parse(config.SLURM_MONITOR_ALLOWED_API_URLS))
+
+
+def token_audience(api_url) -> allowlist.TokenAudience | None:
+    return allowlist.parse(config.SLURM_MONITOR_ALLOWED_API_URLS).get(
+        api_url.rstrip("/")
+    )
 
 
 def is_monitoring_enabled(offering) -> bool:
