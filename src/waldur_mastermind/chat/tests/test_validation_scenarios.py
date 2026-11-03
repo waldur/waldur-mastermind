@@ -260,3 +260,25 @@ class ScenarioPatternGuardTest(unittest.TestCase):
             if e.type == "pattern"
         )
         self.assertIn("=== ACCESS GUIDANCE ===", criteria.config["forbidden_patterns"])
+
+
+class NoMatchScenarioTest(unittest.TestCase):
+    """The no-match scenario pins guidance over dead ends: the answer echoes
+    the unmet requirement and points at what the catalog does offer. It
+    needs the preset so the pinned first tool round is a genuine empty
+    search rather than a clarification form."""
+
+    scenarios_dir = Path(__file__).parent.parent / "validation_scenarios"
+
+    def test_no_match_scenario_present_with_preset(self):
+        scenarios = {
+            s.name: s
+            for s in load_scenarios_from_yaml(
+                self.scenarios_dir / "anonymous_discovery.yaml"
+            )
+        }
+        scenario = scenarios["no_match_names_restrictive_criterion"]
+        self.assertEqual(scenario.preset, "hpc_ai_platform")
+        config = next(e.config for e in scenario.evaluations if e.type == "pattern")
+        # Two required patterns: echo the unmet requirement, then redirect.
+        self.assertEqual(len(config["required_patterns"]), 2)

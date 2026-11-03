@@ -158,7 +158,11 @@ class SearchOfferingsTool(BaseTool):
                 "('GPU', 'CPU', 'RAM', 'Storage') usually carry more signal "
                 "than the user's exact phrasing.\n"
                 "5. Skip connective words ('for', 'with', 'need') and multi-"
-                "word phrases — pick the hardware/category term first."
+                "word phrases — pick the hardware/category term first.\n"
+                "6. When even the fallback surfaces nothing suitable, tell "
+                "the user WHICH stated requirement has no match and what "
+                "the catalog offers closest to it — never a bare "
+                "'no results'."
             ),
         )
 
