@@ -34,6 +34,8 @@ NON_SECRET_SETTINGS_WITH_CREDENTIAL_NAMES = frozenset(
         "PAT_MAX_TOKENS_PER_USER",
         # Durations.
         "API_TOKEN_MAX_LIFETIME_MINUTES",
+        # Days after which stored identity provider tokens are revoked.
+        "OIDC_TOKEN_MAX_IDLE_DAYS",
         # Token endpoint URLs.
         "ONBOARDING_BOLAGSVERKET_TOKEN_API_URL",
         "ONBOARDING_DNB_TOKEN_URL",

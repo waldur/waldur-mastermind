@@ -28,7 +28,6 @@ from waldur_auth_social.claim_mapping import (
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.id_token import validate_id_token
-from waldur_auth_social.models import OAuthToken
 from waldur_auth_social.utils import (
     create_or_update_bridge_user,
     create_or_update_oauth_user,
@@ -49,7 +48,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.serializers import IdentityBridgeStatsSerializer
 
-from . import models
+from . import models, oauth_tokens
 from .serializers import (
     AuthSerializer,
     DiscoverMetadataRequestSerializer,
@@ -385,13 +384,8 @@ class OAuthViewComplete(BaseOAuthView):
             user._change_source = "AUTO_APPROVE_USER_TOS"
             user.save(update_fields=["agreement_date"])
 
-        OAuthToken.objects.update_or_create(
-            user=user,
-            provider=self.config.provider,
-            defaults={
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-            },
+        oauth_tokens.store_tokens(
+            user, self.config.provider, access_token, refresh_token
         )
         return user, created, access_token
 

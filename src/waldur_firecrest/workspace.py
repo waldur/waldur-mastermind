@@ -18,12 +18,13 @@ from functools import cached_property
 from django.core.cache import cache
 from django.utils import timezone
 
+from waldur_auth_social import oauth_tokens
 from waldur_core.configuration import config
 from waldur_mastermind.marketplace import maintenance_reservations
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
 
-from . import insights, monitoring, outputs, scripts, software, tokens
+from . import insights, monitoring, outputs, scripts, software
 from .client import FirecrestClient, FirecrestException
 
 API_URL_OPTION = "firecrest_api_url"
@@ -194,16 +195,21 @@ class HpcWorkspace:
             )
         return offering_user.username
 
+    @property
+    def _on_behalf_of(self) -> str:
+        return f"user {self.user.uuid.hex} for offering {self.offering.uuid.hex}"
+
     @cached_property
     def client(self) -> FirecrestClient:
         try:
-            access_token = tokens.get_access_token(self.user)
-        except tokens.TokenUnavailable as e:
+            access_token = oauth_tokens.get_access_token(self.user)
+        except oauth_tokens.TokenUnavailable as e:
             raise WorkspaceUnavailable(str(e), e.sign_in_provider)
         client = FirecrestClient(
             self.api_url,
             access_token,
-            sign_in_provider=tokens.get_sign_in_provider(self.user),
+            sign_in_provider=oauth_tokens.get_sign_in_provider(self.user),
+            on_behalf_of=self._on_behalf_of,
         )
         self._check_identity(client)
         return client
@@ -250,14 +256,15 @@ class HpcWorkspace:
                 "This offering is not connected to an allowed cluster monitor."
             )
         try:
-            access_token = tokens.get_access_token(self.user)
-        except tokens.TokenUnavailable as e:
+            access_token = oauth_tokens.get_access_token(self.user)
+        except oauth_tokens.TokenUnavailable as e:
             raise WorkspaceUnavailable(str(e), e.sign_in_provider)
         options = self.offering.plugin_options
         return monitoring.MonitorClient(
             options[monitoring.API_URL_OPTION],
             options[monitoring.CLUSTER_OPTION],
             access_token,
+            on_behalf_of=self._on_behalf_of,
         )
 
     def job_performance(self, job_id) -> dict:

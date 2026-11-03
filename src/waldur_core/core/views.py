@@ -38,7 +38,7 @@ from rest_framework.views import exception_handler as rf_exception_handler
 from reversion.models import Version
 
 from waldur_auth_social.models import IdentityProvider
-from waldur_auth_social.revocation import forget_oauth_tokens
+from waldur_auth_social.revocation import RevocationReason, forget_oauth_tokens
 from waldur_core import __version__
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.changelog.tasks import compute_changelog_impact
@@ -500,7 +500,7 @@ class LogoutView(generics.GenericAPIView):
         # The identity provider tokens kept for the user would otherwise
         # outlive the logout (an offline refresh token does), still usable by
         # a later session of the same user.
-        forget_oauth_tokens(user)
+        forget_oauth_tokens(user, RevocationReason.LOGOUT)
         Token.objects.filter(user=user).delete()
         event_logger.emit(
             "User {user_username} with full name {user_full_name} logged out.",

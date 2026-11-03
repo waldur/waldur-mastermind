@@ -232,20 +232,24 @@ This maintains backward compatibility with existing single-Homeport deployments.
 
 ### Stored Provider Tokens and Logout
 
-At sign-in, Waldur keeps the provider's access and refresh tokens for the user,
-so it can call services as them later (the HPC workspace calls FirecREST with
-them). They are revoked at the provider and removed when the user logs out, is
-deactivated or is deleted:
+While the HPC workspace is enabled (`FIRECREST_ALLOWED_API_URLS` is set),
+Waldur keeps the refresh token of a user's last sign-in, encrypted, so it can
+call services as them later: the HPC workspace calls FirecREST with access
+tokens minted from it, which stay in the cache, encrypted, until they expire.
+The refresh token is revoked at the provider and removed when the user logs
+out, is deactivated or is deleted, after `OIDC_TOKEN_MAX_IDLE_DAYS` without a
+sign-in, and while the HPC workspace is off (a daily task). One the provider
+refuses to refresh is removed. Each of these emits an `oidc_token_revoked`
+event with the reason.
 
-- **Revocation:** Waldur POSTs the refresh token, or the access token when
-  there is no refresh token, to the provider's `revocation_endpoint`
-  ([RFC 7009](https://www.rfc-editor.org/rfc/rfc7009)), authenticating with
-  the provider's client ID and secret. The endpoint is read from the discovery
-  document and cached for an hour. Keycloak publishes one at
-  `…/protocol/openid-connect/revoke`.
+- **Revocation:** Waldur POSTs the refresh token to the provider's
+  `revocation_endpoint` ([RFC 7009](https://www.rfc-editor.org/rfc/rfc7009)),
+  authenticating with the provider's client ID and secret. The endpoint is
+  read from the discovery document and cached for an hour. Keycloak publishes
+  one at `…/protocol/openid-connect/revoke`.
 - **Best effort:** if the provider has no revocation endpoint, or does not
-  answer, the failure is logged and the logout goes ahead. The stored tokens
-  are removed either way.
+  answer, the failure is logged and the logout goes ahead. The stored token
+  and the cached access tokens are removed either way.
 
 This matters most with `offline_access` in `extra_scope`. An offline refresh
 token outlives the provider's browser session, which is what keeps services

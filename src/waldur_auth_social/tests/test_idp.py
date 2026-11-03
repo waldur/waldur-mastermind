@@ -123,6 +123,34 @@ class IdentityProvidersViewSetTest(test.APITestCase):
         self.assertEqual(response.data["issuer"], "https://example.com")
         self.assertEqual(response.data["jwks_url"], "https://example.com/jwks")
 
+    @responses.activate
+    def test_update_without_client_secret_keeps_it(self):
+        discovery_url = "https://example.com/.well-known/openid-configuration"
+        self._mock_openid_configuration(discovery_url)
+        self.identity_provider.client_secret = "kept-secret"
+        self.identity_provider.save()
+        self.client.force_authenticate(self.staff)
+
+        payload = self._get_base_provider_payload(provider="test_provider")
+        del payload["client_secret"]
+        response = self.client.put(self.get_detail_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.identity_provider.refresh_from_db()
+        self.assertEqual(self.identity_provider.client_secret, "kept-secret")
+
+    @responses.activate
+    def test_create_requires_client_secret(self):
+        self._mock_openid_configuration(
+            "https://example.com/.well-known/openid-configuration"
+        )
+        self.client.force_authenticate(self.staff)
+        payload = self._get_base_provider_payload()
+        del payload["client_secret"]
+        response = self.client.post(self.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("client_secret", response.data)
+
     def test_non_staff_cannot_create_provider(self):
         self.client.force_authenticate(self.user)
         payload = self._get_base_provider_payload(provider_type="new_provider")

@@ -1,3 +1,4 @@
+import logging
 import threading
 from http.cookiejar import DefaultCookiePolicy
 from urllib.parse import urlsplit
@@ -5,6 +6,8 @@ from urllib.parse import urlsplit
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
 
@@ -88,15 +91,29 @@ class FirecrestClient:
     """
 
     def __init__(
-        self, api_url, access_token, timeout=DEFAULT_TIMEOUT, sign_in_provider=None
+        self,
+        api_url,
+        access_token,
+        timeout=DEFAULT_TIMEOUT,
+        sign_in_provider=None,
+        on_behalf_of="",
     ):
         self.api_url = api_url.rstrip("/")
         self.timeout = timeout
         self.headers = {"Authorization": f"Bearer {access_token}"}
         self.sign_in_provider = sign_in_provider
+        # Who the token belongs to, for the audit log line of each call.
+        self.on_behalf_of = on_behalf_of
         self.session = get_session(self.api_url)
 
     def _request(self, method, path, **kwargs):
+        logger.info(
+            "FirecREST %s %s%s as %s",
+            method,
+            urlsplit(self.api_url).netloc,
+            path,
+            self.on_behalf_of or "unknown user",
+        )
         try:
             response = self.session.request(
                 method,

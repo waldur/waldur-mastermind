@@ -3420,6 +3420,14 @@ FirecREST API URLs that SLURM offerings may connect to, one per line or comma-se
 
 slurm-monitor API URLs (ending in /api/v2) that SLURM offerings may read job performance from, one per line or comma-separated. Waldur forwards a user's identity provider token only to these URLs.
 
+#### OIDC_TOKEN_MAX_IDLE_DAYS
+
+**Type:** int
+
+**Default value:** 30
+
+Days without a sign-in after which Waldur deletes and revokes a user's stored identity provider refresh token. The user signs in again to use HPC services.
+
 ### Usage Polling
 
 #### USAGE_POLL_RECORD_RETENTION_MONTHS

@@ -47,6 +47,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             "logout_url": {"read_only": True},
             "issuer": {"read_only": True},
             "jwks_url": {"read_only": True},
+            # Leaving it out of an update keeps the stored one.
+            "client_secret": {"required": False},
         }
 
     def validate_provider(self, provider):
@@ -196,6 +198,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             raise ValidationError("Unable to parse JSON in discovery response.")
 
     def update(self, instance, validated_data):
+        if not validated_data.get("client_secret"):
+            validated_data.pop("client_secret", None)
         verify_ssl = validated_data.get("verify_ssl", True)
         validated_data |= self.discover_urls(
             validated_data["discovery_url"], verify_ssl
@@ -213,6 +217,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         provider = validated_data["provider"]
         if models.IdentityProvider.objects.filter(provider=provider).exists():
             raise ValidationError("Identity provider already exists.")
+        if not validated_data.get("client_secret"):
+            raise ValidationError({"client_secret": "This field is required."})
 
         verify_ssl = validated_data.get("verify_ssl", True)
         validated_data |= self.discover_urls(
