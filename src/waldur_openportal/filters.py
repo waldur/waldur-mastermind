@@ -329,12 +329,17 @@ class ManagedProjectAuditEntryFilter(django_filters.FilterSet):
     q = django_filters.CharFilter(method="filter_search", label="Search")
 
     def filter_search(self, queryset, name, value):
+        # Only named fields of the award details: matching the whole JSON
+        # would reveal, one character at a time, the template key that the
+        # serializer hides (#1015).
         return queryset.filter(
             Q(note__icontains=value)
             | Q(identifier__icontains=value)
             | Q(destination__icontains=value)
-            | Q(previous_details__icontains=value)
-            | Q(new_details__icontains=value)
+            | Q(previous_details__name__icontains=value)
+            | Q(previous_details__description__icontains=value)
+            | Q(new_details__name__icontains=value)
+            | Q(new_details__description__icontains=value)
             | Q(performed_by__first_name__icontains=value)
             | Q(performed_by__last_name__icontains=value)
         )

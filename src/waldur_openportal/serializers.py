@@ -9,11 +9,12 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers as rf_serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.permissions import serializers as permissions_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.permissions import _has_admin_access
+from waldur_core.structure.permissions import _has_admin_access, _has_owner_access
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
@@ -414,6 +415,26 @@ class ProjectInfoSerializer(rf_serializers.HyperlinkedModelSerializer):
         }
 
 
+def may_see_template_key(request, template) -> bool:
+    """The template key is shared with the remote portal (#1015).
+
+    Only those who may edit the template see it: staff and the provider's
+    owners. It is hidden wherever it appears, the template itself and the
+    award details a remote portal sent with it.
+    """
+    if request is None or template is None or template.provider is None:
+        return False
+    staff = has_staff_access(request)
+    return _has_owner_access(request.user, template.provider, staff)
+
+
+def hide_award_key(details, request, template):
+    if isinstance(details, dict) and "key" in details:
+        if not may_see_template_key(request, template):
+            return {**details, "key": None}
+    return details
+
+
 class ProjectTemplateSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     rf_serializers.ModelSerializer,
@@ -507,6 +528,12 @@ class ProjectTemplateSerializer(
     )
 
     role_mapping_data = rf_serializers.SerializerMethodField()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not may_see_template_key(self.context.get("request"), instance):
+            data["key"] = None
+        return data
 
     def get_role_mapping_data(self, obj) -> dict[str, dict[str, str]]:
         """
@@ -786,6 +813,15 @@ class ManagedProjectSerializer(
     def get_filtered_field_names(self):
         return ("project",)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["details"] = hide_award_key(
+            data.get("details"),
+            self.context.get("request"),
+            instance.project_template,
+        )
+        return data
+
 
 class RemoteProjectAllocationEntrySerializer(rf_serializers.ModelSerializer):
     is_confirmed = rf_serializers.BooleanField(read_only=True)
@@ -873,6 +909,15 @@ class ManagedProjectAuditEntrySerializer(rf_serializers.ModelSerializer):
             "performed_by_uuid",
             "note",
         )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        managed = instance.managed_project
+        template = managed.project_template if managed else None
+        request = self.context.get("request")
+        for field in ("previous_details", "new_details"):
+            data[field] = hide_award_key(data.get(field), request, template)
+        return data
 
 
 class AddNoteSerializer(rf_serializers.Serializer):

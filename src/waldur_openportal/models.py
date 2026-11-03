@@ -6,17 +6,21 @@ from django.conf import settings
 from django.core import validators
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.mixins import ReviewMixin
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.managers import get_project_users
+from waldur_core.structure.managers import get_connected_customers, get_project_users
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.managers import (
+    get_user_managed_service_provider_customer_ids,
+)
 from waldur_openportal import utils
 
 from . import config
@@ -1555,6 +1559,23 @@ class Job(models.Model):
         return self.__str__()
 
 
+def template_visibility(user, prefix=""):
+    """Who sees a project template, and what is made from it (#1015).
+
+    The owners and service-provider managers of the provider that offers it,
+    and the owners of the organization its projects are placed in. Other
+    organization roles are left out, as from the managed project audit log:
+    award details may be privileged.
+    """
+    owned = get_connected_customers(user, role=RoleEnum.CUSTOMER_OWNER)
+    managed = get_user_managed_service_provider_customer_ids(user)
+    return (
+        Q(**{f"{prefix}provider__in": owned})
+        | Q(**{f"{prefix}provider__in": managed})
+        | Q(**{f"{prefix}customer__in": owned})
+    )
+
+
 class ProjectTemplate(core_models.UuidMixin, models.Model):
     """
     This model is responsible for storing data about project classes.
@@ -1564,6 +1585,11 @@ class ProjectTemplate(core_models.UuidMixin, models.Model):
     should be created in. In addition, the ProjectTemplate controls
     which portals can create which types of projects.
     """
+
+    class Permissions:
+        @staticmethod
+        def build_query(user):
+            return template_visibility(user)
 
     # The name of the project template, e.g. "ukri"
     name = models.CharField(
@@ -2037,6 +2063,14 @@ class ManagedProject(ReviewMixin, models.Model):
     managed by OpenPortal. This is used to track the progress of projects
     and to ensure that we don't create the same project multiple times.
     """
+
+    class Permissions:
+        @staticmethod
+        def build_query(user):
+            owned = get_connected_customers(user, role=RoleEnum.CUSTOMER_OWNER)
+            return template_visibility(user, "project_template__") | Q(
+                project__customer__in=owned
+            )
 
     # This is the destination used to send instructions from the
     # remote portal to this portal
