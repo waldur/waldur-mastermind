@@ -864,7 +864,7 @@ class IssueCommentProviderRoutingTest(ProviderHelpdeskBaseTest):
         super().setUp()
         self.parent_issue = factories.IssueFactory(backend_id="WLD-700")
         # Raised against the caller's own organization and commented on by its
-        # owner -- the reported setup -- which also exercises _comment_permission
+        # owner -- the reported setup -- which also exercises can_comment_on_issue
         # rather than the staff short-circuit.
         self.child_issue = factories.IssueFactory(
             parent_issue=self.parent_issue,

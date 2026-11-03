@@ -32,7 +32,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.core.serializers import EmptySerializer, StatusSerializer
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import (
     exceptions as structure_exceptions,
 )
@@ -53,6 +53,7 @@ from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 
 from . import backend, exceptions, executors, filters, models, serializers, tasks
+from . import permissions as support_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -256,37 +257,6 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_staff_or_support]
     destroy_validators = [_destroy_is_available_validator]
 
-    def _comment_permission(request, view, obj: models.Issue | None = None):
-        user = request.user
-        if has_support_access(request) or not obj:
-            return
-        issue = obj
-        # The caller may reply on their own ticket. Scope is already settled by
-        # the time this runs: reaching here means the issue survived
-        # `IssueCallerOrRoleFilterBackend`, which on a ticket raised against a
-        # project or an organization admits only the roles held there. So this
-        # covers the caller who still has access but holds none of the roles
-        # below -- a plain project member on their own thread, refused with a
-        # 403 while the UI went on offering them the button.
-        if issue.caller == user:
-            return
-        if issue.customer and issue.customer.has_user(user, CustomerRole.OWNER):
-            return
-        if issue.project and (
-            issue.project.has_user(user, ProjectRole.ADMIN)
-            or issue.project.has_user(user, ProjectRole.MANAGER)
-        ):
-            return
-        # Provider support users can comment on tickets routed to their helpdesk.
-        if (
-            issue.provider_helpdesk
-            and issue.provider_helpdesk.support_users.filter(
-                user=user, is_active=True
-            ).exists()
-        ):
-            return
-        raise rf_exceptions.PermissionDenied()
-
     def _comment_create_is_available_validator(issue):
         if not backend.get_backend_for_issue(issue).comment_create_is_available(issue):
             raise ValidationError("Creating is not available.")
@@ -321,7 +291,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     comment_serializer_class = serializers.CommentSerializer
-    comment_permissions = [_comment_permission]
+    comment_permissions = [support_permissions.can_comment_on_issue]
     comment_validators = [_comment_create_is_available_validator]
 
     @extend_schema(responses={status.HTTP_200_OK: None}, request=None)
@@ -1645,12 +1615,15 @@ class WebHookReceiverView(CheckExtensionMixin, views.APIView):
 
 
 class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
-    queryset = models.Attachment.objects.all()
+    # Each row's issue link and `can_delete` read these.
+    queryset = models.Attachment.objects.select_related("issue", "author")
     filterset_class = filters.AttachmentFilter
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [filters.AttachmentIssueFilterBackend, DjangoFilterBackend]
     serializer_class = serializers.AttachmentSerializer
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update"]
+    # Checked by the serializer, against the issue the request names.
+    access_declarations = {"create": serializers.ATTACHES_TO_ISSUE}
 
     @transaction.atomic()
     def perform_destroy(self, attachment):
@@ -1661,16 +1634,13 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().attachment_destroy_is_available(attachment):
             raise ValidationError("Destroying is not available.")
 
+    destroy_permissions = [support_permissions.can_delete_attachment]
     destroy_validators = [_destroy_is_available_validator]
 
     @transaction.atomic()
     def perform_create(self, serializer):
         attachment: models.Attachment = serializer.save()
         backend.get_active_backend().create_attachment(attachment)
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        return queryset.filter_for_user(self.request)
 
 
 class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):

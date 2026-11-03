@@ -1,9 +1,13 @@
 import collections
+import copy
+from types import SimpleNamespace
 
 import django_filters
 from django.db.models import Q
+from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.permissions import has_support_access
 from waldur_core.core.resolvers import filter_by_resource_attribute
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -251,6 +255,49 @@ class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
                 provider_helpdesk__support_users__is_active=True,
             ).distinct()
         )
+
+
+def filter_issues_for_request(queryset, request):
+    """The issues of ``queryset`` the requester may see.
+
+    ``IssueCallerOrRoleFilterBackend`` decides, so what belongs to an issue
+    follows it. A staff or support user's personal access token without the
+    staff or support scope is held to the user's own roles, as a user without
+    that role would be. A bare user is accepted too, as media access may pass
+    one. It carries no client address, so the subnet restriction an address
+    can add does not apply to it.
+    """
+    if not hasattr(request, "user"):
+        request = SimpleNamespace(user=request, META={})
+    user = request.user
+    has_role = user.is_staff or getattr(user, "is_support", False)
+    if has_role and not has_support_access(request):
+        # The backend reads the role flags off the user, so it is handed a
+        # copy without them.
+        user = copy.copy(user)
+        user.is_staff = user.is_support = False
+        request = SimpleNamespace(user=user, META=request.META)
+    return IssueCallerOrRoleFilterBackend().filter_queryset(request, queryset, None)
+
+
+def filter_attachments_for_request(queryset, request):
+    """Attachments of the issues the requester may see.
+
+    An attachment is part of its issue, so it is shown to whoever sees the
+    issue, and to nobody else.
+    """
+    issues = filter_issues_for_request(models.Issue.objects.all(), request)
+    return queryset.filter(issue__in=issues)
+
+
+class AttachmentIssueFilterBackend(BaseFilterBackend):
+    """Attachments of the issues the caller may see."""
+
+    # The issue's own visibility, which it follows.
+    access_visibility = IssueCallerOrRoleFilterBackend.access_visibility
+
+    def filter_queryset(self, request, queryset, view):
+        return filter_attachments_for_request(queryset, request)
 
 
 class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):

@@ -16,6 +16,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 
 from waldur_core.configuration import config, registry
+from waldur_core.core import access
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.clean_html import clean_html
@@ -40,7 +41,8 @@ from waldur_mastermind.support.enums import (
     SupportWebhookEvent,
 )
 
-from . import backend, models
+from . import backend, filters, models
+from . import permissions as support_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -1131,6 +1133,17 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return issue
 
 
+# What AttachmentSerializer lets through on create, for the API schema: the
+# issue field's visibility and validate()'s comment check. Change them together.
+ATTACHES_TO_ISSUE = [
+    access.custom(
+        "The issue named in the request must be one the caller can see; any "
+        "other is answered as if it did not exist."
+    ),
+    support_permissions.comments_on_issue(via="issue"),
+]
+
+
 class AttachmentSerializer(
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -1138,6 +1151,13 @@ class AttachmentSerializer(
 ):
     file_name = serializers.SerializerMethodField()
     destroy_is_available = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField(
+        help_text=_(
+            "Whether the caller may delete this attachment, by the check the "
+            "delete route runs. Whether the support backend allows deleting it "
+            "is destroy_is_available."
+        )
+    )
 
     class Meta:
         model = models.Attachment
@@ -1153,6 +1173,7 @@ class AttachmentSerializer(
             "file_name",
             "backend_id",
             "destroy_is_available",
+            "can_delete",
         )
         read_only_fields = (
             "mime_type",
@@ -1168,6 +1189,22 @@ class AttachmentSerializer(
             issue=("key",),
         )
 
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        if (
+            request is None
+            or "issue" not in fields
+            or getattr(self.context.get("view"), "swagger_fake_view", False)
+        ):
+            return fields
+        # An issue the caller cannot see gets the same "does not exist" as a
+        # made-up one; validate() checks the rest.
+        fields["issue"].queryset = filters.filter_issues_for_request(
+            fields["issue"].queryset, request
+        )
+        return fields
+
     def get_file_name(self, attachment) -> str:
         _, file_name = os.path.split(attachment.file.name)
         return file_name
@@ -1175,32 +1212,48 @@ class AttachmentSerializer(
     def get_destroy_is_available(self, obj) -> bool:
         return backend.get_active_backend().attachment_destroy_is_available(obj)
 
+    def get_can_delete(self, attachment) -> bool:
+        request = self.context.get("request")
+        if request is None:
+            return False
+        # The check reads only the attachment's uploader and issue, so one
+        # verdict serves every attachment that shares them: a list pays for a
+        # check per uploader, not per row. A list's rows share this context.
+        verdicts = self.context.setdefault("_can_delete_attachment", {})
+        key = (attachment.author_id, attachment.issue_id)
+        if key not in verdicts:
+            try:
+                support_permissions.can_delete_attachment(
+                    request, self.context.get("view"), attachment
+                )
+            except exceptions.PermissionDenied:
+                verdicts[key] = False
+            else:
+                verdicts[key] = True
+        return verdicts[key]
+
     def validate(self, attrs):
         filename, file_extension = os.path.splitext(attrs["file"].name)
 
         if file_extension in config.ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES:
             raise serializers.ValidationError(_("Invalid file extension"))
 
-        user = self.context["request"].user
-        author_user = self.context["request"].user
-        (
-            attrs["author"],
-            created,
-        ) = models.SupportUser.objects.get_or_create_from_user(author_user)
-
+        request = self.context["request"]
         issue = attrs["issue"]
 
+        # Attaching a file is commenting with it. Both checks come before the
+        # author's support user is made, so a refused attach leaves no row.
+        support_permissions.can_comment_on_issue(
+            request, self.context.get("view"), issue
+        )
         if not backend.get_active_backend().attachment_create_is_available(issue):
             raise serializers.ValidationError(_("Adding attachments is not available."))
 
-        if (
-            has_staff_access(self.context["request"])
-            or (issue.customer and issue.customer.has_user(user, CustomerRole.OWNER))
-            or issue.caller == user
-        ):
-            return attrs
-
-        raise exceptions.PermissionDenied()
+        (
+            attrs["author"],
+            created,
+        ) = models.SupportUser.objects.get_or_create_from_user(request.user)
+        return attrs
 
 
 class CreateAttachmentsSerializer(serializers.Serializer):

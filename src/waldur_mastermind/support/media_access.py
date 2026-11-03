@@ -4,17 +4,17 @@ See :mod:`waldur_core.media.access`.
 """
 
 from waldur_core.media import access
+from waldur_mastermind.support.filters import filter_attachments_for_request
 from waldur_mastermind.support.models import Attachment, TemplateAttachment
 
-# Issue attachments: reuse the manager the AttachmentViewSet already filters with.
+# Issue attachments go to whoever sees their issue, by the filter
+# AttachmentViewSet narrows with.
 access.register(
     access.upload_prefix(Attachment, "file"),
-    access.queryset_rule(
-        Attachment,
-        ["file"],
-        lambda queryset, principal: queryset.filter_for_user(principal),
-    ),
-    # A personal access token's staff scope is on the request.
+    access.queryset_rule(Attachment, ["file"], filter_attachments_for_request),
+    # A personal access token's staff and support scopes are on the request,
+    # and the issue rule narrows by the client's address where an organization
+    # limits sign-in to its subnets.
     with_request=True,
 )
 
