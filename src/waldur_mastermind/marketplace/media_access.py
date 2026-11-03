@@ -4,6 +4,7 @@ See :mod:`waldur_core.media.access`.
 """
 
 from waldur_core.media import access
+from waldur_mastermind.marketplace.filters import filter_orders_by_resource_visibility
 from waldur_mastermind.marketplace.managers import filter_orders_for_user
 from waldur_mastermind.marketplace.models import (
     Category,
@@ -42,6 +43,21 @@ access.register_authenticated(access.upload_prefix(OfferingGroup, "icon"))
 # Order attachments carry purchase orders and the provider/consumer message
 # threads -- terms of service, agreements, PI details. Gate them on the same
 # predicate OrderViewSet lists orders with.
+
+
+def filter_orders_for_download(queryset, principal):
+    """OrderViewSet's order visibility, given a request or, failing that, a user.
+
+    Without a request there is no client address, so the network rules hiding
+    an order with its resource do not apply, as on any request without one.
+    """
+    user = getattr(principal, "user", principal)
+    queryset = filter_orders_for_user(queryset, user)
+    if principal is user:
+        return queryset
+    return filter_orders_by_resource_visibility(queryset, principal)
+
+
 # Each field has its own upload_to, so the prefix identifies the column and the
 # lookup stays single-column.
 ORDER_ATTACHMENT_FIELDS = (
@@ -53,5 +69,6 @@ ORDER_ATTACHMENT_FIELDS = (
 for field_name in ORDER_ATTACHMENT_FIELDS:
     access.register(
         access.upload_prefix(Order, field_name),
-        access.queryset_rule(Order, [field_name], filter_orders_for_user),
+        access.queryset_rule(Order, [field_name], filter_orders_for_download),
+        with_request=True,
     )

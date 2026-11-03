@@ -40,6 +40,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
+    filter_queryset_by_user_ip,
     get_connected_customers,
     get_connected_customers_by_permission,
     get_connected_projects,
@@ -637,6 +638,49 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
             offering_id__in=offerings_allowing_ip
         )
         return queryset.exclude(restricted & ~allowed)
+
+
+def filter_resources_by_network(resources, request):
+    """The resources that network rules leave visible to the caller as a consumer.
+
+    The two rules the consumer resource view applies on top of its permission
+    narrowing: the organization's portal network restriction and the offering's
+    subnet concealment. Both exempt staff, support and requests without a
+    client address.
+    """
+    resources = filter_queryset_by_user_ip(resources, request)
+    return ResourceAccessSubnetConcealmentFilterBackend().filter_queryset(
+        request, resources, None
+    )
+
+
+def filter_orders_by_resource_visibility(orders, request):
+    """Drop the orders whose resource network rules hide from the caller.
+
+    An order names its resource, so it is hidden with it, unless the caller
+    sees the resource through the provider resource view, which applies
+    neither network rule. Permission narrowing is left to the caller: this only
+    removes what the network rules hide.
+    """
+    user = request.user
+    if user.is_staff or user.is_support:
+        return orders
+    # Both rules are no-ops without a client address; skip the subqueries.
+    if not normalize_ip_address(get_ip_address(request)):
+        return orders
+    # Only the resources of these orders: both sets end up in an OR, which
+    # Postgres runs as subplans collecting their ids, so they are bounded by
+    # the caller's orders rather than every resource on the platform.
+    candidates = models.Resource.objects.filter(pk__in=orders.values("resource_id"))
+    shown_to_consumer = filter_resources_by_network(candidates, request)
+    shown_to_provider = candidates.filter_for_service_provider(user)
+    # Through the resource, not the order's own project and offering: they
+    # match the resource's today (moving a resource moves its orders), but
+    # the rule is about the resource.
+    return orders.filter(
+        Q(resource__in=shown_to_consumer.values("pk"))
+        | Q(resource__in=shown_to_provider.values("pk"))
+    )
 
 
 class OfferingImportableFilterBackend(BaseFilterBackend):
