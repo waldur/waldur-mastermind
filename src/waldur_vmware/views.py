@@ -15,6 +15,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import StatusSerializer
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_vmware.apps import VMwareConfig
@@ -232,6 +233,8 @@ class VirtualMachineViewSet(
         return Response({"url": url}, status=status.HTTP_200_OK)
 
     console_validators = [core_validators.StateValidator(CoreStates.OK)]
+    # A console controls the VM: only those who may change it open one.
+    console_permissions = [structure_permissions.is_administrator]
 
     @extend_schema(
         request=None,
@@ -250,6 +253,7 @@ class VirtualMachineViewSet(
             raise rf_serializers.ValidationError("Unable to get web console URL.")
         return Response({"url": url}, status=status.HTTP_200_OK)
 
+    web_console_permissions = [structure_permissions.is_administrator]
     web_console_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
