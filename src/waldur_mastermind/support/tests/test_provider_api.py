@@ -496,6 +496,74 @@ class ProviderTicketRetrieveTest(ProviderHelpdeskBaseTest):
         self.assertEqual(response.data["parent_issue_key"], self.parent_issue.key)
 
 
+class ProviderTicketReassignmentTest(ProviderHelpdeskBaseTest):
+    """A provider answers a routed ticket; it does not decide whose it is."""
+
+    def setUp(self):
+        super().setUp()
+        project = structure_factories.ProjectFactory()
+        self.child_issue = factories.IssueFactory(
+            parent_issue=factories.IssueFactory(backend_id="WLD-P1"),
+            provider_helpdesk=self.helpdesk,
+            backend_id="WLD-C1",
+            customer=project.customer,
+            project=project,
+        )
+        self.agent = structure_factories.UserFactory()
+        factories.ProviderSupportUserFactory(
+            provider_helpdesk=self.helpdesk, user=self.agent, is_active=True
+        )
+        self.other_customer = structure_factories.CustomerFactory()
+        self.other_owner = structure_factories.UserFactory()
+        self.other_customer.add_user(self.other_owner, CustomerRole.OWNER)
+        self.other_project = structure_factories.ProjectFactory(
+            customer=self.other_customer
+        )
+        self.elsewhere = {
+            "customer": structure_factories.CustomerFactory.get_url(
+                self.other_customer
+            ),
+            "project": structure_factories.ProjectFactory.get_url(self.other_project),
+        }
+
+    def _patch(self, user, data):
+        self.client.force_authenticate(user)
+        return self.client.patch(
+            _provider_ticket_url(self.child_issue), data, format="json"
+        )
+
+    def test_provider_cannot_change_the_tickets_organization_or_project(self):
+        before = (self.child_issue.customer, self.child_issue.project)
+        for who, user in (("agent", self.agent), ("owner", self.owner)):
+            for field, value in self.elsewhere.items():
+                with self.subTest(user=who, field=field):
+                    models.Issue.objects.filter(pk=self.child_issue.pk).update(
+                        customer=before[0], project=before[1]
+                    )
+                    response = self._patch(user, {field: value})
+                    self.assertEqual(response.status_code, status.HTTP_200_OK)
+                    self.child_issue.refresh_from_db()
+                    self.assertEqual(
+                        (self.child_issue.customer, self.child_issue.project), before
+                    )
+
+    def test_other_organization_does_not_see_the_ticket(self):
+        self._patch(self.agent, self.elsewhere)
+        self.client.force_authenticate(self.other_owner)
+        response = self.client.get(factories.IssueFactory.get_url(self.child_issue))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_carrying_the_ticket_as_read_still_succeeds(self):
+        # A client that sends back what it read keeps working.
+        self.client.force_authenticate(self.agent)
+        url = _provider_ticket_url(self.child_issue)
+        ticket = self.client.get(url).data
+        response = self.client.patch(url, ticket, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["customer"], ticket["customer"])
+        self.assertEqual(response.data["project"], ticket["project"])
+
+
 class ProviderTicketCommentTest(ProviderHelpdeskBaseTest):
     def setUp(self):
         super().setUp()
