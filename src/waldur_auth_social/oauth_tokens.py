@@ -71,6 +71,10 @@ class _RefreshRefused(Exception):
         return self.error == "invalid_grant"
 
 
+class _SubjectTokenRefused(Exception):
+    """The identity provider refused the sign-in token offered for exchange."""
+
+
 def tokens_needed() -> bool:
     """Whether any service acts as the user with a stored token.
 
@@ -141,8 +145,38 @@ def get_sign_in_provider(user) -> str | None:
     )
 
 
-def get_access_token(user) -> str:
-    """Return a valid access token of *user*, refreshing it if needed."""
+def get_access_token(user, audience=None, scope=None) -> str:
+    """Return a valid access token of *user*, refreshing it if needed.
+
+    With an *audience*, the token is exchanged (RFC 8693) for one the
+    identity provider issues for that client only, requesting *scope*
+    (default: the audience), the client scope that grants the audience.
+    """
+    if not audience:
+        return _sign_in_access_token(user)
+    scope = scope or audience
+    # The scope decides what the exchanged token grants, so endpoints sharing
+    # an audience but not a scope do not share a token.
+    cache_label = f"{audience}|{scope}"
+    access_token = cached_access_token(user, cache_label)
+    if access_token:
+        return access_token
+    try:
+        access_token = _exchange(user, _sign_in_access_token(user), audience, scope)
+    except _SubjectTokenRefused:
+        # The cached sign-in token outlived its session at the provider (an
+        # admin ended it, say). Drop it and try once with a fresh one: a
+        # session that is gone refuses the refresh, asking for a sign-in.
+        forget_access_tokens(user.pk)
+        try:
+            access_token = _exchange(user, _sign_in_access_token(user), audience, scope)
+        except _SubjectTokenRefused:
+            raise TokenUnavailable(SIGN_IN_AGAIN, get_sign_in_provider(user))
+    cache_access_token(user, access_token, cache_label)
+    return access_token
+
+
+def _sign_in_access_token(user) -> str:
     access_token = cached_access_token(user)
     if access_token:
         return access_token
@@ -236,6 +270,63 @@ def _refresh(oauth_token: OAuthToken) -> str:
         oauth_token.refresh_token = new_refresh_token
         oauth_token.save(update_fields=["refresh_token"])
     return data["access_token"]
+
+
+def _exchange(user, subject_token, audience, scope=None) -> str:
+    oauth_token = OAuthToken.objects.filter(user=user).first()
+    provider = (
+        oauth_token
+        and IdentityProvider.objects.filter(
+            provider=oauth_token.provider, is_active=True
+        ).first()
+    )
+    if not provider:
+        raise TokenUnavailable(SIGN_IN_AGAIN, oauth_token and oauth_token.provider)
+    try:
+        response = requests.post(
+            provider.token_url,
+            data={
+                "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                "subject_token": subject_token,
+                "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
+                "requested_token_type": "urn:ietf:params:oauth:token-type:access_token",
+                "audience": audience,
+                "scope": scope or audience,
+                "client_id": provider.client_id,
+                "client_secret": provider.client_secret,
+            },
+            verify=provider.verify_ssl,
+            timeout=REQUEST_TIMEOUT,
+        )
+    except requests.exceptions.RequestException as e:
+        raise TokenUnavailable(f"Unable to reach identity provider: {e}")
+    if not response.ok:
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict):
+            body = {}
+        detail = body.get("error_description") or response.text
+        # For staff: the identity provider's reason, never a token.
+        logger.warning(
+            "Identity provider %s refused to exchange a token of user %s for "
+            "audience %s (%s): %s",
+            provider.provider,
+            user.pk,
+            audience,
+            response.status_code,
+            detail[:200],
+        )
+        if body.get("error") == "invalid_token":
+            # The subject token itself (Keycloak's answer for one whose
+            # session has ended), not the exchange setup.
+            raise _SubjectTokenRefused()
+        raise TokenUnavailable(
+            f"The identity provider did not issue a token for {audience}. "
+            "Ask support to check the token exchange setup."
+        )
+    return response.json()["access_token"]
 
 
 def forget_stale_oauth_tokens():

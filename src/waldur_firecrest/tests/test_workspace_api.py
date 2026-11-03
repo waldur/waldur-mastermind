@@ -372,6 +372,24 @@ class TokenTest(HpcWorkspaceTestBase):
         self.assertEqual(stored.refresh_token, "refresh-2")
 
     @responses.activate
+    def test_token_is_exchanged_for_an_audience_allowlisted_endpoint(self):
+        exchanged = make_token()
+        responses.post(
+            "http://keycloak:8080/realms/e2e/protocol/openid-connect/token",
+            json={"access_token": exchanged},
+        )
+        responses.get(f"{API_URL}/compute/{SYSTEM}/jobs", json={"jobs": []})
+        with override_config(FIRECREST_ALLOWED_API_URLS=f"{API_URL}|firecrest"):
+            response = self.client.get(self.url("jobs"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIn("audience=firecrest", responses.calls[0].request.body)
+        self.assertIn(f"subject_token={self.token}", responses.calls[0].request.body)
+        # FirecREST gets the exchanged token, never the sign-in token.
+        self.assertEqual(
+            responses.calls[1].request.headers["Authorization"], f"Bearer {exchanged}"
+        )
+
+    @responses.activate
     def test_failed_refresh_asks_to_sign_in_again(self):
         oauth_tokens.forget_access_tokens(self.user.pk)
         responses.post(

@@ -10,7 +10,6 @@ allocations.
 Shared by the REST views and the AI assistant tools.
 """
 
-import re
 import time
 from dataclasses import dataclass
 from functools import cached_property
@@ -24,7 +23,7 @@ from waldur_mastermind.marketplace import maintenance_reservations
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
 
-from . import insights, monitoring, outputs, scripts, software
+from . import allowlist, insights, monitoring, outputs, scripts, software
 from .client import FirecrestClient, FirecrestException
 
 API_URL_OPTION = "firecrest_api_url"
@@ -64,11 +63,11 @@ class WorkspaceUnavailable(Exception):
 
 
 def allowed_api_urls() -> set[str]:
-    return {
-        url.strip().rstrip("/")
-        for url in re.split(r"[,\s]+", config.FIRECREST_ALLOWED_API_URLS or "")
-        if url.strip()
-    }
+    return set(allowlist.parse(config.FIRECREST_ALLOWED_API_URLS))
+
+
+def token_audience(api_url) -> allowlist.TokenAudience | None:
+    return allowlist.parse(config.FIRECREST_ALLOWED_API_URLS).get(api_url.rstrip("/"))
 
 
 def is_firecrest_enabled(offering) -> bool:
@@ -199,12 +198,19 @@ class HpcWorkspace:
     def _on_behalf_of(self) -> str:
         return f"user {self.user.uuid.hex} for offering {self.offering.uuid.hex}"
 
-    @cached_property
-    def client(self) -> FirecrestClient:
+    def _access_token(self, audience: allowlist.TokenAudience | None) -> str:
         try:
-            access_token = oauth_tokens.get_access_token(self.user)
+            if audience is None:
+                return oauth_tokens.get_access_token(self.user)
+            return oauth_tokens.get_access_token(
+                self.user, audience=audience.audience, scope=audience.scope
+            )
         except oauth_tokens.TokenUnavailable as e:
             raise WorkspaceUnavailable(str(e), e.sign_in_provider)
+
+    @cached_property
+    def client(self) -> FirecrestClient:
+        access_token = self._access_token(token_audience(self.api_url))
         client = FirecrestClient(
             self.api_url,
             access_token,
@@ -255,11 +261,10 @@ class HpcWorkspace:
             raise WorkspaceUnavailable(
                 "This offering is not connected to an allowed cluster monitor."
             )
-        try:
-            access_token = oauth_tokens.get_access_token(self.user)
-        except oauth_tokens.TokenUnavailable as e:
-            raise WorkspaceUnavailable(str(e), e.sign_in_provider)
         options = self.offering.plugin_options
+        access_token = self._access_token(
+            monitoring.token_audience(options[monitoring.API_URL_OPTION])
+        )
         return monitoring.MonitorClient(
             options[monitoring.API_URL_OPTION],
             options[monitoring.CLUSTER_OPTION],

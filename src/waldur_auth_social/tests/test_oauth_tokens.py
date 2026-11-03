@@ -7,7 +7,7 @@ from django.core.cache import cache
 from django.db import connection
 from django.test import TestCase
 
-from waldur_auth_social import oauth_tokens, token_cache
+from waldur_auth_social import oauth_tokens, revocation, token_cache
 from waldur_auth_social.models import IdentityProvider, OAuthToken
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import encryption
@@ -189,3 +189,107 @@ class RefreshTest(TokenTestBase):
         with self.assertRaises(oauth_tokens.TokenUnavailable):
             oauth_tokens.get_access_token(self.user)
         self.assertTrue(OAuthToken.objects.filter(user=self.user).exists())
+
+
+@override_config(FIRECREST_ALLOWED_API_URLS=FIRECREST)
+class TokenExchangeTest(TokenTestBase):
+    @responses.activate
+    def test_token_is_exchanged_for_the_audience_and_cached_per_audience(self):
+        sign_in = make_token()
+        self.store(access_token=sign_in)
+        exchanged = make_token()
+        responses.post(TOKEN_URL, json={"access_token": exchanged})
+
+        token = oauth_tokens.get_access_token(self.user, audience="firecrest")
+
+        self.assertEqual(token, exchanged)
+        body = responses.calls[0].request.body
+        self.assertIn(
+            "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange",
+            body,
+        )
+        self.assertIn(f"subject_token={sign_in}", body)
+        self.assertIn("audience=firecrest", body)
+        # The client scope defaults to the audience.
+        self.assertIn("scope=firecrest", body)
+        self.assertIn("client_id=waldur", body)
+        # Cached per audience; the sign-in token is unchanged.
+        self.assertEqual(
+            oauth_tokens.get_access_token(self.user, audience="firecrest"), exchanged
+        )
+        self.assertEqual(oauth_tokens.get_access_token(self.user), sign_in)
+        self.assertEqual(len(responses.calls), 1)
+
+    @responses.activate
+    def test_explicit_scope_is_requested(self):
+        self.store()
+        responses.post(TOKEN_URL, json={"access_token": make_token()})
+        oauth_tokens.get_access_token(
+            self.user, audience="firecrest", scope="firecrest-audience"
+        )
+        self.assertIn("scope=firecrest-audience", responses.calls[0].request.body)
+
+    @responses.activate
+    def test_refused_exchange_explains_without_dropping_the_token(self):
+        self.store()
+        responses.post(
+            TOKEN_URL,
+            status=400,
+            json={
+                "error": "invalid_request",
+                "error_description": "Requested audience not available: firecrest",
+            },
+        )
+        with self.assertRaisesMessage(
+            oauth_tokens.TokenUnavailable, "token exchange setup"
+        ):
+            oauth_tokens.get_access_token(self.user, audience="firecrest")
+        self.assertTrue(OAuthToken.objects.filter(user=self.user).exists())
+
+    @responses.activate
+    def test_exchanged_tokens_are_cached_per_scope(self):
+        self.store()
+        responses.post(TOKEN_URL, json={"access_token": make_token()})
+        oauth_tokens.get_access_token(self.user, audience="firecrest", scope="a")
+        oauth_tokens.get_access_token(self.user, audience="firecrest", scope="b")
+        oauth_tokens.get_access_token(self.user, audience="firecrest", scope="a")
+        self.assertEqual(len(responses.calls), 2)
+
+    @responses.activate
+    def test_refused_sign_in_token_is_refreshed_and_exchanged_again(self):
+        # The cached sign-in token outlived its session at the provider.
+        self.store("refresh-1")
+        fresh, exchanged = make_token(), make_token()
+        responses.post(TOKEN_URL, status=400, json={"error": "invalid_token"})
+        responses.post(
+            TOKEN_URL, json={"access_token": fresh, "refresh_token": "refresh-2"}
+        )
+        responses.post(TOKEN_URL, json={"access_token": exchanged})
+
+        token = oauth_tokens.get_access_token(self.user, audience="firecrest")
+
+        self.assertEqual(token, exchanged)
+        self.assertIn(f"subject_token={fresh}", responses.calls[2].request.body)
+
+    @responses.activate
+    def test_ended_session_asks_to_sign_in_again(self):
+        self.store()
+        responses.post(TOKEN_URL, status=400, json={"error": "invalid_token"})
+        responses.post(TOKEN_URL, status=400, json={"error": "invalid_grant"})
+
+        with self.assertRaisesMessage(
+            oauth_tokens.TokenUnavailable, "Sign in again"
+        ) as raised:
+            oauth_tokens.get_access_token(self.user, audience="firecrest")
+        self.assertEqual(raised.exception.sign_in_provider, "keycloak")
+        self.assertFalse(OAuthToken.objects.filter(user=self.user).exists())
+
+    @responses.activate
+    def test_revocation_forgets_exchanged_tokens(self):
+        self.store()
+        responses.post(TOKEN_URL, json={"access_token": make_token()})
+        oauth_tokens.get_access_token(self.user, audience="firecrest")
+        revocation.forget_oauth_tokens(self.user, revocation.RevocationReason.LOGOUT)
+        self.assertIsNone(
+            oauth_tokens.cached_access_token(self.user, "firecrest|firecrest")
+        )
