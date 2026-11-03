@@ -115,6 +115,8 @@ class UsageBackfillTokenScopeTest(test.APITestCase):
         self.assertTrue(self.backfilled())
 
     def test_staff_token_without_staff_scope_cannot_backfill(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        self.fixture.customer.add_user(self.staff, CustomerRole.OWNER)
         use_pat(self.client, self.staff, SET_USAGE)
         self.assertEqual(self.set_usage().status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(self.backfilled())
@@ -130,6 +132,8 @@ class UsageBackfillTokenScopeTest(test.APITestCase):
         self.assertTrue(self.backfilled())
 
     def test_staff_token_without_staff_scope_cannot_backfill_user_usage(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        self.fixture.customer.add_user(self.staff, CustomerRole.OWNER)
         use_pat(self.client, self.staff, SET_USAGE)
         self.assertEqual(self.set_user_usage().status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(self.backfilled())
@@ -192,6 +196,8 @@ class StaffOnlyPluginOptionsTokenScopeTest(test.APITestCase):
         self.assert_updates(True)
 
     def test_staff_token_without_staff_scope_cannot_set_staff_only_options(self):
+        # It reads as not staff (#987), so it acts as the owner it also is.
+        self.fixture.customer.add_user(self.staff, CustomerRole.OWNER)
         use_pat(self.client, self.staff, UPDATE_INTEGRATION)
         self.assert_updates(False)
 

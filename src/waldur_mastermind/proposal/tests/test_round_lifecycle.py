@@ -1025,10 +1025,12 @@ class ReopenHeldDecisionTokenTest(LifecycleTestBase):
     def test_staff_token_without_staff_scope_is_refused(
         self, decision_email, step_event
     ):
+        # The token reads as the user without staff (#987), who holds no role
+        # here, so it does not find the proposal.
         response = self.reopen_with_token(
             self.staff, PermissionEnum.LIST_PROPOSALS.value
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assert_refused(response)
 
     def test_token_with_scope_reopens(self, decision_email, step_event):

@@ -55,6 +55,14 @@ def _auth_header(pat):
     return f"Bearer {pat._plaintext_token}"
 
 
+# A staff user's token acts as staff only with STAFF.ACCESS (#987). The tests
+# below use a staff token so that the binding is the only check that can deny.
+STAFF_LIST_PROJECTS = [
+    PermissionEnum.STAFF_ACCESS.value,
+    PermissionEnum.LIST_PROJECTS.value,
+]
+
+
 @override_config(PAT_ENABLED=True)
 class PATListFilterCustomerTest(test.APITestCase):
     def setUp(self):
@@ -70,7 +78,7 @@ class PATListFilterCustomerTest(test.APITestCase):
         # so any valid scope keeps the PAT auth flow happy.
         pat = _create_pat(
             self.staff,
-            scopes=[PermissionEnum.LIST_PROJECTS.value],
+            scopes=STAFF_LIST_PROJECTS,
             bindings=[self.bound],
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
@@ -82,7 +90,7 @@ class PATListFilterCustomerTest(test.APITestCase):
     def test_customer_detail_404_for_unbound(self):
         pat = _create_pat(
             self.staff,
-            scopes=[PermissionEnum.LIST_PROJECTS.value],
+            scopes=STAFF_LIST_PROJECTS,
             bindings=[self.bound],
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
@@ -92,7 +100,7 @@ class PATListFilterCustomerTest(test.APITestCase):
     def test_unscoped_pat_sees_all(self):
         pat = _create_pat(
             self.staff,
-            scopes=[PermissionEnum.LIST_PROJECTS.value],
+            scopes=STAFF_LIST_PROJECTS,
             bindings=[],  # no bindings → legacy behaviour
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
@@ -132,7 +140,7 @@ class PATListFilterDescendantTest(test.APITestCase):
     def _setup_pat(self, bindings):
         pat = _create_pat(
             self.staff,
-            scopes=[PermissionEnum.LIST_PROJECTS.value],
+            scopes=STAFF_LIST_PROJECTS,
             bindings=bindings,
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
@@ -179,9 +187,12 @@ class PATBindingRemovedProjectTest(test.APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
 
     def _get(self, project, bindings, user=None):
-        self._authenticate(
-            user or self.staff, [PermissionEnum.LIST_PROJECTS.value], bindings
+        scopes = (
+            STAFF_LIST_PROJECTS
+            if user is None
+            else [PermissionEnum.LIST_PROJECTS.value]
         )
+        self._authenticate(user or self.staff, scopes, bindings)
         return self.client.get(structure_factories.ProjectFactory.get_url(project))
 
     def _move(self, project, target, scopes, bindings):
@@ -260,7 +271,7 @@ class PATBindingRemovedProjectTest(test.APITestCase):
         response = self._move(
             self.inside,
             self.unbound,
-            [PermissionEnum.CREATE_PROJECT.value],
+            [PermissionEnum.STAFF_ACCESS.value, PermissionEnum.CREATE_PROJECT.value],
             [self.bound, self.unbound],
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -430,7 +441,7 @@ class PATListFilterResourceProviderCustomerLeakTest(test.APITestCase):
     def _pat(self, bindings):
         pat = _create_pat(
             self.staff,
-            scopes=[PermissionEnum.LIST_PROJECTS.value],
+            scopes=STAFF_LIST_PROJECTS,
             bindings=bindings,
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
@@ -501,7 +512,7 @@ class PATMalformedBindingsTest(test.APITestCase):
             name="malformed",
             token_prefix=prefix,
             token_hash=token_hash,
-            scopes=[PermissionEnum.LIST_PROJECTS.value],
+            scopes=STAFF_LIST_PROJECTS,
             allowed_scopes=[
                 {"object_id": bound.id},  # missing content_type_id
                 {"content_type_id": customer_ct.id},  # missing object_id

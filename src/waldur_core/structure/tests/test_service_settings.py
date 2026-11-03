@@ -134,17 +134,30 @@ class ServiceSettingsTokenCredentialsTest(test.APITestCase):
         Token.objects.get_or_create(user=user)
         return user
 
-    def get_options(self, user, scopes, bindings=(), settings=None):
+    def get(self, user, scopes, bindings=(), settings=None):
         pat = _create_pat(user, scopes=scopes, bindings=list(bindings))
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
-        response = self.client.get(
+        return self.client.get(
             factories.ServiceSettingsFactory.get_url(settings or self.settings)
         )
+
+    def get_options(self, user, scopes, bindings=(), settings=None):
+        response = self.get(user, scopes, bindings, settings)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         return response.data["options"]
 
+    def assert_staff_token_reads_as_not_staff(self, scopes):
+        # Without the staff scope the token reads as not staff (#987): the
+        # settings of an organization it has no role in are not found, and
+        # shared ones come without their credentials.
+        response = self.get(self.staff, scopes)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.settings.shared = True
+        self.settings.save(update_fields=["shared"])
+        self.assertNotIn("password", self.get_options(self.staff, scopes))
+
     def test_staff_token_needs_the_staff_scope(self):
-        self.assertNotIn("password", self.get_options(self.staff, self.NARROW))
+        self.assert_staff_token_reads_as_not_staff(self.NARROW)
 
     def test_staff_token_with_the_staff_scope_sees_credentials(self):
         self.assertIn("password", self.get_options(self.staff, self.STAFF))
@@ -186,9 +199,9 @@ class ServiceSettingsTokenCredentialsTest(test.APITestCase):
         self.assertNotIn("password", self.get_options(stranger, self.INTEGRATION))
 
     def test_staff_token_with_only_the_integration_permission_is_refused(self):
-        # It reads an offering's service attributes as staff; these settings
-        # need not belong to any offering, so they ask for the staff scope.
-        self.assertNotIn("password", self.get_options(self.staff, self.INTEGRATION))
+        # These settings need not belong to any offering, so they ask for the
+        # staff scope.
+        self.assert_staff_token_reads_as_not_staff(self.INTEGRATION)
 
     def test_unbound_staff_token_reads_settings_of_no_organization(self):
         settings = factories.ServiceSettingsFactory(

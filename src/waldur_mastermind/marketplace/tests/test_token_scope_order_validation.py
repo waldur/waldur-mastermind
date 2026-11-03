@@ -37,6 +37,10 @@ class OrderValidationTokenScopeMixin:
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        # As permissions.yaml grants it. A token without the staff or support
+        # scope reads as the user without that role (#987), so the staff and
+        # support owners find the project only through this grant.
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.support = structure_factories.UserFactory(is_support=True)
         for user in (self.staff, self.support):
@@ -69,6 +73,10 @@ class OrderValidationTokenScopeMixin:
     def assert_refused(self):
         response = self.submit()
         self.assertEqual(response.status_code, self.refused_status, response.data)
+        # Refused by the limit under test, not because the caller cannot see
+        # the project or the offering.
+        self.assertNotIn("project", response.data)
+        self.assertNotIn("offering", response.data)
         return response
 
     def test_owner_session_is_refused(self):

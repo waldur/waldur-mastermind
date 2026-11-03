@@ -613,7 +613,9 @@ class ProjectMetadataPermissionTest(ProjectMetadataTestMixin, test.APITestCase):
     def test_a_support_token_does_not_read_without_the_support_scope(self):
         self.use_support_token(PermissionEnum.LIST_PROJECTS)
         response = self.client.get(self.checklist_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Without the scope it reads as not support (#987), so the project of
+        # an organization it holds no role in is not found at all.
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_a_removed_project_keeps_the_same_rules(self):
         support = self.fixture.global_support

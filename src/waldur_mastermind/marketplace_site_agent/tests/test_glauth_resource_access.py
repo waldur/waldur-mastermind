@@ -224,12 +224,16 @@ class ProviderResourceGlauthAccessTest(ResourceGlauthAccessMixin, test.APITestCa
         )
         self.assertFalse(self.glauth_status_exists())
 
-        self.assertEqual(
-            self.get_with_token(
-                user, [PermissionEnum.UPDATE_OFFERING_INTEGRATION.value]
-            ),
-            [status.HTTP_200_OK] * 2,
-        )
+        scopes = [PermissionEnum.UPDATE_OFFERING_INTEGRATION.value]
+        if role == "staff":
+            # Without STAFF.ACCESS a staff user's token reads as not staff
+            # (#987) and holds no role here, so the resource is not found.
+            self.assertEqual(
+                self.get_with_token(user, scopes),
+                [status.HTTP_404_NOT_FOUND] * 2,
+            )
+            scopes.append(PermissionEnum.STAFF_ACCESS.value)
+        self.assertEqual(self.get_with_token(user, scopes), [status.HTTP_200_OK] * 2)
 
     @override_config(PAT_ENABLED=True)
     def test_token_bound_elsewhere_is_refused(self):

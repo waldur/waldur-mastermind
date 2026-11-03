@@ -4,6 +4,7 @@ from waldur_core.configuration import config
 from waldur_core.core import access
 from waldur_core.core.access import has_lookup, requires_object
 from waldur_core.core.exceptions import IncompleteProfileException
+from waldur_core.core.models import TokenScopedUser
 from waldur_core.core.user_attributes import get_user_missing_mandatory_attributes
 from waldur_core.permissions.utils import check_pat_staff_scope, check_pat_support_scope
 
@@ -249,9 +250,16 @@ class TokenCarriesUserRole(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        if getattr(user, "is_staff", False) and not has_staff_access(request):
+        # The account's own role: the request's user already reads as the
+        # token allows (TokenScopedUser), which would let every token through.
+        if isinstance(user, TokenScopedUser):
+            is_staff, is_support = user.account_is_staff, user.account_is_support
+        else:
+            is_staff = getattr(user, "is_staff", False)
+            is_support = getattr(user, "is_support", False)
+        if is_staff and not has_staff_access(request):
             return False
-        if getattr(user, "is_support", False) and not has_support_access(request):
+        if is_support and not has_support_access(request):
             return False
         return True
 

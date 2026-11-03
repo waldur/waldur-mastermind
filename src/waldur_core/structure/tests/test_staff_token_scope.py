@@ -60,7 +60,8 @@ class StaffTokenScopeTest(test.APITestCase):
 
     def test_token_without_staff_scope_cannot_grant_staff(self):
         self.use_token(NARROW)
-        self.assertEqual(self.grant_staff().status_code, status.HTTP_403_FORBIDDEN)
+        # It reads as not staff (#987), so another user is not even found.
+        self.assertEqual(self.grant_staff().status_code, status.HTTP_404_NOT_FOUND)
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_staff)
 
@@ -72,7 +73,7 @@ class StaffTokenScopeTest(test.APITestCase):
 
     def test_token_without_staff_scope_cannot_change_a_password(self):
         self.use_token(NARROW)
-        self.assertEqual(self.change_password().status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.change_password().status_code, status.HTTP_404_NOT_FOUND)
 
     def test_token_with_staff_scope_can_change_a_password(self):
         self.use_token(STAFF)
@@ -144,7 +145,8 @@ class SupportTokenScopeTest(test.APITestCase):
 
     def test_token_without_support_scope_cannot_set_end_date(self):
         response = self.set_end_date(NARROW)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # It reads as not support (#987), so the resource is not found.
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.resource.refresh_from_db()
         self.assertIsNone(self.resource.end_date)
 

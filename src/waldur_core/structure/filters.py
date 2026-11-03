@@ -680,11 +680,13 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
 def filter_visible_users(queryset, user, extra=None):
     if user is None or not user.is_authenticated or user.is_staff or user.is_support:
         return queryset
-    return (
-        queryset.filter(is_staff=False)
-        .filter(Q(id__in=get_visible_users(user)) | Q(id=user.id) | (extra or Q()))
-        .distinct()
-    )
+    # The user always sees themselves. That matters for a staff user whose
+    # personal access token lacks the staff scope and so reads as not staff
+    # (#987): other staff stay hidden from it, its own account must not.
+    return queryset.filter(
+        Q(is_staff=False) & (Q(id__in=get_visible_users(user)) | (extra or Q()))
+        | Q(id=user.id)
+    ).distinct()
 
 
 class UserFilterBackend(BaseFilterBackend):

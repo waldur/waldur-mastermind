@@ -244,7 +244,9 @@ class MatrixRoomCreateTest(test.APITestCase):
             self.url, {"project": self.fixture.project.uuid.hex}
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # It reads as not support (#987), so it does not even see the project.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project", response.data)
         mock_tasks.create_room.delay.assert_not_called()
 
     @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
@@ -516,7 +518,8 @@ class MatrixRoomManagePermissionTest(test.APITestCase):
         )
         self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
 
-        self.assertEqual(self._post("export_history"), status.HTTP_403_FORBIDDEN)
+        # It reads as not support (#987), so the room is not found.
+        self.assertEqual(self._post("export_history"), status.HTTP_404_NOT_FOUND)
 
     @data(*LIFECYCLE_ACTIONS)
     def test_owner_cannot_change_the_lifecycle(self, action):
