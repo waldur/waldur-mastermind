@@ -621,8 +621,9 @@ class ConnectedResourceDetailsMixin:
     def get_connected_resource(self, connected_object) -> models.Resource:
         """The object's resource, if a resource view shows it to the caller.
 
-        The object may be visible to callers whom the resource views refuse: an
-        order is not hidden by the network rules that hide its resource. So the
+        The object may be visible to callers whom the resource views refuse:
+        the order list hides an order whose resource the network rules hide,
+        but an order and a resource need different permissions. So the
         resource is looked up as ConsumerResourceViewSet looks it up -- consumer
         visibility, the organization's network restriction and the offering's
         subnet concealment -- or as ProviderResourceViewSet does, and is 404
@@ -632,13 +633,8 @@ class ConnectedResourceDetailsMixin:
         request = self.request
         user = request.user
         resources = models.Resource.objects.filter(pk=connected_object.resource_id)
-        as_consumer = filter_queryset_by_user_ip(
+        as_consumer = filters.filter_resources_by_network(
             resources.filter_for_service_consumer(user), request
-        )
-        as_consumer = (
-            filters.ResourceAccessSubnetConcealmentFilterBackend().filter_queryset(
-                request, as_consumer, self
-            )
         )
         as_provider = resources.filter_for_service_provider(user)
         visible = resources.filter(
@@ -8030,7 +8026,8 @@ class OrderViewSet(
 
     def get_queryset(self):
         """
-        Orders are available to both service provider and service consumer.
+        Orders are available to both service provider and service consumer,
+        except an order whose resource network rules hide from the consumer.
         """
         user = self.request.user
         if user.is_staff or user.is_support:
@@ -8038,9 +8035,12 @@ class OrderViewSet(
 
         # Use a subquery to find matching order IDs to avoid
         # SELECT DISTINCT across all select_related columns (Fixes PUHURI-PORTALS-ETK)
-        order_ids = Subquery(
-            filter_orders_for_user(models.Order.objects.all(), user).values("id")
+        # An order is hidden with its resource: the network rules that hide the
+        # resource from the consumer resource view hide its orders too (#1001).
+        orders = filters.filter_orders_by_resource_visibility(
+            filter_orders_for_user(models.Order.objects.all(), user), self.request
         )
+        order_ids = Subquery(orders.values("id"))
         return self.queryset.filter(id__in=order_ids)
 
     @extend_schema(
@@ -8057,9 +8057,12 @@ class OrderViewSet(
     @action(detail=False, methods=["get"], url_path="dashboard-my-orders")
     def dashboard_my_orders(self, request):
         orders = (
-            models.Order.objects.filter(
-                created_by=request.user,
-                state__in=OrderStates.PENDING_STATES,
+            filters.filter_orders_by_resource_visibility(
+                models.Order.objects.filter(
+                    created_by=request.user,
+                    state__in=OrderStates.PENDING_STATES,
+                ),
+                request,
             )
             .select_related("offering", "resource", "project", "project__customer")
             .order_by("-created", "id")
