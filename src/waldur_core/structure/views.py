@@ -645,13 +645,26 @@ class CustomerUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     filterset_class = filters.BaseUserFilter
     queryset = core_models.User.objects.none()
 
+    def get_customer(self) -> models.Customer:
+        """The organization in the URL, among those a token's bindings reach,
+        as the organization's ``list_users`` finds it. Anything else, an
+        unknown or malformed UUID included, is not found."""
+        if not hasattr(self, "_customer"):
+            customers = PATScopeListFilter().filter_queryset(
+                self.request, models.Customer.objects.all(), self
+            )
+            self._customer = get_object_or_404(
+                customers, uuid=self.kwargs["customer_uuid"]
+            )
+        return self._customer
+
     def get_serializer_context(self) -> dict[str, any]:
         ctx = super().get_serializer_context()
-        ctx["customer"] = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        ctx["customer"] = self.get_customer()
         return ctx
 
     def get_queryset(self) -> QuerySet[core_models.User]:
-        customer = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        customer = self.get_customer()
         if not (
             has_permission(self.request, PermissionEnum.LIST_CUSTOMER_USERS, customer)
             or has_support_access(self.request)
@@ -1587,8 +1600,11 @@ class ProjectViewSet(
 
 @extend_schema(
     parameters=[PROJECT_UUID_PARAMETER],
-    description="A list of users which can be added to the "
-    "current project from other projects of the same customer.",
+    description="Users with a role in the caller's other projects of the same "
+    "organization, whom the caller may add to the current project. The "
+    "current project must be one the caller can see; otherwise the response "
+    "is 404. A personal access token lists only the users of projects its "
+    "bindings reach.",
 )
 class ProjectOtherUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = serializers.BasicUserSerializer
@@ -1601,14 +1617,31 @@ class ProjectOtherUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     queryset = core_models.User.objects.none()
 
     def get_queryset(self) -> QuerySet[core_models.User]:
-        project = models.Project.objects.get(uuid=self.kwargs["project_uuid"])
-        projects = (
-            models.Project.objects.filter(customer=project.customer)
-            .filter(id__in=get_connected_projects(self.request.user))
-            .exclude(id=project.id)
-        ).values_list("id", flat=True)
+        project = self.get_project()
+        projects = models.Project.available_objects.filter(
+            customer_id=project.customer_id,
+            id__in=get_connected_projects(self.request.user),
+        ).exclude(id=project.id)
+        # A token sees a project's team only where its bindings reach, as on
+        # list_users. User has no token filter rule, so the filter that runs
+        # on every list passes these users through.
+        projects = PATScopeListFilter().filter_queryset(self.request, projects, self)
 
-        return core_models.User.objects.filter(id__in=get_project_users(projects))
+        return core_models.User.objects.filter(
+            id__in=get_project_users(projects.values_list("id", flat=True))
+        )
+
+    def get_project(self) -> models.Project:
+        """The project in the URL, found as ``GET /api/projects/{uuid}/``
+        finds a live one: through the caller's roles, the organization's
+        network restriction and a token's bindings. Anything else, an unknown
+        or malformed UUID included, is not found.
+        """
+        projects = filters.GenericRoleFilter().filter_queryset(
+            self.request, models.Project.available_objects.all(), self
+        )
+        projects = PATScopeListFilter().filter_queryset(self.request, projects, self)
+        return get_object_or_404(projects, uuid=self.kwargs["project_uuid"])
 
 
 # What a feed item carries beyond the eight keys every provider has always
