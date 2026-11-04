@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from waldur_core.core.middleware import get_skip_side_effects
 
@@ -26,14 +27,30 @@ def schedule_cleanup_for_deleted_object(sender, instance, **kwargs):
     """
     if get_skip_side_effects():
         return
+    # Best-effort: a failure here must never break the delete, and the
+    # periodic cleanup_dangling_user_actions task catches what is missed.
+    # The pk is read now because the deletion clears it on the instance.
+    object_id = instance.pk
     try:
-        content_type = ContentType.objects.get_for_model(sender)
-        cleanup_actions_for_deleted_object.delay(content_type.id, instance.pk)
-        logger.debug(f"Scheduled cleanup for {sender.__name__} object {instance.pk}")
-    except Exception as e:
-        logger.error(
-            f"Failed to schedule cleanup for deleted {sender.__name__} object {instance.pk}: {e}"
+        content_type_id = ContentType.objects.get_for_model(sender).id
+    except Exception:
+        logger.exception(
+            f"Failed to schedule cleanup for deleted {sender.__name__} object {object_id}"
         )
+        return
+
+    def schedule():
+        try:
+            cleanup_actions_for_deleted_object.delay(content_type_id, object_id)
+            logger.debug(f"Scheduled cleanup for {sender.__name__} object {object_id}")
+        except Exception:
+            logger.exception(
+                f"Failed to schedule cleanup for deleted {sender.__name__} object {object_id}"
+            )
+
+    # Queue only once the delete is committed: a rolled-back delete leaves the
+    # object, and its actions, in place.
+    transaction.on_commit(schedule, using=kwargs.get("using"))
 
 
 def register_cleanup_handler(*model_classes):
