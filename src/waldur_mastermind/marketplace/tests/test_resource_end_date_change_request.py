@@ -474,6 +474,22 @@ class EndDateChangeRequestCancelTest(BaseEndDateChangeRequestTest):
         request_obj.refresh_from_db()
         self.assertEqual(request_obj.state, ReviewStates.PENDING)
 
+    def test_who_did_not_create_the_request_is_refused_whatever_its_state(self):
+        request_obj = self.make_request(created_by=self.fixture.member)
+        request_obj.state = ReviewStates.REJECTED
+        request_obj.save()
+        url = (
+            f"/api/marketplace-resource-end-date-change-requests/"
+            f"{request_obj.uuid.hex}/cancel/"
+        )
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        request_obj.refresh_from_db()
+        self.assertEqual(request_obj.state, ReviewStates.REJECTED)
+
 
 class EndDateChangeRequestExternalApprovalTest(BaseEndDateChangeRequestTest):
     """The seams an external approval system drives: events and backend_id."""

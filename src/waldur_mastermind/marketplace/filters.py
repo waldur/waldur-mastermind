@@ -23,6 +23,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.filters import (
@@ -3191,6 +3192,13 @@ class PlanComponentFilter(django_filters.FilterSet):
 
 
 class MarketplaceInvoiceItemsFilterBackend(BaseFilterBackend):
+    """Invoice items of resources of offerings of organizations where the caller
+    holds SERVICE_PROVIDER.GET_REVENUE, on the organization, on its service
+    provider or site-wide. Staff see all.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         user = request.user
 

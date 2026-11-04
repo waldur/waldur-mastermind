@@ -2271,6 +2271,15 @@ class OfferingGroupAssignSerializer(serializers.Serializer):
     )
 
 
+# Who PosixIdPoolSerializer.validate lets create a pool: the permission held on
+# the organization of the service provider or offering the request names.
+# Change the two together.
+CREATES_POSIX_ID_POOL = access.permission(
+    PermissionEnum.MANAGE_POSIX_ID_POOL,
+    ["service_provider.customer", "offering.customer"],
+)
+
+
 class PosixIdPoolSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -10350,6 +10359,18 @@ class ResourceSpendingLimitsSerializer(serializers.Serializer):
     )
 
 
+# Who ResourceLimitChangeRequestCreateSerializer.validate_resource lets ask.
+# Change the two together.
+REQUESTS_LIMIT_CHANGE = access.custom(
+    "Any signed-in user other than staff and support, for a resource their "
+    "roles reach (and a personal access token's bindings, if they use one). "
+    "Refused with 400 to who may change the limits directly: who holds both "
+    f"{PermissionEnum.UPDATE_RESOURCE_LIMITS.value} and "
+    f"{PermissionEnum.CREATE_ORDER.value} on the resource's project or its "
+    "organization."
+)
+
+
 class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
     resource = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -10462,6 +10483,17 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
         validated_data["created_by"] = request.user
         validated_data["state"] = ReviewStates.PENDING
         return super().create(validated_data)
+
+
+# Who ResourceEndDateChangeRequestCreateSerializer.validate_resource lets ask.
+# Change the two together.
+REQUESTS_END_DATE_CHANGE = access.custom(
+    "Any signed-in user other than staff and support, for a resource their "
+    "roles reach (and a personal access token's bindings, if they use one). "
+    "Refused with 400 to who may set the end date directly: who holds "
+    f"{PermissionEnum.SET_RESOURCE_END_DATE.value} on the resource's project or "
+    "its organization."
+)
 
 
 class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
@@ -12237,6 +12269,21 @@ class UserProfileAttributeFieldsMixin(serializers.Serializer):
             "User is deactivated when this becomes empty."
         ),
     )
+
+
+# Who OfferingUserSerializer.create lets create an account: the permission held
+# on the organization, or its service provider, of the offering the request
+# names. Change the two together.
+CREATES_OFFERING_USER = access.permission(
+    PermissionEnum.CREATE_OFFERING_USER,
+    ["offering.customer", "offering.customer.serviceprovider"],
+)
+
+# Who OfferingUserSerializer.update and OfferingUserUpdateRestrictionSerializer
+# let change an account. Change them together.
+UPDATES_OFFERING_USER = access.permission(
+    PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer", "offering"]
+)
 
 
 class OfferingUserSerializer(
@@ -15496,6 +15543,17 @@ class CustomerServiceAccountSerializer(BaseScopedServiceAccountSerializer):
         }
 
 
+# Who RobotAccountSerializer.validate lets create and change a robot account:
+# the permission held on the organization of the resource's offering. Change
+# them together.
+CREATES_ROBOT_ACCOUNT = access.permission(
+    PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT, ["resource.offering.customer"]
+)
+UPDATES_ROBOT_ACCOUNT = access.permission(
+    PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT, ["resource.offering.customer"]
+)
+
+
 class RobotAccountSerializer(BaseServiceAccountSerializer):
     keys = serializers.ListField(child=serializers.CharField(), required=False)
     url = serializers.HyperlinkedIdentityField(
@@ -16001,6 +16059,15 @@ class IntegrationStatusDetailsSerializer(
                 "view_name": "marketplace-provider-offering-detail",
             },
         }
+
+
+# Who ComponentUserUsageLimitSerializer.validate lets set a limit: the
+# permission held on the project, or its organization, of the resource the
+# request names. Change the two together.
+CREATES_COMPONENT_USER_USAGE_LIMIT = access.permission(
+    PermissionEnum.RESOURCE_CONSUMPTION_LIMITATION,
+    ["resource.project", "resource.project.customer"],
+)
 
 
 class ComponentUserUsageLimitSerializer(

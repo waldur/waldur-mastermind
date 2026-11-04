@@ -27,6 +27,14 @@ class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
 
 
 class OfferingQuerySet(django_models.QuerySet):
+    # What filter_for_user leaves. Change the two together.
+    USER_VISIBILITY = (
+        "Offerings of organizations where the caller holds a role, of service "
+        "providers they hold a role on and of projects they hold a role in, and "
+        "offerings they hold a role on. Staff, support and holders of "
+        f"{PermissionEnum.LIST_OFFERINGS.value} site-wide see all."
+    )
+
     def filter_for_user(self, user):
         """Returns offerings related to user."""
 
