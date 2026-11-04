@@ -98,6 +98,12 @@ def justification_awaits_review(request, view, obj=None):
         )
 
 
+def _has_reviewed_justification(verification) -> bool:
+    return verification.justifications.exclude(
+        validation_decision=enums.ReviewDecision.PENDING
+    ).exists()
+
+
 @access.describes(
     access.custom(
         "Staff may delete any verification; its owner only one with no "
@@ -110,14 +116,39 @@ def verification_has_no_reviewed_justification(request, view, obj=None):
     owner may not delete one whose justification staff have reviewed."""
     if obj is None or core_permissions.has_staff_access(request):
         return
-    if obj.justifications.exclude(
-        validation_decision=enums.ReviewDecision.PENDING
-    ).exists():
+    if _has_reviewed_justification(obj):
         raise exceptions.PermissionDenied(
             _(
                 "A verification can not be deleted once its justification has been reviewed."
             )
         )
+
+
+class AnswersAwaitReview(permissions.BasePermission):
+    """The checklist answers are part of what staff review with a
+    justification, and create_customer builds the organization from them: once
+    a justification of the verification is approved or rejected, its owner can
+    no longer submit them. Staff are not held to this."""
+
+    message = _(
+        "Checklist answers can not be changed once a justification of the "
+        "verification has been reviewed."
+    )
+
+    def has_object_permission(self, request, view, obj):
+        return core_permissions.has_staff_access(
+            request
+        ) or not _has_reviewed_justification(obj)
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [
+            access.custom(
+                "The verification's owner may submit answers only until staff "
+                "approve or reject one of its justifications; staff are not "
+                "held to this."
+            )
+        ]
 
 
 class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSet):
@@ -137,7 +168,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
     # Override later with correct permissions per action
     checklist_permissions = [permissions.IsAuthenticated]
     completion_status_permissions = [permissions.IsAuthenticated]
-    submit_answers_permissions = [permissions.IsAuthenticated]
+    submit_answers_permissions = [permissions.IsAuthenticated, AnswersAwaitReview]
 
     # A verification is started with start_verification, which sets its user:
     # the generic create sets none, and failed for every caller.
