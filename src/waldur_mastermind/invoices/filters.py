@@ -105,6 +105,17 @@ class PaymentFilter(django_filters.FilterSet):
         fields = ["date_of_payment"]
 
 
+def pat_filter_customer_credits(ids):
+    """The credits a personal access token's bindings reach: those of the
+    organizations it is bound to. The credit is the organization's money, so
+    a binding to one of its projects or offerings does not reach it.
+    """
+    customer_ids = ids.get("customer")
+    if not customer_ids:
+        return None
+    return django_models.Q(customer_id__in=customer_ids)
+
+
 class CustomerCreditFilter(django_filters.FilterSet):
     customer_uuid = core_filters.RelatedUUIDFilter(
         view_name="customer-detail", field_name="customer__uuid"

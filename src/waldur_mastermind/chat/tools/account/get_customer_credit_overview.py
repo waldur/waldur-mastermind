@@ -49,6 +49,9 @@ logger = logging.getLogger(__name__)
 CUSTOMER_CREDIT = obj(
     {
         "value": STRING,
+        "granted_balance": STRING,
+        "paid_balance": STRING,
+        "withdrawable_balance": STRING,
         "expected_consumption": STRING,
         "end_date": nullable(STRING),
         "allocated_to_projects": STRING,
@@ -88,8 +91,9 @@ class GetCustomerCreditOverviewTool(BaseTool):
             category=ToolCategory.ACCOUNT,
             description=(
                 "Whole-organization credit overview in one call: the customer "
-                "credit envelope (allocated value, expected consumption, "
-                "amount allocated to projects) plus a per-project rollup with "
+                "credit envelope (total value and its split into granted, paid "
+                "and withdrawable credit, expected consumption, amount "
+                "allocated to projects) plus a per-project rollup with "
                 "each project's credit, spend, balance and overdrawn flag. Use "
                 "for 'does organization X have credit?', 'summarize org X's "
                 "credit health', or any question spanning a whole "
@@ -124,6 +128,9 @@ class GetCustomerCreditOverviewTool(BaseTool):
                 "credit (envelope or across-projects health). For a single "
                 "project use explain_project_credit_balance; for only the "
                 "overdrawn projects use list_overdrawn_projects."
+                " On the organization credit, only granted_balance expires on "
+                "end_date and is taken by the minimal consumption; paid_balance "
+                "and withdrawable_balance never expire."
             ),
         )
 
@@ -214,6 +221,11 @@ class GetCustomerCreditOverviewTool(BaseTool):
         if customer_credit:
             customer_credit_data = {
                 "value": str(customer_credit.value),
+                # Only granted credit expires on end_date; paid credit and
+                # the withdrawable balance survive it.
+                "granted_balance": str(customer_credit.granted_balance),
+                "paid_balance": str(customer_credit.paid_balance),
+                "withdrawable_balance": str(customer_credit.withdrawable_balance),
                 "expected_consumption": str(customer_credit.expected_consumption),
                 "allocated_to_projects": str(customer_credit.allocated_to_projects),
                 "end_date": customer_credit.end_date.isoformat()

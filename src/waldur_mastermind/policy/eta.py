@@ -64,10 +64,15 @@ def _daily_draw(credit, gross_per_day) -> decimal.Decimal | None:
     observed cost rate is the floor below which the draw cannot honestly be
     assumed to fall. ``None`` when it is not being drawn at all.
     """
-    contractual = max(
-        _decimal(getattr(credit, "consumption_last_month", 0)),
-        _decimal(getattr(credit, "minimal_consumption", 0)),
-    )
+    last_month = _decimal(getattr(credit, "consumption_last_month", 0))
+    floor = _decimal(getattr(credit, "minimal_consumption", 0))
+    granted = getattr(credit, "granted_balance", None)
+    if granted is not None:
+        # An organization credit's floor takes only granted credit (see
+        # MonthlyCompensation): a month draws its usage plus at most the
+        # granted credit left, so prepayments and earnings do not speed it up.
+        floor = min(floor, last_month + max(decimal.Decimal(0), _decimal(granted)))
+    contractual = max(last_month, floor)
     daily = max(contractual / DAYS_PER_MONTH, max(decimal.Decimal(0), gross_per_day))
     return daily if daily > 0 else None
 

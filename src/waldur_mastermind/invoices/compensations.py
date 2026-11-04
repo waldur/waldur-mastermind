@@ -3,15 +3,17 @@ import decimal
 import logging
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
 from waldur_mastermind.billing import handlers as billing_handlers
 from waldur_mastermind.common.enums import Units
+from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES
+from waldur_mastermind.common.utils import quantize_price
 
-from . import ledger, log, models
+from . import ledger, log, lots, models
 from .audit import skip_credit_audit
 
 logger = logging.getLogger(__name__)
@@ -113,17 +115,21 @@ class MonthlyCompensation:
                 cost = decimal.Decimal(0)
 
             if project_credit:
-                if cost >= project_credit.value:
-                    cost -= project_credit.value
-                    credit_compensation = project_credit.value  # item compensation
-                    project_credit.value = 0
-                    self.credit.value -= credit_compensation
-                    self._record_usage_draw(project_credit, credit_compensation)
+                # An allocation caps what the project may take of the
+                # organization credit; it is not money of its own, so it
+                # pays no more than the organization has left. When that runs
+                # out on this item, the draw gives up all of it and
+                # compensates it net of tax, as below.
+                if self.credit.value <= min(cost, project_credit.value):
+                    drawn = self.credit.value
+                    credit_compensation = drawn / (
+                        1 + decimal.Decimal(self.invoice.tax_percent) / 100
+                    )
                 else:
-                    credit_compensation = cost
-                    project_credit.value -= cost
-                    self.credit.value -= cost
-                    self._record_usage_draw(project_credit, cost)
+                    drawn = credit_compensation = min(cost, project_credit.value)
+                project_credit.value -= drawn
+                self.credit.value -= drawn
+                self._record_usage_draw(project_credit, drawn)
 
             else:
                 if cost >= self.credit.value:
@@ -174,7 +180,13 @@ class MonthlyCompensation:
 
         if self.credit.minimal_consumption:
             if self._total_compensation < self.credit.minimal_consumption:
-                self._tail = self.credit.minimal_consumption - self._total_compensation
+                # The floor spends granted credit that would otherwise go
+                # unused. Prepayments and earnings do not expire, so it takes
+                # only the granted credit that usage left.
+                self._tail = min(
+                    self.credit.minimal_consumption - self._total_compensation,
+                    self._granted_left(),
+                )
 
                 if self.credit.value - self._tail < 0:
                     self._tail = self.credit.value
@@ -239,6 +251,88 @@ class MonthlyCompensation:
         models.CreditTransaction.Types.ROLLBACK,
     )
 
+    def _granted_left(self) -> decimal.Decimal:
+        """Granted credit left once this run's usage is drawn: usage
+        draws it first. A simulation that restored this month's applies
+        counts what they took from it as still there."""
+        start = self.credit.granted_balance
+        if self._customer_restored_draw:
+            start += max(
+                decimal.Decimal(0),
+                lots.granted_drawn(
+                    self._written_month_rows().filter(credit=self.credit)
+                ),
+            )
+        return max(decimal.Decimal(0), start - self._customer_usage_draw)
+
+    def paid_usage_compensation(self) -> decimal.Decimal:
+        """What prepaid credit pays of this run's compensation, net of tax.
+
+        It is the part `lots.paid_compensation` reads off the ledger once the
+        run is written, worked out before it is, so that a projected fee
+        counts what the accrued one will. Usage draws granted lots first,
+        then paid ones. A simulation that restored this month's applies
+        counts what they took from each kind as still there.
+        """
+        self.calculate_current_compensations()
+        drawn = self._customer_usage_draw
+        if not self.credit or drawn <= 0:
+            return decimal.Decimal(0)
+        granted = self.credit.granted_balance
+        paid = self.credit.paid_balance
+        if self._customer_restored_draw:
+            rows = self._written_month_rows().filter(credit=self.credit)
+            granted += max(decimal.Decimal(0), lots.granted_drawn(rows))
+            paid += max(decimal.Decimal(0), lots.paid_drawn(rows))
+        draws = dict.fromkeys(models.CreditLot.Kinds.DRAW_ORDER, decimal.Decimal(0))
+        draws[models.CreditLot.Kinds.GRANTED] = min(drawn, granted)
+        draws[models.CreditLot.Kinds.PAID] = min(
+            drawn - draws[models.CreditLot.Kinds.GRANTED], paid
+        )
+        if not draws[models.CreditLot.Kinds.PAID]:
+            return decimal.Decimal(0)
+        # As `lots.paid_compensation` will read it off the written items: their
+        # stored unit prices, not prices rounded up to cents item by item.
+        stored = decimal.Decimal(1).scaleb(-PRICE_DECIMAL_PLACES)
+        compensated = -sum(
+            (
+                item.unit_price.quantize(stored) * item.quantity
+                for item in self.compensations
+            ),
+            decimal.Decimal(0),
+        )
+        return quantize_price(
+            min(compensated, lots.net_paid(draws, drawn, compensated, self.invoice))
+        )
+
+    def _written_month_rows(self):
+        return models.CreditTransaction.objects.filter(
+            billing_period=self.billing_period,
+            transaction_type__in=self._MONTH_DRAW_TYPES,
+        )
+
+    def _written_customer_draw(self) -> decimal.Decimal:
+        """What this month's applies took from the organization credit and
+        no clear has given back yet."""
+        net = (
+            self._written_month_rows()
+            .filter(credit=self.credit)
+            .aggregate(total=Sum("amount"))["total"]
+        )
+        return max(decimal.Decimal(0), -decimal.Decimal(net or 0))
+
+    def _written_project_draws(self) -> dict[int, decimal.Decimal]:
+        """The same per project allocation, by project id."""
+        return {
+            row["project_credit__project_id"]: max(
+                decimal.Decimal(0), -decimal.Decimal(row["total"] or 0)
+            )
+            for row in self._written_month_rows()
+            .filter(project_credit__project__customer=self.customer)
+            .values("project_credit__project_id")
+            .annotate(total=Sum("amount"))
+        }
+
     def _restore_written_draw(self):
         """Add what this month's applies took back to the in-memory credits;
         see `__init__`.
@@ -254,25 +348,9 @@ class MonthlyCompensation:
         self._restored = True
         if not self.credit or not self.invoice:
             return
-        rows = models.CreditTransaction.objects.filter(
-            billing_period=self.billing_period,
-            transaction_type__in=self._MONTH_DRAW_TYPES,
-        )
-        customer_net = rows.filter(credit=self.credit).aggregate(total=Sum("amount"))[
-            "total"
-        ]
-        self._customer_restored_draw = max(
-            decimal.Decimal(0), -decimal.Decimal(customer_net or 0)
-        )
+        self._customer_restored_draw = self._written_customer_draw()
         self.credit.value += self._customer_restored_draw
-        self._project_restored_draws = {
-            row["project_credit__project_id"]: max(
-                decimal.Decimal(0), -decimal.Decimal(row["total"] or 0)
-            )
-            for row in rows.filter(project_credit__project__customer=self.customer)
-            .values("project_credit__project_id")
-            .annotate(total=Sum("amount"))
-        }
+        self._project_restored_draws = self._written_project_draws()
 
     @property
     def customer_restored_draw(self) -> decimal.Decimal:
@@ -620,10 +698,11 @@ class MonthlyCompensation:
         This method removes compensations in pended invoice.
 
         Attention!
-        This method works correctly only if the minimal consumption has not changed since the moment
-        compensation was applied for the current month and until now.
-        Also this method does not work correctly if compensations have been applied
-        but compensation items have not created and was consumption only due to minimal consumption.
+        For a month applied before the credit ledger, this method works correctly only if
+        the minimal consumption has not changed since the moment compensation was applied.
+        For such a month it also does nothing if compensations have been applied but
+        compensation items have not been created and the consumption was only due to
+        minimal consumption.
         """
 
         if self._calculated:
@@ -645,8 +724,28 @@ class MonthlyCompensation:
             credit=self.credit, compensated_period__isnull=True
         )
 
-        if not compensation_items:
+        # A month whose only draw was a minimal consumption has no items, but
+        # the floor it took is still to give back: the organization's, or an
+        # allocation's own, which takes nothing from the organization credit.
+        written_draw = self._written_customer_draw()
+        written_project_draws = self._written_project_draws()
+        if (
+            not compensation_items
+            and not written_draw
+            and not any(written_project_draws.values())
+        ):
             return
+        # Months applied before the ledger have no rows to go by. A month in
+        # the ledger may have none for the organization credit, when only an
+        # allocation's floor drew: zero movements write no rows.
+        has_ledger = (
+            self._written_month_rows()
+            .filter(
+                Q(credit=self.credit)
+                | Q(project_credit__project__customer=self.customer)
+            )
+            .exists()
+        )
 
         applied_compensations_sum = (
             compensation_items.aggregate(sum=Sum("unit_price"))["sum"] or 0
@@ -676,15 +775,23 @@ class MonthlyCompensation:
             ),
         ):
             old_credit_value = self.credit.value
-            self.credit.value += max(
-                applied_compensations_sum, self.credit.minimal_consumption
+            # Give back what the applies took, as the ledger recorded it: the
+            # floor may have taken less than the minimal consumption, or
+            # nothing at all, and the last draw of a credit that ran out more
+            # than its item.
+            given_back = (
+                written_draw
+                if has_ledger
+                else max(applied_compensations_sum, self.credit.minimal_consumption)
             )
-            self.credit.save(update_fields=["value"])
-            log.log_roll_back_customer_credit(
-                self.credit.customer,
-                old_credit_value,
-                self.credit.value,
-            )
+            if given_back:
+                self.credit.value += given_back
+                self.credit.save(update_fields=["value"])
+                log.log_roll_back_customer_credit(
+                    self.credit.customer,
+                    old_credit_value,
+                    self.credit.value,
+                )
 
             project_consumptions = list(
                 compensation_items.values("project_id").annotate(
@@ -695,14 +802,20 @@ class MonthlyCompensation:
             for project_credit in models.ProjectCredit.objects.filter(
                 project__customer=self.customer
             ):
-                value = [
-                    consumption["value"]
-                    for consumption in project_consumptions
-                    if consumption["project_id"] == project_credit.project.id
-                ]
+                # As for the organization credit, the ledger also has what
+                # the allocation's own floor took.
+                value = written_project_draws.get(project_credit.project_id)
+                if not value:
+                    value = next(
+                        (
+                            -consumption["value"]
+                            for consumption in project_consumptions
+                            if consumption["project_id"] == project_credit.project_id
+                        ),
+                        None,
+                    )
 
                 if value:
-                    value = value[0] * -1
                     old_project_credit_value = project_credit.value
                     project_credit.value += value
                     project_credit.save(update_fields=["value"])
@@ -726,16 +839,18 @@ class MonthlyCompensation:
         self.save()
 
 
-def projected_net_price(invoice: models.Invoice) -> decimal.Decimal:
-    """The net price an open invoice will close at, as far as the month so far
-    tells: the base an affiliate fee is accrued on (`accrue_affiliate_fee`).
+def projected_fee_base(invoice: models.Invoice) -> decimal.Decimal:
+    """The base an affiliate fee will be accrued on when an open invoice
+    closes, as far as the month so far tells: what `accrue_affiliate_fee`
+    takes, the net price plus what prepaid credit paid of it.
 
     `invoice.price` already carries the estimated volume discounts. What month
     close still changes is the credit compensation: it clears what the credit in
     place wrote for the month and draws again, so the written part comes out and
-    the simulated draw goes in. Simulated from the balance the month started
-    with, as staff may have applied compensation mid-month. A payment of an
-    earlier invoice, which the close may also write, is not projected.
+    the simulated draw goes in, and of that draw the part paid lots cover is
+    added back. Simulated from the balance the month started with, as staff may
+    have applied compensation mid-month. A payment of an earlier invoice, which
+    the close may also write, is not projected.
     """
     simulation = MonthlyCompensation(
         invoice.customer, invoice=invoice, restore_written=True
@@ -747,4 +862,4 @@ def projected_net_price(invoice: models.Invoice) -> decimal.Decimal:
         )
         price -= sum((item.price for item in written), decimal.Decimal(0))
     price += sum((item.price for item in simulation.compensations), decimal.Decimal(0))
-    return price
+    return price + simulation.paid_usage_compensation()

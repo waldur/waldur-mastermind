@@ -5,7 +5,17 @@ from decimal import Decimal
 
 from dateutil.relativedelta import relativedelta
 from django.db import IntegrityError, transaction
-from django.db.models import F, Q, QuerySet, Sum
+from django.db.models import (
+    DecimalField,
+    F,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Sum,
+    Value,
+)
+from django.db.models.functions import Coalesce
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -34,7 +44,7 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import compensations
 from waldur_mastermind.invoices.models import InvoiceItem
 
-from . import filters, ledger, models, serializers, settlement, tasks, utils
+from . import filters, ledger, lots, models, serializers, settlement, tasks, utils
 from .audit import skip_credit_audit
 
 
@@ -1126,27 +1136,57 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
     ) = [structure_permissions.is_staff]
-    # Annotate the earnings-typed ledger sum so the list endpoint resolves
-    # withdrawable_balance without a per-row aggregate; the property falls
-    # back to a query when the annotation is absent.
+    # Annotate the balance of each lot kind so the list endpoint resolves
+    # withdrawable_balance, paid_balance and granted_balance without a
+    # per-row aggregate; the properties fall back to a query when the
+    # annotation is absent.
     queryset = models.CustomerCredit.objects.annotate(
-        withdrawable_earned_agg=Sum(
-            "transactions__amount",
-            filter=Q(
-                transactions__transaction_type__in=models.CreditTransaction.Types.WITHDRAWABLE_TYPES
-            ),
-        )
+        **{
+            f"{kind}_balance_agg": Coalesce(
+                Subquery(
+                    models.CreditLot.objects.filter(credit=OuterRef("pk"), kind=kind)
+                    .values("credit")
+                    .annotate(total=Sum("remaining"))
+                    .values("total")
+                ),
+                Value(Decimal("0")),
+                output_field=DecimalField(max_digits=16, decimal_places=5),
+            )
+            for kind, _label in models.CreditLot.Kinds.CHOICES
+        }
     ).order_by("created")
     serializer_class = serializers.CustomerCreditSerializer
     create_serializer_class = update_serializer_class = (
         partial_update_serializer_class
     ) = serializers.CreateCustomerCreditSerializer
 
+    def update(self, request, *args, **kwargs):
+        # Lock before `get_object` reads the balances that the value check
+        # runs against: a draw or a top-up committed in between would leave
+        # the check stale, and the value saved would undo it.
+        with transaction.atomic():
+            if is_uuid_like(kwargs[self.lookup_field]):
+                models.CustomerCredit.objects.select_for_update().filter(
+                    uuid=kwargs[self.lookup_field]
+                ).exists()
+            return super().update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        # The lot balances were annotated before the save moved the lots, so
+        # drop them and let the response read the lots afresh.
+        for kind, _label in models.CreditLot.Kinds.CHOICES:
+            vars(serializer.instance).pop(f"{kind}_balance_agg", None)
+
     @extend_schema(responses={status.HTTP_200_OK: None}, request=None)
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def apply_compensations(self, request, uuid=None):
         customer_credit: models.CustomerCredit = self.get_object()
+        # The lock every writer of the balance takes, as the month-end run does.
+        models.CustomerCredit.objects.select_for_update().filter(
+            pk=customer_credit.pk
+        ).exists()
         compensations.MonthlyCompensation(
             customer_credit.customer
         ).apply_compensations()
@@ -1159,6 +1199,9 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     @action(detail=True, methods=["post"])
     def clear_compensations(self, request, uuid=None):
         customer_credit: models.CustomerCredit = self.get_object()
+        models.CustomerCredit.objects.select_for_update().filter(
+            pk=customer_credit.pk
+        ).exists()
         compensations.MonthlyCompensation(
             customer_credit.customer
         ).clear_compensations()
@@ -1222,7 +1265,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
                     {"amount": _("Adjustment would make the credit value negative.")}
                 )
             # A reduction (e.g. a payout) may only draw down the earned,
-            # withdrawable portion — never staff-granted promotional credit.
+            # withdrawable portion — never granted credit.
             if amount < 0 and -amount > credit.withdrawable_balance:
                 raise exceptions.ValidationError(
                     {"amount": _("Reduction would exceed the withdrawable balance.")}
@@ -1245,6 +1288,117 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
 
     adjust_withdrawable_permissions = [structure_permissions.is_staff]
     adjust_withdrawable_serializer_class = serializers.WithdrawableAdjustmentSerializer
+
+    @extend_schema(
+        description="Record a customer prepayment as paid credit. Raises the "
+        "credit value and writes a top-up ledger entry with the comment. "
+        "Unlike granted credit, invoices paid from it count towards the "
+        "affiliate fee, and it does not expire. A negative amount reverses a "
+        "top-up, e.g. a bounced payment, and draws on paid credit only.",
+        request=serializers.CreditTopUpSerializer,
+        responses={status.HTTP_200_OK: serializers.CustomerCreditSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def top_up(self, request, uuid=None):
+        credit = self.get_object()
+        input_serializer = serializers.CreditTopUpSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        amount = input_serializer.validated_data["amount"]
+        comment = input_serializer.validated_data["comment"]
+        payment_reference = input_serializer.validated_data.get("payment_reference")
+        if payment_reference:
+            comment = f"{comment} (payment reference: {payment_reference})"
+
+        with transaction.atomic():
+            credit = models.CustomerCredit.objects.select_for_update().get(pk=credit.pk)
+            if amount < 0 and -amount > min(credit.paid_balance, credit.value):
+                raise exceptions.ValidationError(
+                    {"amount": _("Reversal would exceed the paid credit balance.")}
+                )
+            old_value = credit.value
+            with (
+                skip_credit_audit(),
+                ledger.credit_transaction_type(
+                    models.CreditTransaction.Types.TOP_UP, comment=comment
+                ),
+            ):
+                credit.value += amount
+                credit.save(update_fields=["value"])
+            event_logger.emit(
+                "{customer_name} credit has been topped up by {amount} from "
+                "{old_value} to {new_value}: {comment}"
+                if amount > 0
+                else "{customer_name} credit top-up has been reversed by {amount} "
+                "from {old_value} to {new_value}: {comment}",
+                event_type=EventType.CREDIT_TOPPED_UP,
+                event_context={
+                    "customer": credit.customer,
+                    "amount": abs(amount),
+                    "old_value": old_value,
+                    "new_value": credit.value,
+                    "comment": comment,
+                },
+                scopes=[credit.customer],
+            )
+
+        return Response(
+            serializers.CustomerCreditSerializer(
+                credit, context=self.get_serializer_context()
+            ).data
+        )
+
+    top_up_permissions = [structure_permissions.is_staff]
+    top_up_serializer_class = serializers.CreditTopUpSerializer
+
+    @extend_schema(
+        description="Mark part of the granted credit as paid, e.g. a "
+        "prepayment that was recorded as a plain credit grant. The credit "
+        "value does not change; the ledger records the move with the comment.",
+        request=serializers.CreditReclassificationSerializer,
+        responses={status.HTTP_200_OK: serializers.CustomerCreditSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def reclassify(self, request, uuid=None):
+        credit = self.get_object()
+        input_serializer = serializers.CreditReclassificationSerializer(
+            data=request.data
+        )
+        input_serializer.is_valid(raise_exception=True)
+        amount = input_serializer.validated_data["amount"]
+
+        with transaction.atomic():
+            credit = models.CustomerCredit.objects.select_for_update().get(pk=credit.pk)
+            if amount > credit.granted_balance:
+                raise exceptions.ValidationError(
+                    {"amount": _("Amount exceeds the granted credit balance.")}
+                )
+            comment = input_serializer.validated_data["comment"]
+            try:
+                lots.reclassify(credit, amount, comment)
+            except ValueError:
+                raise exceptions.ValidationError(
+                    {"amount": _("Amount exceeds the granted credit balance.")}
+                )
+            event_logger.emit(
+                "{amount} of {customer_name} granted credit has been "
+                "reclassified as paid: {comment}",
+                event_type=EventType.CREDIT_RECLASSIFIED_AS_PAID,
+                event_context={
+                    "customer": credit.customer,
+                    "amount": amount,
+                    "comment": comment,
+                },
+                scopes=[credit.customer],
+            )
+
+        return Response(
+            serializers.CustomerCreditSerializer(
+                credit, context=self.get_serializer_context()
+            ).data
+        )
+
+    reclassify_permissions = [structure_permissions.is_staff]
+    reclassify_serializer_class = serializers.CreditReclassificationSerializer
 
 
 def can_view_project_costs(request, view, obj=None, **kwargs):
@@ -1590,7 +1744,7 @@ class CustomerAffiliateViewSet(core_views.ActionsViewSet):
         ).first()
         if not invoice:
             return None
-        amount = link.calculate_fee(compensations.projected_net_price(invoice))
+        amount = link.calculate_fee(compensations.projected_fee_base(invoice))
         if amount <= 0:
             # Accrual writes nothing for such a month either.
             return None
@@ -1610,9 +1764,14 @@ class CreditTransactionViewSet(core_views.ReadOnlyActionsViewSet):
     """
 
     lookup_field = "uuid"
-    queryset = models.CreditTransaction.objects.select_related(
-        "credit__customer", "project_credit__project__customer"
-    ).order_by("-created")
+    queryset = (
+        models.CreditTransaction.objects.select_related(
+            "credit__customer", "project_credit__project__customer"
+        )
+        # The lots each row opened and drew, for its change by kind of credit.
+        .prefetch_related("opened_lots", "lot_draws__lot")
+        .order_by("-created")
+    )
     serializer_class = serializers.CreditTransactionSerializer
     filter_backends = (
         structure_filters.GenericRoleFilter,

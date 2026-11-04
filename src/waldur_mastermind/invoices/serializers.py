@@ -1155,9 +1155,15 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "allocated_to_projects",
             "consumption_last_month",
             "withdrawable_balance",
+            "paid_balance",
+            "granted_balance",
         )
         protected_fields = ("customer",)
-        read_only_fields = ("withdrawable_balance",)
+        read_only_fields = (
+            "withdrawable_balance",
+            "paid_balance",
+            "granted_balance",
+        )
 
         extra_kwargs = {
             "url": {
@@ -1187,6 +1193,21 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
             )
 
         return end_date
+
+    def validate_value(self, value):
+        # An edit is an untyped write, which opens or draws granted credit.
+        # Lowering paid or earned credit has its own typed actions, so that
+        # the ledger says what left: a negative top-up, adjust_withdrawable.
+        if self.instance and value < self.instance.value:
+            if self.instance.value - value > self.instance.granted_balance:
+                raise exceptions.ValidationError(
+                    _(
+                        "The value can only be lowered by the granted credit "
+                        "balance. Reverse a top-up or adjust the withdrawable "
+                        "balance to lower paid or earned credit."
+                    )
+                )
+        return value
 
     def get_from_attrs_or_instance(self, attrs, field_name, default=None):
         return attrs.get(field_name, getattr(self.instance, field_name, default))
@@ -1655,9 +1676,11 @@ class AffiliateEarningsSerializer(serializers.Serializer):
         allow_null=True,
         help_text=_(
             "Fee the current month is expected to earn from the referred "
-            "customer's open invoice, after its estimated volume discounts and "
-            "credit compensation. Null when the month will earn nothing on "
-            "this link. Not yet accrued: the amount changes until month close."
+            "customer's open invoice, on the base an accrual uses: the net "
+            "price after estimated volume discounts and credit compensation, "
+            "plus what paid credit covers. Null when the month will earn "
+            "nothing on this link. Not yet accrued: the amount changes until "
+            "month close."
         ),
     )
 
@@ -1680,6 +1703,57 @@ class WithdrawableAdjustmentSerializer(serializers.Serializer):
         return value
 
 
+class CreditTopUpSerializer(serializers.Serializer):
+    """Staff input recording a customer prepayment as paid credit, or
+    reversing one with a negative amount."""
+
+    amount = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=5,
+        help_text="Positive to record a prepayment, negative to reverse one.",
+    )
+    comment = serializers.CharField()
+    payment_reference = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=255,
+        help_text="Bank transfer or payment identifier, kept in the ledger comment.",
+    )
+
+    def validate_amount(self, value):
+        if not value:
+            raise serializers.ValidationError(_("Amount must not be zero."))
+        return value
+
+    def validate_comment(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError(_("A comment is required."))
+        return value
+
+
+class CreditReclassificationSerializer(serializers.Serializer):
+    """Staff input marking part of the granted credit as paid."""
+
+    amount = serializers.DecimalField(max_digits=16, decimal_places=5)
+    comment = serializers.CharField()
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(_("Amount must be positive."))
+        return value
+
+    def validate_comment(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError(_("A comment is required."))
+        return value
+
+
+# Formats a change by kind of credit as the ledger formats its amounts.
+KIND_CHANGE_FIELD = serializers.DecimalField(max_digits=16, decimal_places=5)
+
+
 class CreditTransactionSerializer(serializers.ModelSerializer):
     """Read-only ledger entry: the trace of how a credit's value changed."""
 
@@ -1695,6 +1769,51 @@ class CreditTransactionSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(
         source="customer.name", read_only=True, allow_null=True
     )
+    # How the row moved each kind of an organization credit: the lots it
+    # opened less what it drew from lots. A compensation can draw on granted
+    # and paid credit at once, and a reclassification is a granted draw paired
+    # with a paid inflow. Null on a project allocation's rows, which have no
+    # lots; zero on rows recorded before lots existed.
+    granted_change = serializers.SerializerMethodField()
+    paid_change = serializers.SerializerMethodField()
+    earned_change = serializers.SerializerMethodField()
+
+    def _kind_changes(self, row: models.CreditTransaction) -> dict | None:
+        if not row.credit_id:
+            return None
+        changes = getattr(row, "_kind_changes", None)
+        if changes is None:
+            changes = dict.fromkeys(models.CreditLot.Kinds.DRAW_ORDER, Decimal(0))
+            for lot in row.opened_lots.all():
+                changes[lot.kind] += lot.amount
+            for draw in row.lot_draws.all():
+                changes[draw.lot.kind] -= draw.amount
+            row._kind_changes = changes
+        return changes
+
+    def _change(self, row, kind) -> str | None:
+        changes = self._kind_changes(row)
+        if changes is None:
+            return None
+        return KIND_CHANGE_FIELD.to_representation(changes[kind])
+
+    @extend_schema_field(
+        serializers.DecimalField(max_digits=16, decimal_places=5, allow_null=True)
+    )
+    def get_granted_change(self, row) -> str | None:
+        return self._change(row, models.CreditLot.Kinds.GRANTED)
+
+    @extend_schema_field(
+        serializers.DecimalField(max_digits=16, decimal_places=5, allow_null=True)
+    )
+    def get_paid_change(self, row) -> str | None:
+        return self._change(row, models.CreditLot.Kinds.PAID)
+
+    @extend_schema_field(
+        serializers.DecimalField(max_digits=16, decimal_places=5, allow_null=True)
+    )
+    def get_earned_change(self, row) -> str | None:
+        return self._change(row, models.CreditLot.Kinds.EARNED)
 
     class Meta:
         model = models.CreditTransaction
@@ -1702,6 +1821,9 @@ class CreditTransactionSerializer(serializers.ModelSerializer):
             "uuid",
             "created",
             "amount",
+            "granted_change",
+            "paid_change",
+            "earned_change",
             "transaction_type",
             "transaction_type_display",
             "comment",

@@ -148,3 +148,9 @@ class InvoiceConfig(AppConfig):
             sender=models.Invoice,
             dispatch_uid="waldur_mastermind.invoices.create_initial_revision_Invoice",
         )
+
+        from waldur_core.permissions.pat_filtering import register_pat_filter
+
+        from . import filters
+
+        register_pat_filter(models.CustomerCredit)(filters.pat_filter_customer_credits)

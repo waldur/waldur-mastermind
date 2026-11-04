@@ -44,6 +44,7 @@ from waldur_core.structure.models import (
     UserAgreement,
 )
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
+from waldur_mastermind.invoices import lots
 from waldur_mastermind.invoices.models import (
     AffiliateFeeAccrual,
     CreditTransaction,
@@ -297,6 +298,9 @@ class Command(BaseCommand):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Organization credits whose value this run wrote past the ledger
+        # handler, so their lots need rebuilding (`resplit_credit_lots`).
+        self.credits_written = set()
         self.stats = {
             "features": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -1403,6 +1407,12 @@ class Command(BaseCommand):
             lambda: self.import_affiliate_fee_accruals(
                 data.get("affiliate_fee_accruals", [])
             ),
+        )
+        # Last of the credit steps: the drawdown and the ledger import write
+        # credit values with queryset updates, past the handler that keeps lots.
+        self._safe_import(
+            "credit_lots",
+            self.resplit_credit_lots,
         )
 
         # Import offering users (depends on offerings and users)
@@ -5579,15 +5589,43 @@ class Command(BaseCommand):
                 )
                 self.stats["invoices"]["errors"] += 1
 
+    def _derive_plan_component(self, item_data, resource, plan_component_by_type):
+        """The plan component billing would have set on a charge or discount line.
+
+        A preset cannot name it by id, which differs per database, but each
+        line carries its resource and component type: the line's own
+        `plan_uuid` when it records one, the resource's plan otherwise.
+        Without it the volume discount pass skips the line, so an open
+        invoice built from preset data never gets its estimate.
+        """
+        details = item_data.get("details") or {}
+        component_type = details.get("offering_component_type")
+        if not component_type or details.get("is_compensation"):
+            return None
+        plan_uuid = details.get("plan_uuid")
+        if not plan_uuid and resource is not None and resource.plan_id:
+            plan_uuid = str(resource.plan.uuid)
+        if not plan_uuid:
+            return None
+        return plan_component_by_type.get(
+            (self._normalize_uuid(plan_uuid), component_type)
+        )
+
     def import_invoice_items(self, invoice_items_data):
         """Import invoice item data."""
         self.stdout.write("Importing invoice items...")
 
         # Pre-fetch lookup maps to avoid N+1 queries
         invoice_map = {str(i.uuid): i for i in Invoice.objects.all()}
-        resource_map = {str(r.uuid): r for r in Resource.objects.all()}
+        # With the plan: a charge line without its own plan_uuid takes the
+        # resource's (see `_derive_plan_component`).
+        resource_map = {str(r.uuid): r for r in Resource.objects.select_related("plan")}
         project_map = {str(p.uuid): p for p in Project.available_objects.all()}
         plan_component_map = {pc.id: pc for pc in PlanComponent.objects.all()}
+        plan_component_by_type = {
+            (str(pc.plan.uuid), pc.component.type): pc
+            for pc in PlanComponent.objects.select_related("plan", "component")
+        }
         existing_items = {str(ii.uuid): ii for ii in InvoiceItem.objects.all()}
 
         for item_data in invoice_items_data:
@@ -5651,6 +5689,10 @@ class Command(BaseCommand):
                 plan_component_id = item_data.get("plan_component")
                 if plan_component_id:
                     plan_component = plan_component_map.get(plan_component_id)
+                elif not item_data.get("credit_uuid"):
+                    plan_component = self._derive_plan_component(
+                        item_data, resource, plan_component_by_type
+                    )
 
                 # Parse backend_uuid
                 backend_uuid = None
@@ -7436,6 +7478,17 @@ class Command(BaseCommand):
                 )
                 self.stats["permission_requests"]["errors"] += 1
 
+    def resplit_credit_lots(self):
+        """Rebuild the lots of the credits this run wrote from their ledger.
+
+        Only those: a credit the run skipped keeps its lots, which carry what
+        no rebuild can recover exactly.
+        """
+        if self.dry_run:
+            return
+        for credit in CustomerCredit.objects.filter(pk__in=self.credits_written):
+            lots.resplit(credit)
+
     def apply_customer_credit_drawdown(self, customer_credits_data):
         """Lower an organization credit below what its projects already hold.
 
@@ -7451,9 +7504,9 @@ class Command(BaseCommand):
             final_value = credit_data.get("value_after_allocations")
             if final_value is None:
                 continue
-            updated = CustomerCredit.objects.filter(
-                uuid=credit_data.get("uuid")
-            ).update(value=Decimal(str(final_value)))
+            credits = CustomerCredit.objects.filter(uuid=credit_data.get("uuid"))
+            self.credits_written.update(credits.values_list("pk", flat=True))
+            updated = credits.update(value=Decimal(str(final_value)))
             if updated:
                 self.stdout.write(
                     f"Drew organization credit {credit_data.get('uuid')} "
@@ -7565,6 +7618,7 @@ class Command(BaseCommand):
                                 CustomerCredit.objects.filter(uuid=uuid).update(
                                     **defaults
                                 )
+                                self.credits_written.add(existing_credit.pk)
 
                                 # Handle many-to-many offerings relationship
                                 offering_uuids = credit_data.get("offering_uuids", [])
@@ -7700,6 +7754,7 @@ class Command(BaseCommand):
                 CustomerCredit.objects.filter(pk=credit.pk).update(
                     value=F("value") + amount
                 )
+                self.credits_written.add(credit.pk)
                 created = item.get("created")
                 if created:
                     try:

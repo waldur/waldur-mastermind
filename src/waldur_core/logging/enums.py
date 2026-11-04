@@ -40,6 +40,8 @@ class EventType(StrEnum):
     CREATE_OF_AFFILIATE_BY_STAFF = "create_of_affiliate_by_staff"
     CREATE_OF_CREDIT_BY_STAFF = "create_of_credit_by_staff"
     CREATE_OF_PROJECT_CREDIT_BY_STAFF = "create_of_project_credit_by_staff"
+    CREDIT_RECLASSIFIED_AS_PAID = "credit_reclassified_as_paid"
+    CREDIT_TOPPED_UP = "credit_topped_up"
     CUSTOM_NOTIFICATION = "custom_notification"
     CUSTOMER_CREATION_SUCCEEDED = "customer_creation_succeeded"
     CUSTOMER_DELETION_SUCCEEDED = "customer_deletion_succeeded"
@@ -52,6 +54,7 @@ class EventType(StrEnum):
     FREEIPA_PROFILE_DELETED = "freeipa_profile_deleted"
     FREEIPA_PROFILE_DISABLED = "freeipa_profile_disabled"
     FREEIPA_PROFILE_ENABLED = "freeipa_profile_enabled"
+    GRANTED_CREDIT_EXPIRED = "granted_credit_expired"
     INVOICE_CANCELED = "invoice_canceled"
     INVOICE_CREATED = "invoice_created"
     INVOICE_ITEM_CREATED = "invoice_item_created"
@@ -597,6 +600,8 @@ EVENT_GROUP_MAPPING = {
         EventType.CREATE_OF_AFFILIATE_BY_STAFF,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.CREATE_OF_PROJECT_CREDIT_BY_STAFF,
+        EventType.CREDIT_RECLASSIFIED_AS_PAID,
+        EventType.CREDIT_TOPPED_UP,
         EventType.INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE,
         EventType.REDUCTION_OF_CUSTOMER_CREDIT,
         EventType.REDUCTION_OF_CUSTOMER_CREDIT_DUE_TO_MINIMAL_CONSUMPTION,
@@ -606,6 +611,7 @@ EVENT_GROUP_MAPPING = {
         EventType.REDUCTION_OF_PROJECT_EXPECTED_CONSUMPTION,
         EventType.ROLL_BACK_CUSTOMER_CREDIT,
         EventType.ROLL_BACK_PROJECT_CREDIT,
+        EventType.GRANTED_CREDIT_EXPIRED,
         EventType.SET_TO_ZERO_OVERDUE_CREDIT,
         EventType.UPDATE_OF_AFFILIATE_BY_STAFF,
         EventType.UPDATE_OF_CREDIT_BY_STAFF,
@@ -617,6 +623,8 @@ EVENT_GROUP_MAPPING = {
         EventType.CREATE_OF_AFFILIATE_BY_STAFF,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.CREATE_OF_PROJECT_CREDIT_BY_STAFF,
+        EventType.CREDIT_RECLASSIFIED_AS_PAID,
+        EventType.CREDIT_TOPPED_UP,
         EventType.CUSTOMER_CREATION_SUCCEEDED,
         EventType.CUSTOMER_DELETION_SUCCEEDED,
         EventType.CUSTOMER_UPDATE_SUCCEEDED,
@@ -631,6 +639,7 @@ EVENT_GROUP_MAPPING = {
         EventType.REDUCTION_OF_PROJECT_EXPECTED_CONSUMPTION,
         EventType.ROLL_BACK_CUSTOMER_CREDIT,
         EventType.ROLL_BACK_PROJECT_CREDIT,
+        EventType.GRANTED_CREDIT_EXPIRED,
         EventType.SET_TO_ZERO_OVERDUE_CREDIT,
         EventType.UPDATE_OF_AFFILIATE_BY_STAFF,
         EventType.UPDATE_OF_CREDIT_BY_STAFF,
@@ -643,6 +652,8 @@ EVENT_GROUP_MAPPING = {
         EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.CREATE_OF_PROJECT_CREDIT_BY_STAFF,
+        EventType.CREDIT_RECLASSIFIED_AS_PAID,
+        EventType.CREDIT_TOPPED_UP,
         EventType.INVOICE_CANCELED,
         EventType.INVOICE_CREATED,
         EventType.INVOICE_ITEM_CREATED,
@@ -659,6 +670,7 @@ EVENT_GROUP_MAPPING = {
         EventType.REDUCTION_OF_PROJECT_EXPECTED_CONSUMPTION,
         EventType.ROLL_BACK_CUSTOMER_CREDIT,
         EventType.ROLL_BACK_PROJECT_CREDIT,
+        EventType.GRANTED_CREDIT_EXPIRED,
         EventType.SET_TO_ZERO_OVERDUE_CREDIT,
         EventType.UPDATE_OF_CREDIT_BY_STAFF,
         EventType.UPDATE_OF_PROJECT_CREDIT_BY_STAFF,

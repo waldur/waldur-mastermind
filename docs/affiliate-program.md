@@ -8,7 +8,7 @@ customer**). Whenever a referred customer's monthly invoice is finalized, a
 configurable **fee** is computed from the invoice and credited to the affiliate
 organization's account. The fee lands in the affiliate's `CustomerCredit` and is
 tracked in an append-only ledger so that the *earned* portion can later be paid
-out or transferred, while staff-granted promotional credit cannot.
+out or transferred, while granted credit cannot.
 
 The whole program is **opt-in and disabled by default**. Configured links stay
 dormant — and the API returns `404` — until it is switched on.
@@ -38,7 +38,8 @@ flowchart LR
 | **Affiliate link** | A staff-configured `CustomerAffiliate` row binding the two, plus the fee terms. One link per `(customer, affiliate)` pair, and at most one active link per customer. |
 | **Fee accrual** | An `AffiliateFeeAccrual` — one fee earned from one finalized invoice. Idempotent per invoice. |
 | **Credit ledger** | `CreditTransaction` rows recording every change to a `CustomerCredit.value`. |
-| **Withdrawable balance** | The part of the affiliate's credit that was *earned* (not granted) and may leave the platform. |
+| **Credit lot** | A part of an organization credit by where the money came from: *granted* (staff grant), *paid* (customer prepayment recorded by staff) or *earned* (fees, transfers). See [Credit ledger](credit-ledger.md#credit-lots). |
+| **Withdrawable balance** | What is left of the affiliate's *earned* lots — the only credit that may leave the platform. |
 
 ## Enabling the program
 
@@ -92,13 +93,28 @@ never the invoice contents.
 
 ## Fee
 
-The fee is a single fixed percentage (`fee_percent`, 0–100) of the invoice
-**net price** — pre-tax and *post-compensation* (after any credit compensation
-has already reduced the invoice):
+The fee is a single fixed percentage (`fee_percent`, 0–100) of the **fee
+base**: the invoice net price — pre-tax and *post-compensation* — plus the part
+of that compensation which the referred customer's **paid** credit covered:
 
 ```text
-fee = net_price × fee_percent / 100
+fee = (net_price + paid_compensation) × fee_percent / 100
 ```
+
+A prepayment recorded by staff (`POST /api/customer-credits/{uuid}/top_up/`) is
+revenue like any other payment, so an invoice settled from it still earns the
+affiliate its fee. Granted credit is a discount and does not count. Usage
+draws granted credit before paid credit, so a fee that a grant defers is
+earned later, when the prepayment is spent.
+
+`paid_compensation` is read from the lot draws of the invoice's latest
+compensation run, net of tax like the price it is added to. A project credit
+paying an earlier invoice onto this one (`historical_compensation`, see
+`invoices/settlement.py`) lowers the net price too; the paid part of that
+payment is added back, because it is revenue that the earlier month's invoice
+already counted. A payment from granted credit is not added back, so it
+lowers this invoice's fee, as a discount does — whether or not the earlier
+month earned a fee on that cost.
 
 The result is clamped to be non-negative. There is intentionally no per-invoice
 fixed fee or formula — affiliate terms are deliberately simple. (For
@@ -109,7 +125,8 @@ quantity-driven *discounts* on what a customer pays, see
 
 Fee accrual rides on the existing invoice-finalization flow. The
 `invoice_created` signal fires on the `PENDING → CREATED` transition, **after**
-credit compensation has run, so the fee is computed on the final net price.
+credit compensation has run, so the fee is computed on the final net price and
+the final split of that compensation between paid and granted credit.
 
 ```mermaid
 sequenceDiagram
@@ -129,7 +146,7 @@ sequenceDiagram
     else enabled
         H->>CA: active links for invoice.customer
         loop each active link for the period
-            H->>CA: calculate_fee(net_price)
+            H->>CA: calculate_fee(fee base)
             alt accrual already exists
                 H-->>H: skip (idempotent)
             else fee > 0
@@ -155,61 +172,54 @@ Robustness guarantees:
 Every change to a credit balance — from any source, on an organization credit
 or a project allocation — is recorded as a `CreditTransaction` row by a
 `post_save` handler, typed by the flow that makes it and recorded as a **staff
-grant** when untyped. See [Credit ledger](credit-ledger.md) for the full
-mechanism; what matters here is which of those rows count as *earnings*.
+grant** when untyped. On an organization credit each row also moves the
+credit's **lots**; see [Credit ledger](credit-ledger.md) for both mechanisms.
+What matters here is which lots hold *earnings*.
 
 ```mermaid
 flowchart TB
-    subgraph Sources["Value mutations"]
-        SG["Staff grant<br/>(untyped default)"]
-        AFFEE["Affiliate fee"]
-        TR["Transfer in / out"]
-        PO["Payout"]
-        DRAW["Compensation /<br/>minimal consumption draw"]
-        EXP["Expiry"]
-        RB["Rollback / adjustment"]
+    subgraph Inflows["Inflows open a lot"]
+        SG["Staff grant<br/>(untyped default)"] --> GRANT["granted lot"]
+        TOP["Top-up"] --> PAID["paid lot"]
+        AFFEE["Affiliate fee /<br/>transfer in"] --> EARN["earned lot"]
     end
 
-    SG --> LED["CreditTransaction ledger"]
-    AFFEE --> LED
-    TR --> LED
-    PO --> LED
-    DRAW --> LED
-    EXP --> LED
-    RB --> LED
+    subgraph Outflows["Outflows draw lots"]
+        DRAW["Compensation /<br/>minimal consumption draw"] -->|granted → paid → earned| LOTS
+        PO["Payout / transfer out"] -->|earned only| LOTS
+        EXP["Expiry"] -->|granted only| LOTS
+    end
 
-    LED --> WB["withdrawable_balance =<br/>max(0, min(earned, value))"]
+    EARN --> WB["withdrawable_balance =<br/>what earned lots have left"]
 ```
 
-The **withdrawable balance** is the sum of *earnings-typed* ledger entries
-(`affiliate_fee`, `transfer_in`, `transfer_out`, `payout` and
-`withdrawable_adjustment`), capped by the current credit value. Two consequences
-fall out of this definition:
+The **withdrawable balance** is what is left of the earned lots. Consequences:
 
-- Staff-granted (promotional) credit is **never** withdrawable.
-- Credit **expiry wipes earnings too** — when the value is zeroed, the cap drops
-  the withdrawable balance to zero.
+- Granted and paid credit are **never** withdrawable.
+- Earnings spent on the affiliate's own usage are gone for good: usage draws
+  earned lots last, but once it has drawn them, a later grant does not
+  make anything withdrawable again.
+- Credit **expiry takes only granted credit**, so earnings survive the
+  credit's end date.
 
-Drawdown types — `compensation` and `minimal_draw` — are not earnings and never
-raise the withdrawable balance; they lower the cap by lowering the value.
-
-Example — an affiliate with a 1000 promotional grant earns a 30 fee:
+Example — an affiliate with a 1000 grant earns a 30 fee:
 
 | Event | `value` | `withdrawable_balance` |
 |-------|--------:|-----------------------:|
 | Staff grant of 1000 | 1000 | 0 |
 | Affiliate fee of 30 | 1030 | 30 |
-| Credit expires (value → 0) | 0 | 0 |
+| Credit expires (granted → 0) | 30 | 30 |
 
-The ledger is **append-only** — it is the source of truth for the withdrawable
-balance, so rows are never edited or deleted; corrections are new rows. The one
-exception is reconstructing history that predates the ledger, described in
+The ledger is **append-only** — the lots are derived from it, so rows are never
+edited or deleted; corrections are new rows. The one exception is
+reconstructing history that predates the ledger, described in
 [Backfilling the credit ledger](admin/credit-ledger-backfill.md).
 
 ## Worked scenarios
 
-All amounts below are in the invoice currency and use the invoice **net price**
-(pre-tax, post-compensation) as the base. Fees are clamped to be non-negative
+All amounts below are in the invoice currency and use the **fee base** — the
+invoice net price (pre-tax, post-compensation) plus what paid credit
+compensated. Fees are clamped to be non-negative
 and rounded before they are stored.
 
 ### A. Flat percentage
@@ -237,32 +247,49 @@ applied as compensation. Terms: `fee_percent = 10`.
 | **Net price (fee base)** | **600.00** |
 | Fee (10 % of 600.00) | **60.00** |
 
-The fee is 60.00, not 100.00 — the affiliate earns on what the customer actually
-pays.
+The fee is 60.00, not 100.00 — the 400.00 was granted credit, a discount,
+and the affiliate earns on what the customer actually pays.
+
+### B2. A prepayment does not reduce the base
+
+`AcmeLabs` prepaid 1,000.00 by bank transfer, which staff recorded with
+`top_up`, and also holds a 150.00 grant. Its gross invoice is 1,000.00.
+Usage draws the granted credit first, then the prepayment.
+Terms: `fee_percent = 10`.
+
+| Step | Amount |
+|------|-------:|
+| Gross invoice | 1,000.00 |
+| Compensation from granted credit | −150.00 |
+| Compensation from paid credit | −850.00 |
+| Net price | 0.00 |
+| **Fee base** (net price + paid compensation) | **850.00** |
+| Fee (10 % of 850.00) | **85.00** |
+
+The remaining 150.00 of the prepayment earns its fee in the month it is spent.
 
 ### C. Withdrawable balance over time
 
-`ResellerCo` begins with a 1,000 promotional grant from staff, then earns fees
+`ResellerCo` begins with a 1,000 grant from staff, then earns fees
 over three months, takes a payout, and finally lets the credit expire. Only the
-*earned* portion is ever withdrawable, and the running value caps it.
+*earned* lots are ever withdrawable.
 
-| Event | Ledger type | Δ value | `value` | Earned sum | `withdrawable_balance` |
-|-------|-------------|--------:|--------:|-----------:|-----------------------:|
-| Promotional grant | `staff_grant` | +1,000 | 1,000 | 0 | 0 |
-| June fee | `affiliate_fee` | +120 | 1,120 | 120 | 120 |
-| July fee | `affiliate_fee` | +80 | 1,200 | 200 | 200 |
-| August fee | `affiliate_fee` | +150 | 1,350 | 350 | 350 |
-| Payout to bank | `payout` | −200 | 1,150 | 150 | 150 |
-| Credit expires | `expiry` | −1,150 | 0 | 150 | 0 |
+| Event | Ledger type | Δ value | `value` | Granted lots | Earned lots = `withdrawable_balance` |
+|-------|-------------|--------:|--------:|-----------------:|-------------------------------------:|
+| Staff grant | `staff_grant` | +1,000 | 1,000 | 1,000 | 0 |
+| June fee | `affiliate_fee` | +120 | 1,120 | 1,000 | 120 |
+| July fee | `affiliate_fee` | +80 | 1,200 | 1,000 | 200 |
+| August fee | `affiliate_fee` | +150 | 1,350 | 1,000 | 350 |
+| Payout to bank | `payout` | −200 | 1,150 | 1,000 | 150 |
+| Credit expires | `expiry` | −1,000 | 150 | 0 | 150 |
 
 Notes:
 
-- The promotional grant never adds to the withdrawable balance — it is not an
-  earnings-typed entry.
-- The payout is an earnings-typed *outflow*, so it reduces the earned sum.
-- Expiry is **not** earnings-typed, so the earned sum stays at 150 — but because
-  the cap is `min(earned, value)` and the value is now 0, the withdrawable
-  balance drops to 0. Expiry wipes earnings along with everything else.
+- The grant opens a granted lot and never adds to the
+  withdrawable balance.
+- The payout draws earned lots only.
+- Expiry takes only the granted lots, so the 150 earned survives the end
+  date.
 
 ### D. Period gating
 
@@ -368,11 +395,13 @@ GET /api/customer-affiliates/<uuid>/earnings/
 ```
 
 `upcoming` is the fee the current month is expected to earn: the accrual rule
-applied to the referred customer's open invoice as it stands. It is computed on
-the invoice's net price after the estimated volume discounts (see
-[Component discounts](component-discounts.md)) and after the credit that month
-close is expected to draw. It changes until the month closes, and becomes an
-accrual only then. A payment of an earlier invoice from credit, which month
+applied to the referred customer's open invoice as it stands. It uses the same
+fee base as an accrual: the invoice's net price after the estimated volume
+discounts (see [Component discounts](component-discounts.md)) and after the
+credit that month close is expected to draw, plus the part of that draw that
+paid credit covers. Usage draws granted lots first, then paid ones, from the
+lots as they stood when the month began. It changes until the month closes, and
+becomes an accrual only then. A payment of an earlier invoice from credit, which month
 close may also write, is not projected. `upcoming` is `null` when the link is
 not active on the first day of the month, when the referred customer has no
 open invoice, or when the month would earn nothing. Like an accrual, it carries

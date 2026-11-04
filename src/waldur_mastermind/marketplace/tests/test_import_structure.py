@@ -19,7 +19,10 @@ from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices import ledger
 from waldur_mastermind.invoices.models import (
+    CreditLot,
+    CreditTransaction,
     CustomerCredit,
     Invoice,
     InvoiceItem,
@@ -1772,6 +1775,69 @@ class ImportStructureCommandTest(TestCase):
         self.assertIsNone(item2.resource)
         self.assertIsNone(item2.project)
 
+    def test_import_invoice_items_links_the_plan_component_billing_would(self):
+        # A preset cannot name a plan component by id; each line carries its
+        # resource and component type, which is how billing picks it.
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        invoice = invoices_factories.InvoiceFactory(customer=customer)
+        offering = marketplace_factories.OfferingFactory()
+        component = marketplace_factories.OfferingComponentFactory(
+            offering=offering, type="gpu"
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering)
+        old_plan = marketplace_factories.PlanFactory(offering=offering)
+        plan_component = marketplace_factories.PlanComponentFactory(
+            plan=plan, component=component
+        )
+        old_plan_component = marketplace_factories.PlanComponentFactory(
+            plan=old_plan, component=component
+        )
+        resource = marketplace_factories.ResourceFactory(
+            project=project, offering=offering, plan=plan
+        )
+
+        def item(uuid_suffix, **extra):
+            details = {"offering_component_type": "gpu", **extra.pop("details", {})}
+            return {
+                "uuid": f"ffffffff-aaaa-bbbb-cccc-{uuid_suffix}",
+                "invoice_uuid": invoice.uuid.hex,
+                "resource_uuid": resource.uuid.hex,
+                "project_uuid": project.uuid.hex,
+                "name": "GPU",
+                "quantity": "1",
+                "unit_price": "10.00",
+                "details": details,
+                **extra,
+            }
+
+        credit = invoices_factories.CustomerCreditFactory(customer=customer)
+        self._create_test_json(
+            {
+                "invoice_items": [
+                    item("000000000001"),
+                    item("000000000002", details={"plan_uuid": old_plan.uuid.hex}),
+                    item("000000000003", credit_uuid=credit.uuid.hex),
+                    item("000000000004", details={"offering_component_type": "ram"}),
+                ]
+            }
+        )
+
+        self._call_import_command("-i", self.test_file_path)
+
+        def linked(suffix):
+            return InvoiceItem.objects.get(
+                uuid=f"ffffffff-aaaa-bbbb-cccc-{suffix}"
+            ).plan_component
+
+        self.assertEqual(linked("000000000001"), plan_component)
+        # A line billed under an earlier plan names it.
+        self.assertEqual(linked("000000000002"), old_plan_component)
+        # Credit compensation never carries one.
+        self.assertIsNone(linked("000000000003"))
+        # Nothing to link when the plan has no such component.
+        self.assertIsNone(linked("000000000004"))
+
     def test_import_orders_creates_new_orders(self):
         """Test that importing orders creates new order objects."""
         customer = structure_factories.CustomerFactory()
@@ -2857,6 +2923,34 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(imported_credit.apply_as_minimal_consumption, True)
         self.assertIsNotNone(imported_credit.end_date)
         self.assertEqual(list(imported_credit.offerings.all()), [offering])
+
+    def test_import_leaves_the_lots_of_a_skipped_credit_alone(self):
+        # Rebuilding lots loses their draw history, so only credits the run
+        # wrote are rebuilt.
+        credit = invoices_factories.CustomerCreditFactory(value=100)
+        with ledger.credit_transaction_type(CreditTransaction.Types.TOP_UP):
+            credit.value += 50
+            credit.save()
+        before = sorted(CreditLot.objects.values_list("pk", "kind", "remaining"))
+
+        self._create_test_json(
+            {
+                "customer_credits": [
+                    {
+                        "uuid": credit.uuid.hex,
+                        "customer_uuid": credit.customer.uuid.hex,
+                        "value": "999",
+                    }
+                ]
+            }
+        )
+        self._call_import_command("-i", self.test_file_path)
+
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, 150)
+        self.assertEqual(
+            sorted(CreditLot.objects.values_list("pk", "kind", "remaining")), before
+        )
 
     def test_import_project_credits_with_all_fields(self):
         """Test importing project credits with all fields."""
