@@ -100,6 +100,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`LLMConfigurationMixin`](#llmconfigurationmixin) | `waldur_mastermind.chat.views` | Validates that AI Assistant is enabled, the user has the required role, and t... |
 | [`FeedbackTestMixin`](#feedbacktestmixin) | `waldur_mastermind.feedback.tests.test_feedback` | No description available |
 | [`PeriodMixin`](#periodmixin) | `waldur_mastermind.invoices.models` | Make subclasses preserve the alters_data attribute on overridden methods |
+| [`PaidCreditAffiliateMixin`](#paidcreditaffiliatemixin) | `waldur_mastermind.invoices.tests.test_credit_lots` | The referred customer's invoice is 300; the affiliate earns 10% |
 | [`SettlementTestMixin`](#settlementtestmixin) | `waldur_mastermind.invoices.tests.test_earlier_invoices_settlement` | No description available |
 | [`ConnectedResourceMixin`](#connectedresourcemixin) | `waldur_mastermind.marketplace.admin` | Protects object from modification if there are connected resources |
 | [`ParentInlineMixin`](#parentinlinemixin) | `waldur_mastermind.marketplace.admin` | Mixin to get parent object from request in Django admin inline views |
@@ -1438,6 +1439,14 @@ AI_ASSISTANT_ENABLED_ROLES controls which user roles can access the feature.
 Make subclasses preserve the alters_data attribute on overridden methods.
 
 **Base classes:** `Model`
+
+### PaidCreditAffiliateMixin
+
+**Module:** `waldur_mastermind.invoices.tests.test_credit_lots`
+
+**Description:**
+
+The referred customer's invoice is 300; the affiliate earns 10%.
 
 ### SettlementTestMixin
 

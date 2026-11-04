@@ -72,6 +72,9 @@
 - create_of_affiliate_by_staff
 - create_of_credit_by_staff
 - create_of_project_credit_by_staff
+- credit_reclassified_as_paid
+- credit_topped_up
+- granted_credit_expired
 - increase_of_customer_credit_due_to_affiliate_fee
 - reduction_of_customer_credit
 - reduction_of_customer_credit_due_to_minimal_consumption
@@ -93,11 +96,14 @@
 - create_of_affiliate_by_staff
 - create_of_credit_by_staff
 - create_of_project_credit_by_staff
+- credit_reclassified_as_paid
+- credit_topped_up
 - customer_creation_succeeded
 - customer_deletion_succeeded
 - customer_permission_review_closed
 - customer_permission_review_created
 - customer_update_succeeded
+- granted_credit_expired
 - increase_of_customer_credit_due_to_affiliate_fee
 - payment_added
 - payment_removed
@@ -120,6 +126,9 @@
 - automatic_credit_adjustment
 - create_of_credit_by_staff
 - create_of_project_credit_by_staff
+- credit_reclassified_as_paid
+- credit_topped_up
+- granted_credit_expired
 - invoice_canceled
 - invoice_created
 - invoice_item_created

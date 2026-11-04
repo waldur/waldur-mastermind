@@ -3807,3 +3807,13 @@ Public URL(s) of the MCP endpoint, space-separated (e.g. https://api.example.com
 **Default value:** 10000
 
 Maximum number of log rows to keep per agent identity. Oldest rows are deleted when exceeded.
+
+### Event consumers
+
+#### EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS
+
+**Type:** int
+
+**Default value:** 24
+
+Hours an ephemeral event consumer (one registered by a browser tab) may go without a reader before it and its RabbitMQ queue are deleted. Checked hourly, so deletion can come up to an hour later. Integrations register non-ephemeral consumers and are never deleted this way.
