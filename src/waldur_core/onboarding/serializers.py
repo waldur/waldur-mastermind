@@ -407,10 +407,16 @@ class OnboardingJustificationCreateSerializer(serializers.Serializer):
     )
 
     def validate_verification_uuid(self, value):
-        """Validate that the verification exists and is failed/escalated."""
-        try:
-            verification = OnboardingVerification.objects.get(uuid=value)
-        except OnboardingVerification.DoesNotExist:
+        """Validate that the caller's own verification exists and is failed,
+        escalated or verified.
+
+        Looked up among the caller's own verifications, so another user's is
+        answered as if it did not exist, status included.
+        """
+        verification = OnboardingVerification.objects.filter(
+            uuid=value, user=self.context["request"].user
+        ).first()
+        if verification is None:
             raise serializers.ValidationError("Verification not found")
 
         if verification.status not in [
@@ -422,7 +428,7 @@ class OnboardingJustificationCreateSerializer(serializers.Serializer):
                 f"Can not justify verifications in {verification.status} status"
             )
 
-        return value
+        return verification
 
 
 class OnboardingJustificationReviewSerializer(serializers.Serializer):
