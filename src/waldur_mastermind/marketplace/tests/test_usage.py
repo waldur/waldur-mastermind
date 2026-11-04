@@ -78,7 +78,10 @@ class PlanPeriodsTest(test.APITestCase):
 class SubmitUsageTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
-        self.service_provider = factories.ServiceProviderFactory()
+        # The public API takes usage signed by the provider of the offering.
+        self.service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
         self.secret_code = self.service_provider.api_secret_code
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
         self.plan = factories.PlanFactory(
@@ -141,6 +144,49 @@ class SubmitUsageTest(test.APITestCase):
     def test_invalid_signature(self):
         response = self.submit_usage(data="wrong_signature")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def _sign_as_another_provider(self, data=None, **extra):
+        other = (
+            getattr(self, "other_provider", None) or factories.ServiceProviderFactory()
+        )
+        payload = dict(
+            customer=other.customer.uuid.hex,
+            data=core_utils.encode_jwt_token(
+                data or self.get_usage_data(), other.api_secret_code
+            ),
+            **extra,
+        )
+        return self.client.post("/api/marketplace-public-api/set_usage/", payload)
+
+    def assert_refused_as_missing(self, response):
+        # Another provider's resource reads as missing: nothing about it is
+        # validated or described.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("does not exist", str(response.data))
+        self.assertFalse(
+            models.ComponentUsage.objects.filter(resource=self.resource).exists()
+        )
+
+    def test_another_provider_cannot_report_usage_on_the_resource(self):
+        self.assert_refused_as_missing(self._sign_as_another_provider())
+
+    def test_another_provider_is_refused_on_a_dry_run_too(self):
+        self.assert_refused_as_missing(self._sign_as_another_provider(dry_run=True))
+
+    def test_another_provider_cannot_name_the_resource_directly(self):
+        data = self.get_usage_data()
+        del data["plan_period"]
+        data["resource"] = self.resource.uuid.hex
+        self.assert_refused_as_missing(self._sign_as_another_provider(data=data))
+
+    def test_another_provider_cannot_pair_its_resource_with_this_plan_period(self):
+        self.other_provider = factories.ServiceProviderFactory()
+        own_resource = factories.ResourceFactory(
+            offering=factories.OfferingFactory(customer=self.other_provider.customer)
+        )
+        data = self.get_usage_data()
+        data["resource"] = own_resource.uuid.hex
+        self.assert_refused_as_missing(self._sign_as_another_provider(data=data))
 
     def test_create_usage(self):
         response = self.submit_usage()
