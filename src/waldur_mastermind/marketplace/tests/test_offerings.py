@@ -4147,6 +4147,35 @@ class ProviderOfferingOrdersTest(test.APITestCase):
             f"Response status code is {response.status_code}, expected 401 Unauthorized",
         )
 
+    def test_provider_organization_support_cannot_get_order_detail(self):
+        # Sees the offering, through a role on its organization, but is
+        # neither its manager nor an owner of the organization.
+        user = structure_factories.UserFactory()
+        self.offering.customer.add_user(user, CustomerRole.SUPPORT)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_customer_support_of_consumer_cannot_see_order_detail(self):
+        self.client.force_authenticate(self.fixture.customer_support)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_offering_manager_can_get_order_detail(self):
+        self.client.force_authenticate(self.fixture.offering_manager)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_access_subnets_are_limited_to_the_provider(self):
+        url = factories.OfferingFactory.get_url(self.offering, "access_subnets")
+        self.client.force_authenticate(self.fixture.customer_support)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(self.fixture.offering_manager)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
 
 class OfferingMoveTest(test.APITestCase):
     def setUp(self):

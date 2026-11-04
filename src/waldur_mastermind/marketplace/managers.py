@@ -27,6 +27,14 @@ class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
 
 
 class OfferingQuerySet(django_models.QuerySet):
+    # What filter_for_user leaves. Change the two together.
+    USER_VISIBILITY = (
+        "Offerings of organizations where the caller holds a role, of service "
+        "providers they hold a role on and of projects they hold a role in, and "
+        "offerings they hold a role on. Staff, support and holders of "
+        f"{PermissionEnum.LIST_OFFERINGS.value} site-wide see all."
+    )
+
     def filter_for_user(self, user):
         """Returns offerings related to user."""
 
@@ -119,6 +127,24 @@ class OfferingQuerySet(django_models.QuerySet):
         orderable offerings while resource-driven detail/retrieve keeps showing
         the rest."""
         return self.exclude(id__in=self._restricted_forbidden_ids(self, user))
+
+    # What filter_by_ordering_availability_for_user leaves. Change the two
+    # together.
+    ORDERING_AVAILABILITY = (
+        "Active and paused offerings: shared ones, and those of organizations, "
+        "projects and offerings where the caller holds a role that have an "
+        "unarchived plan with no organization groups or one of the caller's. In "
+        "the "
+        "hide_inaccessible and require_membership modes of "
+        "RESTRICTED_OFFERING_VISIBILITY_MODE a shared offering also needs such a "
+        "plan and no organization groups or one of the caller's, and "
+        "require_membership shows nothing to a caller without a role. An offering "
+        "restricted to some roles is hidden from a caller holding none of them, "
+        "unless they already have a resource of it in a project where they hold "
+        "a role. Anonymous callers see the shared offerings, while "
+        "ANONYMOUS_USER_CAN_VIEW_OFFERINGS is on; staff and support see the "
+        "shared offerings and every offering with an unarchived plan."
+    )
 
     def filter_by_ordering_availability_for_user(self, user):
         """Returns offerings available to the user to create an order"""
@@ -563,6 +589,13 @@ def get_connected_provider_customers_by_permission(user, permission):
         Q(id__in=get_scope_ids(user, customer_ct, permission=permission))
         | Q(serviceprovider__in=get_scope_ids(user, provider_ct, permission=permission))
     ).values_list("id", flat=True)
+
+
+# What filter_offering_permissions leaves. Change the two together.
+OFFERING_PERMISSIONS_VISIBILITY = (
+    "offering manager roles held by the caller, and those on offerings of "
+    "organizations where the caller holds a role. Staff and support see all."
+)
 
 
 def filter_offering_permissions(user, is_active=True):

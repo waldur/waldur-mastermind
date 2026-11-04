@@ -2204,6 +2204,14 @@ class CategoryGroupSerializer(
         }
 
 
+# Who OfferingGroupSerializer.validate lets create a group. Change the two
+# together.
+OFFERING_GROUP_CREATE_ACCESS = access.custom(
+    f"Staff, or who holds {PermissionEnum.CREATE_OFFERING.value} on the "
+    "organization named in the request or on its service provider."
+)
+
+
 class OfferingGroupSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -3325,6 +3333,14 @@ class BaseProviderPlanSerializer(BasePlanSerializer):
         view_name = "marketplace-plan-detail"
 
 
+# Who ProviderPlanDetailsSerializer.validate lets create a plan. Change the two
+# together.
+PLAN_CREATE_ACCESS = access.custom(
+    f"Staff, or who holds {PermissionEnum.CREATE_OFFERING_PLAN.value} on the "
+    "organization of the offering named in the request."
+)
+
+
 class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
     """Serializer to display the provider's plan in the REST API."""
 
@@ -3435,6 +3451,14 @@ class NestedOfferingFileSerializer(serializers.ModelSerializer):
         )
 
 
+# Who ScreenshotSerializer.validate lets add a screenshot. Change the two
+# together.
+SCREENSHOT_CREATE_ACCESS = access.custom(
+    f"Staff, or who holds {PermissionEnum.CREATE_OFFERING_SCREENSHOT.value} on "
+    "the organization of the offering named in the request."
+)
+
+
 class ScreenshotSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -3465,17 +3489,11 @@ class ScreenshotSerializer(
     )
 
     def validate(self, attrs):
-        if self.instance:
-            permission = PermissionEnum.UPDATE_OFFERING_SCREENSHOT
-            customer = self.instance.offering.customer
-        else:
-            permission = PermissionEnum.CREATE_OFFERING_SCREENSHOT
-            customer = attrs["offering"].customer
-
-        if not has_permission(
+        # An update is checked by ScreenshotViewSet.update_permissions.
+        if not self.instance and not has_permission(
             self.context["request"],
-            permission,
-            customer,
+            PermissionEnum.CREATE_OFFERING_SCREENSHOT,
+            attrs["offering"].customer,
         ):
             raise PermissionDenied()
         return attrs
@@ -6013,6 +6031,14 @@ def create_plan(offering, plan_data):
             component=component,
         )
     return plan
+
+
+# Who OfferingCreateSerializer.validate lets create an offering. Change the two
+# together.
+OFFERING_CREATE_ACCESS = access.custom(
+    f"Staff, or who holds {PermissionEnum.CREATE_OFFERING.value} on the "
+    "organization named in the request."
+)
 
 
 class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
@@ -8573,6 +8599,15 @@ class ResourceSuggestNameSerializer(serializers.ModelSerializer):
             "offering"
         ].queryset.filter_by_ordering_availability_for_user(user)
         return fields
+
+
+# Who OfferingAccessSubnetSerializer.validate lets add a default subnet. Change
+# the two together.
+OFFERING_ACCESS_SUBNET_CREATE_ACCESS = access.custom(
+    f"Staff, or who holds {PermissionEnum.CREATE_OFFERING_ACCESS_SUBNET.value} "
+    "on the offering named in the request, its organization or that "
+    "organization's service provider."
+)
 
 
 class OfferingAccessSubnetSerializer(
@@ -16783,6 +16818,12 @@ class UserConsentInfoSerializer(serializers.Serializer):
     version = serializers.CharField(read_only=True)
     agreement_date = serializers.DateTimeField(read_only=True)
     is_revoked = serializers.BooleanField(read_only=True)
+
+
+# Whom UserOfferingConsentCreateSerializer.create records a consent for.
+CONSENT_CREATE_ACCESS = access.owned(
+    "A consent of the caller's own, to the offering named in the request."
+)
 
 
 class UserOfferingConsentCreateSerializer(serializers.Serializer):

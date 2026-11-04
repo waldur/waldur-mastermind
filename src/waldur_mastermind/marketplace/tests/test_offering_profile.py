@@ -12,9 +12,12 @@ from django.test import override_settings
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import Role, RoleAvailability, UserRole
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -197,6 +200,27 @@ class OfferingProfileViewSetTest(test.APITestCase):
             response.status_code,
             (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
         )
+
+    def test_regular_user_cannot_change_or_delete_profile(self):
+        self.client.force_authenticate(self.regular)
+        response = self.client.patch(_profile_url(self.profile), {"name": "other"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.delete(_profile_url(self.profile))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.name, "rancher")
+
+    def test_staff_can_change_and_delete_profile(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(_profile_url(self.profile), {"name": "other"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.delete(_profile_url(self.profile))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_regular_user_can_list_profiles(self):
+        self.client.force_authenticate(self.regular)
+        response = self.client.get(_profile_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
@@ -460,3 +484,70 @@ class OfferingProfileBindingIsStaffOnlyTest(test.APITestCase):
         )
         offering.refresh_from_db()
         self.assertIsNone(offering.profile_id)
+
+
+class OfferingRoleWritePermissionTest(test.APITestCase):
+    """Changing or deleting an offering role takes OFFERING.UPDATE on the
+    organization of every offering the role is available on."""
+
+    def setUp(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = marketplace_factories.OfferingFactory(
+            customer=self.fixture.customer
+        )
+        self.role = Role.objects.create(
+            name="cluster_admin",
+            content_type=ContentType.objects.get_for_model(models.Resource),
+            is_system_role=False,
+        )
+        RoleAvailability.objects.create(
+            role=self.role,
+            content_type=ContentType.objects.get_for_model(models.Offering),
+            object_id=self.offering.id,
+        )
+        self.url = "http://testserver" + reverse(
+            "marketplace-offering-role-detail", kwargs={"uuid": self.role.uuid.hex}
+        )
+        self.outsider = structure_fixtures.CustomerFixture().owner
+
+    def test_owner_of_the_offerings_organization_can_change_and_delete(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, {"description": "new"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_owner_of_another_organization_cannot_change_or_delete(self):
+        self.client.force_authenticate(self.outsider)
+        response = self.client.patch(self.url, {"description": "new"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Role.objects.filter(pk=self.role.pk).exists())
+
+    def test_role_whose_offerings_are_gone_is_changed_by_staff_alone(self):
+        # RoleAvailability is a generic relation: deleting the offering leaves
+        # it pointing at nothing.
+        self.offering.delete()
+        self.client.force_authenticate(self.outsider)
+        response = self.client.patch(self.url, {"description": "new"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Role.objects.filter(pk=self.role.pk).exists())
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"description": "new"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_role_on_another_offering_needs_that_organization_too(self):
+        other_offering = marketplace_factories.OfferingFactory()
+        RoleAvailability.objects.create(
+            role=self.role,
+            content_type=ContentType.objects.get_for_model(models.Offering),
+            object_id=other_offering.id,
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

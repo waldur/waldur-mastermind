@@ -199,7 +199,9 @@ from waldur_mastermind.marketplace.enums import (
     normalize_offering_type,
 )
 from waldur_mastermind.marketplace.managers import (
+    OFFERING_PERMISSIONS_VISIBILITY,
     ORDERS_VISIBLE_TO_USER,
+    OfferingQuerySet,
     ResourceQuerySet,
     filter_offering_permissions,
     filter_orders_for_user,
@@ -583,6 +585,15 @@ class PublicViewsetMixin:
             return [rf_permissions.AllowAny()]
         else:
             return super().get_permissions()
+
+
+# Who PublicViewsetMixin lets call its public_actions. Change the two together.
+PUBLIC_CATALOG_ACCESS = access.any_of(
+    access.authenticated(),
+    access.custom(
+        "Anonymous callers too, while ANONYMOUS_USER_CAN_VIEW_OFFERINGS is on."
+    ),
+)
 
 
 class ConnectedOfferingDetailsMixin:
@@ -2259,6 +2270,11 @@ class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsView
         destroy_permissions
     ) = [structure_permissions.is_staff]
 
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -2296,6 +2312,11 @@ class CategoryColumnsViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
     ) = [structure_permissions.is_staff]
+
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
 
 
 @extend_schema_view(
@@ -2335,6 +2356,11 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
         destroy_permissions
     ) = [structure_permissions.is_staff]
 
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
+
 
 class OfferingGroupViewSet(core_views.ActionsViewSet):
     """Manage logical groups of offerings within a service provider.
@@ -2367,6 +2393,8 @@ class OfferingGroupViewSet(core_views.ActionsViewSet):
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
+
+    access_declarations = {"create": [serializers.OFFERING_GROUP_CREATE_ACCESS]}
 
 
 def posix_id_pool_is_offering_scoped(pool: models.PosixIdPool):
@@ -2608,10 +2636,25 @@ class TagViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
         marketplace_permissions.can_manage_tag
     ]
 
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
+
 
 # State transition validators and permissions will be handled by individual methods
 
 
+@access.describes(
+    access.permission(
+        PermissionEnum.UPDATE_OFFERING, ["*", "customer", "customer.serviceprovider"]
+    ),
+    access.custom(
+        "While ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT is off, only staff may "
+        "change an offering that is not a draft."
+    ),
+    needs_object=True,
+)
 def can_update_offering(request, view, obj: models.Offering | None = None):
     offering = obj
 
@@ -2805,6 +2848,14 @@ def _import_lookup(model, data, key, path):
     return _import_value(model._meta.get_field(key), value, f"{path}.{key}")
 
 
+# Who may call a ProviderOfferingViewSet read action guarded only by its
+# lookup: OfferingCustomersFilterBackend narrows it. Change the two together.
+OFFERING_SEEN_ACCESS = access.custom(
+    "Anyone the provider offering list shows the offering to, with no further "
+    "check. It shows: " + OfferingQuerySet.USER_VISIBILITY
+)
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List provider offerings",
@@ -2863,6 +2914,25 @@ class ProviderOfferingViewSet(
         filters.OfferingImportableFilterBackend,
         filters.ExternalOfferingFilterBackend,
     )
+
+    # Read actions that look the offering up as retrieve does and return what
+    # belongs to it. effective_posix_id_pool is not one: the pool it returns
+    # may be the service provider's, and it is declared below.
+    access_filtered_actions = ("tos_stats",)
+
+    access_declarations = {
+        "create": [serializers.OFFERING_CREATE_ACCESS],
+        "aggregated_access_subnets": [
+            marketplace_permissions.OFFERINGS_PROVIDER_ACCESS
+        ],
+        "list_customer_service_accounts": [OFFERING_SEEN_ACCESS],
+        "list_project_service_accounts": [OFFERING_SEEN_ACCESS],
+        "list_course_accounts": [OFFERING_SEEN_ACCESS],
+        "user_has_resource_access": [OFFERING_SEEN_ACCESS],
+        # Looks the offering up as retrieve does; the pool it returns may be
+        # the service provider's default.
+        "effective_posix_id_pool": [OFFERING_SEEN_ACCESS],
+    }
 
     def _check_extra_field_needed(self, field_name):
         # The annotations below are expensive subqueries, so they are added only
@@ -3070,7 +3140,6 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["get"], filter_backends=[])
     def access_subnets(self, request, uuid=None):
         offering: models.Offering = self.get_object()
-        marketplace_permissions.ensure_offering_provider_access(request.user, offering)
         subnets = (
             models.AccessSubnetOfferingScope.objects.filter(offering=offering)
             .exclude(access_subnet__inet__isnull=True)
@@ -3220,7 +3289,6 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["get"], filter_backends=[])
     def orders(self, request, uuid=None):
         offering: models.Offering = self.get_object()
-        marketplace_permissions.ensure_offering_provider_access(request.user, offering)
         queryset = models.Order.objects.filter(offering=offering)
         filterset = filters.OrderFilter(request.query_params, queryset=queryset)
         queryset = filterset.qs
@@ -3238,7 +3306,6 @@ class ProviderOfferingViewSet(
     )
     def order_detail(self, request, uuid=None, order_uuid=None):
         offering: models.Offering = self.get_object()
-        marketplace_permissions.ensure_offering_provider_access(request.user, offering)
         try:
             order = models.Order.objects.get(offering=offering, uuid=order_uuid)
         except models.Order.DoesNotExist:
@@ -3249,6 +3316,10 @@ class ProviderOfferingViewSet(
             order, context=self.get_serializer_context()
         )
         return Response(serializer.data)
+
+    access_subnets_permissions = orders_permissions = order_detail_permissions = [
+        marketplace_permissions.is_offering_provider
+    ]
 
     @extend_schema(
         summary="Pause an offering",
@@ -3702,12 +3773,6 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["post"])
     def set_profile(self, request, uuid=None):
         offering = self.get_object()
-        if not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING, offering.customer
-        ):
-            raise rf_exceptions.PermissionDenied(
-                "You do not have permission to bind a service profile to this offering."
-            )
         ser = serializers.OfferingProfileBindSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         profile_uuid = ser.validated_data.get("profile")
@@ -3727,6 +3792,9 @@ class ProviderOfferingViewSet(
         )
 
     set_profile_serializer_class = serializers.OfferingProfileBindSerializer
+    set_profile_permissions = [
+        permission_factory(PermissionEnum.UPDATE_OFFERING, ["customer"])
+    ]
 
     @extend_schema(
         summary="Assign or clear the offering group",
@@ -6885,6 +6953,11 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.OfferingFilter
     permission_classes = []
 
+    # Read actions that look the offering up as retrieve does; they show only
+    # the plans the caller may order.
+    access_filtered_actions = ("plans", "plan_detail")
+
+    @access.shows(OfferingQuerySet.ORDERING_AVAILABILITY)
     def get_queryset(self):
         user = self.request.user
         queryset = proposal_managers.annotate_offerings_open_for_proposals(
@@ -7357,21 +7430,49 @@ class OfferingRoleViewSet(core_views.ActionsViewSet):
         offering_ct = ContentType.objects.get_for_model(models.Offering)
         return qs.filter(availability__content_type=offering_ct).distinct()
 
-    def _check_update_permission(self, instance):
+    @access.describes(
+        access.custom(
+            f"Staff, or who holds {PermissionEnum.UPDATE_OFFERING.value} on the "
+            "organization of every offering the role is available on; staff "
+            "alone for a role available on no existing offering."
+        ),
+        needs_object=True,
+    )
+    @staticmethod
+    def can_change_role(request, view, obj=None):
+        if obj is None:
+            return
         offering_ct = ContentType.objects.get_for_model(models.Offering)
-        availabilities = instance.availability.filter(content_type=offering_ct)
-        offering_ids = list(availabilities.values_list("object_id", flat=True))
-        if not offering_ids:
-            if not has_staff_access(self.request):
+        availabilities = obj.availability.filter(content_type=offering_ct)
+        offering_ids = availabilities.values_list("object_id", flat=True)
+        # Availabilities are a generic relation: those of a deleted offering
+        # point at nothing, and must not leave the role open to everyone.
+        offerings = list(models.Offering.objects.filter(id__in=offering_ids))
+        if not offerings:
+            if not has_staff_access(request):
                 raise PermissionDenied()
             return
-        for offering in models.Offering.objects.filter(id__in=offering_ids):
+        for offering in offerings:
             if not has_permission(
-                self.request,
+                request,
                 PermissionEnum.UPDATE_OFFERING,
                 offering.customer,
             ):
                 raise PermissionDenied()
+
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        can_change_role
+    ]
+
+    # Checked by perform_create, which needs the offering named in the request.
+    access_declarations = {
+        "create": [
+            access.custom(
+                f"Staff, or who holds {PermissionEnum.UPDATE_OFFERING.value} on "
+                "the organization of the offering named in the request."
+            )
+        ],
+    }
 
     @staticmethod
     def _reject_if_profile_bound(offering, action: str):
@@ -7400,7 +7501,6 @@ class OfferingRoleViewSet(core_views.ActionsViewSet):
         )
 
     def perform_update(self, serializer):
-        self._check_update_permission(serializer.instance)
         offering_ct = ContentType.objects.get_for_model(models.Offering)
         for ra in serializer.instance.availability.filter(content_type=offering_ct):
             offering = models.Offering.objects.filter(id=ra.object_id).first()
@@ -7411,19 +7511,9 @@ class OfferingRoleViewSet(core_views.ActionsViewSet):
     def perform_destroy(self, instance):
         offering_ct = ContentType.objects.get_for_model(models.Offering)
         availabilities = instance.availability.filter(content_type=offering_ct)
-        if availabilities.exists():
-            offering_ids = availabilities.values_list("object_id", flat=True)
-            offerings = models.Offering.objects.filter(id__in=offering_ids)
-            for offering in offerings:
-                if not has_permission(
-                    self.request,
-                    PermissionEnum.UPDATE_OFFERING,
-                    offering.customer,
-                ):
-                    raise PermissionDenied()
-                self._reject_if_profile_bound(offering, "delete")
-        elif not has_staff_access(self.request):
-            raise PermissionDenied()
+        offering_ids = availabilities.values_list("object_id", flat=True)
+        for offering in models.Offering.objects.filter(id__in=offering_ids):
+            self._reject_if_profile_bound(offering, "delete")
         instance.delete()
 
 
@@ -7440,28 +7530,22 @@ class OfferingProfileViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.OfferingProfileSerializer
     lookup_field = "uuid"
 
-    def _check_staff(self):
-        if not has_staff_access(self.request):
-            raise PermissionDenied("Only staff can manage service profiles.")
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = add_role_permissions = remove_role_permissions = [
+        structure_permissions.is_staff
+    ]
 
-    def perform_create(self, serializer):
-        self._check_staff()
-        serializer.save()
-
-    def perform_update(self, serializer):
-        self._check_staff()
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        self._check_staff()
-        instance.delete()
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
     @extend_schema(
         responses={status.HTTP_200_OK: serializers.OfferingProfileSerializer}
     )
     @action(detail=True, methods=["post"])
     def add_role(self, request, uuid=None):
-        self._check_staff()
         profile = self.get_object()
         ser = serializers.OfferingProfileRoleAssignSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -7483,7 +7567,6 @@ class OfferingProfileViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def remove_role(self, request, uuid=None):
-        self._check_staff()
         profile = self.get_object()
         ser = serializers.OfferingProfileRoleAssignSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -7505,6 +7588,7 @@ class OfferingPermissionViewSet(rf_viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.OfferingPermissionSerializer
     filterset_class = filters.OfferingPermissionFilter
 
+    @access.shows(f"Active {OFFERING_PERMISSIONS_VISIBILITY}")
     def get_queryset(self):
         return filter_offering_permissions(self.request.user)
 
@@ -7513,6 +7597,7 @@ class OfferingPermissionLogViewSet(rf_viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.OfferingPermissionSerializer
     filterset_class = filters.OfferingPermissionFilter
 
+    @access.shows(f"Revoked {OFFERING_PERMISSIONS_VISIBILITY}")
     def get_queryset(self):
         return filter_offering_permissions(self.request.user, is_active=False)
 
@@ -7648,6 +7733,8 @@ class ProviderPlanViewSet(
 
     destroy_permissions = [structure_permissions.is_staff]
     update_validators = partial_update_validators = [validate_plan_update]
+
+    access_declarations = {"create": [serializers.PLAN_CREATE_ACCESS]}
 
     update_permissions = partial_update_permissions = [
         permission_factory(
@@ -7895,11 +7982,24 @@ class ScreenshotViewSet(
             ["offering.customer"],
         )
     ]
+    update_permissions = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_SCREENSHOT,
+            ["offering.customer"],
+        )
+    ]
+
+    access_declarations = {
+        "create": [serializers.SCREENSHOT_CREATE_ACCESS],
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
 
 class PluginViewSet(views.APIView):
     permission_classes = ()
     authentication_classes = ()
+    access_declarations = {"get": [access.public()]}
 
     @extend_schema(
         summary="List available marketplace plugins and their components",
@@ -9064,6 +9164,14 @@ class OfferingAccessSubnetViewSet(core_views.ActionsViewSet):
         )
     ]
 
+    access_declarations = {
+        "create": [serializers.OFFERING_ACCESS_SUBNET_CREATE_ACCESS],
+    }
+
+    @access.shows(
+        "Default subnets of offerings of organizations where the caller holds a "
+        "role, and of offerings they hold a role on. Staff and support see all."
+    )
     def get_queryset(self):
         user = self.request.user
         qs = super().get_queryset()
@@ -11619,6 +11727,16 @@ class ResourceOfferingsViewSet(ListAPIView):
     queryset = models.Offering.objects.all()  # used by OpenAPI introspector
     filterset_class = structure_filters.NameFilterSet
 
+    access_declarations = {
+        "get": [
+            access.custom(
+                "Any signed-in user. It lists the offerings of the category's "
+                "non-terminated resources that the caller sees as a consumer: "
+                + ResourceQuerySet.CONSUMER_VISIBILITY
+            )
+        ],
+    }
+
     def get_category(self):
         if "category_uuid" not in self.kwargs:
             raise rf_exceptions.ValidationError("Category UUID is required.")
@@ -11697,6 +11815,17 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
     serializer_class = serializers.RuntimeStatesSerializer
     filter_backends = []
     pagination_class = None
+
+    # What _get_runtime_state_scoped_resources counts. Change the two together.
+    access_declarations = {
+        "get": [
+            access.custom(
+                "Any signed-in user. It reads the non-terminated resources of "
+                "projects the caller can see; with offering_uuid, only that "
+                "offering's resources the caller sees as consumer or as provider."
+            )
+        ],
+    }
 
     @extend_schema(
         summary="List available runtime states for resources",
@@ -12301,6 +12430,15 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     permission_classes = ()
     serializer_class = serializers.ServiceProviderSignatureSerializer
 
+    access_declarations = {
+        "check_signature": [
+            access.custom(
+                "Anyone; the request data must be signed with the API secret "
+                "code of the service provider it names."
+            )
+        ],
+    }
+
     def get_validated_data(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -12340,6 +12478,17 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update"]
 
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
+
+    @access.describes(
+        access.custom(
+            "Staff, or an owner of the organization of the offering named in "
+            "the request."
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -13511,6 +13660,10 @@ class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet)
     filterset_class = filters.OfferingUserChecklistCompletionsFilter
     permission_classes = [rf_permissions.IsAuthenticated]
 
+    @access.shows(
+        "Checklist completions of the offering users that the offering user "
+        "list (/api/marketplace-offering-users/) shows the caller."
+    )
     def get_queryset(self):
         """
         Get all checklist completions for offering users that the current user is allowed to see.
@@ -17967,6 +18120,17 @@ class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
 
 
 class GlobalCategoriesViewSet(views.APIView):
+    # get counts what filter_for_service_consumer and filter_queryset_by_user_ip
+    # leave. Change the two together.
+    access_declarations = {
+        "get": [
+            access.custom(
+                "Any signed-in user. It counts the resources the caller may see "
+                "as a consumer: " + filters.CONSUMER_ACCESS_VISIBILITY
+            )
+        ],
+    }
+
     @extend_schema(
         summary="Get resource counts by category",
         description="""
@@ -19099,6 +19263,11 @@ class ProviderOfferingToSManagementViewset(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingTermsOfServiceFilter
 
+    @access.shows(
+        "Terms of service of offerings of organizations where the caller holds "
+        "a role and of offerings they hold an active consent to, and the active "
+        "terms of shared offerings. Staff and support see all."
+    )
     def get_queryset(self):
         """Filter queryset based on user permissions."""
         user = self.request.user
@@ -19114,6 +19283,12 @@ class ProviderOfferingToSManagementViewset(core_views.ActionsViewSet):
             | Q(is_active=True, offering__shared=True)
         )
 
+    @access.describes(
+        access.custom(
+            f"Staff, or who holds {PermissionEnum.UPDATE_OFFERING.value} on the "
+            "offering named in the request or on its organization."
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -19173,6 +19348,7 @@ class UserOfferingConsentViewSet(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.UserOfferingConsentFilter
 
+    @access.shows("The caller's own consents. Staff and support see all.")
     def get_queryset(self):
         """Filter queryset based on user permissions."""
         queryset = self.queryset.select_related(
@@ -19188,6 +19364,21 @@ class UserOfferingConsentViewSet(core_views.ActionsViewSet):
 
     create_serializer_class = serializers.UserOfferingConsentCreateSerializer
 
+    access_declarations = {"create": [serializers.CONSENT_CREATE_ACCESS]}
+
+    @access.describes(
+        access.any_of(access.staff(), access.owned("The consent's user.")),
+        needs_object=True,
+    )
+    @staticmethod
+    def is_consent_user_or_staff(request, view, obj=None):
+        if obj is not None and not (
+            has_staff_access(request) or obj.user == request.user
+        ):
+            raise PermissionDenied("You don't have permission to revoke this consent.")
+
+    revoke_permissions = [is_consent_user_or_staff]
+
     @extend_schema(
         summary="Revoke consent to Terms of Service",
         description="Revokes a user's consent to the Terms of Service for an offering. The consent record is marked with a revocation date, and the user may lose access to related resources if consent is required.",
@@ -19198,10 +19389,6 @@ class UserOfferingConsentViewSet(core_views.ActionsViewSet):
     def revoke(self, request, uuid=None):
         """Revoke consent to Terms of Service."""
         consent = self.get_object()
-
-        if not has_staff_access(request) and consent.user != request.user:
-            raise PermissionDenied("You don't have permission to revoke this consent.")
-
         consent.revoke()
         serializer = self.get_serializer(consent)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -19573,6 +19760,11 @@ class SoftwareCatalogViewSet(
     unsafe_methods_permissions = [structure_permissions.is_staff]
     # cpu_targets has the same visibility as catalog retrieve.
     public_actions = ("list", "retrieve", "cpu_targets")
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+        "cpu_targets": [PUBLIC_CATALOG_ACCESS],
+    }
 
     @extend_schema(
         summary="Discover available software catalog versions",
@@ -19785,6 +19977,10 @@ class SoftwarePackageViewSet(
     filterset_class = filters.SoftwarePackageFilter
 
     unsafe_methods_permissions = [structure_permissions.is_staff]
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
 
 
 @extend_schema_view(
@@ -19827,6 +20023,10 @@ class SoftwareVersionViewSet(
     filterset_class = filters.SoftwareVersionFilter
 
     unsafe_methods_permissions = [structure_permissions.is_staff]
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
 
 
 @extend_schema_view(
@@ -19867,6 +20067,10 @@ class SoftwareTargetViewSet(
     filterset_class = filters.SoftwareTargetFilter
 
     unsafe_methods_permissions = [structure_permissions.is_staff]
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
 
 
 class DemoPresetViewSet(rf_viewsets.GenericViewSet):

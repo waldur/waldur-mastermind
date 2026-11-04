@@ -23,6 +23,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.filters import (
@@ -71,6 +72,7 @@ from waldur_mastermind.marketplace.enums import (
     expand_offering_types,
 )
 from waldur_mastermind.marketplace.managers import (
+    OfferingQuerySet,
     ResourceQuerySet,
     get_connected_offerings,
     get_connected_provider_customers_by_permission,
@@ -568,6 +570,11 @@ class OfferingFilter(
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):
+    # Read by waldur_core.core.access: the docstring says what lists and
+    # retrieves show, as filter_for_user's own description.
+    __doc__ = OfferingQuerySet.USER_VISIBILITY
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         return queryset.filter_for_user(request.user)
 
@@ -3262,6 +3269,12 @@ class IntegrationStatusFilter(OfferingFilterMixin, django_filters.FilterSet):
 
 
 class ProviderPlanFilterBackend(BaseFilterBackend):
+    """Plans of offerings of organizations where the caller holds a role. Staff see all."""
+
+    # Read by waldur_core.core.access: the first paragraph of the docstring
+    # says what lists and retrieves show.
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         user = request.user
 
