@@ -814,13 +814,13 @@ class ResourceImpactTest(test.APITestCase):
         response = self.get(self.fixture.owner)
         self.assertEqual(response.status_code, 200, response.data)
 
-    def test_outsider_is_denied(self):
+    def test_outsider_is_not_told_the_organization_exists(self):
         other = fixtures.MarketplaceFixture()
         self.client.force_authenticate(other.owner)
         response = self.client.get(
             self.url(), {"customer_uuid": self.fixture.customer.uuid.hex}
         )
-        self.assertEqual(response.status_code, 403, response.data)
+        self.assertEqual(response.status_code, 404, response.data)
 
     def test_customer_uuid_is_required_and_validated(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -833,6 +833,135 @@ class ResourceImpactTest(test.APITestCase):
         self.resource.state = models.Resource.States.TERMINATED
         self.resource.save(update_fields=["state"])
         self.assertEqual(self.rows(), [])
+
+
+OUTSIDE_IP = "192.168.77.10"
+INSIDE_IP = "10.1.2.3"
+
+
+@ddt
+class ResourceImpactNetworkRulesTest(test.APITestCase):
+    """The impact report obeys the network rules every other endpoint applies.
+
+    An organization's portal networks decide whether its members reach it at
+    all, and an offering that conceals subnet-restricted resources hides them
+    from callers outside the resource's networks. The report names resources,
+    their projects and offerings, so it applies both, as the organization's own
+    detail and the consumer resource list do.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.offering.plugin_options = {
+            "enable_resource_access_subnets": True,
+            "conceal_subnet_restricted_resources": True,
+        }
+        self.fixture.offering.save()
+        self.resource = self.fixture.resource
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
+
+    def impact(self, user, ip):
+        self.client.force_authenticate(user)
+        return self.client.get(
+            reverse("access-subnets-resource-impact"),
+            {"customer_uuid": self.fixture.customer.uuid.hex},
+            HTTP_X_FORWARDED_FOR=ip,
+        )
+
+    def impact_uuids(self, user, ip):
+        response = self.impact(user, ip)
+        self.assertEqual(response.status_code, 200, response.data)
+        return [row["resource_uuid"] for row in response.data["resources"]]
+
+    def customer_status(self, user, ip):
+        self.client.force_authenticate(user)
+        url = structure_factories.CustomerFactory.get_url(self.fixture.customer)
+        return self.client.get(url, HTTP_X_FORWARDED_FOR=ip).status_code
+
+    def resource_list_uuids(self, user, ip):
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            reverse("marketplace-resource-list"), HTTP_X_FORWARDED_FOR=ip
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        return [item["uuid"] for item in response.data]
+
+    def restrict_portal(self):
+        _create_subnet(self.fixture, inet="10.0.0.0/8", applies_to_portal=True)
+
+    def restrict_offering(self):
+        _create_subnet(
+            self.fixture, inet="10.0.0.0/8", offerings=[self.fixture.offering]
+        )
+
+    def test_owner_outside_portal_networks_is_refused_as_by_organization_detail(self):
+        self.restrict_portal()
+        owner = self.fixture.owner
+        self.assertEqual(self.customer_status(owner, OUTSIDE_IP), 404)
+        response = self.impact(owner, OUTSIDE_IP)
+        self.assertEqual(response.status_code, 404, response.data)
+
+    def test_owner_inside_portal_networks_sees_the_impact(self):
+        self.restrict_portal()
+        self.assertEqual(
+            self.impact_uuids(self.fixture.owner, INSIDE_IP), [self.resource.uuid.hex]
+        )
+
+    def test_resource_concealed_from_the_caller_is_not_reported(self):
+        # The organization has no portal networks, so the owner reaches it from
+        # anywhere; the offering's networks still hide the resource.
+        self.restrict_offering()
+        owner = self.fixture.owner
+        self.assertEqual(self.customer_status(owner, OUTSIDE_IP), 200)
+        self.assertNotIn(
+            self.resource.uuid.hex, self.resource_list_uuids(owner, OUTSIDE_IP)
+        )
+        self.assertEqual(self.impact_uuids(owner, OUTSIDE_IP), [])
+
+    def test_resource_is_reported_from_within_its_networks(self):
+        self.restrict_offering()
+        self.assertEqual(
+            self.impact_uuids(self.fixture.owner, INSIDE_IP), [self.resource.uuid.hex]
+        )
+
+    def test_advisory_networks_do_not_hide_the_resource(self):
+        # Without concealment the list only advises; the resource stays listed.
+        self.fixture.offering.plugin_options = {"enable_resource_access_subnets": True}
+        self.fixture.offering.save()
+        self.restrict_offering()
+        self.assertEqual(
+            self.impact_uuids(self.fixture.owner, OUTSIDE_IP), [self.resource.uuid.hex]
+        )
+
+    @data("staff", "global_support")
+    def test_staff_and_support_see_everything_from_anywhere(self, role):
+        # One entry restricting both the portal and the offering's resources.
+        _create_subnet(
+            self.fixture,
+            inet="10.0.0.0/8",
+            applies_to_portal=True,
+            offerings=[self.fixture.offering],
+        )
+        self.assertEqual(
+            self.impact_uuids(getattr(self.fixture, role), OUTSIDE_IP),
+            [self.resource.uuid.hex],
+        )
+
+    @data("admin", "manager", "member", "user")
+    def test_callers_without_an_organization_role_are_not_told_it_exists(self, role):
+        # Inside the networks as outside them, so the answer says nothing
+        # about where the networks are.
+        self.restrict_portal()
+        response = self.impact(getattr(self.fixture, role), INSIDE_IP)
+        self.assertEqual(response.status_code, 404, response.data)
+
+    @data("admin", "manager", "member", "user")
+    def test_callers_without_an_organization_role_outside_its_networks(self, role):
+        # Outside the networks the organization is not found, for them as for
+        # its owner.
+        self.restrict_portal()
+        response = self.impact(getattr(self.fixture, role), OUTSIDE_IP)
+        self.assertEqual(response.status_code, 404, response.data)
 
 
 class AccessSubnetOrderingTest(test.APITestCase):
