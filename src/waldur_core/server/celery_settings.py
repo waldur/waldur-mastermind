@@ -324,6 +324,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(minutes=15),
         "args": (),
     },
+    # Delete browser event consumers whose queue has had no reader for
+    # EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS (tabs closed without logging out)
+    "delete-idle-ephemeral-event-consumers": {
+        "task": "waldur_core.logging.delete_idle_ephemeral_event_consumers",
+        "schedule": timedelta(hours=1),
+        "args": (),
+    },
     # Cleanup site agent logs - enforce row count limit per agent identity
     "cleanup-site-agent-logs": {
         "task": "waldur_mastermind.marketplace_site_agent.cleanup_site_agent_logs",

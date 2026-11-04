@@ -414,6 +414,27 @@ class EventConsumer(UuidMixin, TimeStampedModel):
     last_delivered_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True, default="")
     last_error_at = models.DateTimeField(null=True, blank=True)
+    # A browser tab's consumer: it lives only as long as someone reads it. The
+    # UI cannot deregister a tab that is closed rather than logged out of, so
+    # the sweep (``delete_idle_ephemeral_event_consumers``) removes an
+    # ephemeral consumer once its queue has gone unread for long enough.
+    # Integrations never set it, so a long-offline integration keeps its queue.
+    ephemeral = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Registered by a short-lived client (a browser tab). Deleted "
+            "automatically once its queue has had no reader for "
+            "EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS."
+        ),
+    )
+    unread_since = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "When the sweep first saw this ephemeral consumer's queue without a "
+            "reader. Cleared when a reader returns or the client re-registers."
+        ),
+    )
     # How and by what right the consumer was registered. Refreshed on EVERY
     # (re-)registration: these describe the credential the queue currently runs
     # on, not the one it was first created with. Blank on rows that predate the

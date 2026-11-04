@@ -5,14 +5,18 @@ from datetime import timedelta
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from waldur_core.configuration import config
-from waldur_core.core.models import User
+from waldur_core.core import utils as core_utils
+from waldur_core.core.auth_utils import AUTH_METHOD_OIDC
+from waldur_core.core.models import PersonalAccessToken, User
 from waldur_core.logging import backend, models, utils
 from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
 from waldur_core.logging.event_logger import get_event_groups
+from waldur_core.logging.exceptions import RabbitMQError
 from waldur_core.logging.models import BaseHook, Event, Feed, UserDataAccessLog
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
@@ -376,6 +380,201 @@ def cleanup_orphan_subscription_queues() -> None:
 
     if deleted_count:
         logger.info("Cleaned up %d orphan subscription queues", deleted_count)
+
+
+# The idle threshold is never below an hour: 0 or a negative setting would
+# otherwise delete a consumer after a single unread sample.
+MIN_EPHEMERAL_IDLE_HOURS = 1
+
+
+def _has_active_credential(user: User) -> bool:
+    """An active user holding a live DRF token or a live Personal Access Token."""
+    if not user.is_active:
+        return False
+    if get_active_tokens().filter(user_id=user.pk).exists():
+        return True
+    return PersonalAccessToken.objects.filter(
+        user_id=user.pk, is_active=True, expires_at__gt=timezone.now()
+    ).exists()
+
+
+def _owner_signed_out(consumer: models.EventConsumer) -> bool:
+    """Whether the owner can no longer be using this consumer.
+
+    A deactivated owner always counts. Otherwise the owner's credentials only
+    tell us something when the consumer runs on them: one registered over OIDC
+    gets a DRF token at registration that is never refreshed afterwards, so it
+    expires while the user is still active. Such a consumer is judged by its
+    queue's readers alone.
+    """
+    user = consumer.user
+    if not user.is_active:
+        return True
+    if consumer.auth_kind == AUTH_METHOD_OIDC:
+        return False
+    return not _has_active_credential(user)
+
+
+def _tear_down_consumer_broker_state(
+    rmq_backend: backend.RabbitMQManagementBackend,
+    consumer: models.EventConsumer,
+) -> bool:
+    """Remove the consumer's queue and RabbitMQ user; False if either failed.
+
+    Done before the row is deleted, rather than left to the pre_delete handler,
+    which only logs a failure: a row deleted while RabbitMQ is unreachable
+    would leave a queue and a user holding permissions on the vhost behind, and
+    nothing reclaims the user. A missing queue or user counts as removed.
+    """
+    if not consumer.queue_created or not consumer.rmq_username:
+        return True
+    try:
+        rmq_backend.delete_queue(consumer.vhost, consumer.queue_name)
+    except RabbitMQError:
+        return False
+    return rmq_backend.delete_rabbitmq_user(consumer.rmq_username)
+
+
+def _delete_ephemeral_consumer(
+    rmq_backend: backend.RabbitMQManagementBackend,
+    consumer_id: int,
+    user_id: int,
+    signed_out: bool = False,
+    **conditions,
+) -> bool:
+    """Delete an ephemeral consumer if it still meets ``conditions``.
+
+    Takes the same per-user lock as registration and re-reads the row, so a tab
+    re-registering at this moment (which clears ``unread_since``) either wins
+    and keeps its consumer, or registers afresh after the delete. With
+    ``signed_out`` the owner's credentials are re-checked under the lock too: a
+    user who logged in since the sweep looked keeps the consumer their
+    registration just returned.
+
+    The broker state goes first. If RabbitMQ refuses, the row is kept, so the
+    next run retries instead of losing track of the queue and the user.
+    """
+    with transaction.atomic():
+        utils.lock_user_registration(user_id)
+        consumer = (
+            models.EventConsumer.objects.select_for_update(of=("self",))
+            .select_related("user")
+            .filter(pk=consumer_id, ephemeral=True, **conditions)
+            .first()
+        )
+        if consumer is None:
+            return False
+        if signed_out and not _owner_signed_out(consumer):
+            return False
+        if not _tear_down_consumer_broker_state(rmq_backend, consumer):
+            logger.warning(
+                "Keeping ephemeral event consumer %s: RabbitMQ did not remove "
+                "its queue or user; the next run retries",
+                consumer,
+            )
+            return False
+        # Already torn down: make the pre_delete handler a no-op.
+        consumer.queue_created = False
+        consumer.rmq_username = ""
+        consumer.delete()
+    logger.info("Deleted ephemeral event consumer %s", consumer)
+    return True
+
+
+def _sweep_ephemeral_consumer(
+    rmq_backend: backend.RabbitMQManagementBackend,
+    consumer: models.EventConsumer,
+    readers: dict[tuple[str, str], int],
+    now,
+    cutoff,
+) -> bool:
+    if _owner_signed_out(consumer):
+        return _delete_ephemeral_consumer(
+            rmq_backend, consumer.pk, consumer.user_id, signed_out=True
+        )
+    if readers.get((consumer.vhost, consumer.queue_name), 0) > 0:
+        if consumer.unread_since is not None:
+            models.EventConsumer.objects.filter(pk=consumer.pk).update(
+                unread_since=None
+            )
+        return False
+    if consumer.unread_since is None:
+        # Conditional, so a re-registration that just cleared the clock is not
+        # overwritten by a stale read.
+        models.EventConsumer.objects.filter(
+            pk=consumer.pk, unread_since__isnull=True
+        ).update(unread_since=now)
+        return False
+    if consumer.unread_since <= cutoff:
+        return _delete_ephemeral_consumer(
+            rmq_backend, consumer.pk, consumer.user_id, unread_since__lte=cutoff
+        )
+    return False
+
+
+@shared_task(name="waldur_core.logging.delete_idle_ephemeral_event_consumers")
+def delete_idle_ephemeral_event_consumers() -> None:
+    """Delete ephemeral (browser) event consumers nobody reads any more.
+
+    The realtime UI registers an ephemeral consumer per tab and deletes it on
+    explicit logout. A tab that is closed, or whose session simply ends, leaves
+    the consumer behind, and its queue keeps receiving every event for its
+    bindings. The owner's DRF token usually stays valid after a tab closes, so
+    the token-based sweeps do not catch this case.
+
+    - Owner deactivated, or without an active DRF token or PAT (OIDC-registered
+      consumers excepted, see ``_owner_signed_out``): deleted at once.
+    - Queue with a reader: ``unread_since`` is cleared.
+    - Queue without a reader, or missing: ``unread_since`` is stamped on the
+      first run that sees it, and the consumer is deleted once that is older
+      than ``EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS`` (at least one hour).
+
+    Readers are sampled once per run (hourly), so a consumer goes up to an hour
+    past the threshold before it is deleted. The whole broker is read in one
+    request first; if that fails, nothing is deleted this run: an unreadable
+    broker is not evidence of an unread queue, and a row must not be deleted
+    while its queue and RabbitMQ user cannot be removed.
+    """
+    now = timezone.now()
+    idle_hours = max(
+        MIN_EPHEMERAL_IDLE_HOURS, config.EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS
+    )
+    cutoff = now - timedelta(hours=idle_hours)
+    rmq_backend = backend.RabbitMQManagementBackend()
+
+    try:
+        readers = rmq_backend.list_queue_readers()
+    except RabbitMQError as exc:
+        logger.warning(
+            "Skipping the ephemeral event consumer sweep: unable to list "
+            "RabbitMQ queues: %s",
+            exc,
+        )
+        return
+
+    candidates = (
+        models.EventConsumer.objects.filter(
+            ephemeral=True,
+            delivery=models.EventConsumer.Delivery.RMQ,
+            agent_identity__isnull=True,
+        )
+        .select_related("user")
+        .order_by("pk")
+    )
+    deleted = 0
+    # Client-side chunks: RabbitMQ calls and writes happen between fetches,
+    # which a server-side cursor would not survive behind a pooler.
+    for consumer in core_utils.chunked_queryset(candidates):
+        try:
+            deleted += _sweep_ephemeral_consumer(
+                rmq_backend, consumer, readers, now, cutoff
+            )
+        except Exception:
+            # One bad row must not stop the sweep for everyone after it.
+            logger.exception("Failed to sweep ephemeral event consumer %s", consumer)
+
+    if deleted:
+        logger.info("Deleted %d ephemeral event consumers", deleted)
 
 
 @shared_task(name="waldur_core.logging.log_user_data_access")
