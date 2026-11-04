@@ -1,3 +1,4 @@
+from waldur_firecrest import workspace
 from waldur_mastermind.chat.tools.enums import ToolName
 
 # Tools grouped by category — mirrors the subfolder layout under tools/.
@@ -132,7 +133,9 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
 
     ``None`` and AnonymousUser both map to ``ANONYMOUS_TOOLS`` — the
     marketplace-discovery surface. Authenticated callers split by role:
-    staff / support / end-user.
+    staff / support / end-user. The HPC tools are left out where staff
+    have allowed no FirecREST or cluster monitor endpoint, since no
+    allocation can then be reached.
 
     Always returns a non-empty list — never ``None`` — so callers can
     treat the result as "the authoritative permitted set" without
@@ -146,7 +149,8 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
         tools = SUPPORT_TOOLS
     else:
         tools = END_USER_TOOLS
-    if delegated:
+    # The HPC tools act as the user's own sign-in, and need an endpoint.
+    if delegated or not workspace.is_configured():
         return [tool for tool in tools if tool not in _OWN_SIGN_IN_TOOLS]
     return tools
 

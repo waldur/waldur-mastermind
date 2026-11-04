@@ -79,6 +79,13 @@ class _LLMStreamerTestBase:
         )
         self.mock_config = config_patcher.start()
         self.addCleanup(config_patcher.stop)
+        # The full role tool sets: whether an HPC endpoint is allowed is
+        # read from the database, which these tests do not use.
+        hpc_patcher = patch(
+            "waldur_firecrest.workspace.is_configured", return_value=True
+        )
+        hpc_patcher.start()
+        self.addCleanup(hpc_patcher.stop)
 
     def _make_streamer(self, chunks, messages=None, user=None, enabled_tools=None):
         streamer = LLMStreamer(

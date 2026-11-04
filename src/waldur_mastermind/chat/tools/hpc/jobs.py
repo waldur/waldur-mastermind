@@ -2,6 +2,7 @@
 
 from waldur_firecrest import scripts
 from waldur_firecrest.serializers import TIME_WINDOW_CHOICES, HpcJobSpecSerializer
+from waldur_firecrest.workspace import is_job_id
 from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS, BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.hpc.helpers import (
@@ -77,6 +78,8 @@ class PlanHpcJobTool(BaseTool):
             return error
 
         def action(workspace):
+            # Not planned where it cannot be submitted.
+            workspace.require_firecrest()
             validation = workspace.validate(spec)
             script = scripts.build_script(spec, workspace.account)
             card = job_card(
@@ -164,7 +167,9 @@ class ListHpcJobsTool(BaseTool):
             category=ToolCategory.HPC,
             description=(
                 "List the jobs of an allocation: pending and running jobs, plus "
-                "finished ones within the time window."
+                "finished ones within the time window. With only a cluster "
+                "monitor (can_run_jobs false) a job is listed once it has "
+                "started running: pending jobs are not."
             ),
             inputSchema={
                 "type": "object",
@@ -220,7 +225,9 @@ class GetHpcJobTool(BaseTool):
             category=ToolCategory.HPC,
             description=(
                 "Details of one job: state, exit code, timing, the batch script and the "
-                "last lines of its standard output and error."
+                "last lines of its standard output and error. The script and output "
+                "are read through FirecREST: with only a cluster monitor "
+                "(can_run_jobs false) the job comes without them."
             ),
             inputSchema={
                 "type": "object",
@@ -236,10 +243,19 @@ class GetHpcJobTool(BaseTool):
 
     def execute(self, user, arguments: dict) -> dict:
         job_id = str(arguments.get("job_id") or "").strip()
-        if not job_id.isdigit():
+        if not is_job_id(job_id):
             return {"type": "validation_error", "summary": "job_id must be numeric."}
 
         def action(workspace):
+            if not workspace.has_firecrest:
+                # The cluster monitor has the job, not the files it wrote.
+                job = workspace.get_job(job_id)
+                return {
+                    "type": "success",
+                    "summary": f"Job {job_id} is {job['status']['state']}. Its batch "
+                    "script and output cannot be read without FirecREST.",
+                    "data": {"job": job_summary(job)},
+                }
             output = workspace.job_output(job_id, lines=OUTPUT_LINES)
             return {
                 "type": "success",
@@ -275,7 +291,7 @@ class CancelHpcJobTool(BaseTool):
 
     def execute(self, user, arguments: dict) -> dict:
         job_id = str(arguments.get("job_id") or "").strip()
-        if not job_id.isdigit():
+        if not is_job_id(job_id):
             return {"type": "validation_error", "summary": "job_id must be numeric."}
 
         def action(workspace):

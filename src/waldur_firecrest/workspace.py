@@ -7,6 +7,11 @@ cluster as the user. Every job operation is scoped to the allocation's
 account, so a workspace never shows or touches the user's jobs under other
 allocations.
 
+An offering connected only to a cluster monitor (slurm-monitor) gets a
+read-only workspace: its jobs, their performance and reports, job
+statistics and the software catalogs. Submitting, cancelling, files and the
+cluster's live state need FirecREST.
+
 Shared by the REST views and the AI assistant tools.
 """
 
@@ -14,7 +19,9 @@ import time
 from dataclasses import dataclass
 from functools import cached_property
 
+import jwt
 from django.core.cache import cache
+from django.db.models import Q
 from django.utils import timezone
 
 from waldur_auth_social import oauth_tokens
@@ -42,6 +49,22 @@ def identity_cache_key(user, offering, account) -> str:
 # would make the cluster list every job of a month on each Insights view.
 HISTORY_WINDOW = "7d"
 MAX_INSIGHTS_DAYS = 7
+
+# FirecREST's windows, for reading the same history from a cluster monitor.
+WINDOW_SECONDS = {
+    "1h": 3600,
+    "8h": 8 * 3600,
+    "24h": 86400,
+    "3d": 3 * 86400,
+    "7d": 7 * 86400,
+}
+DEFAULT_WINDOW = "24h"
+
+NEEDS_FIRECREST = (
+    "This offering is connected to a cluster monitor only: its jobs can be "
+    "followed here, but running, canceling and opening files on the cluster "
+    "need FirecREST."
+)
 
 ACTIVE_RESOURCE_STATES = (
     ResourceStates.OK,
@@ -84,29 +107,53 @@ def is_firecrest_enabled(offering) -> bool:
     )
 
 
+def is_configured() -> bool:
+    """Staff have allowed at least one FirecREST or cluster monitor endpoint."""
+    return bool(allowed_api_urls() or monitoring.allowed_api_urls())
+
+
+def is_workspace_enabled(offering) -> bool:
+    """FirecREST or a cluster monitor, either allowed by staff, serves it."""
+    return is_firecrest_enabled(offering) or monitoring.is_monitoring_enabled(offering)
+
+
+def _url_lookup(option, urls) -> Q:
+    return Q(
+        **{
+            f"offering__plugin_options__{option}__in": [
+                *urls,
+                *(f"{url}/" for url in urls),
+            ]
+        }
+    )
+
+
 def resources_for_user(user):
-    """Allocations the user can see whose offering is reachable through FirecREST.
+    """Allocations the user can see whose offering is reachable through FirecREST
+    or a cluster monitor.
 
     Same visibility as the consumer resource list (RESOURCE.LIST on the
     project or organization, or a direct resource role), so a workspace is
     never offered for a resource the user cannot open.
     """
-    urls = allowed_api_urls()
     return (
         marketplace_models.Resource.objects.all()
         .filter_for_service_consumer(user)
         .filter(
+            _url_lookup(API_URL_OPTION, allowed_api_urls())
+            | _url_lookup(monitoring.API_URL_OPTION, monitoring.allowed_api_urls()),
             state__in=ACTIVE_RESOURCE_STATES,
-            **{
-                f"offering__plugin_options__{API_URL_OPTION}__in": [
-                    *urls,
-                    *(f"{url}/" for url in urls),
-                ]
-            },
         )
         .select_related("offering", "project", "project__customer")
         .order_by("name", "pk")
     )
+
+
+def is_job_id(value) -> bool:
+    """A Slurm job id: ASCII digits, as the API routes accept (str.isdigit
+    alone also takes other scripts' digits)."""
+    value = str(value)
+    return value.isascii() and value.isdigit()
 
 
 def _newest_first_key(job):
@@ -145,9 +192,10 @@ class HpcWorkspace:
 
     @classmethod
     def for_resource(cls, resource, user) -> "HpcWorkspace":
-        if not is_firecrest_enabled(resource.offering):
+        if not is_workspace_enabled(resource.offering):
             raise WorkspaceUnavailable(
-                "This offering is not connected to an allowed FirecREST endpoint."
+                "This offering is not connected to an allowed FirecREST endpoint "
+                "or cluster monitor."
             )
         if not resource.backend_id:
             raise WorkspaceUnavailable(
@@ -158,6 +206,14 @@ class HpcWorkspace:
     @property
     def offering(self):
         return self.resource.offering
+
+    @cached_property
+    def has_firecrest(self) -> bool:
+        return is_firecrest_enabled(self.offering)
+
+    @cached_property
+    def has_monitor(self) -> bool:
+        return monitoring.is_monitoring_enabled(self.offering)
 
     @property
     def api_url(self) -> str:
@@ -208,8 +264,15 @@ class HpcWorkspace:
         except oauth_tokens.TokenUnavailable as e:
             raise WorkspaceUnavailable(str(e), e.sign_in_provider)
 
+    def require_firecrest(self):
+        """Refuse what only FirecREST can do: running and canceling jobs,
+        reading their output and files, the cluster's live state."""
+        if not self.has_firecrest:
+            raise WorkspaceUnavailable(NEEDS_FIRECREST)
+
     @cached_property
     def client(self) -> FirecrestClient:
+        self.require_firecrest()
         access_token = self._access_token(token_audience(self.api_url))
         client = FirecrestClient(
             self.api_url,
@@ -255,16 +318,29 @@ class HpcWorkspace:
             )
         cache.set(key, True, IDENTITY_CACHE_SECONDS)
 
-    @cached_property
-    def monitor(self) -> monitoring.MonitorClient:
-        if not monitoring.is_monitoring_enabled(self.offering):
+    def check_monitor_access(self) -> str:
+        """The user's token for the cluster monitor, without calling it.
+
+        Raises as the monitor calls would: no usable sign-in, or, without
+        FirecREST, a token naming another login than the allocation's.
+        """
+        if not self.has_monitor:
             raise WorkspaceUnavailable(
                 "This offering is not connected to an allowed cluster monitor."
             )
-        options = self.offering.plugin_options
         access_token = self._access_token(
-            monitoring.token_audience(options[monitoring.API_URL_OPTION])
+            monitoring.token_audience(
+                self.offering.plugin_options[monitoring.API_URL_OPTION]
+            )
         )
+        if not self.has_firecrest:
+            self._check_monitor_identity(access_token)
+        return access_token
+
+    @cached_property
+    def monitor(self) -> monitoring.MonitorClient:
+        access_token = self.check_monitor_access()
+        options = self.offering.plugin_options
         return monitoring.MonitorClient(
             options[monitoring.API_URL_OPTION],
             options[monitoring.CLUSTER_OPTION],
@@ -272,19 +348,42 @@ class HpcWorkspace:
             on_behalf_of=self._on_behalf_of,
         )
 
+    def _check_monitor_identity(self, access_token):
+        """Without FirecREST, the cluster monitor alone says who the user is.
+
+        slurm-monitor shows the jobs of the user its token's
+        ``preferred_username`` names; if that is not the allocation's login,
+        the workspace would show nothing, or someone else's jobs.
+        """
+        username = self.username
+        try:
+            claims = jwt.decode(access_token, options={"verify_signature": False})
+        except jwt.PyJWTError:
+            # An opaque token: the monitor maps it, Waldur cannot check it.
+            return
+        login = claims.get("preferred_username") if isinstance(claims, dict) else None
+        if login and login != username:
+            raise WorkspaceUnavailable(
+                f"The cluster monitor knows you as '{login}', but your account for "
+                f"this allocation is '{username}'. Ask the service provider to "
+                "correct the account mapping."
+            )
+
     def job_performance(self, job_id) -> dict:
-        """The job's samples from the cluster monitor; FirecREST proves it is ours."""
+        """The job's samples from the cluster monitor; the job read (FirecREST,
+        or the monitor itself) proves it is ours."""
         return monitoring.job_performance(self.monitor, self.get_job(job_id))
 
     def job_report(self, job_id) -> tuple[dict, dict]:
         """The job and its performance, for the PDF report.
 
-        The report needs only FirecREST: it always has the job's accounting.
-        A cluster monitor, when the offering has one, adds the time series;
-        one that cannot answer leaves a note instead of failing the download.
+        With FirecREST, the report always has the job's accounting; a cluster
+        monitor, when the offering has one, adds the time series, and one that
+        cannot answer leaves a note instead of failing the download. Without
+        FirecREST, the job itself comes from the monitor.
         """
         job = self.get_job(job_id)
-        if not monitoring.is_monitoring_enabled(self.offering):
+        if not self.has_monitor:
             return job, monitoring.unavailable("")
         try:
             performance = monitoring.job_performance(self.monitor, job)
@@ -308,8 +407,10 @@ class HpcWorkspace:
 
     def partitions(self) -> list[dict]:
         """Published partitions (Waldur) merged with live state (FirecREST)."""
-        live = {p["name"]: p for p in self.client.list_partitions(self.system)}
-        nodes = self.client.list_nodes(self.system)
+        live, nodes = {}, []
+        if self.has_firecrest:
+            live = {p["name"]: p for p in self.client.list_partitions(self.system)}
+            nodes = self.client.list_nodes(self.system)
         node_counts = {}
         for node in nodes:
             states = set(node.get("state") or [])
@@ -369,9 +470,14 @@ class HpcWorkspace:
     # Jobs
 
     def list_jobs(self, time_window=None) -> list[dict]:
-        jobs = self.client.list_jobs(
-            self.system, account=self.account, time_window=time_window
-        )
+        if self.has_firecrest:
+            jobs = self.client.list_jobs(
+                self.system, account=self.account, time_window=time_window
+            )
+        else:
+            now = time.time()
+            seconds = WINDOW_SECONDS[time_window or DEFAULT_WINDOW]
+            jobs = monitoring.jobs_from_rows(self.monitor.list_jobs(now - seconds, now))
         # The account filter is passed on, but not every scheduler path
         # applies it (FirecREST merges active jobs that are not filtered),
         # and the workspace boundary must not depend on that.
@@ -383,18 +489,55 @@ class HpcWorkspace:
         return sorted(own, key=_newest_first_key, reverse=True)
 
     def _is_own(self, job) -> bool:
-        return (job.get("account") or "").lower() == self.account.lower()
+        if (job.get("account") or "").lower() != self.account.lower():
+            return False
+        # The monitor scopes jobs to the token's user; holding it to the
+        # allocation's login keeps that so whatever the monitor returns.
+        return self.has_firecrest or job.get("user") == self.username
 
     def get_job(self, job_id) -> dict:
-        job = self.client.get_job(self.system, job_id)
+        if self.has_firecrest:
+            job = self.client.get_job(self.system, job_id)
+        else:
+            job = self._monitor_job(job_id)
         if not self._is_own(job):
             # Same answer as a missing job: the workspace is the allocation.
             raise FirecrestException(f"Job {job_id} is not found.", status_code=404)
         return insights.with_metrics(with_elapsed(job))
 
+    def _monitor_job(self, job_id) -> dict:
+        record = None
+        if is_job_id(job_id):
+            try:
+                record = self.monitor.get_job(job_id)
+            except monitoring.MonitorException as e:
+                # slurm-monitor's answer for a job it does not have, or one of
+                # another user's.
+                if e.status_code != 404:
+                    raise
+        if not record:
+            raise FirecrestException(f"Job {job_id} is not found.", status_code=404)
+        job = monitoring.job_from_rows([record])
+        # The single job read has no accounting; the job list over its run has.
+        start = job["time"]["start"]
+        if start:
+            rows = [
+                row
+                for row in self.monitor.list_jobs(
+                    start, job["time"]["end"] or time.time()
+                )
+                if row.get("job_id") == record.get("job_id")
+            ]
+            if rows:
+                job = monitoring.job_from_rows(rows)
+        return job
+
     def job_output(self, job_id, lines=100) -> dict:
+        # FirecREST first: without it the job would come from the cluster
+        # monitor, which has no output to read.
+        client = self.client
         job = self.get_job(job_id)
-        metadata = self.client.get_job_metadata(self.system, job_id)
+        metadata = client.get_job_metadata(self.system, job_id)
         result = {"job": job, "script": metadata.get("script")}
         for stream in ("standardOutput", "standardError"):
             path = metadata.get(stream)
@@ -403,9 +546,7 @@ class HpcWorkspace:
                 if not path.startswith("/"):
                     path = f"{job.get('workingDirectory', '').rstrip('/')}/{path}"
                 try:
-                    content = self.client.tail_file(self.system, path, lines).get(
-                        "content"
-                    )
+                    content = client.tail_file(self.system, path, lines).get("content")
                 except FirecrestException:
                     content = None  # not written yet (pending job) or removed
             result[stream] = {"path": path, "content": content}
@@ -427,6 +568,7 @@ class HpcWorkspace:
         return validation
 
     def submit(self, spec: scripts.JobSpec) -> dict:
+        client = self.client
         validation = self.validate(spec)
         if not validation.is_valid:
             raise WorkspaceUnavailable(" ".join(validation.errors))
@@ -453,7 +595,7 @@ class HpcWorkspace:
             job["memoryPerNode"] = spec.memory_mb
         if spec.partition:
             job["partition"] = spec.partition
-        job_id = self.client.submit_job(self.system, job)
+        job_id = client.submit_job(self.system, job)
         return {
             "job_id": job_id,
             "script": script,
@@ -461,8 +603,9 @@ class HpcWorkspace:
         }
 
     def cancel(self, job_id):
+        client = self.client
         self.get_job(job_id)
-        self.client.cancel_job(self.system, job_id)
+        client.cancel_job(self.system, job_id)
 
     # Insights
 

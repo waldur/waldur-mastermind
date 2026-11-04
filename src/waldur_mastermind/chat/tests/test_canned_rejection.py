@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.prompts.rejection import (
     CATEGORY_PHRASES,
@@ -9,6 +10,8 @@ from waldur_mastermind.chat.tools.enums import ToolCategory
 
 
 class BuildCannedRejectionTest(TestCase):
+    # The HPC tools are offered only where staff have allowed an endpoint.
+    @override_config(FIRECREST_ALLOWED_API_URLS="https://firecrest.example.org")
     def test_includes_organization_and_capabilities(self):
         user = structure_factories.UserFactory()
         message = build_canned_rejection(user, "MyOrg")
@@ -16,6 +19,12 @@ class BuildCannedRejectionTest(TestCase):
         self.assertIn("MyOrg", message)
         for phrase in CATEGORY_PHRASES.values():
             self.assertIn(phrase, message)
+
+    def test_hpc_is_not_claimed_without_an_allowed_endpoint(self):
+        user = structure_factories.UserFactory()
+        message = build_canned_rejection(user, "MyOrg")
+        self.assertNotIn(CATEGORY_PHRASES[ToolCategory.HPC], message)
+        self.assertIn(CATEGORY_PHRASES[ToolCategory.VM], message)
 
     def test_staff_message_matches_end_user(self):
         # Today staff and end_user differ in specific tools, not categories.

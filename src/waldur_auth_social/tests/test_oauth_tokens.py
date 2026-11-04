@@ -83,6 +83,17 @@ class EncryptionAtRestTest(TokenTestBase):
 
 
 class StoragePolicyTest(TokenTestBase):
+    @override_config(
+        FIRECREST_ALLOWED_API_URLS="",
+        SLURM_MONITOR_ALLOWED_API_URLS="https://monitor.example.org/api/v2",
+    )
+    def test_a_cluster_monitor_alone_needs_the_token(self):
+        # A read-only workspace reads slurm-monitor with it.
+        self.store("refresh-1")
+        self.assertEqual(
+            OAuthToken.objects.get(user=self.user).refresh_token, "refresh-1"
+        )
+
     @override_config(FIRECREST_ALLOWED_API_URLS="")
     def test_nothing_is_kept_while_the_hpc_workspace_is_off(self):
         OAuthToken.objects.create(

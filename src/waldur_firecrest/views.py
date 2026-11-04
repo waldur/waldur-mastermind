@@ -20,6 +20,14 @@ JOB_ID_PATTERN = r"(?P<job_id>[0-9]+)"
 JOB_ID_PARAMETER = OpenApiParameter(
     "job_id", str, OpenApiParameter.PATH, description="Slurm job ID"
 )
+RESOURCE_UUID_PARAMETER = OpenApiParameter(
+    "resource_uuid",
+    OpenApiTypes.UUID,
+    OpenApiParameter.QUERY,
+    description="Only the workspace of this resource, e.g. to tell whether a "
+    "resource page has one.",
+    extensions={"x-waldur-operation-id": "marketplace_resources_retrieve"},
+)
 
 
 class FirecrestUnavailable(exceptions.APIException):
@@ -66,6 +74,12 @@ def raise_for_firecrest(error: FirecrestException):
     raise FirecrestUnavailable(str(error))
 
 
+def raise_for_monitor(error: MonitorException):
+    if error.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+        raise exceptions.PermissionDenied(str(error))
+    raise FirecrestUnavailable(str(error))
+
+
 class IsOwnSignIn(permissions.BasePermission):
     """The workspace acts on the cluster as the user, with their identity
     provider token, and no permission scopes that down. So only the user's own
@@ -109,6 +123,9 @@ class HpcWorkspaceViewSet(viewsets.GenericViewSet):
             raise_for_workspace(e)
         except FirecrestException as e:
             raise_for_firecrest(e)
+        except MonitorException as e:
+            # Jobs come from the cluster monitor when there is no FirecREST.
+            raise_for_monitor(e)
 
     @staticmethod
     def query(serializer_class, request):
@@ -118,10 +135,16 @@ class HpcWorkspaceViewSet(viewsets.GenericViewSet):
 
     @extend_schema(
         summary="List HPC workspaces",
-        description="SLURM allocations visible to the user whose offering is connected to FirecREST.",
+        description="SLURM allocations visible to the user whose offering is connected to "
+        "FirecREST or a cluster monitor.",
+        parameters=[RESOURCE_UUID_PARAMETER],
     )
     def list(self, request):
-        page = self.paginate_queryset(self.get_queryset())
+        params = self.query(serializers.HpcWorkspaceListQuerySerializer, request)
+        queryset = self.get_queryset()
+        if params.get("resource_uuid"):
+            queryset = queryset.filter(uuid=params["resource_uuid"])
+        page = self.paginate_queryset(queryset)
         serializer = serializers.HpcWorkspaceSerializer(page, many=True)
         return self.get_paginated_response(serializer.data)
 
@@ -130,7 +153,7 @@ class HpcWorkspaceViewSet(viewsets.GenericViewSet):
         description="Allocation, the user's cluster identity and FirecREST system health. "
         "Problems reaching FirecREST are reported in 'error' rather than failing the request; "
         "'sign_in_provider' names the identity provider to sign in through again when that "
-        "is the remedy.",
+        "is the remedy. Without FirecREST ('firecrest_enabled' false) the health is left out.",
         responses={200: serializers.HpcWorkspaceOverviewSerializer},
     )
     def retrieve(self, request, uuid=None):
@@ -147,6 +170,11 @@ class HpcWorkspaceViewSet(viewsets.GenericViewSet):
         try:
             workspace = HpcWorkspace.for_resource(resource, request.user)
             data["username"] = workspace.username
+            if not workspace.has_firecrest:
+                # What every job call needs, checked without calling the
+                # monitor, so the overview shows the remedy (e.g. signing in).
+                workspace.check_monitor_access()
+                return Response(data)
             data["home_directory"] = workspace.home_directory
             system = workspace.system_status()
             health = system.get("servicesHealth") or []
@@ -261,15 +289,7 @@ class HpcWorkspaceViewSet(viewsets.GenericViewSet):
     @action(detail=True, methods=["get"], url_path=f"jobs/{JOB_ID_PATTERN}/performance")
     def job_performance(self, request, uuid=None, job_id=None):
         workspace = self.get_workspace()
-        try:
-            data = self.call(workspace.job_performance, job_id)
-        except MonitorException as e:
-            if e.status_code in (
-                status.HTTP_401_UNAUTHORIZED,
-                status.HTTP_403_FORBIDDEN,
-            ):
-                raise exceptions.PermissionDenied(str(e))
-            raise FirecrestUnavailable(str(e))
+        data = self.call(workspace.job_performance, job_id)
         return Response(serializers.HpcJobPerformanceSerializer(data).data)
 
     @extend_schema(

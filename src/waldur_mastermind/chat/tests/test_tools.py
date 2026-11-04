@@ -4,6 +4,7 @@ import jsonschema
 from django.test import TestCase
 from pydantic import ValidationError
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.prompts.persona import PERSONA_TEMPLATE
@@ -258,6 +259,9 @@ class ToolSetsTest(TestCase):
         )
 
 
+# The full role sets: the HPC tools need an allowed FirecREST or cluster
+# monitor endpoint (test_hpc_tools covers the sets without one).
+@override_config(FIRECREST_ALLOWED_API_URLS="https://firecrest.example.org")
 class GetToolSetForUserTest(TestCase):
     def test_none_returns_anonymous_tools(self):
         self.assertEqual(get_tool_set_for_user(None), ANONYMOUS_TOOLS)

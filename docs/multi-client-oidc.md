@@ -232,10 +232,11 @@ This maintains backward compatibility with existing single-Homeport deployments.
 
 ### Stored Provider Tokens and Logout
 
-While the HPC workspace is enabled (`FIRECREST_ALLOWED_API_URLS` is set),
-Waldur keeps the refresh token of a user's last sign-in, encrypted, so it can
-call services as them later: the HPC workspace calls FirecREST with access
-tokens minted from it, which stay in the cache, encrypted, until they expire.
+While the HPC workspace is enabled (`FIRECREST_ALLOWED_API_URLS` or
+`SLURM_MONITOR_ALLOWED_API_URLS` is set), Waldur keeps the refresh token of a
+user's last sign-in, encrypted, so it can call services as them later: the HPC
+workspace calls FirecREST and slurm-monitor with access tokens minted from it,
+which stay in the cache, encrypted, until they expire.
 The refresh token is revoked at the provider and removed when the user logs
 out, is deactivated or is deleted, after `OIDC_TOKEN_MAX_IDLE_DAYS` without a
 sign-in, and while the HPC workspace is off (a daily task). One the provider

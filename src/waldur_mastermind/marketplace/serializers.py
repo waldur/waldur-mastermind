@@ -1220,7 +1220,8 @@ class FirecrestPluginOptionsSerializer(serializers.Serializer):
         validators=[BackendURLValidator(schemes=["http", "https"])],
         help_text="FirecREST v2 API URL users of this SLURM offering work through "
         "(jobs, files, cluster status). Must also be listed in the "
-        "FIRECREST_ALLOWED_API_URLS setting. Leave empty to disable the HPC workspace.",
+        "FIRECREST_ALLOWED_API_URLS setting. Leave empty to run no jobs through "
+        "Waldur; with a slurm-monitor URL the workspace is then read-only.",
     )
     firecrest_system_name = serializers.CharField(
         required=False,
@@ -1235,7 +1236,9 @@ class FirecrestPluginOptionsSerializer(serializers.Serializer):
         validators=[BackendURLValidator(schemes=["http", "https"])],
         help_text="slurm-monitor API URL (ending in /api/v2) with the cluster's "
         "per-job samples (GPU, CPU, memory over time). Must also be listed in the "
-        "SLURM_MONITOR_ALLOWED_API_URLS setting. Leave empty to hide job performance.",
+        "SLURM_MONITOR_ALLOWED_API_URLS setting. Leave empty to hide job performance. "
+        "Without FirecREST, the allocations get a read-only workspace from it: "
+        "jobs, their performance, job statistics and software.",
     )
     slurm_monitor_cluster_name = serializers.CharField(
         required=False,
