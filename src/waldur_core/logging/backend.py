@@ -829,6 +829,44 @@ class RabbitMQManagementBackend:
             )
             return False
 
+    def list_queue_readers(self) -> dict[tuple[str, str], int]:
+        """Reader count of every queue on the broker, in one request.
+
+        Returns:
+            dict: ``{(vhost, queue name): number of consumers}``.
+
+        Raises:
+            RabbitMQError: the management API could not be read. Callers that
+                act on the result must treat this as "unknown", not as "no
+                readers".
+        """
+        url = f"{self.rmq_management_url}/queues"
+        try:
+            response = requests.get(
+                url,
+                params={"columns": "name,vhost,consumers"},
+                auth=self.rmq_auth,
+                timeout=30,
+            )
+        except requests.RequestException as exc:
+            logger.error("Unable to list queues from RabbitMQ, error: %s", exc)
+            raise RabbitMQError("Failed to list queues")
+
+        if response.status_code != status.HTTP_200_OK:
+            logger.error(
+                "Failed to list queues, status code: %s, response: %s",
+                response.status_code,
+                response.text,
+            )
+            raise RabbitMQError("Failed to list queues")
+        try:
+            return {
+                (q["vhost"], q["name"]): q.get("consumers", 0) for q in response.json()
+            }
+        except (requests.JSONDecodeError, KeyError, TypeError):
+            logger.error("Failed to decode the RabbitMQ queue listing")
+            raise RabbitMQError("Failed to list queues")
+
     def list_all_subscription_queues(self) -> list[dict]:
         """List all subscription queues across all vhosts.
 

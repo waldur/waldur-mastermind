@@ -2044,6 +2044,15 @@ CONSTANCE_CONFIG = {
         "these resources, and for the first one when a client names none; while "
         "empty, no OAuth token is issued.",
     ),
+    # Event consumers
+    "EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS": (
+        24,
+        "Hours an ephemeral event consumer (one registered by a browser tab) may "
+        "go without a reader before it and its RabbitMQ queue are deleted. "
+        "Checked hourly, so deletion can come up to an hour later. "
+        "Integrations register non-ephemeral consumers and are never deleted "
+        "this way.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -2498,6 +2507,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "MCP server": ("MCP_ENABLED", "MCP_RESOURCE_URLS"),
     "Site Agent Logs": ("SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY",),
+    "Event consumers": ("EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (

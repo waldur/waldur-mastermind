@@ -1324,6 +1324,20 @@ class EventConsumerRegistrationSerializer(serializers.Serializer):
             "staff/support only."
         ),
     )
+    ephemeral = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "Set by short-lived clients such as a browser tab. An ephemeral "
+            "consumer and its queue are deleted once the queue has had no "
+            "reader for EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS, or once its owner "
+            "has no active token. Re-registering an existing consumer without "
+            "the flag makes it permanent. Re-registering a permanent consumer "
+            "with it makes it ephemeral only for a browser-style registration "
+            "(DRF token or session, previously too, bound to your own user); "
+            "otherwise it stays permanent. Integrations should leave it unset."
+        ),
+    )
 
     def validate_scopes(self, value):
         """Resolve {type, uuid} bindings and enforce the privilege-escalation
@@ -1508,6 +1522,8 @@ class EventConsumerSerializer(serializers.ModelSerializer):
             "last_delivered_at",
             "last_error",
             "last_error_at",
+            "ephemeral",
+            "unread_since",
             "created",
             "modified",
         )
@@ -1567,6 +1583,10 @@ class EventConsumerWebhookSerializer(
     WebhookConsumerFieldsMixin, EventConsumerRegistrationSerializer
 ):
     """Input for creating a webhook event consumer (staff only)."""
+
+    # A webhook has no queue for a reader to leave idle, so it is never
+    # ephemeral; drop the inherited field from the input and the schema.
+    ephemeral = None
 
 
 class EventConsumerWebhookUpdateSerializer(WebhookConsumerFieldsMixin):

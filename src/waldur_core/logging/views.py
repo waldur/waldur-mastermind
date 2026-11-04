@@ -29,6 +29,11 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
+from waldur_core.core.auth_utils import (
+    AUTH_METHOD_SESSION,
+    AUTH_METHOD_TOKEN,
+    get_auth_method,
+)
 from waldur_core.core.permissions import (
     has_staff_access,
     has_staff_or_support_read_access,
@@ -1195,6 +1200,32 @@ class UserDataAccessLogViewSet(
         return super().get_permissions()
 
 
+# Credentials a browser tab registers with. A PAT, an OIDC bearer or an
+# unattributed registration is treated as an integration.
+_BROWSER_AUTH_KINDS = {AUTH_METHOD_TOKEN, AUTH_METHOD_SESSION}
+
+
+def _may_become_ephemeral(consumer, request, wanted) -> bool:
+    """Whether a re-registration asking for ``ephemeral`` may turn this
+    permanent consumer ephemeral.
+
+    Consumers created before the flag existed, or by a UI that did not send it,
+    are permanent, and the realtime UI's binding sets are stable, so without
+    this they would never become sweepable. Only a consumer that looks like a
+    browser's is promoted: it is asked for from a browser credential, it was
+    last registered from one too (never a PAT), and its bindings include the
+    owner's own user scope, which the UI always binds and integrations rarely
+    do. ``consumer.auth_kind`` still describes the previous registration here;
+    attribution is refreshed after this point.
+    """
+    if get_auth_method(request.auth) not in _BROWSER_AUTH_KINDS:
+        return False
+    if consumer.auth_kind not in _BROWSER_AUTH_KINDS:
+        return False
+    user_ct_id = ContentType.objects.get_for_model(core_models.User).id
+    return (user_ct_id, request.user.id) in wanted
+
+
 def _resolve_consumer_authorization(request, resolved_scopes) -> str:
     """Which permission branch let this standalone registration through.
 
@@ -1299,6 +1330,7 @@ class EventConsumerViewSet(
         # None = field omitted = keep whatever the consumer already has;
         # [] = explicitly "all types". See the serializer for why this matters.
         requested_object_types = input_serializer.validated_data.get("object_types")
+        ephemeral = input_serializer.validated_data["ephemeral"]
         # Already resolved + permission-checked by the serializer.
         resolved_scopes = input_serializer.validated_data.get("scopes", [])
         all_object_types = [m.value for m in enums.ObservableObjectType]
@@ -1357,7 +1389,9 @@ class EventConsumerViewSet(
                 # Consumer + bindings in ONE transaction: a consumer left without
                 # bindings IS a global consumer, i.e. a fail-open PII exposure.
                 consumer = models.EventConsumer.objects.create(
-                    user=request.user, object_types=requested_object_types or []
+                    user=request.user,
+                    object_types=requested_object_types or [],
+                    ephemeral=ephemeral,
                 )
                 models.EventConsumerScope.objects.bulk_create(
                     [
@@ -1369,12 +1403,38 @@ class EventConsumerViewSet(
                         for scope in resolved_scopes
                     ]
                 )
-            elif (
-                requested_object_types is not None
-                and consumer.object_types != requested_object_types
-            ):
-                consumer.object_types = requested_object_types
-                consumer.save(update_fields=["object_types"])
+            else:
+                update_fields = []
+                if (
+                    requested_object_types is not None
+                    and consumer.object_types != requested_object_types
+                ):
+                    consumer.object_types = requested_object_types
+                    update_fields.append("object_types")
+                # One consumer per binding set is shared by every client that
+                # registers it. A client that does not ask for ephemeral (an
+                # integration) takes it out of the idle sweep. A client asking
+                # for ephemeral puts it in only when the consumer looks like a
+                # browser's, so a tab cannot sweep an integration's queue.
+                if consumer.ephemeral and not ephemeral:
+                    consumer.ephemeral = False
+                    update_fields.append("ephemeral")
+                elif (
+                    ephemeral
+                    and not consumer.ephemeral
+                    and _may_become_ephemeral(consumer, request, wanted)
+                ):
+                    consumer.ephemeral = True
+                    update_fields.append("ephemeral")
+                # A client that re-registers is alive: restart the idle clock.
+                # The sweep deletes under the same per-user lock and re-checks
+                # unread_since, so it cannot remove the consumer this
+                # registration is about to hand back.
+                if consumer.unread_since is not None:
+                    consumer.unread_since = None
+                    update_fields.append("unread_since")
+                if update_fields:
+                    consumer.save(update_fields=update_fields)
 
         effective_object_types = consumer.object_types or all_object_types
 
