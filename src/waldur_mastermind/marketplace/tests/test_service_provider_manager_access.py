@@ -9,6 +9,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
     OfferingRole,
+    ProjectRole,
     ServiceProviderRole,
 )
 from waldur_core.permissions.tests import factories as permission_factories
@@ -16,6 +17,7 @@ from waldur_core.permissions.tests.test_pat_list_filtering import (
     _auth_header,
     _create_pat,
 )
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.serializers import CustomerSerializer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.models import ServiceProvider
@@ -244,6 +246,98 @@ class ServiceProviderManagerOrganizationVisibilityTest(test.APITestCase):
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assert_restricted(response.data)
+
+
+ALLOWED_IP = "100.100.100.100"
+DENIED_IP = "203.0.113.7"
+
+
+class ServiceProviderOrganizationNetworkRestrictionTest(test.APITestCase):
+    """A role on the service provider must not lift the organization's portal
+    network restriction from a user who also holds a role on the organization."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        self.customer = self.service_provider.customer
+        self.customer.email = "billing@provider.example.com"
+        self.customer.save()
+        structure_models.AccessSubnet.objects.create(
+            customer=self.customer, inet=f"{ALLOWED_IP}/32", applies_to_portal=True
+        )
+
+        self.owner = structure_factories.UserFactory()
+        self.customer.add_user(self.owner, CustomerRole.OWNER)
+        self.service_provider.add_user(self.owner, ServiceProviderRole.MANAGER)
+
+        self.manager = structure_factories.UserFactory()
+        self.service_provider.add_user(self.manager, ServiceProviderRole.MANAGER)
+
+        self.list_url = structure_factories.CustomerFactory.get_list_url()
+        self.detail_url = structure_factories.CustomerFactory.get_url(self.customer)
+
+    def get(self, user, url, ip, **params):
+        self.client.force_authenticate(user)
+        return self.client.get(url, params, HTTP_X_FORWARDED_FOR=ip)
+
+    def listed(self, user, ip, **params):
+        response = self.get(user, self.list_url, ip, **params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [item["uuid"] for item in response.data]
+
+    def test_owner_with_provider_role_does_not_find_organization_outside_networks(
+        self,
+    ):
+        self.assertNotIn(self.customer.uuid.hex, self.listed(self.owner, DENIED_IP))
+        response = self.get(self.owner, self.detail_url, DENIED_IP)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_own_organizations_filter_does_not_return_it_outside_networks(self):
+        listed = self.listed(self.owner, DENIED_IP, user_uuid=self.owner.uuid.hex)
+        self.assertNotIn(self.customer.uuid.hex, listed)
+
+    def test_owner_with_provider_role_gets_full_organization_inside_networks(self):
+        self.assertIn(self.customer.uuid.hex, self.listed(self.owner, ALLOWED_IP))
+        response = self.get(self.owner, self.detail_url, ALLOWED_IP)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], self.customer.email)
+        self.assertFalse(response.data["is_service_provider_manager_only"])
+
+    def test_provider_role_alone_still_finds_organization_outside_networks(self):
+        # Only identity fields, which the service provider directory shows
+        # anyway; provider-side views apply no portal network rule.
+        self.assertEqual(self.listed(self.manager, DENIED_IP), [self.customer.uuid.hex])
+        response = self.get(self.manager, self.detail_url, DENIED_IP)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_service_provider_manager_only"])
+        self.assertLessEqual(
+            set(response.data), set(CustomerSerializer.SERVICE_PROVIDER_MANAGER_FIELDS)
+        )
+
+    def test_project_member_with_provider_role_does_not_find_it_outside_networks(
+        self,
+    ):
+        # Any role on the organization, not only ownership, and every route
+        # that looks the organization up.
+        member = structure_factories.UserFactory()
+        project = structure_factories.ProjectFactory(customer=self.customer)
+        project.add_user(member, ProjectRole.MEMBER)
+        self.service_provider.add_user(member, ServiceProviderRole.MANAGER)
+
+        self.assertNotIn(self.customer.uuid.hex, self.listed(member, DENIED_IP))
+        for url in (self.detail_url, self.detail_url + "stats/"):
+            with self.subTest(url=url):
+                response = self.get(member, url, DENIED_IP)
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        response = self.get(member, self.detail_url, ALLOWED_IP)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_service_provider_manager_only"])
+
+    def test_staff_gets_full_organization_outside_networks(self):
+        response = self.get(self.fixture.staff, self.detail_url, DENIED_IP)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], self.customer.email)
 
 
 class ProviderOfferingReportsAccessTest(test.APITestCase):
