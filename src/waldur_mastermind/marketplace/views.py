@@ -3011,6 +3011,7 @@ OFFERING_SEEN_ACCESS = access.custom(
 )
 class ProviderOfferingViewSet(
     UserRoleMixin,
+    PublicViewsetMixin,
     core_views.HistoryViewSetMixin,
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
@@ -3053,8 +3054,13 @@ class ProviderOfferingViewSet(
     # may be the service provider's, and it is declared below.
     access_filtered_actions = ("tos_stats",)
 
+    # PublicViewsetMixin opens these to anonymous callers while
+    # ANONYMOUS_USER_CAN_VIEW_OFFERINGS is on.
+    public_actions = ("groups",)
+
     access_declarations = {
         "create": [serializers.OFFERING_CREATE_ACCESS],
+        "groups": [PUBLIC_CATALOG_ACCESS],
         "aggregated_access_subnets": [
             marketplace_permissions.OFFERINGS_PROVIDER_ACCESS
         ],
@@ -4656,14 +4662,25 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         summary="List offerings grouped by provider",
-        description="Returns a paginated list of active, shared offerings grouped by their service provider.",
+        description=(
+            "Returns a paginated list of active, shared offerings grouped by their "
+            "service provider. Only offerings the caller may see in the public "
+            "offerings list are included."
+        ),
         responses=serializers.OfferingGroupsSerializer(many=True),
     )
-    @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
-    def groups(self, *args, **kwargs):
+    @action(detail=False, filter_backends=[DjangoFilterBackend])
+    def groups(self, request, *args, **kwargs):
         OFFERING_LIMIT = 4
+        # What /api/marketplace-public-offerings/ shows the caller, so that
+        # organization groups, role restrictions and
+        # RESTRICTED_OFFERING_VISIBILITY_MODE apply here too.
+        # get_queryset keeps the annotations that ordering by total_customers
+        # and the cost totals needs.
         qs = self.filter_queryset(
-            self.get_queryset().filter(shared=True, state=OfferingStates.ACTIVE)
+            self.get_queryset()
+            .filter_by_ordering_availability_for_user(request.user)
+            .filter(shared=True, state=OfferingStates.ACTIVE)
         )
         customer_ids = self.paginate_queryset(
             qs.order_by("customer__name")
