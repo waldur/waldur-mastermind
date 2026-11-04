@@ -4,6 +4,7 @@ from rest_framework import exceptions, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core.permissions import has_staff_access
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -34,6 +35,14 @@ class PasskeyCredentialViewSet(
     serializer_class = PasskeyCredentialSerializer
     lookup_field = "uuid"
 
+    # They look the passkey up in get_queryset, which holds the caller's own.
+    access_declarations = {
+        "update": [access.owned("The caller's own passkey.")],
+        "partial_update": [access.owned("The caller's own passkey.")],
+        "revoke": [access.owned("The caller's own passkey.")],
+    }
+
+    @access.shows("The caller's own passkeys.")
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return PasskeyCredential.objects.none()
@@ -114,6 +123,19 @@ class StaffPasskeyViewSet(
     lookup_field = "uuid"
     filter_backends = []
 
+    # Checked in initial(), for every action. Change the two together.
+    access_declarations = {
+        "list": [
+            access.staff(),
+            access.custom("Not while impersonating another user."),
+        ],
+        "revoke": [
+            access.staff(),
+            access.custom("Not while impersonating another user."),
+        ],
+    }
+
+    @access.shows("Every other user's passkeys; user_uuid narrows them to one user's.")
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return PasskeyCredential.objects.none()
@@ -129,6 +151,7 @@ class StaffPasskeyViewSet(
             raise exceptions.NotFound(
                 _("Passkey authentication is not enabled on this deployment.")
             )
+        # access_declarations describes these two checks.
         if not has_staff_access(request):
             raise exceptions.PermissionDenied(
                 _("Only staff can manage another user's passkeys.")

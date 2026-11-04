@@ -23,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from waldur_core.core import access
 from waldur_core.core.authentication import AuthenticationMethod, refresh_token
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -88,9 +89,15 @@ class BasePasskeyView(APIView):
         raise ValidationError(str(error))
 
 
+# Who PasskeyRegistrationFinishView lets finish a registration: the user who
+# began it, checked in post(). Change the two together.
+FINISHES_OWN_REGISTRATION = access.owned("A registration the caller began.")
+
+
 class PasskeyRegistrationBeginView(BasePasskeyView):
     permission_classes = [IsAuthenticated]
     throttle_scope = "passkey_registration"
+    access_declarations = {"post": [access.owned("A new passkey for the caller.")]}
 
     @extend_schema(
         summary="Begin passkey registration",
@@ -105,6 +112,7 @@ class PasskeyRegistrationBeginView(BasePasskeyView):
 class PasskeyRegistrationFinishView(BasePasskeyView):
     permission_classes = [IsAuthenticated]
     throttle_scope = "passkey_registration"
+    access_declarations = {"post": [FINISHES_OWN_REGISTRATION]}
 
     @extend_schema(
         summary="Finish passkey registration",
@@ -119,6 +127,7 @@ class PasskeyRegistrationFinishView(BasePasskeyView):
         ceremony = self.get_ceremony(data["ceremony"], CeremonyKind.REGISTRATION)
         # A registration ceremony belongs to whoever opened it. Without this,
         # one user could finish another's enrolment against their own key.
+        # FINISHES_OWN_REGISTRATION describes it.
         if ceremony.user_id != request.user.id:
             self.handle_passkey_error(_("This ceremony belongs to another user."))
 
