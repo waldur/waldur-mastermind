@@ -3,26 +3,31 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db import models as django_models
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from . import models, providers
-from .handlers import register_cleanup_handler, schedule_cleanup_for_deleted_object
-from .providers import (
+from waldur_core.user_actions import models, providers
+from waldur_core.user_actions.handlers import (
+    register_cleanup_handler,
+    schedule_cleanup_for_deleted_object,
+)
+from waldur_core.user_actions.providers import (
     ActionCategory,
     ActionSeverity,
     BaseActionProvider,
     CorrectiveAction,
 )
-from .tasks import cleanup_actions_for_deleted_object, cleanup_dangling_user_actions
+from waldur_core.user_actions.tasks import (
+    cleanup_actions_for_deleted_object,
+    cleanup_dangling_user_actions,
+)
 
 User = get_user_model()
 
 
-class TestActionProvider(BaseActionProvider):
-    """Test action provider for testing purposes"""
+class FakeActionProvider(BaseActionProvider):
+    """Action provider used by the tests"""
 
     action_type = "test_action"
     display_name = "Test Actions"
@@ -34,7 +39,6 @@ class TestActionProvider(BaseActionProvider):
                 "description": "A test action",
                 "urgency": "medium",
                 "related_object": user,
-                "metadata": {"test": True},
             }
         ]
 
@@ -45,17 +49,31 @@ class TestActionProvider(BaseActionProvider):
         return [
             CorrectiveAction(
                 label="View User",
-                url=f"/admin/auth/user/{obj.id}/",
                 category=ActionCategory.VIEW,
                 severity=ActionSeverity.SAFE,
+                route_name="users.details",
+                route_params={"user_uuid": obj.uuid.hex},
             ),
             CorrectiveAction(
                 label="Send Email",
-                url=f"mailto:{obj.email}",
                 category=ActionCategory.CONTACT,
                 severity=ActionSeverity.SAFE,
+                metadata={"email": obj.email},
             ),
         ]
+
+
+def use_only_fake_provider(test_case):
+    """Register only FakeActionProvider for the duration of the test.
+
+    The registry is process-wide and the apps fill it in ready(), so it is
+    emptied in place and restored afterwards: clearing it for good would take
+    the real providers away from every test that runs later in the process.
+    """
+    registry = patch.dict(providers._providers, clear=True)
+    registry.start()
+    test_case.addCleanup(registry.stop)
+    providers.register_provider(FakeActionProvider)
 
 
 class UserActionModelTests(TestCase):
@@ -132,13 +150,7 @@ class ActionProviderTests(TestCase):
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com"
         )
-        # Clear any existing providers
-        providers.clear_providers()
-        # Register our test provider
-        providers.register_provider(TestActionProvider)
-
-    def tearDown(self):
-        providers.clear_providers()
+        use_only_fake_provider(self)
 
     def test_register_provider(self):
         """Test registering an action provider"""
@@ -187,8 +199,8 @@ class UserActionAPITests(APITestCase):
         """Test listing user actions"""
         response = self.client.get("/api/user-actions/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["title"], "Test Action")
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["title"], "Test Action")
 
     def test_get_user_action_detail(self):
         """Test getting user action details"""
@@ -221,6 +233,8 @@ class UserActionAPITests(APITestCase):
     def test_get_summary(self):
         """Test getting action summary"""
         # Create some additional actions with different urgencies
+        # One action per user, type and object: this one is about someone else.
+        subject = User.objects.create_user(username="subject")
         models.UserAction.objects.create(
             user=self.user,
             action_type="test_action",
@@ -228,7 +242,7 @@ class UserActionAPITests(APITestCase):
             description="A high priority action",
             urgency="high",
             content_type=ContentType.objects.get_for_model(User),
-            object_id=self.user.id,
+            object_id=subject.id,
         )
 
         response = self.client.get("/api/user-actions/summary/")
@@ -242,6 +256,8 @@ class UserActionAPITests(APITestCase):
 
     def test_filter_by_urgency(self):
         """Test filtering actions by urgency"""
+        # One action per user, type and object: this one is about someone else.
+        subject = User.objects.create_user(username="subject")
         models.UserAction.objects.create(
             user=self.user,
             action_type="test_action",
@@ -249,13 +265,13 @@ class UserActionAPITests(APITestCase):
             description="A low priority action",
             urgency="low",
             content_type=ContentType.objects.get_for_model(User),
-            object_id=self.user.id,
+            object_id=subject.id,
         )
 
         response = self.client.get("/api/user-actions/?urgency=medium")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["urgency"], "medium")
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["urgency"], "medium")
 
     def test_filter_silenced_actions(self):
         """Test filtering silenced actions"""
@@ -264,12 +280,12 @@ class UserActionAPITests(APITestCase):
         # Default should exclude silenced
         response = self.client.get("/api/user-actions/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 0)
+        self.assertEqual(len(response.data), 0)
 
         # Explicit include should show silenced
         response = self.client.get("/api/user-actions/?include_silenced=true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data), 1)
 
     def test_user_can_only_see_own_actions(self):
         """Test that users can only see their own actions"""
@@ -290,8 +306,8 @@ class UserActionAPITests(APITestCase):
         # Current user should only see their own action
         response = self.client.get("/api/user-actions/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["title"], "Test Action")
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["title"], "Test Action")
 
         # Should not be able to access other user's action by UUID
         response = self.client.get(f"/api/user-actions/{other_action.uuid}/")
@@ -316,23 +332,18 @@ class TaskTests(TestCase):
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com"
         )
-        # Clear and register test provider
-        providers.clear_providers()
-        providers.register_provider(TestActionProvider)
-
-    def tearDown(self):
-        providers.clear_providers()
+        use_only_fake_provider(self)
 
     @patch("waldur_core.user_actions.tasks.update_user_actions_for_provider.delay")
     def test_update_actions_for_provider(self, mock_task):
         """Test updating actions for a provider"""
-        from . import tasks
+        from waldur_core.user_actions import tasks
 
         # Create a provider record
         provider_record = models.UserActionProvider.objects.create(
             action_type="test_action",
             app_name="user_actions",
-            provider_class="TestActionProvider",
+            provider_class="FakeActionProvider",
         )
 
         tasks.update_actions_for_provider("test_action")
@@ -346,7 +357,7 @@ class TaskTests(TestCase):
 
     def test_update_user_actions_for_provider(self):
         """Test updating user actions for a specific provider"""
-        from . import tasks
+        from waldur_core.user_actions import tasks
 
         # Initially no actions
         self.assertEqual(models.UserAction.objects.count(), 0)
@@ -364,7 +375,7 @@ class TaskTests(TestCase):
 
     def test_cleanup_stale_actions(self):
         """Test cleaning up stale actions"""
-        from . import tasks
+        from waldur_core.user_actions import tasks
 
         # Create an action manually that won't be returned by provider
         stale_action = models.UserAction.objects.create(
@@ -389,15 +400,6 @@ class TaskTests(TestCase):
         # Should remove the stale action, keep the valid one
         self.assertEqual(models.UserAction.objects.count(), 1)
         self.assertFalse(models.UserAction.objects.filter(id=stale_action.id).exists())
-
-
-class TestModel(django_models.Model):
-    """Test model for cleanup testing"""
-
-    name = django_models.CharField(max_length=100)
-
-    class Meta:
-        app_label = "user_actions"
 
 
 class CleanupTasksTests(TestCase):
@@ -622,24 +624,18 @@ class SignalHandlerTests(TestCase):
     def test_schedule_cleanup_for_deleted_object_queues_task(self, mock_task):
         """Test that signal handler properly queues cleanup task"""
 
-        # Mock sender and instance
-        class MockSender:
-            __name__ = "TestModel"
-
+        # The sender is a real model: the handler looks up its content type.
         class MockInstance:
             pk = 123
 
-        sender = MockSender()
-        instance = MockInstance()
-
         # Call the handler
-        schedule_cleanup_for_deleted_object(sender, instance)
+        schedule_cleanup_for_deleted_object(User, MockInstance())
 
         # Should queue the cleanup task
-        self.assertTrue(mock_task.called)
-        call_args = mock_task.call_args[0]
-        self.assertEqual(len(call_args), 2)  # content_type_id, object_id
-        self.assertEqual(call_args[1], 123)  # object_id
+        mock_task.assert_called_once_with(
+            ContentType.objects.get_for_model(User).id,  # content_type_id
+            123,  # object_id
+        )
 
     @patch("waldur_core.user_actions.tasks.cleanup_actions_for_deleted_object.delay")
     def test_schedule_cleanup_handles_errors_gracefully(self, mock_task):
@@ -648,17 +644,15 @@ class SignalHandlerTests(TestCase):
         # Mock task to raise an exception
         mock_task.side_effect = Exception("Celery error")
 
-        class MockSender:
-            __name__ = "TestModel"
-
         class MockInstance:
             pk = 123
 
         # Should not raise exception
         try:
-            schedule_cleanup_for_deleted_object(MockSender(), MockInstance())
+            schedule_cleanup_for_deleted_object(User, MockInstance())
         except Exception:
             self.fail("Signal handler should handle errors gracefully")
+        self.assertTrue(mock_task.called)
 
     @patch("django.db.models.signals.post_delete.connect")
     def test_register_cleanup_handler_registers_signals(self, mock_connect):
@@ -674,7 +668,7 @@ class SignalHandlerTests(TestCase):
         call_args_list = mock_connect.call_args_list
         dispatch_uids = [call[1]["dispatch_uid"] for call in call_args_list]
 
-        self.assertIn("cleanup_user_actions_for_auth.user", dispatch_uids)
+        self.assertIn("cleanup_user_actions_for_core.user", dispatch_uids)
         self.assertIn(
             "cleanup_user_actions_for_contenttypes.contenttype", dispatch_uids
         )
@@ -737,11 +731,15 @@ class IntegrationTests(TestCase):
         user2_id = self.user2.id
         self.user2.delete()
 
+        # user2's own action goes with them (UserAction.user cascades); the one
+        # about them, owned by user1, is left dangling.
+        self.assertEqual(models.UserAction.objects.count(), 2)
+
         # Now run targeted cleanup for the deleted user
         deleted_count = cleanup_actions_for_deleted_object(user_ct.id, user2_id)
 
-        # Should remove actions that pointed to deleted user (action2 and action3)
-        self.assertEqual(deleted_count, 2)
+        # Should remove the action that pointed to the deleted user (action3)
+        self.assertEqual(deleted_count, 1)
         self.assertEqual(models.UserAction.objects.count(), 1)
 
         # Only action1 should remain (about existing user, for existing user)
