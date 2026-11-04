@@ -5,7 +5,8 @@ the user, so Waldur keeps the refresh token of a user's last OIDC sign-in and
 mints access tokens from it. A refresh token is a live credential, so:
 
 - it is kept only while a service that needs it is enabled (the HPC workspace,
-  ``FIRECREST_ALLOWED_API_URLS``), and encrypted at rest;
+  ``FIRECREST_ALLOWED_API_URLS`` or ``SLURM_MONITOR_ALLOWED_API_URLS``), and
+  encrypted at rest;
 - access tokens never reach the database: they stay in the cache, encrypted,
   until shortly before they expire (``waldur_auth_social.token_cache``);
 - it is deleted, and revoked at the identity provider, on logout, on
@@ -78,10 +79,14 @@ class _SubjectTokenRefused(Exception):
 def tokens_needed() -> bool:
     """Whether any service acts as the user with a stored token.
 
-    Only the HPC workspace does, and only towards the FirecREST endpoints staff
-    have allowed.
+    Only the HPC workspace does, towards the FirecREST and cluster monitor
+    endpoints staff have allowed; a cluster monitor alone is a read-only
+    workspace.
     """
-    return bool((config.FIRECREST_ALLOWED_API_URLS or "").strip())
+    return bool(
+        (config.FIRECREST_ALLOWED_API_URLS or "").strip()
+        or (config.SLURM_MONITOR_ALLOWED_API_URLS or "").strip()
+    )
 
 
 # Storing and minting

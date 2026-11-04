@@ -3,9 +3,9 @@ from rest_framework import serializers
 from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import monitoring
+from . import monitoring, workspace
 
-TIME_WINDOW_CHOICES = ["1h", "8h", "24h", "3d", "7d"]
+TIME_WINDOW_CHOICES = list(workspace.WINDOW_SECONDS)
 
 
 class HpcWorkspaceSerializer(serializers.ModelSerializer):
@@ -21,6 +21,10 @@ class HpcWorkspaceSerializer(serializers.ModelSerializer):
     )
     system_name = serializers.SerializerMethodField()
     state = serializers.CharField(source="get_state_display", read_only=True)
+    firecrest_enabled = serializers.SerializerMethodField(
+        help_text="Jobs can be submitted and canceled and files opened through FirecREST. "
+        "Without it the workspace is read-only, from the cluster monitor."
+    )
     monitoring_enabled = serializers.SerializerMethodField(
         help_text="Jobs have per-run performance samples from the cluster monitor."
     )
@@ -38,11 +42,15 @@ class HpcWorkspaceSerializer(serializers.ModelSerializer):
             "customer_name",
             "system_name",
             "state",
+            "firecrest_enabled",
             "monitoring_enabled",
         )
 
     def get_system_name(self, resource) -> str:
         return (resource.offering.plugin_options or {}).get("firecrest_system_name", "")
+
+    def get_firecrest_enabled(self, resource) -> bool:
+        return workspace.is_firecrest_enabled(resource.offering)
 
     def get_monitoring_enabled(self, resource) -> bool:
         return monitoring.is_monitoring_enabled(resource.offering)
@@ -369,6 +377,11 @@ class HpcJobStatsSerializer(serializers.Serializer):
     wait_by_partition = HpcPartitionWaitSerializer(many=True)
     suggestions = HpcSuggestionSerializer(many=True)
     charts = ChartSpecSerializer(many=True)
+
+
+class HpcWorkspaceListQuerySerializer(serializers.Serializer):
+    # Described in views.RESOURCE_UUID_PARAMETER, which links it to resources.
+    resource_uuid = serializers.UUIDField(required=False)
 
 
 class HpcJobStatsQuerySerializer(serializers.Serializer):

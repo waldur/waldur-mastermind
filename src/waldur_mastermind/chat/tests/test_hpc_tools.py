@@ -9,12 +9,16 @@ from django.test import TestCase
 from waldur_auth_social import oauth_tokens
 from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_firecrest.tests.test_monitor_only import accounting, job_row
 from waldur_firecrest.workspace import identity_cache_key
 from waldur_mastermind.chat.block_schemas import BlockSerializer
 from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.executor import ToolExecutor
-from waldur_mastermind.chat.tools.hpc.cluster import ListHpcAllocationsTool
+from waldur_mastermind.chat.tools.hpc.cluster import (
+    GetHpcClusterStatusTool,
+    ListHpcAllocationsTool,
+)
 from waldur_mastermind.chat.tools.hpc.insights import (
     GetHpcAllocationUsageTool,
     GetHpcClusterLoadTool,
@@ -28,7 +32,11 @@ from waldur_mastermind.chat.tools.hpc.jobs import (
     SubmitHpcJobTool,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.chat.tools.tool_sets import END_USER_TOOLS, get_tool_set_for_user
+from waldur_mastermind.chat.tools.tool_sets import (
+    _HPC_TOOLS,
+    END_USER_TOOLS,
+    get_tool_set_for_user,
+)
 from waldur_mastermind.chat.ui_registry import ui_registry
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
@@ -38,6 +46,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories
 
 API_URL = "http://firecrest:5000"
+MONITOR_URL = "http://slurm-monitor:12000/api/v2"
 SYSTEM = "slurm-a"
 ACCOUNT = "alloc_1"
 
@@ -99,6 +108,22 @@ class HpcToolsTest(HpcToolsTestBase):
             ToolName.SUBMIT_HPC_JOB.value, self.job_args
         )
         self.assertEqual(result["type"], "error")
+
+    @override_config(FIRECREST_ALLOWED_API_URLS="", SLURM_MONITOR_ALLOWED_API_URLS="")
+    def test_no_hpc_tools_without_an_allowed_endpoint(self):
+        for user in (self.user, self.fixture.staff):
+            self.assertTrue(set(get_tool_set_for_user(user)).isdisjoint(_HPC_TOOLS))
+        self.assertIn(ToolName.LIST_PROJECTS, get_tool_set_for_user(self.user))
+        result = ToolExecutor(self.user).execute_tool(
+            ToolName.LIST_HPC_ALLOCATIONS.value, {}
+        )
+        self.assertEqual(result["type"], "error")
+
+    @override_config(
+        FIRECREST_ALLOWED_API_URLS="", SLURM_MONITOR_ALLOWED_API_URLS=MONITOR_URL
+    )
+    def test_a_cluster_monitor_alone_brings_the_hpc_tools(self):
+        self.assertIn(ToolName.LIST_HPC_JOBS, get_tool_set_for_user(self.user))
 
     def test_tools_registered_for_end_users(self):
         for name in (
@@ -348,3 +373,88 @@ class HpcInsightToolsTest(HpcToolsTestBase):
         self.assertIn("#SBATCH", block["script"])
         serializer = BlockSerializer(data=block)
         self.assertTrue(serializer.is_valid(), serializer.errors)
+
+
+@override_config(
+    FIRECREST_ALLOWED_API_URLS="", SLURM_MONITOR_ALLOWED_API_URLS=MONITOR_URL
+)
+class MonitorOnlyToolsTest(HpcToolsTestBase):
+    """An allocation whose offering has only a cluster monitor, no FirecREST."""
+
+    def setUp(self):
+        super().setUp()
+        self.offering.plugin_options = {
+            "slurm_monitor_api_url": MONITOR_URL,
+            "slurm_monitor_cluster_name": "cluster-a",
+        }
+        self.offering.save()
+
+    def test_allocation_says_jobs_cannot_be_run(self):
+        result = ListHpcAllocationsTool().execute(self.user, {})
+        (allocation,) = result["data"]["allocations"]
+        self.assertEqual(allocation["cluster"], "cluster-a")
+        self.assertFalse(allocation["can_run_jobs"])
+
+    def test_a_job_is_not_planned_where_it_cannot_be_submitted(self):
+        result = PlanHpcJobTool().execute(self.user, self.job_args)
+        self.assertEqual(result["type"], "error")
+        self.assertIn("need FirecREST", result["summary"])
+
+    def test_cluster_status_is_the_published_partitions(self):
+        with responses.RequestsMock() as mocked:
+            result = GetHpcClusterStatusTool().execute(self.user, {})
+            self.assertEqual(len(mocked.calls), 0)
+        self.assertEqual(result["type"], "success", result)
+        self.assertIn("partition(s) on cluster-a", result["summary"])
+        self.assertIn("need FirecREST", result["summary"])
+        self.assertNotIn("health", result["data"])
+        (partition,) = result["data"]["partitions"]
+        self.assertEqual(partition["name"], "batch")
+        self.assertEqual(partition["max_time"], 120)
+        self.assertFalse(partition["live"])
+
+    @responses.activate
+    def test_job_comes_from_the_monitor_without_its_files(self):
+        monitor = f"{MONITOR_URL}/cluster/cluster-a"
+        row = {"account": ACCOUNT, "user": "hpc_9000"}
+        responses.get(f"{monitor}/jobs/11", json=job_row(11, **row))
+        responses.get(
+            f"{monitor}/jobs", json={"jobs": [job_row(11, **row, **accounting())]}
+        )
+
+        result = GetHpcJobTool().execute(self.user, {"job_id": "11"})
+
+        self.assertEqual(result["type"], "success", result)
+        self.assertIn("cannot be read without FirecREST", result["summary"])
+        job = result["data"]["job"]
+        self.assertEqual(job["job_id"], "11")
+        self.assertEqual(job["state"], "COMPLETED")
+        self.assertEqual(job["time_limit_minutes"], 120)
+        self.assertEqual(job["cpu_time_seconds"], 28800)
+        self.assertNotIn("standard_output", result["data"])
+
+    @responses.activate
+    def test_job_of_another_user_is_not_found(self):
+        monitor = f"{MONITOR_URL}/cluster/cluster-a"
+        responses.get(
+            f"{monitor}/jobs/12", json=job_row(12, account=ACCOUNT, user="someone_else")
+        )
+        responses.get(f"{monitor}/jobs", json={"jobs": []})
+        result = GetHpcJobTool().execute(self.user, {"job_id": "12"})
+        self.assertEqual(result["type"], "error")
+        self.assertIn("not found", result["summary"])
+
+    @responses.activate
+    def test_job_the_monitor_does_not_show_is_not_found(self):
+        # slurm-monitor answers 404 for another user's job as for a missing one.
+        responses.get(
+            f"{MONITOR_URL}/cluster/cluster-a/jobs/12",
+            status=404,
+            json={"detail": "Job 12 not found"},
+        )
+        result = GetHpcJobTool().execute(self.user, {"job_id": "12"})
+        self.assertEqual(result, {"type": "error", "summary": "Job 12 is not found."})
+
+    def test_job_id_must_be_ascii_digits(self):
+        result = GetHpcJobTool().execute(self.user, {"job_id": "\u00b2"})
+        self.assertEqual(result["type"], "validation_error")

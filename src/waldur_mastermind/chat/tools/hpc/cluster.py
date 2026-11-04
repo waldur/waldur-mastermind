@@ -20,8 +20,10 @@ class ListHpcAllocationsTool(BaseTool):
             name=ToolName.LIST_HPC_ALLOCATIONS,
             category=ToolCategory.HPC,
             description=(
-                "List the user's HPC (SLURM) allocations that can run jobs through "
-                "FirecREST: allocation uuid, Slurm account, cluster, project."
+                "List the user's HPC (SLURM) allocations: allocation uuid, Slurm "
+                "account, cluster, project, and can_run_jobs (false when only a "
+                "cluster monitor is connected: jobs can then be looked at, not "
+                "submitted or canceled)."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
             usage_instructions=(
@@ -64,7 +66,9 @@ class GetHpcClusterStatusTool(BaseTool):
             description=(
                 "Cluster status for an allocation: service health and partitions with "
                 "idle/total nodes, time/node/CPU/memory limits, CPU/GPU architecture "
-                "and allowed QoS."
+                "and allowed QoS. Health and node counts come from FirecREST: with "
+                "only a cluster monitor (can_run_jobs false) the partitions are the "
+                "ones Waldur publishes, with their limits."
             ),
             inputSchema={
                 "type": "object",
@@ -79,21 +83,21 @@ class GetHpcClusterStatusTool(BaseTool):
 
     def execute(self, user, arguments: dict) -> dict:
         def action(workspace):
-            system = workspace.system_status()
-            health = [
-                {"service": item.get("serviceType"), "healthy": item.get("healthy")}
-                for item in system.get("servicesHealth") or []
-            ]
-            partitions = workspace.partitions()
-            return {
-                "type": "success",
-                "summary": f"{len(partitions)} partition(s) on {workspace.system}.",
-                "data": {
-                    "allocation": allocation_summary(workspace.resource),
-                    "health": health,
-                    "partitions": partitions,
-                },
-            }
+            allocation = allocation_summary(workspace.resource)
+            data = {"allocation": allocation}
+            if workspace.has_firecrest:
+                system = workspace.system_status()
+                data["health"] = [
+                    {"service": item.get("serviceType"), "healthy": item.get("healthy")}
+                    for item in system.get("servicesHealth") or []
+                ]
+            data["partitions"] = workspace.partitions()
+            summary = (
+                f"{len(data['partitions'])} partition(s) on {allocation['cluster']}."
+            )
+            if not workspace.has_firecrest:
+                summary += " Service health and free nodes need FirecREST."
+            return {"type": "success", "summary": summary, "data": data}
 
         return run(user, arguments, action)
 

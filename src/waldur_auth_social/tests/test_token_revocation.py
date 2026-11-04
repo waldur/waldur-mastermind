@@ -302,3 +302,18 @@ class TokenRevocationTest(test.APITestCase):
         self.assertFalse(OAuthToken.objects.exists())
         self.assertEqual(len(self.revocation_requests()), 1)
         self.assertEqual(self.revoked_reasons(), ["disabled"])
+
+    @responses.activate
+    def test_tokens_are_kept_for_a_cluster_monitor_alone(self):
+        self.user.last_login = timezone.now()
+        self.user.save(update_fields=["last_login"])
+
+        with override_config(
+            FIRECREST_ALLOWED_API_URLS="",
+            SLURM_MONITOR_ALLOWED_API_URLS="https://monitor.example.org/api/v2",
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                tasks.cleanup_stale_oauth_tokens()
+
+        self.assertTrue(OAuthToken.objects.filter(user=self.user).exists())
+        self.assertEqual(len(responses.calls), 0)

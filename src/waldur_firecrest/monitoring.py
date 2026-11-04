@@ -21,7 +21,7 @@ import math
 import statistics
 import time
 from collections import defaultdict
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -99,7 +99,8 @@ class MonitorClient:
         )
         try:
             response = requests.get(
-                f"{self.api_url}/cluster/{self.cluster}{path}",
+                # The cluster name is the provider's: it stays one segment.
+                f"{self.api_url}/cluster/{quote(self.cluster, safe='')}{path}",
                 headers=self.headers,
                 params={k: v for k, v in params.items() if v is not None},
                 timeout=self.timeout,
@@ -128,6 +129,115 @@ class MonitorClient:
 
     def node_gpu_timeseries(self, node, window):
         return self._get(f"/nodes/{node}/gpu/timeseries", **window)
+
+    def list_jobs(self, start_time_in_s, end_time_in_s):
+        """The caller's jobs sampled in the window, one row per job step.
+
+        slurm-monitor lists a job once its processes have been sampled, so a
+        job still pending is not in it.
+        """
+        return self._get(
+            "/jobs",
+            start_time_in_s=int(start_time_in_s),
+            end_time_in_s=int(end_time_in_s),
+        )["jobs"]
+
+    def get_job(self, job_id):
+        """The caller's job, without its accounting (``sacct``)."""
+        return self._get(f"/jobs/{job_id}")
+
+
+# slurm-monitor's job records (Sonar's Slurm job samples) in the shape of a
+# FirecREST job, so the job list, details, insights and performance read both
+# the same way. Units: times are ISO strings, time_limit is in minutes (Sonar
+# passes on Slurm's TimelimitRaw; slurm-monitor's API description says
+# seconds), requested_memory_per_node in KiB, sacct CPU times in seconds,
+# MaxRSS in bytes.
+
+
+def _epoch(value) -> int | None:
+    if not value:
+        return None
+    if isinstance(value, int | float):
+        return int(value)
+    return int(datetime.datetime.fromisoformat(value).timestamp())
+
+
+def _tres(value) -> dict[str, str]:
+    """``cpu=8,gres/gpu=2,mem=16G,node=1`` -> ``{"cpu": "8", ...}``."""
+    pairs = (item.partition("=") for item in (value or "").split(",") if item)
+    return {key: val for key, _, val in pairs}
+
+
+def _int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def job_from_rows(rows: list[dict]) -> dict:
+    """One job from its rows (the job itself and its steps)."""
+    main = next((row for row in rows if not row.get("job_step")), rows[0])
+    accounting = main.get("sacct") or {}
+    tres = _tres(accounting.get("AllocTRES") or main.get("allocated_resources"))
+    nodes = main.get("nodes") or []
+    node_count = (
+        _int(tres.get("node"))
+        or main.get("requested_node_count")
+        or (len(nodes) or None)
+    )
+    cpu_times = [accounting.get("UserCPU"), accounting.get("SystemCPU")]
+    peaks = [
+        (row.get("sacct") or {}).get("MaxRSS")
+        for row in rows
+        if (row.get("sacct") or {}).get("MaxRSS")
+    ]
+    memory_per_node = main.get("requested_memory_per_node")
+    time_limit = main.get("time_limit")
+    return {
+        # Array tasks too: slurm-monitor addresses every job by its own id.
+        "jobId": str(main["job_id"]),
+        "name": main.get("job_name") or "",
+        "status": {
+            "state": main.get("job_state") or "",
+            "stateReason": None,
+            "exitCode": main.get("exit_code"),
+        },
+        "account": main.get("account"),
+        "partition": main.get("partition"),
+        "user": main.get("user_name"),
+        "nodes": ",".join(nodes),
+        "allocationNodes": node_count,
+        "workingDirectory": None,
+        "time": {
+            "submission": _epoch(main.get("submit_time")),
+            "start": _epoch(main.get("start_time")),
+            "end": _epoch(main.get("end_time")),
+            "elapsed": accounting.get("ElapsedRaw"),
+            "limit": time_limit * 60 if time_limit is not None else None,
+            "totalCpu": sum(cpu_times)
+            if all(value is not None for value in cpu_times)
+            else None,
+        },
+        "allocationCpus": _int(tres.get("cpu")) or main.get("requested_cpus"),
+        "requestedMemory": round(memory_per_node * (node_count or 1) / 1024)
+        if memory_per_node
+        else None,
+        "maxRss": max(peaks) if peaks else None,
+        "allocationGpus": _int(tres.get("gres/gpu"))
+        or len(main.get("used_gpu_uuids") or [])
+        or None,
+        "consumedEnergy": None,
+    }
+
+
+def jobs_from_rows(rows: list[dict]) -> list[dict]:
+    """Jobs from slurm-monitor's rows, which list each job step separately."""
+    by_job = defaultdict(list)
+    for row in rows:
+        by_job[row.get("job_id")].append(row)
+    return [job_from_rows(job_rows) for job_rows in by_job.values()]
 
 
 def job_window(job: dict, now: float | None = None) -> dict | None:

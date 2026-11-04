@@ -7,9 +7,12 @@ user, and the workspace confines jobs to the allocation's Slurm account.
 """
 
 from waldur_firecrest.client import FirecrestException
+from waldur_firecrest.monitoring import CLUSTER_OPTION, MonitorException
 from waldur_firecrest.workspace import (
+    SYSTEM_NAME_OPTION,
     HpcWorkspace,
     WorkspaceUnavailable,
+    is_firecrest_enabled,
     resources_for_user,
 )
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
@@ -32,13 +35,14 @@ class AllocationNotResolved(Exception):
 
 
 def allocation_summary(resource) -> dict:
+    options = resource.offering.plugin_options or {}
     return {
         "uuid": resource.uuid.hex,
         "name": resource.name,
         "account": resource.backend_id,
-        "cluster": (resource.offering.plugin_options or {}).get(
-            "firecrest_system_name", ""
-        ),
+        "cluster": options.get(SYSTEM_NAME_OPTION) or options.get(CLUSTER_OPTION) or "",
+        # Without FirecREST, jobs can be followed but not submitted or cancelled.
+        "can_run_jobs": is_firecrest_enabled(resource.offering),
         "offering": resource.offering.name,
         "project": resource.project.name,
         "organization": resource.project.customer.name,
@@ -63,7 +67,7 @@ def resolve_workspace(user, arguments: dict) -> HpcWorkspace:
         summary = (
             f"No HPC allocation matches '{reference}'."
             if reference
-            else "You have no HPC allocations connected to FirecREST."
+            else "You have no HPC allocations connected to FirecREST or a cluster monitor."
         )
         raise AllocationNotResolved({"type": "error", "summary": summary})
     if len(matches) > 1:
@@ -91,6 +95,9 @@ def run(user, arguments: dict, action) -> dict:
     except WorkspaceUnavailable as e:
         return {"type": "error", "summary": str(e)}
     except FirecrestException as e:
+        return {"type": "error", "summary": str(e)}
+    except MonitorException as e:
+        # Jobs come from the cluster monitor when there is no FirecREST.
         return {"type": "error", "summary": str(e)}
 
 
