@@ -9,7 +9,8 @@
       "Organization-level aggregation across two resources",
       "Affiliate links with different fees and an inactive link",
       "Affiliate fee accruals per invoice",
-      "Credit ledger: earned fees, promotional grant, withdrawable adjustment and payout"
+      "Credit ledger: earned fees, staff grant, withdrawable adjustment and payout",
+      "Organization credit split into lots: Acme holds paid credit (a prepayment) and granted credit (a welcome grant), Beta granted credit only (a research grant); the affiliate fee counts what prepaid credit pays and not what a grant pays"
     ]
   },
   "constance_settings": {
@@ -1089,6 +1090,28 @@
       "apply_as_minimal_consumption": true,
       "offering_uuids": [],
       "created": "2026-01-01T00:00:00"
+    },
+    {
+      "uuid": "15000000000000000000000000000002",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "value": "0",
+      "expected_consumption": "0",
+      "grace_coefficient": "0",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true,
+      "offering_uuids": [],
+      "created": "2026-07-01T00:00:00"
+    },
+    {
+      "uuid": "15000000000000000000000000000003",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "value": "0",
+      "expected_consumption": "0",
+      "grace_coefficient": "0",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true,
+      "offering_uuids": [],
+      "created": "2026-07-01T00:00:00"
     }
   ],
   "customer_affiliates": [
@@ -1146,7 +1169,7 @@
       "credit_uuid": "15000000000000000000000000000001",
       "amount": "200.00",
       "transaction_type": "staff_grant",
-      "comment": "Promotional onboarding credit",
+      "comment": "Onboarding grant",
       "created": "2026-01-10T10:00:00"
     },
     {
@@ -1164,6 +1187,30 @@
       "transaction_type": "payout",
       "comment": "Quarterly partner payout",
       "created": "2026-06-30T16:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000007",
+      "credit_uuid": "15000000000000000000000000000002",
+      "amount": "2500.00",
+      "transaction_type": "top_up",
+      "comment": "Prepayment received by bank transfer",
+      "created": "2026-07-01T09:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000008",
+      "credit_uuid": "15000000000000000000000000000002",
+      "amount": "300.00",
+      "transaction_type": "staff_grant",
+      "comment": "Welcome credit",
+      "created": "2026-07-02T09:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000009",
+      "credit_uuid": "15000000000000000000000000000003",
+      "amount": "2000.00",
+      "transaction_type": "staff_grant",
+      "comment": "Research grant",
+      "created": "2026-07-01T09:00:00"
     }
   ],
   "affiliate_fee_accruals": [

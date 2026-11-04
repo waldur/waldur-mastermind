@@ -15,7 +15,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.logging.middleware import get_event_context
 from waldur_core.media.validators import parse_email_list
 from waldur_core.structure.models import Project
-from waldur_mastermind.invoices import ledger, models, tasks, vat
+from waldur_mastermind.invoices import ledger, lots, models, tasks, vat
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
@@ -591,22 +591,28 @@ def refund_project_credit_on_project_removal(sender, instance: Project, **kwargs
         ),
     ):
         if project_credit.mark_unused_credit_as_spent_on_project_termination:
-            old_org_value = int(customer_credit.value or 0)
-            if customer_credit.value > project_credit.value:
-                customer_credit.value -= project_credit.value
-            else:
-                customer_credit.value = 0
-            customer_credit.save(update_fields=["value"])
-            event_logger.emit(
-                "Organization credit has been decreased due to project removal.",
-                event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
-                event_context={
-                    "new_value": int(customer_credit.value or 0),
-                    "old_value": old_org_value,
-                    "customer": customer_credit.customer,
-                },
-                scopes=[customer_credit.customer],
+            # Only granted credit is lost unspent, as at its end date:
+            # prepayments are the customer's money and earnings the
+            # organization's, so they stay when an allocation is given up.
+            forfeited = min(
+                project_credit.value,
+                customer_credit.granted_balance,
+                customer_credit.value,
             )
+            if forfeited > 0:
+                old_org_value = int(customer_credit.value or 0)
+                customer_credit.value -= forfeited
+                customer_credit.save(update_fields=["value"])
+                event_logger.emit(
+                    "Organization credit has been decreased due to project removal.",
+                    event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
+                    event_context={
+                        "new_value": int(customer_credit.value or 0),
+                        "old_value": old_org_value,
+                        "customer": customer_credit.customer,
+                    },
+                    scopes=[customer_credit.customer],
+                )
 
         if project_credit.value != 0:
             old_value = int(project_credit.value)
@@ -638,8 +644,9 @@ def record_credit_transaction(sender, instance, created=False, **kwargs):
     one row per part instead; a breakdown that does not add up to the delta is
     refused, and the movement falls back to one row of the enclosing type.
 
-    Unlike the audit events, ledger writes are never suppressed: the
-    withdrawable balance and the drawdown history are derived from them.
+    Unlike the audit events, ledger writes are never suppressed: the credit
+    lots (and so the withdrawable balance) and the drawdown history are
+    derived from them.
     """
     update_fields = kwargs.get("update_fields")
     if update_fields and "value" not in update_fields:
@@ -677,7 +684,7 @@ def record_credit_transaction(sender, instance, created=False, **kwargs):
             for part in parts:
                 if not part.amount:
                     continue
-                models.CreditTransaction.objects.create(
+                row = models.CreditTransaction.objects.create(
                     amount=part.amount,
                     transaction_type=part.transaction_type,
                     reference=parts_reference,
@@ -685,6 +692,7 @@ def record_credit_transaction(sender, instance, created=False, **kwargs):
                     billing_period=part.billing_period,
                     **attribution,
                 )
+                lots.apply_transaction(row)
             return
         # A breakdown that does not add up would misstate the balance it claims
         # to explain, so fall through to a single row rather than trust it. The
@@ -705,7 +713,7 @@ def record_credit_transaction(sender, instance, created=False, **kwargs):
         comment,
         billing_period,
     ) = ledger.current_credit_transaction_type()
-    models.CreditTransaction.objects.create(
+    row = models.CreditTransaction.objects.create(
         amount=delta,
         transaction_type=transaction_type or models.CreditTransaction.Types.STAFF_GRANT,
         reference=reference,
@@ -713,6 +721,7 @@ def record_credit_transaction(sender, instance, created=False, **kwargs):
         billing_period=billing_period,
         **attribution,
     )
+    lots.apply_transaction(row)
 
 
 AFFILIATE_TERM_FIELDS = (
@@ -775,7 +784,7 @@ def process_affiliate_fees(sender, invoice: Invoice, **kwargs):
 
     Runs after credit compensations (the invoice_created signal fires on
     the PENDING -> CREATED transition), so fees are computed on the
-    post-compensation net price. Any per-link failure is logged and
+    post-compensation net price plus what paid credit compensated. Any per-link failure is logged and
     skipped: fee accrual must never block invoice finalization.
     """
     if not invoice_utils.affiliates_feature_enabled():
@@ -799,7 +808,9 @@ def process_affiliate_fees(sender, invoice: Invoice, **kwargs):
 
 
 def accrue_affiliate_fee(link: models.CustomerAffiliate, invoice: Invoice):
-    amount = invoice.price
+    # A prepayment is revenue like any other payment, so the part of the
+    # invoice that paid credit compensated counts; a grant does not.
+    amount = invoice.price + lots.paid_compensation(invoice)
     if amount <= 0:
         return
 

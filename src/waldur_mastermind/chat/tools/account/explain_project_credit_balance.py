@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 CUSTOMER_CREDIT = obj(
     {
         "value": STRING,
+        "granted_balance": STRING,
+        "paid_balance": STRING,
+        "withdrawable_balance": STRING,
         "expected_consumption": STRING,
         "end_date": nullable(STRING),
         "allocated_to_projects": STRING,
@@ -103,6 +106,9 @@ class ExplainProjectCreditBalanceTool(BaseTool):
                 "project X?', 'why did project X run out of credit?', or "
                 "'how much has project X spent this month?'. Prefer "
                 "project_uuid when available."
+                " On the organization credit, only granted_balance expires on "
+                "end_date and is taken by the minimal consumption; paid_balance "
+                "and withdrawable_balance never expire."
             ),
         )
 
@@ -179,6 +185,11 @@ class ExplainProjectCreditBalanceTool(BaseTool):
         if customer_credit:
             customer_credit_data = {
                 "value": str(customer_credit.value),
+                # Only granted credit expires on end_date; paid credit and
+                # the withdrawable balance survive it.
+                "granted_balance": str(customer_credit.granted_balance),
+                "paid_balance": str(customer_credit.paid_balance),
+                "withdrawable_balance": str(customer_credit.withdrawable_balance),
                 "expected_consumption": str(customer_credit.expected_consumption),
                 "end_date": customer_credit.end_date.isoformat()
                 if customer_credit.end_date

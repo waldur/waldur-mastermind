@@ -82,6 +82,12 @@ class GetCustomerCreditOverviewToolTest(TestCase):
         data = result["data"]
         self.assertIsNotNone(data["customer_credit"])
         self.assertEqual(Decimal(data["customer_credit"]["value"]), Decimal("10000"))
+        # A staff write is granted credit, the kind that expires.
+        self.assertEqual(
+            Decimal(data["customer_credit"]["granted_balance"]), Decimal("10000")
+        )
+        self.assertEqual(Decimal(data["customer_credit"]["paid_balance"]), 0)
+        self.assertEqual(Decimal(data["customer_credit"]["withdrawable_balance"]), 0)
         self.assertEqual(data["_total_project_count"], 2)
         self.assertEqual(data["overdrawn_count"], 1)
         # Worst (most overdrawn) sorts first.

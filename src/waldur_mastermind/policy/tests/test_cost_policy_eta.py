@@ -198,6 +198,19 @@ class CreditRunwayTest(test.APISimpleTestCase):
         credit = self.Credit(18000, minimal=18000)
         self.assertEqual(policy_eta.credit_days_remaining(credit, 1), 30)
 
+    def test_an_organization_floor_takes_only_the_granted_credit_left(self):
+        # 3000 of the 18000 is granted; the rest is prepaid. The floor of
+        # 18000 a month can take 600 of usage plus the 3000 granted, so the
+        # month draws 3600, not 18000.
+        credit = self.Credit(18000, minimal=18000, last_month=600)
+        credit.granted_balance = Decimal(3000)
+        self.assertEqual(policy_eta.credit_days_remaining(credit, 0), 150)
+
+    def test_an_organization_floor_with_no_granted_credit_draws_only_usage(self):
+        credit = self.Credit(18000, minimal=18000, last_month=600)
+        credit.granted_balance = Decimal(0)
+        self.assertEqual(policy_eta.credit_days_remaining(credit, 0), 900)
+
 
 class EtaApiTest(test.APITestCase):
     """The projection has to survive the serializer, not just the model."""

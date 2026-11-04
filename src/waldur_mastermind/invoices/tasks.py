@@ -477,17 +477,28 @@ def set_to_zero_overdue_credits(effective_date=None):
             # zeroing of the remaining credits or the calling invoice task.
             try:
                 with transaction.atomic():
+                    # Only granted credit expires: a prepayment is the
+                    # customer's money, and earnings are the organization's.
+                    expiring = min(credit.granted_balance, credit.value)
+                    if expiring <= 0:
+                        continue
                     old_value = int(credit.value)
-                    credit.value = 0
+                    credit.value -= expiring
                     credit.save(update_fields=["value"])
                     event_logger.emit(
-                        "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
-                        event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+                        "Credit has been set to zero due as the end date {credit_end_date} has arrived."
+                        if not credit.value
+                        else "Granted credit has expired as the end date {credit_end_date} has arrived.",
+                        event_type=(
+                            EventType.SET_TO_ZERO_OVERDUE_CREDIT
+                            if not credit.value
+                            else EventType.GRANTED_CREDIT_EXPIRED
+                        ),
                         event_context={
                             "customer": credit.customer,
                             "credit_end_date": credit.end_date,
                             "old_value": old_value,
-                            "new_value": 0,
+                            "new_value": int(credit.value),
                         },
                     )
             except Exception:

@@ -306,10 +306,13 @@ class CreditLedgerTest(BaseAffiliateTest):
         self.assertEqual(credit.value, decimal.Decimal("1030"))
         self.assertEqual(credit.withdrawable_balance, decimal.Decimal("30"))
 
-    def test_expiry_is_recorded_and_wipes_withdrawable_balance(self):
+    def test_expiry_takes_granted_credit_and_keeps_earnings(self):
         with freeze_time("2024-03-15"):
+            credit = factories.CustomerCreditFactory(
+                customer=self.fixture.affiliate_customer, value=decimal.Decimal("100")
+            )
             self.finalize_invoice()
-            credit = self.affiliate_credit
+            credit.refresh_from_db()
             credit.end_date = credit.created.date().replace(day=1)
             credit.save(update_fields=["end_date"])
 
@@ -318,12 +321,12 @@ class CreditLedgerTest(BaseAffiliateTest):
             )
 
         credit.refresh_from_db()
-        self.assertEqual(credit.value, 0)
-        self.assertEqual(credit.withdrawable_balance, decimal.Decimal("0"))
+        self.assertEqual(credit.value, decimal.Decimal("30"))
+        self.assertEqual(credit.withdrawable_balance, decimal.Decimal("30"))
         expiry = credit.transactions.get(
             transaction_type=models.CreditTransaction.Types.EXPIRY
         )
-        self.assertEqual(expiry.amount, decimal.Decimal("-30"))
+        self.assertEqual(expiry.amount, decimal.Decimal("-100"))
 
 
 class AffiliatePrivacyTest(BaseAffiliateTest):

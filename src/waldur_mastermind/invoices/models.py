@@ -812,18 +812,33 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         days_in_current_month = decimal.Decimal(monthrange(today.year, today.month)[1])
         return min(decimal.Decimal("1"), days_in_current_month / days_until_credit_end)
 
+    @property
+    def linear_consumption_base(self) -> decimal.Decimal:
+        """What the linear minimal consumption spreads until the end date."""
+        return self.value
+
     def calculate_linear_expected_consumption(
         self, total_compensation
     ) -> decimal.Decimal:
         return (
             max(decimal.Decimal("0"), self.expected_consumption - total_compensation)
             * (decimal.Decimal("1") - self.time_left_factor)
-            + self.value * self.time_left_factor
+            + self.linear_consumption_base * self.time_left_factor
         )
 
     @property
     def minimal_consumption(self) -> decimal.Decimal:
         if not self.apply_as_minimal_consumption:
+            return 0
+
+        # The commitment ends with the credit. What survives the end date is
+        # money that does not expire (prepayments, earnings), and a floor
+        # would drain it month after month.
+        today = datetime.date.today()
+        if self.end_date and (self.end_date.year, self.end_date.month) < (
+            today.year,
+            today.month,
+        ):
             return 0
 
         if (
@@ -889,22 +904,39 @@ class CustomerCredit(BaseCredit):
 
         return consumption * -1
 
+    def lot_balance(self, kind: str) -> decimal.Decimal:
+        """What is left of this credit's lots of one kind."""
+        # Prefer the queryset annotation (list endpoint) when present, else
+        # aggregate on demand (detail view, direct model access).
+        balance = getattr(self, f"{kind}_balance_agg", None)
+        if balance is None:
+            balance = self.lots.filter(kind=kind).aggregate(sum=Sum("remaining"))["sum"]
+        return balance or decimal.Decimal("0")
+
     @property
     def withdrawable_balance(self) -> decimal.Decimal:
         """Part of the credit that may leave the platform via payouts or
-        transfers: earnings-typed ledger inflows minus outflows, capped by
-        the current credit value so that staff-granted (promotional) credit
-        is never withdrawable and credit expiry wipes earnings too.
+        transfers: what is left of the earned lots. Granted and paid
+        credit is never withdrawable, and spending earnings on usage lowers
+        it for good, however much credit is granted afterwards.
         """
-        # Prefer the queryset annotation (list endpoint) when present, else
-        # aggregate on demand (detail view, direct model access).
-        earned = getattr(self, "withdrawable_earned_agg", None)
-        if earned is None:
-            earned = self.transactions.filter(
-                transaction_type__in=CreditTransaction.Types.WITHDRAWABLE_TYPES
-            ).aggregate(sum=Sum("amount"))["sum"]
-        earned = earned or 0
-        return max(decimal.Decimal("0"), min(earned, self.value))
+        return self.lot_balance(CreditLot.Kinds.EARNED)
+
+    @property
+    def paid_balance(self) -> decimal.Decimal:
+        """What is left of the customer's prepayments recorded by staff."""
+        return self.lot_balance(CreditLot.Kinds.PAID)
+
+    @property
+    def granted_balance(self) -> decimal.Decimal:
+        """What is left of staff-granted credit."""
+        return self.lot_balance(CreditLot.Kinds.GRANTED)
+
+    @property
+    def linear_consumption_base(self) -> decimal.Decimal:
+        # The minimal consumption takes granted credit only (see
+        # MonthlyCompensation), so only that is spread.
+        return self.granted_balance
 
     def __str__(self):
         return f"Customer credit for {self.customer.name}, value {self.value}"
@@ -1140,12 +1172,14 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
     Rows are written by the ``record_credit_transaction`` post_save handler
     for every value mutation; the semantic type comes from the innermost
     ``ledger.credit_transaction_type`` block (staff grant when untyped).
-    The ledger is the source of truth for the withdrawable balance, so it
-    must never be edited or deleted — corrections are new rows.
+    Organization credit rows also move the credit's lots (see ``lots``), so
+    the ledger must never be edited or deleted — corrections are new rows.
     """
 
     class Types:
         STAFF_GRANT = "staff_grant"
+        TOP_UP = "top_up"
+        RECLASSIFICATION = "reclassification"
         COMPENSATION = "compensation"
         MINIMAL_DRAW = "minimal_draw"
         AFFILIATE_FEE = "affiliate_fee"
@@ -1164,6 +1198,8 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
 
         CHOICES = (
             (STAFF_GRANT, "Staff grant"),
+            (TOP_UP, "Top-up"),
+            (RECLASSIFICATION, "Reclassification"),
             (COMPENSATION, "Compensation"),
             (HISTORICAL_COMPENSATION, "Compensation of earlier invoices"),
             (MINIMAL_DRAW, "Minimal consumption draw"),
@@ -1175,18 +1211,6 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
             (ROLLBACK, "Rollback"),
             (ADJUSTMENT, "Adjustment"),
             (WITHDRAWABLE_ADJUSTMENT, "Withdrawable adjustment"),
-        )
-
-        # Inflows that an organization earned (as opposed to was granted)
-        # and outflows drawing on them, plus manual staff adjustments of the
-        # withdrawable part; their ledger sum, capped by the current credit
-        # value, is the withdrawable balance.
-        WITHDRAWABLE_TYPES = (
-            AFFILIATE_FEE,
-            TRANSFER_IN,
-            TRANSFER_OUT,
-            PAYOUT,
-            WITHDRAWABLE_ADJUSTMENT,
         )
 
     credit = models.ForeignKey(
@@ -1273,6 +1297,62 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
         return f"{self.get_transaction_type_display()} of {self.amount} for {scope}"
 
 
+class CreditLot(core_models.UuidMixin, core_models.TimeStampedModel):
+    """One part of an organization credit, by where the money came from.
+
+    Every inflow opens a lot and every outflow draws lots down (see ``lots``),
+    so the credit's value is always the sum of what its lots have left.
+    """
+
+    class Kinds:
+        GRANTED = "granted"
+        PAID = "paid"
+        EARNED = "earned"
+
+        CHOICES = (
+            (GRANTED, "Granted"),
+            (PAID, "Paid"),
+            (EARNED, "Earned"),
+        )
+
+        # Usage spends granted credit first, so that a prepayment lasts
+        # and earnings stay withdrawable for as long as possible.
+        DRAW_ORDER = (GRANTED, PAID, EARNED)
+
+    credit = models.ForeignKey(
+        CustomerCredit, on_delete=models.CASCADE, related_name="lots"
+    )
+    kind = models.CharField(max_length=20, choices=Kinds.CHOICES)
+    amount = models.DecimalField(max_digits=16, decimal_places=5)
+    remaining = models.DecimalField(max_digits=16, decimal_places=5)
+    # The ledger row that opened the lot; empty for lots split out of the
+    # balances that existed before lots were introduced.
+    source = models.ForeignKey(
+        CreditTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="opened_lots",
+    )
+
+    class Meta:
+        ordering = ["created", "id"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} lot of {self.amount} for {self.credit}"
+
+
+class CreditLotDraw(models.Model):
+    """How much one ledger row took from, or gave back to, one lot."""
+
+    lot = models.ForeignKey(CreditLot, on_delete=models.CASCADE, related_name="draws")
+    transaction = models.ForeignKey(
+        CreditTransaction, on_delete=models.CASCADE, related_name="lot_draws"
+    )
+    # Positive takes from the lot, negative gives back to it.
+    amount = models.DecimalField(max_digits=16, decimal_places=5)
+
+
 class CustomerAffiliate(core_models.UuidMixin, core_models.TimeStampedModel):
     """Staff-configured link granting the affiliate organization a fixed
     percentage fee from every finalized invoice of the linked customer. All
@@ -1294,8 +1374,9 @@ class CustomerAffiliate(core_models.UuidMixin, core_models.TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="affiliate_terms",
     )
-    # Percentage of the invoice net price (pre-tax, post-compensation), never
-    # of the tax-inclusive total.
+    # Percentage of the invoice net price (pre-tax, post-compensation) plus
+    # what paid credit compensated, never of the tax-inclusive total.
+    # Granted credit does not count towards the fee.
     fee_percent = models.DecimalField(
         default=0,
         validators=[
