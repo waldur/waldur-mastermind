@@ -1,4 +1,5 @@
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
@@ -11,11 +12,13 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.permissions.models import Role
 from waldur_core.permissions.tests.test_pat_list_filtering import (
     _auth_header,
     _create_pat,
 )
 from waldur_core.permissions.utils import get_permissions
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices.tests import factories as invoices_factories
@@ -1748,9 +1751,6 @@ class ServiceProviderOfferingListSecretOptionsTest(test.APITestCase):
             self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(
-            [row["name"] for row in response.data], ["aaa first", "zzz last"]
-        )
         return {
             row["name"]: row["secret_options"]["token"]
             if "secret_options" in row
@@ -1761,13 +1761,23 @@ class ServiceProviderOfferingListSecretOptionsTest(test.APITestCase):
     def test_manager_of_the_first_offering_sees_only_its_secrets(self):
         self.assertEqual(
             self.secrets(self.manager_of(self.first)),
-            {"aaa first": "aaa first secret", "zzz last": None},
+            {"aaa first": "aaa first secret"},
         )
 
     def test_manager_of_the_last_offering_sees_only_its_secrets(self):
         self.assertEqual(
             self.secrets(self.manager_of(self.last)),
-            {"aaa first": None, "zzz last": "zzz last secret"},
+            {"zzz last": "zzz last secret"},
+        )
+
+    def test_secrets_are_decided_row_by_row(self):
+        # A role on the organization shows both rows; the manager role shows
+        # the secrets of one.
+        user = self.manager_of(self.first)
+        self.provider.customer.add_user(user, CustomerRole.SUPPORT)
+        self.assertEqual(
+            self.secrets(user),
+            {"aaa first": "aaa first secret", "zzz last": None},
         )
 
     def test_owner_and_staff_see_every_offerings_secrets(self):
@@ -1808,8 +1818,106 @@ class ServiceProviderOfferingListSecretOptionsTest(test.APITestCase):
                     },
                 )
 
-    def test_unrelated_user_sees_no_secrets(self):
-        self.assertEqual(
-            self.secrets(structure_factories.UserFactory()),
-            {"aaa first": None, "zzz last": None},
+    def test_unrelated_user_sees_no_rows(self):
+        self.assertEqual(self.secrets(structure_factories.UserFactory()), {})
+
+
+class ServiceProviderOfferingListVisibilityTest(test.APITestCase):
+    """/api/marketplace-service-providers/{uuid}/offerings/ and .../types/
+    show the provider's offerings that /api/marketplace-provider-offerings/
+    shows the caller, drafts included."""
+
+    def setUp(self):
+        self.provider = factories.ServiceProviderFactory()
+        self.draft = factories.OfferingFactory(
+            customer=self.provider.customer,
+            shared=True,
+            billable=True,
+            state=OfferingStates.DRAFT,
+            type="Marketplace.Slurm",
+            name="Draft",
         )
+        self.active = factories.OfferingFactory(
+            customer=self.provider.customer,
+            shared=True,
+            billable=True,
+            state=OfferingStates.ACTIVE,
+            type="Marketplace.Basic",
+            name="Active",
+        )
+
+    def url(self, action="list", uuid=None):
+        return reverse(
+            f"service-provider-offerings-{action}",
+            kwargs={"service_provider_uuid": uuid or self.provider.uuid.hex},
+        )
+
+    def shown(self, user, uuid=None):
+        """Names on the list and offering types, as the user gets them."""
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url("list", uuid))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        names = sorted(row["name"] for row in response.data)
+        response = self.client.get(self.url("types", uuid))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return names, response.data
+
+    def test_user_without_roles_sees_nothing(self):
+        self.assertEqual(self.shown(structure_factories.UserFactory()), ([], []))
+
+    def test_owner_of_another_provider_sees_nothing(self):
+        owner = structure_factories.UserFactory()
+        factories.ServiceProviderFactory().customer.add_user(owner, CustomerRole.OWNER)
+        self.assertEqual(self.shown(owner), ([], []))
+
+    def test_lookup_by_organization_uuid_is_narrowed_too(self):
+        self.assertEqual(
+            self.shown(
+                structure_factories.UserFactory(), self.provider.customer.uuid.hex
+            ),
+            ([], []),
+        )
+
+    def test_provider_owner_sees_every_offering_drafts_included(self):
+        owner = structure_factories.UserFactory()
+        self.provider.customer.add_user(owner, CustomerRole.OWNER)
+        expected = (["Active", "Draft"], ["Marketplace.Basic", "Marketplace.Slurm"])
+        self.assertEqual(self.shown(owner), expected)
+        self.assertEqual(self.shown(owner, self.provider.customer.uuid.hex), expected)
+
+    def test_service_provider_manager_sees_every_offering(self):
+        manager = structure_factories.UserFactory()
+        self.provider.add_user(manager, ServiceProviderRole.MANAGER)
+        self.assertEqual(
+            self.shown(manager),
+            (["Active", "Draft"], ["Marketplace.Basic", "Marketplace.Slurm"]),
+        )
+
+    def test_operator_with_a_provider_permission_sees_every_offering(self):
+        role = Role.objects.create(
+            name="CUSTOMER.SERVICE_PROVIDER_OPERATOR",
+            content_type=ContentType.objects.get_for_model(structure_models.Customer),
+        )
+        role.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS)
+        operator = structure_factories.UserFactory()
+        self.provider.customer.add_user(operator, role)
+        self.assertEqual(
+            self.shown(operator),
+            (["Active", "Draft"], ["Marketplace.Basic", "Marketplace.Slurm"]),
+        )
+
+    def test_offering_manager_sees_only_their_offering(self):
+        manager = structure_factories.UserFactory()
+        self.draft.add_user(manager, OfferingRole.MANAGER)
+        self.assertEqual(self.shown(manager), (["Draft"], ["Marketplace.Slurm"]))
+
+    def test_staff_and_support_see_every_offering(self):
+        for user in (
+            structure_factories.UserFactory(is_staff=True),
+            structure_factories.UserFactory(is_support=True),
+        ):
+            with self.subTest(staff=user.is_staff):
+                self.assertEqual(
+                    self.shown(user),
+                    (["Active", "Draft"], ["Marketplace.Basic", "Marketplace.Slurm"]),
+                )

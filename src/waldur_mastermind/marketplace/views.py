@@ -1777,6 +1777,8 @@ class ServiceProviderOfferingsViewSet(
     queryset = models.Offering.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingFilter
+    # types counts the rows that list shows.
+    access_filtered_actions = ("types",)
 
     def get_service_provider(self):
         uuid = self.kwargs["service_provider_uuid"]
@@ -1787,15 +1789,23 @@ class ServiceProviderOfferingsViewSet(
         # Fallback: try to find by customer UUID (for frontend compatibility)
         return get_object_or_404(models.ServiceProvider, customer__uuid=uuid)
 
+    @access.shows(
+        "Billable, shared offerings of this service provider that provider "
+        f"offerings show the caller: {OfferingQuerySet.USER_VISIBILITY}"
+    )
     def get_queryset(self):
         # Each row asks whether the caller may see its secret options, and the
         # provider-side sources of that question are the customer and its
         # service provider.
-        return self.queryset.filter(
-            customer=self.get_service_provider().customer,
-            billable=True,
-            shared=True,
-        ).select_related("customer__serviceprovider")
+        return (
+            self.queryset.filter(
+                customer=self.get_service_provider().customer,
+                billable=True,
+                shared=True,
+            )
+            .filter_for_user(self.request.user)
+            .select_related("customer__serviceprovider")
+        )
 
     @extend_schema(
         summary="List distinct offering types for a service provider",
@@ -1809,7 +1819,10 @@ class ServiceProviderOfferingsViewSet(
     @action(detail=False, methods=["GET"])
     def types(self, request, **kwargs):
         types = sorted(
-            self.get_queryset().order_by().values_list("type", flat=True).distinct()
+            self.filter_queryset(self.get_queryset())
+            .order_by()
+            .values_list("type", flat=True)
+            .distinct()
         )
         serializer = drf_serializers.ListSerializer(
             instance=types, child=drf_serializers.CharField()
