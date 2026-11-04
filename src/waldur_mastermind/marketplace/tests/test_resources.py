@@ -35,6 +35,7 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
+from waldur_mastermind.marketplace import filters as marketplace_filters
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -1222,7 +1223,7 @@ class PlanUsageTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
-        self.plan1 = factories.PlanFactory()
+        self.plan1 = factories.PlanFactory(offering__customer=self.fixture.customer)
         self.offering = self.plan1.offering
         self.plan2 = factories.PlanFactory(offering=self.offering)
 
@@ -1250,8 +1251,8 @@ class PlanUsageTest(test.APITestCase):
             state=ResourceStates.TERMINATED,
         )
 
-    def get_stats(self, data=None):
-        self.client.force_authenticate(self.fixture.owner)
+    def get_stats(self, data=None, user=None):
+        self.client.force_authenticate(user or self.fixture.owner)
         url = factories.PlanFactory.get_provider_list_url("usage_stats")
         response = self.client.get(url, data)
         return response
@@ -1296,7 +1297,7 @@ class PlanUsageTest(test.APITestCase):
         self.assertEqual(data[1]["remaining"], 10 - 2)
 
     def test_filter_plans_by_offering_uuid(self):
-        plan = factories.PlanFactory()
+        plan = factories.PlanFactory(offering__customer=self.fixture.customer)
 
         factories.ResourceFactory.create_batch(
             4,
@@ -1323,12 +1324,78 @@ class PlanUsageTest(test.APITestCase):
         )
 
         response = self.get_stats(
-            {"customer_provider_uuid": plan.offering.customer.uuid.hex}
+            {"customer_provider_uuid": plan.offering.customer.uuid.hex},
+            user=self.fixture.staff,
         )
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["usage"], 4)
         self.assertEqual(
             response.data[0]["customer_provider_uuid"], plan.offering.customer.uuid.hex
+        )
+
+
+@ddt
+class PlanUsageVisibilityTest(test.APITestCase):
+    """usage_stats shows the plans of the offerings provider offerings show."""
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.plan = self.fixture.plan
+        self.offering = self.fixture.offering
+        self.url = factories.PlanFactory.get_provider_list_url("usage_stats")
+
+    def get_plan_uuids(self, user, data=None):
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, data)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        return [row["plan_uuid"] for row in response.data]
+
+    def test_user_without_roles_does_not_see_plans(self):
+        stranger = UserFactory()
+        self.assertEqual([], self.get_plan_uuids(stranger))
+        self.assertEqual(
+            [], self.get_plan_uuids(stranger, {"offering_uuid": self.offering.uuid.hex})
+        )
+
+    def test_consumer_does_not_see_plans_of_another_provider(self):
+        # The fixture's consumer owner has a resource on the plan, but no role
+        # on the provider: the statistics are the provider's.
+        self.assertEqual([], self.get_plan_uuids(self.fixture.owner))
+
+    @data(
+        "staff",
+        "global_support",
+        "offering_owner",
+        "offering_support",
+        "service_manager",
+        "offering_manager",
+        "offering_admin",
+    )
+    def test_provider_side_users_see_plans(self, name):
+        self.assertEqual(
+            [self.plan.uuid.hex],
+            self.get_plan_uuids(getattr(self.fixture, name)),
+        )
+
+    def test_provider_does_not_see_plans_of_other_providers(self):
+        other_plan = factories.PlanFactory()
+        self.assertNotIn(
+            other_plan.uuid.hex, self.get_plan_uuids(self.fixture.offering_owner)
+        )
+        self.assertIn(other_plan.uuid.hex, self.get_plan_uuids(self.fixture.staff))
+
+    def test_route_says_who_may_call_it(self):
+        view = marketplace_views.ProviderPlanViewSet(
+            action="usage_stats",
+            detail=False,
+            **marketplace_views.ProviderPlanViewSet.usage_stats.kwargs,
+        )
+        route = access.access_for(view, "GET")
+        self.assertTrue(route.described)
+        self.assertEqual(access.CUSTOM_VISIBILITY, route.visibility)
+        self.assertEqual(
+            marketplace_filters.ProviderOfferingPlanFilterBackend.__doc__,
+            route.visibility_description,
         )
 
 
