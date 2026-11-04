@@ -3292,6 +3292,20 @@ class ProviderPlanFilterBackend(BaseFilterBackend):
         return queryset.filter(offering__customer_id__in=customer_ids)
 
 
+class ProviderOfferingPlanFilterBackend(BaseFilterBackend):
+    # Read by waldur_core.core.access: the docstring says what lists show, as
+    # filter_for_user's own description of the offerings whose plans these are.
+    __doc__ = (
+        "Plans of the offerings that provider offerings show the caller: "
+        + OfferingQuerySet.USER_VISIBILITY
+    )
+    access_visibility = access.CUSTOM_VISIBILITY
+
+    def filter_queryset(self, request, queryset, view):
+        offerings = models.Offering.objects.all().filter_for_user(request.user)
+        return queryset.filter(offering__in=offerings)
+
+
 class BackendResourceFilter(
     core_filters.CreatedModifiedFilter,
     structure_filters.NameFilterSet,

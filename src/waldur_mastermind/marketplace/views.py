@@ -7768,7 +7768,9 @@ class PlanUsageReporter:
         self.request = request
 
     def get_report(self):
-        plans = models.Plan.objects.exclude(offering__billable=False)
+        plans = self.view.filter_queryset(self.view.get_queryset()).exclude(
+            offering__billable=False
+        )
 
         query = self.parse_query()
         if query:
@@ -7890,6 +7892,10 @@ class ProviderPlanViewSet(
     update_validators = partial_update_validators = [validate_plan_update]
 
     access_declarations = {"create": [serializers.PLAN_CREATE_ACCESS]}
+
+    # usage_stats reports on filter_queryset(get_queryset()), with backends of
+    # its own: those of the provider offerings its callers come from.
+    access_filtered_actions = ("usage_stats",)
 
     update_permissions = partial_update_permissions = [
         permission_factory(
@@ -8042,7 +8048,13 @@ class ProviderPlanViewSet(
         ],
         responses=serializers.PlanUsageResponseSerializer(many=True),
     )
-    @action(detail=False)
+    @action(
+        detail=False,
+        filter_backends=(
+            DjangoFilterBackend,
+            filters.ProviderOfferingPlanFilterBackend,
+        ),
+    )
     def usage_stats(self, request):
         return PlanUsageReporter(self, request).get_report()
 
