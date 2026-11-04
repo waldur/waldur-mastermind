@@ -12,6 +12,7 @@ from django.db.models import (
     Q,
     QuerySet,
 )
+from django.urls import resolve
 from django.utils.translation import gettext_lazy as _
 from django_filters import DateFromToRangeFilter
 from django_filters.constants import EMPTY_VALUES
@@ -25,6 +26,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.configuration import config
 from waldur_core.core import access
 from waldur_core.core import filters as core_filters
+from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.filters import (
     CharInFilter,
@@ -47,6 +49,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
+    filter_queryset_for_user,
     get_connected_customers,
     get_connected_customers_by_permission,
     get_connected_projects,
@@ -2273,6 +2276,62 @@ class CategoryComponentUsageScopeFilterBackend(core_filters.GenericKeyFilterBack
 
     def get_field_name(self):
         return "scope"
+
+    def filter_queryset(self, request, queryset, view):
+        # The scope is looked up among what the caller may see. One they
+        # cannot see and one that does not exist leave nothing to show, alike,
+        # so that the answer does not tell them apart; a URL that is not a
+        # scope at all is still an error.
+        try:
+            return super().filter_queryset(request, queryset, view)
+        except rf_exceptions.ValidationError:
+            if self._names_a_scope_model(request):
+                return queryset.none()
+            raise
+
+    def _names_a_scope_model(self, request):
+        try:
+            match = resolve(core_utils.clear_url(self.get_field_value(request)))
+            model = core_utils.get_model_from_resolve_match(match)
+        except Exception:
+            return False
+        return model in self.get_related_models()
+
+
+class CategoryComponentUsageVisibilityFilterBackend(BaseFilterBackend):
+    """Usage of organizations and projects the caller's roles reach, as the
+    organization and project lists show them. Staff and support see all.
+    """
+
+    # Read by waldur_core.core.access: the first paragraph of the docstring
+    # says what lists and retrieves show.
+    access_visibility = access.CUSTOM_VISIBILITY
+
+    def filter_queryset(self, request, queryset, view):
+        user = request.user
+        if user.is_staff or user.is_support:
+            return queryset
+
+        customers = filter_queryset_for_user(
+            structure_models.Customer.objects.all(), user
+        )
+        projects = filter_queryset_for_user(
+            structure_models.Project.objects.all(), user
+        )
+        return queryset.filter(
+            Q(
+                content_type=ContentType.objects.get_for_model(
+                    structure_models.Customer
+                ),
+                object_id__in=customers.values("id"),
+            )
+            | Q(
+                content_type=ContentType.objects.get_for_model(
+                    structure_models.Project
+                ),
+                object_id__in=projects.values("id"),
+            )
+        )
 
 
 class CategoryComponentUsageFilter(django_filters.FilterSet):
