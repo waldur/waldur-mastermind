@@ -234,8 +234,9 @@ class VirtualMachineViewSet(
         return Response({"url": url}, status=status.HTTP_200_OK)
 
     console_validators = [core_validators.StateValidator(CoreStates.OK)]
-    # A console controls the VM: only those who may change it open one.
-    console_permissions = [structure_permissions.is_administrator]
+    # The remote console (VMRC) is staff only, see #1032; the web console
+    # below serves those who may change the VM.
+    console_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=None,
