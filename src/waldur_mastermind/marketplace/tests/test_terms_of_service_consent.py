@@ -170,6 +170,39 @@ class TermsOfServiceConsentTest(APITestCase):
         consent.refresh_from_db()
         self.assertIsNone(consent.revocation_date)
 
+    def test_consents_cannot_be_edited_or_deleted_through_the_api(self):
+        # Consents are given with create and withdrawn with revoke; no one,
+        # support and the consenting user included, rewrites or deletes one.
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+        url = reverse(
+            "marketplace-user-offering-consent-detail",
+            kwargs={"uuid": consent.uuid},
+        )
+        for user in (
+            self.user,
+            UserFactory(is_support=True),
+            UserFactory(is_staff=True),
+        ):
+            self.client.force_authenticate(user=user)
+            for method in (self.client.patch, self.client.put):
+                with self.subTest(user=user, method=method.__name__):
+                    response = method(url, {"version": "9.9"})
+                    self.assertEqual(
+                        response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+                    )
+            with self.subTest(user=user, method="delete"):
+                response = self.client.delete(url)
+                self.assertEqual(
+                    response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+                )
+
+        consent.refresh_from_db()
+        self.assertEqual(consent.version, "1.0")
+
     def test_only_one_active_tos_config_is_allowed(self):
         """Test that only one active ToS config is allowed."""
         models.OfferingTermsOfService.objects.create(

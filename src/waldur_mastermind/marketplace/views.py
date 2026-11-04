@@ -19693,6 +19693,10 @@ class UserOfferingConsentViewSet(core_views.ActionsViewSet):
     create_serializer_class = serializers.UserOfferingConsentCreateSerializer
 
     access_declarations = {"create": [serializers.CONSENT_CREATE_ACCESS]}
+    # A consent is given with create and withdrawn with revoke. Rewriting its
+    # version would sidestep re-consent, and deleting it would erase the
+    # record.
+    disabled_actions = ["update", "partial_update", "destroy"]
 
     @access.describes(
         access.any_of(access.staff(), access.owned("The consent's user.")),
