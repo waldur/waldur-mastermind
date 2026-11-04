@@ -38,7 +38,7 @@ from waldur_core.structure.managers import (
     get_customer_users,
     get_nested_customer_users,
     get_project_users,
-    get_service_provider_manager_customer_ids_qs,
+    get_service_provider_manager_only_customer_ids,
     get_visible_users,
 )
 from waldur_core.structure.registry import SupportedServices
@@ -215,21 +215,29 @@ class GenericRoleFilter(BaseFilterBackend):
 
 
 def _with_service_provider_organizations(queryset, visible, user):
-    managed_customer_ids = get_service_provider_manager_customer_ids_qs(user)
-    if managed_customer_ids is None:
+    """``visible`` plus the organizations ``user`` reaches only through a
+    service provider role: the rows CustomerSerializer narrows to identity
+    fields.
+
+    An organization the user also holds a role on is not added back. Whatever
+    left it out of ``visible``, such as its portal network restriction, stands
+    as on every other route; adding it would serve it with every field.
+    """
+    manager_only_ids = get_service_provider_manager_only_customer_ids(user)
+    if not manager_only_ids:
         return visible
-    return queryset.filter(
-        Q(id__in=visible.values("id")) | Q(id__in=managed_customer_ids)
-    )
+    return queryset.filter(Q(id__in=visible.values("id")) | Q(id__in=manager_only_ids))
 
 
 class CustomerRoleFilter(GenericRoleFilter):
-    """GenericRoleFilter plus the organizations of service providers the user
-    has a role on.
+    """GenericRoleFilter plus the organizations the user reaches only through
+    a role on their service provider.
 
     Wired only to CustomerViewSet, whose serializer narrows those rows to
-    public identity fields. Other Customer-queryset views (e.g.
-    financial-reports) keep using GenericRoleFilter and must not see them.
+    public identity fields. An organization the user has another role on is
+    left as GenericRoleFilter leaves it, so its portal network restriction
+    applies. Other Customer-queryset views (e.g. financial-reports) keep
+    using GenericRoleFilter and must not see them.
     """
 
     def filter_queryset(self, request, queryset, view):

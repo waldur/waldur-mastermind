@@ -176,9 +176,10 @@ def get_service_provider_manager_customer_ids_qs(user):
     return get_user_managed_service_provider_customer_ids(user)
 
 
-def get_service_provider_manager_only_customer_ids(user, customer_ids) -> set:
-    """Subset of ``customer_ids`` the user reaches solely through a service
-    provider role, i.e. not visible via ``filter_queryset_for_user``.
+def get_service_provider_manager_only_customer_ids(user, customer_ids=None) -> set:
+    """Subset of ``customer_ids`` (all organizations when ``None``) the user
+    reaches solely through a service provider role, i.e. not visible via
+    ``filter_queryset_for_user``.
 
     This is the single definition of "manager only". Note that an offering
     role on one of the provider's offerings does not confer customer
@@ -190,7 +191,9 @@ def get_service_provider_manager_only_customer_ids(user, customer_ids) -> set:
     managed_qs = get_service_provider_manager_customer_ids_qs(user)
     if managed_qs is None:
         return set()
-    managed_ids = set(managed_qs.filter(customer_id__in=customer_ids))
+    if customer_ids is not None:
+        managed_qs = managed_qs.filter(customer_id__in=customer_ids)
+    managed_ids = set(managed_qs)
     if not managed_ids:
         return set()
     otherwise_visible = filter_queryset_for_user(
