@@ -63,6 +63,23 @@ class ProjectOrderAutoApprovalApiTest(test.APITestCase):
         response = self.client.post(LIST_URL, self._create_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    def test_support_cannot_create_without_role(self):
+        self.client.force_authenticate(self.fixture.global_support)
+        response = self.client.post(LIST_URL, self._create_payload())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            models.ProjectOrderAutoApproval.objects.filter(
+                project=self.project
+            ).exists()
+        )
+
+    def test_support_with_approve_order_on_the_project_can_create(self):
+        self.fixture.manager.is_support = True
+        self.fixture.manager.save()
+        self.client.force_authenticate(self.fixture.manager)
+        response = self.client.post(LIST_URL, self._create_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
     def test_unrelated_user_cannot_see_others_rule(self):
         models.ProjectOrderAutoApproval.objects.create(
             project=self.project,
