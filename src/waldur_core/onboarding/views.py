@@ -79,6 +79,47 @@ CHANGES_JUSTIFICATION = access.any_of(
 )
 
 
+@access.describes(
+    access.custom(
+        "Staff may change a justification at any time; its owner only until "
+        "staff approve or reject it."
+    ),
+    needs_object=True,
+)
+def justification_awaits_review(request, view, obj=None):
+    """What staff reviewed stays as they reviewed it: once a justification is
+    approved or rejected, its owner can no longer edit it, add documents to it
+    or delete it."""
+    if obj is None or core_permissions.has_staff_access(request):
+        return
+    if obj.validation_decision != enums.ReviewDecision.PENDING:
+        raise exceptions.PermissionDenied(
+            _("A justification can not be changed once it has been reviewed.")
+        )
+
+
+@access.describes(
+    access.custom(
+        "Staff may delete any verification; its owner only one with no "
+        "justification that staff have approved or rejected."
+    ),
+    needs_object=True,
+)
+def verification_has_no_reviewed_justification(request, view, obj=None):
+    """Deleting a verification deletes its justifications with it, so the
+    owner may not delete one whose justification staff have reviewed."""
+    if obj is None or core_permissions.has_staff_access(request):
+        return
+    if obj.justifications.exclude(
+        validation_decision=enums.ReviewDecision.PENDING
+    ).exists():
+        raise exceptions.PermissionDenied(
+            _(
+                "A verification can not be deleted once its justification has been reviewed."
+            )
+        )
+
+
 class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSet):
     """
     ViewSet for managing company onboarding verifications.
@@ -106,6 +147,8 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
 
     # Read actions that look their verification up as retrieve does.
     access_filtered_actions = ("checklist", "completion_status")
+
+    destroy_permissions = [verification_has_no_reviewed_justification]
 
     access_declarations = {
         "update": [CHANGES_VERIFICATION],
@@ -668,6 +711,10 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
         "partial_update": [CHANGES_JUSTIFICATION],
         "destroy": [CHANGES_JUSTIFICATION],
     }
+
+    attach_document_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [justification_awaits_review]
 
     @extend_schema(
         description="Create justification for failed verification.",
