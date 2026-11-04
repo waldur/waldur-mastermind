@@ -7,6 +7,7 @@ from rest_framework import decorators, filters, permissions, status, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import StatusSerializer
 
@@ -14,6 +15,14 @@ from . import filters as user_action_filters
 from . import models, serializers, tasks
 
 logger = logging.getLogger(__name__)
+
+
+# Actions are looked up in get_queryset: the caller's own, or, for staff, those
+# of the user named in `user_uuid`.
+ACTS_ON_ACTIONS = access.any_of(
+    access.owned("The caller's own actions."),
+    access.custom("Staff, for the actions of the user named in `user_uuid`."),
+)
 
 
 class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -27,7 +36,18 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ["-urgency", "due_date", "-created"]
     ordering_fields = ["urgency", "due_date", "created", "modified", "action_type"]
     lookup_field = "uuid"
+    access_filtered_actions = ("summary",)
+    access_declarations = {
+        "silence": [ACTS_ON_ACTIONS],
+        "execute_action": [ACTS_ON_ACTIONS],
+        "bulk_silence": [ACTS_ON_ACTIONS],
+        # Looks the action up among the caller's own, silenced ones included.
+        "unsilence": [access.owned("The caller's own action.")],
+    }
 
+    @access.shows(
+        "The caller's own actions; staff see those of the user named in `user_uuid`."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
 
@@ -371,6 +391,7 @@ class UserActionExecutionViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     ordering = ["-executed_at"]
 
+    @access.shows("The caller's own action executions.")
     def get_queryset(self):
         # Prevent errors during schema generation
         if getattr(self, "swagger_fake_view", False):

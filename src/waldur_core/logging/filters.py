@@ -7,6 +7,7 @@ from drf_spectacular.plumbing import build_parameter_type
 from drf_spectacular.utils import OpenApiParameter
 from rest_framework import filters
 
+from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
@@ -136,6 +137,19 @@ class EventFilter(django_filters.FilterSet):
 
 
 class EventFilterBackend(filters.BaseFilterBackend):
+    """Staff and global support see every event. Others name what they look
+    at: the events of a scope whose events they may read (`scope`), or the
+    events filed on them, made by them or affecting them (their own UUID in
+    `related_user_uuid`); without either they see none. Events that an
+    event-type guard hides from the caller are left out.
+
+    Staff and global support may name any user in `related_user_uuid`.
+    """
+
+    # Read by waldur_core.core.access: the first paragraph of the docstring
+    # says what lists and retrieves show.
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         event_types = request.query_params.getlist("event_type")
         if event_types:

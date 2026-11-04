@@ -505,7 +505,8 @@ class WebhookConsumerApiTest(test.APITestCase):
 
     def test_non_staff_owner_cannot_deregister_webhook(self):
         # A webhook registered by a user who has since lost staff stays with
-        # staff: support reaches its own consumer, and perform_destroy refuses.
+        # staff: support reaches its own consumer, and destroy_permissions
+        # refuse.
         former_staff = structure_factories.UserFactory(is_support=True)
         consumer = _webhook_consumer(former_staff)
         self.client.force_authenticate(former_staff)
@@ -513,7 +514,22 @@ class WebhookConsumerApiTest(test.APITestCase):
         response = self.client.delete(f"/api/event-consumers/{consumer.uuid.hex}/")
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["detail"], "Only staff can deregister a webhook consumer."
+        )
         self.assertTrue(
+            logging_models.EventConsumer.objects.filter(pk=consumer.pk).exists()
+        )
+
+    def test_owner_deregisters_own_queue_consumer(self):
+        user = structure_factories.UserFactory()
+        consumer = logging_factories.EventConsumerFactory(user=user)
+        self.client.force_authenticate(user)
+
+        response = self.client.delete(f"/api/event-consumers/{consumer.uuid.hex}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
             logging_models.EventConsumer.objects.filter(pk=consumer.pk).exists()
         )
 
