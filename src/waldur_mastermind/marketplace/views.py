@@ -8079,10 +8079,18 @@ class ProviderPlanViewSet(
     delete_organization_groups_permissions = update_organization_groups_permissions
 
 
+# What PlanComponentViewSet.get_queryset leaves. Change the two together.
+PLAN_COMPONENT_VISIBILITY = (
+    "Components of plans of the offerings that public offerings or provider "
+    "offerings show the caller, of plans with no organization groups or one of "
+    "the caller's. Staff and support see all."
+)
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List plan components",
-        description="Returns a paginated list of all plan components. A plan component defines the pricing and quotas for an offering component within a billing plan. The list is filtered based on the current user's access permissions and organization group memberships.",
+        description="Returns a paginated list of plan components. A plan component defines the pricing and quotas for an offering component within a billing plan. The list shows the components of plans of offerings the caller sees in public or provider offerings, narrowed by the plans' organization groups.",
     ),
     retrieve=extend_schema(
         summary="Retrieve a plan component",
@@ -8103,21 +8111,37 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
     filterset_class = filters.PlanComponentFilter
     lookup_field = "pk"
 
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+    }
+
+    @access.shows(PLAN_COMPONENT_VISIBILITY)
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
 
-        if user.is_anonymous:
-            return queryset.filter(
-                plan__offering__shared=True, plan__organization_groups__isnull=True
-            )
-        elif user.is_staff or user.is_support:
+        if not user.is_anonymous and (user.is_staff or user.is_support):
             return queryset
-        else:
-            return queryset.filter(
-                Q(plan__organization_groups__isnull=True)
-                | Q(plan__organization_groups__in=get_organization_groups(user))
-            )
+
+        # Consumers see what they may order; providers, their own offerings
+        # in any state.
+        offerings = models.Offering.objects.all()
+        public = offerings.filter_by_ordering_availability_for_user(user)
+        provided = offerings.filter_for_user(user)
+        queryset = queryset.filter(
+            Q(plan__offering__in=public) | Q(plan__offering__in=provided)
+        )
+
+        if user.is_anonymous:
+            return queryset.filter(plan__organization_groups__isnull=True)
+        # Through a plan subquery: a plan in several of the caller's
+        # organization groups would otherwise be joined, and listed, once each.
+        plans = models.Plan.objects.filter(
+            Q(organization_groups__isnull=True)
+            | Q(organization_groups__in=get_organization_groups(user))
+        )
+        return queryset.filter(plan__in=plans)
 
 
 class ScreenshotViewSet(

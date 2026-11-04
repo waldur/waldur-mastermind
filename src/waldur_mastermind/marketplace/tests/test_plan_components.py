@@ -1,14 +1,17 @@
 from decimal import Decimal, InvalidOperation
 from unittest.mock import MagicMock, patch
 
-from ddt import ddt
+from ddt import data, ddt
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.core import access
 from waldur_core.logging import models as logging_models
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
-from waldur_mastermind.marketplace import handlers, models
+from waldur_mastermind.marketplace import handlers, models, views
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.models import PlanComponent
 
 from . import factories
@@ -93,7 +96,11 @@ class PlanComponentsGetTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.admin)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 2)
+        # A project role does not reach the organization's private offering,
+        # which neither public nor provider offerings show the admin.
+        self.assertEqual(
+            [self.shared_plan.name], [row["plan_name"] for row in response.data]
+        )
 
     def test_getting_plan_components_by_unauthorized_user(self):
         response = self.client.get(self.url)
@@ -125,6 +132,113 @@ class PlanComponentsGetTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
         self.assertEqual(response.data[0]["plan_name"], self.shared_plan.name)
+
+
+@ddt
+class PlanComponentsVisibilityTest(test.APITestCase):
+    """Components of plans of offerings public or provider offerings show."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.shared_component = self.make_component(shared=True)
+        self.private_component = self.make_component(shared=False)
+        self.url = factories.PlanComponentFactory.get_list_url()
+
+    def make_component(self, **offering_kwargs):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, **offering_kwargs
+        )
+        plan = factories.PlanFactory(offering=offering)
+        return factories.PlanComponentFactory(
+            plan=plan,
+            component=factories.OfferingComponentFactory(offering=offering),
+        )
+
+    def list_ids(self, user=None):
+        if user:
+            self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        return sorted(str(row["plan_uuid"]) for row in response.data)
+
+    def plan_ids(self, *components):
+        return sorted(component.plan.uuid.hex for component in components)
+
+    def test_plan_in_several_of_the_callers_groups_is_listed_once(self):
+        groups = structure_factories.OrganizationGroupFactory.create_batch(2)
+        self.shared_component.plan.organization_groups.add(*groups)
+        consumer = structure_factories.CustomerFactory()
+        consumer.organization_groups.add(*groups)
+        owner = structure_factories.UserFactory()
+        consumer.add_user(owner, CustomerRole.OWNER)
+
+        self.assertEqual(self.list_ids(owner), self.plan_ids(self.shared_component))
+
+    def retrieve(self, component, user=None):
+        if user:
+            self.client.force_authenticate(user)
+        return self.client.get(f"{self.url}{component.pk}/")
+
+    @data("user", "consumer_owner")
+    def test_caller_without_provider_role_sees_only_public_offerings(self, name):
+        user = (
+            structure_factories.UserFactory()
+            if name == "user"
+            else fixtures.ProjectFixture().owner
+        )
+        self.assertEqual(self.plan_ids(self.shared_component), self.list_ids(user))
+        self.assertEqual(
+            status.HTTP_404_NOT_FOUND,
+            self.retrieve(self.private_component).status_code,
+        )
+        self.assertEqual(
+            status.HTTP_200_OK, self.retrieve(self.shared_component).status_code
+        )
+
+    def test_anonymous_caller_does_not_see_private_offering(self):
+        self.assertEqual(self.plan_ids(self.shared_component), self.list_ids())
+        self.assertEqual(
+            status.HTTP_404_NOT_FOUND,
+            self.retrieve(self.private_component).status_code,
+        )
+
+    def test_shared_offering_in_draft_is_hidden_from_consumers(self):
+        draft = self.make_component(shared=True, state=OfferingStates.DRAFT)
+        self.assertNotIn(
+            draft.plan.uuid.hex, self.list_ids(structure_factories.UserFactory())
+        )
+        self.assertIn(draft.plan.uuid.hex, self.list_ids(self.fixture.owner))
+
+    @data("staff", "global_support", "owner", "customer_support", "service_manager")
+    def test_provider_side_users_see_private_offering(self, name):
+        user = getattr(self.fixture, name)
+        self.assertEqual(
+            self.plan_ids(self.shared_component, self.private_component),
+            self.list_ids(user),
+        )
+        self.assertEqual(
+            status.HTTP_200_OK, self.retrieve(self.private_component).status_code
+        )
+
+    def test_offering_manager_sees_components_of_their_offering(self):
+        manager = structure_factories.UserFactory()
+        self.private_component.plan.offering.add_user(manager, OfferingRole.MANAGER)
+        self.assertEqual(
+            self.plan_ids(self.shared_component, self.private_component),
+            self.list_ids(manager),
+        )
+
+    def test_routes_say_who_may_call_them(self):
+        for action, detail in (("list", False), ("retrieve", True)):
+            with self.subTest(action=action):
+                view = views.PlanComponentViewSet(action=action, detail=detail)
+                route = access.access_for(view, "GET")
+                self.assertTrue(route.described)
+                self.assertIn(views.PUBLIC_CATALOG_ACCESS, route.entries)
+                self.assertEqual(access.CUSTOM_VISIBILITY, route.visibility)
+                self.assertEqual(
+                    views.PLAN_COMPONENT_VISIBILITY, route.visibility_description
+                )
 
 
 class PlanComponentUpdateLoggerTest(TestCase):
