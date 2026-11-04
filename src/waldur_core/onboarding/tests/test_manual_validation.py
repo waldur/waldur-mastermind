@@ -166,6 +166,126 @@ class CreateJustificationTest(APITestCase):
             2,
         )
 
+    def test_create_justification_sets_its_verification(self):
+        response = self._create_justification(self.escalated_verification.uuid)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["verification"],
+            factories.OnboardingVerificationFactory.get_url(
+                self.escalated_verification
+            ),
+        )
+        self.assertEqual(
+            response.data["verification_uuid"], self.escalated_verification.uuid.hex
+        )
+
+
+class JustificationUpdateTest(APITestCase):
+    """A justification keeps the verification it was created for."""
+
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        self.verification = factories.OnboardingVerificationFactory(
+            user=self.user,
+            status=enums.VerificationStatus.ESCALATED,
+            legal_person_identifier="11111111",
+            legal_name="Own Company",
+            error_message="Own error",
+        )
+        self.justification = factories.OnboardingJustificationFactory(
+            verification=self.verification,
+            user=self.user,
+            user_justification="Original justification.",
+        )
+
+        self.other_verification = factories.OnboardingVerificationFactory(
+            user=structure_factories.UserFactory(),
+            status=enums.VerificationStatus.ESCALATED,
+            legal_person_identifier="22222222",
+            legal_name="Other Company",
+            error_message="Other error",
+        )
+
+        self.url = factories.OnboardingJustificationFactory.get_url(self.justification)
+        self.other_verification_url = factories.OnboardingVerificationFactory.get_url(
+            self.other_verification
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def assert_keeps_own_verification(self):
+        self.justification.refresh_from_db()
+        self.assertEqual(self.justification.verification, self.verification)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["verification_uuid"], self.verification.uuid.hex)
+        self.assertEqual(response.data["legal_person_identifier"], "11111111")
+        self.assertEqual(response.data["legal_name"], "Own Company")
+        self.assertEqual(response.data["error_message"], "Own error")
+
+    def test_partial_update_ignores_verification(self):
+        response = self.client.patch(
+            self.url, {"verification": self.other_verification_url}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["verification_uuid"], self.verification.uuid.hex)
+        self.assert_keeps_own_verification()
+
+    def test_update_ignores_verification(self):
+        response = self.client.put(
+            self.url,
+            {
+                "verification": self.other_verification_url,
+                "user_justification": "Updated justification.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["verification_uuid"], self.verification.uuid.hex)
+        self.assert_keeps_own_verification()
+        self.assertEqual(
+            self.justification.user_justification, "Updated justification."
+        )
+
+    def test_owner_can_partially_update_justification_text(self):
+        response = self.client.patch(
+            self.url, {"user_justification": "Updated justification."}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.justification.refresh_from_db()
+        self.assertEqual(
+            self.justification.user_justification, "Updated justification."
+        )
+        self.assertEqual(self.justification.verification, self.verification)
+
+    def test_owner_can_update_justification_without_verification(self):
+        response = self.client.put(
+            self.url, {"user_justification": "Updated justification."}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.justification.refresh_from_db()
+        self.assertEqual(
+            self.justification.user_justification, "Updated justification."
+        )
+
+    def test_other_user_cannot_update_justification(self):
+        self.client.force_authenticate(user=self.other_verification.user)
+
+        response = self.client.patch(
+            self.url, {"user_justification": "Hijacked."}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.justification.refresh_from_db()
+        self.assertEqual(
+            self.justification.user_justification, "Original justification."
+        )
+
 
 class JustificationDecisionTest(APITestCase):
     def setUp(self):

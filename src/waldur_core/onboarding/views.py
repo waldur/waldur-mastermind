@@ -664,6 +664,8 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
     access_declarations = {
         "create_justification": [JUSTIFIES_OWN_VERIFICATION],
         "attach_document": [CHANGES_JUSTIFICATION],
+        "update": [CHANGES_JUSTIFICATION],
+        "partial_update": [CHANGES_JUSTIFICATION],
         "destroy": [CHANGES_JUSTIFICATION],
     }
 

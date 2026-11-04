@@ -74,6 +74,17 @@ class SupportAccessTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_support_cannot_update_other_users_justification(self):
+        url = factories.OnboardingJustificationFactory.get_url(self.justification)
+        for method in ("put", "patch"):
+            with self.subTest(method=method):
+                response = getattr(self.client, method)(
+                    url, {"user_justification": "Changed by support"}
+                )
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.justification.refresh_from_db()
+        self.assertNotEqual(self.justification.user_justification, "Changed by support")
+
     def test_support_can_update_own_verification(self):
         own = factories.OnboardingVerificationFactory(user=self.support)
         response = self.client.patch(
