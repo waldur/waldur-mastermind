@@ -102,7 +102,7 @@ class CreateJustificationTest(APITestCase):
         )
         self.assertIn("automatically verified", verified_verification.error_traceback)
 
-    def test_create_justification_without_permission_fails(self):
+    def test_create_justification_for_another_users_verification_fails(self):
         other_user = structure_factories.UserFactory()
         other_user_verification = factories.OnboardingVerificationFactory(
             user=other_user,
@@ -113,8 +113,37 @@ class CreateJustificationTest(APITestCase):
             other_user_verification.uuid,
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("error", response.data)
+        # Answered as if the verification did not exist.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["verification_uuid"], ["Verification not found"])
+        self.assertFalse(
+            OnboardingJustification.objects.filter(
+                verification=other_user_verification
+            ).exists()
+        )
+
+    def test_another_users_verification_status_is_not_revealed(self):
+        # A status that can't be justified is named only for the caller's own.
+        other_user_verification = factories.OnboardingVerificationFactory(
+            user=structure_factories.UserFactory(),
+            status=enums.VerificationStatus.PENDING,
+        )
+
+        response = self._create_justification(other_user_verification.uuid)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["verification_uuid"], ["Verification not found"])
+
+    def test_own_verification_in_a_status_that_cant_be_justified(self):
+        own_verification = factories.OnboardingVerificationFactory(
+            user=self.user,
+            status=enums.VerificationStatus.PENDING,
+        )
+
+        response = self._create_justification(own_verification.uuid)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", str(response.data["verification_uuid"]))
 
     def test_create_justification_with_nonexistent_verification_fails(self):
         response = self._create_justification(

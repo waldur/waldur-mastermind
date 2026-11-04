@@ -640,7 +640,8 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
 
 
 # Who create_justification lets justify a verification: the verification's
-# own user, checked in the action. Change the two together.
+# own user, checked by OnboardingJustificationCreateSerializer, which looks the
+# verification up among the caller's own. Change the two together.
 JUSTIFIES_OWN_VERIFICATION = access.owned(
     "A justification of the caller's own verification, which the request names."
 )
@@ -679,19 +680,13 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
         """
         Create a new justification for a failed verification.
         """
-        serializer = OnboardingJustificationCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        verification = OnboardingVerification.objects.get(
-            uuid=serializer.validated_data["verification_uuid"]
+        serializer = OnboardingJustificationCreateSerializer(
+            data=request.data, context=self.get_serializer_context()
         )
-
-        # Check if user owns the verification (JUSTIFIES_OWN_VERIFICATION)
-        if verification.user != request.user:
-            return Response(
-                {"error": "You can only justify your own verifications"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        serializer.is_valid(raise_exception=True)
+        # One of the caller's own verifications (JUSTIFIES_OWN_VERIFICATION):
+        # the serializer finds no other.
+        verification = serializer.validated_data["verification_uuid"]
 
         # Create justification
         justification = OnboardingJustification.objects.create(
