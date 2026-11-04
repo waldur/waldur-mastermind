@@ -83,3 +83,43 @@ class SupportAccessTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         own.refresh_from_db()
         self.assertEqual(own.legal_name, "Changed by its owner")
+
+
+class DisabledCreateRoutesTest(test.APITestCase):
+    """Records are created by start_verification and create_justification.
+
+    The generic creates set no user and failed for every caller, as did the
+    checklist template, which this view has no parent object for.
+    """
+
+    def setUp(self):
+        self.client.force_authenticate(user=structure_factories.UserFactory())
+
+    def test_generic_verification_create_is_not_allowed(self):
+        response = self.client.post(
+            factories.OnboardingVerificationFactory.get_list_url(),
+            {"country": "EE", "legal_person_identifier": "1", "legal_name": "X"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertFalse(models.OnboardingVerification.objects.exists())
+
+    def test_generic_justification_create_is_not_allowed(self):
+        verification = factories.OnboardingVerificationFactory()
+        response = self.client.post(
+            factories.OnboardingJustificationFactory.get_list_url(),
+            {
+                "verification": factories.OnboardingVerificationFactory.get_url(
+                    verification
+                ),
+                "user_justification": "X",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertFalse(models.OnboardingJustification.objects.exists())
+
+    def test_checklist_template_is_not_allowed(self):
+        response = self.client.get(
+            factories.OnboardingVerificationFactory.get_list_url("checklist-template")
+            + "?parent_uuid=abc"
+        )
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)

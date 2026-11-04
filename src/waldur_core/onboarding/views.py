@@ -15,6 +15,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.mixins import UserChecklistMixin
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
@@ -64,6 +65,19 @@ def check_legal_person_identifier_not_exists(justification):
         )
 
 
+# The detail write actions below look the verification up through
+# StaffOrUserFilter, where only staff reach another user's verification for a
+# write: support reads every row but writes its own alone.
+CHANGES_VERIFICATION = access.any_of(
+    access.owned("The caller's own verification."), access.staff()
+)
+
+# The same, for a justification.
+CHANGES_JUSTIFICATION = access.any_of(
+    access.owned("The caller's own justification."), access.staff()
+)
+
+
 class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSet):
     """
     ViewSet for managing company onboarding verifications.
@@ -82,6 +96,26 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
     checklist_permissions = [permissions.IsAuthenticated]
     completion_status_permissions = [permissions.IsAuthenticated]
     submit_answers_permissions = [permissions.IsAuthenticated]
+
+    # A verification is started with start_verification, which sets its user:
+    # the generic create sets none, and failed for every caller.
+    # UserChecklistMixin's checklist_template needs get_parent_object_for_checklist,
+    # which this view does not implement: it failed for every caller too.
+    disabled_actions = ["create", "checklist_template"]
+
+    # Read actions that look their verification up as retrieve does.
+    access_filtered_actions = ("checklist", "completion_status")
+
+    access_declarations = {
+        "update": [CHANGES_VERIFICATION],
+        "partial_update": [CHANGES_VERIFICATION],
+        "destroy": [CHANGES_VERIFICATION],
+        "submit_answers": [CHANGES_VERIFICATION],
+        "run_validation": [CHANGES_VERIFICATION],
+        "create_customer": [CHANGES_VERIFICATION],
+        "available_checklists": [access.authenticated()],
+        "start_verification": [access.owned("A new verification for the caller.")],
+    }
 
     def get_checklist_completion(self, obj, checklist_type=None):
         """
@@ -602,6 +636,13 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
         return super().perform_destroy(instance)
 
 
+# Who create_justification lets justify a verification: the verification's
+# own user, checked in the action. Change the two together.
+JUSTIFIES_OWN_VERIFICATION = access.owned(
+    "A justification of the caller's own verification, which the request names."
+)
+
+
 class OnboardingJustificationViewSet(core_views.ActionsViewSet):
     """
     ViewSet for managing onboarding justifications.
@@ -612,6 +653,16 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
     filterset_class = filters.OnboardingJustificationFilter
+
+    # A justification is created with create_justification, which sets its
+    # user: the generic create sets none, and failed for every caller.
+    disabled_actions = ["create"]
+
+    access_declarations = {
+        "create_justification": [JUSTIFIES_OWN_VERIFICATION],
+        "attach_document": [CHANGES_JUSTIFICATION],
+        "destroy": [CHANGES_JUSTIFICATION],
+    }
 
     @extend_schema(
         description="Create justification for failed verification.",
@@ -630,7 +681,7 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
             uuid=serializer.validated_data["verification_uuid"]
         )
 
-        # Check if user owns the verification
+        # Check if user owns the verification (JUSTIFIES_OWN_VERIFICATION)
         if verification.user != request.user:
             return Response(
                 {"error": "You can only justify your own verifications"},
@@ -751,6 +802,7 @@ class SupportedCountriesView(APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    access_declarations = {"get": [access.authenticated()]}
 
     @extend_schema(
         description="Return list of supported countries for validation.",
@@ -780,6 +832,7 @@ class PersonIdentifierFieldsView(APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    access_declarations = {"get": [access.authenticated()]}
 
     @extend_schema(
         description=(
@@ -841,3 +894,10 @@ class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
     create_permissions = update_permissions = partial_update_permissions = (
         delete_permissions
     ) = [core_permissions.IsStaff]
+
+    # The same mapping is shown to every signed-in user by
+    # OnboardingVerificationViewSet.available_checklists.
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
