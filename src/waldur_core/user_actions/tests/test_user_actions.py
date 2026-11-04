@@ -3,11 +3,13 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import DatabaseError, OperationalError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from waldur_core.user_actions import models, providers
+from waldur_core.configuration.testing import override_config
+from waldur_core.user_actions import models, providers, tasks
 from waldur_core.user_actions.handlers import (
     register_cleanup_handler,
     schedule_cleanup_for_deleted_object,
@@ -19,6 +21,7 @@ from waldur_core.user_actions.providers import (
     CorrectiveAction,
 )
 from waldur_core.user_actions.tasks import (
+    UserActionsTaskError,
     cleanup_actions_for_deleted_object,
     cleanup_dangling_user_actions,
 )
@@ -63,7 +66,20 @@ class FakeActionProvider(BaseActionProvider):
         ]
 
 
-def use_only_fake_provider(test_case):
+class FailingActionProvider(FakeActionProvider):
+    """A provider whose every query breaks, as a provider regression would."""
+
+    action_type = "failing_action"
+    display_name = "Failing Actions"
+
+    def get_actions_for_user(self, user):
+        raise TypeError("provider is broken")
+
+    def get_affected_users(self):
+        raise TypeError("provider is broken")
+
+
+def use_only_fake_provider(test_case, *extra_providers):
     """Register only FakeActionProvider for the duration of the test.
 
     The registry is process-wide and the apps fill it in ready(), so it is
@@ -74,6 +90,8 @@ def use_only_fake_provider(test_case):
     registry.start()
     test_case.addCleanup(registry.stop)
     providers.register_provider(FakeActionProvider)
+    for provider_class in extra_providers:
+        providers.register_provider(provider_class)
 
 
 class UserActionModelTests(TestCase):
@@ -402,6 +420,232 @@ class TaskTests(TestCase):
         self.assertFalse(models.UserAction.objects.filter(id=stale_action.id).exists())
 
 
+class TaskFailureTests(TestCase):
+    """A broken provider must fail its task visibly, not report success."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="failing_user", email="failing@example.com"
+        )
+        use_only_fake_provider(self, FailingActionProvider)
+
+    def assertLoggedException(self, logs):
+        self.assertTrue(
+            any(record.exc_info for record in logs.records),
+            "expected a log record carrying the traceback",
+        )
+
+    def test_update_user_actions_for_provider_raises(self):
+        with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+            with self.assertRaises(TypeError):
+                tasks.update_user_actions_for_provider(self.user.id, "failing_action")
+
+        self.assertLoggedException(logs)
+        self.assertEqual(models.UserAction.objects.count(), 0)
+
+    def test_update_user_actions_for_provider_skips_missing_user(self):
+        tasks.update_user_actions_for_provider(999999, "failing_action")
+
+    def test_cleanup_stale_actions_raises_and_keeps_actions(self):
+        action = models.UserAction.objects.create(
+            user=self.user,
+            action_type="failing_action",
+            title="Existing action",
+            urgency="low",
+            content_type=ContentType.objects.get_for_model(User),
+            object_id=self.user.id,
+        )
+
+        with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+            with self.assertRaises(TypeError):
+                tasks.cleanup_stale_actions(self.user.id, "failing_action")
+
+        self.assertLoggedException(logs)
+        self.assertTrue(models.UserAction.objects.filter(id=action.id).exists())
+
+    def test_cleanup_stale_actions_skips_missing_user(self):
+        tasks.cleanup_stale_actions(999999, "failing_action")
+
+    @patch("waldur_core.user_actions.tasks.update_user_actions_for_provider.delay")
+    def test_update_actions_for_provider_records_and_raises(self, delay):
+        with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+            with self.assertRaises(TypeError):
+                tasks.update_actions_for_provider("failing_action")
+
+        self.assertLoggedException(logs)
+        delay.assert_not_called()
+        record = models.UserActionProvider.objects.get(action_type="failing_action")
+        self.assertTrue(record.last_execution_status.startswith("ERROR: "))
+
+    @patch("waldur_core.user_actions.tasks.update_user_actions_for_provider.delay")
+    def test_update_actions_for_provider_queues_remaining_users(self, delay):
+        other_user = User.objects.create_user(
+            username="other_user", email="other@example.com"
+        )
+
+        def queue(user_id, action_type):
+            if user_id == self.user.id:
+                raise ConnectionError("broker down")
+
+        delay.side_effect = queue
+
+        with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+            with self.assertRaises(UserActionsTaskError):
+                tasks.update_actions_for_provider("test_action")
+
+        self.assertLoggedException(logs)
+        queued = {call.args[0] for call in delay.call_args_list}
+        self.assertIn(other_user.id, queued)
+        record = models.UserActionProvider.objects.get(action_type="test_action")
+        self.assertIn("1 errors", record.last_execution_status)
+
+    @override_config(USER_ACTIONS_ENABLED=True)
+    @patch("waldur_core.user_actions.tasks.update_actions_for_provider.delay")
+    def test_update_user_actions_queues_remaining_providers(self, delay):
+        def queue(action_type):
+            if action_type == "failing_action":
+                raise ConnectionError("broker down")
+
+        delay.side_effect = queue
+
+        with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+            with self.assertRaises(UserActionsTaskError):
+                tasks.update_user_actions()
+
+        self.assertLoggedException(logs)
+        queued = {call.args[0] for call in delay.call_args_list}
+        self.assertEqual(queued, {"test_action", "failing_action"})
+
+    @override_config(USER_ACTIONS_ENABLED=True)
+    @patch("waldur_core.user_actions.tasks.update_user_actions_for_provider.delay")
+    def test_update_user_actions_for_one_user_queues_remaining_providers(self, delay):
+        def queue(user_id, action_type):
+            if action_type == "failing_action":
+                raise ConnectionError("broker down")
+
+        delay.side_effect = queue
+
+        with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+            with self.assertRaises(UserActionsTaskError):
+                tasks.update_user_actions(user_uuid=self.user.uuid.hex)
+
+        self.assertLoggedException(logs)
+        queued = {call.args[1] for call in delay.call_args_list}
+        self.assertEqual(queued, {"test_action", "failing_action"})
+
+    def test_cleanup_actions_for_deleted_object_raises(self):
+        user_ct = ContentType.objects.get_for_model(User)
+        with patch.object(
+            models.UserAction.objects, "filter", side_effect=DatabaseError("boom")
+        ):
+            with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+                with self.assertRaises(DatabaseError):
+                    cleanup_actions_for_deleted_object(user_ct.id, 123)
+
+        self.assertLoggedException(logs)
+
+    def test_cleanup_dangling_user_actions_continues_and_raises(self):
+        user_ct = ContentType.objects.get_for_model(User)
+        other_user = User.objects.create_user(
+            username="unreadable_user", email="unreadable@example.com"
+        )
+        unreadable = models.UserAction.objects.create(
+            user=self.user,
+            action_type="test_action",
+            title="Unreadable",
+            urgency="low",
+            content_type=user_ct,
+            object_id=other_user.id,
+        )
+        dangling = models.UserAction.objects.create(
+            user=self.user,
+            action_type="test_action",
+            title="Dangling",
+            urgency="low",
+            content_type=user_ct,
+            object_id=999999,
+        )
+        original = ContentType.get_object_for_this_type
+
+        def flaky(content_type, using=None, **kwargs):
+            if kwargs.get("pk") == other_user.id:
+                raise DatabaseError("boom")
+            return original(content_type, using=using, **kwargs)
+
+        with patch.object(ContentType, "get_object_for_this_type", flaky):
+            with self.assertLogs("waldur_core.user_actions.tasks", "ERROR") as logs:
+                with self.assertRaises(UserActionsTaskError):
+                    cleanup_dangling_user_actions()
+
+        self.assertLoggedException(logs)
+        # The action that could not be checked is kept, not deleted on suspicion;
+        # the rest of the sweep still ran.
+        self.assertTrue(models.UserAction.objects.filter(id=unreadable.id).exists())
+        self.assertFalse(models.UserAction.objects.filter(id=dangling.id).exists())
+
+    def test_cleanup_dangling_user_actions_stops_when_the_database_is_unavailable(
+        self,
+    ):
+        user_ct = ContentType.objects.get_for_model(User)
+        for object_id in (999998, 999999):
+            models.UserAction.objects.create(
+                user=self.user,
+                action_type="test_action",
+                title=f"Action {object_id}",
+                urgency="low",
+                content_type=user_ct,
+                object_id=object_id,
+            )
+        calls = []
+
+        def unavailable(content_type, using=None, **kwargs):
+            calls.append(kwargs)
+            raise OperationalError("connection lost")
+
+        with patch.object(ContentType, "get_object_for_this_type", unavailable):
+            with self.assertRaises(OperationalError):
+                cleanup_dangling_user_actions()
+
+        # One failed lookup, not one per remaining action; nothing is deleted.
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            models.UserAction.objects.filter(title__startswith="Action ").count(), 2
+        )
+
+    def test_update_actions_for_provider_truncates_a_long_error_status(self):
+        long_message = "x" * 200
+
+        with patch.object(
+            FailingActionProvider,
+            "get_affected_users",
+            side_effect=TypeError(long_message),
+        ):
+            with self.assertLogs("waldur_core.user_actions.tasks", "ERROR"):
+                with self.assertRaises(TypeError):
+                    tasks.update_actions_for_provider("failing_action")
+
+        record = models.UserActionProvider.objects.get(action_type="failing_action")
+        max_length = models.UserActionProvider._meta.get_field(
+            "last_execution_status"
+        ).max_length
+        self.assertEqual(len(record.last_execution_status), max_length)
+        self.assertTrue(record.last_execution_status.startswith("ERROR: x"))
+
+    def test_cleanup_dangling_user_actions_removes_actions_of_removed_model(self):
+        gone_ct = ContentType.objects.create(app_label="removed_app", model="gone")
+        action = models.UserAction.objects.create(
+            user=self.user,
+            action_type="test_action",
+            title="Points at a removed model",
+            urgency="low",
+            content_type=gone_ct,
+            object_id=1,
+        )
+
+        self.assertEqual(cleanup_dangling_user_actions(), 1)
+        self.assertFalse(models.UserAction.objects.filter(id=action.id).exists())
+
+
 class CleanupTasksTests(TestCase):
     """Test cases for cleanup tasks that detect and remove dangling user actions"""
 
@@ -638,21 +882,45 @@ class SignalHandlerTests(TestCase):
         )
 
     @patch("waldur_core.user_actions.tasks.cleanup_actions_for_deleted_object.delay")
-    def test_schedule_cleanup_handles_errors_gracefully(self, mock_task):
-        """Test that signal handler handles errors without crashing"""
-
-        # Mock task to raise an exception
+    def test_schedule_cleanup_logs_errors_without_breaking_delete(self, mock_task):
+        """A broker failure is logged with its traceback, not raised."""
         mock_task.side_effect = Exception("Celery error")
 
         class MockInstance:
             pk = 123
 
-        # Should not raise exception
-        try:
+        with self.assertLogs("waldur_core.user_actions.handlers", "ERROR") as logs:
             schedule_cleanup_for_deleted_object(User, MockInstance())
-        except Exception:
-            self.fail("Signal handler should handle errors gracefully")
+
         self.assertTrue(mock_task.called)
+        self.assertEqual(len(logs.records), 1)
+        self.assertIsNotNone(logs.records[0].exc_info)
+
+    @patch("waldur_core.user_actions.tasks.cleanup_actions_for_deleted_object.delay")
+    def test_schedule_cleanup_waits_for_commit(self, mock_task):
+        """A rolled-back delete must not queue the cleanup of its actions."""
+
+        class MockInstance:
+            pk = 123
+
+        instance = MockInstance()
+        with patch(
+            "waldur_core.user_actions.handlers.transaction.on_commit"
+        ) as on_commit:
+            schedule_cleanup_for_deleted_object(User, instance, using="default")
+            # Deletion clears the pk; the handler must have read it already.
+            instance.pk = None
+
+        mock_task.assert_not_called()
+        on_commit.assert_called_once()
+        self.assertEqual(on_commit.call_args.kwargs, {"using": "default"})
+
+        callback = on_commit.call_args.args[0]
+        callback()
+
+        mock_task.assert_called_once_with(
+            ContentType.objects.get_for_model(User).id, 123
+        )
 
     @patch("django.db.models.signals.post_delete.connect")
     def test_register_cleanup_handler_registers_signals(self, mock_connect):

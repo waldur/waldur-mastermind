@@ -4,6 +4,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import InterfaceError, OperationalError
 from django.utils import timezone
 
 from waldur_core.configuration import config
@@ -13,6 +14,24 @@ from . import models, providers
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+class UserActionsTaskError(Exception):
+    """Some items of a fan-out task failed.
+
+    Each failure has already been logged with its traceback. Raising this at
+    the end marks the task FAILURE, so Celery, Sentry and the Sentry Crons
+    check-in of a periodic task see it, without one bad item stopping the rest.
+    """
+
+
+def _set_execution_status(provider_record, status):
+    # last_execution_status is a short CharField; an exception message can be
+    # longer, and a DataError here would hide the error being recorded.
+    max_length = models.UserActionProvider._meta.get_field(
+        "last_execution_status"
+    ).max_length
+    provider_record.update_execution_status(status[:max_length])
 
 
 @shared_task(name="waldur_core.user_actions.update_user_actions")
@@ -39,20 +58,29 @@ def update_user_actions(provider_action_type=None, user_uuid=None):
         except User.DoesNotExist:
             logger.error(f"User {user_uuid} not found")
             return
+        failed = []
         for action_type in provider_classes:
             try:
                 update_user_actions_for_provider.delay(user.id, action_type)
-            except Exception as e:
-                logger.error(
+            except Exception:
+                logger.exception(
                     f"Failed to queue action update for user {user_uuid}, "
-                    f"provider {action_type}: {e}"
+                    f"provider {action_type}"
                 )
+                failed.append(action_type)
     else:
+        failed = []
         for action_type in provider_classes:
             try:
                 update_actions_for_provider.delay(action_type)
-            except Exception as e:
-                logger.error(f"Failed to queue action update for {action_type}: {e}")
+            except Exception:
+                logger.exception(f"Failed to queue action update for {action_type}")
+                failed.append(action_type)
+
+    if failed:
+        raise UserActionsTaskError(
+            f"Failed to queue action updates for providers: {failed}"
+        )
 
 
 @shared_task(name="waldur_core.user_actions.update_actions_for_provider")
@@ -65,41 +93,45 @@ def update_actions_for_provider(action_type):
 
     logger.info(f"Updating actions for provider: {action_type}")
 
+    # Update provider execution status
+    provider_record, created = models.UserActionProvider.objects.get_or_create(
+        action_type=action_type,
+        defaults={
+            "app_name": provider.__class__.__module__.split(".")[0],
+            "provider_class": f"{provider.__class__.__module__}.{provider.__class__.__name__}",
+        },
+    )
+
+    provider_record.update_execution_status("STARTED")
+
     try:
-        # Update provider execution status
-        provider_record, created = models.UserActionProvider.objects.get_or_create(
-            action_type=action_type,
-            defaults={
-                "app_name": provider.__class__.__module__.split(".")[0],
-                "provider_class": f"{provider.__class__.__module__}.{provider.__class__.__name__}",
-            },
-        )
-
-        provider_record.update_execution_status("STARTED")
-
         # Get affected users
         users = provider.get_affected_users()
         logger.info(f"Found {len(users)} potentially affected users for {action_type}")
-
-        success_count = 0
-        error_count = 0
-
-        for user in users:
-            try:
-                update_user_actions_for_provider.delay(user.id, action_type)
-                success_count += 1
-            except Exception as e:
-                logger.error(f"Failed to queue user action update for {user}: {e}")
-                error_count += 1
-
-        status = f"COMPLETED: {success_count} queued, {error_count} errors"
-        provider_record.update_execution_status(status)
-        logger.info(f"Finished updating {action_type}: {status}")
-
     except Exception as e:
-        logger.error(f"Error updating actions for provider {action_type}: {e}")
-        if "provider_record" in locals():
-            provider_record.update_execution_status(f"ERROR: {str(e)}")
+        logger.exception(f"Failed to get affected users for provider {action_type}")
+        _set_execution_status(provider_record, f"ERROR: {e}")
+        raise
+
+    success_count = 0
+    error_count = 0
+
+    for user in users:
+        try:
+            update_user_actions_for_provider.delay(user.id, action_type)
+            success_count += 1
+        except Exception:
+            logger.exception(f"Failed to queue user action update for {user}")
+            error_count += 1
+
+    status = f"COMPLETED: {success_count} queued, {error_count} errors"
+    _set_execution_status(provider_record, status)
+    logger.info(f"Finished updating {action_type}: {status}")
+
+    if error_count:
+        raise UserActionsTaskError(
+            f"Failed to queue {error_count} user action updates for {action_type}"
+        )
 
 
 @shared_task(name="waldur_core.user_actions.update_user_actions_for_provider")
@@ -107,12 +139,16 @@ def update_user_actions_for_provider(user_id, action_type):
     """Update actions for specific user and provider"""
     try:
         user = User.objects.get(id=user_id)
-        provider = providers.get_provider(action_type)
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found")
+        return
 
-        if not provider:
-            logger.warning(f"Provider not found for action type: {action_type}")
-            return
+    provider = providers.get_provider(action_type)
+    if not provider:
+        logger.warning(f"Provider not found for action type: {action_type}")
+        return
 
+    try:
         # Get current actions from provider
         new_actions = provider.get_actions_for_user(user)
 
@@ -172,12 +208,11 @@ def update_user_actions_for_provider(user_id, action_type):
         # Clean up stale actions
         cleanup_stale_actions.delay(user_id, action_type)
 
-    except User.DoesNotExist:
-        logger.error(f"User {user_id} not found")
-    except Exception as e:
-        logger.error(
-            f"Failed to update actions for user {user_id}, type {action_type}: {e}"
+    except Exception:
+        logger.exception(
+            f"Failed to update actions for user {user_id}, type {action_type}"
         )
+        raise
 
 
 @shared_task(name="waldur_core.user_actions.cleanup_stale_actions")
@@ -185,11 +220,15 @@ def cleanup_stale_actions(user_id, action_type):
     """Remove actions that are no longer relevant"""
     try:
         user = User.objects.get(id=user_id)
-        provider = providers.get_provider(action_type)
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found during cleanup")
+        return
 
-        if not provider:
-            return
+    provider = providers.get_provider(action_type)
+    if not provider:
+        return
 
+    try:
         # Get current valid actions from provider
         current_actions = provider.get_actions_for_user(user)
 
@@ -217,12 +256,11 @@ def cleanup_stale_actions(user_id, action_type):
                 f"type {action_type}"
             )
 
-    except User.DoesNotExist:
-        logger.error(f"User {user_id} not found during cleanup")
-    except Exception as e:
-        logger.error(
-            f"Failed to cleanup stale actions for user {user_id}, type {action_type}: {e}"
+    except Exception:
+        logger.exception(
+            f"Failed to cleanup stale actions for user {user_id}, type {action_type}"
         )
+        raise
 
 
 @shared_task(name="waldur_core.user_actions.cleanup_expired_silenced_actions")
@@ -291,40 +329,61 @@ def cleanup_actions_for_deleted_object(content_type_id, object_id):
     except ContentType.DoesNotExist:
         logger.warning(f"ContentType {content_type_id} not found during cleanup")
         return 0
-    except Exception as e:
-        logger.error(f"Error cleaning up actions for deleted object: {e}")
-        return 0
+    except Exception:
+        logger.exception(
+            f"Failed to clean up actions for deleted object {object_id} "
+            f"of content type {content_type_id}"
+        )
+        raise
 
 
 @shared_task(name="waldur_core.user_actions.cleanup_dangling_user_actions")
 def cleanup_dangling_user_actions():
     """Clean up user actions pointing to non-existent objects (fallback periodic cleanup)"""
     deleted_count = 0
+    failed_ids = []
 
     # Get all user actions
     all_actions = models.UserAction.objects.select_related("content_type").all()
 
     for action in all_actions:
         try:
-            # Try to access the related object to check if it exists
-            if action.related_object is None:
+            # A content type whose model is gone (its app was removed) cannot
+            # resolve any object; the GenericForeignKey would raise on it.
+            # Otherwise the GenericForeignKey returns None for a missing object.
+            if (
+                action.content_type.model_class() is None
+                or action.related_object is None
+            ):
                 # Object doesn't exist anymore, delete the action
+                action_id = action.id
                 action.delete()
                 deleted_count += 1
                 logger.debug(
-                    f"Deleted dangling user action {action.id} for "
+                    f"Deleted dangling user action {action_id} for "
                     f"{action.content_type.model} object {action.object_id}"
                 )
-        except Exception as e:
-            # Object doesn't exist or any other error, delete the action
-            action.delete()
-            deleted_count += 1
-            logger.debug(
-                f"Deleted user action {action.id} due to error accessing related object: {e}"
+        except (InterfaceError, OperationalError):
+            # The database itself is unavailable: every remaining check would
+            # fail the same way, so stop at the first one.
+            raise
+        except Exception:
+            # Not evidence that the object is gone: keep the action, report it
+            # and carry on with the rest.
+            logger.exception(
+                f"Failed to check user action {action.id} for "
+                f"{action.content_type.model} object {action.object_id}"
             )
+            failed_ids.append(action.id)
 
     if deleted_count > 0:
         logger.info(f"Cleaned up {deleted_count} dangling user actions")
+
+    if failed_ids:
+        raise UserActionsTaskError(
+            f"Failed to check {len(failed_ids)} user actions for dangling "
+            f"references: {failed_ids[:20]}"
+        )
 
     return deleted_count
 
