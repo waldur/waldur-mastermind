@@ -565,9 +565,11 @@ The system prevents duplicate message sends from periodic Celery beat tasks:
 STOMP messages include headers for reliable delivery:
 
 - **Persistence**: Messages are persisted to disk (`persistent: true`)
-- **TTL**: Type-based expiration (orders: 24h, resources: 2h, etc.)
-- **Dead Letter Queue**: Failed messages routed to `waldur.dlq.messages`
+- **Queue TTL**: Consumer and subscription queues are created with a **1 hour** `x-message-ttl` (see `SUBSCRIPTION_QUEUE_ARGUMENTS` in `waldur_core/logging/backend.py`). Unconsumed messages expire after that and are dead-lettered.
+- **Dead Letter Queue**: Expired or rejected messages routed to `waldur.dlq.messages`
 - **Queue Limits**: Maximum 10,000 messages per queue with overflow rejection
+
+See also [Unified Agent Queue](../guides/agent-pubsub.md#queue-arguments) for the full queue argument set.
 
 ### Celery Task Retry
 
