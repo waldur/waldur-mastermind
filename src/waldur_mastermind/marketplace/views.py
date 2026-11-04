@@ -12228,7 +12228,8 @@ class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
 
     This endpoint shows the total usage of a component type (like 'CPU hours') across all resources
     of a particular category within a specific scope (either a customer or a project).
-    It is useful for high-level reporting and analytics.
+    It is useful for high-level reporting and analytics. Callers see the usage of
+    organizations and projects their roles reach; staff and support see all.
     """
 
     queryset = models.CategoryComponentUsage.objects.all().order_by(
@@ -12236,6 +12237,7 @@ class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     )
     filter_backends = (
         DjangoFilterBackend,
+        filters.CategoryComponentUsageVisibilityFilterBackend,
         filters.CategoryComponentUsageScopeFilterBackend,
     )
     filterset_class = filters.CategoryComponentUsageFilter
