@@ -8,6 +8,7 @@ for soft-deleted scopes.
 from rest_framework import status, test
 
 from waldur_core.permissions import utils
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
@@ -201,3 +202,59 @@ class HistoricalRolesTest(test.APITestCase):
         self.client.force_authenticate(other)
         response = self.client.post(self._detail_url(self.active_role, "revoke"))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # --- who may revoke or restore ---------------------------------------
+
+    def _own_project_grant(self):
+        # Other users see only their own active grants.
+        return utils.add_user(
+            self.project, self.owner, ProjectRole.MANAGER, created_by=self.staff
+        )
+
+    def test_holder_of_the_permission_on_the_organization_may_revoke(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT_PERMISSION)
+        grant = self._own_project_grant()
+        self.client.force_authenticate(self.owner)
+        response = self.client.post(self._detail_url(grant, "revoke"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        grant.refresh_from_db()
+        self.assertFalse(grant.is_active)
+
+    def test_caller_without_the_permission_may_not_revoke_their_own_grant(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.DELETE_PROJECT_PERMISSION)
+        ProjectRole.MANAGER.delete_permission(PermissionEnum.DELETE_PROJECT_PERMISSION)
+        grant = self._own_project_grant()
+        self.client.force_authenticate(self.owner)
+        response = self.client.post(self._detail_url(grant, "revoke"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        grant.refresh_from_db()
+        self.assertTrue(grant.is_active)
+
+    def test_support_with_the_permission_may_restore(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.customer.add_user(self.support, CustomerRole.OWNER)
+        self.client.force_authenticate(self.support)
+        response = self.client.post(self._detail_url(self.revoked_role, "restore"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.revoked_role.refresh_from_db()
+        self.assertTrue(self.revoked_role.is_active)
+
+    def test_support_without_the_permission_cannot_restore(self):
+        self.client.force_authenticate(self.support)
+        response = self.client.post(self._detail_url(self.revoked_role, "restore"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.revoked_role.refresh_from_db()
+        self.assertFalse(self.revoked_role.is_active)
+
+    def test_permission_is_checked_before_the_request_body(self):
+        # The check runs while the grant is looked up, so a caller without the
+        # permission is refused even when the body is invalid.
+        self.client.force_authenticate(self.support)
+        for action, grant in (
+            ("revoke", self.active_role),
+            ("restore", self.revoked_role),
+        ):
+            response = self.client.post(
+                self._detail_url(grant, action), {"reason": "x" * 300}
+            )
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

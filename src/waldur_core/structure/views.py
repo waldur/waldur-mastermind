@@ -258,6 +258,10 @@ class CustomerViewSet(
     ]
 
     access_declarations = {"countries": [access.authenticated()]}
+    # Looked up as retrieve does, though check_object_permissions keeps a
+    # service provider manager out; the figures cover only the resources the
+    # caller sees (filter_resources_for_consumer).
+    access_filtered_actions = ("stats", "providers")
 
     def get_queryset(self):
         user = self.request.user
@@ -1048,6 +1052,10 @@ class ProjectViewSet(
     destroy_permissions = [
         permission_factory(PermissionEnum.DELETE_PROJECT, ["customer"])
     ]
+
+    # Looked up as retrieve does; the figures cover only the resources the
+    # caller sees (filter_resources_for_consumer).
+    access_filtered_actions = ("stats",)
 
     # Changes the project alone, so a token bound to it may use a role on its
     # organization.

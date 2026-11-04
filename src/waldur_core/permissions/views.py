@@ -31,6 +31,7 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from waldur_core.core import access
 from waldur_core.core.models import User
 from waldur_core.core.permissions import (
+    ActionsPermission,
     IsAdminOrReadOnly,
     IsStaff,
     PATScopeAwareIsAdminUser,
@@ -518,7 +519,10 @@ class RoleAvailabilityViewSet(ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.RoleAvailabilityFilter
     disabled_actions = ["create", "update", "partial_update"]
+    # Enforced by get_queryset: anyone else finds no binding to delete.
+    access_declarations = {"destroy": [access.staff()]}
 
+    @access.shows("Every binding to staff; none to anyone else.")
     def get_queryset(self):
         qs = super().get_queryset()
         if not has_staff_access(self.request):
@@ -1131,6 +1135,57 @@ class GlobalUserRoleViewSet(ActionsViewSet):
         )
 
 
+def _check_grant_permission(request, user_role, permission_getter):
+    """Authorise revoke/restore of ``user_role`` mirroring the scope-based team
+    management checks: the caller must hold the relevant permission on either
+    the role's customer or the scope itself. Staff bypass via
+    :func:`has_permission`."""
+    scope = user_role.scope
+    if scope is None:
+        raise ValidationError("Role scope is not available.")
+    permission = permission_getter(scope)
+    customer = _get_customer(scope)
+    if customer is not None and has_permission(request, permission, customer):
+        return
+    if has_permission(request, permission, scope):
+        return
+    raise PermissionDenied()
+
+
+def _grant_permission_description(permissions):
+    return access.custom(
+        "Staff, or a holder of the team permission for the grant's scope "
+        f"type ({permissions}, ...) on the scope or on its organization, among "
+        "the grants the caller sees."
+    )
+
+
+@access.describes(
+    _grant_permission_description(
+        f"{enums.PermissionEnum.DELETE_CUSTOMER_PERMISSION.value}, "
+        f"{enums.PermissionEnum.DELETE_PROJECT_PERMISSION.value}, "
+        f"{enums.PermissionEnum.DELETE_OFFERING_PERMISSION.value}"
+    ),
+    needs_object=True,
+)
+def can_revoke_user_role(request, view, obj=None):
+    if obj is not None:
+        _check_grant_permission(request, obj, get_delete_permission)
+
+
+@access.describes(
+    _grant_permission_description(
+        f"{enums.PermissionEnum.CREATE_CUSTOMER_PERMISSION.value}, "
+        f"{enums.PermissionEnum.CREATE_PROJECT_PERMISSION.value}, "
+        f"{enums.PermissionEnum.CREATE_OFFERING_PERMISSION.value}"
+    ),
+    needs_object=True,
+)
+def can_restore_user_role(request, view, obj=None):
+    if obj is not None:
+        _check_grant_permission(request, obj, get_create_permission)
+
+
 def filter_user_permissions_by_ip_address(qs: QuerySet[models.UserRole], user_ip: str):
     from waldur_core.structure.managers import filter_customer_by_ip_address
     from waldur_core.structure.models import Customer, Project
@@ -1223,9 +1278,18 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
     queryset = models.UserRole.objects.all()
     serializer_class = serializers.PermissionSerializer
     lookup_field = "uuid"
+    permission_classes = (rf_permissions.IsAuthenticated, ActionsPermission)
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.UserPermissionFilter
+    revoke_permissions = [can_revoke_user_role]
+    restore_permissions = [can_restore_user_role]
 
+    @access.shows(
+        "Every grant to staff and support, the list only active ones unless "
+        "show_inactive=true. Anyone else sees their own active grants, except "
+        "those on an organization, or a project of one, that limits portal "
+        "access to networks the caller's address is outside."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -1247,22 +1311,6 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
             return qs
         return filter_user_permissions_by_ip_address(qs, user_ip)
 
-    def _check_action_permission(self, user_role, permission_getter):
-        """Authorise revoke/restore of ``user_role`` mirroring the
-        scope-based team management checks: the caller must hold the relevant
-        permission on either the role's customer or the scope itself. Staff
-        bypass via :func:`has_permission`."""
-        scope = user_role.scope
-        if scope is None:
-            raise ValidationError("Role scope is not available.")
-        permission = permission_getter(scope)
-        customer = _get_customer(scope)
-        if customer is not None and has_permission(self.request, permission, customer):
-            return
-        if has_permission(self.request, permission, scope):
-            return
-        raise PermissionDenied()
-
     @extend_schema(
         summary="Revoke a user role",
         description="Revokes a specific user role grant, deactivating the "
@@ -1275,7 +1323,6 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
         user_role = self.get_object()
         serializer = serializers.UserRolePermissionActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self._check_action_permission(user_role, get_delete_permission)
         if not user_role.is_active:
             raise ValidationError("Role is already revoked.")
         reason = (
@@ -1298,7 +1345,6 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
         user_role = self.get_object()
         serializer = serializers.UserRolePermissionActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self._check_action_permission(user_role, get_create_permission)
         validate_scope_not_soft_deleted(user_role.scope)
         if user_role.is_active:
             raise ValidationError("Role is already active.")

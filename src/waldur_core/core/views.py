@@ -52,7 +52,7 @@ from waldur_core.changelog.utils import (
 from waldur_core.configuration import config
 from waldur_core.configuration.models import Setting, Source
 from waldur_core.configuration.secrets import redact_constance_secrets
-from waldur_core.core import WaldurExtension, models, pdf, permissions
+from waldur_core.core import WaldurExtension, access, models, pdf, permissions
 from waldur_core.core.authentication import (
     OIDC_AUTHENTICATION_METHODS,
     AuthenticationMethod,
@@ -201,6 +201,8 @@ class ObtainAuthToken(APIView):
     # request.user, so there is nothing to authenticate.
     authentication_classes = ()
     serializer_class = ObtainAuthTokenSerializer
+    # The sign-in itself: the username and password in the body authenticate.
+    access_declarations = {"post": [access.public()]}
 
     @extend_schema(
         summary="Obtain authentication token",
@@ -363,6 +365,17 @@ class TokenExchangeView(APIView):
     permission_classes = ()
     throttle_scope = "token_exchange"
     serializer_class = TokenExchangeSerializer
+    # The code is what authorizes the exchange, so no sign-in is needed.
+    access_declarations = {
+        "post": [
+            access.custom(
+                "Anyone with an unused exchange code issued in the last "
+                f"{int(TOKEN_EXCHANGE_TTL.total_seconds())} seconds, which a "
+                "completed external login redirects the browser with; no "
+                "sign-in."
+            )
+        ]
+    }
 
     @extend_schema(
         summary="Exchange code for token",
@@ -409,6 +422,8 @@ class ExportPdfView(APIView):
 
     throttle_scope = "export_pdf"
     serializer_class = ExportPdfSerializer
+    # Nothing is read from the database: the PDF holds only what is sent.
+    access_declarations = {"post": [access.authenticated()]}
 
     @extend_schema(
         summary="Export a table or chart as PDF",
@@ -483,6 +498,14 @@ def _export_file_name(title: str) -> str:
 class LogoutView(generics.GenericAPIView):
     permission_classes = (rf_permissions.IsAuthenticated,)
     filter_backends = []
+    access_declarations = {
+        "post": [
+            access.owned(
+                "The caller's own session and authentication token; while "
+                "impersonating, the impersonator's."
+            )
+        ]
+    }
 
     @extend_schema(
         summary="Log out",
@@ -2143,6 +2166,11 @@ def version_detail(request):
     return Response(VersionSerializer(response_data).data)
 
 
+# Staff and support also get the latest release and the changelog; the version
+# itself is for anyone signed in.
+version_detail.cls.access_declarations = {"get": [access.authenticated()]}
+
+
 class ActionMethodMixin:
     """Implements helper methods for viewset when use separate
     nested endpoints for create/edit relations objects.
@@ -2302,6 +2330,8 @@ class PermissionMetadataView(APIView):
 
     permission_classes = []
     authentication_classes = []
+    # Static metadata from the code, open on purpose.
+    access_declarations = {"get": [access.public()]}
 
     @extend_schema(
         summary="Get permission metadata",
@@ -2337,6 +2367,8 @@ class EventMetadataView(APIView):
 
     permission_classes = []
     authentication_classes = []
+    # Static metadata from the code, open on purpose.
+    access_declarations = {"get": [access.public()]}
 
     @extend_schema(
         summary="Get event metadata",
@@ -2352,6 +2384,8 @@ class FeatureMetadataView(APIView):
 
     permission_classes = []
     authentication_classes = []
+    # Static metadata from the code, open on purpose.
+    access_declarations = {"get": [access.public()]}
 
     @extend_schema(
         summary="Get feature flag metadata",
@@ -2377,6 +2411,8 @@ class SettingsMetadataView(APIView):
 
     permission_classes = []
     authentication_classes = []
+    # Static metadata from the code, open on purpose.
+    access_declarations = {"get": [access.public()]}
 
     @extend_schema(
         summary="Get overridable settings metadata",
@@ -2434,6 +2470,51 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update"]
 
+    # Every token action looks its token up among the caller's own (see
+    # get_queryset); initial() refuses the writes to a personal access token
+    # and, under passkey enforcement, the minting ones to an unverified
+    # session; PersonalAccessTokenCreateSerializer checks what a new token may
+    # carry. Change them together.
+    access_declarations = {
+        "create": [
+            access.owned(
+                "A token for the caller, who must be allowed personal access "
+                "tokens. Only staff may give it STAFF.ACCESS, and only staff "
+                "or support SUPPORT.ACCESS; unless the caller is staff, each "
+                "entity it is bound to needs one of its permissions held there "
+                "or on an entity above it. Not with a personal access token, "
+                "and for staff and support under passkey enforcement only from "
+                "a passkey-verified session."
+            )
+        ],
+        "destroy": [
+            access.owned("The caller's own token; not with a personal access token.")
+        ],
+        "rotate": [
+            access.owned(
+                "The caller's own token; not with a personal access token, "
+                "and for staff and support under passkey enforcement only from "
+                "a passkey-verified session."
+            )
+        ],
+        "set_network_acl": [
+            access.owned("The caller's own token; not with a personal access token.")
+        ],
+        "available_scopes": [
+            access.owned(
+                "The permissions the caller's own roles let them give a token; "
+                "every one for staff."
+            )
+        ],
+        "available_binding_targets": [
+            access.owned(
+                "The entity types where the caller's own roles grant each "
+                "permission; every type for staff."
+            )
+        ],
+    }
+
+    @access.shows("The caller's own personal access tokens.")
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return models.PersonalAccessToken.objects.none()
