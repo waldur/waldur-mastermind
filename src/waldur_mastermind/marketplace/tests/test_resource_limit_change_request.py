@@ -705,6 +705,18 @@ class ResourceLimitChangeRequestCancelTest(test.APITestCase):
         self.request.refresh_from_db()
         self.assertEqual(self.request.state, ReviewStates.APPROVED)
 
+    def test_who_did_not_create_the_request_is_refused_whatever_its_state(self):
+        """Staff see the request but did not make it: refused before its state
+        is checked."""
+        self.request.state = ReviewStates.APPROVED
+        self.request.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.APPROVED)
+
 
 class ResourceLimitChangeRequestEventTest(test.APITestCase):
     def setUp(self):

@@ -3198,6 +3198,13 @@ class PlanComponentFilter(django_filters.FilterSet):
 
 
 class MarketplaceInvoiceItemsFilterBackend(BaseFilterBackend):
+    """Invoice items of resources of offerings of organizations where the caller
+    holds SERVICE_PROVIDER.GET_REVENUE, on the organization, on its service
+    provider or site-wide. Staff see all.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         user = request.user
 

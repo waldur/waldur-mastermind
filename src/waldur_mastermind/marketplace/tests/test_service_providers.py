@@ -237,6 +237,44 @@ class ServiceProviderUpdateTest(test.APITestCase):
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_reading_the_secret_code_does_not_let_the_owner_generate_one(self):
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
+        url = factories.ServiceProviderFactory.get_url(
+            service_provider, "api_secret_code"
+        )
+        old_secret_code = service_provider.api_secret_code
+
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        service_provider.refresh_from_db()
+        self.assertEqual(service_provider.api_secret_code, old_secret_code)
+
+    def test_head_reads_the_secret_code_and_does_not_generate_one(self):
+        # HEAD passes CSRF protection, so it must not rotate the code.
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GENERATE_SERVICE_PROVIDER_API_SECRET_CODE
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
+        url = factories.ServiceProviderFactory.get_url(
+            service_provider, "api_secret_code"
+        )
+        old_secret_code = service_provider.api_secret_code
+
+        response = self.client.head(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        service_provider.refresh_from_db()
+        self.assertEqual(service_provider.api_secret_code, old_secret_code)
+
     def test_upload_service_provider_image(self):
         payload = {"image": dummy_image()}
         response, service_provider = self.update_service_provider(
@@ -301,6 +339,11 @@ class ServiceProviderDeleteTest(test.APITestCase):
         self.assertFalse(
             models.ServiceProvider.objects.filter(customer=self.customer).exists()
         )
+
+    def test_non_owner_is_refused_before_active_offerings_are_checked(self):
+        factories.OfferingFactory(customer=self.customer, state=OfferingStates.ACTIVE)
+        response = self.delete_service_provider("admin")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_delete_service_provider(self, user):

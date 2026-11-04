@@ -266,6 +266,20 @@ OFFERING_SCOPED_SOURCES = ["offering", "offering.customer"]
 # while organization owners hold theirs on its customer; accept either.
 SERVICE_PROVIDER_SOURCES = ["*", "customer"]
 
+
+def on_url_service_provider(permission, sources=SERVICE_PROVIDER_SOURCES) -> dict:
+    """``permission`` on the service provider named in the URL, as the views
+    nested under it check it: on any of ``sources`` of the provider, ``"*"``
+    being the provider itself."""
+    return access.permission(
+        permission,
+        [
+            "service_provider" if source == "*" else f"service_provider.{source}"
+            for source in sources
+        ],
+    )
+
+
 # The same two holders, reached from an offering: the provider's organization
 # and the ServiceProvider record behind it.
 OFFERING_PROVIDER_SOURCES = ["customer", "customer.serviceprovider"]
@@ -363,6 +377,25 @@ def any_permission(*permission_functions):
         for permission_function in permission_functions
     )
     return check
+
+
+# What get_allowed_offering_users_for_user leaves, as OfferingUsersViewSet
+# calls it. Change the two together.
+OFFERING_USERS_VISIBLE_TO_USER = (
+    "On offerings that let the service provider create offering accounts: the "
+    "caller's own accounts; every account on offerings of organizations and "
+    "service providers where the caller holds a role, and on offerings they "
+    "hold a role on; and accounts of users who hold a role in an organization "
+    "or project the caller can see, on offerings of organizations where the "
+    "caller holds a role on the organization or one of its projects, or of "
+    "those organizations' organization groups. Identity managers also see the "
+    "accounts of users active in the ISDs they manage. List and retrieve hide "
+    "other users' accounts on offerings with active terms of service that the "
+    "user has not accepted when ENFORCE_USER_CONSENT_FOR_OFFERINGS is on, and "
+    "those of users with an incomplete profile when "
+    "ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS is on. Staff and support see "
+    "all, without that hiding."
+)
 
 
 def get_allowed_offering_users_for_user(
@@ -678,6 +711,45 @@ class ConnectedResourceDetailsMixin:
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@access.describes(
+    access.custom(
+        "Reading the code takes "
+        f"{PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE.value} on the "
+        "service provider's organization or site-wide; any other method "
+        "generates a new one and takes "
+        f"{PermissionEnum.GENERATE_SERVICE_PROVIDER_API_SECRET_CODE.value} in the "
+        "same places. Staff pass both."
+    ),
+    needs_object=True,
+)
+def can_use_api_secret_code(request, view, obj: models.ServiceProvider | None = None):
+    if not obj:
+        return
+    # As the action tells reading from generating: a safe method (GET, HEAD)
+    # reads, any other generates a new code.
+    if request.method in SAFE_METHODS:
+        permission = PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE
+    else:
+        permission = PermissionEnum.GENERATE_SERVICE_PROVIDER_API_SECRET_CODE
+    if not has_permission(request, permission, obj.customer):
+        raise PermissionDenied()
+
+
+def service_provider_has_no_active_offerings(service_provider):
+    if service_provider.has_active_offerings:
+        raise rf_exceptions.ValidationError(
+            _("Service provider has active offerings. Please archive them first.")
+        )
+
+
+# Who may list and retrieve service providers: PublicViewsetMixin.get_permissions
+# lets anonymous callers in when the setting is on. Change the two together.
+SERVICE_PROVIDER_DIRECTORY_ACCESS = access.custom(
+    "Any signed-in user, and anyone at all when ANONYMOUS_USER_CAN_VIEW_OFFERINGS "
+    "is on."
+)
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List service providers",
@@ -717,6 +789,11 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         "add_user": [access.staff()],
         "update_user": [access.staff()],
         "delete_user": [access.staff()],
+        # Service providers are a public directory: the queryset is not
+        # narrowed, and PublicViewsetMixin opens it to anonymous callers too.
+        "list": [SERVICE_PROVIDER_DIRECTORY_ACCESS],
+        "retrieve": [SERVICE_PROVIDER_DIRECTORY_ACCESS],
+        "create": [permissions.REGISTERS_SERVICE_PROVIDER],
     }
 
     @extend_schema(
@@ -743,24 +820,14 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     @action(detail=True, methods=["GET", "POST"])
     def api_secret_code(self, request, uuid=None):
         service_provider: models.ServiceProvider = self.get_object()
-        if request.method == "GET":
-            if not has_permission(
-                request,
-                PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE,
-                service_provider.customer,
-            ):
-                raise PermissionDenied()
+        # HEAD is a safe method: CSRF protection lets it through, so it must
+        # not change anything.
+        if request.method in SAFE_METHODS:
             return Response(
                 {"api_secret_code": service_provider.api_secret_code},
                 status=status.HTTP_200_OK,
             )
         else:
-            if not has_permission(
-                request,
-                PermissionEnum.GENERATE_SERVICE_PROVIDER_API_SECRET_CODE,
-                service_provider.customer,
-            ):
-                raise PermissionDenied()
             service_provider.generate_api_secret_code()
             service_provider.save()
             return Response(
@@ -771,13 +838,10 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 status=status.HTTP_200_OK,
             )
 
-    def check_related_resources(request, view, obj=None):
-        if obj and obj.has_active_offerings:
-            raise rf_exceptions.ValidationError(
-                _("Service provider has active offerings. Please archive them first.")
-            )
+    api_secret_code_permissions = [can_use_api_secret_code]
 
-    destroy_permissions = [structure_permissions.is_owner, check_related_resources]
+    destroy_permissions = [structure_permissions.is_owner]
+    destroy_validators = [service_provider_has_no_active_offerings]
 
     set_offerings_username_permissions = [
         permission_factory(
@@ -1460,6 +1524,9 @@ class ServiceProviderCustomersViewSet(
     filterset_class = structure_filters.CustomerFilter
     queryset = structure_models.Customer.objects.all()
     service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS
+    access_declarations = {
+        "list": [on_url_service_provider(service_provider_permission)]
+    }
 
     def get_queryset(self):
         customer_ids = utils.get_service_provider_customer_ids(
@@ -1493,6 +1560,9 @@ class ServiceProviderCustomerProjectsViewSet(
     filterset_class = structure_filters.ProjectFilter
     queryset = structure_models.Project.available_objects.all()
     service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS
+    access_declarations = {
+        "list": [on_url_service_provider(service_provider_permission)]
+    }
 
     def get_queryset(self):
         service_provider = self.get_service_provider()
@@ -1522,6 +1592,9 @@ class ServiceProviderProjectsViewSet(
     filterset_class = structure_filters.ProjectFilter
     queryset = structure_models.Project.available_objects.all()
     service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS
+    access_declarations = {
+        "list": [on_url_service_provider(service_provider_permission)]
+    }
 
     def get_queryset(self):
         project_ids = utils.get_service_provider_project_ids(
@@ -1544,6 +1617,14 @@ class ServiceProviderProjectPermissionsViewSet(
     queryset = UserRole.objects.all().select_related("user", "role", "created_by")
     filter_backends = (DjangoFilterBackend,)
     filterset_class = UserPermissionFilter
+    # What get_service_provider checks. Change the two together.
+    access_declarations = {
+        "list": [
+            on_url_service_provider(
+                PermissionEnum.LIST_SERVICE_PROVIDER_PROJECT_PERMISSIONS, ["customer"]
+            )
+        ]
+    }
 
     def get_service_provider(self):
         service_provider = get_object_or_404(
@@ -1587,6 +1668,14 @@ class ServiceProviderKeysViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewS
     queryset = core_models.SshPublicKey.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filterset_class = structure_filters.SshKeyFilter
+    # What get_service_provider checks. Change the two together.
+    access_declarations = {
+        "list": [
+            on_url_service_provider(
+                PermissionEnum.LIST_SERVICE_PROVIDER_KEYS, ["customer"]
+            )
+        ]
+    }
 
     def get_service_provider(self):
         service_provider = get_object_or_404(
@@ -1619,6 +1708,10 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
     queryset = core_models.User.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filterset_class = structure_filters.UserFilter
+    # What get_service_provider checks. Change the two together.
+    access_declarations = {
+        "list": [on_url_service_provider(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)]
+    }
 
     def get_service_provider(self):
         service_provider = get_object_or_404(
@@ -1755,6 +1848,11 @@ class ServiceProviderUserCustomersViewSet(
     filter_backends = (DjangoFilterBackend,)
     filterset_class = structure_filters.CustomerFilter
     service_provider_permission = PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS
+    # Checked on the provider's organization alone, as
+    # has_service_provider_permission below does.
+    access_declarations = {
+        "list": [on_url_service_provider(service_provider_permission, ["customer"])]
+    }
 
     # Checked on the provider's organization only, so a PAT is matched there too.
     def has_service_provider_permission(self, service_provider):
@@ -1867,6 +1965,13 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
 
     # Required for OpenAPI schema generation
     queryset = models.ServiceProvider.objects.none()
+
+    # What get_service_provider checks, which every action calls first. Change
+    # the two together.
+    access_declarations = dict.fromkeys(
+        ("compliance_overview", "offering_users", "checklists_summary"),
+        [on_url_service_provider(PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS)],
+    )
 
     def get_service_provider(self):
         """Get service provider and check permissions."""
@@ -2142,6 +2247,14 @@ class ServiceProviderProjectServiceAccountsViewSet(
     queryset = models.ProjectServiceAccount.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProjectServiceAccountFilter
+    # What get_service_provider checks. Change the two together.
+    access_declarations = {
+        "list": [
+            on_url_service_provider(
+                PermissionEnum.LIST_SERVICE_PROVIDER_SERVICE_ACCOUNTS, ["customer"]
+            )
+        ]
+    }
 
     def get_service_provider(self):
         service_provider = get_object_or_404(
@@ -2197,6 +2310,14 @@ class ServiceProviderCourseAccountsViewSet(
     queryset = models.CourseAccount.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.CourseAccountFilter
+    # What get_service_provider checks. Change the two together.
+    access_declarations = {
+        "list": [
+            on_url_service_provider(
+                PermissionEnum.LIST_SERVICE_PROVIDER_COURSE_ACCOUNTS, ["customer"]
+            )
+        ]
+    }
 
     def get_service_provider(self):
         service_provider = get_object_or_404(
@@ -2443,6 +2564,14 @@ class PosixIdPoolViewSet(core_views.ActionsViewSet):
     ]
     destroy_validators = [posix_id_pool_has_no_active_identities]
 
+    access_declarations = {"create": [serializers.CREATES_POSIX_ID_POOL]}
+    # Read actions that look the pool up as retrieve does.
+    access_filtered_actions = ("stats",)
+
+    @access.shows(
+        "Pools of service providers, and of offerings, of organizations where "
+        "the caller holds a role. Staff and support see all."
+    )
     def get_queryset(self):
         # Annotate the per-namespace active-identity counts so the list can
         # render utilization without an N+1 stats query per row.
@@ -2600,6 +2729,10 @@ class PosixIdentityViewSet(core_views.ReadOnlyActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.PosixIdentityFilter
 
+    @access.shows(
+        "Identities in pools of service providers, and of offerings, of "
+        "organizations where the caller holds a role. Staff and support see all."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         current_user = self.request.user
@@ -7055,6 +7188,24 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
             "yes",
         )
 
+    # Checked in perform_create, on the resource the request names. Change the
+    # two together.
+    access_declarations = {
+        "create": [
+            access.permission(
+                PermissionEnum.UPDATE_RESOURCE,
+                ["resource.project", "resource.project.customer"],
+            )
+        ],
+    }
+
+    @access.shows(
+        "Resource projects of resources in projects and organizations where the "
+        "caller holds a role, of resources they hold a role on, directly or on "
+        "one of their resource projects, and resource projects they hold a role "
+        f"on. Staff, support and holders of {PermissionEnum.LIST_RESOURCES.value} "
+        "site-wide see all."
+    )
     def get_queryset(self):
         # The recover action operates on soft-deleted rows by definition, and
         # `?include_removed=true` lets a "show removed" UI list them. In both
@@ -7330,6 +7481,10 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
         )
     ]
 
+    @access.shows(
+        "Resource projects of resources that the provider resource view shows: "
+        f"{ResourceQuerySet.PROVIDER_VISIBILITY}"
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -11941,6 +12096,18 @@ class RelatedCustomersViewSet(ListAPIView):
     filterset_class = structure_filters.NameFilterSet
     queryset = structure_models.Customer.objects.all()  # used by OpenAPI introspector
 
+    # What get_customer and get_queryset allow. Change them together.
+    access_declarations = {
+        "get": [
+            access.custom(
+                "Any signed-in user, for an organization whose list shows it to "
+                "them (404 otherwise). It lists the organizations consuming that "
+                "organization's offerings through resources the provider "
+                "resource view shows the caller."
+            )
+        ]
+    }
+
     def get_customer(self):
         if "customer_uuid" not in self.kwargs:
             raise rf_exceptions.ValidationError("Customer UUID is required.")
@@ -12021,6 +12188,9 @@ class ComponentUsageMonthlyViewSet(mixins.ListModelMixin, rf_viewsets.GenericVie
         "total_allocated",
     )
 
+    @access.shows(
+        f"Monthly usage of components of offerings: {OfferingQuerySet.USER_VISIBILITY}"
+    )
     def get_queryset(self):
         qs = super().get_queryset()
 
@@ -12093,6 +12263,16 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         if total and total > 0:
             component_usage.usage = total
             component_usage.save(update_fields=["usage"])
+
+    # What set_usage checks on the resource the request names, directly or
+    # through its plan period. Change the two together.
+    access_declarations = {
+        "set_usage": [
+            access.permission(
+                PermissionEnum.SET_RESOURCE_USAGE, USER_USAGE_REPORTER_SOURCES
+            )
+        ],
+    }
 
     @extend_schema(
         summary="Set component usage for a resource",
@@ -12885,16 +13065,36 @@ class OfferingUsersViewSet(
         except checklist_models.ChecklistCompletion.DoesNotExist:
             return None
 
-    def perform_destroy(self, instance):
-        request = self.request
-        offering = instance.offering
-
-        if not has_permission(
-            request, PermissionEnum.DELETE_OFFERING_USER, offering.customer
+    @access.describes(
+        access.permission(PermissionEnum.DELETE_OFFERING_USER, ["offering.customer"]),
+        needs_object=True,
+    )
+    def can_delete_offering_user(request, view, obj=None):
+        if obj is not None and not has_permission(
+            request, PermissionEnum.DELETE_OFFERING_USER, obj.offering.customer
         ):
             raise PermissionDenied(_("You do not have permission to delete this user."))
-        instance.delete()
 
+    destroy_permissions = [can_delete_offering_user]
+
+    access_declarations = {
+        "create": [serializers.CREATES_OFFERING_USER],
+        "update": [serializers.UPDATES_OFFERING_USER],
+        "partial_update": [serializers.UPDATES_OFFERING_USER],
+        "update_restricted": [serializers.UPDATES_OFFERING_USER],
+        "profile_field_warnings": [access.owned("The caller's own offering accounts.")],
+    }
+
+    # UserChecklistMixin's checklist_template needs get_parent_object_for_checklist,
+    # which this view does not implement: it failed for every caller.
+    disabled_actions = ["checklist_template"]
+
+    # Read actions that look their accounts up as retrieve and list do.
+    # posix_allocations is not one: it also lists the offerings sharing the
+    # account's POSIX pool, whether or not the caller sees them.
+    access_filtered_actions = ("posix_groups", "posix_identities")
+
+    @access.shows(OFFERING_USERS_VISIBLE_TO_USER)
     def get_queryset(self):
         current_user = self.request.user
         if current_user.is_staff or current_user.is_support:
@@ -13581,6 +13781,11 @@ class ServiceProviderAccountViewSet(core_views.ActionsViewSet):
     ]
     destroy_validators = [validate_provider_account_has_no_offering_users]
 
+    @access.shows(
+        "Accounts at service providers whose organization the organization list "
+        "shows the caller, and at service providers where they hold a role. "
+        "Staff and support see all."
+    )
     def get_queryset(self):
         # Scope to providers whose organization the caller can see. The sibling
         # OfferingUsersViewSet does not scope at all; that is not a precedent worth
@@ -13743,6 +13948,27 @@ class ServiceProviderProjectGroupViewSet(core_views.ActionsViewSet):
     filterset_class = filters.ServiceProviderProjectGroupFilter
     disabled_actions = ["update", "partial_update", "destroy"]
 
+    # create and import_groups check is_owner on the service provider the
+    # request names; adoptable_projects asks project_groups.can_pin, the same
+    # rule, of the one in its query. Change them together.
+    access_declarations = {
+        "create": [
+            access.role(structure_permissions.OWNER_ROLES, via="service_provider")
+        ],
+        "import_groups": [
+            access.role(structure_permissions.OWNER_ROLES, via="service_provider")
+        ],
+        "adoptable_projects": [
+            access.role(structure_permissions.OWNER_ROLES, via="service_provider_uuid")
+        ],
+    }
+
+    @access.shows(
+        "Groups of service providers whose organization the caller owns, of "
+        f"service providers where they hold {RoleEnum.CUSTOMER_MANAGER.value}, "
+        "and of the providers of the offerings, other than archived ones, where "
+        f"they hold {RoleEnum.OFFERING_MANAGER.value}. Staff and support see all."
+    )
     def get_queryset(self):
         qs = project_groups.annotate_in_use(super().get_queryset())
         user = self.request.user
@@ -14047,6 +14273,16 @@ class ServiceProviderProjectGroupViewSet(core_views.ActionsViewSet):
 class ProjectPosixGroupsViewSet(rf_viewsets.ViewSet):
     """Read-only rollup of POSIX group GIDs assigned to a project across all
     offerings — both project-mapped groups and resource/role groups."""
+
+    # What list checks. Change the two together.
+    access_declarations = {
+        "list": [
+            access.custom(
+                "Staff, support, and who holds a role in the project the "
+                "project_uuid query parameter names or in its organization."
+            )
+        ]
+    }
 
     @extend_schema(
         summary="List POSIX group GIDs assigned to a project",
@@ -16738,6 +16974,13 @@ class ProviderInvoiceItemsViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = invoice_serializers.InvoiceItemSerializer
 
 
+@access.describes(
+    access.custom(
+        "Refuses changes to a robot account synchronized from a remote Waldur, "
+        "one that carries a backend ID."
+    ),
+    needs_object=True,
+)
 def can_mutate_robot_account(request, view, obj=None):
     if obj and obj.backend_id:
         raise PermissionDenied("Remote robot account is synchronized.")
@@ -16909,6 +17152,11 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
         )
     ]
 
+    @access.shows(
+        "Service accounts, except closed ones, of projects where the caller "
+        f"holds {PermissionEnum.MANAGE_SERVICE_ACCOUNT.value} on the project or "
+        "site-wide. Staff and support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -16922,6 +17170,11 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
             return qs.filter(project__in=projects)
         return qs.none()
 
+    @access.describes(
+        access.permission(
+            PermissionEnum.MANAGE_SERVICE_ACCOUNT, ["project", "project.customer"]
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -17015,6 +17268,11 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
         )
     ]
 
+    @access.shows(
+        "Service accounts, except closed ones, of organizations where the "
+        f"caller holds {PermissionEnum.MANAGE_SERVICE_ACCOUNT.value} on the "
+        "organization or site-wide. Staff and support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -17027,6 +17285,9 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
             return qs.filter(customer__in=customers)
         return qs.none()
 
+    @access.describes(
+        access.permission(PermissionEnum.MANAGE_SERVICE_ACCOUNT, ["customer"])
+    )
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -17090,6 +17351,12 @@ PROVIDER_API_KEY_SOURCES = [
 CONSUMER_API_KEY_SOURCES = ["project", "project.customer"]
 
 
+@access.describes(
+    access.permission(
+        PermissionEnum.MANAGE_RESOURCE_API_KEY,
+        [f"resource.{source}" for source in PROVIDER_API_KEY_SOURCES],
+    )
+)
 def check_provider_api_key_permissions(request, view, obj=None):
     serializer = view.get_serializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -17127,6 +17394,42 @@ def check_api_key_assignee(request, view, api_key=None):
 check_api_key_assignee.sources = ["*"]
 
 
+@access.describes(
+    access.custom(
+        "Who holds a role in the resource's project or its organization, other "
+        "than a minimal-visibility viewer; for a key with an assignee, the "
+        "assignee alone. Staff and support are no exception."
+    ),
+    needs_object=True,
+)
+def can_reveal_api_key(request, view, api_key=None):
+    if not api_key:
+        return
+    user = request.user
+    resource = api_key.resource
+    # Reveal exposes a live secret. The shared queryset also admits the
+    # provider org (so the agent can reach the write actions), but a
+    # provider-org member must NOT read a consumer's key — restrict reveal to
+    # consumer-side access (project or its customer). Staff and support are
+    # no exception: staff reveal by impersonating a user who may, which the
+    # audit event records.
+    if not (
+        resource.project_id in get_connected_projects(user)
+        or resource.project.customer_id in get_connected_customers(user)
+    ):
+        raise PermissionDenied(
+            "Only members of the resource's project or organization can "
+            "reveal its API key."
+        )
+    if utils.is_resource_project_only_viewer(user, resource):
+        raise PermissionDenied(
+            "Minimal-visibility viewers cannot reveal the resource API key."
+        )
+    # An assigned key is personal: its usage is attributed to the assignee.
+    if api_key.user_id and api_key.user_id != user.id:
+        raise PermissionDenied("Only the assignee can reveal this API key.")
+
+
 class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     """Manage the API keys a site-agent resource exposes.
 
@@ -17150,6 +17453,28 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     # PUT is not offered: every setting is optional, so an edit is a PATCH.
     disabled_actions = ["update"]
 
+    # create checks the permission on the resource the request names before it
+    # validates the rest. Change the two together.
+    access_declarations = {
+        "create": [
+            access.permission(
+                PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY,
+                [f"resource.{source}" for source in CONSUMER_API_KEY_SOURCES],
+            )
+        ],
+    }
+
+    reveal_permissions = [can_reveal_api_key]
+
+    # Read actions that list the keys as list does.
+    access_filtered_actions = ("usage_totals",)
+
+    @access.shows(
+        "Keys of resources in projects and organizations where the caller holds "
+        "a role, and of resources that the provider resource view shows them: "
+        f"{ResourceQuerySet.PROVIDER_VISIBILITY} A list leaves out deleted keys "
+        "unless asked for them by state."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         if self.action in ("list", "retrieve"):
@@ -17270,28 +17595,6 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     def reveal(self, request, uuid=None):
         api_key = self.get_object()
         user = request.user
-        resource = api_key.resource
-        # Reveal exposes a live secret. The shared queryset also admits the
-        # provider org (so the agent can reach the write actions), but a
-        # provider-org member must NOT read a consumer's key — restrict reveal to
-        # consumer-side access (project or its customer). Staff and support are
-        # no exception: staff reveal by impersonating a user who may, which the
-        # audit event records.
-        if not (
-            resource.project_id in get_connected_projects(user)
-            or resource.project.customer_id in get_connected_customers(user)
-        ):
-            raise PermissionDenied(
-                "Only members of the resource's project or organization can "
-                "reveal its API key."
-            )
-        if utils.is_resource_project_only_viewer(user, resource):
-            raise PermissionDenied(
-                "Minimal-visibility viewers cannot reveal the resource API key."
-            )
-        # An assigned key is personal: its usage is attributed to the assignee.
-        if api_key.user_id and api_key.user_id != user.id:
-            raise PermissionDenied("Only the assignee can reveal this API key.")
         # Only an OK key is guaranteed live at the backend; a transitional key's
         # stored value may not match the gateway.
         if api_key.state != models.ResourceApiKey.States.OK:
@@ -17711,6 +18014,17 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         )
     ]
 
+    access_declarations = {
+        "create": [serializers.CREATES_ROBOT_ACCOUNT],
+        "update": [serializers.UPDATES_ROBOT_ACCOUNT],
+        "partial_update": [serializers.UPDATES_ROBOT_ACCOUNT],
+    }
+
+    @access.shows(
+        "Robot accounts of resources in projects and organizations where the "
+        "caller holds a role, and of resources of offerings of organizations "
+        "where they hold a role. Staff and support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -18222,6 +18536,11 @@ class IntegrationStatusViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.IntegrationStatusFilter
     serializer_class = serializers.IntegrationStatusDetailsSerializer
 
+    @access.shows(
+        "Statuses of offerings where the caller holds "
+        f"{PermissionEnum.UPDATE_OFFERING.value} on the offering, its "
+        "organization or its service provider. Staff and support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -18291,6 +18610,7 @@ class ComponentUserUsageLimitViewSet(core_views.ActionsViewSet):
     filterset_class = filters.ComponentUserUsageLimitFilter
     serializer_class = serializers.ComponentUserUsageLimitSerializer
 
+    access_declarations = {"create": [serializers.CREATES_COMPONENT_USER_USAGE_LIMIT]}
     destroy_permissions = update_permissions = partial_update_permissions = [
         permission_factory(
             PermissionEnum.RESOURCE_CONSUMPTION_LIMITATION,
@@ -18352,6 +18672,12 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
     disabled_actions = ["update", "partial_update"]
     import_resource_serializer_class = serializers.BackendResourceImportSerializer
 
+    @access.describes(
+        access.permission(
+            PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES,
+            ["offering", "offering.customer"],
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -18670,6 +18996,8 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
         )
     ]
 
+    # Read actions that list the announcements as list does.
+    access_filtered_actions = ("maintenance_stats",)
     update_validators = partial_update_validators = [
         core_validators.StateValidator(
             MaintenanceState.DRAFT,
@@ -19471,6 +19799,11 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
 
     disabled_actions = ["update", "partial_update"]
 
+    @access.shows(
+        "Course accounts of projects where the caller holds "
+        f"{PermissionEnum.MANAGE_COURSE_ACCOUNT.value} on the project or "
+        "site-wide. Staff and support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -19484,6 +19817,14 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
             return qs.filter(project__in=projects)
         return qs.none()
 
+    # A POST without data passes for support and for who holds the permission
+    # on any project, and then fails validation; a create needs it on the
+    # project the request names.
+    @access.describes(
+        access.permission(
+            PermissionEnum.MANAGE_COURSE_ACCOUNT, ["project", "project.customer"]
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         # For browsable API to show the form, we need to allow the permission check
         # without parsing request.data. The actual data validation will happen
@@ -20353,6 +20694,9 @@ class OfferingUsageMixin:
     lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter,)
     serializer_class = EmptySerializer
+    # They look the organization or project up as a retrieve would, and count
+    # only the resources in it that filter_queryset_for_user leaves the caller.
+    access_filtered_actions = ("components_usage", "components_usage_timeseries")
 
     def _scope_resources(self, scope, offering=None):
         raise NotImplementedError
@@ -20422,6 +20766,10 @@ class MarketplaceCustomerUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericVie
     """Customer-scoped usage stats. URL: /api/marketplace-customer-usage/<uuid>/..."""
 
     queryset = structure_models.Customer.objects.all()
+    access_filtered_actions = (
+        *OfferingUsageMixin.access_filtered_actions,
+        "components_usage_by_project",
+    )
 
     def _scope_resources(self, customer, offering=None):
         qs = self._exclude_terminated(
@@ -20513,6 +20861,17 @@ def check_order_creation_permission_for_limit_change_request(
     permissions.check_order_creation_permission(request, view, obj.resource)
 
 
+def _is_change_request_author(message):
+    """A check that passes the request's author alone."""
+
+    @access.describes(access.owned("The request's author."), needs_object=True)
+    def is_change_request_author(request, view, obj=None):
+        if obj is not None and obj.created_by != request.user:
+            raise PermissionDenied(message)
+
+    return is_change_request_author
+
+
 class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.ResourceLimitChangeRequest.objects.all()
     serializer_class = serializers.ResourceLimitChangeRequestSerializer
@@ -20524,6 +20883,15 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
     disabled_actions = ["update", "partial_update", "destroy"]
     lookup_field = "uuid"
 
+    access_declarations = {
+        "create": [serializers.REQUESTS_LIMIT_CHANGE],
+    }
+
+    @access.shows(
+        "Requests on resources of organizations and projects where the caller "
+        f"holds {PermissionEnum.UPDATE_RESOURCE_LIMITS.value}, and requests they "
+        "made. Staff, support and holders of it site-wide see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -20629,21 +20997,24 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        request=None,
         responses=serializers.OrderInfoResponseSerializer,
         description="Cancel resource limit change request. Only the creator can cancel.",
     )
     @action(detail=True, methods=["post"])
     def cancel(self, request, **kwargs):
         limit_change_request: models.ResourceLimitChangeRequest = self.get_object()
-        if limit_change_request.created_by != request.user:
-            raise PermissionDenied(
-                _("You can only cancel your own resource limit change requests.")
-            )
         limit_change_request.cancel()
         return Response(
             {"detail": _("Resource limit change request has been canceled.")},
             status=status.HTTP_200_OK,
         )
+
+    cancel_permissions = [
+        _is_change_request_author(
+            _("You can only cancel your own resource limit change requests.")
+        )
+    ]
 
     approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
     approve_validators = reject_validators = cancel_validators = [
@@ -20700,6 +21071,9 @@ class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsView
     disabled_actions = ["update", "partial_update", "destroy"]
     lookup_field = "uuid"
 
+    access_declarations = {
+        "create": [serializers.REQUESTS_END_DATE_CHANGE],
+    }
     approve_permissions = reject_permissions = [
         user_can_approve_resource_end_date_change_request
     ]
@@ -20853,21 +21227,23 @@ class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsView
     # Not SET_RESOURCE_BACKEND_ID: that permission is provider-scoped
     # everywhere else and this request is consumer-owned. See set_backend_id.
     set_backend_id_permissions = [user_can_approve_resource_end_date_change_request]
+    cancel_permissions = [
+        _is_change_request_author(
+            _("You can only cancel your own resource end date change requests.")
+        )
+    ]
     set_backend_id_serializer_class = (
         serializers.ResourceEndDateChangeRequestBackendIDSerializer
     )
 
     @extend_schema(
+        request=None,
         responses=serializers.OrderInfoResponseSerializer,
         description="Cancel resource end date change request. Only the creator can cancel.",
     )
     @action(detail=True, methods=["post"])
     def cancel(self, request, **kwargs):
         end_date_request: models.ResourceEndDateChangeRequest = self.get_object()
-        if end_date_request.created_by != request.user:
-            raise PermissionDenied(
-                _("You can only cancel your own resource end date change requests.")
-            )
         with transaction.atomic():
             end_date_request = self._lock_pending_request(end_date_request)
             end_date_request.cancel()

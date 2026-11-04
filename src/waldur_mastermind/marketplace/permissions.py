@@ -45,6 +45,13 @@ RESOURCE_SLUG_PERMISSION_SOURCES = [
 ]
 
 
+# Who can_register_service_provider lets register the organization named in
+# the request as a service provider. Change the two together.
+REGISTERS_SERVICE_PROVIDER = access.permission(
+    PermissionEnum.REGISTER_SERVICE_PROVIDER, ["customer"]
+)
+
+
 def can_register_service_provider(request, customer):
     if has_staff_access(request):
         return
@@ -735,6 +742,12 @@ def has_maintenance_announcement_permission(request, service_provider) -> bool:
     )
 
 
+@access.describes(
+    access.permission(
+        PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+        ["service_provider", "service_provider.customer"],
+    )
+)
 def check_maintenance_announcement_create_permissions(request, view, obj=None):
     serializer = view.get_serializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -745,6 +758,12 @@ def check_maintenance_announcement_create_permissions(request, view, obj=None):
         raise exceptions.PermissionDenied()
 
 
+@access.describes(
+    access.permission(
+        PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+        ["maintenance.service_provider", "maintenance.service_provider.customer"],
+    )
+)
 def check_maintenance_announcement_offering_create_permissions(request, view, obj=None):
     serializer = view.get_serializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -755,6 +774,15 @@ def check_maintenance_announcement_offering_create_permissions(request, view, ob
         raise exceptions.PermissionDenied()
 
 
+@access.describes(
+    access.permission(
+        PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+        [
+            "maintenance_template.service_provider",
+            "maintenance_template.service_provider.customer",
+        ],
+    )
+)
 def check_maintenance_announcement_offering_template_create_permissions(
     request, view, obj=None
 ):
