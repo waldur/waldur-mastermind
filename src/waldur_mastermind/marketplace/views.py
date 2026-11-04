@@ -12617,6 +12617,14 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
                 "code of the service provider it names."
             )
         ],
+        # Checked in get_validated_data. Change the two together.
+        "set_usage": [
+            access.custom(
+                "Anyone; the request data must be signed with the API secret "
+                "code of the service provider whose offering the reported "
+                "resource belongs to."
+            )
+        ],
     }
 
     def get_validated_data(self, request):
@@ -12626,10 +12634,34 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         dry_run = serializer.validated_data["dry_run"]
 
         if self.action == "set_usage":
+            customer = serializer.validated_data["customer"]
             data_serializer = serializers.ComponentUsageCreateSerializer(
                 data=data, context={"request": request}
             )
+            # The signature proves who the provider is; it may report usage
+            # only on resources of its own offerings, dry runs included. The
+            # lookups are narrowed first, so that another provider's resource
+            # reads as missing rather than being validated and described.
+            data_serializer.fields[
+                "resource"
+            ].queryset = models.Resource.objects.filter(offering__customer=customer)
+            data_serializer.fields[
+                "plan_period"
+            ].queryset = models.ResourcePlanPeriod.objects.filter(
+                resource__offering__customer=customer
+            )
             data_serializer.is_valid(raise_exception=True)
+            validated = data_serializer.validated_data
+            plan_period = validated.get("plan_period")
+            resource = (
+                plan_period.resource if plan_period else validated.get("resource")
+            )
+            if resource.offering.customer_id != customer.id:
+                raise rf_exceptions.PermissionDenied(
+                    _(
+                        "The resource does not belong to an offering of this service provider."
+                    )
+                )
             if not dry_run:
                 data_serializer.save()
 
