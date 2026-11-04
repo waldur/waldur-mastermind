@@ -20,6 +20,7 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 
 from . import enums, filters, tasks
@@ -892,10 +893,13 @@ class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.OnboardingQuestionMetadataFilter
     lookup_field = "uuid"
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        permissions.IsAuthenticated,
+        core_permissions.ActionsPermission,
+    ]
     create_permissions = update_permissions = partial_update_permissions = (
-        delete_permissions
-    ) = [core_permissions.IsStaff]
+        destroy_permissions
+    ) = [structure_permissions.is_staff]
 
     # The same mapping is shown to every signed-in user by
     # OnboardingVerificationViewSet.available_checklists.
