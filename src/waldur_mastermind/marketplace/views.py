@@ -7564,6 +7564,31 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     set_state_erred_serializer_class = serializers.ResourceProjectErrorMessageSerializer
 
 
+class VisibleOfferings:
+    """The offerings a caller sees as provider (provider offerings) or as
+    consumer (offerings of the resources they see), as subqueries."""
+
+    def __init__(self, user):
+        self.provided = models.Offering.objects.all().filter_for_user(user).values("id")
+        self.consumed = (
+            models.Resource.objects.all().filter_for_user(user).values("offering_id")
+        )
+
+    def on(self, field):
+        """A filter matching ``field`` against these offerings' ids."""
+        return Q(**{f"{field}__in": self.provided}) | Q(
+            **{f"{field}__in": self.consumed}
+        )
+
+
+def visible_offering_ids(user):
+    """VisibleOfferings for ``user``, or None for staff and support, who see
+    every offering."""
+    if not user.is_anonymous and (user.is_staff or user.is_support):
+        return None
+    return VisibleOfferings(user)
+
+
 class OfferingRoleViewSet(core_views.ActionsViewSet):
     """
     Manage roles available for an offering's resources and resource projects.
@@ -7580,10 +7605,47 @@ class OfferingRoleViewSet(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingRoleFilter
 
+    # The provider manages an offering's roles, and the consumers of its
+    # resources pick one when they add or invite a user to a resource, so a
+    # role shows where either side sees the offering.
+    @access.shows(
+        "Roles available on an offering, directly or through its service "
+        "profile, that the caller sees as its provider or as a consumer: "
+        "offerings of organizations, service providers and projects where the "
+        "caller holds a role, offerings they hold a role on, and offerings of "
+        "resources in projects and organizations where they hold a role or of "
+        "resources they hold a role on, directly or on one of their resource "
+        "projects. Staff, support and holders of "
+        f"{PermissionEnum.LIST_OFFERINGS.value} or "
+        f"{PermissionEnum.LIST_RESOURCES.value} site-wide see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         offering_ct = ContentType.objects.get_for_model(models.Offering)
-        return qs.filter(availability__content_type=offering_ct).distinct()
+        on_offerings = permission_models.RoleAvailability.objects.filter(
+            content_type=offering_ct
+        )
+        qs = qs.filter(id__in=on_offerings.values("role_id"))
+        visible = visible_offering_ids(self.request.user)
+        if visible is None:
+            return qs
+        # Subqueries rather than joins: a profile role spans many offerings,
+        # and joining availabilities and profile offerings multiplies rows.
+        return qs.filter(
+            Q(id__in=on_offerings.filter(visible.on("object_id")).values("role_id"))
+            | Q(
+                id__in=models.OfferingProfile.roles.through.objects.filter(
+                    visible.on("offeringprofile__offerings__id")
+                ).values("role_id")
+            )
+        )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # The serializer names an offering the role is available on; only one
+        # the caller sees may be named.
+        context["visible_offering_ids"] = visible_offering_ids(self.request.user)
+        return context
 
     @access.describes(
         access.custom(
