@@ -149,6 +149,27 @@ class TermsOfServiceConsentTest(APITestCase):
         consent.refresh_from_db()
         self.assertIsNotNone(consent.revocation_date)
 
+    def test_support_and_other_users_cannot_revoke_consent(self):
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+        url = reverse(
+            "marketplace-user-offering-consent-revoke",
+            kwargs={"uuid": consent.uuid},
+        )
+        self.client.force_authenticate(user=UserFactory(is_support=True))
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=UserFactory())
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        consent.refresh_from_db()
+        self.assertIsNone(consent.revocation_date)
+
     def test_only_one_active_tos_config_is_allowed(self):
         """Test that only one active ToS config is allowed."""
         models.OfferingTermsOfService.objects.create(

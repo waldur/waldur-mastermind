@@ -8,7 +8,7 @@ from waldur_core.core import access
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core.models import User
 from waldur_core.core.permissions import has_staff_access, has_support_access
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -55,6 +55,21 @@ def can_register_service_provider(request, customer):
     raise exceptions.PermissionDenied()
 
 
+# Who ensure_offering_provider_access lets through. Change the two together.
+OFFERING_PROVIDER_ROLES = (
+    (RoleEnum.OFFERING_MANAGER, "offering"),
+    (RoleEnum.CUSTOMER_OWNER, "customer"),
+)
+OFFERING_PROVIDER_ACCESS = access.any_of(
+    access.staff_or_support(), access.role(OFFERING_PROVIDER_ROLES)
+)
+# The same, for a request naming several offerings.
+OFFERINGS_PROVIDER_ACCESS = access.custom(
+    "Staff and support, or who is an offering manager of, or an owner of the "
+    "organization of, every offering the request names."
+)
+
+
 def ensure_offering_provider_access(user, offering):
     """Raise PermissionDenied unless the user is staff/support, a service
     manager of the offering, or an owner of the offering's customer."""
@@ -65,6 +80,12 @@ def ensure_offering_provider_access(user, offering):
     ):
         return
     raise exceptions.PermissionDenied()
+
+
+@access.describes(OFFERING_PROVIDER_ACCESS, needs_object=True)
+def is_offering_provider(request, view, obj: models.Offering | None = None):
+    if obj is not None:
+        ensure_offering_provider_access(request.user, obj)
 
 
 def has_project_permission(request, permission, project):
@@ -276,6 +297,14 @@ def user_can_reject_order_as_consumer(request, view, order=None):
     raise exceptions.PermissionDenied()
 
 
+@access.describes(
+    access.custom(
+        "Staff. For an offering that is not shared, also who holds "
+        f"{PermissionEnum.LIST_IMPORTABLE_RESOURCES.value} on the offering's "
+        "project or organization."
+    ),
+    needs_object=True,
+)
 def user_can_list_importable_resources(
     request, view, offering: models.Offering | None = None
 ):
@@ -502,6 +531,14 @@ user_can_set_end_date_as_provider = permission_factory(
 )
 
 
+@access.describes(
+    access.custom(
+        "Staff, or who holds "
+        f"{PermissionEnum.UPDATE_OFFERING_THUMBNAIL.value} on the offering's "
+        "organization while the offering is active, draft, paused or unavailable."
+    ),
+    needs_object=True,
+)
 def user_can_update_thumbnail(request, view, obj: models.Offering | None = None):
     if not obj:
         return
@@ -665,6 +702,9 @@ def is_service_provider_or_staff(request, view, obj=None):
     )
 
 
+@access.describes(
+    access.custom("The route is open only while ENABLE_MARKDOWN_IMAGE_UPLOAD is on.")
+)
 def markdown_image_upload_is_enabled(request, view, obj=None):
     if not config.ENABLE_MARKDOWN_IMAGE_UPLOAD:
         raise exceptions.PermissionDenied(_("Markdown image upload is disabled."))
