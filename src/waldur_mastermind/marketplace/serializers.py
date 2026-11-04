@@ -6870,6 +6870,11 @@ class OfferingRoleSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         offering_uuid = request.query_params.get("offering_uuid") if request else None
         availabilities = obj.availability.filter(content_type=offering_ct)
+        # Name only an offering the caller sees (the view passes them; None
+        # means every offering, for staff and support).
+        visible = self.context.get("visible_offering_ids")
+        if visible is not None:
+            availabilities = availabilities.filter(visible.on("object_id"))
         if offering_uuid:
             try:
                 offering = models.Offering.objects.get(uuid=offering_uuid)

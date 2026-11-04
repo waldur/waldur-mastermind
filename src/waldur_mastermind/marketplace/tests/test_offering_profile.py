@@ -519,11 +519,12 @@ class OfferingRoleWritePermissionTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_owner_of_another_organization_cannot_change_or_delete(self):
+        # The outsider sees none of the role's offerings, so not the role.
         self.client.force_authenticate(self.outsider)
         response = self.client.patch(self.url, {"description": "new"})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         response = self.client.delete(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(Role.objects.filter(pk=self.role.pk).exists())
 
     def test_role_whose_offerings_are_gone_is_changed_by_staff_alone(self):
@@ -532,10 +533,15 @@ class OfferingRoleWritePermissionTest(test.APITestCase):
         self.offering.delete()
         self.client.force_authenticate(self.outsider)
         response = self.client.patch(self.url, {"description": "new"})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         response = self.client.delete(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(Role.objects.filter(pk=self.role.pk).exists())
+
+        # Support sees every role, but may not change one.
+        self.client.force_authenticate(structure_factories.UserFactory(is_support=True))
+        response = self.client.patch(self.url, {"description": "new"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.patch(self.url, {"description": "new"})
