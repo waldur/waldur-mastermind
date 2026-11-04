@@ -257,22 +257,6 @@ def create_message_id(message_info: dict) -> str:
     return hashlib.sha256(content.encode()).hexdigest()[:32]
 
 
-def get_message_ttl_for_type(message_type: str) -> int:
-    """Get appropriate TTL in milliseconds based on message type.
-
-    TTL should be slightly longer than beat interval to allow processing
-    but short enough that stale messages expire.
-    """
-    TTL_MAP = {
-        "periodic_limits": 3600 * 2,  # 2 hours
-        "usage_update": 3600,  # 1 hour
-        "order": 3600 * 24,  # 24 hours (important)
-        "user_role": 3600 * 12,  # 12 hours
-        "resource": 3600 * 2,  # 2 hours
-    }
-    return TTL_MAP.get(message_type, 3600) * 1000  # Convert to milliseconds
-
-
 # Global rate limiter for STOMP publishing
 _stomp_rate_limiter = RateLimiter(rate=500.0, burst=1000)
 
