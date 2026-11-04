@@ -580,7 +580,9 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
         )
 
         verification = onboarding_validator.validate_company(
-            user=request.user,
+            # The register is asked about the verification's own user, also
+            # when staff trigger the check for them.
+            user=verification.user,
             validation_method=verification.validation_method,
             legal_person_identifier=verification.legal_person_identifier,
             legal_name=verification.legal_name,
