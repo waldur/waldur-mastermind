@@ -21322,9 +21322,14 @@ class ProjectOrderAutoApprovalViewSet(core_views.ActionsViewSet):
     filterset_class = filters.ProjectOrderAutoApprovalFilter
     lookup_field = "uuid"
 
+    # The project named in the request, as update and destroy check the rule's.
+    @access.describes(
+        access.permission(PermissionEnum.APPROVE_ORDER, ["project", "project.customer"])
+    )
     @staticmethod
     def check_create_permissions(request, view, obj=None):
-        if has_support_access(request):
+        # Staff alone are exempt, as on update: global support only reads.
+        if has_staff_access(request):
             return
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
