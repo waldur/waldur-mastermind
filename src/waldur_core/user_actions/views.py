@@ -8,7 +8,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
 from waldur_core.core import access
-from waldur_core.core.permissions import PATScopeAwareIsAdminUser
+from waldur_core.core.permissions import IsStaff, PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import StatusSerializer
 
 from . import filters as user_action_filters
@@ -355,12 +355,15 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
     @extend_schema(
         request=serializers.UpdateActionsSerializer,
         responses={202: serializers.UpdateActionsResponseSerializer},
-        description="Trigger update of user actions",
+        description="Staff-only action to trigger recalculation of the actions "
+        "of every user.",
     )
+    # It recalculates the actions of every user, so it is for staff only, as is
+    # /api/users/{uuid}/update_actions/ for a single user.
     @decorators.action(
         detail=False,
         methods=["post"],
-        permission_classes=[permissions.IsAuthenticated],
+        permission_classes=[permissions.IsAuthenticated, IsStaff],
     )
     def update_actions(self, request):
         """Trigger update of user actions"""
