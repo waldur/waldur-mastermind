@@ -306,6 +306,44 @@ class EstonianAriregisterAPITest(APITestCase):
         ONBOARDING_ARIREGISTER_TIMEOUT=30,
     )
     @patch("waldur_core.onboarding.backends.estonia.requests.post")
+    def test_staff_running_validation_checks_the_verifications_own_user(
+        self, mock_post
+    ):
+        # The verification's user may not represent the company; the staff
+        # member who runs the validation may. The register must be asked
+        # about the verification's user.
+        owner = structure_factories.UserFactory(civil_number=UNAUTHORIZED_CIVIL_NUMBER)
+        staff = self.user  # holds the authorized civil number
+        staff.is_staff = True
+        staff.save(update_fields=["is_staff"])
+        self._mock_ariregister_response(
+            mock_post,
+            get_estonian_ariregister_success_response(self.legal_person_identifier),
+        )
+        self.client.force_authenticate(user=owner)
+        response = self._start_verification(
+            legal_person_identifier=self.legal_person_identifier,
+            legal_name="Test Company OÜ",
+        )
+        verification_uuid = response.data["uuid"]
+
+        self.client.force_authenticate(user=staff)
+        response = self._run_validation(verification_uuid)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self._assert_verification_status(
+            response.data,
+            enums.VerificationStatus.ESCALATED,
+            ErrorCode.NOT_AUTHORIZED,
+        )
+
+    @override_config(
+        ONBOARDING_ARIREGISTER_BASE_URL="https://demo-ariregxmlv6.rik.ee/",
+        ONBOARDING_ARIREGISTER_USERNAME="username",
+        ONBOARDING_ARIREGISTER_PASSWORD="password",
+        ONBOARDING_ARIREGISTER_TIMEOUT=30,
+    )
+    @patch("waldur_core.onboarding.backends.estonia.requests.post")
     def test_user_exists_but_has_no_representation_authority(self, mock_post):
         no_authority_user = structure_factories.UserFactory(
             civil_number=UNAUTHORIZED_CIVIL_NUMBER
