@@ -124,7 +124,10 @@ from waldur_core.users.utils import get_manageable_permission_requests
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import OrderTypes, ResourceStates
-from waldur_mastermind.marketplace.filters import filter_resources_for_consumer
+from waldur_mastermind.marketplace.filters import (
+    filter_resources_by_network,
+    filter_resources_for_consumer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -674,6 +677,20 @@ class CustomerUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         return customer.get_users()
 
 
+# Who AccessSubnetViewSet.resource_impact lets read an organization's report,
+# as the action checks it. Change the two together.
+READS_RESOURCE_IMPACT = access.any_of(
+    access.staff_or_support(),
+    access.custom(
+        "A role on the organization that customer_uuid names, from an address "
+        "within its portal networks; anyone else is answered as if the "
+        "organization did not exist. "
+        "Resources of an offering that conceals subnet-restricted resources are "
+        "left out unless the caller's address is in their access subnets."
+    ),
+)
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List access subnets",
@@ -723,6 +740,7 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
     access_declarations = {
         # Checked by the serializer, against the organization the request names.
         "create": [CREATES_ACCESS_SUBNET],
+        "resource_impact": [READS_RESOURCE_IMPACT],
     }
 
     @extend_schema(
@@ -755,29 +773,30 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
     )
     @action(detail=False, methods=["get"], filter_backends=[])
     def resource_impact(self, request):
-        # Lazy: structure must not import the marketplace at module load.
-        from waldur_mastermind.marketplace import models as marketplace_models
-
+        # Who may call this is declared as READS_RESOURCE_IMPACT; change the
+        # checks below and that description together.
         customer_uuid = request.query_params.get("customer_uuid")
         if not customer_uuid or not core_utils.is_uuid_like(customer_uuid):
             raise ValidationError(
                 {"customer_uuid": _("A valid customer_uuid is required.")}
             )
-        # Looked up outside get_object(), so the personal access token filter
-        # is applied here: a token bound elsewhere does not find the customer.
+        # Looked up outside get_object(), so the filters the organization's own
+        # detail applies are applied here: a personal access token bound
+        # elsewhere does not find the customer, and neither does a caller
+        # outside the organization's portal networks (staff and support are
+        # exempt, as everywhere).
         customers = PATScopeListFilter().filter_queryset(
             request, models.Customer.objects.all(), self
         )
-        customer = get_object_or_404(customers, uuid=customer_uuid)
+        customers = filter_queryset_by_user_ip(customers, request)
         if not has_support_access(request):
-            # Membership is tested with the same `__in` idiom get_queryset uses.
-            # `customer in get_connected_customers(...)` looks equivalent and is
-            # not: the queryset yields ids, so the comparison never matched and
-            # denied every non-staff caller, including a customer's own owner.
-            if not models.Customer.objects.filter(
-                pk=customer.pk, id__in=get_connected_customers(user=request.user)
-            ).exists():
-                raise PermissionDenied()
+            # Part of the lookup, so a caller without a role on the organization
+            # is answered 404 from anywhere: a 403 inside its networks and a 404
+            # outside them would tell such a caller where the networks are.
+            customers = customers.filter(
+                id__in=get_connected_customers(user=request.user)
+            )
+        customer = get_object_or_404(customers, uuid=customer_uuid)
 
         subnet_uuid = request.query_params.get("access_subnet_uuid")
         if subnet_uuid and not core_utils.is_uuid_like(subnet_uuid):
@@ -789,13 +808,17 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
         # offering does not support them has no allow-list to report and none
         # that could be built, so listing it says nothing the reader can act on
         # — it just buries the resources whose exposure is actually in question.
+        resources = marketplace_models.Resource.objects.filter(
+            project__customer=customer,
+            offering__plugin_options__has_key="enable_resource_access_subnets",
+            offering__plugin_options__enable_resource_access_subnets=True,
+        ).exclude(state=marketplace_models.Resource.States.TERMINATED)
+        # The network rules of the consumer resource list. The portal networks
+        # already admitted the caller above; an offering that conceals
+        # subnet-restricted resources still hides them from callers outside
+        # the resource's own networks, which the portal networks do not cover.
         resources = (
-            marketplace_models.Resource.objects.filter(
-                project__customer=customer,
-                offering__plugin_options__has_key="enable_resource_access_subnets",
-                offering__plugin_options__enable_resource_access_subnets=True,
-            )
-            .exclude(state=marketplace_models.Resource.States.TERMINATED)
+            filter_resources_by_network(resources, request)
             .select_related("offering", "project")
             .order_by("offering__name", "name")
         )
