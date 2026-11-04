@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core.permissions import has_staff_access
+from waldur_core.core.serializers import AugmentedSerializerMixin
 from waldur_core.structure.models import Customer
 
 from . import enums
@@ -81,7 +82,9 @@ class OnboardingJustificationDocumentationSerializer(serializers.ModelSerializer
         read_only_fields = ["uuid", "created"]
 
 
-class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
+class OnboardingJustificationSerializer(
+    AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     """Serializer for OnboardingJustification model."""
 
     verification_uuid = serializers.UUIDField(
@@ -146,6 +149,9 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
             "created",
             "modified",
         ]
+        # Set once by create_justification, which checks that the
+        # verification is the caller's own.
+        protected_fields = ("verification",)
         extra_kwargs = {
             "verification": {
                 "lookup_field": "uuid",
