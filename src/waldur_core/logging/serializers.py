@@ -9,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from waldur_core.core import auth_utils
+from waldur_core.core import access, auth_utils
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import (
@@ -303,6 +303,15 @@ class EventSubscriptionQueueSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "event-subscription-detail",
             },
         }
+
+
+# What validate_offering_uuid below requires, as the schema publishes it.
+QUEUES_FOR_ACCESSIBLE_OFFERING = access.custom(
+    "The caller holds a role on the offering, on its organization or service "
+    "provider, or on the project it belongs to, or a site-wide grant to list "
+    "offerings; staff and global support name any offering. An identity "
+    "manager of an ISD names any active, paused or unavailable offering."
+)
 
 
 class EventSubscriptionQueueCreateSerializer(serializers.Serializer):

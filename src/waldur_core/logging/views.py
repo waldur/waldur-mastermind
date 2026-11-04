@@ -24,12 +24,13 @@ from rest_framework import (
 )
 from rest_framework.throttling import ScopedRateThrottle
 
-from waldur_core.core import email_diagnostics
+from waldur_core.core import access, email_diagnostics
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core.permissions import (
+    ActionsPermission,
     has_staff_access,
     has_staff_or_support_read_access,
     has_support_access,
@@ -65,6 +66,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.EventSerializer
     filter_backends = (DjangoFilterBackend, filters.EventFilterBackend)
     filterset_class = filters.EventFilter
+    access_filtered_actions = ("count",)
 
     @extend_schema(
         responses={
@@ -107,6 +109,9 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
         return response.Response(get_available_event_groups())
 
 
+MANAGES_HOOK = access.any_of(access.owned("The caller's own hook."), access.staff())
+
+
 class BaseHookViewSet(viewsets.ModelViewSet):
     """
     Hooks API allows user to receive event notifications via different channel, like email or webhook.
@@ -114,6 +119,16 @@ class BaseHookViewSet(viewsets.ModelViewSet):
 
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
     lookup_field = "uuid"
+    access_declarations = {
+        # A new hook belongs to the caller, and delivers only the events its
+        # owner may read.
+        "create": [access.authenticated()],
+        # Writes look the hook up through StaffOrUserFilter, where support,
+        # which only reads, reaches its own hooks alone.
+        "update": [MANAGES_HOOK],
+        "partial_update": [MANAGES_HOOK],
+        "destroy": [MANAGES_HOOK],
+    }
 
 
 class WebHookViewSet(BaseHookViewSet):
@@ -236,6 +251,11 @@ class EventsStatsViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         return self.get_paginated_response(final_result)
 
 
+MANAGES_SUBSCRIPTION = access.any_of(
+    access.owned("The caller's own subscription."), access.staff()
+)
+
+
 @extend_schema_view(
     create=extend_schema(deprecated=True, description=_LEGACY_SUBSCRIPTION_DEPRECATION),
     retrieve=extend_schema(deprecated=True),
@@ -253,7 +273,22 @@ class EventSubscriptionViewSet(
     queryset = models.EventSubscription.objects.all().order_by("-created")
     serializer_class = serializers.EventSubscriptionSerializer
     filterset_class = filters.EventSubscriptionFilter
+    access_declarations = {
+        # A new subscription belongs to the caller (perform_create).
+        "create": [access.authenticated()],
+        # Writes look the subscription up in get_queryset, where support,
+        # which only reads, reaches its own subscriptions alone.
+        "destroy": [MANAGES_SUBSCRIPTION],
+        "create_queue": [
+            MANAGES_SUBSCRIPTION,
+            serializers.QUEUES_FOR_ACCESSIBLE_OFFERING,
+        ],
+    }
 
+    @access.shows(
+        "The caller's own subscriptions; staff and global support see every "
+        "subscription."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         if has_staff_or_support_read_access(self.request):
@@ -378,7 +413,21 @@ class EventSubscriptionQueueViewSet(
     queryset = models.EventSubscriptionQueue.objects.all().order_by("-created")
     serializer_class = serializers.EventSubscriptionQueueSerializer
     filterset_class = filters.EventSubscriptionQueueFilter
+    access_declarations = {
+        # A delete looks the queue up in get_queryset, where support, which
+        # only reads, reaches the queues of its own subscriptions alone.
+        "destroy": [
+            access.any_of(
+                access.owned("A queue of the caller's own subscription."),
+                access.staff(),
+            )
+        ],
+    }
 
+    @access.shows(
+        "Queues of the caller's own subscriptions; staff and global support see "
+        "every queue."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         if has_staff_or_support_read_access(self.request):
@@ -1223,6 +1272,33 @@ def _resolve_consumer_authorization(request, resolved_scopes) -> str:
 RESYNC_COOLDOWN = 15 * 60
 
 
+@access.describes(
+    access.any_of(
+        access.staff(), access.custom("A consumer that does not deliver to a webhook.")
+    ),
+    needs_object=True,
+)
+def can_deregister_consumer(request, view, obj=None):
+    """A webhook is a staff-owned integration with a third party; only staff
+    end it, whoever its owner."""
+    if obj is None:
+        return
+    if obj.is_webhook and not core_permissions.IsStaff().has_permission(request, view):
+        raise rest_framework.exceptions.PermissionDenied(
+            "Only staff can deregister a webhook consumer."
+        )
+
+
+# What register and EventConsumerRegistrationSerializer.validate_scopes require.
+REGISTERS_CONSUMER = access.custom(
+    "Any signed-in user, for a consumer of their own. Each binding names an "
+    "entity the caller holds a role on, or one below an entity they hold a "
+    "role on, or the caller themselves; staff and global support bind to "
+    "anything. A consumer with no bindings receives every event and requires "
+    "staff or global support."
+)
+
+
 class EventConsumerViewSet(
     mixins.ListModelMixin,
     mixins.DestroyModelMixin,
@@ -1249,22 +1325,25 @@ class EventConsumerViewSet(
         .order_by("-created")
     )
     serializer_class = serializers.EventConsumerSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ActionsPermission]
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.EventConsumerFilter
 
-    def perform_destroy(self, instance):
+    destroy_permissions = [can_deregister_consumer]
+    access_declarations = {
+        # Checked in register and by the registration serializer.
+        "register": [REGISTERS_CONSUMER],
         # Support lists every consumer but, being read-only, removes only its
-        # own (get_queryset). A webhook is a staff-owned integration with a
-        # third party; only staff end it, whoever its owner.
-        if instance.is_webhook and not core_permissions.IsStaff().has_permission(
-            self.request, self
-        ):
-            raise rest_framework.exceptions.PermissionDenied(
-                "Only staff can deregister a webhook consumer."
-            )
-        super().perform_destroy(instance)
+        # own (get_queryset).
+        "destroy": [
+            access.any_of(access.owned("The caller's own consumer."), access.staff())
+        ],
+    }
 
+    @access.shows(
+        "The caller's own event consumers; staff and global support see every "
+        "consumer. Consumers owned by a site agent are left out."
+    )
     def get_queryset(self):
         # Consumers owned by a site agent are excluded platform-wide: they are
         # lifecycle-managed by marketplace_site_agent (register_queue /
