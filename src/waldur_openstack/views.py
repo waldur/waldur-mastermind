@@ -19,10 +19,12 @@ from drf_spectacular.utils import (
 )
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
+from rest_framework import permissions as rf_permissions
 
 from waldur_core.core import access
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import mixins as core_mixins
+from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -250,7 +252,11 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
         description="Retrieve usage statistics for VM instance flavors, showing running and created instance counts for each flavor.",
         responses={status.HTTP_200_OK: OpenApiTypes.OBJECT},
     )
-    @decorators.action(detail=False)
+    # Counts every cloud's instances: the reporting page for staff and support.
+    @decorators.action(
+        detail=False,
+        permission_classes=[rf_permissions.IsAuthenticated, core_permissions.IsSupport],
+    )
     def usage_stats(self, request):
         return FlavorUsageReporter(self, request).get_report()
 
@@ -279,7 +285,11 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
             status.HTTP_200_OK: serializers.OpenStackUsageStatsResponseSerializer
         },
     )
-    @decorators.action(detail=False)
+    # Counts every cloud's instances: the reporting page for staff and support.
+    @decorators.action(
+        detail=False,
+        permission_classes=[rf_permissions.IsAuthenticated, core_permissions.IsSupport],
+    )
     def usage_stats(self, request):
         return ImageUsageReporter(self, request).get_report()
 

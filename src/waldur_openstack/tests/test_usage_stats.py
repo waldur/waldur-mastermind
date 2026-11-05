@@ -140,3 +140,45 @@ class TestFlavorUsageStats(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertListEqual(clean_rows(expected), clean_rows(response.data))
+
+
+class UsageStatsAccessTest(test.APITestCase):
+    """The reports count every cloud's instances: staff and support only (#1064)."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        factories.InstanceFactory(
+            flavor_name="Small",
+            volumes__image_name="Ubuntu 16.04",
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        factories.FlavorFactory(
+            name="Small", settings=self.fixture.tenant.service_settings
+        )
+        factories.ImageFactory(
+            name="Ubuntu 16.04", settings=self.fixture.tenant.service_settings
+        )
+        self.urls = [
+            factories.FlavorFactory.get_list_url(action="usage_stats"),
+            factories.ImageFactory.get_list_url(action="usage_stats"),
+        ]
+
+    def assert_status(self, user, expected):
+        self.client.force_authenticate(user=user)
+        for url in self.urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, expected, response.data)
+
+    def test_user_without_role_cannot_read_usage_stats(self):
+        self.assert_status(self.fixture.user, status.HTTP_403_FORBIDDEN)
+
+    def test_owner_of_a_project_using_the_cloud_cannot_read_usage_stats(self):
+        self.assert_status(self.fixture.owner, status.HTTP_403_FORBIDDEN)
+
+    def test_support_can_read_usage_stats(self):
+        self.assert_status(self.fixture.global_support, status.HTTP_200_OK)
+
+    def test_staff_can_read_usage_stats(self):
+        self.assert_status(self.fixture.staff, status.HTTP_200_OK)
