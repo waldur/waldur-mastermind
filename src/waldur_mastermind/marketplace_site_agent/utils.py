@@ -1,17 +1,23 @@
 import logging
 
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import has_permission, holds_global_permission
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
+from waldur_mastermind.marketplace.managers import (
+    get_connected_offerings_by_permission,
+    get_connected_provider_customers_by_permission,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -282,4 +288,72 @@ def can_manage_offering_agent(request, offering, agent_identity=None):
     return (
         resolve_offering_agent_authorization(request, offering, agent_identity)
         is not None
+    )
+
+
+# Who sees an agent's configuration and logs: who may change its offering, as
+# the offering update route decides (can_update_offering_in_any_scope), the
+# rule that also gates an offering's secret_options. Global support does not.
+# Change the descriptions together with offerings_updatable_by and
+# can_see_agent_config.
+AGENT_LOGS_VISIBILITY = (
+    "Logs of agent identities of offerings, of a type site agents serve, where "
+    "the caller holds OFFERING.UPDATE on the offering, its organization or its "
+    "service provider, or site-wide. Staff see all."
+)
+AGENT_CONFIG_VISIBILITY = (
+    "Returned only to staff, to who holds OFFERING.UPDATE on the identity's "
+    "offering, its organization or its service provider, and to the identity "
+    "manager who created the identity, while the offering is in an ISD-allowed "
+    "state."
+)
+
+
+def offerings_updatable_by(request):
+    """Offerings the caller may change, as a queryset.
+
+    The rows for which ``can_update_offering_in_any_scope`` holds: OFFERING.UPDATE
+    on the offering, on its organization or on its service provider, or held
+    site-wide. Staff get every offering.
+    """
+    user = request.user
+    offerings = marketplace_models.Offering.objects.all()
+    if not user.is_authenticated:
+        return offerings.none()
+    if has_staff_access(request) or holds_global_permission(
+        user, PermissionEnum.UPDATE_OFFERING
+    ):
+        return offerings
+    return offerings.filter(
+        Q(
+            id__in=get_connected_offerings_by_permission(
+                user, PermissionEnum.UPDATE_OFFERING
+            )
+        )
+        | Q(
+            customer_id__in=get_connected_provider_customers_by_permission(
+                user, PermissionEnum.UPDATE_OFFERING
+            )
+        )
+    )
+
+
+def can_see_agent_config(request, agent_identity) -> bool:
+    """Whether the caller may read an agent identity's configuration.
+
+    Who may change the offering, like an offering's secret_options; and the
+    identity manager who created the identity, who may rewrite it.
+    """
+    offering = agent_identity.offering
+    if marketplace_utils.can_update_offering_in_any_scope(request, offering):
+        return True
+    # The identity manager branch of resolve_offering_agent_authorization,
+    # checked on its own: an earlier branch passing there says nothing about
+    # this one.
+    user = request.user
+    return bool(
+        user.is_identity_manager
+        and user.managed_isds
+        and agent_identity.created_by_id == user.id
+        and offering.state in marketplace_enums.OfferingStates.ISD_ALLOWED_STATES
     )

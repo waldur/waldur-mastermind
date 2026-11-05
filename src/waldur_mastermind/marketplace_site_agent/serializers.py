@@ -11,7 +11,11 @@ from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_COMPATIBLE_OFFERING_TYPES,
 )
 from waldur_mastermind.marketplace_site_agent import enums, models
-from waldur_mastermind.marketplace_site_agent.utils import can_manage_offering_agent
+from waldur_mastermind.marketplace_site_agent.utils import (
+    AGENT_CONFIG_VISIBILITY,
+    can_manage_offering_agent,
+    can_see_agent_config,
+)
 
 
 class AgentProcessorSerializer(serializers.HyperlinkedModelSerializer):
@@ -221,7 +225,28 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
                 "view_name": "marketplace-site-agent-identity-detail",
             },
+            "config_file_content": {"help_text": AGENT_CONFIG_VISIBILITY},
         }
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Decided per identity, as secret_options is per offering: one page
+        # mixes identities of offerings the caller may and may not change.
+        if "config_file_content" in data and not self._can_see_config(instance):
+            del data["config_file_content"]
+        return data
+
+    def _can_see_config(self, agent_identity) -> bool:
+        request = self.context.get("request")
+        if request is None:
+            return False
+        # Who may change the offering is decided once per offering; whether an
+        # identity manager created the identity, per identity.
+        key = (agent_identity.offering_id, agent_identity.created_by_id)
+        decided = self.context.setdefault("_agent_config_visible", {})
+        if key not in decided:
+            decided[key] = can_see_agent_config(request, agent_identity)
+        return decided[key]
 
     @extend_schema_field(AgentCompatibilitySerializer)
     def get_compatibility(self, agent):

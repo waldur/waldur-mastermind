@@ -200,17 +200,26 @@ class SiteAgentLogListTest(test.APITestCase):
         )
         self.url = factories.SiteAgentLogFactory.get_list_url()
 
-    @data("staff", "global_support")
-    def test_privileged_users_see_all_logs(self, user_role):
-        user = getattr(self.fixture, user_role)
-        self.client.force_login(user)
+    def test_staff_see_all_logs(self):
+        self.client.force_login(self.fixture.staff)
 
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    @data("offering_owner", "offering_manager", "offering_admin")
+    @data("global_support", "offering_admin")
+    def test_who_may_not_change_the_offering_sees_no_logs(self, user_role):
+        # Logs are for who may change the offering, as its secret options are
+        # (#1073): not global support, not the offering's project members.
+        self.client.force_login(getattr(self.fixture, user_role))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
+
+    @data("offering_owner", "offering_manager")
     def test_offering_users_see_their_logs(self, user_role):
         user = getattr(self.fixture, user_role)
         self.client.force_login(user)
