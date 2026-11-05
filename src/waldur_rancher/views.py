@@ -335,12 +335,21 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
     queryset = models.Catalog.objects.all()
     serializer_class = serializers.RancherCatalogSerializer
     lookup_field = "uuid"
-    # Checked in perform_update, on the scope the catalog keeps.
+    # Checked in perform_create, perform_update and perform_destroy; an
+    # update keeps the catalog's scope, which is the one checked.
     access_declarations = {
+        "create": [MANAGES_CATALOG],
         "update": [MANAGES_CATALOG],
         "partial_update": [MANAGES_CATALOG],
+        "destroy": [MANAGES_CATALOG],
     }
 
+    @access.shows(
+        "Catalogs of the Rancher service settings, clusters and Rancher "
+        "projects the caller can see. settings_uuid or cluster_uuid shows "
+        "those of one service settings, or of one cluster and its service "
+        "settings, and answers 404 when the caller cannot see it."
+    )
     def get_queryset(self):
         settings_uuid = self.request.query_params.get("settings_uuid")
         cluster_uuid = self.request.query_params.get("cluster_uuid")
@@ -471,6 +480,7 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ProjectFilter
     lookup_field = "uuid"
+    access_filtered_actions = ("secrets",)
 
     @extend_schema(
         filters=False,
@@ -539,6 +549,8 @@ class ApplicationViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSe
         is_administrator,
         utils.check_managed_cluster_permission,
     ]
+    # The serializer checks the Rancher project's cluster in create().
+    access_declarations = {"create": [utils.CHANGES_MANAGED_CLUSTER]}
 
     # The application runs in the cluster of its Rancher project, so the
     # caller must also be able to change that cluster, as for a workload.
@@ -574,6 +586,8 @@ class UserViewSet(core_views.ReadOnlyActionsViewSet):
 class YamlMixin:
     get_yaml_method = NotImplemented
     put_yaml_method = NotImplemented
+    # GET looks the object up as retrieve does; PUT is checked as other writes.
+    access_filtered_actions = ("yaml",)
 
     @extend_schema(responses={status.HTTP_200_OK: DetailSerializer})
     @decorators.action(detail=True, methods=["get", "put"])
@@ -654,12 +668,19 @@ class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceVie
         is_administrator,
         utils.check_managed_cluster_permission,
     ]
+    # The serializer checks the workload's cluster in create().
+    access_declarations = {"create": [utils.CHANGES_MANAGED_CLUSTER]}
 
 
 class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.ClusterTemplate.objects.all()
     serializer_class = serializers.RancherClusterTemplateSerializer
     lookup_field = "uuid"
+    # Templates for provisioning a cluster, defined by staff; nothing owns them.
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
 
 class IngressViewSet(
@@ -712,6 +733,12 @@ class KeycloakGroupViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.KeycloakGroupFilter
     lookup_field = "uuid"
 
+    @access.shows(
+        "Role groups of the clusters and Rancher projects the caller can see "
+        "(through a role on the cluster's project or organization); users with "
+        "the staff or support flag see all of them, whatever their token's "
+        "scopes."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
 
@@ -743,6 +770,7 @@ class KeycloakGroupViewSet(core_views.ReadOnlyActionsViewSet):
         return queryset
 
 
+@access.describes(utils.MANAGES_KEYCLOAK_GROUP_SCOPE, needs_object=True)
 def can_manage_keycloak_group_membership(request, view, obj=None):
     if obj is None or has_staff_access(request):
         return
@@ -760,7 +788,14 @@ class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
     # Updates only renamed the database row and never reached Keycloak.
     disabled_actions = ["update", "partial_update"]
     destroy_permissions = [can_manage_keycloak_group_membership]
+    access_declarations = {"create": [utils.MANAGES_KEYCLOAK_GROUP_SCOPE]}
 
+    @access.shows(
+        "Memberships of the role groups of the clusters and Rancher projects "
+        "the caller can see (through a role on the cluster's project or "
+        "organization); users with the staff or support flag see all of them, "
+        "whatever their token's scopes."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
 

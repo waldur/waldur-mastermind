@@ -11,6 +11,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import SshPublicKey, User
@@ -349,6 +350,16 @@ def update_cluster_nodes_states(cluster_id):
 
 
 def _check_permissions(action):
+    @access.describes(
+        access.custom(
+            f"As /api/openstack-instances/<uuid>/{action}/ checks it, on the "
+            "OpenStack instance the node runs on: staff, and, where "
+            "ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS is on, holders of "
+            "OPENSTACK_INSTANCE.CONSOLE_ACCESS on the instance's project or "
+            "organization. A node without an instance answers 404."
+        ),
+        needs_object=True,
+    )
     def func(request, view, instance=None):
         node = instance
 
@@ -415,8 +426,18 @@ def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
         return scope, scope.cluster and scope.cluster.settings
 
 
+MANAGES_KEYCLOAK_GROUP_SCOPE = access.custom(
+    "Staff, or an owner of the organization, or a manager or administrator of "
+    "the project, that holds the Rancher cluster of the role group: the cluster "
+    "itself or the cluster of the Rancher project."
+)
+
+
 def check_keycloak_group_scope_permissions(request, view, scope):
-    """Staff and administrators of the cluster's project manage its role groups."""
+    """Staff and administrators of the cluster's project manage its role groups.
+
+    ``MANAGES_KEYCLOAK_GROUP_SCOPE`` describes this check.
+    """
     if has_staff_access(request):
         return
     cluster = scope if isinstance(scope, models.Cluster) else scope.cluster
@@ -449,6 +470,15 @@ def check_managed_cluster(cluster: models.Cluster, user: User):
         return
 
 
+CHANGES_MANAGED_CLUSTER = access.custom(
+    "On a cluster provided by a Rancher offering whose deployment mode is "
+    "managed, only users with the staff flag, whatever their token's scopes; "
+    "others are refused with 400. On any other cluster this check lets "
+    "everyone through."
+)
+
+
+@access.describes(CHANGES_MANAGED_CLUSTER, needs_object=True)
 def check_managed_cluster_permission(request, view, obj=None, **kwargs):
     if obj and getattr(obj, "cluster"):
         check_managed_cluster(obj.cluster, request.user)
