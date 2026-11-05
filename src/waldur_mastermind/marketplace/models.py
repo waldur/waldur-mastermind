@@ -6033,7 +6033,10 @@ class BackendResourceRequest(
 
 
 class ResourceApiKey(
-    core_models.UuidMixin, TimeStampedModel, core_models.ErrorMessageMixin
+    core_models.UuidMixin,
+    core_models.DescribableMixin,
+    TimeStampedModel,
+    core_models.ErrorMessageMixin,
 ):
     """One of a site-agent resource's API keys (e.g. an inference gateway key).
 
@@ -6048,6 +6051,9 @@ class ResourceApiKey(
     limits, restricted to some models, paused, resumed and deleted. Each of those
     is a command the agent carries out and acknowledges; ``pending_action`` names
     the one in flight.
+
+    Its ``description`` is a note, such as which environment uses the key. It is
+    not a setting of the key: no command carries it, and editing it issues none.
     """
 
     States = ResourceApiKeyStates

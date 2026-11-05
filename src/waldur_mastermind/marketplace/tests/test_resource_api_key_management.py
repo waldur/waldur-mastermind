@@ -2566,6 +2566,230 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class DescriptionTest(ApiKeyManagementTestBase):
+    """A key's description is the portal's own note: saved at once, without a
+    command, on every offering and in every state but Deleted."""
+
+    LOG_COMMAND = (
+        "waldur_mastermind.marketplace.resource_api_keys.log."
+        "log_resource_api_key_command"
+    )
+
+    def patch(self, user, key, data):
+        self.client.force_authenticate(user)
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            response = self.client.patch(detail_url(key), data, format="json")
+        return response, prepare
+
+    def set_state(self, state, pending_action="", **fields):
+        models.ResourceApiKey.objects.filter(pk=self.key.pk).update(
+            state=state, pending_action=pending_action, **fields
+        )
+        self.key.refresh_from_db()
+
+    def test_a_request_takes_a_description(self):
+        response, prepare = self.post(
+            self.fixture.owner,
+            list_url(),
+            {"resource": self.resource.uuid.hex, "description": "Production"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["description"], "Production")
+        key = models.ResourceApiKey.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(key.description, "Production")
+        self.assertNotIn("description", self.published_payload(prepare))
+
+    def test_listing_and_retrieving_return_it(self):
+        self.key.description = "Development"
+        self.key.save()
+        # Anyone who sees the key reads it, not only those who manage keys.
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(
+            list_url(), {"resource_uuid": self.resource.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["description"], "Development")
+        response = self.client.get(detail_url(self.key))
+        self.assertEqual(response.data["description"], "Development")
+
+    def test_a_key_without_one_has_an_empty_description(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(detail_url(self.key))
+        self.assertEqual(response.data["description"], "")
+
+    def test_a_description_alone_issues_no_command(self):
+        modified = self.key.modified
+        with mock.patch(self.LOG_COMMAND) as log_command:
+            response, prepare = self.patch(
+                self.fixture.owner, self.key, {"description": "Production"}
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["description"], "Production")
+        prepare.assert_not_called()
+        log_command.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "Production")
+        self.assertEqual(self.key.state, States.OK)
+        self.assertEqual(self.key.pending_action, "")
+        self.assertEqual(self.key.modified, modified)
+
+    def test_a_description_can_be_cleared(self):
+        self.key.description = "Production"
+        self.key.save()
+        response, _ = self.patch(self.fixture.owner, self.key, {"description": ""})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "")
+
+    def test_a_description_with_limits_is_saved_with_their_update(self):
+        response, prepare = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"description": "Production", "limits": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payload = self.published_payload(prepare)
+        self.assertEqual(payload["action"], Actions.UPDATE)
+        self.assertEqual(payload["limits"], {"tokens": 50})
+        self.assertNotIn("description", payload)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "Production")
+        self.assertEqual(self.key.state, States.UPDATING)
+
+    def test_a_description_with_unchanged_limits_issues_no_command(self):
+        self.key.spending_limits = {"tokens": {"month": 50}}
+        self.key.save()
+        response, prepare = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"description": "Production", "limits": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "Production")
+        self.assertEqual(self.key.state, States.OK)
+
+    def test_a_paused_key_stores_a_description_with_its_settings(self):
+        self.set_state(States.PAUSED)
+        response, prepare = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"description": "Production", "allowed_models": ["mistral"]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "Production")
+        self.assertEqual(self.key.allowed_models, ["mistral"])
+        self.assertEqual(self.key.state, States.PAUSED)
+
+    def test_a_refused_update_takes_its_description_back(self):
+        # A failed rotation accepts only its retry or a delete, not an update.
+        self.set_state(States.ERRED, Actions.ROTATE)
+        response, prepare = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"description": "Production", "limits": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "")
+
+    def test_any_state_but_deleted_takes_a_description(self):
+        cases = (
+            (States.CREATING, Actions.CREATE, ""),
+            (States.UPDATING, Actions.UPDATE, "cid-1"),
+            (States.PAUSED, "", "cid-1"),
+            (States.ERRED, Actions.ROTATE, "cid-1"),
+            (States.ERRED, Actions.CREATE, ""),
+            (States.DELETING, Actions.DELETE, "cid-1"),
+        )
+        for state, pending_action, client_id in cases:
+            with self.subTest(state=state, pending_action=pending_action):
+                self.set_state(state, pending_action, client_id=client_id)
+                modified = self.key.modified
+                response, prepare = self.patch(
+                    self.fixture.owner, self.key, {"description": f"{state} key"}
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                prepare.assert_not_called()
+                self.key.refresh_from_db()
+                self.assertEqual(self.key.description, f"{state} key")
+                self.assertEqual(self.key.state, state)
+                self.assertEqual(self.key.pending_action, pending_action)
+                self.assertEqual(self.key.modified, modified)
+
+    def test_a_deleted_key_takes_no_description(self):
+        self.set_state(States.DELETED)
+        response, _ = self.patch(
+            self.fixture.owner, self.key, {"description": "Production"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "")
+
+    def test_an_ungoverned_offering_takes_a_description_alone(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+        response, prepare = self.patch(
+            self.fixture.owner, self.key, {"description": "Production"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "Production")
+
+        response, prepare = self.patch(
+            self.fixture.owner,
+            self.key,
+            {"description": "Staging", "limits": {"tokens": 50}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "Production")
+
+    def test_only_those_who_manage_keys_set_it(self):
+        # As permissions.yaml grants it.
+        for role in (ProjectRole.ADMIN, ProjectRole.MANAGER):
+            role.add_permission(PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY)
+        # The assignee holds the key's value but does not manage the keys.
+        self.key.user = self.fixture.member
+        self.key.save()
+        response, _ = self.patch(self.fixture.member, self.key, {"description": "Mine"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "")
+        for user in (self.fixture.admin, self.fixture.manager):
+            with self.subTest(user=user):
+                response, _ = self.patch(user, self.key, {"description": "Ours"})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.description, "Ours")
+
+    def test_a_description_over_the_limit_is_refused(self):
+        too_long = "x" * (
+            models.ResourceApiKey._meta.get_field("description").max_length + 1
+        )
+        response, _ = self.patch(
+            self.fixture.owner, self.key, {"description": too_long}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+        response, _ = self.post(
+            self.fixture.owner,
+            list_url(),
+            {"resource": self.resource.uuid.hex, "description": too_long},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+
+
 # pytest may run with --no-migrations, which empties MIGRATION_MODULES and with
 # it the loader; the historical registry is built from the migration files.
 @override_settings(MIGRATION_MODULES={})

@@ -14,6 +14,10 @@ enforced here, not at the gateway: a usage report that reaches a limit issues a
 ``pause`` for that key alone, and Waldur resumes the key once its usage is under
 its limits again — when the period resets, or when a limit is raised.
 
+A key's description is the exception: a note, not a setting of the key.
+Editing it is saved at once, issues no command and leaves the key's state
+alone, on every offering, governed or not (``set_description``).
+
 Commands are issued by whoever manages the resource's API keys. A key's assignee,
 the one person trusted with its value, may also replace that value: rotate the
 key, or retry a rotation of it that failed.
@@ -351,21 +355,68 @@ def retry(api_key: models.ResourceApiKey, actor) -> models.ResourceApiKey:
     return issue_command(api_key, None, actor)
 
 
+# Fields of a key that no command carries: the agent may read them when it lists
+# keys, but never applies or sets them.
+PORTAL_FIELDS = frozenset({"description"})
+
+
+def is_portal_only(changes: dict) -> bool:
+    """Whether an edit changes nothing a command would carry.
+
+    Such an edit needs no governance: it reaches no backend.
+    """
+    return bool(changes) and set(changes) <= PORTAL_FIELDS
+
+
+def _write_description(api_key: models.ResourceApiKey, description: str) -> None:
+    """Save a locked key's description, leaving ``modified`` alone.
+
+    The agent's sweep reads ``modified`` as the time the key entered its state,
+    and a note changes no state.
+    """
+    if api_key.description == description:
+        return
+    models.ResourceApiKey.objects.filter(pk=api_key.pk).update(description=description)
+    api_key.description = description
+
+
+def set_description(
+    api_key: models.ResourceApiKey, description: str
+) -> models.ResourceApiKey:
+    """Change a key's description, and nothing else.
+
+    No command carries it, so it cannot conflict with one in flight, and a
+    Creating, Updating, Paused or Erred key takes it as well. Only a Deleted
+    key, kept for the usage it carries, no longer does.
+    """
+    with transaction.atomic():
+        api_key = _lock(api_key)
+        if api_key.state == States.DELETED:
+            raise IncorrectStateException("A Deleted API key cannot be edited.")
+        _write_description(api_key, description)
+    return api_key
+
+
 def update_settings(
     api_key: models.ResourceApiKey, actor, changes: dict
 ) -> models.ResourceApiKey:
-    """Change a key's limits or model allowlist.
+    """Change a key's limits, model allowlist or description.
 
     Its assignee is not among them: it is chosen when the key is requested and
     held until the key is deleted, so a key changes hands by requesting one for
     the new holder and deleting the old one.
 
-    The agent hears of the change, but not while the key is paused: the resume
-    command carries it. An Erred key takes new limits and models only when its
-    failed command was an update: the edit is then the retry. A limit raised
-    above the usage of a key Waldur paused for it resumes the key.
+    The agent hears of a change of limits or models, but not while the key is
+    paused: the resume command carries it. An Erred key takes new limits and
+    models only when its failed command was an update: the edit is then the
+    retry. A limit raised above the usage of a key Waldur paused for it resumes
+    the key. A description alone is ``set_description``; sent with limits or
+    models, it is saved with them or not at all.
     """
     changes = dict(changes)
+    if is_portal_only(changes):
+        return set_description(api_key, changes["description"])
+    description = changes.pop("description", None)
     requested = changes.pop(api_key_spending_limits.REQUESTED, None)
     require_resource_live(api_key.resource)
     with transaction.atomic():
@@ -379,6 +430,9 @@ def update_settings(
             raise IncorrectStateException(
                 f"An API key that is {api_key.state} cannot be edited."
             )
+        if description is not None:
+            # In this transaction, so a refused command takes it back too.
+            _write_description(api_key, description)
         if requested is not None:
             changes["spending_limits"] = _recheck_limits(
                 requested, resource, api_key.spending_limits
