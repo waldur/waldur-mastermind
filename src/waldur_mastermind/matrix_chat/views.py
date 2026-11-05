@@ -139,11 +139,13 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
     filterset_class = filters.MatrixRoomFilter
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update"]
-    # Read the room with get_object(), then list what belongs to it.
-    access_filtered_actions = ("members", "commands")
+    # Reads the room with get_object() and answers for that room alone.
+    access_filtered_actions = ("commands",)
     access_declarations = {
         # MatrixRoomCreateSerializer checks the project it names.
         "create": [room_provisioning.CREATES_ROOM],
+        # Lists the room's member rows, which the room queryset does not narrow.
+        "members": [access.custom(f"Members of a room the caller sees. {SHOWS_ROOMS}")],
         "eligible_projects": [
             access.custom(
                 "Lists the projects the caller may create a room for: "
@@ -709,6 +711,15 @@ class MatrixTicketDraftViewSet(ActionsViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+# The password and session views refuse no kind of authentication; only the
+# recovery key is withheld from delegated callers (_is_delegated).
+DELEGABLE_MATRIX_ACCOUNT = access.owned(
+    "The caller's own Matrix account, created if missing. Any authentication is "
+    "accepted, including a scoped personal access token or a staff member "
+    "impersonating the user; see #1080."
+)
+
+
 class MatrixCredentialsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
     access_declarations = {
@@ -754,9 +765,7 @@ class MatrixCredentialsView(views.APIView):
 
 class MatrixPasswordView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
-    access_declarations = {
-        "post": [access.owned("The caller's own Matrix account, created if missing.")]
-    }
+    access_declarations = {"post": [DELEGABLE_MATRIX_ACCOUNT]}
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "matrix_password"
 
@@ -846,9 +855,7 @@ class MatrixPasswordView(views.APIView):
 
 class MatrixSessionView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
-    access_declarations = {
-        "post": [access.owned("The caller's own Matrix account, created if missing.")]
-    }
+    access_declarations = {"post": [DELEGABLE_MATRIX_ACCOUNT]}
     # Called when the chat drawer connects and when its Matrix refresh is
     # rejected; each call is an appservice login and a new device.
     throttle_classes = [ScopedRateThrottle]
@@ -1248,6 +1255,13 @@ FROM_HOMESERVER = access.custom(
     "bearer token. No Waldur authentication."
 )
 
+# The webhook answers before the token check while Matrix chat is disabled.
+WEBHOOK_FROM_HOMESERVER = access.custom(
+    FROM_HOMESERVER["description"]
+    + " While Matrix chat is disabled, any caller gets 200 and the call does "
+    "nothing."
+)
+
 
 def _is_from_homeserver(request):
     """Check the homeserver token, logging why a call is refused."""
@@ -1300,8 +1314,7 @@ class AppserviceErrorCountMixin:
 class MatrixAppserviceWebhookView(AppserviceErrorCountMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
-    # While Matrix chat is disabled, every call is answered 200 and does nothing.
-    access_declarations = {"put": [FROM_HOMESERVER]}
+    access_declarations = {"put": [WEBHOOK_FROM_HOMESERVER]}
     throttle_classes = [AppserviceThrottle]
     throttle_scope = "matrix_webhook"
 
