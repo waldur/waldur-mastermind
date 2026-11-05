@@ -463,7 +463,8 @@ class RancherClusterSerializer(
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ("nodes", "tenant")
+            # vm_project decides where added nodes run, so it is set once.
+            + ("nodes", "tenant", "vm_project")
         )
         extra_kwargs = dict(
             cluster={
@@ -1097,6 +1098,13 @@ class RancherHPASerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "rancher-workload-detail",
             },
         }
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.instance is not None:
+            # The create is checked against the workload; an HPA keeps it.
+            fields["workload"].read_only = True
+        return fields
 
     def create(self, validated_data):
         workload = cast(models.Workload, validated_data["workload"])
