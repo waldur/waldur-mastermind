@@ -2,7 +2,9 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.fixtures import add_user_to_project
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_rancher.const import DEPLOYMENT_MODE_MANAGED
 from waldur_rancher import models
@@ -226,3 +228,56 @@ class ScopedCatalogPermissionTest(test.APITestCase):
             factories.CatalogFactory.get_url(catalog), {"name": "New name"}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@mock.patch("waldur_rancher.backend.RancherBackend.client")
+class CatalogKeepsItsScopeTest(test.APITestCase):
+    """An update is checked against the catalog's scope, so it cannot change it."""
+
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.RancherFixture()
+        self.catalog = factories.CatalogFactory(
+            scope=self.fixture.cluster, settings=self.fixture.settings
+        )
+        self.url = factories.CatalogFactory.get_url(self.catalog)
+
+        # Another organization's cluster, where the owner is only a member.
+        other = fixtures.RancherFixture()
+        add_user_to_project(self.fixture.owner, other.project, ProjectRole.MEMBER)
+        self.targets = {
+            "global": factories.RancherServiceSettingsFactory.get_url(
+                self.fixture.settings
+            ),
+            "other cluster": factories.ClusterFactory.get_url(other.cluster),
+        }
+        self.client.force_authenticate(self.fixture.owner)
+
+    def assert_scope_kept(self):
+        self.catalog.refresh_from_db()
+        self.assertEqual(self.catalog.scope, self.fixture.cluster)
+
+    def test_patch_cannot_move_the_catalog(self, mock_client):
+        for name, target in self.targets.items():
+            with self.subTest(name):
+                response = self.client.patch(self.url, {"scope": target})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assert_scope_kept()
+
+    def test_put_cannot_move_the_catalog(self, mock_client):
+        for name, target in self.targets.items():
+            with self.subTest(name):
+                response = self.client.put(
+                    self.url,
+                    {
+                        "name": "renamed",
+                        "catalog_url": "https://example.com/charts",
+                        "branch": "main",
+                        "scope": target,
+                    },
+                )
+                self.assertEqual(
+                    response.status_code, status.HTTP_200_OK, response.data
+                )
+                self.assert_scope_kept()
+        self.assertEqual(self.catalog.name, "renamed")

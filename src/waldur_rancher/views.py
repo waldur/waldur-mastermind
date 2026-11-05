@@ -22,6 +22,7 @@ from rest_framework.exceptions import (
 )
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 
+from waldur_core.core import access
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
@@ -319,10 +320,26 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     console_log_permissions = [utils.check_permissions_for_console_log()]
 
 
+# What CatalogViewSet.check_catalog_permissions requires.
+MANAGES_CATALOG = access.custom(
+    "Staff. A global catalog, one of a Rancher service settings, only staff. "
+    "A catalog of a cluster or of a Rancher project in a cluster, also an "
+    "owner of the organization, or a manager or administrator of the "
+    "project, that holds the cluster, unless the cluster is provided by a "
+    "Rancher offering whose deployment mode is managed: that takes the staff "
+    "flag."
+)
+
+
 class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
     queryset = models.Catalog.objects.all()
     serializer_class = serializers.RancherCatalogSerializer
     lookup_field = "uuid"
+    # Checked in perform_update, on the scope the catalog keeps.
+    access_declarations = {
+        "update": [MANAGES_CATALOG],
+        "partial_update": [MANAGES_CATALOG],
+    }
 
     def get_queryset(self):
         settings_uuid = self.request.query_params.get("settings_uuid")
@@ -422,7 +439,9 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         backend = catalog.get_backend()
         backend.update_catalog(catalog)
 
-    update_serializer_class = serializers.RancherCatalogUpdateSerializer
+    update_serializer_class = partial_update_serializer_class = (
+        serializers.RancherCatalogUpdateSerializer
+    )
 
     def perform_destroy(self, catalog):
         self.check_catalog_permissions(catalog.scope)
@@ -431,6 +450,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         catalog.delete()
 
     def check_catalog_permissions(self, scope):
+        """``MANAGES_CATALOG`` describes this check."""
         user = cast(User, self.request.user)
         if has_staff_access(self.request):
             return

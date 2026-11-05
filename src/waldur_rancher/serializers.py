@@ -785,6 +785,10 @@ class RancherCatalogCreateSerializer(RancherCatalogSerializer):
 
 
 class RancherCatalogUpdateSerializer(RancherCatalogCreateSerializer):
+    # A catalog keeps its scope: the update is checked against the scope it
+    # has. DRF ignores read_only_fields for a declared field, so redeclare it.
+    scope = core_serializers.GenericRelatedField(read_only=True)
+
     class Meta(RancherCatalogSerializer.Meta):
         read_only_fields = RancherCatalogSerializer.Meta.read_only_fields + ("scope",)
 
