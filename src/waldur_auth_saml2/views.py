@@ -75,11 +75,14 @@ class BaseSaml2View(GenericAPIView):
     throttle_classes = ()
     permission_classes = ()
     authentication_classes = ()
-    # The SAML2 sign-in and logout, for anonymous callers. They act only on
-    # the caller's own session: a login signs in the user of a response the
-    # identity provider signed, and a logout ends the session only for a SAML
-    # exchange that names its subject. That an IdP-initiated logout request
-    # need not be signed is #1071.
+    # The SAML2 sign-in and logout, for anonymous callers; they sign nobody in
+    # as anybody but the subject of a SAML message. A login signs in the user
+    # of a response the identity provider signed, into the session of the
+    # browser that posts it. With ALLOW_UNSOLICITED (the default) that need
+    # not be the browser that started the login, so another site can post a
+    # signed response of its own account and sign a visitor into it (#1082).
+    # A logout ends the session only for a SAML exchange that names its
+    # subject; that an IdP-initiated logout request need not be signed is #1071.
     access_declarations = {"get": [access.public()], "post": [access.public()]}
 
 
