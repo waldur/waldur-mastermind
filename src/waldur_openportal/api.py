@@ -23,6 +23,7 @@ from rest_framework.decorators import (
 from rest_framework.permissions import IsAuthenticated
 
 from waldur_auth_social.models import IdentityProvider
+from waldur_core.core import access
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.authentication import refresh_token, set_user_context
@@ -223,6 +224,20 @@ def project_spend_info(request):
         )
     else:
         return JsonResponse(None)
+
+
+# Lookups by email or project ID are not implemented and return null.
+project_spend_info.cls.access_declarations = {
+    "get": [
+        access.any_of(
+            access.staff_or_support(),
+            access.owned(
+                "Projects of the caller's own OpenPortal associations, "
+                "found by their local username."
+            ),
+        )
+    ]
+}
 
 
 @extend_schema(exclude=True)
@@ -497,6 +512,10 @@ def customer_spend_info(request):
     return response
 
 
+# Anyone else gets 401.
+customer_spend_info.cls.access_declarations = {"get": [access.staff_or_support()]}
+
+
 @extend_schema(exclude=True)
 @api_view(["GET"])
 @authentication_classes([])
@@ -594,6 +613,17 @@ def fetch_job(request):
     response = JsonResponse({})
     response.status_code = status.HTTP_200_OK
     return response
+
+
+fetch_job.cls.access_declarations = {
+    "get": [
+        access.custom(
+            "Anyone; the request must name a pending job in the OpenPortal "
+            "bridge queue, whose random ID only the bridge agent knows. "
+            "Anything else gets 401."
+        )
+    ]
+}
 
 
 @extend_schema(
@@ -745,6 +775,21 @@ def access_for_email(request):
     return _intelligent_search(user, query, can_query_all)
 
 
+access_for_email.cls.access_declarations = {
+    "get": [
+        access.any_of(
+            access.staff_or_support(),
+            access.owned(
+                "The caller's own short name, or the caller's own email "
+                "address, which answers for the first active user with that "
+                "address and a project role; searches by project ID or "
+                "project name are for staff and support only."
+            ),
+        )
+    ]
+}
+
+
 @extend_schema(exclude=True)
 @api_view(["GET"])
 @authentication_classes([TokenAuthentication])
@@ -771,6 +816,9 @@ def whoami(request):
         }
     )
     return response
+
+
+whoami.cls.access_declarations = {"get": [access.owned("The caller's own profile.")]}
 
 
 @extend_schema(exclude=True)
@@ -883,6 +931,20 @@ def get_api_token(request):
     )
 
 
+get_api_token.cls.access_declarations = {
+    "get": [
+        access.custom(
+            "Anyone presenting, as a Bearer token, an access token that the "
+            "first active identity provider's introspection endpoint reports "
+            "as active. The token's email claim selects the active Waldur "
+            "user with that username, creating one if none exists (a "
+            "deactivated user is refused), and a Waldur API token is issued "
+            "for that user."
+        )
+    ]
+}
+
+
 @extend_schema(
     description=(
         "Map OpenPortal destination strings to Waldur Offering objects. "
@@ -962,6 +1024,9 @@ def offering_mapping(request):
         }
 
     return JsonResponse(result)
+
+
+offering_mapping.cls.access_declarations = {"get": [access.authenticated()]}
 
 
 @extend_schema(
@@ -1058,6 +1123,18 @@ def project_mapping(request):
         }
 
     return JsonResponse(result)
+
+
+project_mapping.cls.access_declarations = {
+    "get": [
+        access.custom(
+            "Any signed-in user. Staff and global support resolve every "
+            "project; others only projects they hold a role on or that belong "
+            "to an organization they hold a role on. Other identifiers map to "
+            "null."
+        )
+    ]
+}
 
 
 @extend_schema(
@@ -1183,6 +1260,19 @@ def user_mapping(request):
             result.update(resolved)
 
     return JsonResponse(result)
+
+
+user_mapping.cls.access_declarations = {
+    "get": [
+        access.custom(
+            "Any signed-in user. Staff and global support resolve every user; "
+            "others only users associated with an OpenPortal allocation (or, "
+            "for email addresses, a remote allocation) of a project they hold "
+            "a role on or that belongs to an organization they hold a role "
+            "on. Other identifiers map to null."
+        )
+    ]
+}
 
 
 def _intelligent_search(requesting_user, query, can_query_all):
@@ -1844,6 +1934,17 @@ def fetch_notification(request):
     return response
 
 
+fetch_notification.cls.access_declarations = {
+    "get": [
+        access.custom(
+            "Anyone; the request must name a notification waiting in the "
+            "OpenPortal bridge queue, whose random ID only the bridge agent "
+            "knows. Anything else gets 401."
+        )
+    ]
+}
+
+
 def _get_project_allowed_domains(project):
     """
     Return the unified allowed_domains list for a project from its AwardDetails.
@@ -1926,3 +2027,13 @@ def project_email_policy(request, project_uuid):
         return JsonResponse({"detail": "Access denied."}, status=403)
 
     return JsonResponse({"allowed_domains": _get_project_allowed_domains(project)})
+
+
+project_email_policy.cls.access_declarations = {
+    "get": [
+        access.any_of(
+            access.staff_or_support(),
+            access.custom("Any role in the project or in its organization."),
+        )
+    ]
+}
