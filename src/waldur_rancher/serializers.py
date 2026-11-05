@@ -899,6 +899,13 @@ class RancherApplicationSerializer(structure_serializers.BaseResourceSerializer)
             "template_name",
             "external_url",
         )
+        # An application stays where it was deployed: the create checks the
+        # caller against the project and the Rancher project's cluster, and
+        # pull and delete act on the Rancher project. Read-only on update.
+        protected_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
+            + ("rancher_project", "namespace", "namespace_name", "template")
+        )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "template": {
@@ -918,6 +925,9 @@ class RancherApplicationSerializer(structure_serializers.BaseResourceSerializer)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if self.instance is not None:
+            # Where it runs cannot change on update.
+            return attrs
         if (not attrs.get("namespace") and not attrs.get("namespace_name")) or (
             attrs.get("namespace") and attrs.get("namespace_name")
         ):

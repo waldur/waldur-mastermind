@@ -520,6 +520,28 @@ class ApplicationViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSe
         utils.check_managed_cluster_permission,
     ]
 
+    # The application runs in the cluster of its Rancher project, so the
+    # caller must also be able to change that cluster, as for a workload.
+    # Where it runs cannot change on update (the serializer's
+    # protected_fields), so this is checked on create only.
+    def check_rancher_project(self, request, rancher_project):
+        if has_staff_access(request):
+            return
+        if rancher_project.cluster is None:
+            raise PermissionDenied()
+        is_administrator(request, self, rancher_project)
+
+    def check_create_scope(self, request, serializer):
+        super().check_create_scope(request, serializer)
+        self.check_rancher_project(
+            request, serializer.validated_data["rancher_project"]
+        )
+
+    def describe_create_access(self):
+        return super().describe_create_access() + [
+            {**is_administrator.describe(), "via": "rancher_project"}
+        ]
+
 
 class UserViewSet(core_views.ReadOnlyActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
