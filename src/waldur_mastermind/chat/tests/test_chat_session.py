@@ -649,6 +649,66 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.assertEqual(assistant_msg.output_tokens, 30)
 
     @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_message_cache_tokens_persisted(self, mock_openai_cls):
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _fake_stream(
+            [
+                _make_content_chunk("Hello!"),
+                _make_usage_chunk(80, 30, cache_read_tokens=64, cache_write_tokens=12),
+            ]
+        )
+
+        streamer = self._make_streamer(is_new_thread=False)
+        list(streamer)
+
+        assistant_msg = Message.objects.get(
+            thread=self.thread, role=Message.Role.ASSISTANT
+        )
+        self.assertEqual(assistant_msg.cache_read_tokens, 64)
+        self.assertEqual(assistant_msg.cache_write_tokens, 12)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_message_cache_tokens_null_when_not_reported(self, mock_openai_cls):
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _fake_stream(
+            [_make_content_chunk("Hello!"), _make_usage_chunk(80, 30)]
+        )
+
+        streamer = self._make_streamer(is_new_thread=False)
+        list(streamer)
+
+        assistant_msg = Message.objects.get(
+            thread=self.thread, role=Message.Role.ASSISTANT
+        )
+        self.assertIsNone(assistant_msg.cache_read_tokens)
+        self.assertIsNone(assistant_msg.cache_write_tokens)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_gen_cache_tokens_persisted_on_thread(self, mock_openai_cls):
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Response"), _make_usage_chunk(100, 50)]),
+            _fake_stream(
+                [
+                    _make_content_chunk("VM Management"),
+                    _make_usage_chunk(
+                        20, 5, cache_read_tokens=16, cache_write_tokens=4
+                    ),
+                ]
+            ),
+        ]
+
+        streamer = self._make_streamer(is_new_thread=True)
+        list(streamer)
+
+        self.thread.refresh_from_db()
+        self.assertEqual(self.thread.title_gen_cache_read_tokens, 16)
+        self.assertEqual(self.thread.title_gen_cache_write_tokens, 4)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_title_generation_reads_blocks_from_user_msg(self, mock_openai_cls):
         """When user_msg has blocks, title gen uses blocks[0]['content'], not original_input."""
         user_msg = Message.objects.create(

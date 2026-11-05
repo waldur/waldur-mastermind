@@ -117,6 +117,37 @@ _CHART_BLOCK_FIELDS = (
 )
 
 
+def _cache_read_tokens(usage) -> int | None:
+    """Prompt tokens the provider served from its cache, or None if unreported.
+
+    None and 0 differ on purpose: vLLM omits prompt_tokens_details unless it
+    runs with --enable-prompt-tokens-details, and reading that as 0 would show
+    a cache ratio of 0% for a deployment that simply doesn't report it.
+    """
+    details = getattr(usage, "prompt_tokens_details", None)
+    return getattr(details, "cached_tokens", None)
+
+
+def _cache_write_tokens(usage) -> int | None:
+    """Prompt tokens the provider wrote to its cache, or None if unreported.
+
+    Only providers that bill cache writes report them (Anthropic, through
+    LiteLLM), under one of two names: LiteLLM's OpenAI-style
+    prompt_tokens_details.cache_write_tokens, or the Anthropic-style
+    cache_creation_input_tokens it also sets on the usage itself.
+    """
+    details = getattr(usage, "prompt_tokens_details", None)
+    written = getattr(details, "cache_write_tokens", None)
+    if written is None:
+        written = getattr(usage, "cache_creation_input_tokens", None)
+    return written
+
+
+def _add_reported(total: int | None, value: int | None) -> int | None:
+    """Add a per-round figure while keeping "never reported" apart from 0."""
+    return total if value is None else (total or 0) + value
+
+
 class _StreamDone:
     """Sentinel placed on queue to signal the worker has finished."""
 
@@ -228,6 +259,8 @@ class LLMStreamer:
         self.delegated = delegated
         self.input_tokens = None
         self.output_tokens = None
+        self.cache_read_tokens = None
+        self.cache_write_tokens = None
         self.model = ""
         self.error = None
         self.thread = thread
@@ -1031,12 +1064,19 @@ class LLMStreamer:
                     self.input_tokens = (self.input_tokens or 0) + prompt_tokens
                     self.output_tokens = (self.output_tokens or 0) + completion_tokens
 
-                    details = getattr(chunk.usage, "prompt_tokens_details", None)
-                    cached_tokens = getattr(details, "cached_tokens", 0) or 0
+                    cache_read = _cache_read_tokens(chunk.usage)
+                    cache_write = _cache_write_tokens(chunk.usage)
+                    self.cache_read_tokens = _add_reported(
+                        self.cache_read_tokens, cache_read
+                    )
+                    self.cache_write_tokens = _add_reported(
+                        self.cache_write_tokens, cache_write
+                    )
                     logger.info(
-                        "LLM usage: prompt=%d cached=%d completion=%d",
+                        "LLM usage: prompt=%d cache_read=%s cache_write=%s completion=%d",
                         prompt_tokens,
-                        cached_tokens,
+                        cache_read,
+                        cache_write,
                         completion_tokens,
                     )
 
@@ -1271,6 +1311,8 @@ class LLMStreamer:
         self.assistant_msg.warning = self.accumulated_warning
         self.assistant_msg.input_tokens = self.input_tokens
         self.assistant_msg.output_tokens = self.output_tokens
+        self.assistant_msg.cache_read_tokens = self.cache_read_tokens
+        self.assistant_msg.cache_write_tokens = self.cache_write_tokens
         self.assistant_msg.model = self.model
         self.assistant_msg.save(
             update_fields=[
@@ -1278,6 +1320,8 @@ class LLMStreamer:
                 "warning",
                 "input_tokens",
                 "output_tokens",
+                "cache_read_tokens",
+                "cache_write_tokens",
                 "model",
                 "modified",
             ]
@@ -1353,6 +1397,8 @@ class LLMStreamer:
                 sequence_index=user_msg.sequence_index + 1,
                 input_tokens=self.input_tokens,
                 output_tokens=self.output_tokens,
+                cache_read_tokens=self.cache_read_tokens,
+                cache_write_tokens=self.cache_write_tokens,
                 model=self.model,
             )
         return user_msg, assistant_msg
@@ -1407,12 +1453,20 @@ class LLMStreamer:
             title_parts = []
             title_input = 0
             title_output = 0
+            title_cache_read = None
+            title_cache_write = None
 
             with self._stream_completion(title_messages, include_tools=False) as stream:
                 for chunk in stream:
                     if chunk.usage:
                         title_input += chunk.usage.prompt_tokens or 0
                         title_output += chunk.usage.completion_tokens or 0
+                        title_cache_read = _add_reported(
+                            title_cache_read, _cache_read_tokens(chunk.usage)
+                        )
+                        title_cache_write = _add_reported(
+                            title_cache_write, _cache_write_tokens(chunk.usage)
+                        )
 
                     if not chunk.choices:
                         continue
@@ -1428,6 +1482,8 @@ class LLMStreamer:
             if title_input or title_output:
                 update_kwargs["title_gen_input_tokens"] = title_input
                 update_kwargs["title_gen_output_tokens"] = title_output
+                update_kwargs["title_gen_cache_read_tokens"] = title_cache_read
+                update_kwargs["title_gen_cache_write_tokens"] = title_cache_write
             if update_kwargs:
                 models.ThreadSession.objects.filter(pk=self.thread.pk).update(
                     **update_kwargs

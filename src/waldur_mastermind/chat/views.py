@@ -7,6 +7,8 @@ from django.db.models import (
     Case,
     Count,
     Exists,
+    F,
+    FloatField,
     Max,
     OuterRef,
     Q,
@@ -16,7 +18,7 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Cast, Coalesce
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -611,6 +613,42 @@ def _log_chat_access(event_type, request, target_user):
     )
 
 
+def _with_title_gen(messages_sum: str, title_gen_field: str) -> Case:
+    """A thread's figure: its messages' sum plus title generation's.
+
+    Null only when neither side has one, so a thread from before a figure was
+    tracked reads as unknown rather than 0.
+    """
+    return Case(
+        When(
+            **{f"{messages_sum}__isnull": True, f"{title_gen_field}__isnull": True},
+            then=None,
+        ),
+        default=Coalesce(messages_sum, Value(0)) + Coalesce(title_gen_field, Value(0)),
+    )
+
+
+class _ThreadOrderingFilter(django_filters.OrderingFilter):
+    """Sinks threads with no cache figure in both directions.
+
+    Postgres puts NULLs first on a descending sort, and every thread written
+    before cache tracking has one, so "best cache ratio first" would open on a
+    page of dashes.
+    """
+
+    NULLS_LAST = {"cache_read_tokens", "cache_write_tokens", "cache_ratio"}
+
+    def get_ordering_value(self, param):
+        descending = param.startswith("-")
+        name = param.lstrip("-")
+        if name in self.NULLS_LAST:
+            expr = F(name)
+            return (
+                expr.desc(nulls_last=True) if descending else expr.asc(nulls_last=True)
+            )
+        return super().get_ordering_value(param)
+
+
 class ThreadSessionFilter(django_filters.FilterSet):
     user = core_filters.RelatedUUIDFilter(
         view_name="user-detail", field_name="chat_session__user__uuid"
@@ -659,13 +697,16 @@ class ThreadSessionFilter(django_filters.FilterSet):
         choices=[("own", "Own")],
         method="filter_scope",
     )
-    o = django_filters.OrderingFilter(
+    o = _ThreadOrderingFilter(
         fields=(
             "created",
             "modified",
             "input_tokens",
             "output_tokens",
             "total_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "cache_ratio",
             # Annotated in get_queryset; ordering by it is what lets the
             # frontend's Model column render a sort control that actually works.
             "models_used",
@@ -816,6 +857,15 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
                 message_count=Count("messages"),
                 _msg_input=Sum("messages__input_tokens"),
                 _msg_output=Sum("messages__output_tokens"),
+                _msg_cache_read=Sum("messages__cache_read_tokens"),
+                _msg_cache_write=Sum("messages__cache_write_tokens"),
+                # Only input from turns whose provider reported a cache figure
+                # can be measured against it; pre-tracking turns would otherwise
+                # read as cache misses and drag the ratio down.
+                _msg_cache_reported_input=Sum(
+                    "messages__input_tokens",
+                    filter=Q(messages__cache_read_tokens__isnull=False),
+                ),
                 # Aggregated rather than resolved per row: the list returns many
                 # threads, so a SerializerMethodField here would be an N+1.
                 # Blank models are excluded so a thread mixing tracked and
@@ -832,23 +882,29 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
                 ),
             )
             .annotate(
-                input_tokens=Case(
-                    When(
-                        _msg_input__isnull=True,
-                        title_gen_input_tokens__isnull=True,
-                        then=None,
-                    ),
-                    default=Coalesce("_msg_input", Value(0))
-                    + Coalesce("title_gen_input_tokens", Value(0)),
+                input_tokens=_with_title_gen("_msg_input", "title_gen_input_tokens"),
+                output_tokens=_with_title_gen("_msg_output", "title_gen_output_tokens"),
+                cache_read_tokens=_with_title_gen(
+                    "_msg_cache_read", "title_gen_cache_read_tokens"
                 ),
-                output_tokens=Case(
+                cache_write_tokens=_with_title_gen(
+                    "_msg_cache_write", "title_gen_cache_write_tokens"
+                ),
+                _cache_reported_input=Coalesce("_msg_cache_reported_input", Value(0))
+                + Case(
                     When(
-                        _msg_output__isnull=True,
-                        title_gen_output_tokens__isnull=True,
-                        then=None,
+                        title_gen_cache_read_tokens__isnull=False,
+                        then=Coalesce("title_gen_input_tokens", Value(0)),
                     ),
-                    default=Coalesce("_msg_output", Value(0))
-                    + Coalesce("title_gen_output_tokens", Value(0)),
+                    default=Value(0),
+                ),
+            )
+            .annotate(
+                cache_ratio=Case(
+                    When(_cache_reported_input=0, then=None),
+                    default=Cast("cache_read_tokens", FloatField())
+                    / Cast("_cache_reported_input", FloatField()),
+                    output_field=FloatField(),
                 ),
             )
             .annotate(
@@ -977,6 +1033,12 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
             messages_total=Count("id"),
             input_tokens_total=Sum("input_tokens"),
             output_tokens_total=Sum("output_tokens"),
+            cache_read_tokens_total=Sum("cache_read_tokens"),
+            cache_write_tokens_total=Sum("cache_write_tokens"),
+            # See _msg_cache_reported_input in get_queryset.
+            cache_reported_input=Sum(
+                "input_tokens", filter=Q(cache_read_tokens__isnull=False)
+            ),
             # feedback_score is a nullable boolean: True=up, False=down.
             feedback_positive=Count("id", filter=Q(feedback_score=True)),
             feedback_negative=Count("id", filter=Q(feedback_score=False)),
@@ -987,6 +1049,7 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
         total_human = positive + negative
         input_tokens_total = msg_agg["input_tokens_total"] or 0
         output_tokens_total = msg_agg["output_tokens_total"] or 0
+        cache_reported_input = msg_agg["cache_reported_input"] or 0
 
         payload = {
             "threads_total": thread_agg["threads_total"] or 0,
@@ -996,6 +1059,15 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
             "input_tokens_total": input_tokens_total,
             "output_tokens_total": output_tokens_total,
             "total_tokens": input_tokens_total + output_tokens_total,
+            # Unlike the totals above, null rather than 0 when no turn reported
+            # them: vLLM never reports writes, and 0 would claim a measurement.
+            "cache_read_tokens_total": msg_agg["cache_read_tokens_total"],
+            "cache_write_tokens_total": msg_agg["cache_write_tokens_total"],
+            "cache_ratio": (
+                (msg_agg["cache_read_tokens_total"] or 0) / cache_reported_input
+                if cache_reported_input
+                else None
+            ),
             "flagged_total": thread_agg["flagged_total"] or 0,
             "feedback_positive": positive,
             "feedback_negative": negative,

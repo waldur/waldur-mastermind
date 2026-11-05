@@ -232,6 +232,11 @@ class AnonymousChatInteraction(models.Model):
     # Null on rows written before this was tracked.
     input_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
     output_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
+    # See Message.cache_read_tokens: subsets of input_tokens, null when unreported.
+    cache_read_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
+    cache_write_tokens = models.PositiveIntegerField(
+        null=True, blank=True, default=None
+    )
 
     # Snapshot of config.AI_ASSISTANT_MODEL at generation time — see the matching
     # field on chat.models.Message for the rationale.

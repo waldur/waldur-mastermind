@@ -338,6 +338,24 @@ class ThreadSession(UuidMixin, TimeStampedModel):
         default=None,
         help_text=_("Output tokens consumed by the title generation LLM call."),
     )
+    title_gen_cache_read_tokens = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "Part of title_gen_input_tokens served from the provider's prompt cache. "
+            "Null when the provider did not report it."
+        ),
+    )
+    title_gen_cache_write_tokens = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "Part of title_gen_input_tokens written to the provider's prompt cache. "
+            "Null when the provider did not report it."
+        ),
+    )
 
     class Meta:
         verbose_name = _("Thread session")
@@ -404,6 +422,15 @@ class Message(UuidMixin, TimeStampedModel):
     # Token usage tracking (populated on assistant messages only)
     input_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
     output_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
+    # Both are subsets of input_tokens, not extra buckets: reads were served from
+    # the provider's prompt cache, writes were added to it. Null means the
+    # provider did not report the figure (vLLM never reports writes, nor reads
+    # without --enable-prompt-tokens-details; rows written before tracking),
+    # which is not the same as 0.
+    cache_read_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
+    cache_write_tokens = models.PositiveIntegerField(
+        null=True, blank=True, default=None
+    )
 
     # Snapshot of config.AI_ASSISTANT_MODEL at generation time. The setting is a
     # single mutable global, so reading it back later would misattribute every

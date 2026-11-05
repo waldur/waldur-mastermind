@@ -920,6 +920,116 @@ class LLMStreamerUsageRecordingTest(_LLMStreamerTestBase, drf_test.APITestCase):
         self.assertEqual(quota.monthly_usage, 0)
 
 
+class LLMStreamerCachedTokensTest(_LLMStreamerTestBase, unittest.TestCase):
+    def test_accumulates_cache_read_tokens_across_usage_reports(self):
+        chunks = [
+            _make_chunk(content="Hello"),
+            _make_chunk(
+                usage={
+                    "prompt_tokens": 68,
+                    "completion_tokens": 10,
+                    "cache_read_tokens": 64,
+                }
+            ),
+            _make_chunk(
+                usage={
+                    "prompt_tokens": 90,
+                    "completion_tokens": 5,
+                    "cache_read_tokens": 32,
+                }
+            ),
+        ]
+        streamer = self._make_streamer(chunks)
+        list(streamer)
+
+        self.assertEqual(streamer.cache_read_tokens, 96)
+
+    def test_cache_read_tokens_stay_none_when_provider_does_not_report_them(self):
+        chunks = [
+            _make_chunk(content="Hello"),
+            _make_chunk(usage={"prompt_tokens": 68, "completion_tokens": 10}),
+        ]
+        streamer = self._make_streamer(chunks)
+        list(streamer)
+
+        self.assertIsNone(streamer.cache_read_tokens)
+
+    def test_reported_zero_is_kept_apart_from_not_reported(self):
+        chunks = [
+            _make_chunk(content="Hello"),
+            _make_chunk(
+                usage={
+                    "prompt_tokens": 68,
+                    "completion_tokens": 10,
+                    "cache_read_tokens": 0,
+                }
+            ),
+        ]
+        streamer = self._make_streamer(chunks)
+        list(streamer)
+
+        self.assertEqual(streamer.cache_read_tokens, 0)
+
+    def test_accumulates_cache_writes_reported_in_prompt_details(self):
+        # LiteLLM's OpenAI-style naming.
+        chunks = [
+            _make_chunk(content="Hello"),
+            _make_chunk(
+                usage={
+                    "prompt_tokens": 900,
+                    "completion_tokens": 10,
+                    "cache_write_tokens": 800,
+                }
+            ),
+            _make_chunk(
+                usage={
+                    "prompt_tokens": 950,
+                    "completion_tokens": 5,
+                    "cache_read_tokens": 800,
+                    "cache_write_tokens": 40,
+                }
+            ),
+        ]
+        streamer = self._make_streamer(chunks)
+        list(streamer)
+
+        self.assertEqual(streamer.cache_write_tokens, 840)
+        self.assertEqual(streamer.cache_read_tokens, 800)
+
+    def test_reads_cache_writes_reported_anthropic_style(self):
+        chunks = [
+            _make_chunk(content="Hello"),
+            _make_chunk(
+                usage={
+                    "prompt_tokens": 900,
+                    "completion_tokens": 10,
+                    "cache_creation_input_tokens": 800,
+                }
+            ),
+        ]
+        streamer = self._make_streamer(chunks)
+        list(streamer)
+
+        self.assertEqual(streamer.cache_write_tokens, 800)
+
+    def test_cache_writes_stay_none_when_provider_does_not_report_them(self):
+        # vLLM reports reads only.
+        chunks = [
+            _make_chunk(content="Hello"),
+            _make_chunk(
+                usage={
+                    "prompt_tokens": 68,
+                    "completion_tokens": 10,
+                    "cache_read_tokens": 64,
+                }
+            ),
+        ]
+        streamer = self._make_streamer(chunks)
+        list(streamer)
+
+        self.assertIsNone(streamer.cache_write_tokens)
+
+
 class LLMStreamerErrorMessagesTest(_LLMStreamerTestBase, unittest.TestCase):
     """Test that specific OpenAI errors yield distinct user-facing messages."""
 

@@ -220,6 +220,8 @@ def _wrap_stream_with_anon_finalization(
                 # output into one total, so the split survives only on the row.
                 interaction_locked.input_tokens = streamer.input_tokens
                 interaction_locked.output_tokens = streamer.output_tokens
+                interaction_locked.cache_read_tokens = streamer.cache_read_tokens
+                interaction_locked.cache_write_tokens = streamer.cache_write_tokens
                 if detection_action != DetectionAction.ALLOW:
                     interaction_locked.action_taken = detection_action.value
                 if detection_warning:
@@ -233,6 +235,8 @@ def _wrap_stream_with_anon_finalization(
                         "last_active_at",
                         "input_tokens",
                         "output_tokens",
+                        "cache_read_tokens",
+                        "cache_write_tokens",
                         "action_taken",
                         "warning",
                     ]
@@ -869,6 +873,13 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             # query below precisely to keep this GROUP BY from multiplying.
             input_tokens_total=Sum("input_tokens"),
             output_tokens_total=Sum("output_tokens"),
+            cache_read_tokens_total=Sum("cache_read_tokens"),
+            cache_write_tokens_total=Sum("cache_write_tokens"),
+            # Pre-tracking turns stay out of the ratio's denominator, or they
+            # would read as cache misses.
+            cache_reported_input=Sum(
+                "input_tokens", filter=Q(cache_read_tokens__isnull=False)
+            ),
             # An ask_user tool block persisted in the turn marks it as a
             # clarifying question rather than a recommendation.
             clarification_requests_total=Count(
@@ -913,6 +924,7 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
         clarification_requests_total = agg["clarification_requests_total"] or 0
         searches_total = agg["searches_total"] or 0
         no_result_searches_total = agg["no_result_searches_total"] or 0
+        cache_reported_input = agg["cache_reported_input"] or 0
 
         payload = {
             "interactions_total": interactions_total,
@@ -941,6 +953,15 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             # Null on an empty set, and on turns predating token capture.
             "input_tokens_total": agg["input_tokens_total"] or 0,
             "output_tokens_total": agg["output_tokens_total"] or 0,
+            # Unlike the totals above, null rather than 0 when no turn reported
+            # them: vLLM never reports writes, and 0 would claim a measurement.
+            "cache_read_tokens_total": agg["cache_read_tokens_total"],
+            "cache_write_tokens_total": agg["cache_write_tokens_total"],
+            "cache_ratio": (
+                (agg["cache_read_tokens_total"] or 0) / cache_reported_input
+                if cache_reported_input
+                else None
+            ),
         }
 
         reviewed_qs = anonymous_models.AnonymousChatFeedback.objects.filter(
