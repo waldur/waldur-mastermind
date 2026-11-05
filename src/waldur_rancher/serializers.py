@@ -879,6 +879,15 @@ class RancherTemplateSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
+# backend_id is the id the backend puts into Rancher API paths, and the error
+# and runtime fields mirror Rancher: only Waldur and the pull set them. The
+# serializers below do not inherit BaseResourceSerializer.Meta, so they say so.
+RESOURCE_READ_ONLY_FIELDS = (
+    structure_serializers.BaseResourceSerializer.Meta.read_only_fields
+    + ("runtime_state",)
+)
+
+
 class RancherApplicationSerializer(structure_serializers.BaseResourceSerializer):
     version = serializers.CharField()
     namespace_name = serializers.CharField(required=False, write_only=True)
@@ -890,6 +899,7 @@ class RancherApplicationSerializer(structure_serializers.BaseResourceSerializer)
     class Meta:
         model = models.Application
         view_name = "rancher-app-detail"
+        read_only_fields = RESOURCE_READ_ONLY_FIELDS
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             "runtime_state",
             "template",
@@ -1245,6 +1255,7 @@ class RancherIngressSerializer(structure_serializers.BaseResourceSerializer):
     class Meta:
         model = models.Ingress
         view_name = "rancher-ingress-detail"
+        read_only_fields = RESOURCE_READ_ONLY_FIELDS
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             "runtime_state",
             "rancher_project",
@@ -1325,6 +1336,7 @@ class RancherServiceSerializer(structure_serializers.BaseResourceSerializer):
     class Meta:
         model = models.Service
         view_name = "rancher-service-detail"
+        read_only_fields = RESOURCE_READ_ONLY_FIELDS
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             "runtime_state",
             "namespace",
