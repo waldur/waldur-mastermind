@@ -260,6 +260,26 @@ class JobsTest(HpcWorkspaceTestBase):
         self.assertIn("module load GROMACS/2024.1-foss-2023b", job["script"])
 
     @responses.activate
+    def test_submit_writes_the_job_files(self):
+        submit = responses.post(
+            f"{API_URL}/compute/{SYSTEM}/jobs", json={"jobId": 43}, status=201
+        )
+        response = self.client.post(
+            self.url("jobs"),
+            {
+                "name": "prog",
+                "commands": "python3 prog.py",
+                "files": [{"name": "prog.py", "content": "print(1)\n"}],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        job = json.loads(submit.calls[0].request.body)["job"]
+        self.assertIn(
+            "cat > prog.py <<'EOF'\nprint(1)\nEOF\n\npython3 prog.py\n", job["script"]
+        )
+
+    @responses.activate
     def test_submit_beyond_partition_limit_is_refused_before_firecrest(self):
         factories.OfferingPartitionFactory(
             offering=self.offering, partition_name="batch", max_time=60, max_nodes=2
@@ -299,6 +319,69 @@ class JobsTest(HpcWorkspaceTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("#SBATCH --partition=gpu", response.data["script"])
         self.assertTrue(response.data["errors"])
+
+    def test_preview_writes_the_job_files_before_the_commands(self):
+        program = 'print("EOF")\nEOF\nx = "$HOME"\n'
+        response = self.client.post(
+            self.url("preview-script"),
+            {
+                "name": "x",
+                "commands": "python3 prog.py",
+                "files": [{"name": "prog.py", "content": program}],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        script = response.data["script"]
+        # A line "EOF" in the file must not end the here-document early, and
+        # the quoted delimiter keeps $HOME as written.
+        self.assertIn(
+            "cat > prog.py <<'_EOF_'\n"
+            'print("EOF")\nEOF\nx = "$HOME"\n_EOF_\n\npython3 prog.py\n',
+            script,
+        )
+
+    def test_job_files_are_plain_visible_names_written_once(self):
+        for files in (
+            [{"name": "../prog.py", "content": "x"}],
+            [{"name": "dir/prog.py", "content": "x"}],
+            [{"name": "..", "content": "x"}],
+            [{"name": ".bashrc", "content": "x"}],
+            [{"name": "a.py", "content": "1"}, {"name": "a.py", "content": "2"}],
+            [{"name": f"f{i}.py", "content": "x"} for i in range(17)],
+            [{"name": f"f{i}.py", "content": "x" * 60000} for i in range(5)],
+        ):
+            response = self.client.post(
+                self.url("preview-script"),
+                {"name": "x", "commands": "true", "files": files},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, files)
+
+    def test_files_are_written_in_order_each_ending_with_one_newline(self):
+        response = self.client.post(
+            self.url("preview-script"),
+            {
+                "name": "x",
+                "commands": "python3 a.py b.txt",
+                "modules": ["module load Python/3.11.5-GCCcore-13.2.0"],
+                "files": [
+                    {"name": "a.py", "content": "print(1)"},
+                    {"name": "b.txt", "content": "x\r\ny\n\n"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            response.data["script"].endswith(
+                "module load Python/3.11.5-GCCcore-13.2.0\n\n"
+                "cat > a.py <<'EOF'\nprint(1)\nEOF\n\n"
+                "cat > b.txt <<'EOF'\nx\r\ny\nEOF\n\n"
+                "python3 a.py b.txt\n"
+            ),
+            response.data["script"],
+        )
 
     @responses.activate
     def test_job_output_tails_stdout(self):

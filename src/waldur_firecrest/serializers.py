@@ -3,7 +3,7 @@ from rest_framework import serializers
 from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import monitoring, workspace
+from . import monitoring, scripts, workspace
 
 TIME_WINDOW_CHOICES = list(workspace.WINDOW_SECONDS)
 
@@ -218,6 +218,21 @@ class HpcJobListQuerySerializer(serializers.Serializer):
     )
 
 
+class HpcJobFileSerializer(serializers.Serializer):
+    name = serializers.RegexField(
+        scripts.FILE_NAME_PATTERN,
+        max_length=128,
+        error_messages={
+            "invalid": "A plain file name of letters, digits, '.', '_' or '-', "
+            "not starting with '.': no directories, no hidden files."
+        },
+        help_text="File name in the job's working directory, e.g. 'matmul.py'.",
+    )
+    content = serializers.CharField(
+        max_length=64 * 1024, trim_whitespace=False, help_text="File content."
+    )
+
+
 class HpcJobSpecSerializer(serializers.Serializer):
     name = serializers.RegexField(r"^[A-Za-z0-9._-]{1,128}$", max_length=128)
     commands = serializers.CharField(
@@ -243,6 +258,30 @@ class HpcJobSpecSerializer(serializers.Serializer):
     environment = serializers.DictField(
         child=serializers.CharField(), required=False, default=dict
     )
+    files = HpcJobFileSerializer(
+        many=True,
+        required=False,
+        default=list,
+        help_text="Files written into the working directory before the commands "
+        "run, such as the program the job runs.",
+    )
+
+    def validate_files(self, files):
+        if len(files) > scripts.MAX_JOB_FILES:
+            raise serializers.ValidationError(
+                f"A job writes at most {scripts.MAX_JOB_FILES} files."
+            )
+        if sum(len(f["content"]) for f in files) > scripts.MAX_JOB_FILES_SIZE:
+            raise serializers.ValidationError(
+                f"The files come to more than {scripts.MAX_JOB_FILES_SIZE // 1024} KiB."
+            )
+        names = [f["name"] for f in files]
+        repeated = sorted({name for name in names if names.count(name) > 1})
+        if repeated:
+            raise serializers.ValidationError(
+                f"Each file is written once; repeated: {', '.join(repeated)}."
+            )
+        return files
 
     def validate_modules(self, modules):
         for line in modules:

@@ -75,6 +75,10 @@ class _HpcJobBlockSerializer(_BaseBlockSerializer):
     cluster = serializers.CharField(required=False, allow_blank=True)
     partition = serializers.CharField(required=False, allow_blank=True)
     script = serializers.CharField(required=False, allow_blank=True)
+    files = serializers.ListField(
+        required=False,
+        child=serializers.DictField(child=serializers.CharField(trim_whitespace=False)),
+    )
     errors = serializers.ListField(required=False, child=serializers.CharField())
     warnings = serializers.ListField(required=False, child=serializers.CharField())
     job_id = serializers.CharField(required=False, allow_blank=True)
