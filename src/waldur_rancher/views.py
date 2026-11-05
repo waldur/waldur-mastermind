@@ -20,13 +20,13 @@ from rest_framework.exceptions import (
     PermissionDenied,
     ValidationError,
 )
-from rest_framework.permissions import SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
-from waldur_core.core.permissions import has_staff_access
+from waldur_core.core.permissions import ActionsPermission, has_staff_access
 from waldur_core.core.serializers import DetailSerializer
 from waldur_core.structure import exceptions as structure_exceptions
 from waldur_core.structure import filters as structure_filters
@@ -847,6 +847,10 @@ class RancherClusterSecurityGroupsViewSet(
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.ClusterSecurityGroupFilter
     lookup_field = "uuid"
+    permission_classes = (IsAuthenticated, ActionsPermission)
+    # Setting the rules changes the cluster's firewall, so it takes what
+    # changing the cluster takes; seeing the cluster is not enough.
+    unsafe_methods_permissions = [is_administrator]
 
     def perform_update(self, serializer):
         cluster_security_group: models.ClusterSecurityGroup = serializer.save()
