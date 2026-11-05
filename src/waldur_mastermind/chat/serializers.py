@@ -368,6 +368,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "created",
             "input_tokens",
             "output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
             "is_flagged",
             "severity",
             "injection_categories",
@@ -388,6 +390,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "replaces",
             "input_tokens",
             "output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
             "is_flagged",
             "severity",
             "injection_categories",
@@ -469,6 +473,39 @@ class ThreadSessionSerializer(
     title_gen_output_tokens = serializers.IntegerField(
         read_only=True, required=False, allow_null=True
     )
+    cache_read_tokens = serializers.IntegerField(
+        read_only=True,
+        required=False,
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens served from the provider's prompt cache, title "
+            "generation included. Null when the provider never reported it."
+        ),
+    )
+    title_gen_cache_read_tokens = serializers.IntegerField(
+        read_only=True, required=False, allow_null=True
+    )
+    cache_write_tokens = serializers.IntegerField(
+        read_only=True,
+        required=False,
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens written to the provider's prompt cache, title "
+            "generation included. Null when the provider never reported it."
+        ),
+    )
+    title_gen_cache_write_tokens = serializers.IntegerField(
+        read_only=True, required=False, allow_null=True
+    )
+    cache_ratio = serializers.FloatField(
+        read_only=True,
+        required=False,
+        allow_null=True,
+        help_text=(
+            "cache_read_tokens / input_tokens, counting only turns whose provider "
+            "reported a cache figure. Null when none did."
+        ),
+    )
     user_username = serializers.CharField(
         source="chat_session.user.username", read_only=True
     )
@@ -502,6 +539,11 @@ class ThreadSessionSerializer(
             "total_tokens",
             "title_gen_input_tokens",
             "title_gen_output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "title_gen_cache_read_tokens",
+            "title_gen_cache_write_tokens",
+            "cache_ratio",
             "models_used",
             "is_flagged",
             "max_severity",
@@ -523,6 +565,11 @@ class ThreadSessionSerializer(
             "total_tokens",
             "title_gen_input_tokens",
             "title_gen_output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "title_gen_cache_read_tokens",
+            "title_gen_cache_write_tokens",
+            "cache_ratio",
             "user_username",
             "user_full_name",
         )
@@ -553,6 +600,27 @@ class ChatThreadStatsResponseSerializer(serializers.Serializer):
     input_tokens_total = serializers.IntegerField()
     output_tokens_total = serializers.IntegerField()
     total_tokens = serializers.IntegerField()
+    cache_read_tokens_total = serializers.IntegerField(
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens_total served from the provider's prompt cache; "
+            "null when no turn reported it."
+        ),
+    )
+    cache_write_tokens_total = serializers.IntegerField(
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens_total written to the provider's prompt cache; "
+            "null when no turn reported it."
+        ),
+    )
+    cache_ratio = serializers.FloatField(
+        allow_null=True,
+        help_text=(
+            "cache_read_tokens_total over the input of turns whose provider reported "
+            "a cache figure; null when none did."
+        ),
+    )
     flagged_total = serializers.IntegerField(
         help_text="Threads carrying at least one flagged message."
     )

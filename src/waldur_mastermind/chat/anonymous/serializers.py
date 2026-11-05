@@ -149,6 +149,8 @@ class AnonymousChatInteractionSerializer(serializers.ModelSerializer):
             "click_count",
             "input_tokens",
             "output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
             "offering_uuids",
             "result_count",
             "is_flagged",
@@ -243,6 +245,27 @@ class AnonymousChatKpiResponseSerializer(serializers.Serializer):
     )
     output_tokens_total = serializers.IntegerField(
         help_text="Completion tokens summed over the filtered turns."
+    )
+    cache_read_tokens_total = serializers.IntegerField(
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens_total served from the provider's prompt cache; "
+            "null when no turn reported it."
+        ),
+    )
+    cache_write_tokens_total = serializers.IntegerField(
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens_total written to the provider's prompt cache; "
+            "null when no turn reported it."
+        ),
+    )
+    cache_ratio = serializers.FloatField(
+        allow_null=True,
+        help_text=(
+            "cache_read_tokens_total over the input of turns whose provider reported "
+            "a cache figure; null when none did."
+        ),
     )
 
     reviewed_total = serializers.IntegerField(
@@ -356,6 +379,27 @@ class AnonymousChatConversationSerializer(serializers.Serializer):
     )
     total_tokens = serializers.IntegerField(
         help_text="input_tokens + output_tokens. Excludes LLM judge spend, which runs on its own budget."
+    )
+    cache_read_tokens = serializers.IntegerField(
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens served from the provider's prompt cache; null "
+            "when no turn in the conversation reported it."
+        ),
+    )
+    cache_write_tokens = serializers.IntegerField(
+        allow_null=True,
+        help_text=(
+            "Part of input_tokens written to the provider's prompt cache; null "
+            "when no turn in the conversation reported it."
+        ),
+    )
+    cache_ratio = serializers.FloatField(
+        allow_null=True,
+        help_text=(
+            "cache_read_tokens over the input of turns whose provider reported a "
+            "cache figure; null when none did."
+        ),
     )
     started = serializers.DateTimeField(allow_null=True)
     last_active = serializers.DateTimeField(allow_null=True)

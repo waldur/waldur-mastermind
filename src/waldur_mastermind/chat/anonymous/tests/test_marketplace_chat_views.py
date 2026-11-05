@@ -175,6 +175,29 @@ class StreamHappyPathTest(test.APITestCase):
         self.assertEqual(interaction.output_tokens, 20)
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE)
+    def test_persists_cache_tokens_on_the_interaction(self, mock_openai_cls):
+        mock_openai_cls.return_value = _mock_openai_client(
+            [
+                _make_content_chunk("Hello!"),
+                _make_usage_chunk(10, 20, cache_read_tokens=8, cache_write_tokens=2),
+            ]
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "input": "what HPC services do you have?",
+                "session_id": "session-abc",
+            },
+        )
+        b"".join(response.streaming_content)
+
+        interaction = anonymous_models.AnonymousChatInteraction.objects.get()
+        self.assertEqual(interaction.cache_read_tokens, 8)
+        self.assertEqual(interaction.cache_write_tokens, 2)
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(**_ANONYMOUS_LIVE, AI_ASSISTANT_MODEL="test-model")
     def test_persists_the_model_that_produced_the_turn(self, mock_openai_cls):
         mock_openai_cls.return_value = _mock_openai_client(

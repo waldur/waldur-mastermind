@@ -342,3 +342,155 @@ class ThreadModelsUsedTest(test.APITestCase):
             [row["models_used"] for row in response.data],
             ["alpha-model", "zeta-model"],
         )
+
+
+@override_constance_config(
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
+)
+class ChatCachedTokensTest(test.APITestCase):
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=self.staff)
+        self.session = ChatSession.objects.create(user=self.staff)
+        self.list_url = reverse("chat-thread-list")
+        self.stats_url = reverse("chat-thread-stats")
+
+    def _message(self, thread, index, **kwargs):
+        return Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            blocks=[],
+            sequence_index=index,
+            **kwargs,
+        )
+
+    def test_thread_sums_cache_tokens_including_title_generation(self):
+        thread = ThreadSession.objects.create(
+            chat_session=self.session,
+            title_gen_input_tokens=20,
+            title_gen_cache_read_tokens=10,
+            title_gen_cache_write_tokens=5,
+        )
+        self._message(
+            thread, 1, input_tokens=100, cache_read_tokens=60, cache_write_tokens=30
+        )
+        # Writes are reported on their own: a turn can report reads only.
+        self._message(thread, 2, input_tokens=80, cache_read_tokens=50)
+
+        [row] = self.client.get(self.list_url).data
+
+        self.assertEqual(row["cache_read_tokens"], 120)
+        self.assertEqual(row["title_gen_cache_read_tokens"], 10)
+        self.assertEqual(row["cache_write_tokens"], 35)
+        self.assertEqual(row["title_gen_cache_write_tokens"], 5)
+        self.assertAlmostEqual(row["cache_ratio"], 120 / 200)
+
+    def test_thread_ratio_ignores_turns_that_did_not_report_cache(self):
+        # The first turn predates cache tracking: counting its input in the
+        # denominator would read as poor caching rather than missing data.
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        self._message(thread, 1, input_tokens=1000)
+        self._message(thread, 2, input_tokens=100, cache_read_tokens=75)
+
+        [row] = self.client.get(self.list_url).data
+
+        self.assertEqual(row["cache_read_tokens"], 75)
+        self.assertAlmostEqual(row["cache_ratio"], 0.75)
+
+    def test_thread_cache_fields_are_null_when_nothing_reported(self):
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        self._message(thread, 1, input_tokens=100)
+
+        [row] = self.client.get(self.list_url).data
+
+        self.assertIsNone(row["cache_read_tokens"])
+        self.assertIsNone(row["cache_write_tokens"])
+        self.assertIsNone(row["cache_ratio"])
+
+    def test_thread_ratio_is_zero_when_reported_but_nothing_cached(self):
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        self._message(thread, 1, input_tokens=100, cache_read_tokens=0)
+
+        [row] = self.client.get(self.list_url).data
+
+        self.assertEqual(row["cache_read_tokens"], 0)
+        self.assertEqual(row["cache_ratio"], 0.0)
+
+    def test_threads_can_be_ordered_by_cache_ratio(self):
+        low = ThreadSession.objects.create(chat_session=self.session, name="low")
+        self._message(low, 1, input_tokens=100, cache_read_tokens=10)
+        high = ThreadSession.objects.create(chat_session=self.session, name="high")
+        self._message(high, 1, input_tokens=100, cache_read_tokens=90)
+
+        response = self.client.get(self.list_url, {"o": "-cache_ratio"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["name"] for row in response.data], ["high", "low"])
+
+    def test_threads_without_a_cache_figure_sort_last_both_ways(self):
+        # Every thread from before tracking has no ratio; sorted first they
+        # would bury the threads that do have one under a page of dashes.
+        unreported = ThreadSession.objects.create(
+            chat_session=self.session, name="unreported"
+        )
+        self._message(unreported, 1, input_tokens=100)
+        low = ThreadSession.objects.create(chat_session=self.session, name="low")
+        self._message(
+            low, 1, input_tokens=100, cache_read_tokens=10, cache_write_tokens=1
+        )
+        high = ThreadSession.objects.create(chat_session=self.session, name="high")
+        self._message(
+            high, 1, input_tokens=100, cache_read_tokens=90, cache_write_tokens=9
+        )
+
+        for ordering, expected in (
+            ("-cache_ratio", ["high", "low", "unreported"]),
+            ("cache_ratio", ["low", "high", "unreported"]),
+            ("-cache_read_tokens", ["high", "low", "unreported"]),
+            ("-cache_write_tokens", ["high", "low", "unreported"]),
+            ("cache_write_tokens", ["low", "high", "unreported"]),
+        ):
+            response = self.client.get(self.list_url, {"o": ordering})
+            self.assertEqual([row["name"] for row in response.data], expected, ordering)
+
+    def test_threads_can_be_ordered_by_cache_read_tokens(self):
+        small = ThreadSession.objects.create(chat_session=self.session, name="small")
+        self._message(small, 1, input_tokens=100, cache_read_tokens=10)
+        large = ThreadSession.objects.create(chat_session=self.session, name="large")
+        self._message(large, 1, input_tokens=100, cache_read_tokens=90)
+
+        response = self.client.get(self.list_url, {"o": "cache_read_tokens"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["name"] for row in response.data], ["small", "large"])
+
+    def test_stats_report_cache_totals_and_ratio_over_reporting_turns(self):
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        self._message(thread, 1, input_tokens=1000)
+        self._message(
+            thread, 2, input_tokens=100, cache_read_tokens=40, cache_write_tokens=5
+        )
+        self._message(
+            thread, 3, input_tokens=300, cache_read_tokens=260, cache_write_tokens=15
+        )
+
+        data = self.client.get(self.stats_url).data
+
+        self.assertEqual(data["cache_read_tokens_total"], 300)
+        self.assertEqual(data["cache_write_tokens_total"], 20)
+        self.assertAlmostEqual(data["cache_ratio"], 300 / 400)
+
+    def test_stats_cache_figures_are_null_when_no_turn_reported_them(self):
+        # Not 0: vLLM never reports writes, and "0 written to cache" would
+        # claim a figure nobody measured.
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        self._message(thread, 1, input_tokens=1000)
+
+        data = self.client.get(self.stats_url).data
+
+        self.assertIsNone(data["cache_read_tokens_total"])
+        self.assertIsNone(data["cache_write_tokens_total"])
+        self.assertIsNone(data["cache_ratio"])

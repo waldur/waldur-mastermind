@@ -169,6 +169,15 @@ def conversation_queryset(qs):
             # conversation-level name.
             input_tokens_sum=Coalesce(Sum("input_tokens"), Value(0)),
             output_tokens_sum=Coalesce(Sum("output_tokens"), Value(0)),
+            # Left null rather than coalesced: unlike the totals above, "no
+            # turn reported a cache figure" must not read as "nothing cached".
+            cache_read_tokens_sum=Sum("cache_read_tokens"),
+            cache_write_tokens_sum=Sum("cache_write_tokens"),
+            # Only turns that reported a cache figure can be measured against
+            # it; pre-tracking turns would otherwise read as cache misses.
+            cache_reported_input_sum=Sum(
+                "input_tokens", filter=Q(cache_read_tokens__isnull=False)
+            ),
             total_tokens=Coalesce(Sum("input_tokens"), Value(0))
             + Coalesce(Sum("output_tokens"), Value(0)),
             started=Min("created"),
@@ -227,6 +236,13 @@ def session_aggregates(qs, grouped=None):
                 "input_tokens": row["input_tokens_sum"],
                 "output_tokens": row["output_tokens_sum"],
                 "total_tokens": row["total_tokens"],
+                "cache_read_tokens": row["cache_read_tokens_sum"],
+                "cache_write_tokens": row["cache_write_tokens_sum"],
+                "cache_ratio": (
+                    (row["cache_read_tokens_sum"] / row["cache_reported_input_sum"])
+                    if row["cache_reported_input_sum"]
+                    else None
+                ),
                 "started": row["started"],
                 "last_active": row["last_active"],
             }

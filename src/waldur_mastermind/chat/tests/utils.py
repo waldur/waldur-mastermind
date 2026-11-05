@@ -2,6 +2,7 @@
 
 import json
 from contextlib import contextmanager
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import jsonschema
@@ -83,21 +84,46 @@ def _make_content_chunk(content):
     return chunk
 
 
-def _make_usage_chunk(input_tokens, output_tokens):
+def _set_usage(usage, figures):
+    """Fill a usage mock the way providers shape their cache figures.
+
+    Every cache attribute is set explicitly, None included: MagicMock would
+    otherwise invent one, and a provider that reports nothing sends no
+    prompt_tokens_details at all. Writes arrive under LiteLLM's OpenAI-style
+    ``prompt_tokens_details.cache_write_tokens`` or as the Anthropic-style
+    ``cache_creation_input_tokens`` LiteLLM also puts on the usage itself.
+    """
+    usage.prompt_tokens = figures.get("prompt_tokens", 0)
+    usage.completion_tokens = figures.get("completion_tokens", 0)
+    read = figures.get("cache_read_tokens")
+    write = figures.get("cache_write_tokens")
+    usage.prompt_tokens_details = (
+        None
+        if read is None and write is None
+        else SimpleNamespace(cached_tokens=read, cache_write_tokens=write)
+    )
+    usage.cache_creation_input_tokens = figures.get("cache_creation_input_tokens")
+
+
+def _make_usage_chunk(input_tokens, output_tokens, **cache_figures):
     """Build a mock final usage-only chunk (no choices)."""
     chunk = MagicMock()
     chunk.choices = []
     chunk.usage = MagicMock()
-    chunk.usage.prompt_tokens = input_tokens
-    chunk.usage.completion_tokens = output_tokens
+    _set_usage(
+        chunk.usage,
+        {"prompt_tokens": input_tokens, "completion_tokens": output_tokens}
+        | cache_figures,
+    )
     return chunk
 
 
 def _make_chunk(content=None, tool_calls=None, usage=None):
     """Build a mock OpenAI ChatCompletionChunk (unified form).
 
-    Pass ``usage`` dict with 'prompt_tokens'/'completion_tokens' for a
-    usage-only chunk; otherwise pass ``content`` and/or ``tool_calls``.
+    Pass ``usage`` dict with 'prompt_tokens'/'completion_tokens' (and
+    optionally the cache figures ``_set_usage`` takes) for a usage-only chunk; otherwise pass
+    ``content`` and/or ``tool_calls``.
     """
     chunk = MagicMock()
     chunk.usage = None
@@ -105,8 +131,7 @@ def _make_chunk(content=None, tool_calls=None, usage=None):
     if usage is not None:
         chunk.choices = []
         chunk.usage = MagicMock()
-        chunk.usage.prompt_tokens = usage.get("prompt_tokens", 0)
-        chunk.usage.completion_tokens = usage.get("completion_tokens", 0)
+        _set_usage(chunk.usage, usage)
     else:
         delta = MagicMock()
         delta.content = content

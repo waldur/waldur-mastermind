@@ -529,6 +529,74 @@ class ConversationTokenRollupTest(test.APITestCase):
         self.assertEqual(row["total_tokens"], 0)
 
 
+class AnonymousCachedTokensTest(test.APITestCase):
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=self.staff)
+        self.conversations_url = reverse("anonymous-chat-interaction-conversations")
+        self.kpi_url = reverse("anonymous-chat-interaction-kpi")
+        self.list_url = reverse("anonymous-chat-interaction-list")
+
+    def test_interaction_exposes_cache_tokens(self):
+        _make_interaction(input_tokens=100, cache_read_tokens=64, cache_write_tokens=12)
+
+        [row] = self.client.get(self.list_url).data
+
+        self.assertEqual(row["cache_read_tokens"], 64)
+        self.assertEqual(row["cache_write_tokens"], 12)
+
+    def test_conversation_sums_cache_tokens_and_ratio_over_reporting_turns(self):
+        # The first turn predates cache tracking and stays out of the ratio.
+        _make_interaction(session_id="s1", input_tokens=1000)
+        _make_interaction(
+            session_id="s1",
+            input_tokens=100,
+            cache_read_tokens=40,
+            cache_write_tokens=5,
+        )
+        _make_interaction(session_id="s1", input_tokens=300, cache_read_tokens=260)
+
+        [row] = self.client.get(self.conversations_url).data
+
+        self.assertEqual(row["cache_read_tokens"], 300)
+        self.assertEqual(row["cache_write_tokens"], 5)
+        self.assertAlmostEqual(row["cache_ratio"], 300 / 400)
+
+    def test_conversation_cache_fields_are_null_when_nothing_reported(self):
+        _make_interaction(session_id="s1", input_tokens=100)
+
+        [row] = self.client.get(self.conversations_url).data
+
+        self.assertIsNone(row["cache_read_tokens"])
+        self.assertIsNone(row["cache_write_tokens"])
+        self.assertIsNone(row["cache_ratio"])
+
+    def test_kpi_reports_cache_totals_and_ratio_over_reporting_turns(self):
+        _make_interaction(session_id="s1", input_tokens=1000)
+        _make_interaction(
+            session_id="s2",
+            input_tokens=100,
+            cache_read_tokens=40,
+            cache_write_tokens=5,
+        )
+        _make_interaction(session_id="s3", input_tokens=300, cache_read_tokens=260)
+
+        body = self.client.get(self.kpi_url).data
+
+        self.assertEqual(body["cache_read_tokens_total"], 300)
+        self.assertEqual(body["cache_write_tokens_total"], 5)
+        self.assertAlmostEqual(body["cache_ratio"], 300 / 400)
+
+    def test_kpi_cache_figures_are_null_when_no_turn_reported_them(self):
+        _make_interaction(session_id="s1", input_tokens=1000)
+
+        body = self.client.get(self.kpi_url).data
+
+        self.assertIsNone(body["cache_read_tokens_total"])
+        self.assertIsNone(body["cache_write_tokens_total"])
+        self.assertIsNone(body["cache_ratio"])
+
+
 class ConversationRangeFilterTest(test.APITestCase):
     """The range filters must select whole conversations.
 
