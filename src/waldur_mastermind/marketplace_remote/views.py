@@ -19,7 +19,11 @@ from rest_framework.response import Response
 from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
-from waldur_core.core.client import get_waldur_client
+from waldur_core.core.client import (
+    ClientValidationError,
+    describe_remote_error,
+    get_waldur_client,
+)
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
 from waldur_core.core.utils import is_uuid_like, serialize_instance
@@ -107,8 +111,10 @@ class RemoteView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         api_url = serializer.validated_data["api_url"]
         token = serializer.validated_data["token"]
-        client = get_waldur_client(api_url, token)
-        return client
+        try:
+            return get_waldur_client(api_url, token)
+        except ClientValidationError as e:
+            raise ValidationError({"api_url": [str(e)]})
 
 
 class CustomersView(RemoteView):
@@ -136,7 +142,9 @@ class CustomersView(RemoteView):
                 ],
             )
         except (UnexpectedStatus, TransportError) as e:
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
+            )
         return Response([customer.to_dict() for customer in customers])
 
 
@@ -156,7 +164,9 @@ class СategoriesView(RemoteView):
         try:
             сategories = marketplace_categories_list.sync_all(client=client)
         except (UnexpectedStatus, TransportError) as e:
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
+            )
         return Response([category.to_dict() for category in сategories])
 
 
@@ -197,7 +207,9 @@ class OfferingsListView(RemoteView):
                 ],
             )
         except (UnexpectedStatus, TransportError) as e:
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
+            )
 
         local_offerings = list(
             models.Offering.objects.filter(type=REMOTE_OFFERING)
@@ -258,7 +270,9 @@ class OfferingCreateView(RemoteView):
                 client=client, uuid=remote_offering_uuid.hex
             )
         except (UnexpectedStatus, TransportError) as e:
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
+            )
 
         secret_options = {
             "api_url": api_url,
@@ -397,14 +411,13 @@ class CancelTerminationOrderView(GenericAPIView):
         ):
             raise PermissionDenied()
 
-        client = utils.get_client_for_offering(order.resource.offering)
-
         try:
+            client = utils.get_client_for_offering(order.resource.offering)
             marketplace_orders_reject_by_consumer.sync_detailed(
                 client=client, uuid=order.backend_id
             )
-        except (UnexpectedStatus, TransportError) as exc:
-            raise ValidationError(exc)
+        except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
+            raise ValidationError(describe_remote_error(exc))
         callbacks.sync_order_state(order, OrderStates.CANCELED)
 
         return Response(status=status.HTTP_200_OK)

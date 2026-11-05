@@ -245,7 +245,10 @@ class RemoteResourceStatusEndpointTest(test.APITestCase):
             "Unable to fetch remote resource state for resource",
             response.data["error_message"],
         )
-        self.assertIn("error_traceback", response.data)
+        self.assertIn("answered with status 500", response.data["error_message"])
+        # Neither the remote's body nor a traceback reaches the caller.
+        self.assertNotIn("Internal server error", response.content.decode())
+        self.assertNotIn("error_traceback", response.data)
 
 
 class RemoteResourceTeamEndpointTest(test.APITestCase):
@@ -464,7 +467,10 @@ class RemoteResourceTeamEndpointTest(test.APITestCase):
             "Unable to fetch remote team data for resource",
             response.data["error_message"],
         )
-        self.assertIn("error_traceback", response.data)
+        self.assertIn("answered with status 500", response.data["error_message"])
+        # Neither the remote's body nor a traceback reaches the caller.
+        self.assertNotIn("Internal server error", response.content.decode())
+        self.assertNotIn("error_traceback", response.data)
 
     def test_empty_team_returns_empty_list(self):
         """Test that empty team returns empty list"""
@@ -668,7 +674,10 @@ class GetResourceOrderSyncStatusTest(test.APITestCase):
             "Unable to fetch remote order data for resource",
             response.data["error_message"],
         )
-        self.assertIn("error_traceback", response.data)
+        self.assertIn("answered with status 500", response.data["error_message"])
+        # Neither the remote's body nor a traceback reaches the caller.
+        self.assertNotIn("Internal server error", response.content.decode())
+        self.assertNotIn("error_traceback", response.data)
 
     def test_project_admin_can_access_remote_order_status(self):
         """Test that project admin users can access remote order status"""

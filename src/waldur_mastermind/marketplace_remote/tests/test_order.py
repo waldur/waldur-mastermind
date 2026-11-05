@@ -4,7 +4,6 @@ from unittest import mock
 import respx
 from django.test import override_settings
 from rest_framework import test
-from waldur_api_client.errors import UnexpectedStatus
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.permissions.enums import PermissionEnum
@@ -29,7 +28,11 @@ from waldur_mastermind.marketplace.tests.factories import (
     OrderFactory,
     ResourceFactory,
 )
-from waldur_mastermind.marketplace.utils import order_should_not_be_reviewed_by_provider
+from waldur_mastermind.marketplace.utils import (
+    order_should_not_be_reviewed_by_provider,
+    process_order,
+)
+from waldur_mastermind.marketplace_remote.exceptions import RemoteWaldurError
 from waldur_mastermind.marketplace_remote.processors import (
     RemoteUpdateResourceProcessor,
 )
@@ -371,5 +374,48 @@ class RemoteUpdateResourceProcessorTest(test.APITestCase):
 
         processor = RemoteUpdateResourceProcessor(self.order)
 
-        with self.assertRaises(UnexpectedStatus):
+        with self.assertRaises(RemoteWaldurError) as context:
             processor.update_limits_process(user=self.user)
+        # The remote's answer stays in the log, out of the order's error.
+        self.assertEqual(
+            str(context.exception), "The remote Waldur answered with status 400."
+        )
+        self.assertIsNone(context.exception.__cause__)
+        self.assertTrue(context.exception.__suppress_context__)
+
+    def test_order_error_does_not_carry_the_remote_answer(self):
+        self._mock_resource_endpoints(
+            get_response={"status_code": 500, "text": "internal-secret"},
+            post_response={"status_code": 502, "text": "internal-secret"},
+        )
+
+        process_order(self.order, self.user)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.ERRED)
+        self.assertEqual(
+            self.order.error_message, "The remote Waldur answered with status 502."
+        )
+        self.assertNotIn("internal-secret", self.order.error_traceback)
+        self.assertNotIn("remote-waldur.com", self.order.error_traceback)
+
+    def test_terminate_order_error_does_not_carry_the_remote_answer(self):
+        respx.get(url__startswith=f"{self.api_url}/api/marketplace-orders/").respond(
+            500, text="internal-secret"
+        )
+        order = OrderFactory(
+            project=self.order.project,
+            offering=self.order.offering,
+            resource=self.resource,
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.TERMINATE,
+        )
+
+        process_order(order, self.user)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.ERRED)
+        self.assertEqual(
+            order.error_message, "The remote Waldur answered with status 500."
+        )
+        self.assertNotIn("internal-secret", order.error_traceback)

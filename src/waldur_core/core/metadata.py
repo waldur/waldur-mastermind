@@ -283,16 +283,59 @@ class WaldurCore(BaseModel):
 
     SUBNET_BLACKLIST: list[str] = Field(
         [
+            # IPv4
+            "0.0.0.0/8",  # "This network"; 0.0.0.0 reaches the local host (RFC 1122)
             "10.0.0.0/8",  # Private networks class A
-            "172.16.0.0/12",  # Private networks class B
-            "192.168.0.0/16",  # Private networks class C
-            "169.254.0.0/16",  # Link-local address for private networks IPV4
+            "100.64.0.0/10",  # Carrier-grade NAT shared address space (RFC 6598)
             "127.0.0.0/8",  # Localhost loopback
+            "169.254.0.0/16",  # Link-local address for private networks IPV4
+            "172.16.0.0/12",  # Private networks class B
+            "192.0.0.0/24",  # IETF protocol assignments (RFC 6890)
+            "192.0.2.0/24",  # Documentation TEST-NET-1 (RFC 5737)
+            "192.168.0.0/16",  # Private networks class C
+            "198.18.0.0/15",  # Network benchmarking (RFC 2544)
+            "198.51.100.0/24",  # Documentation TEST-NET-2 (RFC 5737)
+            "203.0.113.0/24",  # Documentation TEST-NET-3 (RFC 5737)
+            "224.0.0.0/4",  # Multicast (RFC 5771)
+            "240.0.0.0/4",  # Reserved, including broadcast 255.255.255.255 (RFC 1112)
+            # IPv6
+            "::/128",  # IPv6 unspecified address
             "::1/128",  # IPv6 localhost loopback
+            "::ffff:0:0:0/96",  # IPv4-translated addresses (RFC 2765)
+            "64:ff9b:1::/48",  # Local-use IPv4/IPv6 translation (RFC 8215)
+            "100::/64",  # Discard-only (RFC 6666)
+            "2001:db8::/32",  # Documentation (RFC 3849)
             "fc00::/7",  # Unique local address for private networks
             "fe80::/10",  # Link-local address for private networks IPv6
+            "fec0::/10",  # Deprecated site-local addresses (RFC 3879)
+            "ff00::/8",  # IPv6 multicast
         ],
-        description="List of IP ranges that are blocked for the SDK client.",
+        description="IP ranges that Waldur refuses to connect to when it calls a "
+        "remote Waldur (remote offerings, offering import and sync). Every address a "
+        "host resolves to is checked; IPv4 addresses embedded in IPv6 "
+        "(IPv4-mapped, NAT64 64:ff9b::/96, 6to4, Teredo) are checked in their IPv4 "
+        "form, so a range blocks every encoding of its addresses. Remove a range "
+        "to let Waldur reach a remote Waldur on that network, e.g. 127.0.0.0/8 "
+        "and ::1/128 for a remote Waldur on localhost during development. The "
+        "default covers the standard non-routable ranges only; add your own internal "
+        "ranges, such as publicly routed cloud host endpoints (Azure's "
+        "168.63.129.16), network-specific NAT64 prefixes or internal global IPv6. "
+        "Behind an egress proxy from the environment (http_proxy, https_proxy), "
+        "Waldur tunnels to the checked address with CONNECT, so the check holds "
+        "there too. Plain-http remotes and ports other than 443 also use CONNECT; a "
+        "proxy that only allows CONNECT to SSL ports (squid's default "
+        "'http_access deny CONNECT !SSL_ports') refuses them with 'The proxy "
+        "refused the tunnel' unless it allows CONNECT to those ports.",
+    )
+    OUTBOUND_PROXY_CONNECT_BY_HOSTNAME: bool = Field(
+        False,
+        description="When Waldur calls a remote Waldur through an egress proxy, "
+        "open the CONNECT tunnel by hostname instead of by the checked IP address. "
+        "Only for proxies that refuse CONNECT to IP addresses: the address check "
+        "still runs first, but the proxy resolves the name itself, so the proxy's "
+        "ACL then decides which destinations are reachable. With this on, the "
+        "address check does not protect against DNS rebinding or internal names; "
+        "enable it only if the proxy itself denies internal destinations.",
     )
     WEB_SHELL_ENABLED: bool = Field(
         False,
