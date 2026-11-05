@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.mixins import UserChecklistMixin
+from waldur_core.core import access
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet
@@ -19,6 +20,7 @@ from waldur_core.structure import permissions as structure_permissions
 from . import filters, models, serializers, utils
 
 
+@access.describes(access.owned("The caller's own feedback request."), needs_object=True)
 def is_request_owner(request, view, obj=None):
     if obj is not None and obj.user != request.user:
         raise exceptions.PermissionDenied()
@@ -67,6 +69,9 @@ class FeedbackSurveyViewSet(ActionsViewSet):
         return Response(serializers.FeedbackPromptSerializer(feedback_request).data)
 
     prompt_permissions = []
+    access_declarations = {
+        "prompt": [access.owned("The caller's own pending feedback request, if any.")]
+    }
 
     @extend_schema(responses=serializers.FeedbackSurveySummarySerializer)
     @decorators.action(detail=True, methods=["get"])
@@ -113,6 +118,7 @@ class FeedbackRequestViewSet(UserChecklistMixin, ActionsViewSet):
             self._object = super().get_object()
         return self._object
 
+    @access.shows("The caller's own feedback requests; staff and support see all.")
     def get_queryset(self):
         queryset = (
             super()

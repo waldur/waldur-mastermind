@@ -6,6 +6,7 @@ from rest_framework import status, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.permissions.enums import PermissionEnum
@@ -90,6 +91,15 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class OfferingBookingsViewSet(views.APIView):
+    access_declarations = {
+        "get": [
+            access.custom(
+                "The offering must be one the caller may order. A booking names "
+                "its creator only to callers sharing an organization with them."
+            )
+        ]
+    }
+
     @extend_schema(request=None, responses=serializers.BookingSerializer(many=True))
     def get(self, request, uuid):
         offerings = (

@@ -23,6 +23,14 @@ from waldur_core.structure.models import Customer, Project
 
 from . import models
 
+# What get_accessible_room_ids reaches, for the room views. Change the two
+# together.
+SHOWS_ROOMS = (
+    "Rooms of projects and organizations where the caller holds a role, and of "
+    "the projects of organizations where the caller holds MATRIX_ROOM.CREATE; "
+    "staff and support see all."
+)
+
 
 def get_accessible_room_ids(user):
     """Get MatrixRoom IDs accessible to the user based on project/customer roles."""
@@ -147,6 +155,15 @@ def pat_filter_exports(ids):
     if not lookups:
         return None
     return reduce(or_, lookups)
+
+
+# What filter_exports_for_request leaves. Change the two together.
+SHOWS_EXPORTS = (
+    "History exports of rooms the caller manages: MATRIX_ROOM.CREATE on the "
+    "room's project or organization. Staff and support see all. A personal "
+    "access token reaches only its bindings, and needs the support scope or "
+    "MATRIX_ROOM.CREATE."
+)
 
 
 def filter_exports_for_request(queryset, request):

@@ -4,6 +4,7 @@ from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import PermissionDenied
 
+from waldur_core.core import access
 from waldur_core.core import views as core_views
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission, permission_factory
@@ -28,6 +29,11 @@ class LexisLinkViewSet(core_views.ActionsViewSet):
     # by the backend, and Waldur makes its HEAppE project calls with it.
     disabled_actions = ["update", "partial_update"]
 
+    @access.describes(
+        access.permission(
+            PermissionEnum.CREATE_LEXIS_LINK, ["resource.offering.customer"]
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -55,6 +61,11 @@ class LexisLinkViewSet(core_views.ActionsViewSet):
         )
     ]
 
+    @access.shows(
+        "Links of resources in projects or organizations where the caller holds "
+        "a role, and of resources of offerings whose organization the caller "
+        "holds a role on; staff and support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user

@@ -13,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 
+from waldur_core.core import access
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import (
     check_pat_support_scope,
@@ -45,6 +46,17 @@ def creatable_projects(user):
         Q(customer_id__in=get_scope_ids(user, customer_ct, permission=permission))
         | Q(id__in=get_scope_ids(user, project_ct, permission=permission))
     )
+
+
+# Who can_create_room lets create a room for the project a request names:
+# MATRIX_ROOM.CREATE on the project or its organization, or global support.
+# Change the two together.
+CREATES_ROOM = access.any_of(
+    access.permission(
+        PermissionEnum.CREATE_MATRIX_ROOM, ["project", "project.customer"]
+    ),
+    access.staff_or_support(),
+)
 
 
 def can_create_room(request, project):

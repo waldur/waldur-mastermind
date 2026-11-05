@@ -32,6 +32,7 @@ from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 
 from waldur_core.configuration import config
 from waldur_core.configuration.models import Setting, Source
+from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.auth_utils import (
     AUTH_METHOD_SESSION,
@@ -68,6 +69,8 @@ from . import (
 )
 from .crypto import export_files
 from .managers import (
+    SHOWS_EXPORTS,
+    SHOWS_ROOMS,
     can_manage_room,
     filter_exports_for_request,
     get_accessible_room_ids,
@@ -136,9 +139,29 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
     filterset_class = filters.MatrixRoomFilter
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update"]
+    # Read the room with get_object(), then list what belongs to it.
+    access_filtered_actions = ("members", "commands")
+    access_declarations = {
+        # MatrixRoomCreateSerializer checks the project it names.
+        "create": [room_provisioning.CREATES_ROOM],
+        "eligible_projects": [
+            access.custom(
+                "Lists the projects the caller may create a room for: "
+                "MATRIX_ROOM.CREATE on the project or its organization; staff "
+                "and support see all."
+            )
+        ],
+        "open": [
+            access.custom(
+                "A room the caller sees, of which the caller is a current member, "
+                "invited or joined. A role that reaches the room is not enough."
+            )
+        ],
+    }
 
     create_serializer_class = serializers.MatrixRoomCreateSerializer
 
+    @access.shows(SHOWS_ROOMS)
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -556,6 +579,7 @@ class MatrixHistoryExportViewSet(ActionsViewSet):
     lookup_field = "uuid"
     disabled_actions = ["create", "destroy", "update", "partial_update"]
 
+    @access.shows(SHOWS_EXPORTS)
     def get_queryset(self):
         return filter_exports_for_request(super().get_queryset(), self.request)
 
@@ -564,6 +588,12 @@ def _api_message(error):
     """A ticket refusal as API text: it is written for the room, whose
     Markdown marks commands with backticks."""
     return str(error).replace("`", "")
+
+
+OWN_DRAFT = access.owned(
+    "A draft the caller requested, while a role still puts them in the room: one "
+    "on the room's project, or MATRIX_ROOM.CREATE on its organization."
+)
 
 
 class MatrixTicketDraftViewSet(ActionsViewSet):
@@ -576,7 +606,17 @@ class MatrixTicketDraftViewSet(ActionsViewSet):
     lookup_field = "uuid"
     permission_classes = [permissions.IsAuthenticated]
     disabled_actions = ["list", "create", "destroy", "update", "partial_update"]
+    # The actions look the draft up with get_object(), as retrieve does.
+    access_declarations = {
+        "create_issue": [OWN_DRAFT],
+        "cancel": [OWN_DRAFT],
+    }
 
+    @access.shows(
+        "Drafts the caller requested, in project rooms, while Matrix chat is "
+        "enabled. Retrieve also needs a role that still puts the caller in the "
+        "room: one on the project, or MATRIX_ROOM.CREATE on its organization."
+    )
     def get_queryset(self):
         if not matrix_client.is_enabled():
             return models.MatrixTicketDraft.objects.none()
@@ -671,6 +711,9 @@ class MatrixTicketDraftViewSet(ActionsViewSet):
 
 class MatrixCredentialsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    access_declarations = {
+        "get": [access.owned("The caller's own Matrix account, created if missing.")]
+    }
     # Per-user rate limit: a malicious authenticated user can otherwise flood
     # the homeserver with auto-provisioning calls.
     throttle_classes = [ScopedRateThrottle]
@@ -711,6 +754,9 @@ class MatrixCredentialsView(views.APIView):
 
 class MatrixPasswordView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    access_declarations = {
+        "post": [access.owned("The caller's own Matrix account, created if missing.")]
+    }
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "matrix_password"
 
@@ -800,6 +846,9 @@ class MatrixPasswordView(views.APIView):
 
 class MatrixSessionView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    access_declarations = {
+        "post": [access.owned("The caller's own Matrix account, created if missing.")]
+    }
     # Called when the chat drawer connects and when its Matrix refresh is
     # rejected; each call is an appservice login and a new device.
     throttle_classes = [ScopedRateThrottle]
@@ -1192,6 +1241,14 @@ def _holds_homeserver_token(request):
     )
 
 
+# Who _is_from_homeserver lets call the appservice endpoints. Change the two
+# together.
+FROM_HOMESERVER = access.custom(
+    "Only the homeserver: the request carries MATRIX_APPSERVICE_HS_TOKEN as its "
+    "bearer token. No Waldur authentication."
+)
+
+
 def _is_from_homeserver(request):
     """Check the homeserver token, logging why a call is refused."""
     if _holds_homeserver_token(request):
@@ -1243,6 +1300,8 @@ class AppserviceErrorCountMixin:
 class MatrixAppserviceWebhookView(AppserviceErrorCountMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
+    # While Matrix chat is disabled, every call is answered 200 and does nothing.
+    access_declarations = {"put": [FROM_HOMESERVER]}
     throttle_classes = [AppserviceThrottle]
     throttle_scope = "matrix_webhook"
 
@@ -1285,6 +1344,7 @@ class MatrixAppserviceWebhookView(AppserviceErrorCountMixin, views.APIView):
 class MatrixAppservicePingView(AppserviceErrorCountMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
+    access_declarations = {"post": [FROM_HOMESERVER]}
     throttle_classes = [AppserviceThrottle]
     throttle_scope = "matrix_webhook"
 
@@ -2267,6 +2327,7 @@ class MatrixHistoryExportDownloadView(views.APIView):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    access_declarations = {"get": [access.custom(SHOWS_EXPORTS)]}
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "matrix_export_download"
 
