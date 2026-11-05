@@ -71,6 +71,12 @@ on or off. Wherever either condition does not hold, the pair stays, as on a
 backend without per-key commands such as ceph-s3. The agent decides this, so
 Waldur's API and models are unchanged.
 
+**A key is requested once the resource exists at the backend.** The agent mints
+a key under the resource's `backend_id`, so a request, or a retry of a failed
+one, is refused with `409` until the resource has one, which it gets when the
+agent creates it. The agent cannot act on such a command and would leave the
+key `Creating` until its sweep replayed it, long after the resource was ready.
+
 **The assignee can rotate their own key.** Whoever is trusted with a key's value
 is trusted to replace it, so a person who suspects their key has leaked does not
 have to find a manager while it stays live. Nothing else follows from being the

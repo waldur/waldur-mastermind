@@ -17682,7 +17682,9 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         summary="Request an API key",
         description="Asks the site agent to create a key for the resource. Waldur "
         "generates nothing: the key appears as Creating and turns OK once the "
-        "agent reports it. Only on offerings with enable_api_key_provisioning.",
+        "agent reports it. Only on offerings with enable_api_key_provisioning, "
+        "and refused with 409 until the agent has created the resource (it has "
+        "no backend_id yet).",
         request=serializers.ResourceApiKeyCreateSerializer,
         responses={status.HTTP_201_CREATED: serializers.ResourceApiKeyStatusSerializer},
     )

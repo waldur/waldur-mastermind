@@ -70,6 +70,10 @@ class ApiKeyManagementTestBase(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
+        # Keys are minted under the resource's backend id, which the agent
+        # sets once it has created the resource.
+        self.resource.backend_id = "res-backend-1"
+        self.resource.save()
         self.offering = self.resource.offering
         self.offering.plugin_options = {"enable_api_key_provisioning": True}
         self.offering.save()
@@ -285,6 +289,18 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         prepare.assert_not_called()
 
+    def test_rejected_until_the_resource_has_a_backend_id(self):
+        self.resource.backend_id = ""
+        self.resource.save()
+        response, prepare = self.post(
+            self.fixture.owner, list_url(), {"resource": self.resource.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        prepare.assert_not_called()
+        self.assertFalse(
+            self.resource.api_keys.filter(pending_action=Actions.CREATE).exists()
+        )
+
     def test_agent_reports_the_requested_key_with_its_client_id(self):
         requested = models.ResourceApiKey.objects.create(
             resource=self.resource, pending_action=Actions.CREATE
@@ -329,6 +345,22 @@ class RequestKeyTest(ApiKeyManagementTestBase):
         self.assertEqual(payload["action"], Actions.CREATE)
         self.assertEqual(payload["limits"], {"tokens": 5})
 
+    def test_a_failed_request_is_not_retried_until_the_resource_has_a_backend_id(
+        self,
+    ):
+        self.resource.backend_id = ""
+        self.resource.save()
+        requested = models.ResourceApiKey.objects.create(
+            resource=self.resource, state=States.ERRED, pending_action=Actions.CREATE
+        )
+        response, prepare = self.post(
+            self.fixture.owner, detail_url(requested, "retry")
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        prepare.assert_not_called()
+        requested.refresh_from_db()
+        self.assertEqual(requested.state, States.ERRED)
+
     def test_a_failed_request_cannot_be_rotated(self):
         requested = models.ResourceApiKey.objects.create(
             resource=self.resource, state=States.ERRED, pending_action=Actions.CREATE
@@ -363,6 +395,20 @@ class CancelRequestTest(ApiKeyManagementTestBase):
         requested.refresh_from_db()
         self.assertEqual(requested.state, States.DELETED)
         self.assertEqual(requested.pending_action, "")
+
+    def test_a_request_on_a_resource_without_a_backend_id_can_be_deleted(self):
+        # Requests accepted before the resource had a backend id must not be
+        # stranded by the check that now refuses them.
+        self.resource.backend_id = ""
+        self.resource.save()
+        requested = models.ResourceApiKey.objects.create(
+            resource=self.resource, pending_action=Actions.CREATE
+        )
+        response, prepare = self.delete(requested)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        prepare.assert_not_called()
+        requested.refresh_from_db()
+        self.assertEqual(requested.state, States.DELETED)
 
     def test_a_failed_request_is_deleted_at_once(self):
         requested = models.ResourceApiKey.objects.create(
