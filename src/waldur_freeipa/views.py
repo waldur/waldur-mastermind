@@ -4,10 +4,15 @@ from drf_spectacular.utils import extend_schema
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import decorators, exceptions, response, status
 
+from waldur_core.core import access
 from waldur_core.core import views as core_views
 from waldur_core.core.permissions import has_staff_access
 
 from . import backend, filters, models, serializers, tasks
+
+MANAGES_PROFILE = access.any_of(
+    access.owned("The caller's own profile."), access.staff()
+)
 
 
 class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
@@ -20,7 +25,16 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     serializer_class = serializers.FreeipaProfileSerializer
     disabled_actions = ["destroy"]
     lookup_field = "uuid"
+    # The serializer creates the profile for the caller; the other actions
+    # look the profile up in get_queryset.
+    access_declarations = {
+        "create": [access.owned("A profile for the caller, who has none yet.")],
+        "update": [MANAGES_PROFILE],
+        "partial_update": [MANAGES_PROFILE],
+        "update_ssh_keys": [MANAGES_PROFILE],
+    }
 
+    @access.shows("The caller's own profile; staff see all.")
     def get_queryset(self):
         qs = super().get_queryset()
         if has_staff_access(self.request):
