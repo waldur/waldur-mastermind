@@ -14,6 +14,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core import executors as core_executors
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
@@ -26,7 +27,7 @@ from waldur_core.core.permissions import (
 )
 from waldur_core.core.serializers import ReviewCommentSerializer
 from waldur_core.core.validators import StateValidator
-from waldur_core.permissions.fixtures import ServiceProviderRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -131,6 +132,11 @@ class CachedProjectUsageReportViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.CachedProjectUsageReportFilter
 
+    @access.shows(
+        "Staff and global support see every report; others see reports whose "
+        "OpenPortal project identifier belongs to a project they hold a role "
+        "on or that belongs to an organization they hold a role on."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return models.CachedProjectUsageReport.objects.none()
@@ -193,6 +199,11 @@ class CachedProjectStorageReportViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.CachedProjectStorageReportFilter
 
+    @access.shows(
+        "Staff and global support see every report; others see reports whose "
+        "OpenPortal project identifier belongs to a project they hold a role "
+        "on or that belongs to an organization they hold a role on."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return models.CachedProjectStorageReport.objects.none()
@@ -1342,6 +1353,10 @@ class ProjectAccountingSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.ProjectAccountingSummaryFilter
     lookup_field = "uuid"
 
+    @access.shows(
+        "Staff and global support see every project; others see projects they "
+        "hold a role on and projects of organizations they hold a role on."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return structure_models.Project.objects.none()
@@ -1370,6 +1385,26 @@ class UnmanagedProjectViewSet(structure_views.ProjectViewSet):
         unmanaged_queryset = base_queryset.exclude(id__in=managed_project_ids)
 
         return unmanaged_queryset
+
+
+@access.describes(
+    access.any_of(
+        access.staff_or_support(),
+        access.custom(
+            "An owner of the organization of the remote project's current project."
+        ),
+    ),
+    needs_object=True,
+)
+def can_change_remote_project(request, view, obj=None):
+    """Staff, global support, or an owner of the organization that owns the
+    remote project's current project."""
+    if obj is None or has_support_access(request):
+        return
+    if obj.current_project is None:
+        raise PermissionDenied("Cannot write: remote project has no current project.")
+    if not obj.current_project.customer.has_user(request.user, CustomerRole.OWNER):
+        raise PermissionDenied("Organisation owner access required.")
 
 
 class RemoteProjectViewSet(core_views.ActionsViewSet):
@@ -1402,6 +1437,24 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
 
     queryset = models.RemoteProject.objects.none()
 
+    access_filtered_actions = ("total_usage",)
+
+    add_note_permissions = set_earliest_approve_permissions = [
+        can_change_remote_project
+    ]
+    set_membership_control_permissions = set_allowed_domains_permissions = [
+        can_change_remote_project
+    ]
+    set_links_permissions = approve_now_permissions = [can_change_remote_project]
+    hold_indefinitely_permissions = reset_to_pending_permissions = [
+        can_change_remote_project
+    ]
+    resend_request_permissions = [can_change_remote_project]
+
+    @access.shows(
+        "Staff and global support see every remote project; others see remote "
+        "projects whose current project their roles reach."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return models.RemoteProject.objects.none()
@@ -1424,24 +1477,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
             "set_links": serializers.SetLinksSerializer,
         }
         return action_map.get(self.action, serializers.RemoteProjectSerializer)
-
-    def _check_write_permission(self, request, remote_project):
-        """
-        Raise PermissionDenied unless the user is staff, support, or
-        CustomerOwner of the organisation that owns current_project.
-        """
-        user = request.user
-        if has_support_access(request):
-            return
-        if remote_project.current_project is None:
-            raise PermissionDenied(
-                "Cannot write: remote project has no current project."
-            )
-        customer = remote_project.current_project.customer
-        from waldur_core.permissions.fixtures import CustomerRole
-
-        if not customer.has_user(user, CustomerRole.OWNER):
-            raise PermissionDenied("Organisation owner access required.")
 
     def _trigger_update(self, remote_project):
         """
@@ -1470,7 +1505,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         update.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
         remote_project.ensure_not_erred()
 
         serializer = self.get_serializer(data=request.data)
@@ -1519,7 +1553,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         this award.  Pass null to clear.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
         remote_project.ensure_not_erred()
 
         serializer = self.get_serializer(data=request.data)
@@ -1558,7 +1591,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         remote portal sync) runs in a background task to avoid blocking the API.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
         remote_project.ensure_not_erred()
 
         serializer = self.get_serializer(data=request.data)
@@ -1589,7 +1621,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         allowed to join.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
         remote_project.ensure_not_erred()
 
         serializer = self.get_serializer(data=request.data)
@@ -1640,7 +1671,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         Pass null to clear a specific link.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
         remote_project.ensure_not_erred()
 
         serializer = self.get_serializer(data=request.data)
@@ -1690,7 +1720,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         approve this award immediately.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
         remote_project.ensure_not_erred()
 
         remote_project.earliest_approve = None
@@ -1729,7 +1758,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         from datetime import timedelta
 
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
         remote_project.ensure_not_erred()
 
         remote_project.earliest_approve = timezone.now() + timedelta(days=36500)
@@ -1767,7 +1795,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         Does not send anything to the remote portal.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
 
         remote_project.reset_to_pending()
 
@@ -1793,7 +1820,6 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         other changes first.
         """
         remote_project = self.get_object()
-        self._check_write_permission(request, remote_project)
 
         remote_project.reset_to_pending()
         self._trigger_update(remote_project)
@@ -1861,6 +1887,10 @@ class RemoteProjectAuditEntryViewSet(core_views.ActionsViewSet):
     queryset = models.RemoteProjectAuditEntry.objects.none()
     ordering_fields = ("timestamp", "event_type")
 
+    @access.shows(
+        "Staff and global support see every entry; others see entries of "
+        "remote projects whose current project their roles reach."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return models.RemoteProjectAuditEntry.objects.none()
@@ -1894,6 +1924,10 @@ class RemoteProjectAllocationEntryViewSet(core_views.ActionsViewSet):
     queryset = models.RemoteProjectAllocationEntry.objects.none()
     ordering_fields = ("submitted_at", "allocation")
 
+    @access.shows(
+        "Staff and global support see every entry; others see entries of "
+        "remote projects whose current project their roles reach."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return models.RemoteProjectAllocationEntry.objects.none()
@@ -1930,6 +1964,12 @@ class ManagedProjectAuditEntryViewSet(core_views.ActionsViewSet):
     ]
     ordering_fields = ("timestamp", "event_type")
 
+    @access.shows(
+        "Staff and global support see every entry; organization owners see "
+        "entries of managed projects attached to a project of their "
+        "organization, and entries without a managed project whose "
+        "identifier and destination each match one of those."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return models.ManagedProjectAuditEntry.objects.none()
