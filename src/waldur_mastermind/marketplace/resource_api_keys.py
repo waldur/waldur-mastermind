@@ -97,6 +97,21 @@ def require_resource_live(resource: models.Resource) -> None:
         )
 
 
+def require_resource_provisioned(resource: models.Resource) -> None:
+    """Reject a key creation before the agent has created the resource.
+
+    The agent mints a key under the resource's backend id, so it has to leave a
+    creation without one to its sweep, which replays it only long after the
+    resource is ready. Deleting a key is not held to this: one requested before
+    the check existed must still be removable.
+    """
+    if not resource.backend_id:
+        raise IncorrectStateException(
+            "The resource has not been created at the backend yet; its API keys "
+            "can be requested once it is."
+        )
+
+
 def require_managed(resource: models.Resource) -> None:
     """Reject per-key governance on an offering whose backend cannot do it."""
     if not models.ResourceApiKey.is_managed_for(resource):
@@ -178,9 +193,11 @@ def request_key(resource: models.Resource, actor, **settings) -> models.Resource
     """Record a key request and ask the agent to create it."""
     requested = settings.pop(api_key_spending_limits.REQUESTED, None)
     require_resource_live(resource)
+    require_resource_provisioned(resource)
     with transaction.atomic():
         resource = _lock_resource(resource)
         require_resource_live(resource)
+        require_resource_provisioned(resource)
         require_free_assignee(resource, settings.get("user"))
         if requested is not None:
             settings["spending_limits"] = _recheck_limits(requested, resource, None)
@@ -315,6 +332,8 @@ def issue_command(
                 "The API key was never created; it can only be requested again "
                 "or deleted."
             )
+        if action == Actions.CREATE:
+            require_resource_provisioned(api_key.resource)
         try:
             if cancel:
                 api_key.cancel_request()
