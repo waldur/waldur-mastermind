@@ -621,6 +621,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.create_offering_users_when_allowed,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.create_offering_users_when_allowed",
+        )
+
+        signals.post_save.connect(
             handlers.update_offering_user_username_after_provider_settings_change,
             sender=models.ServiceProvider,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_provider_settings_change",

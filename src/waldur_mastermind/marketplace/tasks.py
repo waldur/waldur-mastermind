@@ -2971,6 +2971,22 @@ def request_provider_account_deletion_for_user(user) -> None:
             account.save(update_fields=["state"])
 
 
+def _with_offering_users(resources):
+    """The resources whose project members hold offering users: live ones, or
+    ones whose create order the customer has approved."""
+    return resources.filter(
+        Q(state=ResourceStates.OK)
+        | Q(
+            state=ResourceStates.CREATING,
+            order__type=OrderTypes.CREATE,
+            order__state__in=[
+                OrderStates.PENDING_PROVIDER,
+                OrderStates.EXECUTING,
+            ],
+        )
+    ).distinct()
+
+
 def _get_eligible_offerings_for_project(project):
     """Offerings with a live resource in the project whose type has offering users.
 
@@ -2984,22 +3000,10 @@ def _get_eligible_offerings_for_project(project):
         OFFERING_USER_ALLOWED_OFFERING_TYPES,
     )
 
-    resources = (
+    resources = _with_offering_users(
         project.resource_set.filter(
             offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
         )
-        .filter(
-            Q(state=ResourceStates.OK)
-            | Q(
-                state=ResourceStates.CREATING,
-                order__type=OrderTypes.CREATE,
-                order__state__in=[
-                    OrderStates.PENDING_PROVIDER,
-                    OrderStates.EXECUTING,
-                ],
-            )
-        )
-        .distinct()
     )
     offering_ids = set(resources.values_list("offering_id", flat=True))
     return list(models.Offering.objects.filter(id__in=offering_ids))
@@ -3035,6 +3039,66 @@ def create_or_restore_offering_users_for_user(user_uuid: str, project_uuid: str)
 
     for offering in _get_eligible_offerings_for_project(project):
         _create_or_restore_offering_user(user, offering)
+
+
+@shared_task(name="waldur_mastermind.marketplace.create_offering_users_for_offering")
+def create_offering_users_for_offering(offering_uuid: str):
+    """
+    Create the offering users an offering has just been allowed to create: those
+    of the members of every project with a resource of it. Until then a role or
+    a resource added was refused one, and nothing else asks again.
+
+    One task per project, so a large offering is not one long task and a
+    project that fails does not hold back the others.
+    """
+    offering = models.Offering.objects.filter(uuid=offering_uuid).first()
+    if offering is None:
+        return
+    project_uuids = set(
+        _with_offering_users(
+            models.Resource.objects.filter(offering=offering)
+        ).values_list("project__uuid", flat=True)
+    )
+    for project_uuid in project_uuids:
+        create_offering_users_for_offering_in_project.delay(
+            offering_uuid, project_uuid.hex
+        )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.create_offering_users_for_offering_in_project"
+)
+def create_offering_users_for_offering_in_project(
+    offering_uuid: str, project_uuid: str
+):
+    """
+    Create the missing offering users of the project's members.
+
+    Only missing ones: an account that exists is left in whatever state it is
+    in. The option gates creating accounts, not bringing back one the provider
+    is deleting. A user whose account cannot be created is logged and skipped.
+    """
+    offering = models.Offering.objects.filter(uuid=offering_uuid).first()
+    project = structure_models.Project.objects.filter(uuid=project_uuid).first()
+    if offering is None or project is None:
+        return
+    # Switched off again before this ran.
+    if not offering.plugin_options.get("service_provider_can_create_offering_user"):
+        return
+    has_account = set(
+        models.OfferingUser.objects.filter(offering=offering).values_list(
+            "user_id", flat=True
+        )
+    )
+    for user in project.get_users():
+        if user.id in has_account:
+            continue
+        try:
+            utils.create_offering_user(user, offering)
+        except Exception:
+            logger.exception(
+                "Unable to create the offering user of %s on %s.", user, offering
+            )
 
 
 @shared_task(
