@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db import transaction
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
+from httpx import TransportError
 from rest_framework.exceptions import ValidationError
 
 # waldur_api_client pulls in a large generated attrs/pydantic model graph
@@ -15,6 +16,7 @@ from rest_framework.exceptions import ValidationError
 # methods below so the SDK does not load at Django startup in processes that
 # never provision remote resources. See the "Lazy imports for heavy optional
 # backends" section of CLAUDE.md.
+from waldur_core.core.client import describe_remote_error
 from waldur_core.core.models import User
 from waldur_core.core.utils import serialize_instance
 from waldur_mastermind.marketplace import models, processors
@@ -61,6 +63,10 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
                 )
 
     def process_order(self, user: User):
+        with utils.remote_response_hidden():
+            self._create_remote_order()
+
+    def _create_remote_order(self):
         from waldur_api_client.api.marketplace_orders import marketplace_orders_create
         from waldur_api_client.api.marketplace_resources import (
             marketplace_resources_list,
@@ -139,6 +145,10 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
 
 class RemoteUpdateResourceProcessor(processors.BasicUpdateResourceProcessor):
     def update_limits_process(self, user: User):
+        with utils.remote_response_hidden():
+            return self._update_remote_limits()
+
+    def _update_remote_limits(self):
         from waldur_api_client.api.marketplace_resources import (
             marketplace_resources_retrieve,
             marketplace_resources_update_limits,
@@ -212,6 +222,11 @@ class RemoteUpdateResourceProcessor(processors.BasicUpdateResourceProcessor):
 
 class RemoteDeleteResourceProcessor(processors.BasicDeleteResourceProcessor):
     def send_request(self, user, resource: models.Resource):
+        # Importing and pulling the remote orders below also calls the remote.
+        with utils.remote_response_hidden():
+            return self._terminate_remote_resource(resource)
+
+    def _terminate_remote_resource(self, resource: models.Resource):
         from waldur_api_client.api.marketplace_resources import (
             marketplace_resources_terminate,
         )
@@ -257,7 +272,10 @@ class RemoteDeleteResourceProcessor(processors.BasicDeleteResourceProcessor):
                 exc,
             )
             self.order.set_state_erred()
-            self.order.error_message = str(exc)[:255]
+            if isinstance(exc, (UnexpectedStatus, TransportError)):
+                self.order.error_message = describe_remote_error(exc)
+            else:
+                self.order.error_message = str(exc)[:255]
             self.order.save()
             return False
 

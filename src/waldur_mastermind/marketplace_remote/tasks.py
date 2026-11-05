@@ -1661,7 +1661,10 @@ def clean_remote_projects():
         clients[offering.secret_options["api_url"]] = offering.secret_options["token"]
 
     for api_url, token in clients.items():
-        client = get_waldur_client(api_url, token)
+        try:
+            client = get_waldur_client(api_url, token)
+        except ClientValidationError:
+            continue
 
         try:
             remote_projects = projects_list.sync_all(client=client)

@@ -5,6 +5,7 @@ from __future__ import annotations
 # optional backends" section of CLAUDE.md. Runtime-used symbols are imported
 # locally inside the functions that use them; annotation-only symbols live in
 # the TYPE_CHECKING block below.
+import contextlib
 import datetime
 import io
 import logging
@@ -24,7 +25,12 @@ from httpx import TransportError
 from rest_framework.exceptions import ValidationError
 
 from waldur_auth_social.const import ProviderChoices
-from waldur_core.core.client import get_waldur_client
+from waldur_core.core.client import (
+    ClientValidationError,
+    describe_remote_error,
+    fetch_url,
+    get_waldur_client,
+)
 from waldur_core.core.utils import get_system_robot, validate_uuid
 from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
@@ -50,7 +56,10 @@ from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_FIELDS,
     PLAN_FIELDS,
 )
-from waldur_mastermind.marketplace_remote.exceptions import RemoteStatusSyncFailed
+from waldur_mastermind.marketplace_remote.exceptions import (
+    RemoteStatusSyncFailed,
+    RemoteWaldurError,
+)
 
 if TYPE_CHECKING:
     from waldur_api_client.models.base_public_plan import BasePublicPlan
@@ -74,6 +83,23 @@ def get_client_for_offering(offering: marketplace_models.Offering):
         offering.secret_options["token"],
     )
     return client
+
+
+@contextlib.contextmanager
+def remote_response_hidden():
+    """Re-raise a failed remote call without the remote's response.
+
+    Errors raised inside order processing end up in the order's error_message
+    and error_traceback, which the order's users read; the SDK's errors carry
+    the remote response body and URL. ``from None`` keeps the original out of
+    the traceback too; describe_remote_error logs it.
+    """
+    from waldur_api_client.errors import UnexpectedStatus
+
+    try:
+        yield
+    except (UnexpectedStatus, TransportError) as exc:
+        raise RemoteWaldurError(describe_remote_error(exc)) from None
 
 
 def get_remote_user_uuid(client, username: str) -> str:
@@ -798,7 +824,7 @@ def import_offering_thumbnail(
     local_offering: marketplace_models.Offering, thumbnail_url: str | None
 ):
     if thumbnail_url:
-        thumbnail_resp = httpx.get(thumbnail_url)
+        thumbnail_resp = fetch_url(thumbnail_url)
         content = ContentFile(thumbnail_resp.content)
         file_name = local_offering.uuid.hex
         if local_offering.thumbnail:
@@ -1108,7 +1134,7 @@ def import_offering_image(
 
     try:
         # Download the image from the remote offering
-        image_resp = httpx.get(image_url)
+        image_resp = fetch_url(image_url)
         image_resp.raise_for_status()
     except httpx.HTTPError as e:
         logger.error(
@@ -1137,7 +1163,7 @@ def import_offering_image(
 
 def _download_image(url: str) -> bytes:
     """Download image and return its content and hash"""
-    response = httpx.get(url)
+    response = fetch_url(url)
     response.raise_for_status()
     content = response.content
     return content
@@ -1187,7 +1213,7 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
             continue
         try:
             # Download remote image
-            response = httpx.get(remote_screenshot.image)
+            response = fetch_url(remote_screenshot.image)
             response.raise_for_status()
             remote_image_content = response.content
         except httpx.HTTPError as e:
@@ -1221,7 +1247,7 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
         image_thumbnail_url = remote_screenshot.thumbnail
         if image_thumbnail_url:
             try:
-                response = httpx.get(image_thumbnail_url)
+                response = fetch_url(image_thumbnail_url)
                 response.raise_for_status()
                 thumbnail_content = response.content
                 screenshot.thumbnail.save(
@@ -1294,10 +1320,12 @@ def get_resource_sync_status(resource):
             "last_sync": timezone.now(),
         }
         return status_data
-    except UnexpectedStatus as exc:
+    except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
         message = f"Unable to fetch remote resource state for resource {resource.uuid}"
         logger.exception(message)
-        raise RemoteStatusSyncFailed(error_message=message, error_description=str(exc))
+        raise RemoteStatusSyncFailed(
+            error_message=message, error_description=describe_remote_error(exc)
+        )
 
 
 def get_resource_team(resource: marketplace_models.Resource):
@@ -1366,10 +1394,12 @@ def get_resource_team(resource: marketplace_models.Resource):
                 }
             )
         return team_data
-    except UnexpectedStatus as exc:
+    except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
         message = f"Unable to fetch remote team data for resource {resource.uuid}"
         logger.exception(message)
-        raise RemoteStatusSyncFailed(error_message=message, error_description=str(exc))
+        raise RemoteStatusSyncFailed(
+            error_message=message, error_description=describe_remote_error(exc)
+        )
 
 
 def get_resource_order_sync_status(resource: marketplace_models.Resource):
@@ -1417,10 +1447,12 @@ def get_resource_order_sync_status(resource: marketplace_models.Resource):
                 )
         return order_data
 
-    except UnexpectedStatus as exc:
+    except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
         message = f"Unable to fetch remote order data for resource {resource.uuid}"
         logger.exception(message)
-        raise RemoteStatusSyncFailed(error_message=message, error_description=str(exc))
+        raise RemoteStatusSyncFailed(
+            error_message=message, error_description=describe_remote_error(exc)
+        )
 
 
 class GenericOrderAttribute:

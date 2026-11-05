@@ -368,6 +368,7 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'NOTIFICATION_SUBJECT': 'Notifications from Waldur',
  'OECD_FOS_2007_CODE_MANDATORY': False,
  'ONLY_STAFF_CAN_INVITE_USERS': False,
+ 'OUTBOUND_PROXY_CONNECT_BY_HOSTNAME': False,
  'PASSKEY_ALLOWED_ORIGINS': [],
  'PASSKEY_ENFORCED_FOR_STAFF': False,
  'PASSKEY_RP_ID': '',
@@ -381,14 +382,30 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'SERVICE_ACCOUNT_TOKEN_URL': '',
  'SERVICE_ACCOUNT_URL': '',
  'SERVICE_ACCOUNT_USE_API': False,
- 'SUBNET_BLACKLIST': ['10.0.0.0/8',
-                      '172.16.0.0/12',
-                      '192.168.0.0/16',
-                      '169.254.0.0/16',
+ 'SUBNET_BLACKLIST': ['0.0.0.0/8',
+                      '10.0.0.0/8',
+                      '100.64.0.0/10',
                       '127.0.0.0/8',
+                      '169.254.0.0/16',
+                      '172.16.0.0/12',
+                      '192.0.0.0/24',
+                      '192.0.2.0/24',
+                      '192.168.0.0/16',
+                      '198.18.0.0/15',
+                      '198.51.100.0/24',
+                      '203.0.113.0/24',
+                      '224.0.0.0/4',
+                      '240.0.0.0/4',
+                      '::/128',
                       '::1/128',
+                      '::ffff:0:0:0/96',
+                      '64:ff9b:1::/48',
+                      '100::/64',
+                      '2001:db8::/32',
                       'fc00::/7',
-                      'fe80::/10'],
+                      'fe80::/10',
+                      'fec0::/10',
+                      'ff00::/8'],
  'SUPPORT_PORTAL_URL': '',
  'TOKEN_LIFETIME': datetime.timedelta(seconds=3600),
  'TRANSLATION_DOMAIN': '',
@@ -655,6 +672,12 @@ Field oecd_fos_2007_code must be required for project.
 
 Allow to limit invitation management to staff only.
 
+#### OUTBOUND_PROXY_CONNECT_BY_HOSTNAME
+
+**Type:** bool
+
+When Waldur calls a remote Waldur through an egress proxy, open the CONNECT tunnel by hostname instead of by the checked IP address. Only for proxies that refuse CONNECT to IP addresses: the address check still runs first, but the proxy resolves the name itself, so the proxy's ACL then decides which destinations are reachable. With this on, the address check does not protect against DNS rebinding or internal names; enable it only if the proxy itself denies internal destinations.
+
 #### PASSKEY_ALLOWED_ORIGINS
 
 **Type:** List[str]
@@ -737,7 +760,7 @@ Send service account creation and deletion requests to API.
 
 **Type:** List[str]
 
-List of IP ranges that are blocked for the SDK client.
+IP ranges that Waldur refuses to connect to when it calls a remote Waldur (remote offerings, offering import and sync). Every address a host resolves to is checked; IPv4 addresses embedded in IPv6 (IPv4-mapped, NAT64 64:ff9b::/96, 6to4, Teredo) are checked in their IPv4 form, so a range blocks every encoding of its addresses. Remove a range to let Waldur reach a remote Waldur on that network, e.g. 127.0.0.0/8 and ::1/128 for a remote Waldur on localhost during development. The default covers the standard non-routable ranges only; add your own internal ranges, such as publicly routed cloud host endpoints (Azure's 168.63.129.16), network-specific NAT64 prefixes or internal global IPv6. Behind an egress proxy from the environment (http_proxy, https_proxy), Waldur tunnels to the checked address with CONNECT, so the check holds there too. Plain-http remotes and ports other than 443 also use CONNECT; a proxy that only allows CONNECT to SSL ports (squid's default 'http_access deny CONNECT !SSL_ports') refuses them with 'The proxy refused the tunnel' unless it allows CONNECT to those ports.
 
 #### SUPPORT_PORTAL_URL
 

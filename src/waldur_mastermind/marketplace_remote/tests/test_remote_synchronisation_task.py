@@ -12,6 +12,9 @@ from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_remote import models, tasks
 from waldur_mastermind.marketplace_remote.tests import factories, fixtures
+from waldur_mastermind.marketplace_remote.tests.dns_utils import (
+    create_selective_dns_mock,
+)
 
 
 class RemoteOfferingsSyncTest(test.APITestCase):
@@ -26,6 +29,10 @@ class RemoteOfferingsSyncTest(test.APITestCase):
         with open(self.offering_file_path, encoding="utf-8") as file:
             self.remote_offering = json.load(file)
 
+        # Remote hosts and the images they link to are resolved and checked
+        # before any request, so the test hosts need DNS answers.
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
         respx.start()
         self.mock_thumbnail()
         self.mock_marketplace_categories()
@@ -33,6 +40,7 @@ class RemoteOfferingsSyncTest(test.APITestCase):
 
     def tearDown(self):
         respx.stop()
+        self.dns_patcher.stop()
         super().tearDown()
         mock.patch.stopall()
 
