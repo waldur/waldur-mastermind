@@ -1239,6 +1239,13 @@ class RancherIngressSerializer(structure_serializers.BaseResourceSerializer):
             "namespace_name",
             "rules",
         )
+        # An ingress stays where it runs in Rancher: its yaml and delete calls
+        # go by these, so moving it would point them at another project's
+        # ingress of the same id.
+        protected_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
+            + ("rancher_project", "namespace")
+        )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "namespace": {
@@ -1254,6 +1261,9 @@ class RancherIngressSerializer(structure_serializers.BaseResourceSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if self.instance is not None:
+            # Neither can change on update.
+            return attrs
         rancher_project = attrs["rancher_project"]
         namespace = attrs["namespace"]
 
@@ -1308,6 +1318,13 @@ class RancherServiceSerializer(structure_serializers.BaseResourceSerializer):
             "cluster_ip",
             "selector",
             "target_workloads",
+        )
+        # A service stays in the namespace it runs in: its yaml and delete
+        # calls go by it, so moving it would point them at another project's
+        # service of the same id.
+        protected_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
+            + ("namespace",)
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
