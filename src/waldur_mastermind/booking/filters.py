@@ -5,6 +5,7 @@ from django.db.models import Q
 from django_filters import OrderingFilter
 from rest_framework.filters import BaseFilterBackend
 
+from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
@@ -15,6 +16,11 @@ from ..marketplace.enums import BOOKING_OFFERING, OrderTypes
 
 
 class ResourceOwnerOrCreatorFilterBackend(BaseFilterBackend):
+    """Bookings of offerings whose organization the caller owns or manages,
+    and those the caller ordered; staff see all."""
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         user = request.user
         if user.is_staff:
@@ -41,6 +47,10 @@ class ResourceOwnerOrCreatorFilterBackend(BaseFilterBackend):
 
 
 class CustomersFilterBackend(BaseFilterBackend):
+    """Booking offerings of organizations the caller owns; staff see all."""
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
     def filter_queryset(self, request, queryset, view):
         user = request.user
         if user.is_staff:

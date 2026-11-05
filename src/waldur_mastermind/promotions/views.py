@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.permissions.enums import PermissionEnum
@@ -36,6 +37,24 @@ class CampaignViewSet(core_views.ActionsViewSet):
         )
     ]
     disabled_actions = ["partial_update"]
+    # orders and resources read the campaign with get_object(), then list what
+    # it discounts, which is of the service provider's own offerings.
+    access_declarations = {
+        "orders": [
+            access.custom(
+                "A campaign the caller sees: a role on its service provider's "
+                "organization, or managing the service provider; staff and "
+                "support see all. Lists the orders of the resources it discounts."
+            )
+        ],
+        "resources": [
+            access.custom(
+                "A campaign the caller sees: a role on its service provider's "
+                "organization, or managing the service provider; staff and "
+                "support see all. Lists the resources it discounts."
+            )
+        ],
+    }
 
     @extend_schema(
         request=None,
