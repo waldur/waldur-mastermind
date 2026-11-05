@@ -342,7 +342,10 @@ class ExternalNetworkViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.ExternalNetwork.objects.all().order_by("settings", "name")
     serializer_class = serializers.ExternalNetworkSerializer
     lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.ExternalNetworkVisibilityFilterBackend,
+    )
     filterset_class = filters.ExternalNetworkFilter
 
 

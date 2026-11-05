@@ -2,7 +2,16 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
+from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.fixtures import add_user_to_project
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.tests import factories
@@ -175,3 +184,99 @@ class PullExternalNetworksTest(test.APITestCase):
         self.assertFalse(
             models.ExternalNetwork.objects.filter(pk=stale_net.pk).exists()
         )
+
+
+class ExternalNetworkVisibilityTest(test.APITestCase):
+    """Non-shared external networks are the provider's own (#1065)."""
+
+    def setUp(self):
+        self.fixture = OpenStackFixture()
+        self.provider = structure_factories.CustomerFactory()
+        self.provider_owner = structure_factories.UserFactory()
+        self.provider.add_user(self.provider_owner, CustomerRole.OWNER)
+        self.cloud = factories.SettingsFactory(customer=self.provider, shared=True)
+        self.shared = factories.ExternalNetworkFactory(
+            settings=self.cloud, is_shared=True
+        )
+        self.internal = factories.ExternalNetworkFactory(
+            settings=self.cloud, is_shared=False
+        )
+        private_cloud = factories.SettingsFactory(customer=self.provider, shared=False)
+        self.private_cloud_network = factories.ExternalNetworkFactory(
+            settings=private_cloud, is_shared=True
+        )
+
+    def listed(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(factories.ExternalNetworkFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row["uuid"] for row in response.data}
+
+    def test_user_without_role_sees_only_shared_networks_of_visible_clouds(self):
+        user = structure_factories.UserFactory()
+        self.assertEqual(self.listed(user), {self.shared.uuid.hex})
+
+    def test_user_without_role_cannot_retrieve_internal_network(self):
+        self.client.force_authenticate(structure_factories.UserFactory())
+        response = self.client.get(
+            factories.ExternalNetworkFactory.get_url(self.internal)
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_consumer_of_the_cloud_does_not_see_internal_network(self):
+        factories.TenantFactory(
+            service_settings=self.cloud, project=self.fixture.project
+        )
+        listed = self.listed(self.fixture.owner)
+        self.assertIn(self.shared.uuid.hex, listed)
+        self.assertNotIn(self.internal.uuid.hex, listed)
+
+    def test_provider_owner_sees_all_networks_of_own_clouds(self):
+        self.assertEqual(
+            self.listed(self.provider_owner),
+            {
+                self.shared.uuid.hex,
+                self.internal.uuid.hex,
+                self.private_cloud_network.uuid.hex,
+            },
+        )
+
+    def test_staff_and_support_see_every_network(self):
+        for user in (self.fixture.staff, self.fixture.global_support):
+            with self.subTest(user=user):
+                listed = self.listed(user)
+                self.assertTrue(
+                    {
+                        self.shared.uuid.hex,
+                        self.internal.uuid.hex,
+                        self.private_cloud_network.uuid.hex,
+                    }
+                    <= listed
+                )
+
+    def test_provider_users_who_are_not_owners_do_not_see_internal_network(self):
+        """Only the provider organization's owners see its internal networks,
+        as for a router's gateway (is_openstack_service_provider)."""
+        manager = structure_factories.UserFactory()
+        self.provider.add_user(manager, ServiceProviderRole.MANAGER)
+        member = structure_factories.UserFactory()
+        provider_project = structure_factories.ProjectFactory(customer=self.provider)
+        add_user_to_project(member, provider_project, ProjectRole.MEMBER)
+        for user in (manager, member):
+            with self.subTest(user=user):
+                listed = self.listed(user)
+                self.assertIn(self.shared.uuid.hex, listed)
+                self.assertNotIn(self.internal.uuid.hex, listed)
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_without_staff_or_support_scope_sees_what_roles_reach(self):
+        for user in (self.fixture.staff, self.fixture.global_support):
+            with self.subTest(user=user):
+                use_pat(self.client, user, PermissionEnum.LIST_RESOURCES.value)
+                response = self.client.get(
+                    factories.ExternalNetworkFactory.get_list_url()
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(
+                    {row["uuid"] for row in response.data}, {self.shared.uuid.hex}
+                )
