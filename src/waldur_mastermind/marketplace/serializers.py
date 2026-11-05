@@ -188,6 +188,7 @@ from . import (
     log,
     model_lists,
     models,
+    order_callback,
     permissions,
     plugins,
     posix_ids,
@@ -7270,6 +7271,16 @@ class BaseOrderSerializer(BaseItemSerializer):
             "attachment",
             "start_date",
         )
+        extra_kwargs = {
+            **BaseItemSerializer.Meta.extra_kwargs,
+            "callback_url": {
+                "write_only": True,
+                "help_text": "Sent by a Waldur that orders from this one through "
+                "a remote offering: its public order pull endpoint "
+                "(.../api/remote-waldur-api/pull_order/<its order uuid>). "
+                "No other URL is accepted. Not stored: order callbacks are off.",
+            },
+        }
 
     type = NaturalChoiceField(
         choices=OrderTypes.CHOICES,
@@ -7297,6 +7308,17 @@ class BaseOrderSerializer(BaseItemSerializer):
 
     def get_state(self, obj) -> OrderStatesType:
         return obj.get_state_display()
+
+    def validate_callback_url(self, value):
+        if not value:
+            return value
+        try:
+            # Shape and path only: field validation runs before the order's
+            # permission checks, so it must not resolve a caller's host.
+            order_callback.check_callback_url_shape(value)
+        except order_callback.CallbackUrlRefused as exc:
+            raise serializers.ValidationError(str(exc))
+        return value
 
     def get_fields(self):
         fields = super().get_fields()
