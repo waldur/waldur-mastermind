@@ -10028,6 +10028,7 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
             "resource_uuid",
             "resource_backend_id",
             "client_id",
+            "description",
             "state",
             "pending_action",
             "modified",
@@ -10077,8 +10078,19 @@ class ResourceApiKeySettingsSerializer(serializers.Serializer):
     ``limits`` is the flat monthly shape key limits had before they had periods,
     and replaces only the month limits. A model list is stored as sent: ``["*"]``
     is every model and an empty list is none. The assignee is chosen only by a
-    request.
+    request. The description is a note, not a setting the agent applies.
     """
+
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=models.ResourceApiKey._meta.get_field("description").max_length,
+        help_text="A note telling the key apart from the resource's other keys, "
+        "such as the environment that uses it. No command to the site agent "
+        "carries it, so changing it alone issues none and needs no "
+        "enable_api_key_provisioning. Everyone who can list the key reads it, "
+        "the provider included.",
+    )
 
     limits = serializers.DictField(
         child=LimitValueField(min_value=0),
@@ -10206,7 +10218,7 @@ class ResourceApiKeyCreateSerializer(ResourceApiKeySettingsSerializer):
 
 
 class ResourceApiKeyUpdateSerializer(ResourceApiKeySettingsSerializer):
-    """Edit a key's limits or model allowlist."""
+    """Edit a key's limits, model allowlist or description."""
 
     def to_internal_value(self, data):
         # Refused rather than dropped: an assignee could once be edited, and a

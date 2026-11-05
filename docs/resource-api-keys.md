@@ -177,6 +177,7 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | --- | --- |
 | `resource` | `ForeignKey` — a resource owns a collection of keys |
 | `client_id` | the backend's **public** identifier, e.g. `<resource_backend_id>-<n>` (one gateway Secret entry) or an S3 access key; unique per resource, and may move on rotation. Blank on a requested key until the agent creates it |
+| `description` | the portal's own note telling the key apart from the resource's other keys (`DescribableMixin`); carried by no command, so editing it issues none; the agent and the provider still read it when they list the key |
 | `key_ciphertext` | the agent-generated value, Fernet-encrypted ([field encryption](#encryption-at-rest)); dropped when the key is deleted |
 | `issued_at` | when the agent last stored a value: the key's creation or its latest rotation. Unlike `modified`, a pause, resume or edit leaves it alone, so it is the age of the value in use |
 | `state` | FSM, aligned to resource states (below) |
@@ -581,7 +582,7 @@ unless `?state=Deleted` asks for them.
 Consumer side. The actions marked *governance* need the offering's
 `enable_api_key_provisioning`; without it they return 400.
 
-- `GET /` and `GET /{uuid}/` — list/retrieve status (`client_id`, state,
+- `GET /` and `GET /{uuid}/` — list/retrieve status (`client_id`, `description`, state,
   `pending_action`, `modified`, error message, assignee, limits, models as chosen
   and effective, usage — no secret). `spending_limit_status` lists each limit
   with `used`, `limit`, `resets_at` (`null` for a total) and `reached`, and
@@ -613,8 +614,8 @@ Consumer side. The actions marked *governance* need the offering's
   (`pending_action`); governed unless that command is `rotate` or `resume`. The
   key's assignee can retry a failed `rotate`; a retry of any other command is
   refused to them with `403`.
-- `POST /` *(governance)* — request a key: `{resource, user?, spending_limits?,
-  allowed_models?}`. Creates a `Creating` row and the `create` command; Waldur
+- `POST /` *(governance)* — request a key: `{resource, description?, user?,
+  spending_limits?, allowed_models?}`. Creates a `Creating` row and the `create` command; Waldur
   generates nothing. The assignee must be a member of the resource's project (an
   organization role alone is not enough) and must not already hold a key on the
   resource (see **One key per person** above), limits follow [Limits](#limits),
@@ -635,6 +636,14 @@ Consumer side. The actions marked *governance* need the offering's
   with 400 on `user` on every offering, with or without key management: the key
   is left as it was, and nothing is published or audited (see **A key's assignee
   is fixed when the key is requested** above).
+- `PATCH /{uuid}/` with `description` alone — on every offering, governed or
+  not, and in every state but `Deleted`, a command in flight or a failed one
+  included: the description is Waldur's own note, so it is saved at once
+  without a command, and `state`, `pending_action` and `modified` stay as they
+  were (`resource_api_keys.set_description`). Sent with `spending_limits` or
+  `allowed_models`, it is saved in the same transaction as their `update`, and
+  refused with it. Same permission as any edit; not audited, as it changes
+  nothing at the backend.
 - `POST /{uuid}/pause/` *(governance)* — the `pause` command.
 - `DELETE /{uuid}/` *(governance)* — the `delete` command; `202`, since the key
   is gone only once the agent acknowledges. A requested key with no `client_id`

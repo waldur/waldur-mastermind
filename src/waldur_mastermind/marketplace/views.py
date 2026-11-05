@@ -17722,13 +17722,15 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Edit an API key",
-        description="Changes the key's limits or model allowlist. A change is sent "
-        "to the site agent as an update command, unless the key is paused: "
-        "resuming it applies them. The key's assignee is set when the key is "
-        "requested and cannot be changed: an edit that names user, null "
-        "included, is refused with 400. To hand a key to someone else, request a "
-        "key for them and delete this one. Only on offerings with "
-        "enable_api_key_provisioning.",
+        description="Changes the key's limits, model allowlist or description. A "
+        "change of limits or models is sent to the site agent as an update "
+        "command, unless the key is paused: resuming it applies them. The key's "
+        "assignee is set when the key is requested and cannot be changed: an edit "
+        "that names user, null included, is refused with 400. To hand a key to "
+        "someone else, request a key for them and delete this one. Only on "
+        "offerings with enable_api_key_provisioning, except an edit of the "
+        "description alone: that is saved at once on any offering and in any "
+        "state but Deleted, sends no command and leaves the key's state as it is.",
         request=serializers.ResourceApiKeyUpdateSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
     )
@@ -17738,7 +17740,9 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         # Validated before governance is checked, so an edit of the assignee
         # learns on every offering that the assignee cannot change.
         serializer.is_valid(raise_exception=True)
-        resource_api_keys.require_managed(obj.resource)
+        # A description reaches no backend, so any offering's keys take one.
+        if not resource_api_keys.is_portal_only(serializer.validated_data):
+            resource_api_keys.require_managed(obj.resource)
         api_key = resource_api_keys.update_settings(
             obj, request.user, serializer.validated_data
         )
