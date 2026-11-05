@@ -626,6 +626,22 @@ class ProjectTemplateViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ProjectTemplateFilter
 
+    # create checks provider ownership itself; the serializer limits the
+    # provider, customer and offerings to what the caller's roles reach.
+    access_declarations = {
+        "create": [
+            access.any_of(
+                access.staff(),
+                access.custom(
+                    "An owner of the provider organization named in the "
+                    "request. The organization the template's projects are "
+                    "placed in, and its offerings, must be ones the caller's "
+                    "roles reach; global support has no wider reach here."
+                ),
+            )
+        ]
+    }
+
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.

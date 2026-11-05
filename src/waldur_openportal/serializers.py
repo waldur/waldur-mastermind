@@ -443,27 +443,33 @@ class ProjectTemplateSerializer(
         super().__init__(*args, **kwargs)
         # Handle permission filtering for many-to-many fields
         if hasattr(self, "context") and "request" in self.context:
-            user = self.context["request"].user
             # Access the child field of the ManyRelatedField to set the queryset
             if hasattr(self.fields["offerings"], "child"):
-                self.fields["offerings"].child.queryset = filter_queryset_for_user(
-                    marketplace_models.Offering.objects.all(), user
+                self.fields["offerings"].child.queryset = self._reachable(
+                    marketplace_models.Offering.objects.all()
                 )
+
+    def _reachable(self, queryset):
+        """The objects a template may name: those the caller's roles reach,
+        or all of them for a request acting as staff (#1063).
+
+        A write path: global support, which only reads, and a token without
+        the staff scope reach only what the user's roles do.
+        """
+        request = self.context["request"]
+        return filter_queryset_for_user(
+            queryset, request.user, sees_all=has_staff_access(request)
+        )
 
     def get_fields(self):
         fields = rf_serializers.ModelSerializer.get_fields(self)
 
-        try:
-            request = self.context["request"]
-            user = request.user
-        except (KeyError, AttributeError):
+        if getattr(self.context.get("request"), "user", None) is None:
             return fields
 
-        # Skip filtering during creation to avoid blocking valid relationships
-        if hasattr(self, "instance") and self.instance is None:
-            # This is a creation operation, be more permissive
-            return fields
-
+        # Create and update accept the same objects: the provider, the
+        # organization projects are placed in and the offerings must be ones
+        # the caller's roles reach (#1063).
         for field_name in self.get_filtered_field_names():
             if field_name not in fields:  # field could be not required by user
                 continue
@@ -471,12 +477,10 @@ class ProjectTemplateSerializer(
 
             # Handle ManyRelatedField (many=True relationships)
             if hasattr(field, "child") and hasattr(field.child, "queryset"):
-                field.child.queryset = filter_queryset_for_user(
-                    field.child.queryset, user
-                )
+                field.child.queryset = self._reachable(field.child.queryset)
             # Handle regular fields with queryset
             elif hasattr(field, "queryset"):
-                field.queryset = filter_queryset_for_user(field.queryset, user)
+                field.queryset = self._reachable(field.queryset)
 
         return fields
 
@@ -486,10 +490,7 @@ class ProjectTemplateSerializer(
         if hasattr(field, "child") and hasattr(field.child, "queryset"):
             # Filter the child field's queryset instead
             if hasattr(self, "context") and "request" in self.context:
-                user = self.context["request"].user
-                field.child.queryset = filter_queryset_for_user(
-                    field.child.queryset, user
-                )
+                field.child.queryset = self._reachable(field.child.queryset)
 
             return field
 
