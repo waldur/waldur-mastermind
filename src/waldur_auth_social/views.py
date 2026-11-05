@@ -37,6 +37,7 @@ from waldur_auth_social.utils import (
     validate_and_get_redirect_url,
 )
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
 from waldur_core.core.models import TokenExchangeCode, User
@@ -77,6 +78,14 @@ OIDC_REFERRER_KEY = "oidc_referrer"
 OIDC_RETURN_URL_KEY = "oidc_return_url"
 
 
+# The eduTEAMS and Identity Bridge views check the caller in the method body,
+# and answer 403 with a message of their own. The Identity Bridge writes also
+# require a non-staff caller to manage the ISD named, so this does not fit them.
+STAFF_OR_IDENTITY_MANAGER = access.any_of(
+    access.staff(), access.custom("An identity manager (`is_identity_manager`).")
+)
+
+
 def generate_code_challenge(code_verifier):
     """
     Generate a code challenge from the code verifier using S256 method.
@@ -90,6 +99,10 @@ class BaseOAuthView(generics.GenericAPIView):
     authentication_classes = []
     throttle_scope = "oauth"
     serializer_class = EmptySerializer
+    # The OIDC sign-in, for anonymous callers. Its state lives in the caller's
+    # own session, and it signs in only the user the identity provider
+    # authenticated, so it cannot act for anybody else.
+    access_declarations = {"get": [access.public()]}
 
     def validate_config(self, provider):
         if not self.request.user.is_anonymous:
@@ -647,6 +660,7 @@ class IdentityProvidersViewSet(viewsets.ModelViewSet):
 class RemoteEduteamsView(generics.GenericAPIView):
     filter_backends = []
     pagination_class = None
+    access_declarations = {"post": [STAFF_OR_IDENTITY_MANAGER]}
 
     @extend_schema(
         description="Allows to pull user details from remote eduTEAMS instance.",
@@ -828,6 +842,7 @@ class IdentityBridgeStatsView(generics.GenericAPIView):
 
     filter_backends = []
     pagination_class = None
+    access_declarations = {"get": [access.staff()]}
     serializer_class = IdentityBridgeStatsSerializer
 
     @extend_schema(
@@ -855,6 +870,7 @@ class IdentityBridgeAllowedFieldsView(generics.GenericAPIView):
 
     filter_backends = []
     pagination_class = None
+    access_declarations = {"get": [STAFF_OR_IDENTITY_MANAGER]}
     serializer_class = IdentityBridgeAllowedFieldsSerializer
 
     @extend_schema(

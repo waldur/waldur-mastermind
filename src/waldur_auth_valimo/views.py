@@ -6,6 +6,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import decorators, mixins, response, viewsets
 
+from waldur_core.core import access
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core.views import validate_authentication_method
 
@@ -22,6 +23,15 @@ class AuthResultViewSet(
     permission_classes = ()
     lookup_field = "uuid"
     create_executor = executors.AuthExecutor
+    access_declarations = {
+        # Starts a Mobile ID login for any phone number. The token goes to
+        # whoever started it, once the phone's owner confirms the prompt,
+        # which shows the same code as the response to create.
+        "create": [access.public()],
+        # Reads a login by its UUID, which only the response to create
+        # returns; how long it hands out the token is #887.
+        "result": [access.public()],
+    }
 
     def perform_create(self, serializer):
         phone = serializer.validated_data["phone"]

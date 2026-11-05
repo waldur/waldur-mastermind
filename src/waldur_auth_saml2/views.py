@@ -22,6 +22,7 @@ from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT, md
 from saml2.xmldsig import DIGEST_SHA1, SIG_RSA_SHA1
 from six import text_type
 
+from waldur_core.core import access
 from waldur_core.core.authentication import (
     AuthenticationMethod,
     refresh_token,
@@ -74,6 +75,12 @@ class BaseSaml2View(GenericAPIView):
     throttle_classes = ()
     permission_classes = ()
     authentication_classes = ()
+    # The SAML2 sign-in and logout, for anonymous callers. They act only on
+    # the caller's own session: a login signs in the user of a response the
+    # identity provider signed, and a logout ends the session only for a SAML
+    # exchange that names its subject. That an IdP-initiated logout request
+    # need not be signed is #1071.
+    access_declarations = {"get": [access.public()], "post": [access.public()]}
 
 
 class Saml2LoginView(BaseSaml2View):
@@ -447,6 +454,9 @@ class Saml2LogoutCompleteView(BaseSaml2View):
 class Saml2ProviderView(ListAPIView):
     throttle_classes = ()
     permission_classes = ()
+    # The login page lists the identity providers to choose from: their name
+    # and URL only.
+    access_declarations = {"get": [access.public()]}
     serializer_class = serializers.Saml2ProviderSerializer
     queryset = models.IdentityProvider.objects.all()
     filterset_class = filters.IdentityProviderFilter
