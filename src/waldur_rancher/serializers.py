@@ -1007,6 +1007,16 @@ class RancherWorkloadSerializer(serializers.HyperlinkedModelSerializer):
             },
         }
 
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.instance is not None:
+            # A workload stays where it runs in Rancher. Its checks and the
+            # calls to Rancher go by these fields, so moving it would point
+            # them at another project's workload of the same id.
+            for name in ("cluster", "project", "namespace"):
+                fields[name].read_only = True
+        return fields
+
     def create(self, validated_data):
         workload = cast(models.Workload, validated_data["workload"])
         if workload.cluster:
