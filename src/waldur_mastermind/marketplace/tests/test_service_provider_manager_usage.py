@@ -85,6 +85,31 @@ class ServiceProviderManagerUsageTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    def offering_manager(self):
+        user = structure_factories.UserFactory()
+        self.resource.offering.add_user(user, OfferingRole.MANAGER)
+        return user
+
+    def test_offering_manager_dates_usage_like_an_owner(self):
+        # A site agent's user is often an offering manager only, and the agent
+        # dates every report.
+        response = self.set_usage(
+            self.offering_manager(), date=timezone.now().isoformat()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_offering_manager_backfills_under_the_providers_rule(self):
+        # A past period of a usage-based component is refused as for an owner,
+        # not because an offering manager is no service provider.
+        response = self.set_usage(self.offering_manager(), date="2026-05-10T12:00:00Z")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Service providers can only specify date for limit-based or prepaid",
+            str(response.data),
+        )
+
     def test_manager_of_another_provider_is_refused(self):
         other = factories.ServiceProviderFactory()
         outsider = structure_factories.UserFactory()

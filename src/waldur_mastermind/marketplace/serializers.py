@@ -11316,10 +11316,12 @@ class ComponentUserUsageSerializer(
 # so it is safe to accept, including when backfilling a past billing period.
 DISPLAY_ONLY_BILLING_TYPES = (BillingTypes.LIMIT, BillingTypes.ONE_TIME)
 
-# Who counts as the service provider when a usage report carries a date: the
-# owner holds the permission on the organization, a service provider manager
-# on its ServiceProvider record.
-PROVIDER_USAGE_SOURCES = ["customer", "customer.serviceprovider"]
+# Who counts as the service provider when a usage report carries a date: an
+# offering manager holds the permission on the offering, the owner on its
+# organization, a service provider manager on its ServiceProvider record. The
+# same people may report usage at all (USAGE_REPORTER_SOURCES in views.py); a
+# site agent's user is often an offering manager and always dates its reports.
+PROVIDER_USAGE_SOURCES = ["*", "customer", "customer.serviceprovider"]
 
 
 class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
