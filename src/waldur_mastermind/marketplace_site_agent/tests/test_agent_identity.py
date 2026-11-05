@@ -869,3 +869,50 @@ class AgentIdentityOfferingTypeTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertNotIn(enums.BOOKING_OFFERING, str(response.json()))
         self.assertFalse(models.AgentIdentity.objects.exists())
+
+
+@ddt
+class AgentIdentityCreateWithoutValidBodyTest(test.APITestCase):
+    """An empty or malformed create request is refused, not a server error (#1074)."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = enums.SITE_AGENT_OFFERING
+        self.offering.save()
+        self.url = factories.AgentIdentityFactory.get_list_url()
+        # A server error must show up as a status, not as a raised exception.
+        self.client.raise_request_exception = False
+
+    @data(
+        ("offering_owner", {}),
+        ("offering_owner", []),
+        ("offering_owner", {"name": "agent"}),
+        ("user", {}),
+        ("user", {"name": "agent", "offering": "not-a-uuid"}),
+        ("global_support", {}),
+        ("staff", {}),
+    )
+    def test_refused_with_a_client_error(self, case):
+        user_role, body = case
+        self.client.force_authenticate(getattr(self.fixture, user_role))
+
+        response = self.client.post(self.url, body, format="json")
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_400_BAD_REQUEST, status.HTTP_403_FORBIDDEN],
+        )
+        self.assertFalse(models.AgentIdentity.objects.exists())
+
+    def test_unrelated_user_naming_an_offering_is_forbidden(self):
+        self.client.force_authenticate(self.fixture.user)
+
+        response = self.client.post(
+            self.url,
+            {"name": "agent", "offering": self.offering.uuid.hex},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(models.AgentIdentity.objects.exists())

@@ -20,7 +20,6 @@ from waldur_core.core.permissions import (
     IsStaff,
     IsSupport,
     has_staff_access,
-    has_support_access,
 )
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import backend as logging_backend
@@ -205,31 +204,10 @@ class AgentIdentityViewSet(ActionsViewSet):
         return models.AgentIdentity.objects.filter(base_q).distinct()
 
     def check_create_permissions(request, view, obj=None):
-        is_browsable_api_check = request.method == "POST" and (
-            not hasattr(request, "_full_data") or not request.data
-        )
-
-        if request.method != "POST" or is_browsable_api_check:
-            if not request.user.is_authenticated:
-                raise PermissionDenied("Authentication required")
-
-            # For OPTIONS, GET, or browsable API checks, just check if user can create in general
-            if has_support_access(request):
-                return
-
-            # Check if user has permission to any agent-based offerings
-            matching_offering_exists = (
-                marketplace_models.Offering.filter_for_user(request.user)
-                .filter(uuid=obj.uuid)
-                .exists()
-            )
-            if not matching_offering_exists:
-                raise PermissionDenied(
-                    "Creating agent identities is not allowed due to insufficient offering permissions"
-                )
-            return
-
-        # For actual POST requests with data, validate the data
+        # The offering the request names decides who may create, so the
+        # request is validated first: an empty or malformed body is a 400, and
+        # the serializer refuses an offering the caller cannot manage (403)
+        # before it reveals anything about it.
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         offering = serializer.validated_data.get("offering")
