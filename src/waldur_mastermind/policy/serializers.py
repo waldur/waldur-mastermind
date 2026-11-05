@@ -13,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from waldur_core.core import access
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
@@ -506,6 +507,11 @@ class EstimatedCostPolicySerializer(
         return cache[customer.id]
 
 
+# Who ProjectEstimatedCostPolicySerializer.validate_scope lets name a project:
+# an owner of its organization, or staff. Change the two together.
+CONFIGURES_PROJECT_POLICY = access.role(structure_permissions.OWNER_ROLES, via="scope")
+
+
 class ProjectEstimatedCostPolicySerializer(
     core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
 ):
@@ -639,6 +645,11 @@ class ProjectEstimatedCostPolicySerializer(
         )
 
 
+# Who CustomerEstimatedCostPolicySerializer.validate_scope lets name an
+# organization: staff only. Change the two together.
+CONFIGURES_CUSTOMER_POLICY = access.staff()
+
+
 class CustomerEstimatedCostPolicySerializer(
     core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
 ):
@@ -675,6 +686,11 @@ class CustomerEstimatedCostPolicySerializer(
         raise serializers.ValidationError(
             _("User is not allowed to configure policies.")
         )
+
+
+# Who OfferingPolicySerializerMixin.validate_scope lets name an offering: an
+# owner of its organization, or staff. Change the two together.
+CONFIGURES_OFFERING_POLICY = access.role(structure_permissions.OWNER_ROLES, via="scope")
 
 
 class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
