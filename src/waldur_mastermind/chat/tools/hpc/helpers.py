@@ -140,7 +140,12 @@ JOB_SPEC_PROPERTIES = {
     "ntasks_per_node": {"type": "integer", "minimum": 1},
     "cpus_per_task": {"type": "integer", "minimum": 1},
     "memory_mb": {"type": "integer", "minimum": 1, "description": "Memory per node."},
-    "time_limit_minutes": {"type": "integer", "minimum": 1},
+    "time_limit_minutes": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "Wall-time limit in minutes, not seconds: 10 for ten "
+        "minutes, 240 for four hours.",
+    },
     "gpus_per_node": {"type": "integer", "minimum": 0},
     "modules": {
         "type": "array",
@@ -151,5 +156,25 @@ JOB_SPEC_PROPERTIES = {
     "working_directory": {
         "type": "string",
         "description": "Absolute path; defaults to the user's home directory.",
+    },
+    "files": {
+        "type": "array",
+        "maxItems": 16,
+        "description": "Files the job writes into its working directory before "
+        "the commands run. Put a program the job runs here, e.g. "
+        "{'name': 'matmul.py', 'content': '<the program>'} with the commands "
+        "'python3 matmul.py', rather than writing it out in the commands.",
+        "items": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Plain file name: no directories, not starting "
+                    "with '.'.",
+                },
+                "content": {"type": "string", "maxLength": 64 * 1024},
+            },
+            "required": ["name", "content"],
+        },
     },
 }

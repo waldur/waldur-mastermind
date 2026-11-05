@@ -24,16 +24,64 @@ JOB_ID_PROPERTY = {
 }
 
 
+def _error_lines(errors, path=""):
+    """DRF errors as 'files[0].name: message' lines, nested ones included.
+
+    A list field's errors come keyed by the item's index, as a list or as a
+    dict; non_field_errors belong to the field itself.
+    """
+    if isinstance(errors, dict):
+        items = errors.items()
+    elif isinstance(errors, list) and not all(isinstance(e, str) for e in errors):
+        items = enumerate(errors)
+    else:
+        messages = errors if isinstance(errors, list) else [errors]
+        text = " ".join(str(message) for message in messages)
+        yield f"{path}: {text}" if path else text
+        return
+    for key, value in items:
+        if not value:
+            continue
+        if isinstance(key, int):
+            child = f"{path}[{key}]"
+        elif key == "non_field_errors":
+            child = path
+        else:
+            child = f"{path}.{key}" if path else key
+        yield from _error_lines(value, child)
+
+
 def parse_spec(arguments: dict):
     data = {k: v for k, v in arguments.items() if k in JOB_SPEC_PROPERTIES}
     serializer = HpcJobSpecSerializer(data=data)
     if not serializer.is_valid():
-        errors = "; ".join(
-            f"{field}: {' '.join(str(m) for m in messages)}"
-            for field, messages in serializer.errors.items()
-        )
+        errors = "; ".join(_error_lines(serializer.errors))
         return None, {"type": "validation_error", "summary": errors}
     return scripts.JobSpec(**serializer.validated_data), None
+
+
+def job_facts(workspace, spec) -> dict:
+    """What the job asks for, with the defaults it was rendered with: the
+    model describes the job from these, not from the script it is not given."""
+    return {
+        "account": workspace.account,
+        "partition": spec.partition or "(cluster default)",
+        "nodes": spec.nodes,
+        "ntasks_per_node": spec.ntasks_per_node,
+        "cpus_per_task": spec.cpus_per_task,
+        "time_limit_minutes": spec.time_limit_minutes,
+        "memory_mb_per_node": spec.memory_mb,
+        "gpus_per_node": spec.gpus_per_node,
+        "cpu_hours_at_most": round(
+            spec.nodes
+            * spec.ntasks_per_node
+            * spec.cpus_per_task
+            * spec.time_limit_minutes
+            / 60,
+            2,
+        ),
+        "files": [job_file["name"] for job_file in spec.files],
+    }
 
 
 def job_card(workspace, spec, status, **extra) -> dict:
@@ -47,6 +95,15 @@ def job_card(workspace, spec, status, **extra) -> dict:
         "partition": spec.partition,
         **extra,
     }
+
+
+# The job card shows the user the script. The model is not given the script
+# and is told the card shows it: a model that has the script pastes it into
+# its reply as well. It reads a result's data when there is any, else its
+# summary (llm_streamer), so the note goes where the model reads it.
+CARD_SHOWS_SCRIPT = (
+    "The user sees the batch script in the job card; do not repeat it in your reply."
+)
 
 
 class PlanHpcJobTool(BaseTool):
@@ -87,6 +144,7 @@ class PlanHpcJobTool(BaseTool):
                 spec,
                 "preview" if validation.is_valid else "error",
                 script=script,
+                files=spec.files,
                 errors=validation.errors,
                 warnings=validation.warnings,
             )
@@ -94,15 +152,27 @@ class PlanHpcJobTool(BaseTool):
                 return {
                     "type": "validation_error",
                     "summary": "The job does not fit the cluster limits: "
-                    + " ".join(validation.errors),
+                    + " ".join(validation.errors)
+                    + " "
+                    + CARD_SHOWS_SCRIPT,
                     "ui_component": "hpc_job",
                     "ui_data": card,
                 }
+            summary = (
+                "Job preview ready; wait for the user to confirm before "
+                "calling submit_hpc_job with the same parameters. "
+                + CARD_SHOWS_SCRIPT
+                + " The card has Submit and Modify buttons; say briefly what the "
+                "job asks for (nodes, time, CPU-hours) and any warnings."
+            )
             return {
                 "type": "success",
-                "summary": "Job preview ready; wait for the user to confirm before "
-                "calling submit_hpc_job with the same parameters.",
-                "data": {"script": script, "warnings": validation.warnings},
+                "summary": summary,
+                "data": {
+                    "note": summary,
+                    "job": job_facts(workspace, spec),
+                    "warnings": validation.warnings,
+                },
                 "ui_component": "hpc_job",
                 "ui_data": card,
             }
@@ -144,7 +214,11 @@ class SubmitHpcJobTool(BaseTool):
             return {
                 "type": "success",
                 "summary": f"Submitted job {result['job_id']} on {workspace.system}.",
-                "data": {"job_id": result["job_id"], "warnings": result["warnings"]},
+                "data": {
+                    "job_id": result["job_id"],
+                    "warnings": result["warnings"],
+                    "note": CARD_SHOWS_SCRIPT,
+                },
                 "ui_component": "hpc_job",
                 "ui_data": job_card(
                     workspace,
@@ -152,6 +226,7 @@ class SubmitHpcJobTool(BaseTool):
                     "submitted",
                     job_id=result["job_id"],
                     script=result["script"],
+                    files=spec.files,
                     warnings=result["warnings"],
                 ),
             }

@@ -113,6 +113,7 @@ ui_registry.register(
             "cluster": {"type": "string"},  # FirecREST system name
             "partition": {"type": "string"},
             "script": {"type": "string"},  # rendered batch script
+            "files": {"type": "array"},  # [{name, content}] the script writes
             "errors": {"type": "array"},  # limit violations (status=error)
             "warnings": {"type": "array"},
             "job_id": {"type": "string"},  # status=submitted

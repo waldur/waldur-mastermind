@@ -99,6 +99,7 @@ _HPC_JOB_BLOCK_FIELDS = (
     "cluster",
     "partition",
     "script",
+    "files",
     "errors",
     "warnings",
     "job_id",

@@ -12,6 +12,11 @@ from dataclasses import dataclass, field
 from waldur_mastermind.marketplace import models as marketplace_models
 
 JOB_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+# A file the job writes into its working directory: a plain name, no path,
+# and not hidden, so a job cannot quietly replace ~/.bashrc and the like.
+FILE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$")
+MAX_JOB_FILES = 16
+MAX_JOB_FILES_SIZE = 256 * 1024
 
 
 @dataclass
@@ -29,6 +34,10 @@ class JobSpec:
     modules: list[str] = field(default_factory=list)
     working_directory: str = ""
     environment: dict = field(default_factory=dict)
+    # Files written into the working directory before the commands run, as
+    # {"name", "content"}: a program the job runs stays readable on its own
+    # instead of being folded into the commands.
+    files: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -75,8 +84,25 @@ def build_script(spec: JobSpec, account: str) -> str:
         # Keep order (catalog setup lines come first) but drop repeats.
         lines += list(dict.fromkeys(spec.modules))
         lines.append("")
+    for job_file in spec.files:
+        lines += _write_file(job_file["name"], job_file["content"])
+        lines.append("")
     lines.append(spec.commands.strip())
     return "\n".join(lines) + "\n"
+
+
+def _write_file(name: str, content: str) -> list[str]:
+    """A quoted here-document that writes ``content`` to ``name``.
+
+    The quoted delimiter keeps the shell from expanding anything in the file,
+    and no line of the file equals it, so none ends it early. The file ends
+    with exactly one newline, as a here-document always does.
+    """
+    file_lines = content.rstrip("\n").split("\n")
+    delimiter = "EOF"
+    while delimiter in file_lines:
+        delimiter = f"_{delimiter}_"
+    return [f"cat > {name} <<'{delimiter}'", *file_lines, delimiter]
 
 
 def get_partition(offering, name):

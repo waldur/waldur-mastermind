@@ -26,6 +26,7 @@ from waldur_mastermind.chat.tools.hpc.insights import (
     PlotHpcOutputTool,
 )
 from waldur_mastermind.chat.tools.hpc.jobs import (
+    CARD_SHOWS_SCRIPT,
     CancelHpcJobTool,
     GetHpcJobTool,
     PlanHpcJobTool,
@@ -150,10 +151,20 @@ class HpcToolsTest(HpcToolsTestBase):
 
     @responses.activate
     def test_plan_renders_preview_card_that_passes_block_schema(self):
-        result = PlanHpcJobTool().execute(self.user, self.job_args)
+        result = PlanHpcJobTool().execute(
+            self.user,
+            {
+                **self.job_args,
+                "files": [{"name": "prog.py", "content": "print(1)\n"}],
+            },
+        )
         self.assertEqual(result["type"], "success", result)
         self.assertEqual(result["ui_data"]["status"], "preview")
         self.assertIn(f"#SBATCH --account={ACCOUNT}", result["ui_data"]["script"])
+        self.assertIn("cat > prog.py <<'EOF'", result["ui_data"]["script"])
+        self.assertEqual(
+            result["ui_data"]["files"], [{"name": "prog.py", "content": "print(1)\n"}]
+        )
         content = ui_registry.create_content("hpc_job", result["ui_data"])
         data = dict(content.data)
         block = {
@@ -174,6 +185,64 @@ class HpcToolsTest(HpcToolsTestBase):
         self.assertEqual(result["type"], "validation_error")
         self.assertEqual(result["ui_data"]["status"], "error")
         self.assertTrue(result["ui_data"]["errors"])
+
+    @responses.activate
+    def test_model_is_told_the_card_shows_the_script_and_not_given_it(self):
+        # A model that has the script pastes it into its reply as well.
+        submit = responses.post(
+            f"{API_URL}/compute/{SYSTEM}/jobs", json={"jobId": 7}, status=201
+        )
+        results = [
+            PlanHpcJobTool().execute(self.user, self.job_args),
+            PlanHpcJobTool().execute(
+                self.user, {**self.job_args, "time_limit_minutes": 600}
+            ),
+            SubmitHpcJobTool().execute(self.user, self.job_args),
+        ]
+        self.assertEqual(len(submit.calls), 1)
+        for result in results:
+            # The model reads the data when there is any, else the summary.
+            seen = (
+                json.dumps(result["data"]) if result.get("data") else result["summary"]
+            )
+            self.assertIn(CARD_SHOWS_SCRIPT, seen)
+            self.assertNotIn("#SBATCH", seen)
+
+    @responses.activate
+    def test_plan_tells_the_model_what_is_wrong_with_a_file(self):
+        result = PlanHpcJobTool().execute(
+            self.user,
+            {**self.job_args, "files": [{"name": "src/prog.py", "content": ""}]},
+        )
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("files[0].name: A plain file name", result["summary"])
+        self.assertIn(
+            "files[0].content: This field may not be blank.", result["summary"]
+        )
+
+    @responses.activate
+    def test_plan_gives_the_model_the_job_it_rendered(self):
+        result = PlanHpcJobTool().execute(
+            self.user,
+            {
+                **self.job_args,
+                "files": [{"name": "prog.py", "content": "print(1)\n"}],
+            },
+        )
+        job = result["data"]["job"]
+        self.assertEqual(job["account"], ACCOUNT)
+        self.assertEqual(job["files"], ["prog.py"])
+        self.assertEqual(
+            job["cpu_hours_at_most"],
+            round(
+                job["nodes"]
+                * job["ntasks_per_node"]
+                * job["cpus_per_task"]
+                * job["time_limit_minutes"]
+                / 60,
+                2,
+            ),
+        )
 
     @responses.activate
     def test_plan_resolves_allocation_by_name(self):
