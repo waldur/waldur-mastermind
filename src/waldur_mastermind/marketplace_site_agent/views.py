@@ -15,6 +15,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core import utils as core_utils
 from waldur_core.core.permissions import (
     IsStaff,
@@ -36,7 +37,12 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
-from waldur_mastermind.marketplace_site_agent import filters, models, serializers
+from waldur_mastermind.marketplace_site_agent import (
+    filters,
+    models,
+    serializers,
+    utils,
+)
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.marketplace_site_agent.utils import (
     can_manage_offering_agent,
@@ -1282,11 +1288,12 @@ class SiteAgentLogViewSet(ActionsViewSet):
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update", "destroy", "retrieve"]
 
+    @access.shows(utils.AGENT_LOGS_VISIBILITY)
     def get_queryset(self):
         qs = super().get_queryset().select_related("agent_identity__offering")
-        offerings = marketplace_models.Offering.objects.filter(
+        offerings = utils.offerings_updatable_by(self.request).filter(
             type__in=marketplace_enums.SITE_AGENT_COMPATIBLE_OFFERING_TYPES
-        ).filter_for_user(self.request.user)
+        )
         return qs.filter(agent_identity__offering__in=offerings)
 
     @extend_schema(
