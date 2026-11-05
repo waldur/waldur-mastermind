@@ -3,12 +3,20 @@ from typing import cast
 import django_filters
 from django.db.models import Q
 from django_filters.widgets import BooleanWidget
+from rest_framework.filters import BaseFilterBackend
 
+from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.permissions import has_staff_or_support_read_access
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import (
+    filter_queryset_for_user,
+    get_connected_customers,
+)
 from waldur_mastermind.marketplace.models import Offering
 from waldur_openstack.utils import get_valid_availability_zones
 
@@ -174,6 +182,36 @@ class VolumeTypeFilter(
 class ExternalNetworkFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.ExternalNetwork
+
+
+class ExternalNetworkVisibilityFilterBackend(BaseFilterBackend):
+    """Staff and support see every external network (with a personal access
+    token, only one carrying the staff or support scope). Owners of the
+    organization that owns a cloud's service settings see all of that cloud's;
+    others see the shared external networks of the service settings they can
+    see.
+
+    A non-shared external network is provider-internal, as
+    ``utils.get_tenant_external_networks`` says, and is not shown to consumers.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
+    def filter_queryset(self, request, queryset, view):
+        # A personal access token reaches every row only with the staff or
+        # support scope.
+        sees_all = has_staff_or_support_read_access(request)
+        if sees_all:
+            return queryset
+        user = request.user
+        owned_customers = get_connected_customers(user, CustomerRole.OWNER)
+        visible_settings = filter_queryset_for_user(
+            structure_models.ServiceSettings.objects.all(), user, sees_all=sees_all
+        )
+        return queryset.filter(
+            Q(settings__customer__in=owned_customers)
+            | Q(is_shared=True, settings__in=visible_settings)
+        )
 
 
 class HypervisorFilter(structure_filters.ServicePropertySettingsFilter):
