@@ -16,6 +16,7 @@ from rest_framework.response import Response
 # below so the SDK does not load at Django startup (this module is imported
 # during URLconf resolution in every process). See the "Lazy imports for heavy
 # optional backends" section of CLAUDE.md.
+from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.core.client import get_waldur_client
@@ -34,7 +35,10 @@ from waldur_core.structure.managers import (
     get_connected_projects_by_permission,
 )
 from waldur_core.structure.models import Customer
-from waldur_core.structure.permissions import _has_owner_access
+from waldur_core.structure.permissions import (
+    SERVICE_MANAGER_ROLES,
+    _has_owner_access,
+)
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
@@ -59,6 +63,13 @@ from waldur_mastermind.marketplace_remote.utils import (
     get_resource_order_sync_status,
     get_resource_sync_status,
     get_resource_team,
+)
+
+# Who check_remote_resource_access lets through. Change the two together.
+REMOTE_RESOURCE_ACCESS = access.custom(
+    "Staff and support, or who holds "
+    f"{PermissionEnum.LIST_RESOURCES.value} on the resource's project or its "
+    "organization; others get 404."
 )
 
 
@@ -86,6 +97,10 @@ class RemoteView(GenericAPIView):
 
     serializer_class = serializers.RemoteCredentialsSerializer
     filter_backends = []
+    # The remote Waldur answers with what the token in the request may see
+    # there, so any signed-in user may ask; importing an offering checks the
+    # local organization (OfferingCreateView).
+    access_declarations = {"post": [access.authenticated()]}
 
     def get_client(self, request):
         serializer = serializers.RemoteCredentialsSerializer(data=request.data)
@@ -199,6 +214,17 @@ class OfferingsListView(RemoteView):
 
 
 class OfferingCreateView(RemoteView):
+    # Checked in post, before the remote is called.
+    access_declarations = {
+        "post": [
+            access.custom(
+                "Staff, or who holds "
+                f"{PermissionEnum.CREATE_OFFERING.value} on the local "
+                "organization named by local_customer_uuid."
+            )
+        ]
+    }
+
     @extend_schema(
         request=serializers.RemoteOfferingCreateSerializer,
         responses=serializers.RemoteOfferingCreateResponseSerializer,
@@ -249,6 +275,8 @@ class OfferingCreateView(RemoteView):
         return Response({"uuid": local_offering.uuid.hex})
 
 
+# The request's customer is its offering's (ProjectUpdateRequest.Permissions).
+@access.describes(access.role(SERVICE_MANAGER_ROLES), needs_object=True)
 def user_is_service_provider_owner_or_service_provider_manager(
     request, view, obj: ProjectUpdateRequest | None = None
 ):
@@ -316,6 +344,10 @@ class PullOrderView(GenericAPIView):
     permission_classes = []
     filter_backends = []
     serializer_class = EmptySerializer
+    # The order's callback_url: the remote Waldur calls it, unauthenticated,
+    # when the order changes there. It only schedules a pull of the order
+    # from the remote and returns no data about it.
+    access_declarations = {"post": [access.public()]}
 
     def get_order(self):
         item_uuid = self.kwargs["uuid"]
@@ -336,6 +368,10 @@ class PullOrderView(GenericAPIView):
 class CancelTerminationOrderView(GenericAPIView):
     serializer_class = EmptySerializer
     filter_backends = []
+    # Checked in post, after the order is looked up.
+    access_declarations = {
+        "post": [access.permission(PermissionEnum.APPROVE_ORDER, ["offering.customer"])]
+    }
 
     def get_order(self):
         item_uuid = self.kwargs["uuid"]
@@ -377,6 +413,10 @@ class CancelTerminationOrderView(GenericAPIView):
 class OfferingActionView(GenericAPIView):
     serializer_class = EmptySerializer
     filter_backends = []
+    # Checked in post, after the offering is looked up.
+    access_declarations = {
+        "post": [access.permission(PermissionEnum.UPDATE_OFFERING, ["*", "customer"])]
+    }
 
     def post(self, request, uuid):
         qs = models.Offering.objects.filter(type=REMOTE_OFFERING)
@@ -516,6 +556,8 @@ class RemoteResourceStatusView(GenericAPIView):
     """View for getting remote resource sync status"""
 
     permission_classes = [rf_permissions.IsAuthenticated]
+    # Checked in get by check_remote_resource_access.
+    access_declarations = {"get": [REMOTE_RESOURCE_ACCESS]}
     serializer_class = serializers.RemoteResourceSyncStatusSerializer
 
     @extend_schema(
@@ -539,6 +581,8 @@ class RemoteResourceOrderViewSet(GenericAPIView):
     """ViewSet for remote resource order operations"""
 
     permission_classes = [rf_permissions.IsAuthenticated]
+    # Checked in get by check_remote_resource_access.
+    access_declarations = {"get": [REMOTE_RESOURCE_ACCESS]}
     serializer_class = serializers.RemoteResourceOrderSerializer
 
     @extend_schema(
@@ -562,6 +606,8 @@ class RemoteResourceTeamViewSet(GenericAPIView):
     """ViewSet for remote resource team operations"""
 
     permission_classes = [rf_permissions.IsAuthenticated]
+    # Checked in get by check_remote_resource_access.
+    access_declarations = {"get": [REMOTE_RESOURCE_ACCESS]}
     serializer_class = serializers.RemoteResourceTeamMemberSerializer
     filter_backends = []
     ordering_fields = ["full_name", "remote_role", "sync_status", "local_role"]

@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
 
+from waldur_core.core import access
 from waldur_core.core import utils as core_utils
 from waldur_core.core.views import (
     ActionsViewSet,
@@ -137,6 +138,12 @@ class ProjectEstimatedCostPolicyViewSet(
     ]
     filterset_class = filters.ProjectEstimatedCostPolicyFilter
     lookup_field = "uuid"
+    access_declarations = {
+        # The serializer's validate_scope checks the project named.
+        "create": [serializers.CONFIGURES_PROJECT_POLICY],
+        # The action names the policy type supports, a constant list.
+        "actions": [access.authenticated()],
+    }
     destroy_permissions = update_permissions = partial_update_permissions = [
         structure_permissions.is_owner
     ]
@@ -182,6 +189,12 @@ class CustomerEstimatedCostPolicyViewSet(
     ]
     filterset_class = filters.CustomerEstimatedCostPolicyFilter
     lookup_field = "uuid"
+    access_declarations = {
+        # The serializer's validate_scope checks the organization named.
+        "create": [serializers.CONFIGURES_CUSTOMER_POLICY],
+        # The action names the policy type supports, a constant list.
+        "actions": [access.authenticated()],
+    }
     destroy_permissions = update_permissions = partial_update_permissions = [
         structure_permissions.is_staff
     ]
@@ -202,6 +215,12 @@ class OfferingEstimatedCostPolicyViewSet(
 ):
     queryset = models.OfferingEstimatedCostPolicy.objects.all().order_by("-created")
     serializer_class = serializers.OfferingEstimatedCostPolicySerializer
+    access_declarations = {
+        # The serializer's validate_scope checks the offering named.
+        "create": [serializers.CONFIGURES_OFFERING_POLICY],
+        # The action names the policy type supports, a constant list.
+        "actions": [access.authenticated()],
+    }
     filter_backends = [
         DjangoFilterBackend,
         structure_filters.GenericRoleFilter,
@@ -226,6 +245,12 @@ class OfferingEstimatedCostPolicyViewSet(
 class OfferingUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = models.OfferingUsagePolicy.objects.all().order_by("-created")
     serializer_class = serializers.OfferingUsagePolicySerializer
+    access_declarations = {
+        # The serializer's validate_scope checks the offering named.
+        "create": [serializers.CONFIGURES_OFFERING_POLICY],
+        # The action names the policy type supports, a constant list.
+        "actions": [access.authenticated()],
+    }
     filter_backends = [
         DjangoFilterBackend,
         structure_filters.GenericRoleFilter,
@@ -246,6 +271,8 @@ class OfferingUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
 class CustomerComponentUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = models.CustomerComponentUsagePolicy.objects.all().order_by("-created")
     serializer_class = serializers.CustomerComponentUsagePolicySerializer
+    # The action names the policy type supports, a constant list.
+    access_declarations = {"actions": [access.authenticated()]}
     filter_backends = [
         DjangoFilterBackend,
         structure_filters.GenericRoleFilter,
@@ -266,6 +293,12 @@ class CustomerComponentUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
 class SlurmPeriodicUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     queryset = models.SlurmPeriodicUsagePolicy.objects.all().order_by("-created")
     serializer_class = serializers.SlurmPeriodicUsagePolicySerializer
+    access_declarations = {
+        # The serializer's validate_scope checks the offering named.
+        "create": [serializers.CONFIGURES_OFFERING_POLICY],
+        # The action names the policy type supports, a constant list.
+        "actions": [access.authenticated()],
+    }
     filter_backends = [
         DjangoFilterBackend,
         structure_filters.GenericRoleFilter,

@@ -23,6 +23,7 @@ from rest_framework import exceptions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.permissions import has_staff_access, has_support_access
@@ -58,6 +59,17 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
         DjangoFilterBackend,
     )
     filterset_class = filters.InvoiceFilter
+    # Both look the invoice up with get_object(), as retrieve does.
+    access_filtered_actions = ("items", "stats")
+    access_declarations = {
+        "growth": [
+            access.custom(
+                "Invoice totals of the organizations where the caller holds "
+                f"{PermissionEnum.LIST_INVOICES.value} and that the caller's roles "
+                "reach; staff and support see every organization."
+            )
+        ],
+    }
 
     def _is_invoice_created(invoice):
         if invoice.state != models.Invoice.States.CREATED:
@@ -556,6 +568,17 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
     import_usage_serializer_class = serializers.ImportUsageSerializer
 
 
+# What filter_queryset_for_user leaves of invoice items, by
+# InvoiceItem.Permissions. Change the two together.
+INVOICE_ITEMS_OF_CALLERS_ROLES = access.custom(
+    "Sums only the invoice items the caller's roles reach: those of "
+    f"organizations where the caller holds {PermissionEnum.LIST_INVOICES.value}, "
+    "and those of the caller's projects in organizations that display billing "
+    "info in projects. Staff, support and holders of "
+    f"{PermissionEnum.LIST_INVOICES.value} site-wide reach all."
+)
+
+
 class InvoiceItemViewSet(core_views.ActionsViewSet):
     disabled_actions = ["create"]
     queryset = models.InvoiceItem.objects.select_related(
@@ -570,6 +593,19 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.InvoiceItemFilter
+    # total_price lists filter_queryset(get_queryset()), as list does;
+    # consumptions looks the item up with get_object(), as retrieve does.
+    access_filtered_actions = ("total_price", "consumptions")
+    # These sum the items that filter_queryset_for_user leaves, which is what
+    # GenericRoleFilter narrows list to.
+    access_declarations = {
+        action_name: [INVOICE_ITEMS_OF_CALLERS_ROLES]
+        for action_name in (
+            "costs",
+            "project_costs_for_period",
+            "customer_costs_for_period",
+        )
+    }
 
     @extend_schema(
         description="Calculate total price for filtered invoice items.",
@@ -1136,6 +1172,8 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
     ) = [structure_permissions.is_staff]
+    # Looks the credit up with get_object(), as retrieve does.
+    access_filtered_actions = ("consumptions",)
     # Annotate the balance of each lot kind so the list endpoint resolves
     # withdrawable_balance, paid_balance and granted_balance without a
     # per-row aggregate; the properties fall back to a query when the
@@ -1433,6 +1471,12 @@ class ProjectCreditViewSet(core_views.ActionsViewSet):
     update_permissions = partial_update_permissions = destroy_permissions = [
         structure_permissions.is_owner
     ]
+    # ProjectCreditSerializer.validate_project checks the project named.
+    access_declarations = {
+        "create": [
+            access.role(structure_permissions.OWNER_ROLES, via="project"),
+        ]
+    }
     queryset = models.ProjectCredit.objects.exclude(
         project__customer__customercredit__isnull=True
     ).order_by("created")
@@ -1642,6 +1686,8 @@ class CustomerAffiliateViewSet(core_views.ActionsViewSet):
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
     ) = [structure_permissions.is_staff]
+    # Both look the link up with get_object(), as retrieve does.
+    access_filtered_actions = ("accruals", "earnings")
     # Annotate the lifetime earned sum so the list endpoint does not issue a
     # per-row aggregate (the serializer falls back to a query when absent).
     queryset = (

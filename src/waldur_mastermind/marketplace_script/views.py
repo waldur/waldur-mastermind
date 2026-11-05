@@ -6,6 +6,7 @@ from rest_framework import generics, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
@@ -169,6 +170,16 @@ class AsyncDryRunView(ReadOnlyActionsViewSet):
 
 class PullMarketplaceScriptResourceView(generics.GenericAPIView):
     filter_backends = []
+    # post looks the resource up with filter_for_service_consumer and answers
+    # 404 for one the caller does not see.
+    access_declarations = {
+        "post": [
+            access.custom(
+                "The resource named in the request must be one the caller sees "
+                "as a service consumer: " + ResourceQuerySet.CONSUMER_VISIBILITY
+            )
+        ]
+    }
 
     @extend_schema(
         request=marketplace_script_serializers.PullMarketplaceScriptResourceSerializer,
