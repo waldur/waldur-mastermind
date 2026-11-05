@@ -12,8 +12,9 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, cast
 from uuid import UUID
 
-import requests
+import httpx
 from celery.app import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
@@ -37,7 +38,7 @@ from waldur_core.permissions.utils import get_users_with_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, order_callback
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
@@ -1686,18 +1687,71 @@ def clean_remote_projects():
                     continue
 
 
-@shared_task
+# Seconds. The callback only tells the Waldur that created the order to pull
+# it, so it has to be quick; the order is pulled periodically anyway.
+CALLBACK_CONNECT_TIMEOUT = 3.0
+CALLBACK_TIMEOUT = 5.0
+# Bounds the whole call, lookup included, which per-operation timeouts alone
+# do not: a server may answer one byte at a time.
+CALLBACK_SOFT_TIME_LIMIT = 10
+CALLBACK_TIME_LIMIT = 15
+
+
+@shared_task(
+    soft_time_limit=CALLBACK_SOFT_TIME_LIMIT,
+    time_limit=CALLBACK_TIME_LIMIT,
+    # Off the default queue: a slow callback must not hold up other tasks.
+    is_background=True,
+)
 def trigger_order_callback(serialized_order):
-    """Trigger a callback for an order.
+    """POST to an order's callback URL to say that the order has changed.
 
-    This task sends a POST request to an order's callback URL,
-    typically used to notify external systems about order completion.
-
-    Args:
-        serialized_order: Serialized order instance
+    A Waldur that creates orders here sends its own public pull endpoint for
+    the order. Order create no longer stores it; orders stored earlier, or
+    imported with import_structure, may still have one. The URL is checked
+    here, host addresses included, and the connection pinned to the
+    addresses that passed, with no redirects and short timeouts. Only the
+    status of the answer is looked at. Failures are logged and never stored
+    on the order.
     """
-    order = deserialize_instance(serialized_order)
-    requests.post(order.callback_url)
+    # Imported here so httpcore does not load at Django startup; see
+    # waldur_core.core.client.
+    from waldur_core.core.pinned_transport import transport_for
+
+    try:
+        order = cast(models.Order, deserialize_instance(serialized_order))
+    except ObjectDoesNotExist:
+        return
+    url = order.callback_url
+    if not url:
+        return
+    try:
+        try:
+            hostname, addresses = order_callback.check_callback_url(url)
+            transport = transport_for(url, {hostname: addresses})
+        except (order_callback.CallbackUrlRefused, httpx.InvalidURL) as exc:
+            logger.warning("Callback of order %s refused: %s", order.uuid.hex, exc)
+            return
+        with httpx.Client(
+            transport=transport,
+            timeout=httpx.Timeout(CALLBACK_TIMEOUT, connect=CALLBACK_CONNECT_TIMEOUT),
+            follow_redirects=False,
+        ) as client:
+            # Streamed so that the body is never read; leaving the block
+            # closes the connection.
+            with client.stream("POST", url) as response:
+                status_code = response.status_code
+    except (httpx.HTTPError, SoftTimeLimitExceeded) as exc:
+        logger.warning(
+            "Callback of order %s failed: %s", order.uuid.hex, type(exc).__name__
+        )
+        return
+    logger.log(
+        logging.INFO if status_code >= 300 else logging.DEBUG,
+        "Callback of order %s answered with status %s.",
+        order.uuid.hex,
+        status_code,
+    )
 
 
 @shared_task(

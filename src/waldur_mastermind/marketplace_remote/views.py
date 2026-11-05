@@ -362,11 +362,13 @@ class PullOrderView(GenericAPIView):
     # when the order changes there. It only schedules a pull of the order
     # from the remote and returns no data about it.
     access_declarations = {"post": [access.public()]}
+    # Per client address: each call queues a pull from the remote.
+    throttle_scope = "remote_order_pull"
 
     def get_order(self):
         item_uuid = self.kwargs["uuid"]
         if not is_uuid_like(item_uuid):
-            return Response(status=status.HTTP_400_BAD_REQUEST, data="UUID is invalid.")
+            raise ValidationError("UUID is invalid.")
         qs = models.Order.objects.filter(offering__type=REMOTE_OFFERING).exclude(
             state__in=OrderStates.TERMINAL_STATES
         )

@@ -185,6 +185,11 @@ REST_FRAMEWORK = {
         # Table and chart PDF exports, per user. Each renders in a child
         # process for up to a second or so; people export a handful at a time.
         "export_pdf": "20/min",
+        # The order pull endpoint another Waldur calls, unauthenticated, when an
+        # order it created here changes, per client address. Each call queues a
+        # pull of the order from that Waldur; orders are also pulled
+        # periodically, so a dropped call only delays an update.
+        "remote_order_pull": "120/min",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
     "DEFAULT_SCHEMA_CLASS": "waldur_core.core.openapi_inspector.WaldurOpenApiInspector",

@@ -676,7 +676,7 @@ Allow to limit invitation management to staff only.
 
 **Type:** bool
 
-When Waldur calls a remote Waldur through an egress proxy, open the CONNECT tunnel by hostname instead of by the checked IP address. Only for proxies that refuse CONNECT to IP addresses: the address check still runs first, but the proxy resolves the name itself, so the proxy's ACL then decides which destinations are reachable. With this on, the address check does not protect against DNS rebinding or internal names; enable it only if the proxy itself denies internal destinations.
+When Waldur calls a remote Waldur through an egress proxy, open the CONNECT tunnel by hostname instead of by the checked IP address. Only for proxies that refuse CONNECT to IP addresses: the address check still runs first, but the proxy resolves the name itself, so the proxy's ACL then decides which destinations are reachable. With this on, the address check does not protect against DNS rebinding or internal names; enable it only if the proxy itself denies internal destinations. This applies to every outbound call made through the proxy, order callbacks included.
 
 #### PASSKEY_ALLOWED_ORIGINS
 

@@ -335,7 +335,9 @@ class WaldurCore(BaseModel):
         "still runs first, but the proxy resolves the name itself, so the proxy's "
         "ACL then decides which destinations are reachable. With this on, the "
         "address check does not protect against DNS rebinding or internal names; "
-        "enable it only if the proxy itself denies internal destinations.",
+        "enable it only if the proxy itself denies internal destinations. "
+        "This applies to every outbound call made through the proxy, "
+        "order callbacks included.",
     )
     WEB_SHELL_ENABLED: bool = Field(
         False,
