@@ -18,6 +18,7 @@ from rest_framework import response, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied
 
+from waldur_core.core import access
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import ExecutorMixin
 from waldur_core.permissions import utils as permissions_utils
@@ -323,6 +324,26 @@ class InstanceMetricsViewSet(viewsets.GenericViewSet):
 
     lookup_field = "uuid"
     serializer_class = serializers.InstanceMetricsPollingSerializer
+
+    # get_object looks the resource up with visible_resource, and
+    # _managed_reader adds the check of the changing actions.
+    SEES_METRICS = access.custom(
+        "An instance or volume resource whose metrics the caller sees: staff, "
+        "support, its consumer (a role in its project or organization) or its "
+        "provider (a role in the offering's organization or service provider, or "
+        "on the offering). Others get a 404."
+    )
+    MANAGES_READER = access.custom(
+        f"{PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE.value} on the project or "
+        "organization of the instance whose reads cover the resource (for a "
+        "volume, the instance it is attached to); staff pass."
+    )
+    access_declarations = {
+        "retrieve": [SEES_METRICS],
+        "faster_updates": [SEES_METRICS, MANAGES_READER],
+        "normal_updates": [SEES_METRICS, MANAGES_READER],
+        "update_now": [SEES_METRICS, MANAGES_READER],
+    }
 
     def get_object(self):
         resource = metrics_query.visible_resource(

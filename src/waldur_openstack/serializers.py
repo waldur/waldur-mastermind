@@ -28,6 +28,7 @@ from netaddr import AddrFormatError, IPNetwork, all_matching_cidrs
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from waldur_core.core import access
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -44,6 +45,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.quotas.models import SharedQuotaMixin
 from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import (
     get_connected_customers,
@@ -2367,6 +2369,14 @@ class OpenStackPortNestedSecurityGroupSerializer(
             raise serializers.ValidationError({"url": e.detail})
 
 
+# Who validate() below lets create a port; the views declare it.
+CREATES_PORT = access.custom(
+    "The serializer requires staff, an owner of the organization, or an "
+    "administrator or manager of the project of the tenant the port goes "
+    "into: target_tenant, or else the network's tenant."
+)
+
+
 class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer):
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
@@ -3684,6 +3694,20 @@ class LoadBalancerWritableSerializer(serializers.HyperlinkedModelSerializer):
 
 class UpdateLoadBalancerSerializer(LoadBalancerWritableSerializer):
     pass
+
+
+# Who the create serializers below let create a router or load balancer
+# under a tenant, a pool or listener under a load balancer, and a member or
+# health monitor under a pool: staff, an owner of its organization, or an
+# administrator or manager of its project. validate_tenant,
+# _validate_load_balancer and validate_pool check it; the views declare it.
+CREATES_UNDER_TENANT = access.role(
+    structure_permissions.PROJECT_ADMIN_ROLES, via="tenant"
+)
+CREATES_UNDER_LOAD_BALANCER = access.role(
+    structure_permissions.PROJECT_ADMIN_ROLES, via="load_balancer"
+)
+CREATES_UNDER_POOL = access.role(structure_permissions.PROJECT_ADMIN_ROLES, via="pool")
 
 
 class CreateLoadBalancerSerializer(LoadBalancerWritableSerializer):

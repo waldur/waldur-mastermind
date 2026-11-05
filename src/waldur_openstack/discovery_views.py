@@ -26,6 +26,17 @@ class OpenStackDiscoveryViewSet(ActionsViewSet):
 
     queryset = ServiceProvider.objects.none()  # Stateless operations
     serializer_class = EmptySerializer
+    # Only the actions below do anything. With no records behind the view, the
+    # inherited routes answered any signed-in user with an empty list, a 404 or
+    # a server error.
+    disabled_actions = [
+        "list",
+        "retrieve",
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
+    ]
 
     def is_authorized_for_discovery(request, view, obj=None):
         """Staff users or owners of a customer that is a service provider."""

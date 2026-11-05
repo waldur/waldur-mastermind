@@ -20,6 +20,7 @@ from drf_spectacular.utils import (
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
 
+from waldur_core.core import access
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import utils as core_utils
@@ -341,6 +342,19 @@ class HypervisorViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.HypervisorFilter
+
+    # Totals over the hypervisors the list shows the caller.
+    access_filtered_actions = ("summary",)
+    access_declarations = {
+        "allocation_candidates": [
+            access.custom(
+                "The caller must see a hypervisor of the service settings named "
+                "by settings_uuid, as the hypervisor list shows them: staff, "
+                "support, and those with a role in the organization that owns "
+                "the settings."
+            )
+        ],
+    }
 
     @extend_schema(
         summary="Get hypervisor summary statistics",
@@ -787,6 +801,9 @@ class TenantViewSet(
     update_executor = executors.TenantUpdateExecutor
     pull_executor = executors.TenantPullExecutor
     disabled_actions = ["create", "destroy"]
+
+    # Read actions that look the tenant up as retrieve does.
+    access_filtered_actions = ("backend_instances", "backend_volumes", "topology")
 
     @extend_schema(
         summary="Set tenant quotas",
@@ -1279,6 +1296,21 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     serializer_class = serializers.OpenStackRouterSerializer
     create_serializer_class = serializers.CreateRouterSerializer
     disabled_actions = ["update", "partial_update"]
+
+    # Read actions that look the router up as retrieve does.
+    access_filtered_actions = ("effective_routes",)
+    access_declarations = {
+        # Checked by CreateRouterSerializer.validate_tenant.
+        "create": [serializers.CREATES_UNDER_TENANT],
+        "available_external_networks": [
+            access.custom(
+                "Whoever sees the router, as retrieve shows it. It lists the "
+                "shared external networks of the router's cloud (all of them for "
+                "staff and owners of the organization that owns the cloud) and "
+                "the networks shared into its tenant as external."
+            )
+        ],
+    }
 
     delete_executor = executors.RouterDeleteExecutor
     create_executor = executors.RouterCreateExecutor
@@ -1795,6 +1827,8 @@ class LoadBalancerViewSet(
     serializer_class = serializers.OpenStackLoadBalancerSerializer
     create_serializer_class = serializers.CreateLoadBalancerSerializer
     update_serializer_class = serializers.UpdateLoadBalancerSerializer
+    # Checked by CreateLoadBalancerSerializer.validate_tenant.
+    access_declarations = {"create": [serializers.CREATES_UNDER_TENANT]}
     partial_update_serializer_class = serializers.UpdateLoadBalancerSerializer
 
     delete_executor = executors.LoadBalancerDeleteExecutor
@@ -2013,6 +2047,8 @@ class PoolViewSet(
     serializer_class = serializers.OpenStackPoolSerializer
     create_serializer_class = serializers.CreatePoolSerializer
     update_serializer_class = serializers.UpdatePoolSerializer
+    # Checked by CreatePoolSerializer.validate_load_balancer.
+    access_declarations = {"create": [serializers.CREATES_UNDER_LOAD_BALANCER]}
     partial_update_serializer_class = serializers.UpdatePoolSerializer
 
     delete_executor = executors.PoolDeleteExecutor
@@ -2078,6 +2114,8 @@ class ListenerViewSet(
     serializer_class = serializers.OpenStackListenerSerializer
     create_serializer_class = serializers.CreateListenerSerializer
     update_serializer_class = serializers.UpdateListenerSerializer
+    # Checked by CreateListenerSerializer.validate_load_balancer.
+    access_declarations = {"create": [serializers.CREATES_UNDER_LOAD_BALANCER]}
     partial_update_serializer_class = serializers.UpdateListenerSerializer
 
     delete_executor = executors.ListenerDeleteExecutor
@@ -2148,6 +2186,8 @@ class PoolMemberViewSet(
     serializer_class = serializers.OpenStackPoolMemberSerializer
     create_serializer_class = serializers.CreatePoolMemberSerializer
     update_serializer_class = serializers.UpdatePoolMemberSerializer
+    # Checked by CreatePoolMemberSerializer.validate_pool.
+    access_declarations = {"create": [serializers.CREATES_UNDER_POOL]}
     partial_update_serializer_class = serializers.UpdatePoolMemberSerializer
 
     delete_executor = executors.PoolMemberDeleteExecutor
@@ -2214,6 +2254,8 @@ class HealthMonitorViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet)
     serializer_class = serializers.OpenStackHealthMonitorSerializer
     create_serializer_class = serializers.CreateHealthMonitorSerializer
     update_serializer_class = serializers.UpdateHealthMonitorSerializer
+    # Checked by CreateHealthMonitorSerializer.validate_pool.
+    access_declarations = {"create": [serializers.CREATES_UNDER_POOL]}
     partial_update_serializer_class = serializers.UpdateHealthMonitorSerializer
 
     delete_executor = executors.HealthMonitorDeleteExecutor
@@ -2274,6 +2316,9 @@ class PortViewSet(structure_views.ResourceViewSet):
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.PortFilter
     serializer_class = serializers.OpenStackPortSerializer
+    # Checked by OpenStackPortSerializer.validate: the serializer has no
+    # writable project for CreateRequiresProjectAdminMixin to check.
+    access_declarations = {"create": [serializers.CREATES_PORT]}
 
     create_executor = executors.PortCreateExecutor
     update_executor = executors.PortUpdateNameAndDescriptionExecutor
@@ -2587,6 +2632,13 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
         )
         return (own_networks | rbac_networks).distinct()
 
+    @access.shows(
+        "Staff and support see every network. Others see the networks of the "
+        "projects where they hold a role or whose organization they hold one "
+        "in, and the networks shared into those projects' tenants. An "
+        "offering's subnet concealment, which goes by the caller's address and "
+        "exempts its provider, may hide some of them."
+    )
     def get_queryset(self):
         user: structure_models.User = self.request.user
         queryset = Network.objects.all().order_by("name", "id")
@@ -2789,6 +2841,10 @@ class SubNetViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSet
     delete_executor = executors.SubNetDeleteExecutor
     pull_executor = executors.SubNetPullExecutor
 
+    @access.shows(
+        "Staff and support see every subnet; others see the subnets of the "
+        "networks the network list shows them."
+    )
     def get_queryset(self):
         user: structure_models.User = self.request.user
         queryset = (
@@ -3032,6 +3088,9 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     filterset_class = filters.SnapshotFilter
     disabled_actions = ["create"]
 
+    # Read actions that look the snapshot up as retrieve does.
+    access_filtered_actions = ("restorations",)
+
     def destroy(self, request, *args, **kwargs):
         snapshot = self.get_object()
         for backup in snapshot.backups.all():
@@ -3097,6 +3156,14 @@ class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet
     lookup_field = "uuid"
     filterset_class = filters.InstanceAvailabilityZoneFilter
 
+    # Nothing narrows these rows: they are the cloud's availability zone
+    # catalog, which the order and details forms read by service settings or
+    # tenant.
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -3160,6 +3227,9 @@ class InstanceViewSet(
         core_validators.StateValidator(CoreStates.OK)
     ]
     disabled_actions = ["create", "destroy"]
+
+    # Read actions that look the instance up as retrieve does.
+    access_filtered_actions = ("ports", "floating_ips")
 
     def _has_backups(instance):
         if instance.backups.exists():
@@ -3957,6 +4027,14 @@ class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = "uuid"
     filterset_class = filters.VolumeAvailabilityZoneFilter
 
+    # Nothing narrows these rows: they are the cloud's availability zone
+    # catalog, which the order and details forms read by service settings or
+    # tenant.
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -3982,6 +4060,23 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.NetworkRBACPolicyFilter
 
+    # What _check_rbac_policy_permissions requires, after create has validated
+    # the request and destroy has looked the share up.
+    MANAGES_BOTH_SIDES = access.custom(
+        "Staff, or who is an owner of the organization or an administrator or "
+        "manager of the project on both sides of the share: the network's "
+        "project and the target tenant's project."
+    )
+    access_declarations = {
+        "create": [MANAGES_BOTH_SIDES],
+        "destroy": [MANAGES_BOTH_SIDES],
+    }
+
+    @access.shows(
+        "Staff and support see every share. Others see the shares whose "
+        "network's tenant or target tenant belongs to a project where they hold "
+        "a role, or to an organization where they hold one."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support:
