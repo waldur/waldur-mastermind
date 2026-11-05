@@ -85,6 +85,16 @@ STAFF_OR_IDENTITY_MANAGER = access.any_of(
     access.staff(), access.custom("An identity manager (`is_identity_manager`).")
 )
 
+PRIVILEGED_ACCOUNT_MESSAGE = (
+    "Only staff may push or remove staff, support or identity manager accounts."
+)
+
+
+def is_privileged_account(user):
+    """An account an identity manager may not push or remove: an ISD could
+    otherwise claim it, overwrite its attributes and then deactivate it."""
+    return user.is_staff or user.is_support or user.is_identity_manager
+
 
 def generate_code_challenge(code_verifier):
     """
@@ -709,7 +719,8 @@ class IdentityBridgeView(generics.GenericAPIView):
             "Allows Identity Service Domains (ISDs) to push user attributes to Waldur. "
             "Creates or updates a user based on username (CUID). "
             "Requires FEDERATED_IDENTITY_SYNC_ENABLED to be True. "
-            "Caller must be staff or an identity manager with the declared source in managed_isds."
+            "Caller must be staff or an identity manager with the declared source in managed_isds. "
+            "Only staff may push staff, support or identity manager accounts."
         ),
         request=IdentityBridgeRequestSerializer,
         responses={200: IdentityBridgeResultSerializer},
@@ -755,12 +766,20 @@ class IdentityBridgeView(generics.GenericAPIView):
             if k not in ("username", "source")
         }
 
-        # 6. Create or update user
+        # 6. Only staff may push a privileged account
+        if not has_staff_access(request):
+            existing = User.all_objects.filter(username=username).first()
+            if existing and is_privileged_account(existing):
+                return Response(
+                    PRIVILEGED_ACCOUNT_MESSAGE, status=status.HTTP_403_FORBIDDEN
+                )
+
+        # 7. Create or update user
         user, created, updated_fields = create_or_update_bridge_user(
             username, attributes, source
         )
 
-        # 7. Return response
+        # 8. Return response
         response_data = {
             "uuid": user.uuid.hex,
             "created": created,
@@ -783,7 +802,9 @@ class IdentityBridgeRemoveView(generics.GenericAPIView):
             "Removes the source from active_isds, clears attributes owned by that source, "
             "and deactivates the user if no ISDs remain (configurable via FEDERATED_IDENTITY_DEACTIVATION_POLICY). "
             "Requires FEDERATED_IDENTITY_SYNC_ENABLED to be True. "
-            "Caller must be staff or an identity manager with the declared source in managed_isds."
+            "Caller must be staff or an identity manager with the declared source in managed_isds. "
+            "Only staff may remove staff, support or identity manager accounts. "
+            "A user who is not in the source ISD is answered with 404 and left unchanged."
         ),
         request=IdentityBridgeRemoveSerializer,
         responses={200: IdentityBridgeRemoveResultSerializer},
@@ -826,10 +847,21 @@ class IdentityBridgeRemoveView(generics.GenericAPIView):
         except User.DoesNotExist:
             raise NotFound(f"User {username} not found.")
 
-        # 6. Remove from ISD
+        # 6. Only staff may remove a privileged account
+        if not has_staff_access(request) and is_privileged_account(user):
+            return Response(
+                PRIVILEGED_ACCOUNT_MESSAGE, status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 7. Only a member of the ISD can be removed from it: removing anybody
+        # else would deactivate users the ISD never had.
+        if source not in (user.active_isds or []):
+            raise NotFound(f"User {username} is not in ISD '{source}'.")
+
+        # 8. Remove from ISD
         deactivated = remove_user_from_isd(user, source)
 
-        # 7. Return response
+        # 9. Return response
         response_data = {
             "uuid": user.uuid.hex,
             "deactivated": deactivated,

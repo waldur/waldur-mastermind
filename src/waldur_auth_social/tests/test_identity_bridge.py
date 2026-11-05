@@ -680,6 +680,149 @@ class IdentityBridgeRemoveTest(TestCase):
         self.assertTrue(response.data["deactivated"])
 
 
+class IdentityBridgeRemoveOutsideIsdTest(TestCase):
+    """A user who is not in the ISD is not one the ISD can remove."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.manager = structure_factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:puhuri"],
+        )
+        self.payload = {"username": "admin", "source": "isd:puhuri"}
+
+    def remove(self, caller):
+        self.client.force_authenticate(caller)
+        return self.client.post(BRIDGE_REMOVE_URL, self.payload, format="json")
+
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_DEACTIVATION_POLICY="all_isds_removed",
+    )
+    def test_identity_manager_cannot_deactivate_user_in_no_isd(self):
+        target = structure_factories.UserFactory(username="admin", active_isds=[])
+        response = self.remove(self.manager)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        target.refresh_from_db()
+        self.assertTrue(target.is_active)
+
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_DEACTIVATION_POLICY="any_isd_removed",
+    )
+    def test_identity_manager_cannot_deactivate_user_of_another_isd(self):
+        target = structure_factories.UserFactory(
+            username="admin",
+            active_isds=["isd:fenix"],
+            attribute_sources={
+                "email": {"source": "isd:fenix", "timestamp": "2026-01-01T00:00:00Z"},
+            },
+        )
+        response = self.remove(self.manager)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        target.refresh_from_db()
+        self.assertTrue(target.is_active)
+        self.assertEqual(target.active_isds, ["isd:fenix"])
+        self.assertIn("email", target.attribute_sources)
+
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_DEACTIVATION_POLICY="all_isds_removed",
+    )
+    def test_staff_does_not_deactivate_user_outside_the_isd(self):
+        target = structure_factories.UserFactory(username="admin", active_isds=[])
+        response = self.remove(structure_factories.UserFactory(is_staff=True))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        target.refresh_from_db()
+        self.assertTrue(target.is_active)
+
+
+@override_config(
+    FEDERATED_IDENTITY_SYNC_ENABLED=True,
+    FEDERATED_IDENTITY_DEACTIVATION_POLICY="all_isds_removed",
+)
+class IdentityBridgePrivilegedAccountTest(TestCase):
+    """An identity manager cannot claim a privileged account and then remove it."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.manager = structure_factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:puhuri"],
+        )
+        self.staff = structure_factories.UserFactory(is_staff=True)
+
+    def push_then_remove(self, caller, username):
+        self.client.force_authenticate(caller)
+        payload = {"username": username, "source": "isd:puhuri"}
+        pushed = self.client.post(
+            BRIDGE_URL, {**payload, "first_name": "Mallory"}, format="json"
+        )
+        removed = self.client.post(BRIDGE_REMOVE_URL, payload, format="json")
+        return pushed, removed
+
+    def test_identity_manager_cannot_push_or_remove_privileged_accounts(self):
+        for flags in (
+            {"is_staff": True},
+            {"is_support": True},
+            {"is_identity_manager": True, "managed_isds": ["isd:fenix"]},
+        ):
+            with self.subTest(**flags):
+                target = structure_factories.UserFactory(
+                    first_name="Alice", active_isds=[], **flags
+                )
+                pushed, removed = self.push_then_remove(self.manager, target.username)
+                self.assertEqual(pushed.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(removed.status_code, status.HTTP_403_FORBIDDEN)
+                target.refresh_from_db()
+                self.assertTrue(target.is_active)
+                self.assertEqual(target.first_name, "Alice")
+                self.assertEqual(target.active_isds, [])
+                self.assertEqual(target.attribute_sources, {})
+
+    def test_identity_manager_cannot_remove_privileged_account_in_their_isd(self):
+        target = structure_factories.UserFactory(
+            is_staff=True, active_isds=["isd:puhuri"]
+        )
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            BRIDGE_REMOVE_URL,
+            {"username": target.username, "source": "isd:puhuri"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        target.refresh_from_db()
+        self.assertTrue(target.is_active)
+        self.assertEqual(target.active_isds, ["isd:puhuri"])
+
+    def test_staff_can_push_and_remove_privileged_account(self):
+        target = structure_factories.UserFactory(is_staff=True, active_isds=[])
+        pushed, removed = self.push_then_remove(self.staff, target.username)
+        self.assertEqual(pushed.status_code, status.HTTP_200_OK)
+        self.assertEqual(removed.status_code, status.HTTP_200_OK)
+        self.assertTrue(removed.data["deactivated"])
+        target.refresh_from_db()
+        self.assertFalse(target.is_active)
+
+    def test_identity_manager_can_still_push_and_remove_regular_user(self):
+        target = structure_factories.UserFactory(active_isds=[])
+        pushed, removed = self.push_then_remove(self.manager, target.username)
+        self.assertEqual(pushed.status_code, status.HTTP_200_OK)
+        self.assertEqual(removed.status_code, status.HTTP_200_OK)
+        target.refresh_from_db()
+        self.assertFalse(target.is_active)
+
+    def test_identity_manager_can_still_create_user(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            BRIDGE_URL,
+            {"username": "new@myaccessid.org", "source": "isd:puhuri"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["created"])
+
+
 class UserSerializerIdentityBridgeFieldsTest(TestCase):
     """Test that identity bridge fields are exposed to staff on /api/users/."""
 
