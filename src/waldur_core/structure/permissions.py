@@ -1,5 +1,4 @@
 import logging
-from functools import reduce
 
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, permissions
@@ -19,6 +18,7 @@ from waldur_core.permissions.fixtures import (
     ServiceProviderRole,
 )
 from waldur_core.permissions.utils import (
+    check_pat_binding_on_path,
     check_pat_support_scope,
     has_permission,
     has_permission_on_any_source,
@@ -143,14 +143,21 @@ def _offering_scopes(obj, **kwargs):
 
 class _ObjectRoleCheck(access.Check):
     """Pass staff, or a holder of a listed role on the object's customer,
-    project or offering. Without an object there is nothing to test."""
+    project or offering. Without an object there is nothing to test.
+
+    A personal access token passes only within its bindings, as for a
+    permission check. A binding has to name the object, an object on its
+    permission path to the scope the role is tested on, or a scope that one
+    lies under. Otherwise a token bound to one project would act on another
+    project's objects with its user's roles."""
 
     needs_object = True
 
-    def __init__(self, name, holders, scopes):
+    def __init__(self, name, holders, scopes, path):
         self.name = name
         self.holders = holders
         self.scopes = scopes
+        self.path = path
 
     def __call__(self, request, view, obj=None, **kwargs):
         if not obj:
@@ -161,20 +168,24 @@ class _ObjectRoleCheck(access.Check):
             or _holds_listed_role(request.user, self.holders, scopes)
         ):
             raise exceptions.PermissionDenied()
+        if not check_pat_binding_on_path(
+            request, _walk_permission_path(obj, self.path)
+        ):
+            raise exceptions.PermissionDenied()
 
     def describe(self):
         return access.role(self.holders)
 
 
-is_owner = _ObjectRoleCheck("is_owner", OWNER_ROLES, _customer_scopes)
+is_owner = _ObjectRoleCheck("is_owner", OWNER_ROLES, _customer_scopes, "customer_path")
 is_administrator = _ObjectRoleCheck(
-    "is_administrator", PROJECT_ADMIN_ROLES, _project_scopes
+    "is_administrator", PROJECT_ADMIN_ROLES, _project_scopes, "project_path"
 )
 is_service_manager = _ObjectRoleCheck(
-    "is_service_manager", SERVICE_MANAGER_ROLES, _customer_scopes
+    "is_service_manager", SERVICE_MANAGER_ROLES, _customer_scopes, "customer_path"
 )
 is_offering_manager = _ObjectRoleCheck(
-    "is_offering_manager", OFFERING_MANAGER_ROLES, _offering_scopes
+    "is_offering_manager", OFFERING_MANAGER_ROLES, _offering_scopes, "customer_path"
 )
 
 
@@ -293,14 +304,22 @@ def can_create_project_in_parent(request, view, obj=None):
         raise exceptions.NotFound("Parent object not found")
 
 
-def _get_parent_by_permission_path(obj, permission_path):
+def _walk_permission_path(obj, permission_path) -> list:
+    """The objects visited from ``obj`` along its permission path, ``obj``
+    first and the scope the path names last; empty when it names none."""
     path = getattr(obj.Permissions, permission_path, None)
     if path is None:
-        return
-    if path == "self":
-        return obj
+        return []
+    visited = [obj]
+    if path != "self":
+        for part in path.split("__"):
+            visited.append(getattr(visited[-1], part))
+    return visited
 
-    return reduce(getattr, path.split("__"), obj)
+
+def _get_parent_by_permission_path(obj, permission_path):
+    visited = _walk_permission_path(obj, permission_path)
+    return visited[-1] if visited else None
 
 
 def _get_project(obj, **kwargs) -> models.Project:

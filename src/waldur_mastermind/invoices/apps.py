@@ -154,3 +154,7 @@ class InvoiceConfig(AppConfig):
         from . import filters
 
         register_pat_filter(models.CustomerCredit)(filters.pat_filter_customer_credits)
+        register_pat_filter(models.ProjectCredit)(filters.pat_filter_project_credits)
+        register_pat_filter(models.CreditTransaction)(
+            filters.pat_filter_credit_transactions
+        )

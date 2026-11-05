@@ -588,6 +588,26 @@ scoped PAT narrows even staff users. The rules:
   on the service provider of an offering among them. The walk is upward-only:
   a PAT bound to a child entity does **not** authorise actions on its parent.
 
+The shared role checks in `waldur_core.structure.permissions` (`is_owner`,
+`is_administrator`, `is_service_manager`, `is_offering_manager`) apply the
+bindings too, through `check_pat_binding_on_path`. The check walks the object's
+permission path (`customer_path` for the organization roles, `project_path` for
+the project roles) to the scope it tests the role on, and a binding has to name
+the object, an object on that path, or a scope the last one lies under. So an
+owner's token bound to one project passes `is_owner` on that project and on the
+objects whose path runs through it, such as its resources and cost policies,
+and on no other project's, nor on the organization itself. The walk does not
+follow other links up from the object, so a token bound to a consumer project
+does not pass `is_owner` on a provider's project group for that project, while
+one bound to the service provider does. Nor does a token bound to a marketplace
+resource pass `is_administrator` on the backend resource behind it, such as an
+OpenStack instance: that object's path runs to its project and does not pass
+through the marketplace resource.
+
+These checks name no permission, so the token's `scopes` do not limit them yet:
+within its bindings, a token acts with its user's full role on an endpoint
+gated by a role check, whatever permissions it lists.
+
 A binding limits where a token acts and a role says what it may do, so the two
 need not sit on the same object. `has_permission_on_any_source` and
 `permission_factory` check them in up to two steps:
@@ -677,6 +697,14 @@ backends. Detail endpoints inherit the same narrowing because DRF's
 Apps register rules for their own models from `ready()`:
 `structure.AccessSubnet` is reachable from `customer` only, and
 `matrix_chat.MatrixHistoryExport` from the room's `customer` or `project`.
+The credit models of `invoices` follow the rule that an organization's money is
+reached from the organization only:
+
+| Model | Reachable from binding type |
+|---|---|
+| `invoices.CustomerCredit` | `customer` |
+| `invoices.ProjectCredit` | `customer`, `project` |
+| `invoices.CreditTransaction` | a row of the organization credit: `customer`; a row of an allocation: `customer`, `project`; a row of a deleted allocation: none |
 
 Endpoints whose model has no rule (e.g. `/api/marketplace-orders/`,
 `/api/invoices/`) currently pass through unfiltered. Add a builder via

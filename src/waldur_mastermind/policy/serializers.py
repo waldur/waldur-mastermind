@@ -11,17 +11,15 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
-from rest_framework import serializers
+from rest_framework import exceptions, serializers
 
 from waldur_core.core import access
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import check_pat_binding, has_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.invoices import compensations as invoices_compensations
 from waldur_mastermind.invoices.models import CustomerCredit, PeriodMixin, ProjectCredit
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -512,6 +510,18 @@ class EstimatedCostPolicySerializer(
 CONFIGURES_PROJECT_POLICY = access.role(structure_permissions.OWNER_ROLES, via="scope")
 
 
+def _validate_owned_scope(request, scope):
+    """Let staff, or an owner of the scope's organization, configure a policy
+    on it, within the token's limits as for updating the policy."""
+    try:
+        structure_permissions.is_owner(request, None, obj=scope)
+    except exceptions.PermissionDenied:
+        raise serializers.ValidationError(
+            _("User is not allowed to configure policies.")
+        )
+    return scope
+
+
 class ProjectEstimatedCostPolicySerializer(
     core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
 ):
@@ -599,8 +609,11 @@ class ProjectEstimatedCostPolicySerializer(
         customer = instance.scope.customer
         cache = self.context.setdefault("_owner_access_cache", {})
         if customer.id not in cache:
-            cache[customer.id] = structure_permissions._has_owner_access(
-                user, customer
+            # A token's bindings apply to the owner role too: one bound to a
+            # project does not reach its organization's money.
+            cache[customer.id] = (
+                structure_permissions._has_owner_access(user, customer)
+                and check_pat_binding(request, customer)
             ) or has_permission(
                 request, PermissionEnum.VIEW_CUSTOMER_ACCOUNTING, customer
             )
@@ -634,15 +647,7 @@ class ProjectEstimatedCostPolicySerializer(
                 _("Cannot create policies for terminated projects.")
             )
 
-        user = self.context["request"].user
-        customer = _get_customer(scope)
-
-        if user.is_staff or customer.has_user(user, CustomerRole.OWNER):
-            return scope
-
-        raise serializers.ValidationError(
-            _("User is not allowed to configure policies.")
-        )
+        return _validate_owned_scope(self.context["request"], scope)
 
 
 # Who CustomerEstimatedCostPolicySerializer.validate_scope lets name an
@@ -740,16 +745,7 @@ class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
         if not scope:
             return
 
-        user = self.context["request"].user
-
-        customer = _get_customer(scope)
-
-        if user.is_staff or customer.has_user(user, CustomerRole.OWNER):
-            return scope
-
-        raise serializers.ValidationError(
-            _("User is not allowed to configure policies.")
-        )
+        return _validate_owned_scope(self.context["request"], scope)
 
     class Meta:
         fields = ("organization_groups", "apply_to_all")
