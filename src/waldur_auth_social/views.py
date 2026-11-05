@@ -81,8 +81,14 @@ OIDC_RETURN_URL_KEY = "oidc_return_url"
 # The eduTEAMS and Identity Bridge views check the caller in the method body,
 # and answer 403 with a message of their own. The Identity Bridge writes also
 # require a non-staff caller to manage the ISD named, so this does not fit them.
+# None of them narrows `is_identity_manager` by a personal access token's scopes,
+# the writes included.
 STAFF_OR_IDENTITY_MANAGER = access.any_of(
-    access.staff(), access.custom("An identity manager (`is_identity_manager`).")
+    access.staff(),
+    access.custom(
+        "An identity manager (`is_identity_manager`), with a personal access "
+        "token of any scopes: a token narrows only the staff and support flags."
+    ),
 )
 
 PRIVILEGED_ACCOUNT_MESSAGE = (
