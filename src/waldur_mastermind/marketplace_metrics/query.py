@@ -51,6 +51,36 @@ def consumed_offering_ids(user):
     )
 
 
+# What visible_offering_metrics, visible_series and visible_resource show, for
+# the API schema. Change them together.
+OFFERING_METRICS_VISIBILITY = (
+    "Metrics of offerings where the caller holds a role, or holds one on the "
+    "offering's organization or service provider; and, unless archived, "
+    "metrics of offerings that a resource, not terminated, of a project where "
+    "the caller holds a role, or of an organization where they do, uses. Staff "
+    "and support see all."
+)
+# What resource_summary and project_summary list: the same, never archived.
+SUMMARY_METRICS_VISIBILITY = (
+    "Metrics the caller sees, as offering metrics show them, except archived ones."
+)
+SERIES_VISIBILITY = (
+    "Of a metric the caller sees, who is on the provider side (a role on the "
+    "offering, its organization or its service provider; staff and support) "
+    "reads every resource's data, anyone else only that of resources of "
+    "projects where they hold a role or of organizations where they do."
+)
+RESOURCE_VISIBILITY = (
+    "The resource must be of a project where the caller holds a role or of an "
+    "organization where they do, or of an offering on whose provider side they "
+    "are; staff and support may name any."
+)
+PROJECT_VISIBILITY = (
+    "The project must be one where the caller holds a role or of an "
+    "organization where they do; staff and support may name any."
+)
+
+
 def visible_offering_metrics(user):
     qs = models.OfferingMetric.objects.all()
     if user.is_staff or user.is_support:

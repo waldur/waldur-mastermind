@@ -1,12 +1,16 @@
 import json
 from unittest import mock
 
+from django.core.cache import cache
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging.tests import factories as logging_factories
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -210,3 +214,53 @@ class ResourceUserRoleSyncPubSubGateTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mocked_publish.assert_not_called()
+
+
+class ResourceSyncUserRolesPermissionTest(test.APITestCase):
+    """Who may trigger a resource's user role sync.
+
+    The check moved from the view's ``check_object_permissions`` into the
+    ``CanSyncResourceUserRoles`` permission class; the answers stay the same.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.fixture = structure_fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            customer=self.fixture.customer,
+            plugin_options={"enable_membership_sync_status": True},
+        )
+        resource = marketplace_factories.ResourceFactory(
+            offering=offering, project=self.fixture.project, state=ResourceStates.OK
+        )
+        self.url = reverse(
+            "marketplace-provider-resource-sync-user-roles",
+            kwargs={"uuid": resource.uuid.hex},
+        )
+
+    def test_owner_with_offering_update_on_organization_can_trigger(self):
+        # The fixture grants OWNER OFFERING.UPDATE when it makes the owner.
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_owner_without_offering_update_cannot_trigger(self):
+        owner = self.fixture.owner
+        CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_OFFERING)
+        self.client.force_authenticate(owner)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["detail"],
+            "You do not have permission to perform this action.",
+        )
+
+    def test_project_member_cannot_trigger(self):
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonymous_cannot_trigger(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
