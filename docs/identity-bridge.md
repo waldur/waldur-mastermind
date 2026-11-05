@@ -255,7 +255,7 @@ Creates or updates a user based on CUID (username). The caller specifies which I
 |--------|-----------|
 | 400 | Invalid source format, disallowed fields, or deactivated user |
 | 401 | Not authenticated |
-| 403 | Feature disabled, insufficient permissions, or source not in `managed_isds` |
+| 403 | Feature disabled, insufficient permissions, source not in `managed_isds`, or a non-staff caller naming a staff, support or identity manager account |
 
 ### Remove User from ISD
 
@@ -294,8 +294,8 @@ Signals that a user has been removed from an ISD. Clears attributes owned by the
 |--------|-----------|
 | 400 | Invalid source format |
 | 401 | Not authenticated |
-| 403 | Feature disabled, insufficient permissions, or source not in `managed_isds` |
-| 404 | User not found |
+| 403 | Feature disabled, insufficient permissions, source not in `managed_isds`, or a non-staff caller naming a staff, support or identity manager account |
+| 404 | User not found, or not in the `source` ISD (the user is left unchanged) |
 
 ### Removal Behavior
 
