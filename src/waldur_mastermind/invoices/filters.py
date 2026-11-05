@@ -4,6 +4,7 @@ from django_filters.widgets import BooleanWidget
 from rest_framework import filters
 
 from waldur_core.core import filters as core_filters
+from waldur_core.permissions.pat_filtering import _ids_q, _or
 
 from . import models
 
@@ -114,6 +115,32 @@ def pat_filter_customer_credits(ids):
     if not customer_ids:
         return None
     return django_models.Q(customer_id__in=customer_ids)
+
+
+def pat_filter_project_credits(ids):
+    """The allocations a personal access token's bindings reach: those of the
+    organizations it is bound to, and those of the projects it is bound to,
+    whose roles read their own allocation.
+    """
+    return _or(
+        _ids_q("project__customer_id", ids.get("customer")),
+        _ids_q("project_id", ids.get("project")),
+    )
+
+
+def pat_filter_credit_transactions(ids):
+    """The ledger rows a personal access token's bindings reach. A row of the
+    organization credit is reached from the organization only, as the credit
+    itself is. A row of an allocation is reached from its organization or its
+    project. A row of a deleted allocation has neither and is reached from no
+    binding: only staff list it.
+    """
+    customer_ids = ids.get("customer")
+    return _or(
+        _ids_q("credit__customer_id", customer_ids),
+        _ids_q("project_credit__project__customer_id", customer_ids),
+        _ids_q("project_credit__project_id", ids.get("project")),
+    )
 
 
 class CustomerCreditFilter(django_filters.FilterSet):

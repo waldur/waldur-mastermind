@@ -199,6 +199,47 @@ def check_pat_permission(request, permission: enums.PermissionEnum, scope=None) 
     return _pat_scope_check(request, permission, scope) is not False
 
 
+def check_pat_binding(request, scope) -> bool:
+    """Return True if the request's token is bound to ``scope`` or an ancestor.
+
+    Non-PAT requests and unbound tokens always pass. This is for a check that
+    settles a role and names no permission: only the token's bindings apply
+    to it, as there is no permission to hold its permission list against.
+    """
+    if isinstance(request, User):
+        return True
+    auth = getattr(request, "auth", None)
+    if not is_pat_auth(auth):
+        return True
+    return _pat_entity_check(auth, scope)
+
+
+def check_pat_binding_on_path(request, path) -> bool:
+    """Return True if the request's token is bound to an object on ``path``, or
+    to a scope its last object lies under.
+
+    ``path`` holds the objects a role check visits from its target to the
+    scope it tests the role on, target first. Walking up from the target as
+    ``check_pat_binding`` does would follow links off that path, such as a
+    provider's project group to the consumer project it is for, and let a
+    binding there act with a role held on the provider. Non-PAT requests and
+    unbound tokens always pass.
+    """
+    if isinstance(request, User):
+        return True
+    auth = getattr(request, "auth", None)
+    if not is_pat_auth(auth):
+        return True
+    allowed_pairs = _pat_allowed_pairs(auth)
+    if not allowed_pairs:
+        return True
+    path = [obj for obj in path if obj is not None]
+    if not path:
+        return False
+    objects = [*path[:-1], *get_scope_ancestors(path[-1])]
+    return _pat_binding_names_any(objects, allowed_pairs)
+
+
 def get_global_role_scope():
     """The single site-wide scope global roles are granted on.
 

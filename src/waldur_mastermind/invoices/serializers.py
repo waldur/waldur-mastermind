@@ -14,7 +14,11 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_core.permissions.utils import build_role_index, has_permission
+from waldur_core.permissions.utils import (
+    build_role_index,
+    check_pat_binding,
+    has_permission,
+)
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -1342,8 +1346,11 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         # re-run the role lookup for every row.
         cache = self.context.setdefault("_owner_access_cache", {})
         if customer.id not in cache:
-            cache[customer.id] = structure_permissions._has_owner_access(
-                user, customer
+            # A token's bindings apply to the owner role too: one bound to a
+            # project does not reach its organization's money.
+            cache[customer.id] = (
+                structure_permissions._has_owner_access(user, customer)
+                and check_pat_binding(request, customer)
             ) or has_permission(
                 request, PermissionEnum.VIEW_CUSTOMER_ACCOUNTING, customer
             )
@@ -1355,12 +1362,10 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         return data
 
     def validate_project(self, project):
-        user = self.context["request"].user
-
-        if user.is_staff or user in project.customer.get_users(CustomerRole.OWNER):
-            return project
-
-        raise exceptions.PermissionDenied()
+        # Who may create an allocation for the project is who may update one:
+        # staff, or an owner of its organization, within the token's limits.
+        structure_permissions.is_owner(self.context["request"], None, obj=project)
+        return project
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
