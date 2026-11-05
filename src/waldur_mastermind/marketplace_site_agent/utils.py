@@ -3,6 +3,7 @@ import logging
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
+from waldur_core.core import access
 from waldur_core.core.permissions import has_staff_access
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
@@ -250,6 +251,24 @@ def push_user_role_sync_message(project: structure_models.Project) -> None:
         )
     else:
         logger.debug("No messages to send for project %s", project)
+
+
+# What resolve_offering_agent_authorization lets through, for the API schema.
+# Change them together.
+_OFFERING_AGENT_MANAGERS = (
+    "Staff, who holds OFFERING.CREATE on the offering's organization or "
+    "OFFERING.UPDATE on the offering, or an identity manager with managed ISDs "
+    "for an offering in an ISD-allowed state"
+)
+#: Creating an agent identity for the offering the request names.
+MANAGES_OFFERING_AGENT = access.custom(
+    f"{_OFFERING_AGENT_MANAGERS}, for the offering the request names."
+)
+#: Acting on an existing agent identity, or on its services and processors.
+MANAGES_AGENT_IDENTITY = access.custom(
+    f"{_OFFERING_AGENT_MANAGERS}; an identity manager only for an agent "
+    "identity they created."
+)
 
 
 def resolve_offering_agent_authorization(request, offering, agent_identity=None):

@@ -14,6 +14,7 @@ from rest_framework import decorators, exceptions, permissions, status, views
 from rest_framework.response import Response
 
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import views as core_views
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.permissions import has_staff_access
@@ -39,6 +40,11 @@ class RetentionPolicyViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.RetentionPolicySerializer
     lookup_field = "uuid"
     unsafe_methods_permissions = [is_staff]
+    # Providers pick one when they define a metric; the policies are not secret.
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
     def perform_destroy(self, instance):
         if instance.name == config.METRICS_DEFAULT_RETENTION_POLICY:
@@ -79,6 +85,13 @@ class MetricDefinitionViewSet(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     lookup_field = "uuid"
 
+    @access.describes(
+        access.custom(
+            "Staff for a global definition. For one private to the organization "
+            "the request names, also who holds OFFERING.CREATE on it or on its "
+            "service provider."
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         owner_uuid = request.data.get("owner_customer")
         owner = None
@@ -88,6 +101,13 @@ class MetricDefinitionViewSet(core_views.ActionsViewSet):
                 raise exceptions.PermissionDenied()
         _check_definition_owner(request, owner)
 
+    @access.describes(
+        access.custom(
+            "Staff for a global definition. For one private to an organization, "
+            "also who holds OFFERING.CREATE on it or on its service provider."
+        ),
+        needs_object=True,
+    )
     def check_owner_permissions(request, view, obj=None):
         if obj is not None:
             _check_definition_owner(request, obj.owner_customer)
@@ -97,6 +117,11 @@ class MetricDefinitionViewSet(core_views.ActionsViewSet):
         check_owner_permissions
     ]
 
+    @access.shows(
+        "Global definitions, and those private to organizations where the caller "
+        "holds a role or to service providers they hold a role on. Staff and "
+        "support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -146,6 +171,12 @@ class OfferingMetricViewSet(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     lookup_field = "uuid"
 
+    @access.describes(
+        access.custom(
+            "Staff, or who holds OFFERING.UPDATE on the offering the request "
+            "names, on its organization or on its service provider."
+        )
+    )
     def check_create_permissions(request, view, obj=None):
         if has_staff_access(request):
             return
@@ -165,6 +196,7 @@ class OfferingMetricViewSet(core_views.ActionsViewSet):
         )
     ]
 
+    @access.shows(query.OFFERING_METRICS_VISIBILITY)
     def get_queryset(self):
         return query.visible_offering_metrics(self.request.user).select_related(
             "offering", "definition"
@@ -261,6 +293,7 @@ class MetricPointViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.MetricPointSerializer
     disabled_actions = ["list", "retrieve", "update", "partial_update", "destroy"]
     throttle_scope = "metrics_ingest"
+    access_declarations = {"create": [ingest.REPORTS_POINTS]}
 
     @extend_schema(
         summary="Report metric points",
@@ -310,6 +343,7 @@ class OtlpMetricsView(views.APIView):
     """OTLP/HTTP metrics receiver (POST /v1/metrics of the OTLP spec)."""
 
     permission_classes = (permissions.IsAuthenticated,)
+    access_declarations = {"post": [ingest.REPORTS_POINTS]}
     parser_classes = []
     # Shared with the native endpoint: one budget, whichever door is used.
     throttle_scope = "metrics_ingest"
@@ -398,6 +432,14 @@ class OtlpMetricsView(views.APIView):
         return HttpResponse(body, content_type=media_type, status=status.HTTP_200_OK)
 
 
+# What _goal_permission lets through. Change the two together.
+_GOAL_MANAGERS = (
+    "Staff. For a project's goal, also who holds PROJECT.UPDATE on the project "
+    "or its organization; for an offering's default goal, who holds "
+    "OFFERING.UPDATE on the offering, its organization or its service provider."
+)
+
+
 def _goal_permission(request, goal_offering_metric, project):
     if has_staff_access(request):
         return
@@ -422,6 +464,9 @@ class MetricGoalViewSet(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     lookup_field = "uuid"
 
+    @access.describes(
+        access.custom(f"{_GOAL_MANAGERS} The metric must not be archived.")
+    )
     def check_create_permissions(request, view, obj=None):
         # Resolve only what the permission needs: validating the rest first
         # would tell an outsider whether the project uses the offering.
@@ -443,6 +488,7 @@ class MetricGoalViewSet(core_views.ActionsViewSet):
             raise exceptions.PermissionDenied()
         _goal_permission(request, offering_metric, project)
 
+    @access.describes(access.custom(_GOAL_MANAGERS), needs_object=True)
     def check_object_permissions_for_goal(request, view, obj=None):
         if obj is not None:
             _goal_permission(request, obj.offering_metric, obj.project)
@@ -452,6 +498,13 @@ class MetricGoalViewSet(core_views.ActionsViewSet):
         check_object_permissions_for_goal
     ]
 
+    @access.shows(
+        "Goals of metrics the caller sees, as offering metrics show them: the "
+        "offerings' default goals, and goals of projects where the caller holds "
+        "a role or of organizations where they do, or of offerings of "
+        "organizations or service providers where they hold a role. Staff and "
+        "support see all."
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -478,6 +531,13 @@ class MetricSeriesView(views.APIView):
     """A metric's data over time, for charts."""
 
     permission_classes = (permissions.IsAuthenticated,)
+    access_declarations = {
+        "get": [
+            access.custom(
+                f"{query.OFFERING_METRICS_VISIBILITY} {query.SERIES_VISIBILITY}"
+            )
+        ]
+    }
 
     @extend_schema(
         summary="Get metric series",
@@ -565,6 +625,14 @@ class ProjectMetricsView(views.APIView):
     """Each metric a project's resources report, with its figure and goal."""
 
     permission_classes = (permissions.IsAuthenticated,)
+    access_declarations = {
+        "get": [
+            access.custom(
+                f"{query.PROJECT_VISIBILITY} {query.SUMMARY_METRICS_VISIBILITY} "
+                f"{query.SERIES_VISIBILITY}"
+            )
+        ]
+    }
 
     @extend_schema(
         summary="Get a project's metric figures",
@@ -602,6 +670,15 @@ class MetricBreakdownView(views.APIView):
     """
 
     permission_classes = (permissions.IsAuthenticated,)
+    access_declarations = {
+        "get": [
+            access.custom(
+                f"With resource_uuid: {query.RESOURCE_VISIBILITY} It must be "
+                f"of the metric's offering. Otherwise: {query.PROJECT_VISIBILITY} "
+                f"{query.OFFERING_METRICS_VISIBILITY} {query.SERIES_VISIBILITY}"
+            )
+        ]
+    }
 
     @extend_schema(
         summary="Break a metric figure down by an attribute or by resource",
@@ -710,6 +787,14 @@ class ResourceMetricsView(views.APIView):
     """Each metric a resource reports, with this month's and last month's figure."""
 
     permission_classes = (permissions.IsAuthenticated,)
+    access_declarations = {
+        "get": [
+            access.custom(
+                f"{query.RESOURCE_VISIBILITY} {query.SUMMARY_METRICS_VISIBILITY} "
+                f"{query.SERIES_VISIBILITY}"
+            )
+        ]
+    }
 
     @extend_schema(
         summary="Get a resource's metric figures",

@@ -23,6 +23,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission_on_any_source
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -82,6 +83,15 @@ OFFERING_PROVIDER_SOURCES = ["*", "customer", "customer.serviceprovider"]
 # them, or a reporter could change what Waldur counted; apps add theirs on
 # startup.
 RESERVED_KEYS: set[str] = set()
+
+
+# What can_report, applied to every resource of a request, lets through, for
+# the API schema. Change the two together.
+REPORTS_POINTS = access.custom(
+    "Staff, or who holds RESOURCE.SET_USAGE on the offering of every resource "
+    "in the request, on its organization or on its service provider; otherwise "
+    "nothing is recorded."
+)
 
 
 def can_report(request, resource):

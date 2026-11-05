@@ -2,7 +2,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
-from waldur_core.core import auth_utils
+from waldur_core.core import access, auth_utils
 from waldur_core.logging import enums as logging_enums
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
@@ -689,6 +689,14 @@ class AgentConnectionStatsResponseSerializer(serializers.Serializer):
         read_only=True,
         help_text="Summary statistics",
     )
+
+
+# What validate_agent_identity_uuid lets through, for the API schema. Change
+# the two together.
+PUSHES_AGENT_LOGS = access.custom(
+    "Staff, or who holds OFFERING.CREATE on the organization of, or "
+    "OFFERING.UPDATE on, the offering of every agent identity the entries name."
+)
 
 
 class SiteAgentLogCreateSerializer(serializers.Serializer):

@@ -36,6 +36,7 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace.managers import OfferingQuerySet
 from waldur_mastermind.marketplace_site_agent import (
     filters,
     models,
@@ -44,6 +45,8 @@ from waldur_mastermind.marketplace_site_agent import (
 )
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.marketplace_site_agent.utils import (
+    MANAGES_AGENT_IDENTITY,
+    MANAGES_OFFERING_AGENT,
     can_manage_offering_agent,
     push_resource_user_role_sync_message,
     push_user_role_sync_message,
@@ -51,6 +54,18 @@ from waldur_mastermind.marketplace_site_agent.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# What the agent identity, service and processor lists show. Their
+# get_queryset narrows to Offering.filter_for_user and adds the identity
+# manager branch; change them together.
+_AGENT_OFFERINGS = (
+    "of offerings that provider offerings show the caller: "
+    f"{OfferingQuerySet.USER_VISIBILITY} An identity manager with managed ISDs "
+    "also sees"
+)
+_OWN_AGENT_IDENTITIES = (
+    "agent identities they created for offerings in an ISD-allowed state."
+)
 
 
 def _resolve_agent_rmq_password(request) -> str:
@@ -114,6 +129,19 @@ class ProjectSyncUserRolesView(generics.GenericAPIView):
         return Response(status=status.HTTP_200_OK)
 
 
+class CanSyncResourceUserRoles(rf_permissions.BasePermission):
+    """Staff, or who holds OFFERING.UPDATE on the resource's offering or its organization."""
+
+    def has_object_permission(self, request, view, obj):
+        if has_staff_access(request):
+            return True
+        return has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, obj.offering
+        ) or has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, obj.offering.customer
+        )
+
+
 class ResourceSyncUserRolesView(generics.GenericAPIView):
     """Trigger user role synchronization for one resource.
 
@@ -132,19 +160,7 @@ class ResourceSyncUserRolesView(generics.GenericAPIView):
 
     queryset = marketplace_models.Resource.objects.all()
     lookup_field = "uuid"
-    permission_classes = [rf_permissions.IsAuthenticated]
-
-    def check_object_permissions(self, request, obj):
-        super().check_object_permissions(request, obj)
-        if has_staff_access(request):
-            return
-        if has_permission(
-            request, PermissionEnum.UPDATE_OFFERING, obj.offering
-        ) or has_permission(
-            request, PermissionEnum.UPDATE_OFFERING, obj.offering.customer
-        ):
-            return
-        raise PermissionDenied()
+    permission_classes = [rf_permissions.IsAuthenticated, CanSyncResourceUserRoles]
 
     @extend_schema(
         description="Trigger user role sync for this resource. "
@@ -188,6 +204,7 @@ class AgentIdentityViewSet(ActionsViewSet):
 
     disabled_actions = ["partial_update"]
 
+    @access.shows(f"Agent identities {_AGENT_OFFERINGS} the {_OWN_AGENT_IDENTITIES}")
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -209,6 +226,7 @@ class AgentIdentityViewSet(ActionsViewSet):
 
         return models.AgentIdentity.objects.filter(base_q).distinct()
 
+    @access.describes(MANAGES_OFFERING_AGENT)
     def check_create_permissions(request, view, obj=None):
         # The offering the request names decides who may create, so the
         # request is validated first: an empty or malformed body is a 400, and
@@ -227,6 +245,7 @@ class AgentIdentityViewSet(ActionsViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    @access.describes(MANAGES_AGENT_IDENTITY, needs_object=True)
     def _check_agent_identity_permission(request, view, obj=None):
         if not obj:
             if not request.user.is_authenticated:
@@ -657,6 +676,10 @@ class AgentServiceViewSet(ActionsViewSet):
 
     disabled_actions = ["create", "update", "partial_update"]
 
+    @access.shows(
+        f"Services of agent identities {_AGENT_OFFERINGS} the services of "
+        f"{_OWN_AGENT_IDENTITIES}"
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -678,6 +701,7 @@ class AgentServiceViewSet(ActionsViewSet):
 
         return models.AgentService.objects.filter(base_q).distinct()
 
+    @access.describes(MANAGES_AGENT_IDENTITY, needs_object=True)
     def _check_agent_service_permission(request, view, obj=None):
         if not obj:
             if not request.user.is_authenticated:
@@ -814,6 +838,10 @@ class AgentProcessorViewSet(ActionsViewSet):
 
     disabled_actions = ["create", "update", "partial_update"]
 
+    @access.shows(
+        f"Processors of services of agent identities {_AGENT_OFFERINGS} the "
+        f"processors of services of {_OWN_AGENT_IDENTITIES}"
+    )
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -835,6 +863,7 @@ class AgentProcessorViewSet(ActionsViewSet):
 
         return models.AgentProcessor.objects.filter(base_q).distinct()
 
+    @access.describes(MANAGES_AGENT_IDENTITY, needs_object=True)
     def _check_agent_processor_permission(request, view, obj=None):
         if not obj:
             if not request.user.is_authenticated:
@@ -1265,6 +1294,7 @@ class SiteAgentLogViewSet(ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update", "destroy", "retrieve"]
+    access_declarations = {"create": [serializers.PUSHES_AGENT_LOGS]}
 
     @access.shows(utils.AGENT_LOGS_VISIBILITY)
     def get_queryset(self):
