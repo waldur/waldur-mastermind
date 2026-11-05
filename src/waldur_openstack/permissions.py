@@ -57,6 +57,14 @@ can_manage_openstack_router_gateway = _check_permissions(
 )
 
 
+@access.describes(
+    access.custom(
+        "Staff; and, while ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS is on, "
+        f"holders of {PermissionEnum.HAS_OPENSTACK_INSTANCE_CONSOLE_ACCESS.value} "
+        "on the instance's project or organization."
+    ),
+    needs_object=True,
+)
 def has_permissions_for_console(request, view, instance=None):
     permission = PermissionEnum.HAS_OPENSTACK_INSTANCE_CONSOLE_ACCESS
 
@@ -100,6 +108,13 @@ def can_diagnose_openstack_instance(request, view, instance=None):
     raise exceptions.PermissionDenied()
 
 
+@access.describes(
+    access.custom(
+        "Staff, or an owner or service provider manager of the organization "
+        "that owns the tenant's service settings, that is, the provider."
+    ),
+    needs_object=True,
+)
 def can_update_tenant_quotas_as_service_provider(request, view, tenant=None):
     if not tenant:
         return
