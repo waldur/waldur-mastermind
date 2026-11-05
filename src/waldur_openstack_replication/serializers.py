@@ -5,13 +5,18 @@ from django.db import transaction
 from netaddr import IPNetwork
 from rest_framework import serializers
 
+from waldur_core.core import access
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.utils import pwgen
 from waldur_core.core.validators import validate_name
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Project, ServiceSettings
 from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.permissions import (
+    check_offering_restriction,
+    has_project_permission,
     order_should_not_be_reviewed_by_consumer,
     user_can_approve_order_as_consumer,
 )
@@ -114,6 +119,18 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
     )
 
 
+# Who MigrationCreateSerializer.validate lets migrate a resource; the view
+# declares it.
+MIGRATES_RESOURCE = access.custom(
+    "Staff, or who sees the source resource through their roles, holds "
+    f"{PermissionEnum.CREATE_ORDER.value} on its project or organization and, "
+    "for a destination offering restricted to designated roles, one of them "
+    "there, as placing the order would need; and, unless consumer review of "
+    f"that order would be skipped, {PermissionEnum.APPROVE_ORDER.value} there "
+    "too. Global support, which only reads, may not."
+)
+
+
 class MigrationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Migration
@@ -152,8 +169,10 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             return fields
 
         user = request.user
+        # A write: global support, which only reads, and a staff token without
+        # the staff scope reach only what the user's roles do.
         fields["src_resource"].queryset = filter_queryset_for_user(
-            fields["src_resource"].queryset, user
+            fields["src_resource"].queryset, user, sees_all=has_staff_access(request)
         )
         fields["dst_offering"].queryset = fields[
             "dst_offering"
@@ -181,7 +200,20 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
 
             validate_plan(dst_plan)
 
-        user = self.context["request"].user
+        request = self.context["request"]
+        # The migration stands in for an order in the project, so the caller
+        # must be allowed to place one there, as OrderViewSet requires; the
+        # review rules below assume it. Global support only reads.
+        if not has_staff_access(request):
+            check_offering_restriction(request, dst_project, dst_offering)
+            if not has_project_permission(
+                request, PermissionEnum.CREATE_ORDER, dst_project
+            ):
+                raise serializers.ValidationError(
+                    "User does not have enough permissions to migrate resource.",
+                )
+
+        user = request.user
         order = Order(
             project=dst_project,
             offering=dst_offering,

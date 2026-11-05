@@ -7,8 +7,10 @@ from rest_framework import status, test
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.tests.pat_utils import use_pat
+from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
+from waldur_core.structure.tests.fixtures import add_user_to_project
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tests.factories import (
@@ -65,6 +67,7 @@ class MigrationTest(test.APITestCase):
         though order_should_not_be_reviewed_by_consumer(order) is False for
         such an offering."""
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
         self.offering.plugin_options["disable_autoapprove"] = True
         self.offering.save()
         plan = PlanFactory(offering=self.offering)
@@ -117,8 +120,10 @@ class MigrationTest(test.APITestCase):
     @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
     def test_token_needs_approve_scope_when_consumer_review_applies(self, _):
         """A migration creates the resource without an order, so a token stands
-        in for consumer approval only if it carries ORDER.APPROVE."""
+        in for consumer approval only if it carries ORDER.APPROVE, and places
+        the order only if it carries ORDER.CREATE."""
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
         self.offering.plugin_options["disable_autoapprove"] = True
         self.offering.save()
         plan = PlanFactory(offering=self.offering)
@@ -129,7 +134,14 @@ class MigrationTest(test.APITestCase):
         )
         for scopes, expected in (
             ([PermissionEnum.LIST_RESOURCES.value], status.HTTP_400_BAD_REQUEST),
-            ([PermissionEnum.APPROVE_ORDER.value], status.HTTP_201_CREATED),
+            ([PermissionEnum.APPROVE_ORDER.value], status.HTTP_400_BAD_REQUEST),
+            (
+                [
+                    PermissionEnum.APPROVE_ORDER.value,
+                    PermissionEnum.CREATE_ORDER.value,
+                ],
+                status.HTTP_201_CREATED,
+            ),
         ):
             with self.subTest(scopes=scopes):
                 use_pat(self.client, self.fixture.owner, *scopes)
@@ -143,6 +155,183 @@ class MigrationTest(test.APITestCase):
                     },
                 )
                 self.assertEqual(response.status_code, expected, response.data)
+
+    def _skip_consumer_review_for_anyone(self):
+        """A shared offering of the project's own organization that auto-approves
+        there: consumer review is skipped whoever places the order."""
+        self.offering.customer = self.fixture.customer
+        self.offering.shared = True
+        self.offering.plugin_options["auto_approve_in_service_provider_projects"] = True
+        self.offering.save()
+
+    def _post_migration(self, resource, plan):
+        return self.client.post(
+            reverse("openstack-migrations-list"),
+            {
+                "name": "replicated vpc",
+                "src_resource": resource.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
+                "dst_plan": plan.uuid.hex,
+            },
+        )
+
+    @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
+    def test_reader_cannot_migrate_when_consumer_review_is_skipped(self, _):
+        """An organization reader sees the resource but may not order (#1066)."""
+        self._skip_consumer_review_for_anyone()
+        CustomerRole.READER.add_permission(PermissionEnum.LIST_RESOURCES)
+        reader = UserFactory()
+        self.fixture.customer.add_user(reader, CustomerRole.READER)
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.client.force_login(reader)
+        response = self._post_migration(resource, plan)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertFalse(Migration.objects.exists())
+
+    @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
+    def test_user_who_may_order_can_migrate_when_consumer_review_is_skipped(self, _):
+        self._skip_consumer_review_for_anyone()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.client.force_login(self.fixture.owner)
+        response = self._post_migration(resource, plan)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def _restrict_offering_to_project_admins(self):
+        self.offering.plugin_options["restricted_to_roles"] = ["PROJECT.ADMIN"]
+        self.offering.save()
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+
+    @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
+    def test_offering_role_restriction_applies_in_the_source_project(self, _):
+        """A manager of the project who is an administrator only elsewhere may
+        not migrate into an offering restricted to administrators, as they may
+        not order it there."""
+        self._skip_consumer_review_for_anyone()
+        self._restrict_offering_to_project_admins()
+        manager = self.fixture.manager
+        other_project = ProjectFactory(customer=self.fixture.customer)
+        add_user_to_project(manager, other_project, ProjectRole.ADMIN)
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.client.force_login(manager)
+        response = self._post_migration(resource, plan)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertFalse(Migration.objects.exists())
+
+    @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
+    def test_holder_of_restricted_role_in_the_project_can_migrate(self, _):
+        self._skip_consumer_review_for_anyone()
+        self._restrict_offering_to_project_admins()
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.client.force_login(self.fixture.admin)
+        response = self._post_migration(resource, plan)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
+    def test_support_cannot_migrate_when_consumer_review_is_skipped(self, _):
+        """Global support sees every resource but only reads."""
+        self._skip_consumer_review_for_anyone()
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.client.force_login(self.fixture.global_support)
+        response = self._post_migration(resource, plan)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertFalse(Migration.objects.exists())
+
+    @override_config(PAT_ENABLED=True)
+    @patch("waldur_openstack_replication.executors.MigrationExecutor.execute")
+    def test_staff_token_without_staff_scope_cannot_migrate(self, _):
+        self._skip_consumer_review_for_anyone()
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        use_pat(
+            self.client,
+            self.fixture.staff,
+            PermissionEnum.LIST_RESOURCES.value,
+            PermissionEnum.CREATE_ORDER.value,
+        )
+        response = self._post_migration(resource, plan)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertFalse(Migration.objects.exists())
+
+    def _migration(self, created_by):
+        return Migration.objects.create(
+            created_by=created_by,
+            src_resource=ResourceFactory(),
+            dst_resource=ResourceFactory(),
+        )
+
+    def test_support_cannot_delete_migration(self):
+        migration = self._migration(self.fixture.owner)
+        self.client.force_login(self.fixture.global_support)
+        response = self.client.delete(
+            reverse("openstack-migrations-detail", kwargs={"uuid": migration.uuid.hex})
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Migration.objects.filter(pk=migration.pk).exists())
+
+    def test_creator_and_staff_can_delete_migration(self):
+        for user in (self.fixture.owner, self.fixture.staff):
+            with self.subTest(user=user):
+                migration = self._migration(self.fixture.owner)
+                self.client.force_login(user)
+                response = self.client.delete(
+                    reverse(
+                        "openstack-migrations-detail",
+                        kwargs={"uuid": migration.uuid.hex},
+                    )
+                )
+                self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_migration_cannot_be_updated(self):
+        migration = self._migration(self.fixture.owner)
+        self.client.force_login(self.fixture.owner)
+        url = reverse(
+            "openstack-migrations-detail", kwargs={"uuid": migration.uuid.hex}
+        )
+        self.assertEqual(
+            self.client.patch(url, {}).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+        self.assertEqual(
+            self.client.put(url, {}).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     def test_tenant_has_credentials(self):
         plan = PlanFactory(offering=self.offering)
