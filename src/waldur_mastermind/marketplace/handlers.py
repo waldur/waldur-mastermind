@@ -1957,6 +1957,37 @@ def update_offering_user_username_after_offering_settings_change(
     _regenerate_offering_usernames(offering, "offering plugin_options change")
 
 
+def create_offering_users_when_allowed(
+    sender, instance: Offering, created=False, **kwargs
+):
+    """Create the accounts an offering could not create until now.
+
+    Offering users are created when a project member gets a role or a project
+    gets a resource, and only while service_provider_can_create_offering_user
+    is on. Turned on later, it would otherwise leave every member of a project
+    that already has a resource without an account until one of those happens.
+    """
+    if created:
+        return
+
+    offering = instance
+
+    if (
+        offering.type not in OFFERING_USER_ALLOWED_OFFERING_TYPES
+        or not offering.tracker.has_changed("plugin_options")
+    ):
+        return
+
+    option = "service_provider_can_create_offering_user"
+    previous = offering.tracker.previous("plugin_options") or {}
+    if previous.get(option) or not (offering.plugin_options or {}).get(option):
+        return
+
+    transaction.on_commit(
+        lambda: tasks.create_offering_users_for_offering.delay(offering.uuid.hex)
+    )
+
+
 #: Account settings a generated username depends on.
 USERNAME_ACCOUNT_SETTINGS = ("username_generation_policy", "username_anonymized_prefix")
 

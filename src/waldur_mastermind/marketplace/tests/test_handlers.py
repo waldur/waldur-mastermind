@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from unittest import mock
 
 import httpx
@@ -1774,6 +1775,182 @@ class OfferingUserCreationHandlerWhenOrderIsValidTest(APITestCase):
             offering=self.fixture.offering,
         ).count()
         self.assertEqual(count, 1)
+
+
+@mock.patch(
+    "waldur_mastermind.marketplace.tasks.create_offering_users_for_offering.delay"
+)
+class OfferingUsersCreatedWhenAllowedTest(APITestCase):
+    """Turning service_provider_can_create_offering_user on creates the missing
+    accounts of members of projects that already have a resource of the offering."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.plugin_options = {}
+        self.offering.save()
+        self.member = structure_factories.UserFactory()
+        self.fixture.project.add_user(self.member, ProjectRole.MANAGER)
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+
+    def account(self, user=None):
+        return marketplace_models.OfferingUser.objects.filter(
+            user=user or self.member, offering=self.offering
+        ).first()
+
+    def set_options(self, **options):
+        self.offering.plugin_options = {**self.offering.plugin_options, **options}
+        self.offering.save()
+
+    def allow(self):
+        self.set_options(service_provider_can_create_offering_user=True)
+
+    def run_tasks(self):
+        """The offering's task and the per-project tasks it queues, in turn."""
+        with mock.patch.object(
+            tasks.create_offering_users_for_offering_in_project,
+            "delay",
+            side_effect=tasks.create_offering_users_for_offering_in_project,
+        ):
+            tasks.create_offering_users_for_offering(self.offering.uuid.hex)
+
+    def test_switching_creation_on_creates_the_missing_accounts(self, delay):
+        self.allow()
+
+        delay.assert_called_once_with(self.offering.uuid.hex)
+        self.assertIsNone(self.account())
+        self.run_tasks()
+        self.assertIsNotNone(self.account())
+
+    def test_switching_it_on_through_the_provider_api(self, delay):
+        # update_integration changes the options in place and saves the
+        # offering more than once; the task is still queued, and once.
+        # Staff: tests run without permissions.yaml, so no provider role here
+        # carries OFFERING.UPDATE_INTEGRATION.
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            f"/api/marketplace-provider-offerings/{self.offering.uuid.hex}/update_integration/",
+            {"plugin_options": {"service_provider_can_create_offering_user": True}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        delay.assert_called_once_with(self.offering.uuid.hex)
+
+    def test_nothing_is_created_while_creation_stays_off(self, delay):
+        self.set_options(
+            service_provider_can_create_offering_user=False, some_option=True
+        )
+
+        delay.assert_not_called()
+
+    def test_options_changing_while_it_is_on_create_nothing_again(self, delay):
+        self.allow()
+        delay.reset_mock()
+
+        self.set_options(some_option=True)
+
+        delay.assert_not_called()
+
+    def test_every_member_of_every_project_gets_an_account(self, delay):
+        other_member = structure_factories.UserFactory()
+        self.fixture.project.add_user(other_member, ProjectRole.MEMBER)
+        other_project = structure_factories.ProjectFactory(
+            customer=self.fixture.customer
+        )
+        third_member = structure_factories.UserFactory()
+        other_project.add_user(third_member, ProjectRole.MANAGER)
+        factories.ResourceFactory(
+            offering=self.offering, project=other_project, state=ResourceStates.OK
+        )
+        self.allow()
+
+        self.run_tasks()
+
+        for user in (self.member, other_member, third_member):
+            self.assertIsNotNone(self.account(user), user)
+
+    def test_an_approved_resource_being_created_counts(self, delay):
+        self.resource.state = ResourceStates.CREATING
+        self.resource.save()
+        factories.OrderFactory(
+            project=self.fixture.project,
+            offering=self.offering,
+            plan=self.fixture.plan,
+            resource=self.resource,
+            state=OrderStates.PENDING_PROVIDER,
+            type=OrderTypes.CREATE,
+        )
+        self.allow()
+
+        self.run_tasks()
+
+        self.assertIsNotNone(self.account())
+
+    def test_projects_without_a_live_resource_are_left_alone(self, delay):
+        self.resource.state = ResourceStates.TERMINATED
+        self.resource.save()
+        self.allow()
+
+        self.run_tasks()
+
+        self.assertIsNone(self.account())
+
+    def test_an_account_being_deleted_stays_so(self, delay):
+        # The option gates creating accounts, not restoring one the provider
+        # is deleting.
+        marketplace_models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.member,
+            username="leaving",
+            state=OfferingUserStates.DELETION_REQUESTED,
+        )
+        self.allow()
+
+        self.run_tasks()
+
+        account = self.account()
+        self.assertEqual(account.state, OfferingUserStates.DELETION_REQUESTED)
+        self.assertEqual(account.username, "leaving")
+
+    def test_one_failing_account_does_not_stop_the_others(self, delay):
+        other_member = structure_factories.UserFactory()
+        self.fixture.project.add_user(other_member, ProjectRole.MEMBER)
+        self.allow()
+        create = utils.create_offering_user
+        failing = self.member
+
+        def create_or_fail(user, offering, *args, **kwargs):
+            if user == failing:
+                raise RuntimeError("no UID left")
+            return create(user, offering, *args, **kwargs)
+
+        with mock.patch.object(
+            utils, "create_offering_user", side_effect=create_or_fail
+        ):
+            self.run_tasks()
+
+        self.assertIsNone(self.account())
+        self.assertIsNotNone(self.account(other_member))
+
+    def test_switched_off_again_before_the_tasks_run(self, delay):
+        self.allow()
+        self.set_options(service_provider_can_create_offering_user=False)
+
+        self.run_tasks()
+
+        self.assertIsNone(self.account())
+
+    def test_an_offering_gone_before_the_task_runs(self, delay):
+        tasks.create_offering_users_for_offering(uuid.uuid4().hex)
+        tasks.create_offering_users_for_offering_in_project(
+            uuid.uuid4().hex, self.fixture.project.uuid.hex
+        )
 
 
 class CreateOrRestoreOfferingUsersTaskOrderStateFilterTest(APITestCase):
