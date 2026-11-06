@@ -4,7 +4,7 @@ import tempfile
 from io import StringIO
 
 import yaml
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 from django.test import TestCase
 
 from waldur_core.configuration import config
@@ -124,14 +124,19 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         Test that the command redacts passwords and tokens.
         """
         # Set password and token
-        settings = {"ZAMMAD_TOKEN": "secret-token", "SOME_PASSWORD": "secret-password"}
+        settings = {
+            "ZAMMAD_TOKEN": "secret-token",
+            "ATLASSIAN_PASSWORD": "secret-password",
+        }
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
         call_command("override_constance_settings", settings_file, stdout=output)
 
         self.assertIn("ZAMMAD_TOKEN has been set to <redacted>", output.getvalue())
-        self.assertIn("SOME_PASSWORD has been set to <redacted>", output.getvalue())
+        self.assertIn(
+            "ATLASSIAN_PASSWORD has been set to <redacted>", output.getvalue()
+        )
 
     def test_logo_upload(self):
         """
@@ -310,3 +315,218 @@ class SeedOnlyIfUnsetTest(SettingsFileMixin, TestCase):
 
         self.assertIn("LANGUAGE_CHOICES already has a stored value", output)
         self.assertIn("BRAND_COLOR has been set to", output)
+
+
+class DeploymentLockTest(SettingsFileMixin, TestCase):
+    """`--lock` is what init-whitelabeling passes for the files it re-applies
+    on every start."""
+
+    def apply(self, settings, name="settings.yaml", *args, lock=True):
+        path = os.path.join(self.temp_dir, name)
+        with open(path, "w") as f:
+            yaml.dump(settings, f)
+        output = StringIO()
+        if lock:
+            args = (*args, "--lock")
+        call_command("override_constance_settings", path, *args, stdout=output)
+        return output.getvalue()
+
+    def unlock(self, *keys):
+        output = StringIO()
+        args = [arg for key in keys for arg in ("--unlock", key)]
+        call_command("override_constance_settings", *args, stdout=output)
+        return output.getvalue()
+
+    def locked(self):
+        return dict(
+            Setting.objects.filter(locked=True).values_list("key", "managed_by")
+        )
+
+    def managed(self):
+        return dict(
+            Setting.objects.exclude(managed_by="").values_list("key", "managed_by")
+        )
+
+    def test_settings_of_the_file_are_locked(self):
+        self.apply({"SITE_NAME": "Portal", "BRAND_COLOR": "#FF0000"})
+
+        self.assertEqual(
+            self.locked(),
+            {"SITE_NAME": "settings.yaml", "BRAND_COLOR": "settings.yaml"},
+        )
+
+    def test_a_one_off_run_locks_nothing(self):
+        # Such as a hotfix file, or input piped through /dev/stdin: nothing
+        # would apply it again to release the lock.
+        self.apply({"SITE_NAME": "Portal"}, "hotfix.yaml", lock=False)
+
+        self.assertEqual(config.SITE_NAME, "Portal")
+        self.assertEqual(self.managed(), {})
+
+    def test_a_one_off_run_leaves_the_deployment_locks_alone(self):
+        self.apply({"SITE_NAME": "Portal", "BRAND_COLOR": "#FF0000"})
+
+        self.apply({"SITE_NAME": "Hotfix"}, lock=False)
+
+        self.assertEqual(
+            self.locked(),
+            {"SITE_NAME": "settings.yaml", "BRAND_COLOR": "settings.yaml"},
+        )
+
+    def test_an_unchanged_value_stored_before_locking_is_locked(self):
+        # A deployment upgraded from a release without locks.
+        Setting.objects.set(
+            "SITE_NAME",
+            "Portal",
+            source=Source.DEPLOYMENT,
+            source_detail="settings.yaml",
+        )
+
+        self.apply({"SITE_NAME": "Portal"})
+
+        self.assertEqual(self.locked(), {"SITE_NAME": "settings.yaml"})
+
+    def test_a_setting_taken_out_of_the_file_is_handed_back(self):
+        self.apply({"SITE_NAME": "Portal", "BRAND_COLOR": "#FF0000"})
+
+        output = self.apply({"BRAND_COLOR": "#FF0000"})
+
+        self.assertEqual(self.managed(), {"BRAND_COLOR": "settings.yaml"})
+        self.assertEqual(config.SITE_NAME, "Portal")
+        self.assertIn(
+            "SITE_NAME no longer managed by settings.yaml, handed back", output
+        )
+
+    def test_a_setting_an_administrator_changed_after_unlock_is_still_handed_back(
+        self,
+    ):
+        # The row then records the administrator as the last writer, not the
+        # file; what manages it is kept apart.
+        self.apply({"SITE_NAME": "Portal"})
+        self.unlock("SITE_NAME")
+        Setting.objects.set("SITE_NAME", "Renamed", source=Source.API)
+
+        self.apply({"BRAND_COLOR": "#FF0000"})
+
+        self.assertEqual(self.managed(), {"BRAND_COLOR": "settings.yaml"})
+        self.assertEqual(config.SITE_NAME, "Renamed")
+
+    def test_an_emptied_file_hands_its_settings_back(self):
+        self.apply({"SITE_NAME": "Portal"})
+
+        self.apply(None)
+
+        self.assertEqual(self.managed(), {})
+
+    def test_another_file_leaves_the_settings_of_this_one_locked(self):
+        self.apply({"SITE_NAME": "Portal"}, "whitelabeling.yaml")
+
+        self.apply({"BRAND_COLOR": "#FF0000"}, "support.yaml")
+
+        self.assertEqual(
+            self.locked(),
+            {"SITE_NAME": "whitelabeling.yaml", "BRAND_COLOR": "support.yaml"},
+        )
+
+    def test_a_setting_in_two_files_belongs_to_the_last_one(self):
+        self.apply({"SITE_NAME": "Portal"}, "a.yaml")
+        self.apply({"SITE_NAME": "Portal B"}, "b.yaml")
+
+        # a.yaml no longer manages it, so leaving it out releases nothing.
+        self.apply({"BRAND_COLOR": "#FF0000"}, "a.yaml")
+
+        self.assertEqual(
+            self.locked(), {"SITE_NAME": "b.yaml", "BRAND_COLOR": "a.yaml"}
+        )
+        self.assertEqual(config.SITE_NAME, "Portal B")
+
+    def test_a_rejected_value_leaves_the_setting_locked(self):
+        self.apply({"BRAND_COLOR": "#FF0000"})
+
+        self.apply({"BRAND_COLOR": "not a colour"})
+
+        self.assertEqual(self.locked(), {"BRAND_COLOR": "settings.yaml"})
+        self.assertEqual(config.BRAND_COLOR, "#FF0000")
+
+    def test_seeded_settings_are_not_managed(self):
+        self.apply(
+            {"LANGUAGE_CHOICES": "en,et"}, "settings.yaml", "--if-unset", lock=False
+        )
+
+        self.assertEqual(self.managed(), {})
+
+    def test_a_file_switched_to_seeding_hands_its_settings_back(self):
+        self.apply({"SITE_NAME": "Portal"})
+
+        self.apply({"SITE_NAME": "Portal"}, "settings.yaml", "--if-unset", lock=False)
+
+        self.assertEqual(self.managed(), {})
+
+    def test_lock_and_if_unset_exclude_each_other(self):
+        with self.assertRaisesMessage(CommandError, "exclude each other"):
+            self.apply({"SITE_NAME": "Portal"}, "settings.yaml", "--if-unset")
+
+    def test_settings_waldur_changes_itself_are_only_seeded(self):
+        config.TELEMETRY_DEPLOYMENT_ID = "running-id"
+
+        output = self.apply(
+            {"TELEMETRY_DEPLOYMENT_ID": "file-id", "REMOTE_EDUTEAMS_REFRESH_TOKEN": "t"}
+        )
+
+        self.assertEqual(config.TELEMETRY_DEPLOYMENT_ID, "running-id")
+        self.assertIn("TELEMETRY_DEPLOYMENT_ID already has a stored value", output)
+        self.assertEqual(config.REMOTE_EDUTEAMS_REFRESH_TOKEN, "t")
+        self.assertEqual(self.managed(), {})
+
+    def test_unknown_settings_are_reported_not_claimed(self):
+        output = self.apply({"SITE_NAME": "Portal", "SUPPORT_EMAIL": "a@b.c"})
+
+        self.assertIn("SUPPORT_EMAIL is not a setting Waldur knows, skipped.", output)
+        self.assertNotIn("SUPPORT_EMAIL has been set", output)
+        self.assertEqual(self.locked(), {"SITE_NAME": "settings.yaml"})
+
+    def test_unlock_lasts_until_the_next_deploy(self):
+        self.apply({"SITE_NAME": "Portal"})
+
+        output = self.unlock("site_name")
+
+        self.assertEqual(self.locked(), {})
+        self.assertEqual(self.managed(), {"SITE_NAME": "settings.yaml"})
+        self.assertEqual(config.SITE_NAME, "Portal")
+        self.assertIn("SITE_NAME has been unlocked.", output)
+        self.assertIn("The next deploy puts back the value of SITE_NAME", output)
+
+        self.apply({"SITE_NAME": "Portal"})
+        self.assertEqual(self.locked(), {"SITE_NAME": "settings.yaml"})
+
+    def test_unlock_of_a_setting_that_is_not_locked(self):
+        output = self.unlock("SITE_NAME")
+
+        self.assertIn("SITE_NAME is not locked.", output)
+        self.assertNotIn("has been unlocked", output)
+
+    def test_unlock_rejects_unknown_settings(self):
+        with self.assertRaisesMessage(CommandError, "NO_SUCH_SETTING"):
+            self.unlock("NO_SUCH_SETTING")
+
+    def test_a_file_or_unlock_is_required(self):
+        with self.assertRaises(CommandError):
+            call_command("override_constance_settings")
+
+    def test_dump_managed_only_names_each_file(self):
+        self.apply({"SITE_NAME": "Portal"}, "whitelabeling.yaml")
+        self.apply({"BRAND_COLOR": "#FF0000"}, "support.yaml")
+        config.SHORT_PAGE_TITLE = "Not managed"
+        path = os.path.join(self.temp_dir, "dump.yaml")
+
+        call_command(
+            "dump_constance_settings", path, "--managed-only", stdout=StringIO()
+        )
+
+        with open(path) as f:
+            text = f.read()
+        self.assertEqual(
+            yaml.safe_load(text), {"SITE_NAME": "Portal", "BRAND_COLOR": "#FF0000"}
+        )
+        self.assertIn("# support.yaml\nBRAND_COLOR:", text)
+        self.assertIn("# whitelabeling.yaml\nSITE_NAME:", text)

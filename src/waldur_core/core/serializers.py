@@ -30,7 +30,11 @@ from rest_framework.fields import Field, ReadOnlyField, empty, lazy_format
 from rest_framework.serializers import ListSerializer
 
 from waldur_core.configuration import config, registry
-from waldur_core.configuration.models import Setting
+from waldur_core.configuration.models import (
+    LOCKABLE_SOURCES,
+    Setting,
+    locked_message,
+)
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
@@ -701,6 +705,27 @@ issue_key_prefix_validator = RegexValidator(
 )
 
 
+class SettingSourceSerializer(serializers.ModelSerializer):
+    """Who wrote a stored setting, and whether the deployment manages it."""
+
+    updated_by_username = serializers.CharField(
+        source="updated_by.username", allow_null=True, default=None
+    )
+
+    class Meta:
+        model = Setting
+        fields = (
+            "key",
+            "source",
+            "source_detail",
+            "locked",
+            "managed_by",
+            "updated_at",
+            "updated_by_username",
+        )
+        read_only_fields = fields
+
+
 class ConstanceSettingsSerializer(serializers.Serializer):
     def get_fields(self):
         fields = OrderedDict()
@@ -816,23 +841,61 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         validate_access_email_patterns(value)
         return value
 
-    def save(self, *, source, source_detail="", user=None, restamp_unchanged=False):
+    def save(
+        self,
+        *,
+        source,
+        source_detail="",
+        user=None,
+        restamp_unchanged=False,
+        lock=False,
+        managed_by=None,
+    ):
         """Write the submitted settings whose value differs from the current one.
 
         With ``restamp_unchanged`` an unchanged value is written too when its
         row records another source, so that settings a deployment re-applies
         are recorded as the deployment's. Forms leave it off: they submit
         every setting, and would otherwise claim all of them.
+
+        ``managed_by`` records what re-applies the written settings on every
+        deploy, and ``lock`` locks them; with ``restamp_unchanged`` this also
+        applies to unchanged settings that do not record it yet.
+
+        A change to a locked setting through a source people write through
+        is rejected before anything is written.
         """
         # Skip fields that are not present in initial data which are sent via request
         names = [name for name in self.validated_data if name in self.initial_data]
+        changed = {
+            name
+            for name in names
+            if _setting_differs(getattr(config, name), self.validated_data[name])
+        }
+        if source in LOCKABLE_SOURCES:
+            locks = Setting.objects.locks(*changed)
+            if locks:
+                raise serializers.ValidationError(
+                    {
+                        name: [locked_message(name, detail)]
+                        for name, detail in sorted(locks.items())
+                    }
+                )
         stamped = Setting.objects.sources(*names) if restamp_unchanged else {}
+
+        def stamped_as_asked(name):
+            if name not in stamped:
+                return False
+            row_source, row_detail, row_locked, row_manager = stamped[name]
+            return (
+                (row_source, row_detail) == (source, source_detail)
+                and (row_locked or not lock)
+                and (managed_by is None or row_manager == managed_by)
+            )
+
         for name in names:
-            current = getattr(config, name)
             new = self.validated_data[name]
-            if current != new or (
-                restamp_unchanged and stamped.get(name) != (source, source_detail)
-            ):
+            if name in changed or (restamp_unchanged and not stamped_as_asked(name)):
                 # Handle single image file
                 if hasattr(new, "name"):
                     new = default_storage.save(new.name, new)
@@ -855,7 +918,17 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                     source=source,
                     source_detail=source_detail,
                     user=user,
+                    locked=True if lock else None,
+                    managed_by=managed_by,
                 )
+
+
+def _setting_differs(current, new):
+    # A multiple choice field validates to a set, and the setting is stored as
+    # a list in no particular order.
+    if isinstance(new, set):
+        return set(current or ()) != new
+    return current != new
 
 
 def get_localized_field_names(field_name: str) -> list[str]:

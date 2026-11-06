@@ -238,6 +238,7 @@ urlpatterns += [
 urlpatterns += [
     re_path(r"^api/configuration/", core_views.configuration_detail),
     re_path(r"^api/web-shell-ticket/", web_shell_views.web_shell_ticket),
+    re_path(r"^api/override-settings/sources/$", core_views.override_settings_sources),
     re_path(r"^api/override-settings/", core_views.override_db_settings),
     re_path(r"^api/version/", core_views.version_detail),
     re_path(

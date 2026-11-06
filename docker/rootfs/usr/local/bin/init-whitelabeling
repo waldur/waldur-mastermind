@@ -1,11 +1,14 @@
 #!/bin/bash
 set -e
 
+# --lock: these files are re-applied on every start, so their settings are
+# locked against UI changes that the next start would revert. Taking a setting
+# out of its file hands it back to administrators.
 echo "INFO: Override whitelabeling settings..."
-waldur override_constance_settings /etc/waldur/whitelabeling.yaml
+waldur override_constance_settings /etc/waldur/whitelabeling.yaml --lock
 
 echo "INFO: Override support settings..."
-waldur override_constance_settings /etc/waldur/support.yaml
+waldur override_constance_settings /etc/waldur/support.yaml --lock
 
 # Seeded, not overridden: the enabled languages are an administrator-facing
 # toggle in the UI, and this job runs on every container start. Overriding it
@@ -15,13 +18,13 @@ echo "INFO: Seed language configuration if unset..."
 waldur override_constance_settings /etc/waldur/languages.yaml --if-unset
 
 echo "INFO: Override marketplace script settings..."
-waldur override_constance_settings /etc/waldur/marketplace-script.yaml
+waldur override_constance_settings /etc/waldur/marketplace-script.yaml --lock
 
 echo "INFO: Override freeipa settings..."
-waldur override_constance_settings /etc/waldur/freeipa.yaml
+waldur override_constance_settings /etc/waldur/freeipa.yaml --lock
 
 echo "INFO: Override marketplace settings..."
-waldur override_constance_settings /etc/waldur/marketplace.yaml
+waldur override_constance_settings /etc/waldur/marketplace.yaml --lock
 
 # Last, and after the support settings above: the seeding decides what to do
 # from the configured backend type, which the override just applied. Run from

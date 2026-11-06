@@ -3,6 +3,7 @@ import logging
 
 from django.conf import settings
 from django.db import DatabaseError, connections, models
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.configuration import overrides, registry, secrets
 from waldur_core.configuration.signals import setting_updated
@@ -29,6 +30,16 @@ class Source(models.TextChoices):
       from.
 
     A source records the last writer only.
+
+    Apart from the last writer, a setting records what re-applies it on every
+    deploy, in ``managed_by``: the file ``override_constance_settings --lock``
+    applied it from, or ``init_matrix_settings``. A change made elsewhere does
+    not outlast the next deploy. A setting from a ``--lock`` file is also
+    locked: people cannot change it through the API or the Django admin.
+    Applying the file without the setting, or with ``--if-unset``, releases
+    it; ``--unlock`` only lifts the lock until the next deploy.
+    ``init_matrix_settings`` does not lock: the Matrix settings have a
+    hand-over of their own, ``MATRIX_TOKENS_MANAGED_BY``.
     """
 
     API = "api", "API"
@@ -37,6 +48,24 @@ class Source(models.TextChoices):
     CLI = "cli", "Management command"
     APPLICATION = "application", "Waldur itself"
     MIGRATION = "migration", "Migration"
+
+
+# Sources that a lock keeps out: the ones through which people change settings.
+LOCKABLE_SOURCES = (Source.API, Source.ADMIN)
+
+
+def locked_message(key, manager):
+    return (
+        f"{key} is managed by the deployment ({manager or 'unknown'}). "
+        "Change it in the deployment configuration."
+    )
+
+
+class SettingLocked(ValidationError):
+    """A person tried to change a setting that the deployment manages."""
+
+    def __init__(self, key, manager):
+        super().__init__({key: [locked_message(key, manager)]})
 
 
 _unavailable_logged = False
@@ -143,13 +172,51 @@ class SettingManager(models.Manager):
         return values
 
     def sources(self, *keys):
-        """``(source, source_detail)`` of the stored rows of ``keys``."""
+        """``(source, source_detail, locked, managed_by)`` of the stored rows
+        of ``keys``."""
         if _in_memory():
             return {}
-        rows = self.filter(key__in=keys).values_list("key", "source", "source_detail")
-        return {key: (source, detail) for key, source, detail in rows}
+        rows = self.filter(key__in=keys).values_list(
+            "key", "source", "source_detail", "locked", "managed_by"
+        )
+        return {key: tuple(rest) for key, *rest in rows}
 
-    def set(self, key, value, *, source, source_detail="", user=None):
+    def locks(self, *keys):
+        """What manages each of ``keys`` that is locked."""
+        if _in_memory():
+            return {}
+        return dict(
+            self.filter(key__in=keys, locked=True).values_list("key", "managed_by")
+        )
+
+    def unlock(self, *keys):
+        """Let people change ``keys`` again. Their values stay as they are,
+        and a deploy that re-applies them locks them again."""
+        return self.filter(key__in=keys, locked=True).update(locked=False)
+
+    def release(self, *keys):
+        """Hand ``keys`` over to administrators: no deploy re-applies them any
+        more. Their values stay as they are."""
+        return self.filter(key__in=keys).update(locked=False, managed_by="")
+
+    def set(
+        self,
+        key,
+        value,
+        *,
+        source,
+        source_detail="",
+        user=None,
+        locked=None,
+        managed_by=None,
+    ):
+        """Store ``value`` as the value of ``key``.
+
+        ``locked`` and ``managed_by`` are set when given and kept when None:
+        they say what re-applies the setting, not who wrote it last. A locked
+        setting cannot be changed through a source in ``LOCKABLE_SOURCES``;
+        writing the value it already has is a no-op.
+        """
         if not registry.has(key):
             raise AttributeError(key)
         if isinstance(value, set | frozenset):
@@ -169,17 +236,29 @@ class SettingManager(models.Manager):
             old_value = _memory.get(key)
             _memory[key] = stored
         else:
-            old = list(self.filter(key=key).values_list("value", flat=True)[:1])
-            old_value = old[0] if old else None
-            self.update_or_create(
-                key=key,
-                defaults={
-                    "value": stored,
-                    "source": source,
-                    "source_detail": source_detail,
-                    "updated_by": user,
-                },
+            old = list(
+                self.filter(key=key).values_list("value", "locked", "managed_by")[:1]
             )
+            old_value, was_locked, old_manager = old[0] if old else (None, False, "")
+            if was_locked and source in LOCKABLE_SOURCES:
+                if self._decode(key, old_value) == value:
+                    return
+                raise SettingLocked(key, old_manager)
+            if managed_by is not None and managed_by != old_manager and locked is None:
+                # The lock belongs to what set it; another manager taking the
+                # setting over does not inherit it.
+                locked = False
+            defaults = {
+                "value": stored,
+                "source": source,
+                "source_detail": source_detail,
+                "updated_by": user,
+            }
+            if locked is not None:
+                defaults["locked"] = locked
+            if managed_by is not None:
+                defaults["managed_by"] = managed_by
+            self.update_or_create(key=key, defaults=defaults)
         overrides.release(key)
         setting_updated.send(
             sender=Setting, key=key, old_value=old_value, new_value=stored
@@ -197,6 +276,23 @@ class Setting(models.Model):
         max_length=255,
         blank=True,
         help_text="File, command or other origin within the source.",
+    )
+    # db_default too: migrations insert rows with raw SQL that predates the
+    # column (migration_utils.write_setting).
+    locked = models.BooleanField(
+        default=False,
+        db_default=False,
+        help_text="Managed by the deployment: cannot be changed through the "
+        "API or the Django admin.",
+    )
+    managed_by = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        db_default="",
+        help_text="File or command that re-applies the setting on every "
+        "deploy, so a change made elsewhere does not last. Empty when no "
+        "deploy does, such as for a value the deployment only seeded.",
     )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(

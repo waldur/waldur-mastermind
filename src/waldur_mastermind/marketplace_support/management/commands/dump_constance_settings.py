@@ -6,6 +6,7 @@ from django.core.files.storage import default_storage
 from django.core.management.base import BaseCommand
 
 from waldur_core.configuration import config, registry
+from waldur_core.configuration.models import Setting
 from waldur_core.core import logos
 
 WHITELABELING_LOGOS = logos.LOGO_MAP.keys()
@@ -42,6 +43,14 @@ class Command(BaseCommand):
             help="Include settings that are set to their default values",
         )
         parser.add_argument(
+            "--managed-only",
+            action="store_true",
+            help=(
+                "Dump only the settings a deploy re-applies, whatever their "
+                "value, each with a comment naming the file or command"
+            ),
+        )
+        parser.add_argument(
             "--export-media",
             dest="media_dir",
             help="Export media files (logos, images) to this directory",
@@ -52,6 +61,13 @@ class Command(BaseCommand):
         include_secrets = options["include_secrets"]
         include_defaults = options["include_defaults"]
         media_dir = options.get("media_dir")
+        managed = (
+            dict(
+                Setting.objects.exclude(managed_by="").values_list("key", "managed_by")
+            )
+            if options["managed_only"]
+            else None
+        )
 
         # Create media directory if requested
         if media_dir:
@@ -65,6 +81,9 @@ class Command(BaseCommand):
         exported_files = []
 
         for name, options_tuple in registry.definitions().items():
+            if managed is not None and name not in managed:
+                continue
+
             # Get current value
             value = getattr(config, name)
 
@@ -72,7 +91,7 @@ class Command(BaseCommand):
             default = options_tuple[0]
 
             # Skip default values if not requested
-            if not include_defaults and value == default:
+            if not include_defaults and managed is None and value == default:
                 continue
 
             # Handle special cases
@@ -146,13 +165,23 @@ class Command(BaseCommand):
         # Write to YAML file
         try:
             with open(output_file, "w") as f:
-                yaml.safe_dump(
-                    sorted_settings,
-                    f,
-                    default_flow_style=False,
-                    allow_unicode=True,
-                    sort_keys=False,  # Already sorted above
-                )
+                if managed is None:
+                    yaml.safe_dump(
+                        sorted_settings,
+                        f,
+                        default_flow_style=False,
+                        allow_unicode=True,
+                        sort_keys=False,  # Already sorted above
+                    )
+                else:
+                    for name, value in sorted_settings.items():
+                        f.write(f"# {managed[name]}\n")
+                        yaml.safe_dump(
+                            {name: value},
+                            f,
+                            default_flow_style=False,
+                            allow_unicode=True,
+                        )
 
             self.stdout.write(
                 self.style.SUCCESS(
@@ -163,7 +192,9 @@ class Command(BaseCommand):
             # Print statistics
             total_settings = len(registry.definitions())
             skipped_defaults = (
-                total_settings - len(sorted_settings) if not include_defaults else 0
+                total_settings - len(sorted_settings)
+                if not include_defaults and managed is None
+                else 0
             )
             redacted_count = sum(
                 1 for v in sorted_settings.values() if v == "<redacted>"
