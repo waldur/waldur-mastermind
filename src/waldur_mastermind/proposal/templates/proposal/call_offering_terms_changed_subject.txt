@@ -1,0 +1,1 @@
+{{ call_name }} changed its terms for {{ offering_name }}

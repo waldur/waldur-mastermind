@@ -1,0 +1,9 @@
+Hello,
+
+Round "{{ round_name }}" of call "{{ call_name }}" has opened. The call takes in your offering "{{ offering_name }}", and closes for submissions on {{ cutoff }}.
+{% if team_steps %}
+Your offering's team acts in these steps of the call: {{ team_steps }}. You will be asked once proposals reach them.
+{% endif %}
+Your calls: {{ calls_url }}
+
+This is an automated message from {{ site_name }}.

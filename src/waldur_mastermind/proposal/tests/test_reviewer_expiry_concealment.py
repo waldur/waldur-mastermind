@@ -5,6 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -14,8 +15,15 @@ class ReviewerRoleExpiryConcealmentTest(test.APITestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
+        # Submitted: the call's reviewers do not read drafts
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         self.proposal = self.fixture.proposal
         self.url = factories.ProposalFactory.get_url(self.proposal, action="list_users")
+        # The call's reviewer role is its pool; the review grants the proposal.
+        factories.ReviewFactory(
+            proposal=self.proposal, reviewer=self.fixture.reviewer_1
+        )
         # A team member carrying an expiration time, so there is something to hide.
         self.proposal.add_user(
             structure_factories.UserFactory(),

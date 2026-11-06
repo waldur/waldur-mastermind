@@ -1,5 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
+from rest_framework import exceptions as rf_exceptions
 from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.decorators import action
@@ -17,6 +18,22 @@ def get_score(num, den):
     return round(100 * num / max(1, den), 2)
 
 
+def validate_checklist_unanswered(checklist):
+    """A form people have filled in keeps their answers: deleting it would
+    delete those with it. Detach it from what uses it instead."""
+    if models.Answer.objects.filter(question__checklist=checklist).exists():
+        raise rf_exceptions.ValidationError(
+            "The checklist has answers, which deleting it would delete too."
+        )
+
+
+def validate_question_unanswered(question):
+    if models.Answer.objects.filter(question=question).exists():
+        raise rf_exceptions.ValidationError(
+            "The question has answers, which deleting it would delete too."
+        )
+
+
 class ChecklistAdminView(core_views.ActionsViewSet):
     queryset = models.Checklist.objects.all().order_by("-created")
     serializer_class = serializers.ChecklistSerializer
@@ -27,6 +44,7 @@ class ChecklistAdminView(core_views.ActionsViewSet):
     lookup_field = "uuid"
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
     filterset_class = filters.ChecklistFilter
+    destroy_validators = [validate_checklist_unanswered]
 
     @extend_schema(
         description="Return checklist questions.",
@@ -62,6 +80,7 @@ class QuestionsAdminView(core_views.ActionsViewSet):
     lookup_field = "uuid"
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
     filterset_class = filters.QuestionFilter
+    destroy_validators = [validate_question_unanswered]
 
 
 class QuestionOptionAdminViewSet(core_views.ActionsViewSet):

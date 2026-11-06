@@ -3,6 +3,7 @@ import logging
 from django.db import transaction
 from rest_framework.authtoken.models import Token
 
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.logging import backend, log, models, tasks, utils
 from waldur_core.logging.models import Event, EventSubscriptionQueue, SystemNotification
 from waldur_core.logging.tasks import get_matching_hooks
@@ -17,6 +18,10 @@ def scrub_logged_request(log_kwargs, **kwargs):
 
 def process_hook(sender, instance: Event, **kwargs):
     """Process a hook for a given event."""
+    if get_skip_side_effects():
+        # Bulk imports and workflow dry runs tell no subscriber of what they
+        # record.
+        return
     if get_matching_hooks(instance) or SystemNotification.objects.filter(
         event_types__contains=instance.event_type
     ):

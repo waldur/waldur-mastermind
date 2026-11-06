@@ -11,6 +11,7 @@ from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
+    ProposalStates,
     ReviewerPoolInvitationStatuses,
 )
 
@@ -232,8 +233,12 @@ class CreateManualAssignmentTest(test.APITestCase):
 
         # Create proposals
         self.round = factories.RoundFactory(call=self.call)
-        self.proposal1 = factories.ProposalFactory(round=self.round)
-        self.proposal2 = factories.ProposalFactory(round=self.round)
+        self.proposal1 = factories.ProposalFactory(
+            round=self.round, state=ProposalStates.SUBMITTED
+        )
+        self.proposal2 = factories.ProposalFactory(
+            round=self.round, state=ProposalStates.SUBMITTED
+        )
 
     def test_staff_can_create_manual_assignment(self):
         self.client.force_authenticate(self.staff)
@@ -410,6 +415,85 @@ class CreateManualAssignmentTest(test.APITestCase):
         existing_batch.refresh_from_db()
         self.assertEqual(existing_batch.items.count(), 2)
 
+    def _assign(self, *proposals):
+        self.client.force_authenticate(self.staff)
+        return self.client.post(
+            factories.CallFactory.get_protected_url(
+                self.call, action="create-manual-assignment"
+            ),
+            {
+                "reviewer_pool_entry_uuid": str(self.pool_entry.uuid),
+                "proposal_uuids": [str(p.uuid) for p in proposals],
+            },
+            format="json",
+        )
+
+    def test_cannot_assign_a_proposal_out_of_evaluation(self):
+        for state in (
+            ProposalStates.DRAFT,
+            ProposalStates.REJECTED,
+            ProposalStates.ACCEPTED,
+            ProposalStates.CANCELED,
+        ):
+            with self.subTest(state=state):
+                self.proposal2.state = state
+                self.proposal2.save()
+
+                response = self._assign(self.proposal1, self.proposal2)
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(self.proposal2.name, str(response.data["proposal_uuids"]))
+                self.assertFalse(
+                    models.AssignmentItem.objects.filter(
+                        batch__reviewer_pool_entry=self.pool_entry
+                    ).exists()
+                )
+
+    def test_repeating_a_conflict_blocked_assignment_is_a_duplicate(self):
+        factories.ConflictOfInterestFactory(
+            reviewer=self.reviewer_profile, proposal=self.proposal1
+        )
+
+        first = self._assign(self.proposal1)
+        again = self._assign(self.proposal1)
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data["items_created"], 1)
+        # Nothing left to assign: refused, with the duplicate named.
+        self.assertEqual(again.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(again.data["skipped_proposals"]), 1)
+        self.assertIn(self.proposal1.name, str(again.data["proposal_uuids"][0]))
+        item = models.AssignmentItem.objects.get(
+            batch__reviewer_pool_entry=self.pool_entry, proposal=self.proposal1
+        )
+        self.assertEqual(item.status, AssignmentItemStatuses.COI_BLOCKED)
+
+    def test_nothing_to_assign_creates_no_batch_and_says_why(self):
+        # The reviewer already holds the only proposal named, in a batch
+        # that was sent: no new draft is made for nothing.
+        sent = factories.AssignmentBatchFactory(
+            call=self.call,
+            reviewer_pool_entry=self.pool_entry,
+            status=AssignmentBatchStatuses.SENT,
+        )
+        factories.AssignmentItemFactory(batch=sent, proposal=self.proposal1)
+
+        response = self._assign(self.proposal1)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(self.proposal1.name, str(response.data["proposal_uuids"][0]))
+        self.assertIn("already exists", str(response.data["proposal_uuids"][0]))
+        self.assertEqual(
+            [str(row["proposal_uuid"]) for row in response.data["skipped_proposals"]],
+            [str(self.proposal1.uuid)],
+        )
+        self.assertFalse(
+            models.AssignmentBatch.objects.filter(
+                reviewer_pool_entry=self.pool_entry,
+                status=AssignmentBatchStatuses.DRAFT,
+            ).exists()
+        )
+
 
 class AssignmentResponseConsentTest(test.APITestCase):
     """Responding to an assignment belongs to the reviewer it was sent to.
@@ -435,7 +519,9 @@ class AssignmentResponseConsentTest(test.APITestCase):
             invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
         )
         self.round = factories.RoundFactory(call=self.call)
-        self.proposal = factories.ProposalFactory(round=self.round)
+        self.proposal = factories.ProposalFactory(
+            round=self.round, state=ProposalStates.SUBMITTED
+        )
         self.batch = factories.AssignmentBatchFactory(
             call=self.call,
             reviewer_pool_entry=pool_entry,
@@ -504,3 +590,36 @@ class AssignmentResponseConsentTest(test.APITestCase):
         self.client.force_authenticate(outsider)
         response = self.client.post(self.url + "accept/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_accepting_an_answered_item_returns_a_plain_error(self):
+        self.item.status = AssignmentItemStatuses.DECLINED
+        self.item.save()
+        self.client.force_authenticate(self.reviewer_user)
+
+        response = self.client.post(self.url + "accept/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), ["Can only accept pending assignments."])
+
+    def test_declining_an_answered_item_returns_a_plain_error(self):
+        self.item.status = AssignmentItemStatuses.ACCEPTED
+        self.item.save()
+        self.client.force_authenticate(self.reviewer_user)
+
+        response = self.client.post(self.url + "decline/", {"reason": "Busy."})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), ["Can only decline pending assignments."])
+
+    def test_cannot_accept_an_item_of_a_proposal_out_of_evaluation(self):
+        self.proposal.state = ProposalStates.REJECTED
+        self.proposal.save()
+        self.client.force_authenticate(self.reviewer_user)
+
+        response = self.client.post(self.url + "accept/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("ErrorDetail", response.content.decode())
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, AssignmentItemStatuses.PENDING)
+        self.assertFalse(models.Review.objects.filter(proposal=self.proposal).exists())

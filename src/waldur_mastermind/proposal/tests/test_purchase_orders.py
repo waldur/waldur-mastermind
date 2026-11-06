@@ -431,7 +431,7 @@ class AllocationCarryThroughEndToEndTest(test.APITestCase):
         self.proposal = self.fixture.proposal
         self.proposal.project = None
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "allocation_decision"
+        factories.point_at_step(self.proposal, "allocation_decision")
         self.proposal.save()
         self.requested_resource = factories.RequestedResourceFactory(
             proposal=self.proposal,
@@ -443,7 +443,7 @@ class AllocationCarryThroughEndToEndTest(test.APITestCase):
         factories.CallWorkflowStepFactory(
             call=self.fixture.call, step="allocation_decision"
         )
-        self.step_instance = models.ProposalWorkflowStepInstance.objects.create(
+        self.step_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.ACTIVE,

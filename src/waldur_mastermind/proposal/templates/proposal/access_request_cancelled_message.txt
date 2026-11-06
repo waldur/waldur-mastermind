@@ -1,0 +1,10 @@
+Dear {{ proposal_creator_name }},
+
+Your access request "{{ proposal_name }}" has been canceled: it was still a draft when its submission period ended ({{ cancellation_date }}).
+
+A request is reviewed only once it has been submitted. You can still view it here:
+{{ proposal_url }}
+
+To ask for the service again, request it from its offering page.
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

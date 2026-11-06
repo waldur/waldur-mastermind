@@ -9,6 +9,7 @@ from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal.managers import round_open_q
 from waldur_mastermind.proposal.models import (
     Call,
     CallResourceTemplate,
@@ -107,20 +108,18 @@ class GuideProposalTool(BaseTool):
             }
 
         rounds = call.round_set.all().order_by("start_time")
-        open_rounds = rounds.filter(start_time__lte=now, cutoff_time__gte=now)
+        open_rounds = rounds.filter(round_open_q(now=now))
         upcoming_rounds = rounds.filter(start_time__gt=now)
 
-        # Review policy (reviewer count) now lives on the expert_review
-        # workflow step, not the Round.
-        expert_step = CallWorkflowStep.objects.filter(
-            call=call, step="expert_review"
-        ).first()
-        min_reviewers = expert_step.min_reviewers if expert_step else None
+        # Review policy (reviewer count) lives on the call's review step,
+        # not the Round.
+        review_step = CallWorkflowStep.review_step_for(call)
+        min_reviewers = review_step.min_contributions if review_step else None
 
         round_info = []
         for r in rounds:
             status = "closed"
-            if r.start_time <= now <= r.cutoff_time:
+            if r.start_time <= now and (r.cutoff_time is None or now <= r.cutoff_time):
                 status = "open"
             elif r.start_time > now:
                 status = "upcoming"

@@ -38,18 +38,27 @@ from waldur_mastermind.marketplace_metrics import enums as metrics_enums
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.policy.structures import PolicyGates
 from waldur_mastermind.proposal.enums import (
-    WORKFLOW_STEPS_CHOICES,
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     AssignmentSources,
     CallStates,
+    CheckRunStatuses,
     COISeverityLevels,
     COITypes,
+    ContributionOutcomes,
     MatchingAlgorithms,
     ProposalFieldStates,
+    ProposalReviewerSuggestionStatuses,
     ProposalStates,
     RequestedOfferingStates,
+    ResponsibleRoles,
+    ReviewerPoolInvitationStatuses,
+    ReviewerStandings,
     RoundStatuses,
+    StepContributionStatuses,
+    StepKinds,
+    WorkflowPhases,
+    WorkflowStepOutcomes,
 )
 from waldur_mastermind.support.enums import ISSUE_STATUS_TYPE_CHOICES
 from waldur_openstack.enums import Ipv6Modes
@@ -76,6 +85,7 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.make_fields_optional",
         "waldur_core.core.schema_hooks.make_readonly_fields_required",
         "waldur_core.core.schema_hooks.relax_conditionally_optional_fields",
+        "waldur_core.core.schema_hooks.require_always_returned_fields",
         "waldur_core.core.schema_hooks.remove_waldur_cookie_auth",
         "waldur_core.core.schema_hooks.mark_optional_request_bodies",
         "waldur_core.core.schema_hooks.preprocess_request_bodies",
@@ -93,6 +103,14 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
         "MetricKindEnum": metrics_enums.MetricKinds.CHOICES,
+        # A reviewer's pool invitation, on the pool entry and on a suggestion.
+        "InvitationStatusEnum": ReviewerPoolInvitationStatuses.CHOICES,
+        # A reviewer's standing, on the profile, the registry and the pool.
+        "ReviewerStandingEnum": ReviewerStandings.CHOICES,
+        # When a call step runs; shared by steps, step instances and runs.
+        "WorkflowPhaseEnum": WorkflowPhases.CHOICES,
+        # Template checks and a call's scenarios run in the background alike.
+        "CheckRunStatusEnum": CheckRunStatuses.CHOICES,
         # trigger_status.gate would otherwise be a bare GateEnum in the SDK.
         "PolicyGateEnum": PolicyGates.CHOICES,
         # Where a payment of earlier invoices goes: the project credit's setting
@@ -121,6 +139,25 @@ SPECTACULAR_SETTINGS = {
         "ResourceState": ResourceStates.VALUES,
         "CallStates": CallStates.CHOICES,
         "ProposalStates": ProposalStates.CHOICES,
+        # A call workflow check finding's severity -- in alphabetical order,
+        # which keeps the set apart from the role hygiene findings' severity
+        # and the variant of a notice, which list the same values in other
+        # orders -- and whether a change between two versions of a workflow
+        # alters its behaviour.
+        "WorkflowCheckSeverity": ["error", "info", "warning"],
+        "WorkflowChangeKind": ["behaviour", "cosmetic"],
+        "WorkflowChangeType": ["added", "removed", "changed", "moved"],
+        # A call template's saved scenario results.
+        "WorkflowScenarioStatus": ["passed", "failed", "error"],
+        # proposal.models.WorkflowVersion.Reasons.CHOICES, labels included.
+        "WorkflowVersionReason": (
+            ("created", "Created"),
+            ("created_from_template", "Created from a template"),
+            ("imported", "Imported"),
+            ("duplicated", "Duplicated"),
+            ("edited", "Edited"),
+            ("activated", "Activated"),
+        ),
         "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
         "RoundStatus": RoundStatuses.VALUES,
         "RequestTypes": OrderTypes.VALUES,
@@ -160,12 +197,19 @@ SPECTACULAR_SETTINGS = {
         # carry the same three states; name the set once so drf-spectacular
         # does not emit one enum per column.
         "ProposalFieldStateEnum": ProposalFieldStates.CHOICES,
-        # CallWorkflowStep.step and Proposal.workflow_step share this choice
-        # set; name it once so drf-spectacular doesn't emit two enums for it.
-        "StepEnum": WORKFLOW_STEPS_CHOICES,
+        # A call step's completer and its deprecated alias responsible_role
+        # share this choice set.
+        "ResponsibleRoleEnum": ResponsibleRoles.CHOICES,
+        # CallWorkflowStep.kind; other components have a "kind" of their own.
+        "CallStepKindEnum": StepKinds.CHOICES,
         # Assignment batch and item statuses
         "AssignmentBatchStatus": AssignmentBatchStatuses.CHOICES,
         "AssignmentItemStatus": AssignmentItemStatuses.CHOICES,
+        "StepContributionStatus": StepContributionStatuses.CHOICES,
+        "ProposalReviewerSuggestionStatus": ProposalReviewerSuggestionStatuses.CHOICES,
+        # The step outcome and a contribution's outcome share the field name.
+        "OutcomeEnum": WorkflowStepOutcomes.CHOICES,
+        "ContributionOutcomeEnum": ContributionOutcomes.CHOICES,
         "AssignmentSource": AssignmentSources.CHOICES,
         "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
         "ObservableObjectTypeEnum": ObservableObjectType.choices(),

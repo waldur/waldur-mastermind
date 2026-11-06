@@ -1,0 +1,6 @@
+{{ body }}
+
+Proposal: {{ proposal_name }} (call "{{ call_name }}")
+{{ proposal_url }}
+
+This message was sent by the call manager through {{ site_name }}.

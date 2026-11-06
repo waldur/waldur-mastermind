@@ -1,0 +1,10 @@
+Dear evaluator,
+
+{% if days_left %}Your round report for the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" is due in {{ days_left }} day{{ days_left|pluralize }} and has not been submitted yet.{% else %}The step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" has been opened for the round. You are asked for one round report covering the {{ proposals_count }} proposal{{ proposals_count|pluralize }} you hold this step for.{% endif %}
+{% if due_at %}
+The report is due on {{ due_at }}.
+{% endif %}
+You can write and submit the report here:
+{{ report_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

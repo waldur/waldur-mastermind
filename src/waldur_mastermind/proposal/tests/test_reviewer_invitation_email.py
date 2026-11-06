@@ -85,6 +85,60 @@ class InviteByEmailSendsEmailTest(test.APITestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(self.manager.full_name, mail.outbox[0].body)
 
+    def test_requested_workload_and_message_are_kept(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            factories.CallFactory.get_protected_url(
+                self.call, action="invite-by-email"
+            ),
+            {
+                "email": "newreviewer@example.com",
+                "max_assignments": 2,
+                "invitation_message": "Two proposals at most.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["max_assignments"], 2)
+        entry = models.CallReviewerPool.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(entry.max_assignments, 2)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Two proposals at most.", mail.outbox[0].body)
+        html, _mimetype = mail.outbox[0].alternatives[0]
+        self.assertIn("Two proposals at most.", html)
+
+    def test_over_long_message_is_rejected(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            factories.CallFactory.get_protected_url(
+                self.call, action="invite-by-email"
+            ),
+            {
+                "email": "newreviewer@example.com",
+                "invitation_message": "x" * 2001,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("invitation_message", response.data)
+        self.assertFalse(models.CallReviewerPool.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_email_without_message_carries_no_message(self):
+        self.client.force_authenticate(self.manager)
+        self.client.post(
+            factories.CallFactory.get_protected_url(
+                self.call, action="invite-by-email"
+            ),
+            {"email": "newreviewer@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertNotIn("Their message", mail.outbox[0].body)
+
 
 @override_settings(task_always_eager=True)
 class SendReviewerInvitationEmailTaskTest(test.APITestCase):
@@ -233,6 +287,43 @@ class InviteReviewersToPoolSendsEmailTest(test.APITestCase):
                 {"reviewer_uuids": [self.reviewer.uuid.hex]},
                 format="json",
             )
+
+    def test_invitation_message_reaches_the_reviewer(self):
+        self.client.force_authenticate(self.manager)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                factories.CallFactory.get_protected_url(
+                    self.call, action="reviewer-pool"
+                ),
+                {
+                    "reviewer_uuids": [self.reviewer.uuid.hex],
+                    "invitation_message": "Your expertise fits this call.",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Your expertise fits this call.", mail.outbox[0].body)
+
+    def test_over_long_message_is_rejected(self):
+        self.client.force_authenticate(self.manager)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                factories.CallFactory.get_protected_url(
+                    self.call, action="reviewer-pool"
+                ),
+                {
+                    "reviewer_uuids": [self.reviewer.uuid.hex],
+                    "invitation_message": "x" * 2001,
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("invitation_message", response.data)
+        self.assertFalse(models.CallReviewerPool.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_email_sent_to_reviewer(self):
         response = self.invite()

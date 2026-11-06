@@ -2,13 +2,16 @@
 Tests for Celery configuration to prevent runtime errors with health checks.
 """
 
+import importlib
+import os
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from health_check.contrib.celery_ping.backends import CeleryPingHealthCheck
 from kombu import Queue
 
+from waldur_core.server import celery_settings
 from waldur_core.server.celeryconf import PriorityRouter, app
 
 
@@ -183,3 +186,23 @@ class CeleryConfigurationTest(TestCase):
             mock_get.return_value = MockRegularTask()
             result = router.route_for_task("regular_task")
             self.assertIsNone(result)
+
+
+class QueueSuffixTest(SimpleTestCase):
+    """Stacks sharing one broker name their queues apart."""
+
+    def test_the_suffix_names_every_queue(self):
+        with patch.dict(os.environ, {"WALDUR_CELERY_QUEUE_SUFFIX": "-slot1"}):
+            suffixed = importlib.reload(celery_settings)
+            names = {queue.name for queue in suffixed.CELERY_TASK_QUEUES}
+            default = suffixed.CELERY_TASK_DEFAULT_QUEUE
+        importlib.reload(celery_settings)
+        self.assertEqual(
+            names,
+            {
+                "tasks-durable-slot1",
+                "heavy-durable-slot1",
+                "background-durable-slot1",
+            },
+        )
+        self.assertEqual(default, "tasks-durable-slot1")

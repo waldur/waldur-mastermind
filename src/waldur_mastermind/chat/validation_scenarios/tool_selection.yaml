@@ -6,7 +6,8 @@
 #
 # Account and marketplace clusters read the `credit_realistic` preset
 # (30 projects, one public offering "Compute (Demo Realistic)"). The
-# proposals cluster reads `call_management` (five calls, three active).
+# proposals cluster reads `call_management` (the nine EuroHPC JU access
+# calls, seven of them active).
 
 - name: resource_status_by_name
   preset: credit_realistic
@@ -123,8 +124,8 @@
     - type: data_match
       config:
         expected_values:
-          - "GPU Research Program"
-        rationale: "Name at least the active GPU call from the preset"
+          - "AI for Science"
+        rationale: "Name at least the active AI for Science call from the preset"
 
 - name: research_topic_matched_to_calls
   preset: call_management

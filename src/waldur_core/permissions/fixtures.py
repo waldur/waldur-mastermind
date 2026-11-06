@@ -67,6 +67,27 @@ class ProjectRole:
             content_type=ContentType.objects.get_by_natural_key("structure", "project"),
         )
 
+    @classproperty
+    def PRINCIPAL_INVESTIGATOR(self):
+        return Role.objects.get_system_role(
+            RoleEnum.PROJECT_PRINCIPAL_INVESTIGATOR,
+            content_type=ContentType.objects.get_by_natural_key("structure", "project"),
+        )
+
+    @classproperty
+    def CO_INVESTIGATOR(self):
+        return Role.objects.get_system_role(
+            RoleEnum.PROJECT_CO_INVESTIGATOR,
+            content_type=ContentType.objects.get_by_natural_key("structure", "project"),
+        )
+
+    @classproperty
+    def COLLABORATOR(self):
+        return Role.objects.get_system_role(
+            RoleEnum.PROJECT_COLLABORATOR,
+            content_type=ContentType.objects.get_by_natural_key("structure", "project"),
+        )
+
 
 class OfferingRole:
     @classproperty

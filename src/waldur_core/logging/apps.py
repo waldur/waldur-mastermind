@@ -80,8 +80,9 @@ class EventsConfig(AppConfig):
         )
 
         # --- Global (empty-scope) EventConsumer: user-centric event emitters ---
-        from waldur_core.core.models import SshPublicKey, User
+        from waldur_core.core.models import ImpersonatedUser, SshPublicKey, User
         from waldur_core.logging import event_dispatch
+        from waldur_core.logging import utils as logging_utils
         from waldur_core.permissions import signals as permission_signals
 
         signals.post_save.connect(
@@ -123,4 +124,14 @@ class EventsConfig(AppConfig):
             handlers.cleanup_event_consumer_queue,
             sender=models.EventConsumer,
             dispatch_uid="waldur_core.logging.handlers.cleanup_event_consumer_queue",
+        )
+
+        # A person's own trail -- logins, tokens, keys, profile changes -- is
+        # theirs: being able to see someone in a user list (a shared
+        # organization, project or call) does not open it.
+        logging_utils.register_scope_event_guard(
+            User, logging_utils.can_view_user_events
+        )
+        logging_utils.register_scope_event_guard(
+            ImpersonatedUser, logging_utils.can_view_user_events
         )

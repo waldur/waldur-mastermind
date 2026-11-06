@@ -10,6 +10,11 @@ def register_in(router):
         basename="call-managing-organisation",
     )
     router.register(
+        r"call-templates",
+        views.CallTemplateViewSet,
+        basename="call-template",
+    )
+    router.register(
         r"proposal-public-calls",
         views.PublicCallViewSet,
         basename="proposal-public-call",
@@ -23,6 +28,11 @@ def register_in(router):
         r"proposal-proposals",
         views.ProposalViewSet,
         basename="proposal-proposal",
+    )
+    router.register(
+        r"proposal-my-tasks",
+        views.MyTaskViewSet,
+        basename="proposal-my-task",
     )
     router.register(
         r"proposal-reviews",
@@ -40,6 +50,11 @@ def register_in(router):
         basename="proposal-requested-resource",
     )
     router.register(
+        r"proposal-offering-demand",
+        views.OfferingDemandViewSet,
+        basename="proposal-offering-demand",
+    )
+    router.register(
         r"proposal-my-requested-resources",
         views.UserRequestedResourceViewSet,
         basename="proposal-my-requested-resource",
@@ -50,9 +65,24 @@ def register_in(router):
         basename="call-round",
     )
     router.register(
+        r"proposal-rankings",
+        views.ProposalRankingViewSet,
+        basename="proposal-ranking",
+    )
+    router.register(
+        r"round-meeting-notes",
+        views.RoundMeetingNoteViewSet,
+        basename="round-meeting-note",
+    )
+    router.register(
         r"call-proposal-project-role-mappings",
         views.ProposalProjectRoleMappingViewSet,
         basename="call-proposal-project-role-mapping",
+    )
+    router.register(
+        r"proposal-role-assignments",
+        views.ProposalRoleAssignmentViewSet,
+        basename="proposal-role-assignment",
     )
     router.register(
         r"call-workflow-step-notification-rules",
@@ -64,6 +94,12 @@ def register_in(router):
         r"reviewer-profiles",
         views.ReviewerProfileViewSet,
         basename="reviewer-profile",
+    )
+    # The operator's reviewer registry (staff only)
+    router.register(
+        r"reviewer-registry",
+        views.ReviewerRegistryViewSet,
+        basename="reviewer-registry",
     )
     router.register(
         r"expertise-categories",
@@ -140,7 +176,17 @@ urlpatterns = [
         ),
         name=f"proposal-call-{action}-detail",
     )
-    for action in ["offering", "round", "resource_template", "workflow_step"]
+    for action in [
+        "offering",
+        "round",
+        "resource_template",
+        "offering_component",
+        "resource_pool",
+        "workflow_step",
+        "proposal_role",
+        "panel",
+        "notification_override",
+    ]
 ]
 
 urlpatterns += [
@@ -162,6 +208,14 @@ urlpatterns += [
 
 urlpatterns += [
     re_path(
+        r"^api/proposal-proposals/(?P<uuid>[a-f0-9]+)/runs/(?P<obj_uuid>[a-f0-9]+)/$",
+        views.ProposalViewSet.as_view({"get": "run_detail", "patch": "run_detail"}),
+        name="proposal-proposal-run-detail",
+    ),
+]
+
+urlpatterns += [
+    re_path(
         r"^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/rounds/(?P<obj_uuid>[a-f0-9]+)/close/$",
         views.ProtectedCallViewSet.as_view({"post": "close_round"}),
         name="proposal-call-close_round",
@@ -173,7 +227,17 @@ urlpatterns += [
         views.ProtectedCallViewSet.as_view({"post": f"{action}_round"}),
         name=f"proposal-call-{action}_round",
     )
-    for action in ("start_deciding", "publish_results", "complete", "record_adoption")
+    for action in (
+        "start_deciding",
+        "publish_results",
+        "complete",
+        "record_adoption",
+        "complete_workflow_step",
+        "open_workflow_step",
+        "advance_workflow_step",
+        "set_workflow_step_due_date",
+        "allocate_in_submission_order",
+    )
 ]
 urlpatterns += [
     re_path(

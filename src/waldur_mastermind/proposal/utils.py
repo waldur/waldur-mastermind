@@ -16,13 +16,13 @@ from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.models import NAME_LENGTH
+from waldur_core.core.service_access import names_calls
 from waldur_core.core.utils import get_system_robot
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.common.serializers import (
     transform_option_values,
     validate_options,
@@ -30,20 +30,32 @@ from waldur_mastermind.common.serializers import (
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates
-from waldur_mastermind.proposal import event_publishing
+from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
+from waldur_mastermind.proposal import (
+    activity,
+    change_requests,
+    dry_run_context,
+    event_publishing,
+    notification_rules,
+    proposal_roles,
+)
+from waldur_mastermind.proposal import enums as proposal_enums
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
     AllocationTimes,
     AssignmentItemStatuses,
     BulkRoundCadence,
     CallStates,
+    ChangeRequestResolutions,
     OrderAuthors,
     ProposalDisclosureLevels,
     ProposalStates,
     RequestedOfferingStates,
     RoundLifecycleStates,
+    StepContributionStatuses,
+    WorkflowStepInstanceStatuses,
 )
+from waldur_mastermind.proposal.managers import round_overlaps
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +178,17 @@ def _duration_months_to_provision(proposal: proposal_models.Proposal) -> int | N
     return get_proposal_duration_months(proposal)
 
 
+def chosen_duration_months(proposal: proposal_models.Proposal) -> int | None:
+    """The project length chosen from the call's list, in months.
+
+    The awarded one once the award exists, else the one the applicant asked
+    for; None where the call offered no choice.
+    """
+    if proposal.awarded_resources_prefilled_at is not None:
+        return proposal.awarded_duration_months
+    return proposal.requested_duration_months
+
+
 def allocation_start_date(
     proposal_round: proposal_models.Round,
 ) -> datetime.date | None:
@@ -175,11 +198,11 @@ def allocation_start_date(
     day it is created. ``Project.start_date`` is a DateField and the round's
     ``allocation_date`` a DateTimeField, hence the coercion.
     """
-    # Allocation timing is a call-level policy on the allocation_decision step;
-    # the concrete date stays per-round.
-    allocation_step = proposal_models.CallWorkflowStep.objects.filter(
-        call=proposal_round.call, step="allocation_decision"
-    ).first()
+    # Allocation timing is a call-level policy on the allocation decision
+    # step; the concrete date stays per-round.
+    allocation_step = proposal_models.CallWorkflowStep.allocation_decision_for(
+        proposal_round.call
+    )
     allocation_time = (
         allocation_step.allocation_time
         if allocation_step
@@ -191,25 +214,28 @@ def allocation_start_date(
 
 
 def max_prepaid_duration_months(
-    call: proposal_models.Call, anchor: datetime.date
+    call: proposal_models.Call,
+    anchor: datetime.date,
+    chosen_months: int | None = None,
 ) -> int | None:
-    """The longest subscription, in whole months, the call's fixed duration admits.
+    """The longest subscription, in whole months, the project's length admits.
 
     A call's fixed duration is the length of every project it awards, so a
     subscription requested under it may not outlast it. Months and days are
     only comparable once resolved against a date, so the answer depends on the
     anchor: the largest N with ``anchor + N months <= anchor + fixed days``.
-    None when the call fixes nothing.
+    A length chosen from the call's list (``chosen_months``) caps it the same
+    way, in its own unit. None when nothing fixes the length.
     """
     fixed_days = call.fixed_duration_in_days
     if not fixed_days:
-        return None
+        return chosen_months
 
     project_end = anchor + datetime.timedelta(days=fixed_days)
     months = 0
     while anchor + relativedelta(months=months + 1) <= project_end:
         months += 1
-    return months
+    return months if chosen_months is None else min(months, chosen_months)
 
 
 def project_end_date(
@@ -229,6 +255,13 @@ def project_end_date(
     fixed_days = proposal.round.call.fixed_duration_in_days
     if fixed_days:
         return start_date + datetime.timedelta(days=fixed_days)
+
+    # A length chosen from the call's list is the project's, whatever the
+    # subscriptions in it run for: they are capped by it when requested and
+    # clamped to the project at allocation.
+    chosen = chosen_duration_months(proposal)
+    if chosen:
+        return start_date + relativedelta(months=chosen)
 
     months = _duration_months_to_provision(proposal)
     if months is not None:
@@ -254,7 +287,11 @@ def requested_duration_label(proposal: proposal_models.Proposal) -> str | None:
     if fixed_days:
         return f"{fixed_days} days"
 
-    months = get_proposal_duration_months(proposal)
+    # The applicant's own choice: the award may differ, but is not theirs to
+    # read before it is granted, and once granted the line above answers.
+    months = proposal.requested_duration_months or get_proposal_duration_months(
+        proposal
+    )
     if months:
         return "1 month" if months == 1 else f"{months} months"
 
@@ -501,8 +538,12 @@ def prefill_awarded_resources(proposal: proposal_models.Proposal) -> None:
             ]
         )
         proposal.awarded_resources_prefilled_at = timezone.now()
+        # The length chosen from the call's list is awarded as requested
+        # until the call manager picks another.
+        proposal.awarded_duration_months = locked.requested_duration_months
         proposal_models.Proposal.objects.filter(pk=proposal.pk).update(
-            awarded_resources_prefilled_at=proposal.awarded_resources_prefilled_at
+            awarded_resources_prefilled_at=proposal.awarded_resources_prefilled_at,
+            awarded_duration_months=proposal.awarded_duration_months,
         )
 
 
@@ -522,6 +563,170 @@ def _purchase_order_source(
     if requested.requested_offering_id != awarded.requested_offering_id:
         return None
     return requested
+
+
+# The offering states an order may still be placed in, as the marketplace's
+# own order validation has them.
+ORDERABLE_OFFERING_STATES = (OfferingStates.ACTIVE, OfferingStates.PAUSED)
+
+
+def _error_text(error) -> str:
+    detail = getattr(error, "detail", error)
+    if isinstance(detail, dict):
+        return " ".join(_error_text(value) for value in detail.values())
+    if isinstance(detail, list):
+        return " ".join(_error_text(value) for value in detail)
+    return str(detail)
+
+
+def provision_problem(awarded: proposal_models.AwardedResource) -> str:
+    """Why the marketplace would refuse the order for an awarded item, or ''.
+
+    Allocation creates its resources and orders directly rather than through
+    the order endpoint, so it checks here what that endpoint would: the
+    offering still takes orders, its provider is not blocked, the plan is not
+    archived and the limits fit the offering's components. The provider may
+    have changed any of these since the call took the offering in.
+    """
+    offering = awarded.requested_offering.offering
+    if offering.state not in ORDERABLE_OFFERING_STATES:
+        return (
+            f"The offering {offering.name} is "
+            f"{offering.get_state_display().lower()} and takes no orders."
+        )
+    customer = offering.customer
+    if customer is not None and (customer.blocked or customer.archived):
+        return f"The provider of {offering.name}, {customer.name}, is blocked."
+    plan = awarded.effective_plan
+    if plan is not None and plan.archived:
+        return f"The plan {plan.name} of {offering.name} is archived."
+    try:
+        for component, value in marketplace_utils.get_components_map(
+            awarded.limits or {}, offering, plan
+        ):
+            marketplace_utils.validate_min_max_limit(value, component)
+    except serializers.ValidationError as error:
+        return f"{offering.name} does not accept the limits: {_error_text(error)}"
+    return ""
+
+
+def provision_awarded_item(
+    awarded: proposal_models.AwardedResource,
+    project: structure_models.Project,
+    *,
+    order_author,
+    consumer_reviewer,
+    index=None,
+    today=None,
+):
+    """Create the resource and order for one awarded item, or record on the
+    item why it cannot be ordered. Returns the resource, or None."""
+    problem = provision_problem(awarded)
+    if problem:
+        awarded.provision_error = problem
+        awarded.save(update_fields=["provision_error", "modified"])
+        logger.warning(
+            "Awarded item %s of proposal %s is not provisioned: %s",
+            awarded.uuid,
+            awarded.proposal.uuid,
+            problem,
+        )
+        if dry_run_context.current() is not None:
+            return None
+        # tasks imports this module; notification_rules defers the same import.
+        from waldur_mastermind.proposal import tasks
+
+        uuid_hex = awarded.uuid.hex
+        transaction.on_commit(
+            lambda: tasks.notify_award_provision_failed.delay(uuid_hex)
+        )
+        return None
+    today = today or datetime.date.today()
+    offering = awarded.requested_offering.offering
+    with transaction.atomic():
+        attrs = dict(
+            project=project,
+            offering=offering,
+            plan=awarded.effective_plan,
+            # Values requested before transforms were applied on request
+            # are stored as an order would store them; others are kept.
+            attributes=transform_option_values(
+                (offering.options or {}).get("options") or {},
+                awarded.attributes,
+            ),
+            limits=awarded.limits,
+        )
+        resource = marketplace_models.Resource(
+            **attrs,
+            name=_allocated_resource_name(project.name, offering.name, index),
+        )
+        # Before init_cost: the prepaid multiplier in Plan.get_estimate and
+        # in the invoice item builder both read this field, so setting it
+        # afterwards would price and bill a six-month grant as one month.
+        # The marketplace order path sets it in the same order and says so.
+        resource.end_date = _requested_end_date(awarded, project, today)
+        resource.init_cost()
+        resource.save()
+
+        order = marketplace_models.Order(
+            **attrs,
+            resource=resource,
+            created_by=order_author,
+            placed_automatically=True,
+        )
+        # Hand the purchase order to the order, so the approval gate in
+        # marketplace.permissions is already satisfied. Without this the
+        # applicant supplies it during the proposal and is asked again the
+        # moment the allocation lands.
+        purchase_order = _purchase_order_source(awarded)
+        if purchase_order is not None and purchase_order.attachment:
+            # Point at the stored file rather than assigning the FieldFile:
+            # the document is already committed, so this records the same
+            # path without re-uploading a copy.
+            order.attachment.name = purchase_order.attachment.name
+        if purchase_order is not None and purchase_order.purchase_order_reference:
+            order.request_comment = purchase_order.purchase_order_reference
+        # Record the consumer approval up front rather than leaning on a
+        # staff creator to bypass it. Accepting the proposal *is* the
+        # consumer-side decision: the granted project belongs to the call's
+        # managing organisation, so the person who accepted it is deciding
+        # on that organisation's behalf. The stamp has to be on the
+        # unsaved order -- notify_approvers_when_order_is_created reads it
+        # the moment save() fires and owns the routing from there.
+        #
+        # Not when a purchase order is still owed: that control belongs to
+        # the provider, and the gate must be free to hold the order at
+        # PENDING_CONSUMER. The call snapshots the requirement when the
+        # offering is added, so one introduced later reaches existing
+        # calls uncollected.
+        if not marketplace_permissions.order_is_held_for_purchase_order(order):
+            order.consumer_reviewed_by = consumer_reviewer
+            order.consumer_reviewed_at = timezone.now()
+        order.init_cost()
+        order.save()
+
+        awarded.resource = resource
+        awarded.provision_error = ""
+        awarded.save(update_fields=["resource", "provision_error", "modified"])
+        # The request keeps pointing at the resource that fulfils it, as it
+        # always has; nothing else on it changes.
+        if awarded.requested_resource is not None:
+            awarded.requested_resource.resource = resource
+            awarded.requested_resource.save(update_fields=["resource", "modified"])
+
+        # No second approval here: order.save() above has already fired
+        # notify_approvers_when_order_is_created, and that handler owns the
+        # routing to provider review, PENDING_PROJECT or EXECUTING.
+        # Approving again raised TransitionNotAllowed on orders the handler
+        # had taken to EXECUTING, and queued a duplicate provider
+        # notification for the rest.
+        logger.info(
+            "Order %s allocated from proposal %s is %s.",
+            order.uuid,
+            awarded.proposal.uuid,
+            dict(OrderStates.CHOICES).get(order.state, order.state),
+        )
+    return resource
 
 
 def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
@@ -581,6 +786,8 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             end_date,
             "the call's fixed duration"
             if proposal_round.call.fixed_duration_in_days
+            else "the awarded duration"
+            if chosen_duration_months(proposal)
             else "the longest awarded subscription",
         )
 
@@ -589,6 +796,16 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
         proposal.approved_by = approved_by
     proposal.save()
 
+    # An item on an offering the call no longer has accepted is not
+    # provisioned; it says why rather than staying without a resource.
+    proposal.awarded_resources.exclude(
+        requested_offering__state=RequestedOfferingStates.ACCEPTED
+    ).update(
+        provision_error=(
+            "The offering no longer takes part in the call, so nothing was "
+            "ordered on it."
+        )
+    )
     # Oldest first, so repeated offerings are numbered in the order requested:
     # the prefill copies the request in that order, and items the call manager
     # added come after it.
@@ -621,9 +838,10 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     # Resolved once for the whole allocation: every order the call places
     # carries the same author, and the roles it reads were assigned just above.
     order_author = resolve_order_author(proposal, project)
-    # Whoever accepted the proposal decided on behalf of the call's managing
-    # organisation, which owns the granted project -- so they are the consumer
-    # reviewer. An automatic acceptance passes the robot, as it does for
+    # Whoever approved the award -- the allocation decision's completer, never
+    # the applicant answering it -- decided on behalf of the call's managing
+    # organisation, which owns the granted project, so they are the consumer
+    # reviewer. An automatic decision passes the robot, as it does for
     # Proposal.approved_by.
     consumer_reviewer = approved_by or get_system_robot()
 
@@ -631,88 +849,14 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
         offering = awarded.requested_offering.offering
         offering_seen[offering] += 1
         index = offering_seen[offering] if offering_counts[offering] > 1 else None
-        with transaction.atomic():
-            attrs = dict(
-                project=project,
-                offering=offering,
-                plan=awarded.effective_plan,
-                # Values requested before transforms were applied on request
-                # are stored as an order would store them; others are kept.
-                attributes=transform_option_values(
-                    (offering.options or {}).get("options") or {},
-                    awarded.attributes,
-                ),
-                limits=awarded.limits,
-            )
-            resource = marketplace_models.Resource(
-                **attrs,
-                name=_allocated_resource_name(project.name, offering.name, index),
-            )
-            # Before init_cost: the prepaid multiplier in Plan.get_estimate and
-            # in the invoice item builder both read this field, so setting it
-            # afterwards would price and bill a six-month grant as one month.
-            # The marketplace order path sets it in the same order and says so.
-            resource.end_date = _requested_end_date(awarded, project, today)
-            resource.init_cost()
-            resource.save()
-
-            order = marketplace_models.Order(
-                **attrs,
-                resource=resource,
-                created_by=order_author,
-                placed_automatically=True,
-            )
-            # Hand the purchase order to the order, so the approval gate in
-            # marketplace.permissions is already satisfied. Without this the
-            # applicant supplies it during the proposal and is asked again the
-            # moment the allocation lands.
-            purchase_order = _purchase_order_source(awarded)
-            if purchase_order is not None and purchase_order.attachment:
-                # Point at the stored file rather than assigning the FieldFile:
-                # the document is already committed, so this records the same
-                # path without re-uploading a copy.
-                order.attachment.name = purchase_order.attachment.name
-            if purchase_order is not None and purchase_order.purchase_order_reference:
-                order.request_comment = purchase_order.purchase_order_reference
-            # Record the consumer approval up front rather than leaning on a
-            # staff creator to bypass it. Accepting the proposal *is* the
-            # consumer-side decision: the granted project belongs to the call's
-            # managing organisation, so the person who accepted it is deciding
-            # on that organisation's behalf. The stamp has to be on the
-            # unsaved order -- notify_approvers_when_order_is_created reads it
-            # the moment save() fires and owns the routing from there.
-            #
-            # Not when a purchase order is still owed: that control belongs to
-            # the provider, and the gate must be free to hold the order at
-            # PENDING_CONSUMER. The call snapshots the requirement when the
-            # offering is added, so one introduced later reaches existing
-            # calls uncollected.
-            if not marketplace_permissions.order_is_held_for_purchase_order(order):
-                order.consumer_reviewed_by = consumer_reviewer
-                order.consumer_reviewed_at = timezone.now()
-            order.init_cost()
-            order.save()
-
-            awarded.resource = resource
-            awarded.save(update_fields=["resource", "modified"])
-            # The request keeps pointing at the resource that fulfils it, as it
-            # always has; nothing else on it changes.
-            if awarded.requested_resource is not None:
-                awarded.requested_resource.resource = resource
-                awarded.requested_resource.save(update_fields=["resource", "modified"])
-
-            # No second approval here: order.save() above has already fired
-            # notify_approvers_when_order_is_created, and that handler owns the
-            # routing to provider review, PENDING_PROJECT or EXECUTING.
-            # Approving again raised TransitionNotAllowed on orders the handler
-            # had taken to EXECUTING, and queued a duplicate provider
-            # notification for the rest.
-            logger.info(
-                "Order %s allocated from proposal %s is %s.",
-                order.uuid,
-                proposal.uuid,
-                dict(OrderStates.CHOICES).get(order.state, order.state),
-            )
+        provision_awarded_item(
+            awarded,
+            project,
+            order_author=order_author,
+            consumer_reviewer=consumer_reviewer,
+            index=index,
+            today=today,
+        )
 
 
 def next_round_for_drafts(
@@ -731,7 +875,8 @@ def next_round_for_drafts(
     now = timezone.now()
     return (
         call.round_set.exclude(pk=call_round.pk)
-        .filter(cutoff_time__gt=now)
+        # A round without a cut-off has not ended and takes drafts too.
+        .filter(Q(cutoff_time__gt=now) | Q(cutoff_time__isnull=True))
         .filter(Q(start_time__gte=call_round.cutoff_time) | Q(start_time__lte=now))
         .order_by("start_time", "id")
         .first()
@@ -791,7 +936,7 @@ def carry_over_drafts(
                     "previous_round_name": call_round.name,
                     "round_name": target.name,
                 },
-                scopes=[_get_customer(proposal)],
+                scopes=[proposal],
             )
         if announce is not None:
             announce(drafts, call_round)
@@ -838,7 +983,35 @@ def process_closed_round(
     event_publishing.publish_proposal_state_changes(
         (proposal, ProposalStates.DRAFT) for proposal in drafts
     )
+    # On each draft's own feed too, so its team reads why it is gone.
+    with activity.without_actor():
+        for proposal in drafts:
+            event_logger.emit(
+                "Draft proposal {proposal_name} was canceled: its round "
+                "{round_name} closed before it was submitted.",
+                event_type=EventType.PROPOSAL_CANCELED,
+                event_context={
+                    "proposal": proposal,
+                    "round_name": proposal.round.name,
+                },
+                scopes=[proposal],
+            )
     return moved
+
+
+# The events ``emit_round_event`` files on a call.
+ROUND_EVENT_TYPES = (
+    EventType.ROUND_ALLOCATED_IN_SUBMISSION_ORDER,
+    EventType.ROUND_CLOSED,
+    EventType.ROUND_DECISION_STARTED,
+    EventType.ROUND_EVALUATION_STARTED,
+    EventType.ROUND_REPORT_REOPENED,
+    EventType.ROUND_REPORT_SUBMITTED,
+    EventType.ROUND_RESULTS_ADOPTED,
+    EventType.ROUND_RESULTS_PUBLISHED,
+    EventType.ROUND_STEP_OPENED,
+    EventType.ROUND_UNDECIDED_PROPOSALS_REJECTED,
+)
 
 
 def emit_round_event(
@@ -848,7 +1021,9 @@ def emit_round_event(
 
     ``message`` is a template formatted with the context (``round_name``,
     ``call_name``, ``lifecycle_state``, and whatever ``context`` adds), never
-    an f-string of names.
+    an f-string of names. Filed on the call alone, whose round events only
+    those overseeing it read (``permissions.calls_hiding_round_events_from``),
+    never on its organisation's feed.
     """
     event_logger.emit(
         message,
@@ -860,7 +1035,7 @@ def emit_round_event(
             "lifecycle_state": call_round.lifecycle_state,
             **context,
         },
-        scopes=[call_round.call.manager.customer],
+        scopes=[call_round.call],
     )
 
 
@@ -922,10 +1097,25 @@ _DUPLICATE_CALL_OVERRIDE_FIELDS = frozenset(
     {"id", "uuid", "slug", "name", "state", "created_by", "created", "modified"}
 )
 
-# call/step are the upsert lookup keys; id/uuid/created/modified are
+# call/key are the upsert lookup keys; id/uuid/created/modified are
 # identity/timestamp fields that must not be carried over from the source row.
+# The evaluator roles a step names are the source call's: they are mapped onto
+# the copies of those roles.
 _DUPLICATE_WORKFLOW_STEP_OVERRIDE_FIELDS = frozenset(
-    {"id", "uuid", "call", "call_id", "step", "created", "modified"}
+    {
+        "id",
+        "uuid",
+        "call",
+        "call_id",
+        "key",
+        "created",
+        "modified",
+        "completer_proposal_role",
+        "completer_proposal_role_id",
+    }
+)
+_DUPLICATE_PROPOSAL_ROLE_OVERRIDE_FIELDS = frozenset(
+    {"id", "uuid", "call", "call_id", "created", "modified"}
 )
 
 # Sections the user can include in or exclude from a duplicate. Each key maps
@@ -936,6 +1126,7 @@ DUPLICATE_CALL_SECTION_DEFAULTS: dict[str, bool] = {
     "copy_rounds": True,
     "copy_workflow_steps": True,
     "copy_resource_templates": True,
+    "copy_budgets": True,
     "copy_role_mappings": True,
     "copy_applicant_visibility_config": True,
     "copy_proposal_field_config": True,
@@ -961,6 +1152,75 @@ def _prepare_clone(instance) -> None:
         instance.uuid = StringUUID(uuid.uuid4().hex)
 
 
+def replace_workflow_steps(
+    call: proposal_models.Call, steps: list[tuple[str, dict]]
+) -> list[proposal_models.CallWorkflowStep]:
+    """Make ``steps`` -- ``(key, field values)`` pairs -- the call's workflow.
+
+    For a call that has no proposals yet: a copy or an import into a freshly
+    created call, which the post_save signal seeded with the default steps.
+    A seeded step the new workflow names is updated in place, keeping its
+    notification rules; one it does not name is removed; a new one gets its
+    kind's default rules. Seeded orders are moved out of the way first so the
+    rows can take theirs without tripping ``unique(call, order)``. Input
+    steps are checked as the API checks them; ``DjangoValidationError`` when
+    they do not hold.
+    """
+    keys = [key for key, _ in steps]
+    call.workflow_steps.exclude(key__in=keys).delete()  # type: ignore
+    existing = {step.key: step for step in call.workflow_steps.all()}  # type: ignore
+    park_steps_out_of_the_way(
+        existing.values(), [values.get("order") for _, values in steps]
+    )
+    result = []
+    input_keys = {}
+    for key, values in steps:
+        created = key not in existing
+        step = existing.get(key) or proposal_models.CallWorkflowStep(call=call, key=key)
+        values = dict(values)
+        # A many-to-many relation is set once the row exists.
+        assigns_roles = values.pop("assigns_roles", None)
+        # Input steps are named by key, and set once every step exists.
+        input_keys[key] = values.pop("input_steps", None)
+        for field, value in values.items():
+            setattr(step, field, value)
+        step.save()
+        if assigns_roles is not None:
+            step.assigns_roles.set(assigns_roles)
+        if created:
+            notification_rules.seed_default_rules(step)
+        result.append(step)
+    by_key = {step.key: step for step in result}
+    for step in result:
+        keys = input_keys.get(step.key)
+        if keys is not None:
+            inputs = [by_key[k] for k in keys if k in by_key]
+            proposal_models.CallWorkflowStep.check_input_steps(
+                step.pk, call.pk, step.order, inputs, step.phase
+            )
+            step.input_steps.set(inputs)
+    proposal_models.CallWorkflowStep.check_responses_decided(call.pk)
+    proposal_models.CallWorkflowStep.check_stages_and_conditions(call.pk)
+    return result
+
+
+def park_steps_out_of_the_way(steps, incoming_orders) -> None:
+    """Move ``steps`` past every order they or the incoming steps use.
+
+    So incoming steps can take any order, and the steps parked here theirs,
+    without two rows of the call ever sharing one.
+    """
+    steps = list(steps)
+    orders = [step.order for step in steps] + [
+        order for order in incoming_orders if isinstance(order, int)
+    ]
+    start = max(orders, default=0) + 1
+    for index, step in enumerate(steps):
+        proposal_models.CallWorkflowStep.objects.filter(pk=step.pk).update(
+            order=start + index
+        )
+
+
 def _resolve_sections(overrides: dict[str, bool] | None) -> dict[str, bool]:
     sections = dict(DUPLICATE_CALL_SECTION_DEFAULTS)
     if overrides:
@@ -969,6 +1229,28 @@ def _resolve_sections(overrides: dict[str, bool] | None) -> dict[str, bool]:
 
 
 @transaction.atomic
+def _copied_contributor_source(source, contributor_source, role_map):
+    """``contributor_source`` of a source call's step, its evaluator role
+    pointed at the copy of that role.
+
+    A ``proposal_role:<id or uuid>`` source names the role by its identity,
+    which the copy does not share.
+    """
+    try:
+        kind, parameter = proposal_enums.parse_contributor_source(contributor_source)
+    except ValueError:
+        return contributor_source
+    if kind != proposal_enums.ContributorSources.PROPOSAL_ROLE:
+        return contributor_source
+    role = proposal_roles.resolve_role(
+        source, f"{proposal_roles.ROLE_REF_PREFIX}{parameter}"
+    )
+    copy = role_map.get(role.pk) if role is not None else None
+    if copy is None:
+        return contributor_source
+    return f"{proposal_roles.ROLE_REF_PREFIX}{copy.pk}"
+
+
 def duplicate_call(
     source: proposal_models.Call,
     new_name: str,
@@ -992,6 +1274,20 @@ def duplicate_call(
         **kwargs,
     )
 
+    # The panels are part of the call's own settings, like its name, and so
+    # are the domains they cover; their people hold roles on the source call,
+    # not on this one, and are not copied.
+    for src_panel in source.panels.order_by("order", "id"):  # type: ignore
+        panel = proposal_models.CallPanel.objects.create(
+            call=new_call,
+            key=src_panel.key,
+            name=src_panel.name,
+            description=src_panel.description,
+            order=src_panel.order,
+        )
+        panel.science_domains.set(src_panel.science_domains.all())
+        panel.science_sub_domains.set(src_panel.science_sub_domains.all())
+
     if opts["copy_documents"]:
         new_call.documents.set(source.documents.all())
 
@@ -1008,8 +1304,11 @@ def duplicate_call(
             src_ro.save()
             requested_offering_map[src_pk] = src_ro
 
+    round_map: dict[int, proposal_models.Round] = {}
     if opts["copy_rounds"]:
         for src_round in source.round_set.all():  # type: ignore
+            src_pk = src_round.pk
+            round_map[src_pk] = src_round
             _prepare_clone(src_round)
             src_round.slug = ""
             src_round.call = new_call
@@ -1017,18 +1316,62 @@ def duplicate_call(
             src_round.save()
 
     if opts["copy_workflow_steps"]:
-        # Mandatory steps (e.g. allocation_decision) are pre-seeded on the new
-        # call by the post_save signal, so a blind insert would collide on the
-        # (call, step) unique constraint. Upsert keyed on (call, step) instead.
-        for src_step in source.workflow_steps.all():  # type: ignore
-            step_fields = _clone_concrete_fields(
-                src_step, _DUPLICATE_WORKFLOW_STEP_OVERRIDE_FIELDS
-            )
-            proposal_models.CallWorkflowStep.objects.update_or_create(
+        # The evaluator roles go with the workflow whose steps assign them and
+        # are completed by their holders.
+        role_map = {
+            src_role.pk: proposal_models.CallProposalRole.objects.create(
                 call=new_call,
-                step=src_step.step,
-                defaults=step_fields,
+                **_clone_concrete_fields(
+                    src_role, _DUPLICATE_PROPOSAL_ROLE_OVERRIDE_FIELDS
+                ),
             )
+            for src_role in source.proposal_roles.order_by("created", "id")  # type: ignore
+        }
+        replace_workflow_steps(
+            new_call,
+            [
+                (
+                    src_step.key,
+                    {
+                        **_clone_concrete_fields(
+                            src_step, _DUPLICATE_WORKFLOW_STEP_OVERRIDE_FIELDS
+                        ),
+                        "assigns_roles": [
+                            role_map[role.pk] for role in src_step.assigns_roles.all()
+                        ],
+                        "completer_proposal_role": role_map.get(
+                            src_step.completer_proposal_role_id
+                        ),
+                        "contributor_source": _copied_contributor_source(
+                            source, src_step.contributor_source, role_map
+                        ),
+                        # Names an evaluator role the way a contributor
+                        # source does.
+                        "delegable_to": _copied_contributor_source(
+                            source, src_step.delegable_to, role_map
+                        ),
+                        "input_steps": [
+                            input_step.key for input_step in src_step.input_steps.all()
+                        ],
+                    },
+                )
+                for src_step in source.workflow_steps.order_by("order", "id")  # type: ignore
+            ],
+        )
+        # The criteria a step's reviews are scored on, with their weights.
+        new_steps = {step.key: step for step in new_call.workflow_steps.all()}  # type: ignore
+        proposal_models.WorkflowCriterion.objects.bulk_create(
+            proposal_models.WorkflowCriterion(
+                workflow_step=new_steps[criterion.workflow_step.key],
+                name=criterion.name,
+                order=criterion.order,
+                weight=criterion.weight,
+            )
+            for criterion in proposal_models.WorkflowCriterion.objects.filter(
+                workflow_step__call=source
+            ).select_related("workflow_step")
+            if criterion.workflow_step.key in new_steps
+        )
 
     # Resource templates depend on RequestedOffering FKs — only copy when the
     # parent offerings were copied too.
@@ -1040,6 +1383,51 @@ def duplicate_call(
             _prepare_clone(src_template)
             src_template.call = new_call
             src_template.save()
+
+    # What a proposal may request of each component is part of the call
+    # offering: copied with it. The pools on those rules are copied with
+    # copy_budgets: the call-wide ones always, a round's only with the
+    # round, rather than widened to the whole call.
+    if opts["copy_offerings"]:
+        for src_rule in proposal_models.CallOfferingComponent.objects.filter(
+            requested_offering__call=source
+        ).prefetch_related("pools"):
+            requested_offering = requested_offering_map.get(
+                src_rule.requested_offering_id
+            )
+            if requested_offering is None:
+                continue
+            new_rule = proposal_models.CallOfferingComponent.objects.create(
+                requested_offering=requested_offering,
+                component_type=src_rule.component_type,
+                min_per_proposal=src_rule.min_per_proposal,
+                max_per_proposal=src_rule.max_per_proposal,
+                default_amount=src_rule.default_amount,
+                is_fixed=src_rule.is_fixed,
+                created_by=created_by,
+            )
+            if not opts["copy_budgets"]:
+                continue
+            for src_pool in src_rule.pools.all():
+                if src_pool.round_id is not None and src_pool.round_id not in round_map:
+                    continue
+                proposal_models.CallResourcePool.objects.create(
+                    offering_component=new_rule,
+                    round=round_map[src_pool.round_id]
+                    if src_pool.round_id is not None
+                    else None,
+                    offered_total=src_pool.offered_total,
+                    created_by=created_by,
+                )
+
+    # Who may review is part of the call's own settings, like its name.
+    source_eligibility = proposal_models.CallReviewerEligibility.objects.filter(
+        call=source
+    ).first()
+    if source_eligibility is not None:
+        _prepare_clone(source_eligibility)
+        source_eligibility.call = new_call
+        source_eligibility.save()
 
     if opts["copy_role_mappings"]:
         # The source's mappings replace the defaults the new call was seeded with.
@@ -1131,12 +1519,13 @@ def bulk_create_rounds(
         # Overlap check against pre-existing rounds AND siblings created
         # earlier in this loop (those don't have IDs yet, so compare
         # against the in-memory list too).
-        if proposal_models.Round.objects.filter(
-            call=call,
-            start_time__lt=round_cutoff,
-            cutoff_time__gt=round_start,
+        if round_overlaps(
+            proposal_models.Round.objects.filter(call=call), round_start, round_cutoff
         ).exists() or any(
-            r.start_time < round_cutoff and r.cutoff_time > round_start for r in created
+            r.start_time < round_cutoff
+            and r.cutoff_time is not None
+            and r.cutoff_time > round_start
+            for r in created
         ):
             raise serializers.ValidationError(
                 {
@@ -1204,6 +1593,65 @@ def disclosed_proposal_fields(
         "proposal_slug": proposal.slug,
         "proposal_summary": (proposal.project_summary or "") if show_summary else "",
     }
+
+
+# A proposal its applicant may still take back: submitted and not yet past the
+# decision. Once an award awaits their answer, declining it is the way out.
+WITHDRAWABLE_STATES = (ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW)
+
+
+def withdraw_proposal(proposal, user, reason=""):
+    """Take a submitted proposal out of evaluation at its applicant's request.
+
+    Called with the proposal's row locked. The proposal is canceled; every
+    step not yet completed is skipped, so nobody is left with a task on it;
+    reviews still being written are closed as the expiry of a review closes
+    them; review assignments not yet answered lapse. The call team is told by
+    ``tasks.notify_call_managers_about_withdrawn_proposal``.
+    """
+    proposal.state = ProposalStates.CANCELED
+    proposal.current_step = None
+    proposal.save(update_fields=["state", "current_step"])
+    # Changes asked of the applicant, or of a contributor, are no longer wanted.
+    change_requests.close_open_of_proposal(
+        proposal, ChangeRequestResolutions.WITHDRAWN, user
+    )
+    # Work on its steps not yet handed in lapses with them, so no evaluator
+    # or offering team is left holding a slot.
+    proposal_models.StepContribution.objects.filter(
+        proposal_step__proposal=proposal,
+        status__in=(
+            StepContributionStatuses.PENDING,
+            StepContributionStatuses.ACCEPTED,
+        ),
+    ).update(status=StepContributionStatuses.EXPIRED)
+    proposal.workflow_step_instances.filter(
+        status__in=(
+            WorkflowStepInstanceStatuses.PENDING,
+            WorkflowStepInstanceStatuses.ACTIVE,
+        )
+    ).update(status=WorkflowStepInstanceStatuses.SKIPPED)
+    proposal.review_set.filter(state=proposal_models.Review.States.IN_REVIEW).update(
+        state=proposal_models.Review.States.REJECTED
+    )
+    proposal_models.AssignmentItem.objects.filter(
+        proposal=proposal, status=AssignmentItemStatuses.PENDING
+    ).update(status=AssignmentItemStatuses.EXPIRED)
+    message = (
+        "Proposal {proposal_name} was withdrawn by {actor}."
+        if names_calls()
+        else "Access request {proposal_name} was withdrawn by {actor}."
+    )
+    event_logger.emit(
+        message,
+        event_type=EventType.PROPOSAL_CANCELED,
+        event_context={
+            "proposal": proposal,
+            "actor": user.full_name or user.username,
+            "reason": reason,
+        },
+        scopes=[proposal],
+    )
 
 
 def normalize_option_values(attributes, offering):

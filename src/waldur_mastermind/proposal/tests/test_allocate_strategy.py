@@ -154,7 +154,7 @@ class AllocatedOrderApprovalTest(test.APITestCase):
         self.proposal.round.save()
         models.CallWorkflowStep.objects.update_or_create(
             call=self.proposal.round.call,
-            step="allocation_decision",
+            key="allocation_decision",
             defaults={"allocation_time": AllocationTimes.FIXED_DATE},
         )
 

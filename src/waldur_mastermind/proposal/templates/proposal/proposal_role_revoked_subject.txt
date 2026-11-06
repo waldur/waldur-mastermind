@@ -1,0 +1,1 @@
+You are no longer {{ role_name }} for proposal {{ proposal_name }}

@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from uuid import UUID
 
 from django.core.management.base import BaseCommand
 from rest_framework.authtoken.models import Token
@@ -65,6 +66,7 @@ from waldur_mastermind.policy.models import (
     ProjectEstimatedCostPolicy,
     SlurmPeriodicUsagePolicy,
 )
+from waldur_mastermind.proposal import contributions
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
@@ -73,6 +75,8 @@ from waldur_mastermind.proposal.models import (
     CallAssignmentConfiguration,
     CallCOIConfiguration,
     CallManagingOrganisation,
+    CallOfferingComponent,
+    CallResourcePool,
     CallResourceTemplate,
     Proposal,
     ProposalProjectRoleMapping,
@@ -81,6 +85,7 @@ from waldur_mastermind.proposal.models import (
     Review,
     ReviewerSuggestion,
     Round,
+    StepContribution,
 )
 from waldur_openstack.models import (
     Flavor,
@@ -95,6 +100,13 @@ from waldur_openstack.models import (
     Volume,
     VolumeType,
 )
+
+
+def _number(value):
+    """A Decimal amount as the JSON number a preset carries; None stays None."""
+    if value is None:
+        return None
+    return int(value) if value == value.to_integral() else float(value)
 
 
 class Command(BaseCommand):
@@ -304,7 +316,13 @@ class Command(BaseCommand):
             "call_resource_templates": self.log_export_step(
                 "call_resource_templates", self.export_call_resource_templates
             ),
+            "call_offering_components": self.log_export_step(
+                "call_offering_components", self.export_call_offering_components
+            ),
             "rounds": self.log_export_step("rounds", self.export_rounds),
+            "call_resource_pools": self.log_export_step(
+                "call_resource_pools", self.export_call_resource_pools
+            ),
             "proposals": self.log_export_step("proposals", self.export_proposals),
             "requested_resources": self.log_export_step(
                 "requested_resources", self.export_requested_resources
@@ -318,6 +336,9 @@ class Command(BaseCommand):
             ),
             "assignment_items": self.log_export_step(
                 "assignment_items", self.export_assignment_items
+            ),
+            "step_contributions": self.log_export_step(
+                "step_contributions", self.export_step_contributions
             ),
             "reviewer_suggestions": self.log_export_step(
                 "reviewer_suggestions", self.export_reviewer_suggestions
@@ -1290,6 +1311,8 @@ class Command(BaseCommand):
                     "callback_url": order.callback_url or "",
                     "termination_comment": order.termination_comment or "",
                     "request_comment": order.request_comment or "",
+                    "consumer_rejection_comment": order.consumer_rejection_comment,
+                    "provider_rejection_comment": order.provider_rejection_comment,
                     "attributes": order.attributes,
                     "limits": order.limits,
                     "cost": str(order.cost) if order.cost else None,
@@ -1530,13 +1553,22 @@ class Command(BaseCommand):
                 else None,
             }
 
-            # Add scope object UUID if it's a project (most common case)
-            if completion.scope_content_type.model == "project":
-                try:
-                    project = Project.objects.get(id=completion.scope_object_id)
-                    completion_data["scope_object_uuid"] = project.uuid.hex
-                except Project.DoesNotExist:
-                    pass
+            # Name the scope by its uuid: ids differ between deployments, and
+            # an id taken over as is would attach the answers to whatever
+            # object holds that id there.
+            scope_model = {
+                "project": Project,
+                "proposal": Proposal,
+                "stepcontribution": StepContribution,
+            }.get(completion.scope_content_type.model)
+            if scope_model is not None:
+                scope_uuid = (
+                    scope_model.objects.filter(id=completion.scope_object_id)
+                    .values_list("uuid", flat=True)
+                    .first()
+                )
+                if scope_uuid is not None:
+                    completion_data["scope_object_uuid"] = scope_uuid.hex
 
             completions.append(completion_data)
         return completions
@@ -1840,6 +1872,7 @@ class Command(BaseCommand):
                     "reviewer_identity_visible_to_submitters": call.reviewer_identity_visible_to_submitters,
                     "reviews_visible_to_submitters": call.reviews_visible_to_submitters,
                     "fixed_duration_in_days": call.fixed_duration_in_days,
+                    "allowed_duration_months": call.allowed_duration_months,
                     "created": call.created.isoformat() if call.created else None,
                     "modified": call.modified.isoformat() if call.modified else None,
                 }
@@ -1948,6 +1981,37 @@ class Command(BaseCommand):
             )
         return templates
 
+    def export_call_offering_components(self):
+        """What a proposal may request of each component of a call offering."""
+        return [
+            {
+                "uuid": rule.uuid.hex,
+                "requested_offering_uuid": rule.requested_offering.uuid.hex,
+                "component_type": rule.component_type,
+                "min_per_proposal": _number(rule.min_per_proposal),
+                "max_per_proposal": _number(rule.max_per_proposal),
+                "default_amount": _number(rule.default_amount),
+                "is_fixed": rule.is_fixed,
+            }
+            for rule in CallOfferingComponent.objects.select_related(
+                "requested_offering"
+            ).order_by("requested_offering_id", "created", "id")
+        ]
+
+    def export_call_resource_pools(self):
+        """How much of each call offering component a call awards."""
+        return [
+            {
+                "uuid": pool.uuid.hex,
+                "offering_component_uuid": pool.offering_component.uuid.hex,
+                "round_uuid": pool.round.uuid.hex if pool.round else None,
+                "offered_total": _number(pool.offered_total),
+            }
+            for pool in CallResourcePool.objects.select_related(
+                "offering_component", "round"
+            ).order_by("created", "id")
+        ]
+
     def export_rounds(self):
         """Export round data."""
         rounds = []
@@ -2011,6 +2075,11 @@ class Command(BaseCommand):
                         if proposal.awarded_resources_prefilled_at
                         else None
                     ),
+                    "requested_duration_months": proposal.requested_duration_months,
+                    "awarded_duration_months": proposal.awarded_duration_months,
+                    "completed_at": proposal.completed_at.isoformat()
+                    if proposal.completed_at
+                    else None,
                     "slug": proposal.slug,
                     "created": proposal.created.isoformat()
                     if proposal.created
@@ -2111,6 +2180,7 @@ class Command(BaseCommand):
                     "reviewer_username": review.reviewer.username,
                     "state": review.state,
                     "summary_score": review.summary_score,
+                    "criteria_scores": self._review_criteria_scores(review),
                     "summary_public_comment": review.summary_public_comment,
                     "summary_private_comment": review.summary_private_comment,
                     "comment_project_title": review.comment_project_title,
@@ -2126,6 +2196,21 @@ class Command(BaseCommand):
                 }
             )
         return reviews
+
+    def _review_criteria_scores(self, review):
+        """The review's criterion scores keyed by criterion name: the UUIDs
+        are minted anew when the call's workflow is imported."""
+        if not review.criteria_scores:
+            return {}
+        names = {
+            UUID(str(criterion.uuid)).hex: criterion.name
+            for criterion in contributions.review_criteria(review)
+        }
+        return {
+            names[key]: score
+            for key, score in review.criteria_scores.items()
+            if key in names
+        }
 
     def export_assignment_batches(self):
         """Export assignment batch data."""
@@ -2191,6 +2276,56 @@ class Command(BaseCommand):
                 }
             )
         return items
+
+    def export_step_contributions(self):
+        """Export the contributions to proposals' workflow steps.
+
+        A contribution names its step by the proposal and the call step's
+        key, so that the answers to its form, exported as a completion
+        scoped to the contribution's uuid, land on the same contribution.
+        """
+        rows = []
+        for contribution in StepContribution.objects.select_related(
+            "proposal_step__proposal",
+            "proposal_step__call_step",
+            "requested_offering",
+            "contributor",
+            "review",
+            "assignment_item",
+        ).order_by("created", "id"):
+            step = contribution.proposal_step
+            rows.append(
+                {
+                    "uuid": contribution.uuid.hex,
+                    "proposal_step_uuid": step.uuid.hex,
+                    "proposal_uuid": step.proposal.uuid.hex,
+                    "step": step.call_step.key,
+                    "requested_offering_uuid": contribution.requested_offering.uuid.hex
+                    if contribution.requested_offering_id
+                    else None,
+                    "contributor_uuid": contribution.contributor.uuid.hex
+                    if contribution.contributor_id
+                    else None,
+                    "is_lead": contribution.is_lead,
+                    "status": contribution.status,
+                    "outcome": contribution.outcome,
+                    "conditions": contribution.conditions,
+                    "comment": contribution.comment,
+                    "review_uuid": contribution.review.uuid.hex
+                    if contribution.review_id
+                    else None,
+                    "assignment_item_uuid": contribution.assignment_item.uuid.hex
+                    if contribution.assignment_item_id
+                    else None,
+                    "due_at": contribution.due_at.isoformat()
+                    if contribution.due_at
+                    else None,
+                    "submitted_at": contribution.submitted_at.isoformat()
+                    if contribution.submitted_at
+                    else None,
+                }
+            )
+        return rows
 
     def export_reviewer_suggestions(self):
         """Export reviewer suggestion data (algorithm-generated matches)."""

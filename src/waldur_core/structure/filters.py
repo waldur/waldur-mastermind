@@ -3,7 +3,16 @@ from django import forms
 from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions
-from django.db.models import Exists, OuterRef, Q, Subquery
+from django.db.models import (
+    Case,
+    Exists,
+    FloatField,
+    OuterRef,
+    Q,
+    Subquery,
+    Value,
+    When,
+)
 from django.db.models.functions import Concat, Length
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -38,6 +47,8 @@ from waldur_core.structure.managers import (
     get_customer_users,
     get_nested_customer_users,
     get_project_users,
+    get_read_only_only_project_ids,
+    get_read_only_resource_q,
     get_service_provider_manager_only_customer_ids,
     get_visible_users,
 )
@@ -49,6 +60,14 @@ class NameFilterSet(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr="icontains", label="Name")
     name_exact = django_filters.CharFilter(
         field_name="name", lookup_expr="exact", label="Name (exact)"
+    )
+
+
+def is_read_only_project_action(view) -> bool:
+    """Whether ``view`` is serving one of the actions it opened to read-only
+    project grants (``read_only_project_actions``)."""
+    return getattr(view, "action", None) in getattr(
+        view, "read_only_project_actions", ()
     )
 
 
@@ -79,7 +98,9 @@ class GenericRoleFilter(BaseFilterBackend):
         ):
             queryset = self._filter_customers_optimized(queryset, request.user)
         else:
-            queryset = filter_queryset_for_user(queryset, request.user)
+            queryset = filter_queryset_for_user(
+                queryset, request.user, read_only=is_read_only_project_action(view)
+            )
         queryset = filter_queryset_by_user_ip(queryset, request)
         return ExternalResourceVisibilityBackend().filter_queryset(
             request, queryset, view
@@ -659,20 +680,27 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
 
     def filter_query(self, queryset, name, value):
         if is_uuid_like(value):
-            queryset = queryset.filter(
-                Q(uuid=value)
-                | Q(resource__backend_id=value)
-                | Q(resource__effective_id=value)
+            own_match = Q(uuid=value)
+            resource_match = Q(resource__backend_id=value) | Q(
+                resource__effective_id=value
             )
         else:
-            queryset = queryset.filter(
+            own_match = Q(name__icontains=value) | Q(slug__icontains=value)
+            resource_match = (
                 Q(resource__name=value)
-                | Q(name__icontains=value)
-                | Q(slug__icontains=value)
                 | Q(resource__backend_id__iexact=value)
                 | Q(resource__effective_id__iexact=value)
             )
-        return queryset.distinct()
+        # A project read solely through a read-only grant shows only the
+        # resources granted with it, so only those may match: anything else
+        # would confirm a resource the reader cannot see.
+        user = getattr(self.request, "user", None)
+        hidden = get_read_only_only_project_ids(user)
+        if hidden:
+            resource_match &= ~Q(id__in=hidden) | get_read_only_resource_q(
+                user, "resource"
+            )
+        return queryset.filter(own_match | resource_match).distinct()
 
     def filter_conceal_finished_projects(self, queryset, name, value):
         if value:
@@ -1421,9 +1449,21 @@ class ProjectEstimatedCostFilter(BaseFilterBackend):
         estimates = billing_models.PriceEstimate.objects.filter(
             content_type=ct, object_id=OuterRef("pk")
         )
-        queryset = queryset.annotate(
-            estimated_cost=Subquery(estimates.values("total")[:1])
+        estimated_cost = Subquery(estimates.values("total")[:1])
+        # Projects read through a read-only grant hide their cost, so they
+        # sort as if they had none rather than revealing how they rank.
+        hidden = (
+            get_read_only_only_project_ids(request.user)
+            if is_read_only_project_action(view)
+            else set()
         )
+        if hidden:
+            estimated_cost = Case(
+                When(pk__in=hidden, then=Value(None)),
+                default=estimated_cost,
+                output_field=FloatField(),
+            )
+        queryset = queryset.annotate(estimated_cost=estimated_cost)
         return order_with_nulls(queryset, order_by)
 
     def get_schema_operation_parameters(self, view):

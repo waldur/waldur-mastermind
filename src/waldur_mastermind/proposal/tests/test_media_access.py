@@ -55,7 +55,8 @@ class ProposalDocumentationMediaAccessTest(BaseProposalMediaTest):
 
     def test_proposal_creator_can_download(self):
         self.assertEqual(
-            self.get_as(self.proposal.created_by, self.url), status.HTTP_200_OK
+            self.get_as(fixtures.author_as_manager(self.proposal), self.url),
+            status.HTTP_200_OK,
         )
 
     def test_call_manager_can_download(self):
@@ -88,7 +89,7 @@ class RequestedResourceAttachmentMediaAccessTest(BaseProposalMediaTest):
 
     def test_consumer_side_proposal_creator_can_download(self):
         self.assertEqual(
-            self.get_as(self.fixture.proposal.created_by, self.url), status.HTTP_200_OK
+            self.get_as(self.fixture.proposal_creator, self.url), status.HTTP_200_OK
         )
 
     def test_provider_side_offering_owner_can_download(self):

@@ -170,10 +170,12 @@ class ProposalLockedAfterSubmissionTest(ProposalAdminMixin, test.APITestCase):
         self.proposal.save(update_fields=["state"])
 
     def attach(self, user):
+        # Not the bytes of the document already attached: a proposal refuses a
+        # second copy of a file it holds.
         self.client.force_authenticate(user)
         return self.client.post(
             self._url("attach_document"),
-            {"file": SimpleUploadedFile("late.pdf", b"%PDF-1.4\n%%EOF\n")},
+            {"file": SimpleUploadedFile("late.pdf", b"%PDF-1.4\n% late\n%%EOF\n")},
             format="multipart",
         )
 
@@ -363,9 +365,9 @@ class DefaultRoleMappingTest(test.APITestCase):
         self.assertEqual(
             self._mappings(call),
             {
-                (RoleEnum.PROPOSAL_MANAGER, RoleEnum.PROJECT_MANAGER),
-                (RoleEnum.PROPOSAL_ADMIN, RoleEnum.PROJECT_ADMIN),
-                (RoleEnum.PROPOSAL_MEMBER, RoleEnum.PROJECT_MEMBER),
+                (RoleEnum.PROPOSAL_MANAGER, RoleEnum.PROJECT_PRINCIPAL_INVESTIGATOR),
+                (RoleEnum.PROPOSAL_ADMIN, RoleEnum.PROJECT_CO_INVESTIGATOR),
+                (RoleEnum.PROPOSAL_MEMBER, RoleEnum.PROJECT_COLLABORATOR),
             },
         )
 

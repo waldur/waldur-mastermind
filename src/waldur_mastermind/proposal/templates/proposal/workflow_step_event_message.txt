@@ -1,14 +1,30 @@
 Dear {% if is_applicant %}applicant{% else %}colleague{% endif %},
 
-{% if trigger == "deadline_approaching" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.{% if is_applicant %} Please respond before the deadline.{% else %} Please complete the step or follow up before it expires.{% endif %}
-{% elif trigger == "step_started" %}The "{{ step_name }}" step has started for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if deadline %} It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
-{% elif trigger == "step_completed" %}The "{{ step_name }}" step has been completed for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if outcome %} Outcome: {{ outcome }}.{% endif %}{% if outcome_reason %}
+{% if trigger == "deadline_approaching" %}The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.{% if is_applicant %} Please respond before the deadline.{% else %} Please complete the step or follow up before it expires.{% endif %}
+{% elif trigger == "step_started" %}The "{{ step_name }}" step has started for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if deadline %} It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
+{% elif trigger == "step_completed" %}The "{{ step_name }}" step has been completed for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if outcome %} Outcome: {{ outcome }}.{% endif %}{% if outcome_reason %}
 Reason: {{ outcome_reason }}{% endif %}
-{% elif trigger == "step_rejected" %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") was rejected at the "{{ step_name }}" step.{% if outcome_reason %}
+{% elif trigger == "step_rejected" %}{% if names_calls %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}Access request "{{ proposal_name }}"{% endif %} was rejected at the "{{ step_name }}" step.{% if outcome_reason %}
 Reason: {{ outcome_reason }}{% endif %}
-{% elif trigger == "step_expired" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") has expired without being completed.{% if not is_applicant %} Please follow up so the workflow can continue.{% endif %}
+{% elif trigger == "step_expired" %}The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has expired without being completed.{% if not is_applicant %} Please follow up so the workflow can continue.{% endif %}
+{% elif trigger == "changes_requested" %}Changes have been requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if message %}
+
+{{ message }}{% endif %}{% if unlocked_parts %}
+
+You may now edit: {{ unlocked_parts|join:", " }}.{% endif %}{% if due_at %} Please submit the changes by {{ due_at|date:"Y-m-d" }}.{% else %} Please submit the changes once they are made.{% endif %}
+{% elif trigger == "changes_submitted" %}{% if submitted_requests|length > 1 %}The changes requested at the steps {% for request in submitted_requests %}"{{ request.step_name }}"{% if not forloop.last %}, {% endif %}{% endfor %} have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}:
+{% for request in submitted_requests %}- {{ request.step_name }}: {{ request.unlocked_parts|join:", " }}
+{% endfor %}The steps are back with you.{% else %}The changes requested at the "{{ step_name }}" step have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% for request in submitted_requests %} Changed: {{ request.unlocked_parts|join:", " }}.{% endfor %} The step is back with you.{% endif %}
+{% elif trigger == "changes_lapsed" %}The changes requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} were not submitted by their due date. The step is back with you.
+{% elif trigger == "contribution_reopened" %}Your contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been reopened. Please revise and submit it again.{% if message %}
+
+{{ message }}{% endif %}
+{% elif trigger == "contribution_submitted" %}A contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been submitted.{% if counts %} {{ counts.submitted }} of {{ counts.expected }} submitted so far.{% endif %}
+{% endif %}{% if project_url %}
+The project granted to it is "{{ project_name }}":
+{{ project_url }}
 {% endif %}
-You can view the proposal here:
+You can view the {% if names_calls %}proposal{% else %}access request{% endif %} here:
 {{ proposal_url }}
 
 This is an automated message from the {{ site_name }}. Please do not reply to this email.

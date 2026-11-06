@@ -1,0 +1,21 @@
+Dear {{ recipient_name }},
+{% if event == "delegated" %}
+{{ actor_name }} handed you "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}".{% if due_at %} It is due on {{ due_at }}.{% endif %}
+
+Open the proposal to accept or decline it:
+{% elif event == "accepted" %}
+{{ actor_name }} accepted "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you handed to them.
+
+Open the proposal:
+{% elif event == "declined" %}
+{{ actor_name }} declined "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you handed to them. It is yours again: write it, or hand it to someone else.
+
+Open the proposal:
+{% else %}
+{{ actor_name }} took back "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}"; it is no longer yours to write.
+
+The proposal:
+{% endif %}
+{{ proposal_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

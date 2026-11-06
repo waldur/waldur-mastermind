@@ -14,6 +14,9 @@ from . import factories
 class RequestedResourceGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
+        # A provider sees a proposal's requests once it is submitted.
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         self.url = factories.RequestedResourceFactory.get_provider_list_url()
 
     @data(
@@ -88,7 +91,7 @@ class UserRequestedResourceGetTest(test.APITestCase):
         return response.json()
 
     def test_applicant_sees_the_resource_they_requested(self):
-        self.client.force_authenticate(self.fixture.proposal.created_by)
+        self.client.force_authenticate(self.fixture.proposal_creator)
         response = self.client.get(self.url)
         self.assertEqual(
             [row["uuid"] for row in response.json()],

@@ -8,12 +8,10 @@ submission, the decision and call resource templates ask for it now:
 that would have refused it.
 """
 
-from types import SimpleNamespace
-
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import ProposalRole
-from waldur_mastermind.proposal import models, workflow_service
+from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import ProposalStates, WorkflowStepOutcomes
 from waldur_mastermind.proposal.tests import factories, fixtures
 from waldur_mastermind.proposal.tests.test_awarded_resources import (
@@ -110,35 +108,42 @@ class SubmissionTest(test.APITestCase):
         self.assertEqual(self.proposal.offerings_missing_required_options(), [])
 
 
-class DecisionTest(test.APITestCase):
+class DecisionTest(AwardedResourcesBase):
+    """Approving an award that leaves a required option empty is refused."""
+
     def setUp(self):
-        self.fixture = fixtures.ProposalFixture()
-        self.fixture.offering.options = offering_options(qos=QOS)
-        self.fixture.offering.save()
-        self.proposal = self.fixture.proposal
-        self.awarded = models.AwardedResource.objects.create(
-            proposal=self.proposal,
-            requested_offering=self.fixture.requested_offering_accepted,
-            attributes={},
+        super().setUp()
+        self.offering.options = offering_options(qos=QOS)
+        self.offering.save()
+        self.requested_resource.attributes = {"qos": "parallel"}
+        self.requested_resource.save()
+        self._start_allocation()
+        self.awarded = self._awarded()
+
+    def approve(self):
+        self.client.force_authenticate(self.call_manager)
+        return self.client.post(
+            factories.ProposalFactory.get_url(
+                self.proposal, action="complete_workflow_step"
+            ),
+            {
+                "step_uuid": self._allocation_instance().uuid.hex,
+                "outcome": WorkflowStepOutcomes.APPROVED,
+            },
         )
-        self.decision = SimpleNamespace(step=workflow_service.DECISION_STEP)
 
     def test_an_award_without_the_option_cannot_be_approved(self):
-        # A call manager may change an award's options, but not drop one.
-        with self.assertRaisesRegex(ValueError, "required options are missing"):
-            workflow_service._enforce_award_amounts(
-                self.proposal, self.decision, WorkflowStepOutcomes.APPROVED
-            )
-
-    def test_declining_is_never_blocked(self):
-        workflow_service._enforce_award_amounts(
-            self.proposal, self.decision, WorkflowStepOutcomes.DECLINED
-        )
-
-    def test_an_award_with_the_option_passes(self):
-        self.awarded.attributes = {"qos": "balanced"}
+        # Seeded around the editor, which refuses it: the decision still does.
+        self.awarded.attributes = {}
         self.awarded.save()
-        self.assertEqual(self.proposal.offerings_missing_awarded_options(), [])
+        response = self.approve()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("required options are missing", str(response.data))
+        self.assertIn("QoS", str(response.data))
+
+    def test_an_award_with_the_option_is_approved(self):
+        response = self.approve()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 class CallResourceTemplateTest(test.APITestCase):

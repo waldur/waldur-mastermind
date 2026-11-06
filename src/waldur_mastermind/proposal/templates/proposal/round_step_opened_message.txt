@@ -1,0 +1,10 @@
+Dear call manager,
+
+{{ opened_by }} opened the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" for the round. {{ proposals_count }} proposal{{ proposals_count|pluralize }} stand{{ proposals_count|pluralize:"s," }} at the step, and {{ reports_count }} round report{{ reports_count|pluralize }} {{ reports_count|pluralize:"was,were" }} asked for.
+{% if due_at %}
+The step is due on {{ due_at }}.
+{% endif %}
+You can follow the round here:
+{{ round_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

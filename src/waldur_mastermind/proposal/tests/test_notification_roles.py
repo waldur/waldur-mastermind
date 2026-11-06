@@ -8,12 +8,14 @@ recipient is addressed in one message.
 from django.core import mail
 from rest_framework import status
 
+from waldur_core.core.models import Notification
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CallRole, ProjectRole, ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import (
     call_transfer,
     notification_rules,
+    tasks,
     workflow_service,
 )
 from waldur_mastermind.proposal.enums import (
@@ -22,6 +24,7 @@ from waldur_mastermind.proposal.enums import (
     ResponsibleRoles,
     WorkflowStepInstanceStatuses,
 )
+from waldur_mastermind.proposal.tests import factories
 from waldur_mastermind.proposal.tests.test_notification_rules import (
     LIST_URL,
     NotificationRuleDeliveryTestBase,
@@ -41,7 +44,7 @@ class ApplicantRolesMixin:
         self.proposal.add_user(self.editor, ProposalRole.ADMIN)
         self.member = structure_factories.UserFactory(email="member@example.com")
         self.proposal.add_user(self.member, ProposalRole.MEMBER)
-        self.decision = self.call.workflow_steps.get(step="allocation_decision")
+        self.decision = self.call.workflow_steps.get(key="allocation_decision")
 
 
 class NotifiedRolesApiTest(ApplicantRolesMixin, NotificationRuleDeliveryTestBase):
@@ -131,22 +134,21 @@ class ApplicantRuleDeliveryTest(ApplicantRolesMixin, NotificationRuleDeliveryTes
                 self.proposal, self.decision_instance, "No", self.manager
             )
 
-    def test_default_reaches_creator_and_whole_team_in_one_message(self):
+    def test_default_reaches_the_whole_team_in_one_message(self):
         self._reject()
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
+        # The author holds no role on the team here, so is not told.
         self.assertEqual(
             sorted(message.to),
-            sorted(
-                [
-                    self.applicant.email,
-                    self.pi.email,
-                    self.editor.email,
-                    self.member.email,
-                ]
-            ),
+            sorted([self.pi.email, self.editor.email, self.member.email]),
         )
         self.assertEqual(message.cc, [])
+
+    def test_default_reaches_the_author_while_on_the_team(self):
+        self.proposal.add_user(self.applicant, ProposalRole.MEMBER)
+        self._reject()
+        self.assertIn(self.applicant.email, mail.outbox[0].to)
 
     def test_selected_roles_only(self):
         self.rule.notified_proposal_roles.set([ProposalRole.MANAGER])
@@ -209,7 +211,7 @@ class NotifiedRolesTransferTest(ApplicantRolesMixin, NotificationRuleDeliveryTes
 
         document, _ = call_transfer.export_call(self.call)
         step = next(
-            s for s in document["workflow_steps"] if s["step"] == "allocation_decision"
+            s for s in document["workflow_steps"] if s["key"] == "allocation_decision"
         )
         (exported,) = step["notification_rules"]
         self.assertEqual(
@@ -221,11 +223,160 @@ class NotifiedRolesTransferTest(ApplicantRolesMixin, NotificationRuleDeliveryTes
             document, self.fixture.manager, self.fixture.staff, name="Imported"
         )
         imported_rule = imported.workflow_steps.get(
-            step="allocation_decision"
+            key="allocation_decision"
         ).notification_rules.get()
         self.assertEqual(
             sorted(
                 imported_rule.notified_proposal_roles.values_list("name", flat=True)
             ),
             [RoleEnum.PROPOSAL_ADMIN, RoleEnum.PROPOSAL_MANAGER],
+        )
+
+
+class ApplicantCcTest(ApplicantRolesMixin, NotificationRuleDeliveryTestBase):
+    """A call copies the holders of chosen proposal roles -- the principal
+    investigator (proposal manager), the proposal administrators -- on every
+    mail to the applicant."""
+
+    def setUp(self):
+        super().setUp()
+        Notification.objects.update_or_create(
+            key="proposal.proposal_state_changed", defaults={"enabled": True}
+        )
+        self.call.applicant_cc_roles = [
+            RoleEnum.PROPOSAL_MANAGER,
+            RoleEnum.PROPOSAL_ADMIN,
+        ]
+        self.call.save()
+        self.rule = self._rule("step_rejected", "applicant", step=self.decision)
+        self.decision_instance = self.proposal.workflow_step_instances.get(
+            step="allocation_decision"
+        )
+        self.decision_instance.status = WorkflowStepInstanceStatuses.ACTIVE
+        self.decision_instance.save()
+
+    def _reject(self):
+        mail.outbox = []
+        with self.captureOnCommitCallbacks(execute=True):
+            workflow_service.reject_at_step(
+                self.proposal, self.decision_instance, "No", self.manager
+            )
+
+    def _step_mail(self):
+        return next(m for m in mail.outbox if self.decision.name in m.subject)
+
+    def test_step_mail_copies_the_chosen_roles(self):
+        self.rule.notified_proposal_roles.set([ProposalRole.MEMBER])
+        self._reject()
+        message = self._step_mail()
+        self.assertEqual(message.to, [self.member.email])
+        self.assertEqual(sorted(message.cc), sorted([self.editor.email, self.pi.email]))
+
+    def test_someone_addressed_is_not_copied_again(self):
+        self.rule.notified_proposal_roles.set([ProposalRole.MANAGER])
+        self._reject()
+        message = self._step_mail()
+        self.assertEqual(message.to, [self.pi.email])
+        self.assertEqual(message.cc, [self.editor.email])
+
+    def test_someone_removed_from_the_team_is_not_copied(self):
+        self.proposal.remove_user(self.editor, ProposalRole.ADMIN)
+        self.rule.notified_proposal_roles.set([ProposalRole.MEMBER])
+        self._reject()
+        self.assertEqual(self._step_mail().cc, [self.pi.email])
+
+    def test_unsubscribed_holder_is_not_copied(self):
+        self.pi.notifications_enabled = False
+        self.pi.save()
+        self.rule.notified_proposal_roles.set([ProposalRole.MEMBER])
+        self._reject()
+        self.assertEqual(self._step_mail().cc, [self.editor.email])
+
+    def test_nobody_is_copied_without_roles_chosen(self):
+        self.call.applicant_cc_roles = []
+        self.call.save()
+        self.rule.notified_proposal_roles.set([ProposalRole.MEMBER])
+        self._reject()
+        self.assertEqual(self._step_mail().cc, [])
+
+    def test_the_state_change_mail_to_the_creator_copies_them(self):
+        mail.outbox = []
+        tasks.notify_user_about_proposal_state_update(
+            self.proposal.uuid.hex, "submitted", "in_review"
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, [self.applicant.email])
+        self.assertEqual(sorted(message.cc), sorted([self.editor.email, self.pi.email]))
+
+    def test_the_creator_is_not_copied_on_their_own_mail(self):
+        self.proposal.add_user(self.applicant, ProposalRole.ADMIN)
+        mail.outbox = []
+        tasks.notify_user_about_proposal_state_update(
+            self.proposal.uuid.hex, "submitted", "in_review"
+        )
+        message = mail.outbox[0]
+        self.assertEqual(message.to, [self.applicant.email])
+        self.assertNotIn(self.applicant.email, message.cc)
+
+    def test_other_audiences_are_never_copied(self):
+        self._rule("step_rejected", "call_managers", step=self.decision)
+        self.rule.notified_proposal_roles.set([ProposalRole.MEMBER])
+        self._reject()
+        private = [m for m in mail.outbox if m.to == [self.manager.email]]
+        self.assertEqual(len(private), 1)
+        self.assertEqual(private[0].cc, [])
+
+    def test_the_choice_travels_with_export_and_import(self):
+        document, _ = call_transfer.export_call(self.call)
+        self.assertEqual(
+            document["call"]["applicant_cc_roles"],
+            [RoleEnum.PROPOSAL_MANAGER, RoleEnum.PROPOSAL_ADMIN],
+        )
+        imported, _, _ = call_transfer.import_call(
+            document, self.fixture.manager, self.fixture.staff, name="Imported"
+        )
+        self.assertEqual(imported.applicant_cc_roles, self.call.applicant_cc_roles)
+
+    def test_import_refuses_a_role_that_is_not_a_proposal_role(self):
+        document, _ = call_transfer.export_call(self.call)
+        document["call"]["applicant_cc_roles"] = [RoleEnum.PROJECT_MANAGER]
+        with self.assertRaises(Exception):
+            call_transfer.import_call(
+                document, self.fixture.manager, self.fixture.staff, name="Imported"
+            )
+
+
+class ApplicantCcApiTest(NotificationRuleDeliveryTestBase):
+    def _patch(self, user, value):
+        self.client.force_authenticate(user)
+        return self.client.patch(
+            factories.CallFactory.get_protected_url(self.call),
+            {"applicant_cc_roles": value},
+            format="json",
+        )
+
+    def test_call_manager_chooses_the_roles(self):
+        response = self._patch(
+            self.manager, [RoleEnum.PROPOSAL_MANAGER, RoleEnum.PROPOSAL_MANAGER]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            response.data["applicant_cc_roles"], [RoleEnum.PROPOSAL_MANAGER]
+        )
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.applicant_cc_roles, [RoleEnum.PROPOSAL_MANAGER])
+
+    def test_only_proposal_roles(self):
+        for value in ([RoleEnum.PROJECT_MANAGER], ["NO.SUCH_ROLE"]):
+            with self.subTest(value=value):
+                response = self._patch(self.manager, value)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("applicant_cc_roles", response.data)
+
+    def test_an_applicant_cannot_choose_them(self):
+        response = self._patch(self.proposal.created_by, [RoleEnum.PROPOSAL_MEMBER])
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
         )

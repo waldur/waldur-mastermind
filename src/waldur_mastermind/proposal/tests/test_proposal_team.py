@@ -118,7 +118,8 @@ class SubmissionNeedsManagerTest(ProposalTeamMixin, test.APITestCase):
 
     def test_submit_is_refused_without_a_manager(self):
         self._drop_all_managers()
-        self.client.force_authenticate(self.applicant)
+        # The author off the team no longer submits it; staff is told why not.
+        self.client.force_authenticate(self.staff)
         response = self.client.post(self._url("submit"))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(str(models.MISSING_PROPOSAL_MANAGER_MESSAGE), str(response.data))

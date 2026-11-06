@@ -2,6 +2,7 @@ from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -93,6 +94,9 @@ class ProposalListUsersPermissionTest(test.APITestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
+        # Submitted: the call's reviewers do not read drafts
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         self.proposal = self.fixture.proposal
         self.url = factories.ProposalFactory.get_url(self.proposal, action="list_users")
 
@@ -109,21 +113,23 @@ class ProposalListUsersPermissionTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_call_reviewer_is_allowed(self):
-        # Reviewers (and panel members) assigned to the call may view the
-        # proposal team read-only, so the review interface renders and they can
-        # comment on the team section.
+        # A reviewer of the proposal may view its team read-only, so the review
+        # interface renders and they can comment on the team section. The
+        # call's reviewer role is the pool; the review grants the proposal.
+        factories.ReviewFactory(
+            proposal=self.proposal, reviewer=self.fixture.reviewer_1
+        )
         self.client.force_authenticate(self.fixture.reviewer_1)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_creator_can_list_own_proposal_team(self):
-        # The proposal author views their own team even without the
-        # ProposalRole.MANAGER grant (e.g. preset/imported proposals, where
-        # perform_create's role assignment never ran).
+        # The proposal author views their own team while on it.
         creator = structure_factories.UserFactory()
         proposal = factories.ProposalFactory(
             round=self.fixture.round, created_by=creator
         )
+        fixtures.author_as_manager(proposal)
         url = factories.ProposalFactory.get_url(proposal, action="list_users")
         self.client.force_authenticate(creator)
         response = self.client.get(url)

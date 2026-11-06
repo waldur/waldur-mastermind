@@ -11,12 +11,15 @@ import re
 from collections import Counter
 from datetime import date
 
-from waldur_mastermind.proposal import models
+from waldur_core.configuration import config as constance_config
+from waldur_mastermind.proposal import models, reviewer_standing
 from waldur_mastermind.proposal.enums import (
     AffinityMatrixScopes,
     AffinityMatrixSources,
     ExpertiseProficiencyLevels,
     MatchingAffinityMethods,
+    ProposalStates,
+    ReviewerStandings,
 )
 
 logger = logging.getLogger(__name__)
@@ -453,17 +456,13 @@ def compute_affinities_for_call(
 
     Returns list of created/updated ReviewerProposalAffinity objects.
     """
-    from waldur_mastermind.proposal.enums import ReviewerPoolInvitationStatuses
-
     # Get matching configuration
     config = getattr(call, "matching_configuration", None)
 
     # Get active reviewers in the pool with prefetched related data
     pool_members = (
-        models.CallReviewerPool.objects.filter(
-            call=call,
-            invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
-        )
+        models.CallReviewerPool.objects.eligible()
+        .filter(call=call)
         .select_related("reviewer", "reviewer__user")
         .prefetch_related(
             "reviewer__expertise_set",
@@ -544,113 +543,6 @@ def compute_affinities_for_call(
     return created + to_update
 
 
-def compute_suggestions_for_call(call: "models.Call") -> dict:
-    """
-    Compute suggestions from ALL published profiles (not just pool members).
-
-    This function:
-    1. Finds all published, available reviewers
-    2. Excludes those already in the pool or already suggested
-    3. Computes affinity scores between reviewers and call proposals
-    4. Creates ReviewerSuggestion records for high-affinity matches
-
-    Returns:
-        dict with:
-        - suggestions_created: number of new suggestions
-        - reviewers_evaluated: number of reviewers evaluated
-        - suggestions: list of created suggestion UUIDs
-    """
-    from waldur_mastermind.proposal.enums import ReviewerSuggestionStatuses
-
-    # Get matching configuration
-    config = getattr(call, "matching_configuration", None)
-
-    # Get published, available reviewers
-    reviewers = (
-        models.ReviewerProfile.objects.filter(
-            is_published=True,
-            available_for_reviews=True,
-        )
-        .exclude(
-            # Exclude those already in pool
-            pool_memberships__call=call
-        )
-        .exclude(
-            # Exclude those already suggested
-            suggestions__call=call
-        )
-        .prefetch_related("expertise_set", "publications")
-    )
-
-    # Get proposals for this call
-    proposals = list(models.Proposal.objects.filter(round__call=call))
-
-    if not reviewers.exists() or not proposals:
-        return {
-            "suggestions_created": 0,
-            "reviewers_evaluated": 0,
-            "suggestions": [],
-        }
-
-    # Build corpus IDF from all reviewer and proposal texts
-    all_documents = []
-    reviewer_list = list(reviewers)
-
-    for reviewer in reviewer_list:
-        text = get_reviewer_text(reviewer)
-        if text:
-            all_documents.append(tokenize(text))
-    for proposal in proposals:
-        text = get_proposal_text(proposal)
-        if text:
-            all_documents.append(tokenize(text))
-
-    corpus_idf = compute_idf(all_documents) if all_documents else {}
-
-    # Compute affinities and create suggestions
-    suggestions_created = []
-
-    for reviewer in reviewer_list:
-        # Compute average affinity across all proposals
-        total_affinity = 0.0
-        keyword_total = 0.0
-        text_total = 0.0
-
-        for proposal in proposals:
-            scores = compute_affinity(reviewer, proposal, config, corpus_idf)
-            total_affinity += scores["affinity_score"]
-            if scores["keyword_score"]:
-                keyword_total += scores["keyword_score"]
-            if scores["text_score"]:
-                text_total += scores["text_score"]
-
-        avg_affinity = total_affinity / len(proposals) if proposals else 0.0
-        avg_keyword = keyword_total / len(proposals) if proposals else None
-        avg_text = text_total / len(proposals) if proposals else None
-
-        # Only suggest reviewers with meaningful affinity (> 0.1)
-        min_threshold = 0.1
-        if config and hasattr(config, "min_affinity_threshold"):
-            min_threshold = config.min_affinity_threshold
-
-        if avg_affinity >= min_threshold:
-            suggestion = models.ReviewerSuggestion.objects.create(
-                call=call,
-                reviewer=reviewer,
-                affinity_score=round(avg_affinity, 4),
-                keyword_score=round(avg_keyword, 4) if avg_keyword else None,
-                text_score=round(avg_text, 4) if avg_text else None,
-                status=ReviewerSuggestionStatuses.PENDING,
-            )
-            suggestions_created.append(str(suggestion.uuid))
-
-    return {
-        "suggestions_created": len(suggestions_created),
-        "reviewers_evaluated": len(reviewer_list),
-        "suggestions": suggestions_created,
-    }
-
-
 def get_affinity_matrix(
     call: "models.Call", scope: str = AffinityMatrixScopes.POOL
 ) -> dict:
@@ -705,8 +597,14 @@ def get_affinity_matrix(
 
     if scope in [AffinityMatrixScopes.POOL, AffinityMatrixScopes.ALL]:
         # Get cached affinities for pool members
+        # Only reviewers who may still be given work: a suspended reviewer's
+        # cached affinities stay, but are not offered.
         affinities = (
-            models.ReviewerProposalAffinity.objects.filter(call=call)
+            models.ReviewerProposalAffinity.objects.filter(
+                call=call,
+                reviewer__standing=ReviewerStandings.ACTIVE,
+                reviewer__user__is_active=True,
+            )
             .select_related("reviewer__user", "proposal")
             .order_by("-affinity_score")
         )
@@ -740,6 +638,7 @@ def get_affinity_matrix(
                     ReviewerSuggestionStatuses.PENDING,
                     ReviewerSuggestionStatuses.CONFIRMED,
                 ],
+                reviewer__in=models.ReviewerProfile.objects.eligible(),
             )
             .select_related("reviewer__user")
             .prefetch_related("reviewer__expertise_set", "reviewer__publications")
@@ -810,7 +709,7 @@ def compute_suggestions_for_call_configurable(
     """
     Generate reviewer suggestions with configurable matching source.
 
-    This is an enhanced version of compute_suggestions_for_call that allows
+    This computes suggestions from published profiles, allowing
     call managers to choose what text to match reviewers against.
 
     Args:
@@ -849,9 +748,11 @@ def compute_suggestions_for_call_configurable(
     else:
         threshold = 0.1
 
-    # Get published, available reviewers
+    # Published, available reviewers in good standing -- none while the
+    # operator has reviewer profiles turned off.
     reviewers = (
-        models.ReviewerProfile.objects.filter(
+        models.ReviewerProfile.objects.eligible()
+        .filter(
             is_published=True,
             available_for_reviews=True,
         )
@@ -866,7 +767,15 @@ def compute_suggestions_for_call_configurable(
         .prefetch_related("expertise_set", "publications")
     )
 
-    reviewer_list = list(reviewers)
+    if not constance_config.REVIEWER_PROFILES_ENABLED:
+        reviewers = reviewers.none()
+    # The call's reviewer eligibility, when it sets one, admits the rest.
+    admits = reviewer_standing.admission_check(call)
+    reviewer_list = [
+        reviewer
+        for reviewer in reviewers.select_related("user")
+        if admits(reviewer.user)
+    ]
 
     if not reviewer_list:
         return {
@@ -926,7 +835,13 @@ def compute_suggestions_for_call_configurable(
             source_type=SuggestionSourceTypes.SELECTED_PROPOSALS,
         )
     else:  # all_proposals (default)
-        proposals = list(models.Proposal.objects.filter(round__call=call))
+        # A cancelled proposal will not be reviewed, so nobody is suggested
+        # for it.
+        proposals = list(
+            models.Proposal.objects.filter(round__call=call).exclude(
+                state=ProposalStates.CANCELED
+            )
+        )
         if not proposals:
             # Fallback to call description if no proposals
             return _generate_from_call_description(
@@ -1170,22 +1085,20 @@ def _generate_from_proposals(
         # Sort by affinity and get top matches
         proposal_scores.sort(key=lambda x: x["affinity"], reverse=True)
 
-        # Calculate average affinity
-        total_affinity = sum(p["affinity"] for p in proposal_scores)
-        avg_affinity = total_affinity / len(proposals) if proposals else 0.0
-
-        # Average keyword and text scores
-        keyword_total = sum(p["keyword_score"] or 0 for p in proposal_scores)
-        text_total = sum(p["text_score"] or 0 for p in proposal_scores)
-        avg_keyword = keyword_total / len(proposals) if proposals else None
-        avg_text = text_total / len(proposals) if proposals else None
+        # A reviewer is judged by the proposal they match best. An average
+        # over every proposal would rank a specialist below the threshold in
+        # any call whose proposals span several fields.
+        best = proposal_scores[0] if proposal_scores else None
+        best_affinity = best["affinity"] if best else 0.0
+        best_keyword = best["keyword_score"] if best else None
+        best_text = best["text_score"] if best else None
 
         # Aggregate matched keywords across proposals
         all_matched_keywords = set()
         for p in proposal_scores:
             all_matched_keywords.update(p.get("matched_keywords", []))
 
-        if avg_affinity >= threshold:
+        if best_affinity >= threshold:
             # Store top 5 proposals with highest affinity
             top_proposals = [
                 {
@@ -1200,9 +1113,9 @@ def _generate_from_proposals(
             suggestion = models.ReviewerSuggestion.objects.create(
                 call=call,
                 reviewer=reviewer,
-                affinity_score=round(avg_affinity, 4),
-                keyword_score=round(avg_keyword, 4) if avg_keyword else None,
-                text_score=round(avg_text, 4) if avg_text else None,
+                affinity_score=round(best_affinity, 4),
+                keyword_score=round(best_keyword, 4) if best_keyword else None,
+                text_score=round(best_text, 4) if best_text else None,
                 status=ReviewerSuggestionStatuses.PENDING,
                 matched_keywords=sorted(all_matched_keywords),
                 top_matching_proposals=top_proposals,
@@ -1213,9 +1126,9 @@ def _generate_from_proposals(
                     "uuid": str(suggestion.uuid),
                     "reviewer_uuid": str(reviewer.uuid),
                     "reviewer_name": reviewer.user.full_name,
-                    "affinity_score": round(avg_affinity, 4),
-                    "keyword_score": round(avg_keyword, 4) if avg_keyword else None,
-                    "text_score": round(avg_text, 4) if avg_text else None,
+                    "affinity_score": round(best_affinity, 4),
+                    "keyword_score": round(best_keyword, 4) if best_keyword else None,
+                    "text_score": round(best_text, 4) if best_text else None,
                     "matched_keywords": sorted(all_matched_keywords),
                     "top_matching_proposals": top_proposals,
                 }

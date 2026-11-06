@@ -1,0 +1,16 @@
+Hello,
+
+{{ call_managing_organisation }} asks to include the offering "{{ offering_name }}" of {{ provider_name }} in the call "{{ call_name }}".{% if requested_by %} The request was made by {{ requested_by }}.{% endif %}
+{% if message %}
+Their message:
+{{ message }}
+{% endif %}
+Accept or reject the request:
+{{ requests_url }}
+{% if team_steps %}
+The call's workflow hands work to the offering's team in these steps: {{ team_steps }}. The offering's managers do it; the call cannot invite them.
+{% if needs_offering_managers %}
+The offering has no offering manager yet, so nobody could do that work. Add offering managers on the offering's Team tab:
+{{ team_url }}
+{% endif %}{% endif %}
+This is an automated message from {{ site_name }}. Please do not reply to this email.

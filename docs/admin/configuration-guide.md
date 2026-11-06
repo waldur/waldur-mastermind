@@ -3598,7 +3598,7 @@ If true, a support ticket is created when a user adds or removes an SSH public k
 
 **Type:** multiple_choice_field
 
-**Default value:** ['resource-usage', 'user-usage', 'quotas', 'usage-monitoring', 'usage-trends', 'organization-summary', 'project-detail', 'resources-geography', 'project-classification', 'usage-by-customer', 'usage-by-org-type', 'usage-by-creator', 'projects-by-affiliated-organization', 'call-performance', 'review-progress', 'resource-demand', 'capacity', 'provider-overview', 'provider-revenue', 'provider-orders', 'provider-resources', 'provider-customers', 'provider-offerings', 'openstack-instances', 'offering-usage', 'user-analytics', 'user-demographics', 'user-organizations', 'user-affiliations', 'user-roles', 'growth', 'revenue', 'pricelist', 'orders', 'offering-costs', 'maintenance-overview', 'provisioning-stats']
+**Default value:** ['resource-usage', 'user-usage', 'quotas', 'usage-monitoring', 'usage-trends', 'organization-summary', 'project-detail', 'resources-geography', 'project-classification', 'usage-by-customer', 'usage-by-org-type', 'usage-by-creator', 'projects-by-affiliated-organization', 'call-reports', 'capacity', 'provider-overview', 'provider-revenue', 'provider-orders', 'provider-resources', 'provider-customers', 'provider-offerings', 'openstack-instances', 'offering-usage', 'user-analytics', 'user-demographics', 'user-organizations', 'user-affiliations', 'user-roles', 'growth', 'revenue', 'pricelist', 'orders', 'offering-costs', 'maintenance-overview', 'provisioning-stats']
 
 Select which reporting screens should be visible to users. Uncheck to disable specific reports.
 

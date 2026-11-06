@@ -1,0 +1,1 @@
+Your offering teams' open work{% if new_count %}: {{ new_count }} new{% endif %}{% if overdue_count %}, {{ overdue_count }} overdue{% endif %}

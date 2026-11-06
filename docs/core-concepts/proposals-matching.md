@@ -420,7 +420,7 @@ Returns invitation details for reviewers to review before accepting.
 {
   "call": {
     "uuid": "...",
-    "name": "2025 Spring HPC Allocation Call",
+    "name": "EuroHPC Regular Access",
     "description": "..."
   },
   "invitation_status": "pending",

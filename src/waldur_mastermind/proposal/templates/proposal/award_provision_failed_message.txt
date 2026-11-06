@@ -1,0 +1,10 @@
+Dear call manager,
+
+Allocation could not order the item on "{{ offering_name }}" awarded to proposal "{{ proposal_name }}" of call "{{ call_name }}":
+
+{{ error }}
+
+Once the provider has fixed it, order the item again from the proposal's award:
+{{ proposal_url }}
+
+This is an automated message from {{ site_name }}.

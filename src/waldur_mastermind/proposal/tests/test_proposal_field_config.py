@@ -240,7 +240,7 @@ class SubmitValidationTest(test.APITestCase):
         self.proposal = self.fixture.proposal
         self.call = self.proposal.round.call
         self.url = factories.ProposalFactory.get_url(self.proposal, "submit")
-        self.client.force_authenticate(self.proposal.created_by)
+        self.client.force_authenticate(self.fixture.proposal_creator)
 
     def set_state(self, field_name, state):
         config = models.CallProposalFieldConfig.objects.get(call=self.call)

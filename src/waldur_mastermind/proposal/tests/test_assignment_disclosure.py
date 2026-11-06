@@ -25,6 +25,7 @@ from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     ProposalDisclosureLevels,
+    ProposalStates,
     ReviewerPoolInvitationStatuses,
 )
 
@@ -71,7 +72,9 @@ class AssignmentDisclosureBaseTest(test.APITestCase):
         item = factories.AssignmentItemFactory(
             batch=batch,
             proposal=factories.ProposalFactory(
-                round=self.round, project_summary=SUMMARY
+                round=self.round,
+                project_summary=SUMMARY,
+                state=ProposalStates.SUBMITTED,
             ),
             status=AssignmentItemStatuses.PENDING,
         )

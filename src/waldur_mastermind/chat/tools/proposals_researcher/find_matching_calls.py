@@ -10,6 +10,7 @@ from waldur_mastermind.chat.tools.base import (
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal.managers import round_open_q
 from waldur_mastermind.proposal.models import (
     Call,
     CallResourceTemplate,
@@ -112,14 +113,15 @@ class FindMatchingCallsTool(BaseTool):
 
         calls_data = []
         for call in active_calls:
-            open_rounds = call.round_set.filter(
-                start_time__lte=now, cutoff_time__gte=now
-            )
+            open_rounds = call.round_set.filter(round_open_q(now=now))
             upcoming_rounds = call.round_set.filter(start_time__gt=now)
 
             nearest_deadline = None
+            continuously_open = False
             for r in open_rounds:
-                if nearest_deadline is None or r.cutoff_time < nearest_deadline:
+                if r.cutoff_time is None:
+                    continuously_open = True
+                elif nearest_deadline is None or r.cutoff_time < nearest_deadline:
                     nearest_deadline = r.cutoff_time
 
             resource_templates = CallResourceTemplate.objects.filter(
@@ -158,6 +160,7 @@ class FindMatchingCallsTool(BaseTool):
                     "organization": call.manager.customer.name if call.manager else "",
                     "open_rounds": open_rounds.count(),
                     "upcoming_rounds": upcoming_rounds.count(),
+                    "continuously_open": continuously_open,
                     "nearest_deadline": nearest_deadline.isoformat()
                     if nearest_deadline
                     else None,

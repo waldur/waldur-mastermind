@@ -6,7 +6,10 @@ Review summary:
 - Reviewer: {{ reviewer_name }}
 - Submission date: {{ submission_date }}
 - Score: {{ score }}/{{ max_score }}
-
+{% if criteria %}
+Scores per criterion:
+{% for c in criteria %}- {{ c.name }}: {% if c.score %}{{ c.score }}/{{ max_score }}{% else %}not rated{% endif %}
+{% endfor %}{% endif %}
 Review Progress:
 - Submitted reviews: {{ submitted_reviews }}
 - Pending reviews: {{ pending_reviews }}

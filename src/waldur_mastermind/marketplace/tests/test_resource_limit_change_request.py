@@ -23,8 +23,16 @@ def set_limit_change_requests(offering, enabled=True):
     offering.save()
 
 
+def grant_limit_change_requests():
+    """The project roles ask (PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE), as permissions.yaml
+    grants them; tests do not load it."""
+    for role in (ProjectRole.ADMIN, ProjectRole.MANAGER, ProjectRole.MEMBER):
+        role.add_permission(PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE)
+
+
 class ResourceLimitChangeRequestCreateTest(test.APITestCase):
     def setUp(self):
+        grant_limit_change_requests()
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.resource.state = models.Resource.States.OK
@@ -160,9 +168,10 @@ class ResourceLimitChangeRequestCreateTest(test.APITestCase):
 
     def test_user_without_order_permission_can_still_create_request(self):
         """Holding the limits permission alone is not enough to update directly,
-        so the request flow has to stay open — otherwise such a user would have
-        no way to change limits at all."""
+        so the request flow stays open to a role that may ask -- otherwise such
+        a user would have no way to change limits at all."""
         self.grant_owner(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        self.grant_owner(PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE)
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(
             self.list_url, self.get_valid_payload(), format="json"
@@ -226,6 +235,7 @@ class ResourceLimitChangeRequestCreateTest(test.APITestCase):
 
 class ResourceLimitChangeRequestListTest(test.APITestCase):
     def setUp(self):
+        grant_limit_change_requests()
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.request = factories.ResourceLimitChangeRequestFactory(
@@ -287,6 +297,7 @@ class ResourceLimitChangeRequestListTest(test.APITestCase):
 
 class ResourceLimitChangeRequestApproveRejectTest(test.APITestCase):
     def setUp(self):
+        grant_limit_change_requests()
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.resource.state = models.Resource.States.OK
@@ -491,6 +502,7 @@ class ResourceLimitChangeRequestTokenTest(test.APITestCase):
     )
 
     def setUp(self):
+        grant_limit_change_requests()
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.resource.state = models.Resource.States.OK
@@ -638,6 +650,7 @@ class ResourceLimitChangeRequestTokenTest(test.APITestCase):
 
 class ResourceLimitChangeRequestCancelTest(test.APITestCase):
     def setUp(self):
+        grant_limit_change_requests()
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.request = factories.ResourceLimitChangeRequestFactory(
@@ -720,6 +733,7 @@ class ResourceLimitChangeRequestCancelTest(test.APITestCase):
 
 class ResourceLimitChangeRequestEventTest(test.APITestCase):
     def setUp(self):
+        grant_limit_change_requests()
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.resource.state = models.Resource.States.OK
@@ -747,6 +761,9 @@ class ResourceLimitChangeRequestEventTest(test.APITestCase):
 
 
 class ResourceLimitChangeRequestNotificationTest(test.APITestCase):
+    def setUp(self):
+        grant_limit_change_requests()
+
     @mock.patch(
         "waldur_mastermind.marketplace.tasks.send_resource_limit_change_request_notification"
     )
@@ -848,6 +865,7 @@ class ResourceLimitChangeRequestNotificationDispatchTest(test.APITestCase):
     """
 
     def setUp(self):
+        grant_limit_change_requests()
         self.fixture = fixtures.MarketplaceFixture()
         # Materialize the owner so the customer has an owner email to notify.
         self.owner = self.fixture.owner

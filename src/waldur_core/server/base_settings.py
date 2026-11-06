@@ -143,6 +143,13 @@ REST_FRAMEWORK = {
         "matrix_credentials": "1000/hour",
         # Each call replaces the user's Matrix password.
         "matrix_password": "30/hour",
+        # Each call replays a call's workflow on a synthetic proposal inside a
+        # transaction that is rolled back.
+        "workflow_dry_run": "30/min",
+        # Each call describes and checks a call's workflow and renders a PDF.
+        "workflow_report": "20/min",
+        # Each call creates a call and its whole workflow in one transaction.
+        "call_import": "20/min",
         # Each call is a homeserver login on a new device. The drawer calls it on
         # connect and when a token refresh is rejected, a few times an hour.
         "matrix_session": "120/hour",

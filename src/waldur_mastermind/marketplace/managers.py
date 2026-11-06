@@ -16,6 +16,7 @@ from waldur_core.structure.managers import (
     get_connected_projects,
     get_connected_projects_by_permission,
     get_organization_groups,
+    get_read_only_resource_q,
 )
 from waldur_mastermind.marketplace.enums import OfferingStates
 
@@ -295,7 +296,11 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
         f"{PermissionEnum.LIST_RESOURCES.value} site-wide see all."
     )
 
-    def filter_for_service_consumer(self, user):
+    def filter_for_service_consumer(self, user, read_only=False):
+        """Resources ``user`` reaches as a consumer. ``read_only`` also lets
+        through the resources an app grants read-only access to, one by one
+        (not everything in a project it grants); pass it only from list and
+        retrieve paths, as those grants carry no permission."""
         if user.is_anonymous or user.is_staff or user.is_support:
             return self
 
@@ -313,12 +318,15 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
         # permission on the project / customer chain.
         direct_resource_ids = get_user_direct_resource_ids(user)
         rp_resource_ids = get_user_resource_project_resource_ids(user)
-        return self.filter(
+        query = (
             Q(project__in=connected_projects)
             | Q(project__customer__in=connected_customers)
             | Q(id__in=direct_resource_ids)
             | Q(id__in=rp_resource_ids)
-        ).distinct()
+        )
+        if read_only:
+            query |= get_read_only_resource_q(user)
+        return self.filter(query).distinct()
 
     # What filter_for_service_provider leaves. Change the two together.
     PROVIDER_VISIBILITY = (
@@ -504,8 +512,30 @@ class ResourceApiKeyQuerySet(django_models.QuerySet):
 
 
 def get_connected_offerings(user, role=None):
+    """Ids of the offerings the user acts on as their provider.
+
+    ``role`` narrows the grants to that role (by name or template). Without
+    it, a grant counts only when its role grants something: the offering
+    manager role, or any role that carries a permission. A role on the
+    offering with no permissions at all -- one a deployment defines to name
+    people for work elsewhere, such as technical reviewers of proposals --
+    opens nothing on the provider side: not the offering, its plans nor its
+    resources.
+    """
     content_type = ContentType.objects.get_for_model(models.Offering)
-    return get_scope_ids(user, content_type, role)
+    if role:
+        return get_scope_ids(user, content_type, role)
+    return (
+        UserRole.objects.filter(is_active=True, user=user, content_type=content_type)
+        .filter(
+            Q(role__name=RoleEnum.OFFERING_MANAGER)
+            | Q(role__template__name=RoleEnum.OFFERING_MANAGER)
+            | Q(role__permissions__isnull=False)
+        )
+        .order_by()
+        .values_list("object_id", flat=True)
+        .distinct()
+    )
 
 
 def get_connected_offerings_by_permission(

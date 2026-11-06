@@ -47,6 +47,7 @@ class ProjectUpdateDeleteTest(test.APITestCase):
         self.fixture = fixtures.ServiceFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
 
     # Update tests:
     def test_user_can_change_single_project_field(self):
@@ -118,15 +119,15 @@ class ProjectUpdateDeleteTest(test.APITestCase):
 class ProjectEndDatePermissionTest(test.APITestCase):
     """Who may change Project.end_date through the project endpoint.
 
-    Setting a date has always required DELETE_PROJECT on the customer;
-    clearing one used to require nothing beyond the ability to update the
-    project at all.
+    Setting or clearing a date takes PROJECT.SET_END_DATE on the customer
+    (formerly DELETE_PROJECT); clearing one used to require nothing beyond the
+    ability to update the project at all.
     """
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
-    def test_user_without_delete_permission_cannot_clear_end_date(self):
+    def test_user_without_set_end_date_permission_cannot_clear_end_date(self):
         """Removing an expiry must not be easier than setting one.
 
         The permission check used to test the submitted value for truthiness, so
@@ -150,7 +151,7 @@ class ProjectEndDatePermissionTest(test.APITestCase):
         project.refresh_from_db()
         self.assertIsNotNone(project.end_date)
 
-    def test_user_without_delete_permission_cannot_set_end_date(self):
+    def test_user_without_set_end_date_permission_cannot_set_end_date(self):
         ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROJECT)
         self.addCleanup(
             lambda: ProjectRole.MANAGER.delete_permission(PermissionEnum.UPDATE_PROJECT)
@@ -167,14 +168,16 @@ class ProjectEndDatePermissionTest(test.APITestCase):
         project.refresh_from_db()
         self.assertIsNone(project.end_date)
 
-    def test_user_with_delete_permission_can_clear_end_date(self):
+    def test_user_with_set_end_date_permission_can_clear_end_date(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
-        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
             lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
         )
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.DELETE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         project = self.fixture.project
         project.end_date = timezone.now().date() + timedelta(days=90)
@@ -222,6 +225,7 @@ class ProjectCreateTest(test.APITestCase):
         self.fixture = fixtures.ServiceFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
 
     def test_staff_can_create_any_project(self):
         self.client.force_authenticate(self.fixture.owner)

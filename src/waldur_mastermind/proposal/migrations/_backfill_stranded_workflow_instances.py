@@ -24,6 +24,18 @@ from django.utils import timezone
 
 from waldur_mastermind.proposal import enums
 
+# The step catalogue as it stood when this migration was written, frozen here:
+# the live code no longer has one. (step, default responsible role)
+CATALOGUE = (
+    ("administrative_check", "call_manager"),
+    ("technical_assessment", "offering_manager"),
+    ("expert_review", "reviewer"),
+    ("panel_review", "panel_member"),
+    ("allocation_decision", "call_manager"),
+    ("award_response", "applicant"),
+)
+CATALOGUE_STEPS = [step for step, _ in CATALOGUE]
+
 
 def backfill_stranded_workflow_instances(apps, schema_editor):
     Proposal = apps.get_model("proposal", "Proposal")
@@ -56,13 +68,13 @@ def backfill_stranded_workflow_instances(apps, schema_editor):
         # call-manager-owned steps so the proposal can be activated (a call with
         # only disabled rows can't be repaired by get_or_create alone).
         if not CallWorkflowStep.objects.filter(call=call, is_enabled=True).exists():
-            for step_def in enums.WORKFLOW_STEPS:
-                if step_def.id == "award_response":
+            for step_id, default_role in CATALOGUE:
+                if step_id == "award_response":
                     continue
-                enabled = step_def.default_responsible_role == CALL_MANAGER
+                enabled = default_role == CALL_MANAGER
                 step, created = CallWorkflowStep.objects.get_or_create(
                     call=call,
-                    step=step_def.id,
+                    step=step_id,
                     defaults={"is_enabled": enabled},
                 )
                 if enabled and not created and not step.is_enabled:
@@ -74,15 +86,16 @@ def backfill_stranded_workflow_instances(apps, schema_editor):
         )
         enabled_step_ids = {s.step for s in enabled_steps}
         first_step_id = next(
-            (s.id for s in enums.WORKFLOW_STEPS if s.id in enabled_step_ids), None
+            (step_id for step_id in CATALOGUE_STEPS if step_id in enabled_step_ids),
+            None,
         )
 
-        for step_def in enums.WORKFLOW_STEPS:
+        for step_id in CATALOGUE_STEPS:
             ProposalWorkflowStepInstance.objects.get_or_create(
                 proposal=proposal,
-                step=step_def.id,
+                step=step_id,
                 defaults={
-                    "status": PENDING if step_def.id in enabled_step_ids else SKIPPED
+                    "status": PENDING if step_id in enabled_step_ids else SKIPPED
                 },
             )
 

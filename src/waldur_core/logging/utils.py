@@ -494,6 +494,41 @@ def can_view_scope_events(user, scope) -> bool:
     return guard is None or guard(user, scope)
 
 
+# Per-model narrowing of a scope's event feed, registered by apps from their
+# AppConfig.ready(). Where a guard decides whether a user reads a feed at all,
+# a row filter decides which of its events: the people working on an object
+# may each be entitled to a different part of its history.
+_scope_event_filters: dict[type, Callable[[Any, Any], Q | None]] = {}
+
+
+def register_scope_event_filter(model: type, rows: Callable[[Any, Any], Q | None]):
+    """Register ``rows(user, scope) -> Q | None``: of the events logged against
+    ``scope``, ``user`` reads only those matching the returned ``Q`` (over
+    ``Event``); ``None`` leaves them all."""
+    _scope_event_filters[model] = rows
+
+
+def scope_event_filter(user, scope) -> Q | None:
+    rows = _scope_event_filters.get(type(scope))
+    return None if rows is None else rows(user, scope)
+
+
+def can_view_scope_event(user, scope, event) -> bool:
+    """Whether ``user`` reads ``event`` on ``scope``'s feed: the per-event
+    counterpart of the scope guard and row filter, for hook delivery."""
+    if not can_view_scope_events(user, scope):
+        return False
+    rows = scope_event_filter(user, scope)
+    return (
+        rows is None or models.Event.objects.filter(pk=event.pk).filter(rows).exists()
+    )
+
+
+def can_view_user_events(user, scope) -> bool:
+    """The events filed on a person are read by that person, staff and support."""
+    return user.pk == scope.pk or user.is_staff or user.is_support
+
+
 def filter_events_for_scope(user, scope, queryset: QuerySet) -> QuerySet | None:
     """Events of ``queryset`` filed on ``scope``, as ``/api/events/?scope=``
     lists them; None when the user may not read the scope's events at all."""
@@ -518,14 +553,17 @@ def filter_events_for_scope(user, scope, queryset: QuerySet) -> QuerySet | None:
             feed__content_type=scope.content_type,
             feed__object_id=scope.object_id,
         )
-    return queryset.filter(query)
+    queryset = queryset.filter(query)
+    # ...and only the events of it this user is entitled to.
+    rows = scope_event_filter(user, scope)
+    return queryset if rows is None else queryset.filter(rows)
 
 
 def has_scope_event_guard(scope) -> bool:
     """Whether ``scope`` restricts who reads its events. Such a scope's events
     must not also be filed on a wider feed (its organization's, say), whose
     readers the guard would never be asked about."""
-    return type(scope) in _scope_event_guards
+    return type(scope) in _scope_event_guards or type(scope) in _scope_event_filters
 
 
 # Per-event-type guards, registered by apps from their AppConfig.ready().

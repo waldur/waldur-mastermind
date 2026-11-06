@@ -1,0 +1,17 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    {{ body|linebreaks }}
+
+    <p>
+        Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
+        <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+    </p>
+
+    <p>
+        This message was sent by the call manager through {{ site_name }}.
+    </p>
+</body>
+</html>

@@ -256,9 +256,7 @@ REPORTING_SCREEN_CHOICES = [
         "Resources: Projects by affiliated organization",
     ),
     # Proposals
-    ("call-performance", "Proposals: Call performance"),
-    ("review-progress", "Proposals: Review progress"),
-    ("resource-demand", "Proposals: Resource demand"),
+    ("call-reports", "Proposals: Call reports"),
     # Provider
     ("capacity", "Provider: Capacity"),
     ("provider-overview", "Provider: Provider overview"),
@@ -959,8 +957,10 @@ CONSTANCE_CONFIG = {
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
     "PROPOSAL_DASHBOARD_REVIEWS_DUE_WITHIN_DAYS": (
         7,
-        "How many days ahead the call manager dashboard looks for review "
-        "deadlines. Past-due reviews are always included.",
+        "How many days ahead a deadline counts as due soon: for reviews on "
+        "the call manager dashboard, where past-due reviews are always "
+        "included, and for the tasks in My tasks, where past-due tasks count "
+        "as overdue instead.",
     ),
     # ORCID integration settings
     "ORCID_CLIENT_ID": (
@@ -1005,19 +1005,30 @@ CONSTANCE_CONFIG = {
     # Reviewer profile settings
     "REVIEWER_PROFILES_ENABLED": (
         True,
-        "Enable reviewer profile management features.",
+        "Let users create and publish reviewer profiles, and let call managers "
+        "discover reviewers from published profiles. When off, existing "
+        "profiles are kept but no new one is created or published.",
+    ),
+    "REVIEWER_PUBLICATION_REQUIRES_APPROVAL": (
+        False,
+        "Require staff approval before a reviewer profile is published and "
+        "becomes discoverable by call managers. Profiles already published stay "
+        "published; requests left pending when this is turned off can still be "
+        "resolved.",
     ),
     "COI_DETECTION_ENABLED": (
         True,
-        "Enable conflict of interest detection features.",
+        "Allow call managers to run automated conflict of interest detection.",
     ),
     "COI_DISCLOSURE_REQUIRED": (
         False,
-        "Require reviewers to submit COI disclosure before reviewing proposals.",
+        "Require reviewers to file a certified, current conflict of interest "
+        "disclosure for a call before taking on any of its reviews.",
     ),
     "AUTOMATED_MATCHING_ENABLED": (
         True,
-        "Enable automated reviewer-proposal matching algorithms.",
+        "Allow automated reviewer matching: reviewer suggestions, affinity "
+        "scores and generated assignments.",
     ),
     "COI_COAUTHORSHIP_LOOKBACK_YEARS": (
         5,
@@ -2262,6 +2273,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "DEFAULT_PROPOSAL_REQUIRED_FIELDS",
         "DEFAULT_PROPOSAL_HIDDEN_FIELDS",
         "REVIEWER_PROFILES_ENABLED",
+        "REVIEWER_PUBLICATION_REQUIRES_APPROVAL",
         "COI_DETECTION_ENABLED",
         "COI_DISCLOSURE_REQUIRED",
         "AUTOMATED_MATCHING_ENABLED",
@@ -2521,6 +2533,12 @@ CONSTANCE_CONFIG_FIELDSETS = {
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
+    # Reviewer settings: the UI hides what they turn off
+    "REVIEWER_PROFILES_ENABLED",
+    "REVIEWER_PUBLICATION_REQUIRES_APPROVAL",
+    "COI_DETECTION_ENABLED",
+    "COI_DISCLOSURE_REQUIRED",
+    "AUTOMATED_MATCHING_ENABLED",
     # Whitelabeling settings
     "SITE_NAME",
     "SITE_DESCRIPTION",

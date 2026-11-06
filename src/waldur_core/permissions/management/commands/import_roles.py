@@ -47,6 +47,23 @@ class Command(BaseCommand):
                     role.is_system_role = True
                     role.save(update_fields=["is_system_role"])
 
+                # A system role may act as another one (see ROLE_TEMPLATES).
+                template = None
+                if row.get("template"):
+                    template = Role.objects.filter(
+                        name=row["template"], content_type=role.content_type
+                    ).first()
+                    if template is None:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Role {row['role']} names template {row['template']}, "
+                                "which is not a role of the same scope; ignoring it."
+                            )
+                        )
+                if role.template_id != (template.id if template else None):
+                    role.template = template
+                    role.save(update_fields=["template"])
+
                 current_permissions = set(
                     RolePermission.objects.filter(role=role).values_list(
                         "permission", flat=True

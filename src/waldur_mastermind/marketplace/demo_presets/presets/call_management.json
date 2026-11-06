@@ -1,33 +1,41 @@
 {
   "_metadata": {
-    "title": "Call Management",
-    "description": "Research proposal management system with calls for proposals, peer review processes, COI detection, and resource allocation workflows.",
+    "title": "Call Management (EuroHPC JU)",
+    "description": "EuroHPC JU access calls, one per JU call template, configured as the JU's peer-review tender asks: Extreme Scale, Regular Access, Benchmark, Development, AI for Science and Collaborative EU Projects, AI Factory Large Scale, Fast Lane and Playground, and Quantum Access. Every other shipped call template is published for import.",
     "version": "2.0.0",
     "scenarios": [
-      "Research council managing competitive grants",
-      "Peer review and proposal evaluation",
-      "Resource allocation based on reviews",
-      "Multi-round proposal submission",
+      "Nine EuroHPC JU access calls, each created from its shipped call template; every other template stays importable",
+      "Regular Access: proposals at the administrative check, technical assessment, rapporteur reports, allocation decision and award response",
+      "Regular Access: Domain Panels and the Super Panel, with the Access Resource Committee chair and vice-chair",
+      "Regular Access: reviewer pool with profile and email invitations (pending, accepted, expired) and staff force-accept",
       "Reviewer profile discovery and algorithm-based suggestions",
-      "Direct email invitations for reviewers without profiles",
-      "Two-stage reviewer workflow: invitation acceptance then proposal assignment",
-      "COI disclosure at assignment stage (not invitation)",
-      "Automated and self-disclosed conflict of interest management",
-      "Assignment batch lifecycle: draft, sent, responded, expired, cancelled",
-      "Assignment item states: pending, accepted, declined, expired, coi_blocked, reassigned",
-      "Reviewer performance tracking with stats and quality ratings",
-      "Financial interest disclosure and compliance certification",
-      "Affinity-based reviewer-proposal matching with cached scores",
-      "Algorithm-generated assignments with deployment workflow",
-      "Open round with a scheduled next round: closing a round and carrying drafts over",
+      "COI disclosure at assignment stage, automated and self-disclosed conflicts of interest",
+      "Assignment batch lifecycle: draft, sent, responded, expired, cancelled; items pending, accepted, declined, expired, coi_blocked, reassigned",
+      "Affinity-based reviewer-proposal matching and algorithm-generated assignments",
+      "Reviewer performance tracking, financial interest disclosure and compliance certification",
+      "Proposal compliance checklists answered by the applicant teams",
+      "AI for Science: expert evaluation, a consensus report when expert scores diverge, an accepted proposal provisioned into its project",
+      "Extreme Scale: two partitions of different hosting entities, rapporteurs, scientific reviewers and the Access Resource Committee",
+      "Extreme Scale: a proposal at its technical assessment, waiting for each partition's offering managers",
+      "Extreme Scale: an earlier round with an accepted proposal awarded less GPU than asked and a rejected one, against the call's GPU pools",
+      "Benchmark and Development: continuous calls decided on the technical assessment, accepted or rejected per partition",
+      "Quantum Access: a closed pilot whose accepted proposals were provisioned through their award, partly awarded and still with the provider",
+      "AI Factory Fast Lane and Playground open for proposals; Large Scale drafted",
       "Draft proposals with multi-member teams, ready to submit",
-      "Ended round with proposals waiting for the allocation decision",
-      "Awarded proposal waiting for the applicant's award response"
+      "Open round with a scheduled next round: closing a round and carrying drafts over"
     ]
   },
   "features": [
     {
       "key": "marketplace.show_call_management_functionality",
+      "value": true
+    },
+    {
+      "key": "marketplace.conceal_prices",
+      "value": true
+    },
+    {
+      "key": "marketplace.conceal_offering_pricing_tab_in_public_view",
       "value": true
     }
   ],
@@ -241,6 +249,70 @@
       "job_title": "Professor of Astronomy",
       "password": "demo",
       "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "a400000000000000000000000000000c",
+      "username": "centre_north_admin",
+      "email": "admin@north-hpc.example.org",
+      "first_name": "Northern",
+      "last_name": "Centre Admin",
+      "is_active": true,
+      "phone_number": "+37256004012",
+      "organization": "Northern Supercomputing Centre",
+      "job_title": "Partition Manager",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "a400000000000000000000000000000d",
+      "username": "centre_south_admin",
+      "email": "admin@south-hpc.example.org",
+      "first_name": "Southern",
+      "last_name": "Centre Admin",
+      "is_active": true,
+      "phone_number": "+37256004013",
+      "organization": "Southern Supercomputing Centre",
+      "job_title": "Partition Manager",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "a4000000000000000000000000000015",
+      "username": "centre_south_evaluator",
+      "email": "evaluator@south-hpc.example.org",
+      "first_name": "Southern",
+      "last_name": "Centre Evaluator",
+      "is_active": true,
+      "phone_number": "+37256004015",
+      "organization": "Southern Supercomputing Centre",
+      "job_title": "HPC Application Specialist",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "a400000000000000000000000000000e",
+      "username": "nrc_operator",
+      "email": "operations@nrc.example.org",
+      "first_name": "NRC",
+      "last_name": "Resource Operations",
+      "is_active": true,
+      "phone_number": "+37256004014",
+      "organization": "National Research Council",
+      "job_title": "Resource Operations",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "a400000000000000000000000000000f",
+      "username": "ju_observer",
+      "email": "observer@ju.example.org",
+      "first_name": "JU",
+      "last_name": "Observer",
+      "is_active": true,
+      "organization": "EuroHPC Joint Undertaking",
+      "job_title": "Peer-review observer",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "customers": [
@@ -274,6 +346,22 @@
       "abbreviation": "ESI",
       "description": "Research institute dedicated to climate modeling, environmental monitoring, and sustainability studies.",
       "email": "environment@research.edu",
+      "country": "EE"
+    },
+    {
+      "uuid": "b4000000000000000000000000000005",
+      "name": "Northern Supercomputing Centre",
+      "abbreviation": "NSC",
+      "description": "Supercomputing centre operating a general-purpose CPU cluster partition for national research allocations.",
+      "email": "allocations@north-hpc.example.org",
+      "country": "EE"
+    },
+    {
+      "uuid": "b4000000000000000000000000000006",
+      "name": "Southern Supercomputing Centre",
+      "abbreviation": "SSC",
+      "description": "Supercomputing centre operating a GPU-accelerated booster partition for national research allocations.",
+      "email": "allocations@south-hpc.example.org",
       "country": "EE"
     }
   ],
@@ -332,6 +420,24 @@
       "uuid": "c4000000000000000000000000000003",
       "name": "Climate Modeling Initiative",
       "description": "High-resolution climate modeling and prediction",
+      "customer_uuid": "b4000000000000000000000000000004"
+    },
+    {
+      "uuid": "c4000000000000000000000000000004",
+      "name": "Particle Physics Event Simulation",
+      "description": "Granted by the 2024 Fall Research Computing call",
+      "customer_uuid": "b4000000000000000000000000000001"
+    },
+    {
+      "uuid": "c4000000000000000000000000000005",
+      "name": "Computational Fluid Dynamics Study",
+      "description": "Granted by the 2024 Fall Research Computing call",
+      "customer_uuid": "b4000000000000000000000000000001"
+    },
+    {
+      "uuid": "c4000000000000000000000000000006",
+      "name": "Solar Dynamo Ensemble",
+      "description": "Granted by the Extreme Scale call's spring round",
       "customer_uuid": "b4000000000000000000000000000004"
     }
   ],
@@ -955,6 +1061,62 @@
       "scope_content_type": "proposal.proposal",
       "scope_object_uuid": "ca600000000000000000000000000014",
       "is_complete": true
+    },
+    {
+      "uuid": "cc100000000000000000000000000101",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca60000000000000000000000000000c",
+      "is_complete": true,
+      "_comment": "Compliance checklist for Astrophysical Simulation Project"
+    },
+    {
+      "uuid": "cc100000000000000000000000000102",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca60000000000000000000000000000d",
+      "is_complete": true,
+      "_comment": "Compliance checklist for Exascale Turbulence Simulation"
+    },
+    {
+      "uuid": "cc100000000000000000000000000103",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca60000000000000000000000000000e",
+      "is_complete": true,
+      "_comment": "Compliance checklist for Cryo-EM Density Map Refinement"
+    },
+    {
+      "uuid": "cc100000000000000000000000000104",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca60000000000000000000000000000f",
+      "is_complete": true,
+      "_comment": "Compliance checklist for Photonic Quantum Networking"
+    },
+    {
+      "uuid": "cc100000000000000000000000000105",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000010",
+      "is_complete": true,
+      "_comment": "Compliance checklist for Fusion Plasma Turbulence Modeling"
+    },
+    {
+      "uuid": "cc100000000000000000000000000106",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000005",
+      "is_complete": true,
+      "_comment": "Compliance checklist for Protein Structure Prediction"
+    },
+    {
+      "uuid": "cc100000000000000000000000000107",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000007",
+      "is_complete": true,
+      "_comment": "Compliance checklist for Weather Prediction Neural Network"
     }
   ],
   "answers": [
@@ -1538,6 +1700,428 @@
       "question_uuid": "cb200000000000000000000000000006",
       "completion_uuid": "cc10000000000000000000000000000e",
       "answer_data": false
+    },
+    {
+      "uuid": "ca100000000000000000000000001001",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000002",
+      "completion_uuid": "cc100000000000000000000000000001",
+      "answer_data": true,
+      "_comment": "Quantum Error Correction Simulations: Have you obtained ethics committee/IRB approval?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001002",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000001",
+      "answer_data": "Names and affiliations of the team only, kept on the project share with access limited to the team.",
+      "_comment": "Quantum Error Correction Simulations: Describe your data protection and security measure"
+    },
+    {
+      "uuid": "ca100000000000000000000000001003",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000002",
+      "completion_uuid": "cc100000000000000000000000000003",
+      "answer_data": true,
+      "_comment": "Novel Battery Materials Discovery: Have you obtained ethics committee/IRB approval?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001004",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000003",
+      "answer_data": "Names and affiliations of the team only, kept on the project share with access limited to the team.",
+      "_comment": "Novel Battery Materials Discovery: Describe your data protection and security measure"
+    },
+    {
+      "uuid": "ca100000000000000000000000001005",
+      "user_uuid": "00000000000000000000000000000005",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000101",
+      "answer_data": false,
+      "_comment": "Astrophysical Simulation Project: Does your research involve human subjects?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001006",
+      "user_uuid": "00000000000000000000000000000005",
+      "question_uuid": "cb200000000000000000000000000002",
+      "completion_uuid": "cc100000000000000000000000000101",
+      "answer_data": true,
+      "_comment": "Astrophysical Simulation Project: Have you obtained ethics committee/IRB approval?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001007",
+      "user_uuid": "00000000000000000000000000000005",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000101",
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
+      "_comment": "Astrophysical Simulation Project: What types of personal data will your research pro"
+    },
+    {
+      "uuid": "ca100000000000000000000000001008",
+      "user_uuid": "00000000000000000000000000000005",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000101",
+      "answer_data": "Names and affiliations of the team only, kept on the project share with access limited to the team.",
+      "_comment": "Astrophysical Simulation Project: Describe your data protection and security measure"
+    },
+    {
+      "uuid": "ca100000000000000000000000001009",
+      "user_uuid": "00000000000000000000000000000005",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000101",
+      "answer_data": false,
+      "_comment": "Astrophysical Simulation Project: Will personal data be transferred outside the EU/E"
+    },
+    {
+      "uuid": "ca10000000000000000000000000100a",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000102",
+      "answer_data": false,
+      "_comment": "Exascale Turbulence Simulation: Does your research involve human subjects?"
+    },
+    {
+      "uuid": "ca10000000000000000000000000100b",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000002",
+      "completion_uuid": "cc100000000000000000000000000102",
+      "answer_data": true,
+      "_comment": "Exascale Turbulence Simulation: Have you obtained ethics committee/IRB approval?"
+    },
+    {
+      "uuid": "ca10000000000000000000000000100c",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000102",
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
+      "_comment": "Exascale Turbulence Simulation: What types of personal data will your research pro"
+    },
+    {
+      "uuid": "ca10000000000000000000000000100d",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000102",
+      "answer_data": "Names and affiliations of the team only, kept on the project share with access limited to the team.",
+      "_comment": "Exascale Turbulence Simulation: Describe your data protection and security measure"
+    },
+    {
+      "uuid": "ca10000000000000000000000000100e",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000102",
+      "answer_data": false,
+      "_comment": "Exascale Turbulence Simulation: Will personal data be transferred outside the EU/E"
+    },
+    {
+      "uuid": "ca10000000000000000000000000100f",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000103",
+      "answer_data": false,
+      "_comment": "Cryo-EM Density Map Refinement: Does your research involve human subjects?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001010",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000002",
+      "completion_uuid": "cc100000000000000000000000000103",
+      "answer_data": true,
+      "_comment": "Cryo-EM Density Map Refinement: Have you obtained ethics committee/IRB approval?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001011",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000103",
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
+      "_comment": "Cryo-EM Density Map Refinement: What types of personal data will your research pro"
+    },
+    {
+      "uuid": "ca100000000000000000000000001012",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000103",
+      "answer_data": "Names and affiliations of the team only, kept on the project share with access limited to the team.",
+      "_comment": "Cryo-EM Density Map Refinement: Describe your data protection and security measure"
+    },
+    {
+      "uuid": "ca100000000000000000000000001013",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000103",
+      "answer_data": false,
+      "_comment": "Cryo-EM Density Map Refinement: Will personal data be transferred outside the EU/E"
+    },
+    {
+      "uuid": "ca100000000000000000000000001014",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000104",
+      "answer_data": false,
+      "_comment": "Photonic Quantum Networking: Does your research involve human subjects?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001015",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000002",
+      "completion_uuid": "cc100000000000000000000000000104",
+      "answer_data": true,
+      "_comment": "Photonic Quantum Networking: Have you obtained ethics committee/IRB approval?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001016",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000104",
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
+      "_comment": "Photonic Quantum Networking: What types of personal data will your research pro"
+    },
+    {
+      "uuid": "ca100000000000000000000000001017",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000104",
+      "answer_data": "Names and affiliations of the team only, kept on the project share with access limited to the team.",
+      "_comment": "Photonic Quantum Networking: Describe your data protection and security measure"
+    },
+    {
+      "uuid": "ca100000000000000000000000001018",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000104",
+      "answer_data": false,
+      "_comment": "Photonic Quantum Networking: Will personal data be transferred outside the EU/E"
+    },
+    {
+      "uuid": "ca100000000000000000000000001019",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000105",
+      "answer_data": false,
+      "_comment": "Fusion Plasma Turbulence Modeling: Does your research involve human subjects?"
+    },
+    {
+      "uuid": "ca10000000000000000000000000101a",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000002",
+      "completion_uuid": "cc100000000000000000000000000105",
+      "answer_data": true,
+      "_comment": "Fusion Plasma Turbulence Modeling: Have you obtained ethics committee/IRB approval?"
+    },
+    {
+      "uuid": "ca10000000000000000000000000101b",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000105",
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
+      "_comment": "Fusion Plasma Turbulence Modeling: What types of personal data will your research pro"
+    },
+    {
+      "uuid": "ca10000000000000000000000000101c",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000105",
+      "answer_data": "Names and affiliations of the team only, kept on the project share with access limited to the team.",
+      "_comment": "Fusion Plasma Turbulence Modeling: Describe your data protection and security measure"
+    },
+    {
+      "uuid": "ca10000000000000000000000000101d",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000105",
+      "answer_data": false,
+      "_comment": "Fusion Plasma Turbulence Modeling: Will personal data be transferred outside the EU/E"
+    },
+    {
+      "uuid": "ca10000000000000000000000000101e",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000106",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": {
+        "name": "institutional-registration.pdf",
+        "content": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK"
+      },
+      "_comment": "Large Language Model Fine-tuning: Upload institutional registration or accreditation"
+    },
+    {
+      "uuid": "ca10000000000000000000000000101f",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000101",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": [
+        "cb300000000000000000000000000203"
+      ],
+      "_comment": "Protein Structure Prediction: What type of institution is the applicant organiza"
+    },
+    {
+      "uuid": "ca100000000000000000000000001020",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000102",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": true,
+      "_comment": "Protein Structure Prediction: Is your institution located in an eligible country"
+    },
+    {
+      "uuid": "ca100000000000000000000000001021",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000104",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": 1998,
+      "_comment": "Protein Structure Prediction: Year your institution was established"
+    },
+    {
+      "uuid": "ca100000000000000000000000001022",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000105",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": "2021-03-15",
+      "_comment": "Protein Structure Prediction: When did your institution receive its current accr"
+    },
+    {
+      "uuid": "ca100000000000000000000000001023",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000106",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": {
+        "name": "institutional-registration.pdf",
+        "content": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK"
+      },
+      "_comment": "Protein Structure Prediction: Upload institutional registration or accreditation"
+    },
+    {
+      "uuid": "ca100000000000000000000000001024",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000107",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": false,
+      "_comment": "Protein Structure Prediction: Do you have existing funding for this research fro"
+    },
+    {
+      "uuid": "ca100000000000000000000000001025",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000109",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": [
+        "cb300000000000000000000000000301"
+      ],
+      "_comment": "Protein Structure Prediction: Which research areas does this proposal cover?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001026",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000110",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": false,
+      "_comment": "Protein Structure Prediction: Have you submitted this proposal or substantially "
+    },
+    {
+      "uuid": "ca100000000000000000000000001027",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000113",
+      "completion_uuid": "cc100000000000000000000000000106",
+      "answer_data": true,
+      "_comment": "Protein Structure Prediction: I confirm that the applicant organization and all "
+    },
+    {
+      "uuid": "ca100000000000000000000000001028",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000106",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": {
+        "name": "institutional-registration.pdf",
+        "content": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK"
+      },
+      "_comment": "Molecular Dynamics of Membrane Proteins: Upload institutional registration or accreditation"
+    },
+    {
+      "uuid": "ca100000000000000000000000001029",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000101",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": [
+        "cb300000000000000000000000000203"
+      ],
+      "_comment": "Weather Prediction Neural Network: What type of institution is the applicant organiza"
+    },
+    {
+      "uuid": "ca10000000000000000000000000102a",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000102",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": true,
+      "_comment": "Weather Prediction Neural Network: Is your institution located in an eligible country"
+    },
+    {
+      "uuid": "ca10000000000000000000000000102b",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000104",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": 1998,
+      "_comment": "Weather Prediction Neural Network: Year your institution was established"
+    },
+    {
+      "uuid": "ca10000000000000000000000000102c",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000105",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": "2021-03-15",
+      "_comment": "Weather Prediction Neural Network: When did your institution receive its current accr"
+    },
+    {
+      "uuid": "ca10000000000000000000000000102d",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000106",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": {
+        "name": "institutional-registration.pdf",
+        "content": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK"
+      },
+      "_comment": "Weather Prediction Neural Network: Upload institutional registration or accreditation"
+    },
+    {
+      "uuid": "ca10000000000000000000000000102e",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000107",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": false,
+      "_comment": "Weather Prediction Neural Network: Do you have existing funding for this research fro"
+    },
+    {
+      "uuid": "ca10000000000000000000000000102f",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000109",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": [
+        "cb300000000000000000000000000301"
+      ],
+      "_comment": "Weather Prediction Neural Network: Which research areas does this proposal cover?"
+    },
+    {
+      "uuid": "ca100000000000000000000000001030",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000110",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": false,
+      "_comment": "Weather Prediction Neural Network: Have you submitted this proposal or substantially "
+    },
+    {
+      "uuid": "ca100000000000000000000000001031",
+      "user_uuid": "a4000000000000000000000000000008",
+      "question_uuid": "cb200000000000000000000000000113",
+      "completion_uuid": "cc100000000000000000000000000107",
+      "answer_data": true,
+      "_comment": "Weather Prediction Neural Network: I confirm that the applicant organization and all "
     }
   ],
   "category_groups": [
@@ -1577,6 +2161,16 @@
       "uuid": "e4000000000000000000000000000001",
       "customer_uuid": "b4000000000000000000000000000001",
       "description": "National Research Council - Provider of research computing resources"
+    },
+    {
+      "uuid": "e4000000000000000000000000000002",
+      "customer_uuid": "b4000000000000000000000000000005",
+      "description": "Northern Supercomputing Centre - Provider of HPC partitions"
+    },
+    {
+      "uuid": "e4000000000000000000000000000003",
+      "customer_uuid": "b4000000000000000000000000000006",
+      "description": "Southern Supercomputing Centre - Provider of HPC partitions"
     }
   ],
   "offerings": [
@@ -1666,6 +2260,33 @@
         "enable_purchase_order_upload": true,
         "require_purchase_order_upload": true
       }
+    },
+    {
+      "uuid": "f4000000000000000000000000000007",
+      "name": "Cluster partition",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000005",
+      "description": "General-purpose CPU partition of the Northern Supercomputing Centre.",
+      "getting_started": "## Getting Started with the Cluster partition\n\n### Access\nSSH to login.north-hpc.example.org\n\n### Job Submission\nUse SLURM for job scheduling\n\n### Support\nEmail: allocations@north-hpc.example.org",
+      "plugin_options": {
+        "enable_purchase_order_upload": true
+      }
+    },
+    {
+      "uuid": "f4000000000000000000000000000008",
+      "name": "Booster partition",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000006",
+      "description": "GPU-accelerated booster partition of the Southern Supercomputing Centre.",
+      "getting_started": "## Getting Started with the Booster partition\n\n### Access\nSSH to login.south-hpc.example.org\n\n### Job Submission\nUse SLURM for job scheduling\n\n### Support\nEmail: allocations@south-hpc.example.org"
     }
   ],
   "offering_components": [
@@ -1851,6 +2472,93 @@
       "description": "One-off onboarding charge raised when the platform is provisioned.",
       "billing_type": "one",
       "measured_unit": "project"
+    },
+    {
+      "uuid": "c4000000000000000000000000000701",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "type": "cpu_hours",
+      "name": "CPU Core Hours",
+      "description": "CPU compute time allocation",
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 1000,
+      "max_value": 500000
+    },
+    {
+      "uuid": "c4000000000000000000000000000702",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "type": "storage",
+      "name": "Scratch Storage",
+      "description": "Fast scratch storage",
+      "billing_type": "limit",
+      "measured_unit": "GB",
+      "limit_period": "month",
+      "min_value": 100,
+      "max_value": 5000
+    },
+    {
+      "uuid": "c4000000000000000000000000000703",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "type": "onboarding",
+      "name": "Onboarding and account setup",
+      "description": "One-off charge raised when the allocation is activated.",
+      "billing_type": "one",
+      "measured_unit": "project"
+    },
+    {
+      "uuid": "c4000000000000000000000000000704",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "type": "priority_support",
+      "name": "Priority support",
+      "description": "Support hours paid up front for the duration of the award.",
+      "billing_type": "one",
+      "measured_unit": "hours",
+      "is_prepaid": true,
+      "min_prepaid_duration": 1,
+      "max_prepaid_duration": 12,
+      "prepaid_duration_step": 1,
+      "min_value": 0,
+      "max_value": 200
+    },
+    {
+      "uuid": "c4000000000000000000000000000801",
+      "offering_uuid": "f4000000000000000000000000000008",
+      "type": "gpu_hours",
+      "name": "GPU Hours",
+      "description": "GPU compute time",
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 100,
+      "max_value": 50000
+    },
+    {
+      "uuid": "c4000000000000000000000000000802",
+      "offering_uuid": "f4000000000000000000000000000008",
+      "type": "cpu_hours",
+      "name": "CPU Core Hours",
+      "description": "CPU compute time",
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 1000,
+      "max_value": 1000000
+    },
+    {
+      "uuid": "c4000000000000000000000000000803",
+      "offering_uuid": "f4000000000000000000000000000008",
+      "type": "support_hours",
+      "name": "Dedicated support",
+      "description": "Support hours bought up front for the duration of the award.",
+      "billing_type": "one",
+      "measured_unit": "hours",
+      "is_prepaid": true,
+      "min_prepaid_duration": 1,
+      "max_prepaid_duration": 12,
+      "prepaid_duration_step": 1,
+      "min_value": 0,
+      "max_value": 100
     }
   ],
   "slurm_periodic_policies": [
@@ -1930,6 +2638,18 @@
       "uuid": "14000000000000000000000000000008",
       "name": "Analytics Prepaid Plan",
       "offering_uuid": "f4000000000000000000000000000006",
+      "unit": "month"
+    },
+    {
+      "uuid": "14000000000000000000000000000011",
+      "name": "Cluster partition plan",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "unit": "month"
+    },
+    {
+      "uuid": "14000000000000000000000000000012",
+      "name": "Booster partition plan",
+      "offering_uuid": "f4000000000000000000000000000008",
       "unit": "month"
     }
   ],
@@ -2033,6 +2753,192 @@
       "component_uuid": "c4000000000000000000000000000602",
       "price": "400.00",
       "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000011",
+      "component_uuid": "c4000000000000000000000000000701",
+      "price": "0.05",
+      "amount": 0,
+      "discount_formula": "15 if usage >= 200000 else 8 if usage >= 100000 else 0",
+      "discount_aggregation": "resource"
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000011",
+      "component_uuid": "c4000000000000000000000000000702",
+      "price": "0.01",
+      "amount": 0,
+      "discount_formula": "10 if usage >= 1000 else 0",
+      "discount_aggregation": "customer"
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000011",
+      "component_uuid": "c4000000000000000000000000000703",
+      "price": "250.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000011",
+      "component_uuid": "c4000000000000000000000000000704",
+      "price": "45.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000012",
+      "component_uuid": "c4000000000000000000000000000801",
+      "price": "0.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000012",
+      "component_uuid": "c4000000000000000000000000000802",
+      "price": "0.03",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000012",
+      "component_uuid": "c4000000000000000000000000000803",
+      "price": "75.00",
+      "amount": 0
+    }
+  ],
+  "science_domains": [
+    {
+      "code": "1",
+      "name": "Physics",
+      "sub_domains": [
+        {
+          "code": "1.1",
+          "name": "Astrophysics & Cosmology"
+        },
+        {
+          "code": "1.2",
+          "name": "Plasma Physics"
+        },
+        {
+          "code": "1.3",
+          "name": "Others"
+        }
+      ]
+    },
+    {
+      "code": "2",
+      "name": "Chemistry & Materials",
+      "sub_domains": [
+        {
+          "code": "2.1",
+          "name": "Chemical Sciences"
+        },
+        {
+          "code": "2.2",
+          "name": "Nanoscience"
+        },
+        {
+          "code": "2.3",
+          "name": "Materials Science"
+        },
+        {
+          "code": "2.4",
+          "name": "Condensed Matter Physics"
+        },
+        {
+          "code": "2.5",
+          "name": "Others"
+        }
+      ]
+    },
+    {
+      "code": "3",
+      "name": "Earth & Environmental Science",
+      "sub_domains": [
+        {
+          "code": "3.1",
+          "name": "Geoscience"
+        },
+        {
+          "code": "3.2",
+          "name": "Climate"
+        },
+        {
+          "code": "3.3",
+          "name": "Others"
+        }
+      ]
+    },
+    {
+      "code": "4",
+      "name": "Life Science",
+      "sub_domains": [
+        {
+          "code": "4.1",
+          "name": "Biological Sciences"
+        },
+        {
+          "code": "4.2",
+          "name": "Molecular Biophysics"
+        },
+        {
+          "code": "4.3",
+          "name": "Biomedical Engineering"
+        },
+        {
+          "code": "4.4",
+          "name": "Bioinformatics"
+        },
+        {
+          "code": "4.5",
+          "name": "Neuroscience"
+        },
+        {
+          "code": "4.6",
+          "name": "Others"
+        }
+      ]
+    },
+    {
+      "code": "5",
+      "name": "Mechanics & Engineering",
+      "sub_domains": [
+        {
+          "code": "5.1",
+          "name": "Fluid Dynamics"
+        },
+        {
+          "code": "5.2",
+          "name": "Mechanical Engineering"
+        },
+        {
+          "code": "5.3",
+          "name": "Others"
+        }
+      ]
+    },
+    {
+      "code": "6",
+      "name": "Computer Science",
+      "sub_domains": [
+        {
+          "code": "6.1",
+          "name": "Applied Mathematics"
+        },
+        {
+          "code": "6.2",
+          "name": "Computer Science"
+        },
+        {
+          "code": "6.3",
+          "name": "Others"
+        }
+      ]
+    },
+    {
+      "code": "7",
+      "name": "Others",
+      "sub_domains": [
+        {
+          "code": "7.1",
+          "name": "Others"
+        }
+      ]
     }
   ],
   "call_managing_organisations": [
@@ -2042,84 +2948,82 @@
       "description": "National Research Council manages competitive research grants and resource allocations for academic and research institutions."
     }
   ],
-  "calls": [
+  "calls": [],
+  "call_templates": [
     {
       "uuid": "ca200000000000000000000000000001",
-      "name": "2025 Spring HPC Allocation Call",
-      "description": "Annual competitive call for HPC resource allocation supporting computational research across all scientific domains.",
       "manager_uuid": "ca100000000000000000000000000001",
+      "template": "regular_access",
+      "name": "EuroHPC Regular Access",
       "created_by_uuid": "a4000000000000000000000000000002",
       "state": "active",
-      "reviewer_identity_visible_to_submitters": false,
-      "reviews_visible_to_submitters": true,
-      "fixed_duration_in_days": 365,
       "compliance_checklist_uuid": "cb100000000000000000000000000001"
     },
     {
       "uuid": "ca200000000000000000000000000002",
-      "name": "2025 GPU Research Program",
-      "description": "Specialized call for GPU-intensive research including machine learning, molecular dynamics, and scientific visualization.",
       "manager_uuid": "ca100000000000000000000000000001",
+      "template": "ai_for_science",
+      "name": "EuroHPC AI for Science and Collaborative EU Projects Access",
       "created_by_uuid": "a4000000000000000000000000000002",
       "state": "active",
-      "reviewer_identity_visible_to_submitters": true,
-      "reviews_visible_to_submitters": true,
-      "fixed_duration_in_days": 180,
       "compliance_checklist_uuid": "cb100000000000000000000000000002"
     },
     {
       "uuid": "ca200000000000000000000000000003",
-      "name": "2024 Fall Research Computing",
-      "description": "Completed call for general research computing allocations.",
       "manager_uuid": "ca100000000000000000000000000001",
+      "template": "quantum_access",
+      "name": "EuroHPC Quantum Access (2024 pilot)",
       "created_by_uuid": "a4000000000000000000000000000001",
-      "state": "archived",
-      "reviewer_identity_visible_to_submitters": false,
-      "reviews_visible_to_submitters": true,
-      "fixed_duration_in_days": 365
+      "state": "archived"
     },
     {
       "uuid": "ca200000000000000000000000000004",
-      "name": "2025 Summer Cloud Computing",
-      "description": "Draft call for cloud computing resources - not yet published.",
       "manager_uuid": "ca100000000000000000000000000001",
+      "template": "ai_factory_large_scale",
+      "name": "EuroHPC AI Factory Large Scale Access",
       "created_by_uuid": "a4000000000000000000000000000002",
-      "state": "draft",
-      "reviewer_identity_visible_to_submitters": false,
-      "reviews_visible_to_submitters": false,
-      "fixed_duration_in_days": 180
+      "state": "draft"
     },
     {
       "uuid": "ca200000000000000000000000000005",
-      "name": "Rolling access requests",
-      "description": "Minimal workflow: one offering, one decision, no review panel.",
       "manager_uuid": "ca100000000000000000000000000001",
+      "template": "ai_factory_playground",
+      "name": "EuroHPC AI Factory Playground Access",
       "created_by_uuid": "a4000000000000000000000000000002",
-      "state": "active",
-      "reviewer_identity_visible_to_submitters": false,
-      "reviews_visible_to_submitters": false,
-      "fixed_duration_in_days": 90
+      "state": "active"
     },
     {
       "uuid": "ca200000000000000000000000000006",
-      "name": "2026 Regular Access Call",
-      "description": "Rolling-cut-off call for compute access: an open round now, the next round already scheduled. Drafts left in the open round when it closes can be carried over to the next one.",
       "manager_uuid": "ca100000000000000000000000000001",
+      "template": "development_access",
+      "name": "EuroHPC Development Access",
       "created_by_uuid": "a4000000000000000000000000000002",
       "state": "active",
-      "reviewer_identity_visible_to_submitters": false,
-      "reviews_visible_to_submitters": true,
       "compliance_checklist_uuid": "cb100000000000000000000000000001"
     },
     {
       "uuid": "ca200000000000000000000000000007",
-      "name": "2026 Extreme Scale Access Call",
-      "description": "Large-scale compute access. The spring round has closed and its proposals are waiting for the allocation decision.",
       "manager_uuid": "ca100000000000000000000000000001",
+      "template": "benchmark_access",
+      "name": "EuroHPC Benchmark Access",
       "created_by_uuid": "a4000000000000000000000000000002",
-      "state": "active",
-      "reviewer_identity_visible_to_submitters": false,
-      "reviews_visible_to_submitters": true
+      "state": "active"
+    },
+    {
+      "uuid": "ca200000000000000000000000000008",
+      "manager_uuid": "ca100000000000000000000000000001",
+      "template": "extreme_scale",
+      "name": "EuroHPC Extreme Scale Access",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "state": "active"
+    },
+    {
+      "uuid": "ca200000000000000000000000000012",
+      "manager_uuid": "ca100000000000000000000000000001",
+      "template": "ai_factory_fast_lane",
+      "name": "EuroHPC AI Factory Fast Lane Access",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "state": "active"
     }
   ],
   "requested_offerings": [
@@ -2238,6 +3142,76 @@
       "state": "accepted",
       "description": "Batch allocation on the council cluster; not requested by any proposal yet, so an award can be moved here.",
       "approved_by_uuid": "a4000000000000000000000000000001"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000e",
+      "call_uuid": "ca200000000000000000000000000008",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "plan_uuid": "14000000000000000000000000000011",
+      "state": "accepted",
+      "description": "Standard CPU partition.",
+      "approved_by_uuid": "a400000000000000000000000000000c"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000f",
+      "call_uuid": "ca200000000000000000000000000008",
+      "offering_uuid": "f4000000000000000000000000000008",
+      "plan_uuid": "14000000000000000000000000000012",
+      "state": "accepted",
+      "description": "Accelerated GPU partition.",
+      "approved_by_uuid": "a400000000000000000000000000000d"
+    },
+    {
+      "uuid": "ca300000000000000000000000000010",
+      "call_uuid": "ca200000000000000000000000000003",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000003",
+      "state": "accepted",
+      "description": "Project storage for archived call"
+    },
+    {
+      "uuid": "ca300000000000000000000000000011",
+      "call_uuid": "ca200000000000000000000000000003",
+      "offering_uuid": "f4000000000000000000000000000004",
+      "plan_uuid": "14000000000000000000000000000004",
+      "state": "canceled",
+      "description": "Cloud VMs, withdrawn by the provider before allocation"
+    },
+    {
+      "uuid": "ca300000000000000000000000000012",
+      "call_uuid": "ca200000000000000000000000000004",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": "accepted",
+      "description": "Standard CPU allocation.",
+      "approved_by_uuid": "a4000000000000000000000000000001"
+    },
+    {
+      "uuid": "ca300000000000000000000000000013",
+      "call_uuid": "ca200000000000000000000000000001",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "plan_uuid": "14000000000000000000000000000011",
+      "state": "accepted",
+      "description": "Standard CPU partition.",
+      "approved_by_uuid": "a400000000000000000000000000000c"
+    },
+    {
+      "uuid": "ca300000000000000000000000000014",
+      "call_uuid": "ca200000000000000000000000000002",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "plan_uuid": "14000000000000000000000000000011",
+      "state": "accepted",
+      "description": "Standard CPU partition.",
+      "approved_by_uuid": "a400000000000000000000000000000c"
+    },
+    {
+      "uuid": "ca300000000000000000000000000015",
+      "call_uuid": "ca200000000000000000000000000012",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "plan_uuid": "14000000000000000000000000000011",
+      "state": "accepted",
+      "description": "Standard CPU partition.",
+      "approved_by_uuid": "a400000000000000000000000000000c"
     }
   ],
   "call_resource_templates": [
@@ -2305,6 +3279,71 @@
       "is_required": true
     }
   ],
+  "call_offering_components": [
+    {
+      "uuid": "ce100000000000000000000000000001",
+      "requested_offering_uuid": "ca300000000000000000000000000009",
+      "component_type": "cpu_hours",
+      "min_per_proposal": 1000,
+      "max_per_proposal": 100000,
+      "default_amount": 10000,
+      "is_fixed": false
+    },
+    {
+      "uuid": "ce100000000000000000000000000002",
+      "requested_offering_uuid": "ca300000000000000000000000000009",
+      "component_type": "storage",
+      "min_per_proposal": 100,
+      "max_per_proposal": 2000,
+      "default_amount": 500,
+      "is_fixed": false
+    },
+    {
+      "uuid": "ce100000000000000000000000000003",
+      "requested_offering_uuid": "ca30000000000000000000000000000a",
+      "component_type": "cpu",
+      "min_per_proposal": 1000,
+      "max_per_proposal": 400000,
+      "default_amount": 50000,
+      "is_fixed": false
+    },
+    {
+      "uuid": "ce100000000000000000000000000004",
+      "requested_offering_uuid": "ca30000000000000000000000000000a",
+      "component_type": "gpu",
+      "min_per_proposal": null,
+      "max_per_proposal": null,
+      "default_amount": 500,
+      "is_fixed": true
+    },
+    {
+      "uuid": "ce100000000000000000000000000005",
+      "requested_offering_uuid": "ca30000000000000000000000000000f",
+      "component_type": "gpu_hours",
+      "min_per_proposal": null,
+      "max_per_proposal": null,
+      "default_amount": null,
+      "is_fixed": false
+    },
+    {
+      "uuid": "ce100000000000000000000000000006",
+      "requested_offering_uuid": "ca300000000000000000000000000014",
+      "component_type": "cpu_hours",
+      "min_per_proposal": null,
+      "max_per_proposal": null,
+      "default_amount": null,
+      "is_fixed": false
+    },
+    {
+      "uuid": "ce100000000000000000000000000007",
+      "requested_offering_uuid": "ca300000000000000000000000000015",
+      "component_type": "cpu_hours",
+      "min_per_proposal": null,
+      "max_per_proposal": null,
+      "default_amount": null,
+      "is_fixed": false
+    }
+  ],
   "rounds": [
     {
       "uuid": "ca500000000000000000000000000001",
@@ -2327,11 +3366,17 @@
       "call_uuid": "ca200000000000000000000000000002",
       "start_time": "relative:-15days",
       "cutoff_time": "relative:+350days",
-      "review_duration_in_days": 14
+      "review_duration_in_days": 14,
+      "allocation_date": "relative:+420days"
     },
     {
       "uuid": "ca500000000000000000000000000004",
       "call_uuid": "ca200000000000000000000000000003",
+      "lifecycle_state": "closed",
+      "evaluation_started_at": "relative:-90days",
+      "deciding_started_at": "relative:-70days",
+      "results_published_at": "relative:-60days",
+      "closed_at": "relative:-50days",
       "start_time": "relative:-180days",
       "cutoff_time": "relative:-90days",
       "allocation_date": "relative:-60days",
@@ -2342,7 +3387,8 @@
       "call_uuid": "ca200000000000000000000000000005",
       "start_time": "relative:-5days",
       "cutoff_time": "relative:+85days",
-      "review_duration_in_days": 7
+      "review_duration_in_days": 7,
+      "allocation_date": "relative:+115days"
     },
     {
       "uuid": "ca500000000000000000000000000006",
@@ -2367,6 +3413,108 @@
       "cutoff_time": "relative:-20days",
       "allocation_date": "relative:+15days",
       "review_duration_in_days": 21
+    },
+    {
+      "uuid": "ca50000000000000000000000000000a",
+      "call_uuid": "ca200000000000000000000000000008",
+      "start_time": "relative:-330days",
+      "cutoff_time": "relative:-290days",
+      "allocation_date": "relative:-110days",
+      "review_duration_in_days": 21
+    },
+    {
+      "uuid": "ca500000000000000000000000000009",
+      "call_uuid": "ca200000000000000000000000000008",
+      "start_time": "relative:-10days",
+      "cutoff_time": "relative:+30days",
+      "allocation_date": "relative:+210days",
+      "review_duration_in_days": 60
+    },
+    {
+      "uuid": "ca50000000000000000000000000000b",
+      "call_uuid": "ca200000000000000000000000000004",
+      "start_time": "relative:-10days",
+      "cutoff_time": "relative:+50days",
+      "allocation_date": "relative:+110days",
+      "review_duration_in_days": 30
+    },
+    {
+      "uuid": "ca50000000000000000000000000000e",
+      "call_uuid": "ca200000000000000000000000000012",
+      "start_time": "relative:-10days",
+      "cutoff_time": "relative:+30days",
+      "allocation_date": "relative:+45days",
+      "review_duration_in_days": 14
+    }
+  ],
+  "call_resource_pools": [
+    {
+      "uuid": "ce200000000000000000000000000001",
+      "offering_component_uuid": "ce100000000000000000000000000001",
+      "round_uuid": null,
+      "offered_total": 1000000,
+      "_comment": "1M core-hours per call, at most 400k per cut-off"
+    },
+    {
+      "uuid": "ce200000000000000000000000000002",
+      "offering_component_uuid": "ce100000000000000000000000000001",
+      "round_uuid": "ca500000000000000000000000000006",
+      "offered_total": 400000
+    },
+    {
+      "uuid": "ce200000000000000000000000000003",
+      "offering_component_uuid": "ce100000000000000000000000000001",
+      "round_uuid": "ca500000000000000000000000000007",
+      "offered_total": 400000
+    },
+    {
+      "uuid": "ce200000000000000000000000000004",
+      "offering_component_uuid": "ce100000000000000000000000000002",
+      "round_uuid": null,
+      "offered_total": 120000
+    },
+    {
+      "uuid": "ce200000000000000000000000000005",
+      "offering_component_uuid": "ce100000000000000000000000000003",
+      "round_uuid": null,
+      "offered_total": 2000000
+    },
+    {
+      "uuid": "ce200000000000000000000000000006",
+      "offering_component_uuid": "ce100000000000000000000000000003",
+      "round_uuid": "ca500000000000000000000000000006",
+      "offered_total": 800000
+    },
+    {
+      "uuid": "ce200000000000000000000000000007",
+      "offering_component_uuid": "ce100000000000000000000000000004",
+      "round_uuid": "ca500000000000000000000000000006",
+      "offered_total": 5000
+    },
+    {
+      "uuid": "ce200000000000000000000000000008",
+      "offering_component_uuid": "ce100000000000000000000000000005",
+      "round_uuid": null,
+      "offered_total": 120000,
+      "_comment": "120k GPU hours over the call, at most 50k in the spring round and 60k in the autumn one"
+    },
+    {
+      "uuid": "ce200000000000000000000000000009",
+      "offering_component_uuid": "ce100000000000000000000000000005",
+      "round_uuid": "ca50000000000000000000000000000a",
+      "offered_total": 50000
+    },
+    {
+      "uuid": "ce20000000000000000000000000000a",
+      "offering_component_uuid": "ce100000000000000000000000000005",
+      "round_uuid": "ca500000000000000000000000000009",
+      "offered_total": 60000
+    },
+    {
+      "uuid": "ce20000000000000000000000000000c",
+      "offering_component_uuid": "ce100000000000000000000000000007",
+      "round_uuid": "ca50000000000000000000000000000e",
+      "offered_total": 200000
     }
   ],
   "proposals": [
@@ -2452,7 +3600,8 @@
       "approved_by_uuid": "a4000000000000000000000000000001",
       "project_summary": "Monte Carlo simulation of particle physics events for LHC data analysis.",
       "allocation_comment": "Strong track record and clear methodology",
-      "oecd_fos_2007_code": "1.3"
+      "oecd_fos_2007_code": "1.3",
+      "project_uuid": "c4000000000000000000000000000004"
     },
     {
       "uuid": "ca600000000000000000000000000009",
@@ -2463,7 +3612,8 @@
       "approved_by_uuid": "a4000000000000000000000000000001",
       "project_summary": "CFD simulations for aerodynamic optimization of wind turbine blades.",
       "allocation_comment": "Important application with clear industrial impact",
-      "oecd_fos_2007_code": "2.3"
+      "oecd_fos_2007_code": "2.3",
+      "project_uuid": "c4000000000000000000000000000005"
     },
     {
       "uuid": "ca60000000000000000000000000000a",
@@ -2618,6 +3768,41 @@
       "description": "We apply DMRG-based multireference methods to the FeMo cofactor to resolve its electronic structure along the nitrogen reduction pathway.",
       "project_summary": "Multireference quantum chemistry of the FeMo cofactor of nitrogenase; awarded, waiting for the applicant to accept the award.",
       "oecd_fos_2007_code": "1.4"
+    },
+    {
+      "uuid": "ca60000000000000000000000000001a",
+      "name": "Exascale Turbulence in Stellar Convection",
+      "round_uuid": "ca500000000000000000000000000009",
+      "state": "in_review",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "description": "We run fully compressible simulations of stellar convection zones at resolutions where the turbulent cascade is resolved, on CPUs for the hydrodynamics and on GPUs for radiative transfer.",
+      "project_summary": "Resolved-turbulence simulations of stellar convection; at the technical assessment of both partitions.",
+      "oecd_fos_2007_code": "1.3"
+    },
+    {
+      "uuid": "ca60000000000000000000000000001b",
+      "name": "Solar Dynamo Ensemble Simulations",
+      "round_uuid": "ca50000000000000000000000000000a",
+      "state": "accepted",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "approved_by_uuid": "a4000000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000006",
+      "description": "An ensemble of global solar dynamo simulations: magnetohydrodynamics on the cluster partition, the GPU-accelerated radiative transfer on the booster.",
+      "project_summary": "Ensemble of solar dynamo simulations; accepted in the spring round with less GPU time than asked.",
+      "allocation_comment": "Funded in full on the cluster; the booster award is held to 20k GPU hours to keep the spring pool for other applicants.",
+      "oecd_fos_2007_code": "1.3",
+      "awarded_resources_prefilled_at": "relative:-100days",
+      "completed_at": "relative:-95days"
+    },
+    {
+      "uuid": "ca60000000000000000000000000001c",
+      "name": "Galaxy Merger Hydrodynamics",
+      "round_uuid": "ca50000000000000000000000000000a",
+      "state": "rejected",
+      "created_by_uuid": "a4000000000000000000000000000007",
+      "description": "Hydrodynamic simulations of galaxy mergers entirely on GPUs.",
+      "project_summary": "GPU-only galaxy merger hydrodynamics; not feasible on the booster partition as proposed.",
+      "oecd_fos_2007_code": "1.3"
     }
   ],
   "requested_resources": [
@@ -2632,8 +3817,8 @@
         "max_walltime": "72:00:00"
       },
       "limits": {
-        "cpu_hours": 80000,
-        "storage": 500
+        "storage": 1000,
+        "cpu_hours": 100000
       }
     },
     {
@@ -2643,10 +3828,11 @@
       "call_resource_template_uuid": "ca400000000000000000000000000002",
       "description": "Storage for quantum simulation results",
       "attributes": {
-        "backup": "daily"
+        "backup": "daily",
+        "retention": "1year"
       },
       "limits": {
-        "storage": 5
+        "storage": 10
       }
     },
     {
@@ -2660,8 +3846,8 @@
         "max_walltime": "72:00:00"
       },
       "limits": {
-        "cpu_hours": 100000,
-        "storage": 800
+        "storage": 1000,
+        "cpu_hours": 100000
       }
     },
     {
@@ -2671,12 +3857,13 @@
       "call_resource_template_uuid": "ca400000000000000000000000000003",
       "description": "GPU allocation for LLM fine-tuning",
       "attributes": {
+        "gpu_type": "A100",
         "partition": "gpu",
-        "gpu_type": "A100"
+        "max_walltime": "48:00:00"
       },
       "limits": {
-        "gpu_hours": 2000,
-        "cpu_hours": 20000
+        "cpu_hours": 50000,
+        "gpu_hours": 5000
       }
     },
     {
@@ -2686,10 +3873,11 @@
       "call_resource_template_uuid": "ca400000000000000000000000000004",
       "description": "Storage for training datasets",
       "attributes": {
+        "backup": "weekly",
         "performance_tier": "high"
       },
       "limits": {
-        "storage": 30
+        "storage": 50
       }
     },
     {
@@ -2699,12 +3887,13 @@
       "call_resource_template_uuid": "ca400000000000000000000000000003",
       "description": "GPU for protein structure prediction",
       "attributes": {
+        "gpu_type": "A100",
         "partition": "gpu",
-        "gpu_type": "A100"
+        "max_walltime": "48:00:00"
       },
       "limits": {
-        "gpu_hours": 4000,
-        "cpu_hours": 40000
+        "cpu_hours": 50000,
+        "gpu_hours": 5000
       }
     },
     {
@@ -2714,13 +3903,15 @@
       "call_resource_template_uuid": "ca400000000000000000000000000003",
       "description": "GPU for molecular dynamics",
       "attributes": {
+        "gpu_type": "A100",
         "partition": "gpu",
-        "gpu_type": "A100"
+        "max_walltime": "48:00:00"
       },
       "limits": {
-        "gpu_hours": 5000,
-        "cpu_hours": 50000
-      }
+        "cpu_hours": 50000,
+        "gpu_hours": 5000
+      },
+      "resource_uuid": "d4000000000000000000000000000009"
     },
     {
       "uuid": "ca700000000000000000000000000008",
@@ -2928,6 +4119,215 @@
         "gpu_hours": 2000,
         "cpu_hours": 8000
       }
+    },
+    {
+      "uuid": "ca700000000000000000000000000019",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "requested_offering_uuid": "ca300000000000000000000000000005",
+      "description": "Event generation and detector simulation",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 80000,
+        "storage": 800
+      },
+      "resource_uuid": "d4000000000000000000000000000010",
+      "created_by_uuid": "a4000000000000000000000000000006"
+    },
+    {
+      "uuid": "ca70000000000000000000000000001a",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "requested_offering_uuid": "ca300000000000000000000000000010",
+      "description": "Long-term store for simulated events",
+      "attributes": {},
+      "limits": {
+        "storage": 200
+      },
+      "created_by_uuid": "a4000000000000000000000000000006"
+    },
+    {
+      "uuid": "ca70000000000000000000000000001b",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "requested_offering_uuid": "ca300000000000000000000000000011",
+      "description": "Analysis notebooks",
+      "attributes": {},
+      "limits": {
+        "vcpu": 16,
+        "ram": 64
+      },
+      "created_by_uuid": "a4000000000000000000000000000006"
+    },
+    {
+      "uuid": "ca70000000000000000000000000001c",
+      "proposal_uuid": "ca600000000000000000000000000009",
+      "requested_offering_uuid": "ca300000000000000000000000000005",
+      "description": "Turbine blade parameter sweeps",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 40000,
+        "storage": 300
+      },
+      "resource_uuid": "d4000000000000000000000000000011",
+      "created_by_uuid": "00000000000000000000000000000004"
+    },
+    {
+      "uuid": "ca70000000000000000000000000001d",
+      "proposal_uuid": "ca600000000000000000000000000009",
+      "requested_offering_uuid": "ca300000000000000000000000000010",
+      "description": "Mesh and result archive",
+      "attributes": {},
+      "limits": {
+        "storage": 50
+      },
+      "resource_uuid": "d4000000000000000000000000000012",
+      "created_by_uuid": "00000000000000000000000000000004"
+    },
+    {
+      "uuid": "ca70000000000000000000000000001e",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "requested_offering_uuid": "ca30000000000000000000000000000e",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "description": "Hydrodynamics on the cluster partition",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 400000
+      }
+    },
+    {
+      "uuid": "ca70000000000000000000000000001f",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "requested_offering_uuid": "ca30000000000000000000000000000f",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "description": "Radiative transfer on the booster partition",
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 25000,
+        "cpu_hours": 50000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000020",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "requested_offering_uuid": "ca30000000000000000000000000000e",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "description": "Magnetohydrodynamics on the cluster partition",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 300000
+      },
+      "resource_uuid": "d4000000000000000000000000000013"
+    },
+    {
+      "uuid": "ca700000000000000000000000000021",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "requested_offering_uuid": "ca30000000000000000000000000000f",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "description": "Radiative transfer on the booster partition",
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 30000,
+        "cpu_hours": 60000
+      },
+      "resource_uuid": "d4000000000000000000000000000014"
+    },
+    {
+      "uuid": "ca700000000000000000000000000022",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "requested_offering_uuid": "ca30000000000000000000000000000f",
+      "created_by_uuid": "a4000000000000000000000000000007",
+      "description": "Merger hydrodynamics on the booster partition",
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 40000,
+        "cpu_hours": 20000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000023",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "call_resource_template_uuid": "ca400000000000000000000000000001",
+      "description": "HPC for direct numerical simulation of turbulence",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "storage": 1000,
+        "cpu_hours": 100000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000024",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "requested_offering_uuid": "ca300000000000000000000000000002",
+      "call_resource_template_uuid": "ca400000000000000000000000000002",
+      "description": "Storage for flow-field snapshots",
+      "attributes": {
+        "backup": "daily",
+        "retention": "1year"
+      },
+      "limits": {
+        "storage": 10
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000025",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "call_resource_template_uuid": "ca400000000000000000000000000001",
+      "description": "HPC for cryo-EM map refinement",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "storage": 1000,
+        "cpu_hours": 100000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000026",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "call_resource_template_uuid": "ca400000000000000000000000000001",
+      "description": "HPC for photonic network simulation",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "storage": 1000,
+        "cpu_hours": 100000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000027",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "call_resource_template_uuid": "ca400000000000000000000000000001",
+      "description": "HPC for gyrokinetic plasma turbulence",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "storage": 1000,
+        "cpu_hours": 100000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000028",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "requested_offering_uuid": "ca300000000000000000000000000002",
+      "call_resource_template_uuid": "ca400000000000000000000000000002",
+      "description": "Storage for plasma simulation output",
+      "attributes": {
+        "backup": "daily",
+        "retention": "1year"
+      },
+      "limits": {
+        "storage": 10
+      }
     }
   ],
   "reviews": [
@@ -2970,6 +4370,11 @@
       "reviewer_uuid": "a4000000000000000000000000000004",
       "state": "submitted",
       "summary_score": 5,
+      "criteria_scores": {
+        "Excellence": 5,
+        "Innovation and impact": 5,
+        "Quality and efficiency of the implementation": 4
+      },
       "summary_public_comment": "Outstanding proposal. Novel approach to protein structure prediction with significant potential impact.",
       "summary_private_comment": "Highly recommend funding.",
       "comment_project_summary": "Excellent scientific quality",
@@ -2979,7 +4384,7 @@
       "uuid": "ca800000000000000000000000000005",
       "proposal_uuid": "ca600000000000000000000000000005",
       "reviewer_uuid": "a4000000000000000000000000000005",
-      "state": "created",
+      "state": "in_review",
       "summary_score": 0,
       "summary_public_comment": "",
       "summary_private_comment": ""
@@ -2990,6 +4395,11 @@
       "reviewer_uuid": "a4000000000000000000000000000003",
       "state": "submitted",
       "summary_score": 5,
+      "criteria_scores": {
+        "Excellence": 5,
+        "Innovation and impact": 4,
+        "Quality and efficiency of the implementation": 5
+      },
       "summary_public_comment": "Excellent scientific merit. Well-planned simulations with clear objectives.",
       "summary_private_comment": "Strong recommendation for acceptance."
     },
@@ -2999,6 +4409,11 @@
       "reviewer_uuid": "a4000000000000000000000000000004",
       "state": "submitted",
       "summary_score": 4,
+      "criteria_scores": {
+        "Excellence": 4,
+        "Innovation and impact": 4,
+        "Quality and efficiency of the implementation": 3
+      },
       "summary_public_comment": "Very good proposal with practical applications to drug discovery.",
       "summary_private_comment": "Recommend funding."
     },
@@ -3008,6 +4423,11 @@
       "reviewer_uuid": "a4000000000000000000000000000003",
       "state": "submitted",
       "summary_score": 4,
+      "criteria_scores": {
+        "Excellence": 5,
+        "Innovation and impact": 4,
+        "Quality and efficiency of the implementation": 4
+      },
       "summary_public_comment": "The proposal lacks technical depth. Methodology section needs significant improvement.",
       "summary_private_comment": "Do not recommend funding in current form."
     },
@@ -3017,6 +4437,11 @@
       "reviewer_uuid": "a4000000000000000000000000000005",
       "state": "submitted",
       "summary_score": 5,
+      "criteria_scores": {
+        "Excellence": 5,
+        "Innovation and impact": 5,
+        "Quality and efficiency of the implementation": 5
+      },
       "summary_public_comment": "Interesting topic but proposal needs more detail on validation approach.",
       "summary_private_comment": "Suggest major revisions."
     },
@@ -3062,7 +4487,7 @@
       "uuid": "ca80000000000000000000000000000e",
       "proposal_uuid": "ca600000000000000000000000000001",
       "reviewer_uuid": "a4000000000000000000000000000005",
-      "state": "created",
+      "state": "in_review",
       "summary_score": 0,
       "summary_public_comment": "",
       "summary_private_comment": "",
@@ -3237,10 +4662,13 @@
       "project_uuid": "c4000000000000000000000000000001",
       "plan_uuid": "14000000000000000000000000000002",
       "state": 2,
-      "attributes": {},
+      "attributes": {
+        "partition": "gpu",
+        "gpu_type": "A100"
+      },
       "limits": {
-        "gpu_hours": 3000,
-        "cpu_hours": 25000
+        "gpu_hours": 5000,
+        "cpu_hours": 50000
       },
       "created": "2026-03-10T00:00:00",
       "end_date": "2027-03-09"
@@ -3345,6 +4773,79 @@
       },
       "created": "2026-03-10T00:00:00",
       "end_date": "2027-03-09"
+    },
+    {
+      "uuid": "d4000000000000000000000000000010",
+      "name": "Particle Physics Event Simulation - HPC Standard Allocation",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000004",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 60000,
+        "storage": 800
+      },
+      "created": "2026-08-10T00:00:00",
+      "end_date": "2027-08-09"
+    },
+    {
+      "uuid": "d4000000000000000000000000000011",
+      "name": "Computational Fluid Dynamics Study - HPC Standard Allocation",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000005",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": 1,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 40000,
+        "storage": 300
+      },
+      "created": "2026-08-10T00:00:00",
+      "end_date": "2027-08-09"
+    },
+    {
+      "uuid": "d4000000000000000000000000000012",
+      "name": "Computational Fluid Dynamics Study - Research Data Storage",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "project_uuid": "c4000000000000000000000000000005",
+      "plan_uuid": "14000000000000000000000000000003",
+      "state": 6,
+      "attributes": {},
+      "limits": {
+        "storage": 50
+      },
+      "created": "2026-08-10T00:00:00",
+      "end_date": "2027-08-09"
+    },
+    {
+      "uuid": "d4000000000000000000000000000013",
+      "name": "Solar Dynamo Ensemble - Cluster partition",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "project_uuid": "c4000000000000000000000000000006",
+      "plan_uuid": "14000000000000000000000000000011",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 300000
+      },
+      "created": "2026-07-01T00:00:00",
+      "end_date": "2027-06-30"
+    },
+    {
+      "uuid": "d4000000000000000000000000000014",
+      "name": "Solar Dynamo Ensemble - Booster partition",
+      "offering_uuid": "f4000000000000000000000000000008",
+      "project_uuid": "c4000000000000000000000000000006",
+      "plan_uuid": "14000000000000000000000000000012",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 20000,
+        "cpu_hours": 60000
+      },
+      "created": "2026-07-01T00:00:00",
+      "end_date": "2027-06-30"
     }
   ],
   "user_roles": [
@@ -3379,7 +4880,7 @@
       "uuid": "04000000000000000000000000000004",
       "user_uuid": "a4000000000000000000000000000006",
       "user_username": "pi_quantum",
-      "role_name": "PROJECT.ADMIN",
+      "role_name": "PROJECT.CO_INVESTIGATOR",
       "scope_type": "structure.project",
       "scope_uuid": "c4000000000000000000000000000001",
       "is_active": true
@@ -3406,7 +4907,7 @@
       "uuid": "04000000000000000000000000000007",
       "user_uuid": "00000000000000000000000000000004",
       "user_username": "manager",
-      "role_name": "PROJECT.MANAGER",
+      "role_name": "PROJECT.PRINCIPAL_INVESTIGATOR",
       "scope_type": "structure.project",
       "scope_uuid": "c4000000000000000000000000000001",
       "is_active": true
@@ -3415,7 +4916,7 @@
       "uuid": "04000000000000000000000000000008",
       "user_uuid": "00000000000000000000000000000005",
       "user_username": "member",
-      "role_name": "PROJECT.MEMBER",
+      "role_name": "PROJECT.COLLABORATOR",
       "scope_type": "structure.project",
       "scope_uuid": "c4000000000000000000000000000001",
       "is_active": true
@@ -3433,15 +4934,6 @@
       "uuid": "0400000000000000000000000000000a",
       "user_uuid": "a4000000000000000000000000000004",
       "user_username": "reviewer_chemistry",
-      "role_name": "CALL.REVIEWER",
-      "scope_type": "proposal.call",
-      "scope_uuid": "ca200000000000000000000000000001",
-      "is_active": true
-    },
-    {
-      "uuid": "0400000000000000000000000000000b",
-      "user_uuid": "a4000000000000000000000000000005",
-      "user_username": "reviewer_computing",
       "role_name": "CALL.REVIEWER",
       "scope_type": "proposal.call",
       "scope_uuid": "ca200000000000000000000000000001",
@@ -3469,15 +4961,6 @@
       "uuid": "0400000000000000000000000000000e",
       "user_uuid": "a4000000000000000000000000000004",
       "user_username": "reviewer_chemistry",
-      "role_name": "CALL.REVIEWER",
-      "scope_type": "proposal.call",
-      "scope_uuid": "ca200000000000000000000000000002",
-      "is_active": true
-    },
-    {
-      "uuid": "0400000000000000000000000000000f",
-      "user_uuid": "a4000000000000000000000000000005",
-      "user_username": "reviewer_computing",
       "role_name": "CALL.REVIEWER",
       "scope_type": "proposal.call",
       "scope_uuid": "ca200000000000000000000000000002",
@@ -3777,6 +5260,519 @@
       "scope_type": "proposal.proposal",
       "scope_uuid": "ca600000000000000000000000000019",
       "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000038",
+      "user_uuid": "a4000000000000000000000000000002",
+      "user_username": "call_manager",
+      "role_name": "CALL.MANAGER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000039",
+      "user_uuid": "a4000000000000000000000000000003",
+      "user_username": "reviewer_physics",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000003a",
+      "user_uuid": "a4000000000000000000000000000009",
+      "user_username": "reviewer_math",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000003b",
+      "user_uuid": "a400000000000000000000000000000b",
+      "user_username": "reviewer_astronomy",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000003c",
+      "user_uuid": "a4000000000000000000000000000004",
+      "user_username": "reviewer_chemistry",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000003d",
+      "user_uuid": "a4000000000000000000000000000005",
+      "user_username": "reviewer_computing",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000003e",
+      "user_uuid": "a400000000000000000000000000000a",
+      "user_username": "reviewer_biology",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000041",
+      "user_uuid": "a400000000000000000000000000000c",
+      "user_username": "centre_north_admin",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b4000000000000000000000000000005",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000042",
+      "user_uuid": "a400000000000000000000000000000c",
+      "user_username": "centre_north_admin",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000007",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000043",
+      "user_uuid": "a400000000000000000000000000000d",
+      "user_username": "centre_south_admin",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b4000000000000000000000000000006",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000044",
+      "user_uuid": "a400000000000000000000000000000d",
+      "user_username": "centre_south_admin",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000127",
+      "user_uuid": "a4000000000000000000000000000015",
+      "user_username": "centre_south_evaluator",
+      "role_name": "OFFERING.EVALUATOR",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000008",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000128",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000001a",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000100",
+      "user_uuid": "a4000000000000000000000000000006",
+      "user_username": "pi_quantum",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000001",
+      "is_active": true,
+      "_comment": "Author of Quantum Error Correction Simulations, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000101",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000002",
+      "is_active": true,
+      "_comment": "Author of Novel Battery Materials Discovery, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000102",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000003",
+      "is_active": true,
+      "_comment": "Author of Global Climate Model Enhancement, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000103",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000004",
+      "is_active": true,
+      "_comment": "Author of Large Language Model Fine-tuning, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000104",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000005",
+      "is_active": true,
+      "_comment": "Author of Protein Structure Prediction, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000105",
+      "user_uuid": "a4000000000000000000000000000006",
+      "user_username": "pi_quantum",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000006",
+      "is_active": true,
+      "_comment": "Author of Molecular Dynamics of Membrane Proteins, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000106",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000007",
+      "is_active": true,
+      "_comment": "Author of Weather Prediction Neural Network, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000107",
+      "user_uuid": "a4000000000000000000000000000006",
+      "user_username": "pi_quantum",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000008",
+      "is_active": true,
+      "_comment": "Author of Particle Physics Event Simulation, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000108",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000009",
+      "is_active": true,
+      "_comment": "Author of Computational Fluid Dynamics Study, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000109",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000000a",
+      "is_active": true,
+      "_comment": "Author of Genomic Data Analysis Pipeline, who manages it"
+    },
+    {
+      "uuid": "0400000000000000000000000000010a",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000000b",
+      "is_active": true,
+      "_comment": "Author of Drug Discovery AI Platform, who manages it"
+    },
+    {
+      "uuid": "0400000000000000000000000000010b",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "member",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000000c",
+      "is_active": true,
+      "_comment": "Author of Astrophysical Simulation Project, who manages it"
+    },
+    {
+      "uuid": "0400000000000000000000000000010c",
+      "user_uuid": "a4000000000000000000000000000006",
+      "user_username": "pi_quantum",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000000d",
+      "is_active": true,
+      "_comment": "Author of Exascale Turbulence Simulation, who manages it"
+    },
+    {
+      "uuid": "0400000000000000000000000000010d",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000000e",
+      "is_active": true,
+      "_comment": "Author of Cryo-EM Density Map Refinement, who manages it"
+    },
+    {
+      "uuid": "0400000000000000000000000000010e",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000000f",
+      "is_active": true,
+      "_comment": "Author of Photonic Quantum Networking, who manages it"
+    },
+    {
+      "uuid": "0400000000000000000000000000010f",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000010",
+      "is_active": true,
+      "_comment": "Author of Fusion Plasma Turbulence Modeling, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000045",
+      "user_uuid": "a4000000000000000000000000000006",
+      "user_username": "pi_quantum",
+      "role_name": "PROJECT.PRINCIPAL_INVESTIGATOR",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000004",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000046",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROJECT.PRINCIPAL_INVESTIGATOR",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000004",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000047",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.PRINCIPAL_INVESTIGATOR",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000005",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000110",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROJECT.PRINCIPAL_INVESTIGATOR",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000006",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000111",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000001b",
+      "is_active": true,
+      "_comment": "Author of Solar Dynamo Ensemble Simulations, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000112",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca60000000000000000000000000001c",
+      "is_active": true,
+      "_comment": "Author of Galaxy Merger Hydrodynamics, who manages it"
+    },
+    {
+      "uuid": "04000000000000000000000000000113",
+      "user_uuid": "a400000000000000000000000000000e",
+      "user_username": "nrc_operator",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000114",
+      "user_uuid": "a400000000000000000000000000000e",
+      "user_username": "nrc_operator",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000115",
+      "user_uuid": "a400000000000000000000000000000e",
+      "user_username": "nrc_operator",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000003",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000116",
+      "user_uuid": "a400000000000000000000000000000e",
+      "user_username": "nrc_operator",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000004",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000117",
+      "user_uuid": "a400000000000000000000000000000e",
+      "user_username": "nrc_operator",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000005",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000118",
+      "user_uuid": "a400000000000000000000000000000e",
+      "user_username": "nrc_operator",
+      "role_name": "OFFERING.MANAGER",
+      "scope_type": "marketplace.offering",
+      "scope_uuid": "f4000000000000000000000000000006",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000011b",
+      "user_uuid": "a4000000000000000000000000000002",
+      "user_username": "call_manager",
+      "role_name": "CALL.MANAGER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000012",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000011d",
+      "user_uuid": "a4000000000000000000000000000003",
+      "user_username": "reviewer_physics",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000011e",
+      "user_uuid": "a4000000000000000000000000000004",
+      "user_username": "reviewer_chemistry",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000011f",
+      "user_uuid": "a4000000000000000000000000000005",
+      "user_username": "reviewer_computing",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000121",
+      "user_uuid": "a400000000000000000000000000000a",
+      "user_username": "reviewer_biology",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000122",
+      "user_uuid": "a400000000000000000000000000000b",
+      "user_username": "reviewer_astronomy",
+      "role_name": "CALL.PANEL_MEMBER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000126",
+      "user_uuid": "a400000000000000000000000000000f",
+      "user_username": "ju_observer",
+      "role_name": "CUSTOMER.READER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b4000000000000000000000000000001",
+      "is_active": true
+    }
+  ],
+  "call_panel_chairs": [
+    {
+      "call_uuid": "ca200000000000000000000000000002",
+      "chair_uuid": "a400000000000000000000000000000a"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000008",
+      "chair_uuid": "a4000000000000000000000000000003",
+      "vice_chair_uuid": "a400000000000000000000000000000b"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "chair_uuid": "a4000000000000000000000000000003",
+      "vice_chair_uuid": "a4000000000000000000000000000004"
+    }
+  ],
+  "call_panels": [
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "key": "universe-sciences",
+      "member_uuids": [
+        "a4000000000000000000000000000003",
+        "a400000000000000000000000000000b"
+      ],
+      "chair_uuid": "a4000000000000000000000000000003"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "key": "chemistry-materials",
+      "member_uuids": [
+        "a4000000000000000000000000000004",
+        "a4000000000000000000000000000009"
+      ],
+      "chair_uuid": "a4000000000000000000000000000004"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "key": "earth-system",
+      "member_uuids": [
+        "a400000000000000000000000000000a",
+        "a4000000000000000000000000000005"
+      ],
+      "chair_uuid": "a400000000000000000000000000000a"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "key": "life-sciences",
+      "member_uuids": [
+        "a400000000000000000000000000000a",
+        "a4000000000000000000000000000004"
+      ],
+      "chair_uuid": "a400000000000000000000000000000a"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "key": "engineering-mathematics-cs",
+      "member_uuids": [
+        "a4000000000000000000000000000005",
+        "a4000000000000000000000000000009"
+      ],
+      "chair_uuid": "a4000000000000000000000000000005"
     }
   ],
   "component_usages": [
@@ -3886,7 +5882,7 @@
     "SITE_DESCRIPTION": "Competitive research grant management platform for proposal submission, peer review, and resource allocation.",
     "MARKETPLACE_LANDING_PAGE": "Research Computing Services",
     "CURRENCY_NAME": "EUR",
-    "SERVICE_ACCESS_MODE": "both"
+    "SERVICE_ACCESS_MODE": "calls"
   },
   "expertise_categories": [
     {
@@ -4706,9 +6702,9 @@
       "affinity_score": 0.85,
       "keyword_score": 0.9,
       "text_score": 0.8,
-      "status": "confirmed",
+      "status": "invited",
       "reviewed_by_uuid": "a4000000000000000000000000000002",
-      "reviewed_at": "2025-02-01T10:00:00Z",
+      "reviewed_at": "relative:-28days",
       "rejection_reason": ""
     },
     {
@@ -4718,9 +6714,9 @@
       "affinity_score": 0.72,
       "keyword_score": 0.65,
       "text_score": 0.78,
-      "status": "confirmed",
+      "status": "invited",
       "reviewed_by_uuid": "a4000000000000000000000000000002",
-      "reviewed_at": "2025-02-01T10:05:00Z",
+      "reviewed_at": "relative:-28days",
       "rejection_reason": ""
     },
     {
@@ -4730,9 +6726,9 @@
       "affinity_score": 0.91,
       "keyword_score": 0.95,
       "text_score": 0.88,
-      "status": "pending",
-      "reviewed_by_uuid": null,
-      "reviewed_at": null,
+      "status": "invited",
+      "reviewed_by_uuid": "a4000000000000000000000000000002",
+      "reviewed_at": "relative:-13days",
       "rejection_reason": ""
     },
     {
@@ -4742,64 +6738,10 @@
       "affinity_score": 0.45,
       "keyword_score": 0.4,
       "text_score": 0.5,
-      "status": "rejected",
+      "status": "invited",
       "reviewed_by_uuid": "a4000000000000000000000000000002",
-      "reviewed_at": "2025-02-02T14:30:00Z",
-      "rejection_reason": "Expertise mismatch - more focused on theoretical physics than AI applications"
-    }
-  ],
-  "reviewer_stats": [
-    {
-      "uuid": "5a100000000000000000000000000001",
-      "reviewer_profile_uuid": "0a100000000000000000000000000001",
-      "total_reviews_completed": 45,
-      "total_reviews_declined": 3,
-      "total_reviews_timeout": 1,
-      "average_review_time_days": 12.5,
-      "average_score_given": 7.2,
-      "last_review_date": "2025-01-15",
-      "quality_rating": 4.5,
-      "quality_rating_count": 20,
-      "_comment": "Einstein - experienced reviewer with high quality rating"
-    },
-    {
-      "uuid": "5a100000000000000000000000000002",
-      "reviewer_profile_uuid": "0a100000000000000000000000000002",
-      "total_reviews_completed": 38,
-      "total_reviews_declined": 2,
-      "total_reviews_timeout": 0,
-      "average_review_time_days": 10.2,
-      "average_score_given": 6.8,
-      "last_review_date": "2025-01-18",
-      "quality_rating": 4.8,
-      "quality_rating_count": 15,
-      "_comment": "Curie - fast turnaround, excellent quality"
-    },
-    {
-      "uuid": "5a100000000000000000000000000003",
-      "reviewer_profile_uuid": "0a100000000000000000000000000003",
-      "total_reviews_completed": 52,
-      "total_reviews_declined": 5,
-      "total_reviews_timeout": 2,
-      "average_review_time_days": 14.0,
-      "average_score_given": 7.5,
-      "last_review_date": "2025-01-10",
-      "quality_rating": 4.2,
-      "quality_rating_count": 25,
-      "_comment": "Turing - prolific reviewer, sometimes slower"
-    },
-    {
-      "uuid": "5a100000000000000000000000000004",
-      "reviewer_profile_uuid": "0a100000000000000000000000000004",
-      "total_reviews_completed": 28,
-      "total_reviews_declined": 1,
-      "total_reviews_timeout": 0,
-      "average_review_time_days": 8.5,
-      "average_score_given": 6.5,
-      "last_review_date": "2025-01-20",
-      "quality_rating": 4.9,
-      "quality_rating_count": 12,
-      "_comment": "von Neumann - fastest turnaround, highest quality"
+      "reviewed_at": "relative:-13days",
+      "rejection_reason": ""
     }
   ],
   "coi_disclosure_forms": [
@@ -4925,7 +6867,7 @@
     },
     {
       "uuid": "af100000000000000000000000000005",
-      "call_uuid": "ca200000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000002",
       "reviewer_uuid": "0a100000000000000000000000000002",
       "proposal_uuid": "ca600000000000000000000000000005",
       "affinity_score": 0.72,
@@ -4935,13 +6877,13 @@
     },
     {
       "uuid": "af100000000000000000000000000006",
-      "call_uuid": "ca200000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000002",
       "reviewer_uuid": "0a100000000000000000000000000002",
       "proposal_uuid": "ca600000000000000000000000000006",
       "affinity_score": 0.28,
       "keyword_score": 0.22,
       "text_score": 0.34,
-      "_comment": "Curie-Particle Physics: low match"
+      "_comment": "Curie-Molecular Dynamics: low match"
     },
     {
       "uuid": "af100000000000000000000000000007",
@@ -5064,15 +7006,15 @@
       "uuid": "ab100000000000000000000000000003",
       "call_uuid": "ca200000000000000000000000000001",
       "reviewer_pool_entry_uuid": "0b100000000000000000000000000001",
-      "status": "sent",
+      "status": "responded",
       "sent_at": "2025-02-01T10:00:00Z",
       "expires_at": "2025-02-08T10:00:00Z",
-      "responded_at": null,
+      "responded_at": "2025-02-03T09:15:00Z",
       "source": "manual",
       "created_by_uuid": "a4000000000000000000000000000002",
       "invitation_token": "ab1token00000000000000000000003",
       "manager_notes": "Additional proposals assigned manually",
-      "_comment": "Einstein's second batch - pending response (Call 1)"
+      "_comment": "Einstein's second batch - accepted (Call 1)"
     },
     {
       "uuid": "ab100000000000000000000000000004",
@@ -5129,22 +7071,22 @@
       "has_coi": false,
       "responded_at": "2025-01-21T14:30:00Z",
       "decline_reason": "",
-      "review_uuid": "ca700000000000000000000000000001",
+      "review_uuid": "ca800000000000000000000000000001",
       "reassign_count": 0,
       "_comment": "Einstein accepted Novel Battery Materials proposal"
     },
     {
       "uuid": "a1100000000000000000000000000002",
       "batch_uuid": "ab100000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000005",
+      "proposal_uuid": "ca600000000000000000000000000003",
       "status": "accepted",
       "affinity_score": 0.72,
       "has_coi": false,
       "responded_at": "2025-01-21T14:30:00Z",
       "decline_reason": "",
-      "review_uuid": "ca700000000000000000000000000004",
+      "review_uuid": "ca800000000000000000000000000010",
       "reassign_count": 0,
-      "_comment": "Einstein accepted Protein Structure Prediction proposal"
+      "_comment": "Einstein accepted Global Climate Model Enhancement"
     },
     {
       "uuid": "a1100000000000000000000000000003",
@@ -5155,7 +7097,7 @@
       "has_coi": true,
       "responded_at": "2025-01-22T09:15:00Z",
       "decline_reason": "",
-      "review_uuid": "ca700000000000000000000000000002",
+      "review_uuid": "ca800000000000000000000000000002",
       "reassign_count": 0,
       "_comment": "Curie accepted Novel Battery Materials despite COI (old coauthorship)"
     },
@@ -5176,14 +7118,14 @@
       "uuid": "a1100000000000000000000000000005",
       "batch_uuid": "ab100000000000000000000000000003",
       "proposal_uuid": "ca600000000000000000000000000001",
-      "status": "pending",
+      "status": "accepted",
       "affinity_score": 0.91,
       "has_coi": true,
-      "responded_at": null,
+      "responded_at": "2025-02-03T09:15:00Z",
       "decline_reason": "",
-      "review_uuid": null,
+      "review_uuid": "ca80000000000000000000000000000d",
       "reassign_count": 0,
-      "_comment": "Einstein pending response for Quantum Error Correction (has COI to declare)"
+      "_comment": "Einstein accepted Quantum Error Correction and is reviewing it"
     },
     {
       "uuid": "a1100000000000000000000000000006",
@@ -5214,7 +7156,7 @@
     {
       "uuid": "a1100000000000000000000000000008",
       "batch_uuid": "ab100000000000000000000000000006",
-      "proposal_uuid": "ca600000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000003",
       "status": "coi_blocked",
       "affinity_score": 0.82,
       "has_coi": true,
@@ -5223,14 +7165,14 @@
       "review_uuid": null,
       "reassign_count": 0,
       "coi_record_uuids": [
-        "0d100000000000000000000000000001"
+        "0d100000000000000000000000000003"
       ],
       "_comment": "COI blocked - Turing cannot review due to unresolved conflict"
     },
     {
       "uuid": "a1100000000000000000000000000009",
       "batch_uuid": "ab100000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000005",
+      "proposal_uuid": "ca60000000000000000000000000000d",
       "status": "reassigned",
       "affinity_score": 0.68,
       "has_coi": false,
@@ -5238,7 +7180,6 @@
       "decline_reason": "Workload too high this quarter",
       "review_uuid": null,
       "reassign_count": 1,
-      "reassigned_from_uuid": "a1100000000000000000000000000003",
       "_comment": "Reassigned from Curie to another reviewer after decline"
     }
   ],
@@ -5299,7 +7240,7 @@
     {
       "uuid": "0d100000000000000000000000000004",
       "reviewer_uuid": "0a100000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000010",
       "call_uuid": "ca200000000000000000000000000001",
       "conflicting_user_uuid": null,
       "coi_type": "INST_SAME",
@@ -5316,7 +7257,7 @@
     {
       "uuid": "0d100000000000000000000000000005",
       "reviewer_uuid": "0a100000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000005",
+      "proposal_uuid": "ca60000000000000000000000000000e",
       "call_uuid": "ca200000000000000000000000000001",
       "conflicting_user_uuid": null,
       "coi_type": "SOC_MEMBER",
@@ -5338,932 +7279,1269 @@
       "uuid": "d1000000000000000000000000000001",
       "call_uuid": "ca200000000000000000000000000001",
       "proposal_role": "PROPOSAL.MANAGER",
-      "project_role": "PROJECT.MANAGER"
+      "project_role": "PROJECT.PRINCIPAL_INVESTIGATOR"
     },
     {
       "uuid": "d1000000000000000000000000000002",
       "call_uuid": "ca200000000000000000000000000001",
       "proposal_role": "PROPOSAL.MEMBER",
-      "project_role": "PROJECT.MEMBER"
+      "project_role": "PROJECT.COLLABORATOR"
     },
     {
       "uuid": "d1000000000000000000000000000003",
       "call_uuid": "ca200000000000000000000000000002",
       "proposal_role": "PROPOSAL.MANAGER",
-      "project_role": "PROJECT.MANAGER"
+      "project_role": "PROJECT.PRINCIPAL_INVESTIGATOR"
     },
     {
       "uuid": "d1000000000000000000000000000004",
       "call_uuid": "ca200000000000000000000000000002",
       "proposal_role": "PROPOSAL.MEMBER",
-      "project_role": "PROJECT.MEMBER"
+      "project_role": "PROJECT.COLLABORATOR"
     },
     {
       "uuid": "d1000000000000000000000000000005",
       "call_uuid": "ca200000000000000000000000000005",
       "proposal_role": "PROPOSAL.MANAGER",
-      "project_role": "PROJECT.MANAGER"
+      "project_role": "PROJECT.PRINCIPAL_INVESTIGATOR"
     },
     {
       "uuid": "d1000000000000000000000000000006",
       "call_uuid": "ca200000000000000000000000000005",
       "proposal_role": "PROPOSAL.MEMBER",
-      "project_role": "PROJECT.MEMBER"
+      "project_role": "PROJECT.COLLABORATOR"
+    },
+    {
+      "uuid": "d1000000000000000000000000000007",
+      "call_uuid": "ca200000000000000000000000000003",
+      "proposal_role": "PROPOSAL.MANAGER",
+      "project_role": "PROJECT.PRINCIPAL_INVESTIGATOR"
     }
   ],
-  "call_workflow_steps": [
-    {
-      "call_uuid": "ca200000000000000000000000000001",
-      "step": "expert_review",
-      "is_enabled": true,
-      "blind_review": true,
-      "responsible_role": "reviewer",
-      "transition_mode": "manual",
-      "applicant_visible": true,
-      "requires_coi_confirmation": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000001",
-      "step": "panel_review",
-      "is_enabled": true,
-      "responsible_role": "panel_member",
-      "transition_mode": "manual",
-      "applicant_visible": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000002",
-      "step": "expert_review",
-      "is_enabled": true,
-      "blind_review": true,
-      "responsible_role": "reviewer",
-      "transition_mode": "manual",
-      "applicant_visible": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000002",
-      "step": "panel_review",
-      "is_enabled": true,
-      "responsible_role": "panel_member",
-      "transition_mode": "manual",
-      "applicant_visible": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000002",
-      "step": "allocation_decision",
-      "transition_mode": "automatic_on_completion"
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000001",
-      "step": "allocation_decision",
-      "allocation_time": "fixed_date",
-      "include_award_response": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000001",
-      "step": "technical_assessment",
-      "is_enabled": true,
-      "checklist_uuid": "cb100000000000000000000000000003",
-      "checklist_required": true,
-      "responsible_role": "offering_manager",
-      "applicant_visible": true,
-      "transition_mode": "manual"
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000001",
-      "step": "award_response",
-      "is_enabled": true,
-      "responsible_role": "applicant",
-      "applicant_visible": true,
-      "transition_mode": "automatic_on_completion"
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000005",
-      "step": "allocation_decision",
-      "is_enabled": true,
-      "responsible_role": "call_manager",
-      "transition_mode": "manual",
-      "applicant_visible": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000005",
-      "step": "administrative_check",
-      "is_enabled": false
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000006",
-      "step": "expert_review",
-      "is_enabled": true,
-      "responsible_role": "reviewer",
-      "transition_mode": "manual",
-      "applicant_visible": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000006",
-      "step": "allocation_decision",
-      "include_award_response": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000006",
-      "step": "award_response",
-      "is_enabled": true,
-      "responsible_role": "applicant",
-      "applicant_visible": true,
-      "transition_mode": "automatic_on_completion"
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000007",
-      "step": "allocation_decision",
-      "include_award_response": true
-    },
-    {
-      "call_uuid": "ca200000000000000000000000000007",
-      "step": "award_response",
-      "is_enabled": true,
-      "responsible_role": "applicant",
-      "applicant_visible": true,
-      "transition_mode": "automatic_on_completion"
-    }
-  ],
+  "call_workflow_steps": [],
   "proposal_workflow_step_instances": [
     {
-      "uuid": "cf000000000000000000000000000001",
+      "uuid": "cf000000000000000000000000001001",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "administrative_check",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf000000000000000000000000001002",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "technical_assessment",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001003",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "domain_panel_chair_assignment",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001004",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "rapporteur_assignment",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001005",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "individual_reports",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001006",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "domain_panel_meeting",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001007",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "consolidated_report",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001008",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "super_panel_meeting",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001009",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "final_feedback",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000100a",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "allocation_decision",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000100b",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "award_response",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000100c",
       "proposal_uuid": "ca600000000000000000000000000002",
       "step": "administrative_check",
       "status": "completed",
       "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
+      "started_at": "relative:-360hours",
+      "completed_at": "relative:-312hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf000000000000000000000000000002",
+      "uuid": "cf00000000000000000000000000100d",
       "proposal_uuid": "ca600000000000000000000000000002",
       "step": "technical_assessment",
       "status": "completed",
       "outcome": "feasible",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T15:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000003"
+      "started_at": "relative:-288hours",
+      "completed_at": "relative:-240hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf000000000000000000000000000003",
+      "uuid": "cf00000000000000000000000000100e",
       "proposal_uuid": "ca600000000000000000000000000002",
-      "step": "expert_review",
+      "step": "domain_panel_chair_assignment",
       "status": "completed",
-      "outcome": "reviewed",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000003"
+      "outcome": "done",
+      "started_at": "relative:-216hours",
+      "completed_at": "relative:-168hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf000000000000000000000000000004",
+      "uuid": "cf00000000000000000000000000100f",
       "proposal_uuid": "ca600000000000000000000000000002",
-      "step": "panel_review",
-      "status": "active",
-      "started_at": "2026-06-17T09:00:00+00:00"
+      "step": "rapporteur_assignment",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf000000000000000000000000000005",
+      "uuid": "cf000000000000000000000000001010",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "step": "individual_reports",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf000000000000000000000000001011",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "step": "domain_panel_meeting",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001012",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "step": "consolidated_report",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001013",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "step": "super_panel_meeting",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001014",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "step": "final_feedback",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001015",
       "proposal_uuid": "ca600000000000000000000000000002",
       "step": "allocation_decision",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf000000000000000000000000000006",
-      "proposal_uuid": "ca600000000000000000000000000005",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf000000000000000000000000000007",
-      "proposal_uuid": "ca600000000000000000000000000005",
-      "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000008",
-      "proposal_uuid": "ca600000000000000000000000000005",
-      "step": "expert_review",
-      "status": "active",
-      "started_at": "2026-06-16T09:00:00+00:00"
-    },
-    {
-      "uuid": "cf000000000000000000000000000009",
-      "proposal_uuid": "ca600000000000000000000000000005",
-      "step": "panel_review",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf00000000000000000000000000000a",
-      "proposal_uuid": "ca600000000000000000000000000005",
-      "step": "allocation_decision",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf00000000000000000000000000000b",
-      "proposal_uuid": "ca600000000000000000000000000006",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf00000000000000000000000000000c",
-      "proposal_uuid": "ca600000000000000000000000000006",
-      "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00000000000000000000000000000d",
-      "proposal_uuid": "ca600000000000000000000000000006",
-      "step": "expert_review",
-      "status": "completed",
-      "outcome": "reviewed",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000003"
-    },
-    {
-      "uuid": "cf00000000000000000000000000000e",
-      "proposal_uuid": "ca600000000000000000000000000006",
-      "step": "panel_review",
-      "status": "completed",
-      "outcome": "approved",
-      "started_at": "2026-06-17T09:00:00+00:00",
-      "completed_at": "2026-06-17T12:00:00+00:00",
-      "completed_by_uuid": "a400000000000000000000000000000a"
-    },
-    {
-      "uuid": "cf00000000000000000000000000000f",
-      "proposal_uuid": "ca600000000000000000000000000006",
-      "step": "allocation_decision",
-      "status": "completed",
-      "outcome": "approved",
-      "started_at": "2026-06-18T09:00:00+00:00",
-      "completed_at": "2026-06-18T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf000000000000000000000000000010",
-      "proposal_uuid": "ca600000000000000000000000000007",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf000000000000000000000000000011",
-      "proposal_uuid": "ca600000000000000000000000000007",
-      "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000012",
-      "proposal_uuid": "ca600000000000000000000000000007",
-      "step": "expert_review",
-      "status": "completed",
-      "outcome": "rejected",
-      "outcome_reason": "Did not meet the required standard.",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000003"
-    },
-    {
-      "uuid": "cf000000000000000000000000000013",
-      "proposal_uuid": "ca600000000000000000000000000007",
-      "step": "panel_review",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf000000000000000000000000000014",
-      "proposal_uuid": "ca600000000000000000000000000007",
-      "step": "allocation_decision",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf000000000000000000000000000015",
-      "proposal_uuid": "ca600000000000000000000000000009",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf000000000000000000000000000016",
-      "proposal_uuid": "ca600000000000000000000000000009",
-      "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000017",
-      "proposal_uuid": "ca600000000000000000000000000009",
-      "step": "expert_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000018",
-      "proposal_uuid": "ca600000000000000000000000000009",
-      "step": "panel_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000019",
-      "proposal_uuid": "ca600000000000000000000000000009",
-      "step": "allocation_decision",
-      "status": "completed",
-      "outcome": "approved",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf00000000000000000000000000001a",
-      "proposal_uuid": "ca600000000000000000000000000008",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf00000000000000000000000000001b",
-      "proposal_uuid": "ca600000000000000000000000000008",
-      "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00000000000000000000000000001c",
-      "proposal_uuid": "ca600000000000000000000000000008",
-      "step": "expert_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00000000000000000000000000001d",
-      "proposal_uuid": "ca600000000000000000000000000008",
-      "step": "panel_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00000000000000000000000000001e",
-      "proposal_uuid": "ca600000000000000000000000000008",
-      "step": "allocation_decision",
-      "status": "completed",
-      "outcome": "approved",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf00000000000000000000000000001f",
-      "proposal_uuid": "ca60000000000000000000000000000a",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "rejected",
-      "outcome_reason": "Did not meet the required standard.",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf000000000000000000000000000020",
-      "proposal_uuid": "ca60000000000000000000000000000a",
-      "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000021",
-      "proposal_uuid": "ca60000000000000000000000000000a",
-      "step": "expert_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000022",
-      "proposal_uuid": "ca60000000000000000000000000000a",
-      "step": "panel_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf000000000000000000000000000023",
-      "proposal_uuid": "ca60000000000000000000000000000a",
-      "step": "allocation_decision",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf001000000000000000000000000000",
-      "proposal_uuid": "ca600000000000000000000000000001",
-      "step": "administrative_check",
-      "status": "active",
-      "outcome": null,
-      "started_at": "2026-06-17T09:00:00+00:00",
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf001000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000001",
-      "step": "technical_assessment",
-      "status": "skipped",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf001000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000001",
-      "step": "expert_review",
       "status": "pending",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
+      "outcome": null
     },
     {
-      "uuid": "cf001000000000000000000000000003",
-      "proposal_uuid": "ca600000000000000000000000000001",
-      "step": "panel_review",
+      "uuid": "cf000000000000000000000000001016",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "step": "award_response",
       "status": "pending",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
+      "outcome": null
     },
     {
-      "uuid": "cf001000000000000000000000000004",
-      "proposal_uuid": "ca600000000000000000000000000001",
-      "step": "allocation_decision",
-      "status": "pending",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf001000000000000000000000000110",
-      "proposal_uuid": "ca600000000000000000000000000004",
-      "step": "administrative_check",
-      "status": "active",
-      "outcome": null,
-      "started_at": "2026-06-17T09:00:00+00:00",
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf001000000000000000000000000111",
-      "proposal_uuid": "ca600000000000000000000000000004",
-      "step": "technical_assessment",
-      "status": "skipped",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf001000000000000000000000000112",
-      "proposal_uuid": "ca600000000000000000000000000004",
-      "step": "expert_review",
-      "status": "pending",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf001000000000000000000000000113",
-      "proposal_uuid": "ca600000000000000000000000000004",
-      "step": "panel_review",
-      "status": "pending",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf001000000000000000000000000114",
-      "proposal_uuid": "ca600000000000000000000000000004",
-      "step": "allocation_decision",
-      "status": "pending",
-      "outcome": null,
-      "started_at": null,
-      "completed_at": null,
-      "completed_by_uuid": null
-    },
-    {
-      "uuid": "cf002000000000000000000000000000",
+      "uuid": "cf000000000000000000000000001017",
       "proposal_uuid": "ca60000000000000000000000000000d",
       "step": "administrative_check",
       "status": "completed",
       "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
+      "started_at": "relative:-792hours",
+      "completed_at": "relative:-744hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf002000000000000000000000000001",
+      "uuid": "cf000000000000000000000000001018",
       "proposal_uuid": "ca60000000000000000000000000000d",
       "step": "technical_assessment",
       "status": "completed",
       "outcome": "feasible",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T12:00:00+00:00",
+      "started_at": "relative:-720hours",
+      "completed_at": "relative:-672hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf002000000000000000000000000002",
+      "uuid": "cf000000000000000000000000001019",
       "proposal_uuid": "ca60000000000000000000000000000d",
-      "step": "expert_review",
+      "step": "domain_panel_chair_assignment",
       "status": "completed",
-      "outcome": "reviewed",
-      "started_at": "2026-06-17T09:00:00+00:00",
-      "completed_at": "2026-06-17T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000003"
+      "outcome": "done",
+      "started_at": "relative:-648hours",
+      "completed_at": "relative:-600hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf002000000000000000000000000003",
+      "uuid": "cf00000000000000000000000000101a",
       "proposal_uuid": "ca60000000000000000000000000000d",
-      "step": "panel_review",
+      "step": "rapporteur_assignment",
       "status": "completed",
-      "outcome": "approved",
-      "started_at": "2026-06-18T09:00:00+00:00",
-      "completed_at": "2026-06-18T12:00:00+00:00",
-      "completed_by_uuid": "a400000000000000000000000000000a"
+      "outcome": "done",
+      "started_at": "relative:-576hours",
+      "completed_at": "relative:-528hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf002000000000000000000000000004",
+      "uuid": "cf00000000000000000000000000101b",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "individual_reports",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-504hours",
+      "completed_at": "relative:-456hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000101c",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "domain_panel_meeting",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-432hours",
+      "completed_at": "relative:-384hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000101d",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "consolidated_report",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-360hours",
+      "completed_at": "relative:-312hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000101e",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "super_panel_meeting",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-288hours",
+      "completed_at": "relative:-240hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000101f",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "final_feedback",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-216hours",
+      "completed_at": "relative:-168hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001020",
       "proposal_uuid": "ca60000000000000000000000000000d",
       "step": "allocation_decision",
       "status": "completed",
       "outcome": "approved",
-      "started_at": "2026-06-19T09:00:00+00:00",
-      "completed_at": "2026-06-19T12:00:00+00:00",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf002000000000000000000000000005",
+      "uuid": "cf000000000000000000000000001021",
       "proposal_uuid": "ca60000000000000000000000000000d",
       "step": "award_response",
       "status": "active",
-      "started_at": "2026-06-20T09:00:00+00:00"
+      "outcome": null,
+      "started_at": "relative:-72hours"
     },
     {
-      "uuid": "cf003000000000000000000000000000",
+      "uuid": "cf000000000000000000000000001022",
       "proposal_uuid": "ca60000000000000000000000000000e",
       "step": "administrative_check",
       "status": "completed",
       "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf003000000000000000000000000001",
+      "uuid": "cf000000000000000000000000001023",
       "proposal_uuid": "ca60000000000000000000000000000e",
       "step": "technical_assessment",
       "status": "active",
-      "started_at": "2026-06-16T09:00:00+00:00"
+      "outcome": null,
+      "started_at": "relative:-72hours"
     },
     {
-      "uuid": "cf003000000000000000000000000002",
+      "uuid": "cf000000000000000000000000001024",
       "proposal_uuid": "ca60000000000000000000000000000e",
-      "step": "expert_review",
-      "status": "pending"
+      "step": "domain_panel_chair_assignment",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf003000000000000000000000000003",
+      "uuid": "cf000000000000000000000000001025",
       "proposal_uuid": "ca60000000000000000000000000000e",
-      "step": "panel_review",
-      "status": "pending"
+      "step": "rapporteur_assignment",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf003000000000000000000000000004",
+      "uuid": "cf000000000000000000000000001026",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "individual_reports",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001027",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "domain_panel_meeting",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001028",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "consolidated_report",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001029",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "super_panel_meeting",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000102a",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "final_feedback",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000102b",
       "proposal_uuid": "ca60000000000000000000000000000e",
       "step": "allocation_decision",
-      "status": "pending"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf004000000000000000000000000000",
+      "uuid": "cf00000000000000000000000000102c",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "award_response",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000102d",
       "proposal_uuid": "ca60000000000000000000000000000f",
       "step": "administrative_check",
       "status": "completed",
       "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
+      "started_at": "relative:-720hours",
+      "completed_at": "relative:-672hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf004000000000000000000000000001",
+      "uuid": "cf00000000000000000000000000102e",
       "proposal_uuid": "ca60000000000000000000000000000f",
       "step": "technical_assessment",
       "status": "completed",
       "outcome": "feasible",
-      "started_at": "2026-06-16T09:00:00+00:00",
-      "completed_at": "2026-06-16T12:00:00+00:00",
+      "started_at": "relative:-648hours",
+      "completed_at": "relative:-600hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf004000000000000000000000000002",
+      "uuid": "cf00000000000000000000000000102f",
       "proposal_uuid": "ca60000000000000000000000000000f",
-      "step": "expert_review",
+      "step": "domain_panel_chair_assignment",
       "status": "completed",
-      "outcome": "reviewed",
-      "started_at": "2026-06-17T09:00:00+00:00",
-      "completed_at": "2026-06-17T12:00:00+00:00",
-      "completed_by_uuid": "a4000000000000000000000000000003"
+      "outcome": "done",
+      "started_at": "relative:-576hours",
+      "completed_at": "relative:-528hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf004000000000000000000000000003",
+      "uuid": "cf000000000000000000000000001030",
       "proposal_uuid": "ca60000000000000000000000000000f",
-      "step": "panel_review",
+      "step": "rapporteur_assignment",
       "status": "completed",
-      "outcome": "approved",
-      "started_at": "2026-06-18T09:00:00+00:00",
-      "completed_at": "2026-06-18T12:00:00+00:00",
-      "completed_by_uuid": "a400000000000000000000000000000a"
+      "outcome": "done",
+      "started_at": "relative:-504hours",
+      "completed_at": "relative:-456hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf004000000000000000000000000004",
+      "uuid": "cf000000000000000000000000001031",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "individual_reports",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-432hours",
+      "completed_at": "relative:-384hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001032",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "domain_panel_meeting",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-360hours",
+      "completed_at": "relative:-312hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001033",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "consolidated_report",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-288hours",
+      "completed_at": "relative:-240hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001034",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "super_panel_meeting",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-216hours",
+      "completed_at": "relative:-168hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001035",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "final_feedback",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001036",
       "proposal_uuid": "ca60000000000000000000000000000f",
       "step": "allocation_decision",
       "status": "active",
-      "started_at": "2026-06-19T09:00:00+00:00"
+      "outcome": null,
+      "started_at": "relative:-72hours"
     },
     {
-      "uuid": "cf005000000000000000000000000000",
+      "uuid": "cf000000000000000000000000001037",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "award_response",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001038",
       "proposal_uuid": "ca600000000000000000000000000010",
       "step": "administrative_check",
       "status": "completed",
       "outcome": "eligible",
-      "started_at": "2026-06-15T09:00:00+00:00",
-      "completed_at": "2026-06-15T12:00:00+00:00",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf005000000000000000000000000001",
+      "uuid": "cf000000000000000000000000001039",
       "proposal_uuid": "ca600000000000000000000000000010",
       "step": "technical_assessment",
       "status": "active",
-      "started_at": "2026-06-16T09:00:00+00:00"
+      "outcome": null,
+      "started_at": "relative:-72hours"
     },
     {
-      "uuid": "cf006000000000000000000000000000",
-      "proposal_uuid": "ca600000000000000000000000000014",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "relative:-10days",
-      "completed_at": "relative:-9days",
-      "completed_by_uuid": "a4000000000000000000000000000002"
+      "uuid": "cf00000000000000000000000000103a",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "domain_panel_chair_assignment",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf006000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000014",
-      "step": "technical_assessment",
-      "status": "skipped"
+      "uuid": "cf00000000000000000000000000103b",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "rapporteur_assignment",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf006000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000014",
-      "step": "expert_review",
-      "status": "active",
-      "started_at": "relative:-9days"
+      "uuid": "cf00000000000000000000000000103c",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "individual_reports",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf006000000000000000000000000003",
-      "proposal_uuid": "ca600000000000000000000000000014",
-      "step": "panel_review",
-      "status": "skipped"
+      "uuid": "cf00000000000000000000000000103d",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "domain_panel_meeting",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf006000000000000000000000000004",
-      "proposal_uuid": "ca600000000000000000000000000014",
+      "uuid": "cf00000000000000000000000000103e",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "consolidated_report",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000103f",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "super_panel_meeting",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001040",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "final_feedback",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001041",
+      "proposal_uuid": "ca600000000000000000000000000010",
       "step": "allocation_decision",
-      "status": "pending"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf006000000000000000000000000005",
-      "proposal_uuid": "ca600000000000000000000000000014",
+      "uuid": "cf000000000000000000000000001042",
+      "proposal_uuid": "ca600000000000000000000000000010",
       "step": "award_response",
-      "status": "pending"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf007000000000000000000000000000",
-      "proposal_uuid": "ca600000000000000000000000000015",
+      "uuid": "cf000000000000000000000000001043",
+      "proposal_uuid": "ca600000000000000000000000000004",
       "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "relative:-18days",
-      "completed_at": "relative:-17days",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf007000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000015",
-      "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf007000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000015",
-      "step": "expert_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf007000000000000000000000000003",
-      "proposal_uuid": "ca600000000000000000000000000015",
-      "step": "panel_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf007000000000000000000000000004",
-      "proposal_uuid": "ca600000000000000000000000000015",
-      "step": "allocation_decision",
       "status": "active",
-      "started_at": "relative:-17days"
+      "outcome": null,
+      "started_at": "relative:-72hours"
     },
     {
-      "uuid": "cf007000000000000000000000000005",
-      "proposal_uuid": "ca600000000000000000000000000015",
-      "step": "award_response",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf008000000000000000000000000000",
-      "proposal_uuid": "ca600000000000000000000000000016",
-      "step": "administrative_check",
-      "status": "completed",
-      "outcome": "eligible",
-      "started_at": "relative:-18days",
-      "completed_at": "relative:-17days",
-      "completed_by_uuid": "a4000000000000000000000000000002"
-    },
-    {
-      "uuid": "cf008000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000016",
+      "uuid": "cf000000000000000000000000001044",
+      "proposal_uuid": "ca600000000000000000000000000004",
       "step": "technical_assessment",
-      "status": "skipped"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf008000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000016",
-      "step": "expert_review",
-      "status": "skipped"
+      "uuid": "cf000000000000000000000000001045",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "step": "expert_evaluation",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf008000000000000000000000000003",
-      "proposal_uuid": "ca600000000000000000000000000016",
-      "step": "panel_review",
-      "status": "skipped"
+      "uuid": "cf000000000000000000000000001046",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "step": "consensus_report",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf008000000000000000000000000004",
-      "proposal_uuid": "ca600000000000000000000000000016",
+      "uuid": "cf000000000000000000000000001047",
+      "proposal_uuid": "ca600000000000000000000000000004",
       "step": "allocation_decision",
-      "status": "active",
-      "started_at": "relative:-17days"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf008000000000000000000000000005",
-      "proposal_uuid": "ca600000000000000000000000000016",
+      "uuid": "cf000000000000000000000000001048",
+      "proposal_uuid": "ca600000000000000000000000000004",
       "step": "award_response",
-      "status": "pending"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf009000000000000000000000000000",
-      "proposal_uuid": "ca600000000000000000000000000017",
+      "uuid": "cf000000000000000000000000001049",
+      "proposal_uuid": "ca600000000000000000000000000005",
       "step": "administrative_check",
       "status": "completed",
       "outcome": "eligible",
-      "started_at": "relative:-18days",
-      "completed_at": "relative:-17days",
+      "started_at": "relative:-216hours",
+      "completed_at": "relative:-168hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf009000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000017",
+      "uuid": "cf00000000000000000000000000104a",
+      "proposal_uuid": "ca600000000000000000000000000005",
       "step": "technical_assessment",
-      "status": "skipped"
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf009000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000017",
-      "step": "expert_review",
-      "status": "skipped"
+      "uuid": "cf00000000000000000000000000104b",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "step": "expert_evaluation",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
     },
     {
-      "uuid": "cf009000000000000000000000000003",
-      "proposal_uuid": "ca600000000000000000000000000017",
-      "step": "panel_review",
-      "status": "skipped"
+      "uuid": "cf00000000000000000000000000104c",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "step": "consensus_report",
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf009000000000000000000000000004",
-      "proposal_uuid": "ca600000000000000000000000000017",
+      "uuid": "cf00000000000000000000000000104d",
+      "proposal_uuid": "ca600000000000000000000000000005",
       "step": "allocation_decision",
-      "status": "active",
-      "started_at": "relative:-17days"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf009000000000000000000000000005",
-      "proposal_uuid": "ca600000000000000000000000000017",
+      "uuid": "cf00000000000000000000000000104e",
+      "proposal_uuid": "ca600000000000000000000000000005",
       "step": "award_response",
-      "status": "pending"
+      "status": "pending",
+      "outcome": null
     },
     {
-      "uuid": "cf00a000000000000000000000000000",
-      "proposal_uuid": "ca600000000000000000000000000018",
+      "uuid": "cf00000000000000000000000000104f",
+      "proposal_uuid": "ca600000000000000000000000000006",
       "step": "administrative_check",
       "status": "completed",
       "outcome": "eligible",
-      "started_at": "relative:-18days",
-      "completed_at": "relative:-17days",
+      "started_at": "relative:-504hours",
+      "completed_at": "relative:-456hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf00a000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000018",
+      "uuid": "cf000000000000000000000000001050",
+      "proposal_uuid": "ca600000000000000000000000000006",
       "step": "technical_assessment",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00a000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000018",
-      "step": "expert_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00a000000000000000000000000003",
-      "proposal_uuid": "ca600000000000000000000000000018",
-      "step": "panel_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00a000000000000000000000000004",
-      "proposal_uuid": "ca600000000000000000000000000018",
-      "step": "allocation_decision",
-      "status": "active",
-      "started_at": "relative:-17days"
-    },
-    {
-      "uuid": "cf00a000000000000000000000000005",
-      "proposal_uuid": "ca600000000000000000000000000018",
-      "step": "award_response",
-      "status": "pending"
-    },
-    {
-      "uuid": "cf00b000000000000000000000000000",
-      "proposal_uuid": "ca600000000000000000000000000019",
-      "step": "administrative_check",
       "status": "completed",
-      "outcome": "eligible",
-      "started_at": "relative:-18days",
-      "completed_at": "relative:-17days",
+      "outcome": "feasible",
+      "started_at": "relative:-432hours",
+      "completed_at": "relative:-384hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf00b000000000000000000000000001",
-      "proposal_uuid": "ca600000000000000000000000000019",
-      "step": "technical_assessment",
-      "status": "skipped"
+      "uuid": "cf000000000000000000000000001051",
+      "proposal_uuid": "ca600000000000000000000000000006",
+      "step": "expert_evaluation",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "relative:-360hours",
+      "completed_at": "relative:-312hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf00b000000000000000000000000002",
-      "proposal_uuid": "ca600000000000000000000000000019",
-      "step": "expert_review",
-      "status": "skipped"
+      "uuid": "cf000000000000000000000000001052",
+      "proposal_uuid": "ca600000000000000000000000000006",
+      "step": "consensus_report",
+      "status": "skipped",
+      "outcome": null
     },
     {
-      "uuid": "cf00b000000000000000000000000003",
-      "proposal_uuid": "ca600000000000000000000000000019",
-      "step": "panel_review",
-      "status": "skipped"
-    },
-    {
-      "uuid": "cf00b000000000000000000000000004",
-      "proposal_uuid": "ca600000000000000000000000000019",
+      "uuid": "cf000000000000000000000000001053",
+      "proposal_uuid": "ca600000000000000000000000000006",
       "step": "allocation_decision",
       "status": "completed",
       "outcome": "approved",
-      "started_at": "relative:-17days",
-      "completed_at": "relative:-3days",
+      "started_at": "relative:-216hours",
+      "completed_at": "relative:-168hours",
       "completed_by_uuid": "a4000000000000000000000000000002"
     },
     {
-      "uuid": "cf00b000000000000000000000000005",
-      "proposal_uuid": "ca600000000000000000000000000019",
+      "uuid": "cf000000000000000000000000001054",
+      "proposal_uuid": "ca600000000000000000000000000006",
       "step": "award_response",
+      "status": "completed",
+      "outcome": "accepted",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001055",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "relative:-360hours",
+      "completed_at": "relative:-312hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001056",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-288hours",
+      "completed_at": "relative:-240hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001057",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "step": "expert_evaluation",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "relative:-216hours",
+      "completed_at": "relative:-168hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001058",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "step": "consensus_report",
+      "status": "skipped",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001059",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "step": "allocation_decision",
+      "status": "completed",
+      "outcome": "declined",
+      "started_at": "relative:-72hours",
+      "completed_at": "relative:-24hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000105a",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "step": "award_response",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000105b",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-288hours",
+      "completed_at": "relative:-240hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000105c",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "step": "emulation_assessment",
+      "status": "skipped",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000105d",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "step": "allocation_decision",
+      "status": "completed",
+      "outcome": "approved",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000105e",
+      "proposal_uuid": "ca600000000000000000000000000009",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-288hours",
+      "completed_at": "relative:-240hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000105f",
+      "proposal_uuid": "ca600000000000000000000000000009",
+      "step": "emulation_assessment",
+      "status": "skipped",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001060",
+      "proposal_uuid": "ca600000000000000000000000000009",
+      "step": "allocation_decision",
+      "status": "completed",
+      "outcome": "approved",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001061",
+      "proposal_uuid": "ca60000000000000000000000000000a",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "infeasible",
+      "started_at": "relative:-72hours",
+      "completed_at": "relative:-24hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001062",
+      "proposal_uuid": "ca60000000000000000000000000000a",
+      "step": "emulation_assessment",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001063",
+      "proposal_uuid": "ca60000000000000000000000000000a",
+      "step": "allocation_decision",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001064",
+      "proposal_uuid": "ca600000000000000000000000000014",
+      "step": "technical_assessment",
       "status": "active",
-      "started_at": "relative:-3days"
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf000000000000000000000000001065",
+      "proposal_uuid": "ca600000000000000000000000000014",
+      "step": "allocation_decision",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf000000000000000000000000001066",
+      "proposal_uuid": "ca600000000000000000000000000015",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001067",
+      "proposal_uuid": "ca600000000000000000000000000015",
+      "step": "allocation_decision",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf000000000000000000000000001068",
+      "proposal_uuid": "ca600000000000000000000000000016",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf000000000000000000000000001069",
+      "proposal_uuid": "ca600000000000000000000000000016",
+      "step": "allocation_decision",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf00000000000000000000000000106a",
+      "proposal_uuid": "ca600000000000000000000000000017",
+      "step": "technical_assessment",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf00000000000000000000000000106b",
+      "proposal_uuid": "ca600000000000000000000000000017",
+      "step": "allocation_decision",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000106c",
+      "proposal_uuid": "ca600000000000000000000000000018",
+      "step": "technical_assessment",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf00000000000000000000000000106d",
+      "proposal_uuid": "ca600000000000000000000000000018",
+      "step": "allocation_decision",
+      "status": "pending",
+      "outcome": null
+    },
+    {
+      "uuid": "cf00000000000000000000000000106e",
+      "proposal_uuid": "ca600000000000000000000000000019",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-144hours",
+      "completed_at": "relative:-96hours",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00000000000000000000000000106f",
+      "proposal_uuid": "ca600000000000000000000000000019",
+      "step": "allocation_decision",
+      "status": "active",
+      "outcome": null,
+      "started_at": "relative:-72hours"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000000",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "relative:-3days",
+      "completed_at": "relative:-2days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000001",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "technical_assessment",
+      "status": "active",
+      "started_at": "relative:-2days"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000002",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "rapporteur_assignment",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000003",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "rapporteur_questions",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000004",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "reviewer_assignment",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000005",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "scientific_review",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000006",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "response_to_reviews",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000007",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "individual_reports",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000008",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "consolidated_report",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c000000000000000000000000009",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "committee_meeting",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c00000000000000000000000000a",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "final_feedback",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c00000000000000000000000000b",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "allocation_decision",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00c00000000000000000000000000c",
+      "proposal_uuid": "ca60000000000000000000000000001a",
+      "step": "award_response",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000000",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "relative:-148days",
+      "completed_at": "relative:-146days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000001",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "relative:-144days",
+      "completed_at": "relative:-142days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000002",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "rapporteur_assignment",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-140days",
+      "completed_at": "relative:-138days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000003",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "rapporteur_questions",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "relative:-136days",
+      "completed_at": "relative:-134days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000004",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "reviewer_assignment",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-132days",
+      "completed_at": "relative:-130days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000005",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "scientific_review",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "relative:-128days",
+      "completed_at": "relative:-126days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000006",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "response_to_reviews",
+      "status": "completed",
+      "outcome": "submitted",
+      "started_at": "relative:-124days",
+      "completed_at": "relative:-122days",
+      "completed_by_uuid": "a4000000000000000000000000000008"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000007",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "individual_reports",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "relative:-120days",
+      "completed_at": "relative:-118days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000008",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "consolidated_report",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "relative:-116days",
+      "completed_at": "relative:-114days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000009",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "committee_meeting",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "relative:-112days",
+      "completed_at": "relative:-110days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d00000000000000000000000000a",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "final_feedback",
+      "status": "completed",
+      "outcome": "done",
+      "started_at": "relative:-108days",
+      "completed_at": "relative:-106days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d00000000000000000000000000b",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "allocation_decision",
+      "status": "completed",
+      "outcome": "approved",
+      "started_at": "relative:-104days",
+      "completed_at": "relative:-102days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d00000000000000000000000000c",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "step": "award_response",
+      "status": "completed",
+      "outcome": "accepted",
+      "started_at": "relative:-100days",
+      "completed_at": "relative:-98days",
+      "completed_by_uuid": "a4000000000000000000000000000008"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000010",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "relative:-140days",
+      "completed_at": "relative:-138days",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000011",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "infeasible",
+      "started_at": "relative:-140days",
+      "completed_at": "relative:-138days",
+      "completed_by_uuid": "a4000000000000000000000000000002",
+      "outcome_reason": "The booster partition cannot hold the requested memory per GPU."
+    },
+    {
+      "uuid": "cf00d000000000000000000000000012",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "rapporteur_assignment",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000013",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "rapporteur_questions",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000014",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "reviewer_assignment",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000015",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "scientific_review",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000016",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "response_to_reviews",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000017",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "individual_reports",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000018",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "consolidated_report",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d000000000000000000000000019",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "committee_meeting",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d00000000000000000000000001a",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "final_feedback",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d00000000000000000000000001b",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "allocation_decision",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf00d00000000000000000000000001c",
+      "proposal_uuid": "ca60000000000000000000000000001c",
+      "step": "award_response",
+      "status": "pending"
     }
   ],
   "call_documents": [
@@ -6284,6 +8562,259 @@
       "call_uuid": "ca200000000000000000000000000002",
       "description": "Proposal application template",
       "file_name": "application-template.txt"
+    }
+  ],
+  "awarded_resources": [
+    {
+      "uuid": "ad000000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000006",
+      "requested_resource_uuid": "ca700000000000000000000000000007",
+      "requested_offering_uuid": "ca300000000000000000000000000003",
+      "description": "GPU for molecular dynamics",
+      "attributes": {
+        "partition": "gpu",
+        "gpu_type": "A100"
+      },
+      "limits": {
+        "gpu_hours": 5000,
+        "cpu_hours": 50000
+      },
+      "resource_uuid": "d4000000000000000000000000000009",
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "requested_resource_uuid": "ca700000000000000000000000000019",
+      "requested_offering_uuid": "ca300000000000000000000000000005",
+      "description": "Event generation and detector simulation",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 60000,
+        "storage": 800
+      },
+      "resource_uuid": "d4000000000000000000000000000010",
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "requested_resource_uuid": "ca70000000000000000000000000001b",
+      "requested_offering_uuid": "ca300000000000000000000000000011",
+      "description": "Analysis notebooks",
+      "attributes": {},
+      "limits": {
+        "vcpu": 16,
+        "ram": 64
+      },
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000004",
+      "proposal_uuid": "ca600000000000000000000000000009",
+      "requested_resource_uuid": "ca70000000000000000000000000001c",
+      "requested_offering_uuid": "ca300000000000000000000000000005",
+      "description": "Turbine blade parameter sweeps",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 40000,
+        "storage": 300
+      },
+      "resource_uuid": "d4000000000000000000000000000011",
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000005",
+      "proposal_uuid": "ca600000000000000000000000000009",
+      "requested_resource_uuid": "ca70000000000000000000000000001d",
+      "requested_offering_uuid": "ca300000000000000000000000000010",
+      "description": "Mesh and result archive",
+      "attributes": {},
+      "limits": {
+        "storage": 50
+      },
+      "resource_uuid": "d4000000000000000000000000000012",
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000006",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "requested_resource_uuid": "ca700000000000000000000000000020",
+      "requested_offering_uuid": "ca30000000000000000000000000000e",
+      "description": "Magnetohydrodynamics on the cluster partition",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 300000
+      },
+      "resource_uuid": "d4000000000000000000000000000013",
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000007",
+      "proposal_uuid": "ca60000000000000000000000000001b",
+      "requested_resource_uuid": "ca700000000000000000000000000021",
+      "requested_offering_uuid": "ca30000000000000000000000000000f",
+      "description": "Radiative transfer on the booster partition, held to the spring pool",
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 20000,
+        "cpu_hours": 60000
+      },
+      "resource_uuid": "d4000000000000000000000000000014",
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000008",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "requested_resource_uuid": "ca700000000000000000000000000023",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "description": "HPC for direct numerical simulation of turbulence",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "cpu_hours": 200000,
+        "storage": 2000
+      },
+      "created_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "ad000000000000000000000000000009",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "requested_resource_uuid": "ca700000000000000000000000000024",
+      "requested_offering_uuid": "ca300000000000000000000000000002",
+      "description": "Storage for flow-field snapshots",
+      "attributes": {
+        "backup": "daily"
+      },
+      "limits": {
+        "storage": 20
+      },
+      "created_by_uuid": "a4000000000000000000000000000002"
+    }
+  ],
+  "orders": [
+    {
+      "uuid": "74000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "project_uuid": "c4000000000000000000000000000001",
+      "resource_uuid": "d4000000000000000000000000000009",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000002",
+      "created_by_uuid": "a4000000000000000000000000000006",
+      "consumer_reviewed_by_uuid": "a4000000000000000000000000000002",
+      "consumer_reviewed_at": "2026-08-10T10:00:00+00:00",
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 5000,
+        "cpu_hours": 50000
+      },
+      "created": "2026-08-10T10:00:00+00:00",
+      "provider_reviewed_by_uuid": "a4000000000000000000000000000001",
+      "provider_reviewed_at": "2026-08-11T09:00:00+00:00",
+      "completed_at": "2026-08-11T09:30:00+00:00"
+    },
+    {
+      "uuid": "74000000000000000000000000000002",
+      "type": 1,
+      "state": 3,
+      "project_uuid": "c4000000000000000000000000000004",
+      "resource_uuid": "d4000000000000000000000000000010",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "created_by_uuid": "a4000000000000000000000000000006",
+      "consumer_reviewed_by_uuid": "a4000000000000000000000000000002",
+      "consumer_reviewed_at": "2026-08-10T10:00:00+00:00",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 60000,
+        "storage": 800
+      },
+      "created": "2026-08-10T10:00:00+00:00",
+      "provider_reviewed_by_uuid": "a4000000000000000000000000000001",
+      "provider_reviewed_at": "2026-08-11T09:00:00+00:00",
+      "completed_at": "2026-08-11T09:30:00+00:00"
+    },
+    {
+      "uuid": "74000000000000000000000000000003",
+      "type": 1,
+      "state": 7,
+      "project_uuid": "c4000000000000000000000000000005",
+      "resource_uuid": "d4000000000000000000000000000011",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "consumer_reviewed_by_uuid": "a4000000000000000000000000000002",
+      "consumer_reviewed_at": "2026-08-10T10:00:00+00:00",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 40000,
+        "storage": 300
+      },
+      "created": "2026-08-10T10:00:00+00:00"
+    },
+    {
+      "uuid": "74000000000000000000000000000004",
+      "type": 1,
+      "state": 6,
+      "project_uuid": "c4000000000000000000000000000005",
+      "resource_uuid": "d4000000000000000000000000000012",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000003",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "consumer_reviewed_by_uuid": "a4000000000000000000000000000002",
+      "consumer_reviewed_at": "2026-08-10T10:00:00+00:00",
+      "attributes": {},
+      "limits": {
+        "storage": 50
+      },
+      "created": "2026-08-10T10:00:00+00:00",
+      "provider_reviewed_by_uuid": "a4000000000000000000000000000001",
+      "provider_reviewed_at": "2026-08-11T09:00:00+00:00",
+      "provider_rejection_comment": "The storage pool is fully committed until the next hardware refresh. Please request it again in the next round."
+    },
+    {
+      "uuid": "74000000000000000000000000000005",
+      "type": 1,
+      "state": 3,
+      "project_uuid": "c4000000000000000000000000000006",
+      "resource_uuid": "d4000000000000000000000000000013",
+      "offering_uuid": "f4000000000000000000000000000007",
+      "plan_uuid": "14000000000000000000000000000011",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "consumer_reviewed_by_uuid": "a4000000000000000000000000000002",
+      "consumer_reviewed_at": "2026-07-01T10:00:00+00:00",
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 300000
+      },
+      "created": "2026-07-01T10:00:00+00:00",
+      "provider_reviewed_by_uuid": "a400000000000000000000000000000c",
+      "provider_reviewed_at": "2026-07-02T09:00:00+00:00",
+      "completed_at": "2026-07-02T09:30:00+00:00"
+    },
+    {
+      "uuid": "74000000000000000000000000000006",
+      "type": 1,
+      "state": 3,
+      "project_uuid": "c4000000000000000000000000000006",
+      "resource_uuid": "d4000000000000000000000000000014",
+      "offering_uuid": "f4000000000000000000000000000008",
+      "plan_uuid": "14000000000000000000000000000012",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "consumer_reviewed_by_uuid": "a4000000000000000000000000000002",
+      "consumer_reviewed_at": "2026-07-01T10:00:00+00:00",
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 20000,
+        "cpu_hours": 60000
+      },
+      "created": "2026-07-01T10:00:00+00:00",
+      "provider_reviewed_by_uuid": "a400000000000000000000000000000d",
+      "provider_reviewed_at": "2026-07-02T09:00:00+00:00",
+      "completed_at": "2026-07-02T09:30:00+00:00"
     }
   ]
 }

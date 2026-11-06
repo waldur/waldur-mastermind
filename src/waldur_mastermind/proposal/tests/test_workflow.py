@@ -8,15 +8,16 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.checklist.tests import factories as checklist_factories
-from waldur_core.permissions.fixtures import CallRole, ProposalRole
+from waldur_core.permissions.fixtures import CallRole, OfferingRole, ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import workflow_service
 from waldur_mastermind.proposal.enums import (
-    WORKFLOW_STEPS,
+    DEFAULT_CALL_STEPS,
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
     ResponsibleRoles,
+    ReviewerPoolInvitationStatuses,
     TransitionModes,
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
@@ -55,7 +56,7 @@ class WorkflowStepCreateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             CallWorkflowStep.objects.filter(
-                call=self.call, step="administrative_check"
+                call=self.call, key="administrative_check"
             ).exists()
         )
 
@@ -112,6 +113,9 @@ class ProposalSubmitWorkflowTest(test.APITestCase):
         factories.CallWorkflowStepFactory(
             call=self.call, step="expert_review", is_enabled=False
         )
+        # Every call that existed before steps had a kind has an award
+        # response step, disabled unless the call asked for one.
+        factories.ensure_default_step(self.call, "award_response")
 
     def test_submit_creates_step_instances(self):
         self.proposal.state = ProposalStates.DRAFT
@@ -209,19 +213,19 @@ class CompleteWorkflowStepTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
         factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -252,7 +256,7 @@ class CompleteWorkflowStepTest(test.APITestCase):
         self.assertEqual(admin_step.outcome, "eligible")
 
     def test_complete_last_step_accepts_proposal(self):
-        self.proposal.workflow_step = "allocation_decision"
+        factories.point_at_step(self.proposal, "allocation_decision")
         # A freshly-submitted proposal has no project yet; the terminal step is
         # what provisions it. The fixture pre-assigns one, so clear it to
         # exercise the allocation path.
@@ -293,7 +297,7 @@ class CompleteWorkflowStepTest(test.APITestCase):
         # Regression: approved_by used to be written only inside
         # allocate_proposal, which the ``project_id is None`` guard skips when a
         # project already exists — leaving acceptance with no recorded approver.
-        self.proposal.workflow_step = "allocation_decision"
+        factories.point_at_step(self.proposal, "allocation_decision")
         # Keep the fixture's pre-assigned project so the allocation branch (and
         # its approved_by write) is skipped.
         self.assertIsNotNone(self.proposal.project)
@@ -350,11 +354,11 @@ class RejectWorkflowStepTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -392,19 +396,19 @@ class WorkflowStatesListTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(
             call=self.call, step="administrative_check", duration_in_days=12
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -435,7 +439,7 @@ class WorkflowStatesListTest(test.APITestCase):
 
     def test_workflow_states_respect_call_step_role_override(self):
         admin_step = CallWorkflowStep.objects.get(
-            call=self.call, step="administrative_check"
+            call=self.call, key="administrative_check"
         )
         admin_step.responsible_role = ResponsibleRoles.OFFERING_MANAGER
         admin_step.save()
@@ -506,7 +510,7 @@ class WorkflowStepResponsibilityAndTransitionTest(test.APITestCase):
         step = factories.CallWorkflowStepFactory(
             call=self.call, step="administrative_check"
         )
-        CallWorkflowStep.objects.filter(pk=step.pk).update(responsible_role=None)
+        CallWorkflowStep.objects.filter(pk=step.pk).update(completer=None)
         reloaded = CallWorkflowStep.objects.get(pk=step.pk)
         self.assertIsNone(reloaded.responsible_role)
 
@@ -563,7 +567,7 @@ class WorkflowStepCriteriaTest(test.APITestCase):
         }
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        step = CallWorkflowStep.objects.get(call=self.call, step="expert_review")
+        step = CallWorkflowStep.objects.get(call=self.call, key="expert_review")
         self.assertEqual(step.criteria.count(), 2)
         names = list(step.criteria.order_by("order").values_list("name", flat=True))
         self.assertEqual(names, ["Scientific merit", "Feasibility"])
@@ -595,6 +599,114 @@ class WorkflowStepCriteriaTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         names = list(step.criteria.values_list("name", flat=True))
         self.assertEqual(names, ["Keep"])
+
+
+class WorkflowStepCriteriaWeightTest(test.APITestCase):
+    """A step's criteria carry weights, and stand as reviewers scored them."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.step = CallWorkflowStep.review_step_for(self.call)
+        self.assertIsNotNone(self.step)
+        self.merit = WorkflowCriterion.objects.create(
+            workflow_step=self.step, name="Merit", order=0, weight=2
+        )
+        self.impact = WorkflowCriterion.objects.create(
+            workflow_step=self.step, name="Impact", order=1
+        )
+        self.url = factories.CallWorkflowStepFactory.get_url(self.call, self.step)
+        self.client.force_authenticate(self.fixture.call_organizer_user)
+
+    def _patch(self, criteria):
+        return self.client.patch(self.url, {"criteria": criteria}, format="json")
+
+    def _score_a_review(self, **fields):
+        review = self.fixture.review
+        review.criteria_scores = {self.merit.uuid.hex: 4}
+        for name, value in fields.items():
+            setattr(review, name, value)
+        review.save()
+
+    def test_weights_round_trip(self):
+        response = self._patch(
+            [
+                {"name": "Merit", "order": 0, "weight": 3},
+                {"name": "Impact", "order": 1, "weight": 1},
+            ]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            [(c["name"], c["weight"]) for c in response.data["criteria"]],
+            [("Merit", 3), ("Impact", 1)],
+        )
+        self.merit.refresh_from_db()
+        self.assertEqual(self.merit.weight, 3)
+
+    def test_a_criterion_sent_without_weight_keeps_its_weight(self):
+        response = self._patch(
+            [{"name": "Merit", "order": 0}, {"name": "Impact", "order": 1}]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.merit.refresh_from_db()
+        self.assertEqual(self.merit.weight, 2)
+
+    def test_weight_out_of_range_is_refused(self):
+        response = self._patch([{"name": "Merit", "order": 0, "weight": 0}])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_criteria_are_unlocked_before_scoring(self):
+        response = self.client.get(self.url)
+        self.assertFalse(response.data["criteria_locked"])
+
+    def test_scored_criteria_are_locked(self):
+        self._score_a_review()
+        response = self.client.get(self.url)
+        self.assertTrue(response.data["criteria_locked"])
+        for criteria in (
+            # renamed
+            [
+                {"name": "Excellence", "order": 0, "weight": 2},
+                {"name": "Impact", "order": 1, "weight": 1},
+            ],
+            # dropped
+            [{"name": "Merit", "order": 0, "weight": 2}],
+            # reweighted
+            [
+                {"name": "Merit", "order": 0, "weight": 1},
+                {"name": "Impact", "order": 1, "weight": 1},
+            ],
+        ):
+            response = self._patch(criteria)
+            self.assertEqual(
+                response.status_code, status.HTTP_400_BAD_REQUEST, criteria
+            )
+            self.assertIn("criteria", response.data)
+        self.assertEqual(
+            sorted(self.step.criteria.values_list("name", "weight")),
+            [("Impact", 1), ("Merit", 2)],
+        )
+
+    def test_scored_criteria_may_be_reordered(self):
+        self._score_a_review()
+        response = self._patch(
+            [
+                {"name": "Impact", "order": 0, "weight": 1},
+                {"name": "Merit", "order": 1, "weight": 2},
+            ]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            list(self.step.criteria.values_list("name", flat=True)),
+            ["Impact", "Merit"],
+        )
+
+    def test_a_submitted_review_locks_the_criteria(self):
+        self._score_a_review(
+            criteria_scores={}, state=Review.States.SUBMITTED, summary_score=4
+        )
+        response = self._patch([{"name": "Merit", "order": 0, "weight": 2}])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class WorkflowStepValidationTest(test.APITestCase):
@@ -671,16 +783,13 @@ class WorkflowStepValidationTest(test.APITestCase):
         response = self.client.patch(url, {"is_enabled": False}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_cannot_enable_panel_review_without_expert_review(self):
+    def test_panel_review_no_longer_requires_expert_review(self):
+        # Steps are composed freely now; the only rule across a call's steps
+        # is its one allocation decision.
         url = factories.CallWorkflowStepFactory.get_list_url(self.call)
         payload = {"step": "panel_review", "is_enabled": True}
         response = self.client.post(url, payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        # The call manager reads this verbatim, so it must name the step
-        # rather than dump the catalog entry's repr.
-        message = str(response.data)
-        self.assertIn("requires 'Expert review' to be enabled", message)
-        self.assertNotIn("WorkflowStepDefinition", message)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_panel_review_allowed_when_expert_review_enabled(self):
         factories.CallWorkflowStepFactory(
@@ -703,23 +812,23 @@ class WorkflowStepDisplayOrderTest(test.APITestCase):
         CallWorkflowStep.objects.filter(call=self.call).delete()
         self.client.force_authenticate(self.fixture.call_organizer_user)
 
-    def test_display_order_overrides_catalog_order_in_listing(self):
-        # Catalog order: administrative_check (0), technical_assessment (1),
-        # expert_review (2), allocation_decision (4)
+    def test_listing_follows_step_order(self):
         factories.CallWorkflowStepFactory(
-            call=self.call, step="administrative_check", display_order=10
+            call=self.call, step="administrative_check", order=10
         )
-        factories.CallWorkflowStepFactory(call=self.call, step="technical_assessment")
         factories.CallWorkflowStepFactory(
-            call=self.call, step="allocation_decision", display_order=0
+            call=self.call, step="technical_assessment", order=1
+        )
+        factories.CallWorkflowStepFactory(
+            call=self.call, step="allocation_decision", order=0
         )
 
         url = factories.CallWorkflowStepFactory.get_list_url(self.call)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         steps = [s["step"] for s in response.data]
-        # allocation_decision (override 0) -> technical_assessment (catalog 1)
-        # -> administrative_check (override 10)
+        # allocation_decision (0) -> technical_assessment (1)
+        # -> administrative_check (10)
         self.assertEqual(
             steps,
             ["allocation_decision", "technical_assessment", "administrative_check"],
@@ -746,19 +855,19 @@ class WorkflowStepConcurrencyGuardTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
         factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        self.pending_instance = ProposalWorkflowStepInstance.objects.create(
+        self.pending_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -815,7 +924,7 @@ class WorkflowStepConcurrencyGuardTest(test.APITestCase):
         self.pending_instance.status = WorkflowStepInstanceStatuses.ACTIVE
         self.pending_instance.started_at = timezone.now()
         self.pending_instance.save()
-        self.proposal.workflow_step = "allocation_decision"
+        factories.point_at_step(self.proposal, "allocation_decision")
         self.proposal.save()
 
         # Posting the now-completed earlier instance's uuid must 409.
@@ -841,7 +950,7 @@ class MarkExpiredWorkflowStepsTaskTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
     def test_overdue_active_step_advances_to_next_enabled_step(self):
@@ -849,14 +958,14 @@ class MarkExpiredWorkflowStepsTaskTest(test.APITestCase):
         factories.CallWorkflowStepFactory(
             call=self.call, step="allocation_decision", duration_in_days=3
         )
-        overdue = ProposalWorkflowStepInstance.objects.create(
+        overdue = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now() - timedelta(days=2),
             deadline=timezone.now() - timedelta(hours=1),
         )
-        next_pending = ProposalWorkflowStepInstance.objects.create(
+        next_pending = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -878,7 +987,7 @@ class MarkExpiredWorkflowStepsTaskTest(test.APITestCase):
     def test_overdue_terminal_step_rejects_proposal(self):
         # Only one enabled step — when it expires, no further step exists.
         factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
-        overdue = ProposalWorkflowStepInstance.objects.create(
+        overdue = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -897,7 +1006,7 @@ class MarkExpiredWorkflowStepsTaskTest(test.APITestCase):
 
     def test_mark_expired_does_not_touch_future_or_non_active_steps(self):
         # Active with future deadline — must stay untouched.
-        future = ProposalWorkflowStepInstance.objects.create(
+        future = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -906,7 +1015,7 @@ class MarkExpiredWorkflowStepsTaskTest(test.APITestCase):
         )
         # Completed with past deadline — must stay COMPLETED.
         other_proposal = factories.ProposalFactory(round=self.fixture.round)
-        completed = ProposalWorkflowStepInstance.objects.create(
+        completed = factories.ProposalWorkflowStepInstanceFactory(
             proposal=other_proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.COMPLETED,
@@ -929,7 +1038,7 @@ class WorkflowStepResponsibleRolePermissionTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(
@@ -937,7 +1046,7 @@ class WorkflowStepResponsibleRolePermissionTest(test.APITestCase):
             step="administrative_check",
             responsible_role=ResponsibleRoles.CALL_MANAGER,
         )
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -976,7 +1085,7 @@ class WorkflowStepPanelMemberTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "panel_review"
+        factories.point_at_step(self.proposal, "panel_review")
         self.proposal.save()
 
         # panel_review depends on expert_review being enabled.
@@ -986,7 +1095,7 @@ class WorkflowStepPanelMemberTest(test.APITestCase):
             step="panel_review",
             responsible_role=ResponsibleRoles.PANEL_MEMBER,
         )
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="panel_review",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -1011,6 +1120,8 @@ class WorkflowStepPanelMemberTest(test.APITestCase):
     def test_panel_member_step_denies_reviewer(self):
         reviewer = structure_factories.UserFactory()
         self.call.add_user(reviewer, CallRole.REVIEWER)
+        # A reviewer of the proposal, so it is the step that refuses them.
+        factories.ReviewFactory(proposal=self.proposal, reviewer=reviewer)
         self.client.force_authenticate(reviewer)
         response = self.client.post(
             self.url,
@@ -1030,14 +1141,29 @@ class WorkflowStepPanelMemberTest(test.APITestCase):
 
 
 class WorkflowStepActiveUniqueConstraintTest(test.APITestCase):
-    """At most one workflow step instance per proposal may be ACTIVE at a time."""
+    """Steps of one stage are active at once; one step is never there twice."""
 
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
 
-    def test_cannot_have_two_active_steps_on_same_proposal(self):
-        ProposalWorkflowStepInstance.objects.create(
+    def test_two_steps_of_a_proposal_may_be_active_at_once(self):
+        for key in ("administrative_check", "technical_assessment"):
+            factories.ProposalWorkflowStepInstanceFactory(
+                proposal=self.proposal,
+                step=key,
+                status=WorkflowStepInstanceStatuses.ACTIVE,
+                started_at=timezone.now(),
+            )
+        self.assertEqual(
+            self.proposal.workflow_step_instances.filter(
+                status=WorkflowStepInstanceStatuses.ACTIVE
+            ).count(),
+            2,
+        )
+
+    def test_cannot_have_one_step_twice_on_same_proposal(self):
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -1047,9 +1173,9 @@ class WorkflowStepActiveUniqueConstraintTest(test.APITestCase):
             with db_transaction.atomic():
                 ProposalWorkflowStepInstance.objects.create(
                     proposal=self.proposal,
-                    step="allocation_decision",
-                    status=WorkflowStepInstanceStatuses.ACTIVE,
-                    started_at=timezone.now(),
+                    call_step=self.proposal.workflow_step_instances.get().call_step,
+                    step="administrative_check",
+                    order=0,
                 )
 
 
@@ -1061,7 +1187,7 @@ class WorkflowConfigDriftTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         # Submit-time enabled set: administrative_check, allocation_decision.
@@ -1071,13 +1197,13 @@ class WorkflowConfigDriftTest(test.APITestCase):
         self.alloc_step_config = factories.CallWorkflowStepFactory(
             call=self.call, step="allocation_decision", is_enabled=True
         )
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -1089,7 +1215,7 @@ class WorkflowConfigDriftTest(test.APITestCase):
             "panel_review",
             "award_response",
         ):
-            ProposalWorkflowStepInstance.objects.create(
+            factories.ProposalWorkflowStepInstanceFactory(
                 proposal=self.proposal,
                 step=step_id,
                 status=WorkflowStepInstanceStatuses.SKIPPED,
@@ -1144,7 +1270,7 @@ class ManualTransitionTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(
@@ -1154,13 +1280,13 @@ class ManualTransitionTest(test.APITestCase):
         )
         factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -1227,11 +1353,11 @@ class ManualTransitionTest(test.APITestCase):
 
     def test_manual_advance_terminates_workflow(self):
         # Remove the downstream step so the manual step is terminal.
-        CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
-        ).delete()
         ProposalWorkflowStepInstance.objects.filter(
             proposal=self.proposal, step="allocation_decision"
+        ).delete()
+        CallWorkflowStep.objects.filter(
+            call=self.call, key="allocation_decision"
         ).delete()
         # Clear the fixture's pre-assigned project so the terminal advance
         # exercises allocation (and records who approved it).
@@ -1256,7 +1382,10 @@ class ManualTransitionTest(test.APITestCase):
     def test_advance_forbidden_for_non_call_manager(self):
         self._complete_manual_step()
 
-        # Reviewer is added to the call but is not a call manager.
+        # A reviewer of the proposal is not a call manager.
+        factories.ReviewFactory(
+            proposal=self.proposal, reviewer=self.fixture.reviewer_1
+        )
         self.client.force_authenticate(self.fixture.reviewer_1)
         response = self.client.post(self.advance_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -1277,7 +1406,7 @@ class ManualTransitionTest(test.APITestCase):
         # Switch to automatic mode; complete the step (auto-advances), then
         # try to advance — there is no pending manual advance.
         admin_step = CallWorkflowStep.objects.get(
-            call=self.call, step="administrative_check"
+            call=self.call, key="administrative_check"
         )
         admin_step.transition_mode = TransitionModes.AUTOMATIC_ON_COMPLETION
         admin_step.save()
@@ -1301,19 +1430,19 @@ class WorkflowOutcomeValidationTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
         factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -1383,14 +1512,14 @@ class CallCreationSeedsWorkflowStepsTest(test.APITestCase):
         call = factories.CallFactory()
         enabled = set(
             CallWorkflowStep.objects.filter(call=call, is_enabled=True).values_list(
-                "step", flat=True
+                "key", flat=True
             )
         )
         self.assertEqual(enabled, {"administrative_check", "allocation_decision"})
 
         disabled = set(
             CallWorkflowStep.objects.filter(call=call, is_enabled=False).values_list(
-                "step", flat=True
+                "key", flat=True
             )
         )
         self.assertEqual(
@@ -1402,14 +1531,16 @@ class CallCreationSeedsWorkflowStepsTest(test.APITestCase):
         # include_award_response toggle, not by the signal.
         call = factories.CallFactory()
         self.assertFalse(
-            CallWorkflowStep.objects.filter(call=call, step="award_response").exists()
+            CallWorkflowStep.objects.filter(call=call, key="award_response").exists()
         )
 
     def test_seeding_is_idempotent_on_resave(self):
         call = factories.CallFactory()
         call.name = "Updated"
         call.save()
-        expected_count = len([s for s in WORKFLOW_STEPS if s.id != "award_response"])
+        expected_count = len(
+            [s for s in DEFAULT_CALL_STEPS if s.key != "award_response"]
+        )
         self.assertEqual(
             CallWorkflowStep.objects.filter(call=call).count(),
             expected_count,
@@ -1459,7 +1590,7 @@ class CallActivateWorkflowGuardTest(test.APITestCase):
 
     def test_activate_with_allocation_decision_disabled_returns_400(self):
         CallWorkflowStep.objects.filter(
-            call=self.draft_call, step="allocation_decision"
+            call=self.draft_call, key="allocation_decision"
         ).update(is_enabled=False)
         # Add another enabled step so the "no enabled steps" branch doesn't fire.
         factories.CallWorkflowStepFactory(
@@ -1482,7 +1613,7 @@ class IncludeAwardResponseSyncTest(test.APITestCase):
         self.call = self.fixture.new_call
         # allocation_decision is auto-seeded by the post_save signal
         self.allocation_step = CallWorkflowStep.objects.get(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         )
 
     def _patch(self, payload):
@@ -1496,22 +1627,20 @@ class IncludeAwardResponseSyncTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(
             CallWorkflowStep.objects.filter(
-                call=self.call, step="award_response", is_enabled=True
+                call=self.call, key="award_response", is_enabled=True
             ).exists()
         )
 
     def test_toggle_off_disables_award_response_step(self):
         self.allocation_step.include_award_response = True
         self.allocation_step.save()
-        CallWorkflowStep.objects.update_or_create(
-            call=self.call,
-            step="award_response",
-            defaults={"is_enabled": True},
+        factories.CallWorkflowStepFactory(
+            call=self.call, step="award_response", is_enabled=True
         )
 
         response = self._patch({"include_award_response": False})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        award = CallWorkflowStep.objects.get(call=self.call, step="award_response")
+        award = CallWorkflowStep.objects.get(call=self.call, key="award_response")
         self.assertFalse(award.is_enabled)
 
     def test_direct_post_of_award_response_step_rejected(self):
@@ -1522,7 +1651,7 @@ class IncludeAwardResponseSyncTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(
             CallWorkflowStep.objects.filter(
-                call=self.call, step="award_response"
+                call=self.call, key="award_response"
             ).exists()
         )
 
@@ -1541,7 +1670,7 @@ class WorkflowStatesFrontendFieldsTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(
@@ -1553,13 +1682,13 @@ class WorkflowStatesFrontendFieldsTest(test.APITestCase):
         # ``allocation_decision`` deliberately has no CallWorkflowStep here so
         # the serializer's "no per-call config" fallback path is exercised.
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        self.pending_instance = ProposalWorkflowStepInstance.objects.create(
+        self.pending_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -1645,6 +1774,98 @@ class WorkflowStatesFrontendFieldsTest(test.APITestCase):
         self.assertIn("internal_notes", states["administrative_check"])
 
 
+class WorkflowStatesHiddenStepOutcomeTest(test.APITestCase):
+    """A step the call keeps from the applicant shows the applicant team no
+    verdict, reasoning or actor; the call team still reads all of it."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.save()
+        self.applicant = self.fixture.proposal_creator
+        self.co_applicant = structure_factories.UserFactory()
+        self.proposal.add_user(self.co_applicant, ProposalRole.MEMBER)
+        factories.CallWorkflowStepFactory(
+            call=self.call, step="administrative_check", applicant_visible=True
+        )
+        self.hidden_step = factories.CallWorkflowStepFactory(
+            call=self.call,
+            step="technical_assessment",
+            applicant_visible=False,
+            on_negative="continue",
+        )
+        self.visible = self._completed("administrative_check", "eligible")
+        self.hidden = self._completed(
+            "technical_assessment", WorkflowStepOutcomes.INFEASIBLE
+        )
+
+    def _completed(self, key, outcome):
+        return factories.ProposalWorkflowStepInstanceFactory(
+            proposal=self.proposal,
+            step=key,
+            status=WorkflowStepInstanceStatuses.COMPLETED,
+            outcome=outcome,
+            outcome_reason=f"{key} reasoning",
+            completed_by=self.fixture.call_manager,
+            completed_at=timezone.now(),
+        )
+
+    def _get_states(self, user):
+        self.client.force_authenticate(user)
+        url = factories.ProposalFactory.get_url(self.proposal, action="workflow_states")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {s["step"]: s for s in response.data}
+
+    def test_applicant_team_reads_no_outcome_of_a_hidden_step(self):
+        for user in (self.applicant, self.co_applicant):
+            hidden = self._get_states(user)["technical_assessment"]
+            self.assertIsNone(hidden["outcome"])
+            self.assertEqual(hidden["outcome_reason"], "")
+            self.assertIsNone(hidden["rejection_reason"])
+            self.assertIsNone(hidden["completed_by"])
+            self.assertEqual(hidden["status"], WorkflowStepInstanceStatuses.COMPLETED)
+
+    def test_applicant_team_reads_the_outcome_of_a_visible_step(self):
+        for user in (self.applicant, self.co_applicant):
+            visible = self._get_states(user)["administrative_check"]
+            self.assertEqual(visible["outcome"], "eligible")
+            self.assertEqual(
+                visible["outcome_reason"], "administrative_check reasoning"
+            )
+
+    def test_call_manager_reads_the_outcome_of_a_hidden_step(self):
+        hidden = self._get_states(self.fixture.call_manager)["technical_assessment"]
+        self.assertEqual(hidden["outcome"], WorkflowStepOutcomes.INFEASIBLE)
+        self.assertEqual(hidden["outcome_reason"], "technical_assessment reasoning")
+
+    def test_provider_reads_only_their_own_hidden_step(self):
+        provider = self.fixture.offering_fixture.offering_manager
+        factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.fixture.requested_offering_accepted,
+            created_by=self.applicant,
+        )
+        self.visible.call_step.applicant_visible = False
+        self.visible.call_step.save(update_fields=["applicant_visible"])
+        states = self._get_states(provider)
+        self.assertIsNone(states["administrative_check"]["outcome"])
+        self.assertEqual(states["administrative_check"]["outcome_reason"], "")
+        # The technical assessment is the requested offering's team's work.
+        self.assertEqual(
+            states["technical_assessment"]["outcome"], WorkflowStepOutcomes.INFEASIBLE
+        )
+
+    def test_applicant_reads_the_hidden_step_that_ended_the_proposal(self):
+        self.hidden_step.on_negative = "reject"
+        self.hidden_step.save(update_fields=["on_negative"])
+        hidden = self._get_states(self.applicant)["technical_assessment"]
+        self.assertEqual(hidden["outcome"], WorkflowStepOutcomes.INFEASIBLE)
+        self.assertEqual(hidden["outcome_reason"], "technical_assessment reasoning")
+
+
 class WorkflowInternalNotesPersistenceTest(test.APITestCase):
     """Internal notes round-trip through complete/reject actions and accumulate.
 
@@ -1658,19 +1879,19 @@ class WorkflowInternalNotesPersistenceTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
         factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -1774,11 +1995,11 @@ class WorkflowInternalNotesWriteGuardTest(test.APITestCase):
         # ``award_response`` is the only catalog step whose default
         # responsible_role is the applicant, so it's the natural fixture for
         # testing applicant-as-actor scenarios.
-        self.proposal.workflow_step = "award_response"
+        factories.point_at_step(self.proposal, "award_response")
         self.proposal.save()
 
         factories.CallWorkflowStepFactory(call=self.call, step="award_response")
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="award_response",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -1820,6 +2041,7 @@ class WorkflowInternalNotesWriteGuardTest(test.APITestCase):
             {
                 "step_uuid": self.active_instance.uuid.hex,
                 "outcome": "accepted",
+                "outcome_reason": "The applicant accepted by phone.",
                 "internal_notes": "Applicant confirmed acceptance verbally too.",
             },
         )
@@ -1830,9 +2052,9 @@ class WorkflowInternalNotesWriteGuardTest(test.APITestCase):
             "Applicant confirmed acceptance verbally too.",
         )
 
-    def test_applicant_reject_drops_internal_notes(self):
-        # award_response allows the applicant to decline; reject endpoint also
-        # passes through the same write-side guard.
+    def test_applicant_cannot_reject_at_their_own_step(self):
+        # The applicant declines the award by completing the step; rejecting
+        # the proposal is the call's decision, refused before any text lands.
         self.client.force_authenticate(self.fixture.proposal_creator)
         url = factories.ProposalFactory.get_url(
             self.proposal, action="reject_workflow_step"
@@ -1845,9 +2067,9 @@ class WorkflowInternalNotesWriteGuardTest(test.APITestCase):
                 "internal_notes": "Trying to leak via reject.",
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.active_instance.refresh_from_db()
-        self.assertEqual(self.active_instance.outcome_reason, "I decline.")
+        self.assertEqual(self.active_instance.outcome_reason, "")
         self.assertEqual(self.active_instance.internal_notes, "")
 
 
@@ -1865,10 +2087,10 @@ class WorkflowStatesAccessTest(test.APITestCase):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -1908,10 +2130,10 @@ class InternalNotesDualRolePolicyTest(test.APITestCase):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -1948,12 +2170,12 @@ class WorkflowStepCompletedByBlindReviewTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "expert_review"
+        factories.point_at_step(self.proposal, "expert_review")
         self.proposal.save()
 
         self.reviewer = structure_factories.UserFactory()
         self.call.add_user(self.reviewer, CallRole.REVIEWER)
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="expert_review",
             status=WorkflowStepInstanceStatuses.COMPLETED,
@@ -2103,10 +2325,10 @@ class RejectionReasonBlankStringTest(test.APITestCase):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
-        self.instance = ProposalWorkflowStepInstance.objects.create(
+        self.instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.COMPLETED,
@@ -2138,13 +2360,13 @@ class WorkflowStepGateEnforcementTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "expert_review"
+        factories.point_at_step(self.proposal, "expert_review")
         self.proposal.save()
 
         self.expert_step = factories.CallWorkflowStepFactory(
             call=self.call, step="expert_review", min_reviewers=2
         )
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="expert_review",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -2239,9 +2461,9 @@ class WorkflowStepNegativeOutcomeTest(test.APITestCase):
 
     def _complete(self, step, outcome):
         factories.CallWorkflowStepFactory(call=self.call, step=step, is_enabled=True)
-        self.proposal.workflow_step = step
+        factories.point_at_step(self.proposal, step)
         self.proposal.save()
-        instance = ProposalWorkflowStepInstance.objects.create(
+        instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step=step,
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -2252,7 +2474,13 @@ class WorkflowStepNegativeOutcomeTest(test.APITestCase):
             self.proposal, action="complete_workflow_step"
         )
         response = self.client.post(
-            url, {"step_uuid": instance.uuid.hex, "outcome": outcome}
+            url,
+            {
+                "step_uuid": instance.uuid.hex,
+                "outcome": outcome,
+                # Staff answering the applicant's award response say why.
+                "outcome_reason": "Recorded as the applicant asked by mail.",
+            },
         )
         return response, instance
 
@@ -2295,11 +2523,18 @@ class ProposalTeamVisibilityTest(test.APITestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
+        # Submitted: the call's reviewers do not read drafts
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         self.url = factories.ProposalFactory.get_url(
             self.fixture.proposal, "list_users"
         )
 
     def test_call_reviewer_can_view_proposal_team(self):
+        # The call's reviewer role is its pool; the review grants the proposal.
+        factories.ReviewFactory(
+            proposal=self.fixture.proposal, reviewer=self.fixture.reviewer_1
+        )
         self.client.force_authenticate(self.fixture.reviewer_1)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -2334,9 +2569,9 @@ class CallManagerDrivesStepsTest(test.APITestCase):
         factories.CallWorkflowStepFactory(
             call=self.call, step=step, responsible_role=responsible_role
         )
-        self.proposal.workflow_step = step
-        self.proposal.save(update_fields=["workflow_step"])
-        return ProposalWorkflowStepInstance.objects.create(
+        factories.point_at_step(self.proposal, step)
+        self.proposal.save(update_fields=["current_step"])
+        return factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step=step,
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -2369,7 +2604,7 @@ class CallManagerDrivesStepsTest(test.APITestCase):
 
     def test_applicant_can_complete_award_response(self):
         instance = self._active("award_response", ResponsibleRoles.APPLICANT)
-        response = self._complete(self.proposal.created_by, instance, "declined")
+        response = self._complete(self.fixture.proposal_creator, instance, "declined")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
@@ -2382,7 +2617,7 @@ class CompleteWorkflowStepChecklistGateTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
 
         self.checklist = checklist_factories.ChecklistFactory()
@@ -2397,13 +2632,13 @@ class CompleteWorkflowStepChecklistGateTest(test.APITestCase):
         )
         factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
 
-        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+        self.active_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -2430,7 +2665,9 @@ class CompleteWorkflowStepChecklistGateTest(test.APITestCase):
         self.assertEqual(self.proposal.workflow_step, "administrative_check")
 
     def test_complete_allowed_after_required_question_answered(self):
-        completion = self.proposal.ensure_checklist_completion_for(self.checklist)
+        completion = factories.contribution_completion(
+            self.proposal, "administrative_check", self.fixture.staff
+        )
         checklist_factories.AnswerFactory(
             completion=completion,
             question=self.question,
@@ -2485,6 +2722,8 @@ class WorkflowStepResponsibleUsersTest(test.APITestCase):
                 "full_name": manager.full_name,
                 "email": manager.email,
                 "is_panel_chair": False,
+                "is_panel_vice_chair": False,
+                "offerings": [],
             },
         )
 
@@ -2529,7 +2768,70 @@ class WorkflowStepResponsibleUsersTest(test.APITestCase):
         )
 
     def test_applicant_step_lists_nobody(self):
-        CallWorkflowStep.objects.update_or_create(
-            call=self.call, step="award_response", defaults={"is_enabled": True}
+        factories.CallWorkflowStepFactory(
+            call=self.call, step="award_response", is_enabled=True
         )
         self.assertEqual(self._steps()["award_response"]["responsible_users"], [])
+
+    def test_offering_manager_names_the_offerings_they_manage(self):
+        manager = structure_factories.UserFactory()
+        offering = self.fixture.requested_offering_accepted.offering
+        offering.add_user(manager, OfferingRole.MANAGER)
+
+        step = self._steps()["technical_assessment"]
+        (entry,) = step["responsible_users"]
+        self.assertEqual(
+            entry["offerings"],
+            [
+                {
+                    "uuid": offering.uuid.hex,
+                    "name": offering.name,
+                    "customer_uuid": offering.customer.uuid.hex,
+                }
+            ],
+        )
+        # The technical assessment takes its contributions from the same
+        # offering teams.
+        (contributor,) = step["contributing_users"]
+        self.assertEqual(contributor["email"], manager.email)
+        self.assertEqual(contributor["offerings"], entry["offerings"])
+
+    def _contributors(self, contributor_source, step="administrative_check"):
+        models_step = self.call.workflow_steps.get(key=step)
+        models_step.contributor_source = contributor_source
+        models_step.save()
+        return sorted(u["email"] for u in self._steps()[step]["contributing_users"])
+
+    def test_without_contributors_nobody_contributes(self):
+        self.assertEqual(self._contributors("none"), [])
+
+    def test_assigned_reviewers_are_the_accepted_pool(self):
+        accepted = factories.CallReviewerPoolFactory(call=self.call)
+        factories.CallReviewerPoolFactory(
+            call=self.call,
+            invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+        )
+        self.assertEqual(
+            self._contributors("assigned_reviewers"),
+            [accepted.reviewer.user.email],
+        )
+
+    def test_call_role_contributors_are_its_holders(self):
+        member = self.fixture.panel_member
+        self.assertEqual(self._contributors("call_role:panel_member"), [member.email])
+
+    def test_panel_chair_contributors_are_the_chair(self):
+        chair = self.fixture.panel_member
+        self.call.add_user(structure_factories.UserFactory(), CallRole.PANEL_MEMBER)
+        self.call.panel_chair = chair
+        self.call.save()
+        self.assertEqual(self._contributors("call_role:panel_chair"), [chair.email])
+
+    def test_contributors_are_withheld_from_evaluators_outside_the_team(self):
+        self.client.force_authenticate(self.fixture.reviewer_1)
+        response = self.client.get(
+            factories.CallWorkflowStepFactory.get_list_url(self.call)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for step in response.data:
+            self.assertEqual(step["contributing_users"], [])

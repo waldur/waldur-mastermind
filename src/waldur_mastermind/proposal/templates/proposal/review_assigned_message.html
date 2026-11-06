@@ -10,7 +10,7 @@
 <p><strong>Proposal details:</strong></p>
 <ul>
     <li><strong>Proposal name:</strong> {{ proposal_name }}</li>
-    <li><strong>Submitted by:</strong> {{ proposal_creator_name }}</li>
+    {% if proposal_creator_name %}<li><strong>Submitted by:</strong> {{ proposal_creator_name }}</li>{% endif %}
     <li><strong>Date submitted:</strong> {{ submission_date }}</li>
     <li><strong>Review deadline:</strong> {{ review_deadline }}</li>
 </ul>

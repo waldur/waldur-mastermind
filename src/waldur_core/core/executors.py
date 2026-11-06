@@ -2,6 +2,7 @@ import logging
 import operator
 from functools import reduce
 
+from django.conf import settings
 from django.db import transaction
 
 from waldur_core.core import tasks, utils
@@ -65,7 +66,7 @@ class BaseExecutor:
                     link=link,
                     link_error=link_error,
                     countdown=countdown,
-                    queue=is_heavy_task and "heavy-durable" or None,
+                    queue=is_heavy_task and settings.HEAVY_QUEUE or None,
                 )
                 if hasattr(instance, "task_id"):
                     instance.task_id = async_result.id

@@ -30,6 +30,7 @@ from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import Feature, SshPublicKey, User
 from waldur_core.core.serializers import ConstanceSettingsSerializer
 from waldur_core.logging.models import Event
+from waldur_core.permissions.enums import ROLE_DESCRIPTIONS
 from waldur_core.permissions.models import (
     Role,
     RoleAvailability,
@@ -40,6 +41,8 @@ from waldur_core.permissions.tasks import sync_user_deactivation_status
 from waldur_core.structure.models import (
     Customer,
     Project,
+    ScienceDomain,
+    ScienceSubDomain,
     ServiceSettings,
     UserAgreement,
 )
@@ -99,7 +102,22 @@ from waldur_mastermind.policy.models import (
     SlurmCommandHistory,
     SlurmPeriodicUsagePolicy,
 )
-from waldur_mastermind.proposal.enums import ProposalDisclosureLevels
+from waldur_mastermind.proposal import (
+    call_templates,
+    contributions,
+    notification_rules,
+    proposal_roles,
+    reviewer_membership,
+    workflow_service,
+)
+from waldur_mastermind.proposal import panels as proposal_panels
+from waldur_mastermind.proposal.enums import (
+    DEFAULT_CALL_STEPS_MAP,
+    ContributorSources,
+    ProposalDisclosureLevels,
+    ReviewStates,
+    parse_contributor_source,
+)
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
@@ -109,6 +127,10 @@ from waldur_mastermind.proposal.models import (
     CallCOIConfiguration,
     CallDocument,
     CallManagingOrganisation,
+    CallOfferingComponent,
+    CallPanel,
+    CallProposalRole,
+    CallResourcePool,
     CallResourceTemplate,
     CallReviewerPool,
     CallWorkflowStep,
@@ -128,9 +150,9 @@ from waldur_mastermind.proposal.models import (
     ReviewerProfile,
     ReviewerProposalAffinity,
     ReviewerPublication,
-    ReviewerStats,
     ReviewerSuggestion,
     Round,
+    StepContribution,
 )
 from waldur_mastermind.proposal.serializers import (
     CallAssignmentConfigurationSerializer,
@@ -488,6 +510,12 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "calls": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "call_templates": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "call_documents": {
                 "created": 0,
                 "updated": 0,
@@ -506,7 +534,25 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "call_offering_components": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "call_resource_pools": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "rounds": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "call_proposal_roles": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "call_workflow_steps": {
                 "created": 0,
                 "updated": 0,
@@ -545,6 +591,12 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "science_domains": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "expertise_categories": {
                 "created": 0,
                 "updated": 0,
@@ -563,7 +615,6 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
-            "reviewer_stats": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "call_coi_configurations": {
                 "created": 0,
                 "updated": 0,
@@ -589,6 +640,18 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "call_reviewer_pools": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "call_panel_chairs": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "call_panels": {
                 "created": 0,
                 "updated": 0,
                 "skipped": 0,
@@ -626,6 +689,12 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "assignment_items": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "step_contributions": {
                 "created": 0,
                 "updated": 0,
                 "skipped": 0,
@@ -869,6 +938,13 @@ class Command(BaseCommand):
             "features", lambda: self.import_features(data.get("features", []))
         )
 
+        # Science domains have no dependencies; calls created from a
+        # template map their panels onto them by code.
+        self._safe_import(
+            "science_domains",
+            lambda: self.import_science_domains(data.get("science_domains", [])),
+        )
+
         if not skip_users:
             self._safe_import("users", lambda: self.import_users(data.get("users", [])))
             self._safe_import(
@@ -923,10 +999,6 @@ class Command(BaseCommand):
             lambda: self.import_reviewer_publications(
                 data.get("reviewer_publications", [])
             ),
-        )
-        self._safe_import(
-            "reviewer_stats",
-            lambda: self.import_reviewer_stats(data.get("reviewer_stats", [])),
         )
 
         self._safe_import(
@@ -1200,6 +1272,13 @@ class Command(BaseCommand):
             "calls",
             lambda: self.import_calls(data.get("calls", [])),
         )
+        # Calls configured from a shipped call template (depends on call
+        # managing organisations); rounds, requested offerings and roles
+        # below may refer to them by the uuid the preset gives them.
+        self._safe_import(
+            "call_templates",
+            lambda: self.import_call_templates(data.get("call_templates", [])),
+        )
         # Documentation files attached to calls (depends on calls)
         self._safe_import(
             "call_documents",
@@ -1247,14 +1326,35 @@ class Command(BaseCommand):
             ),
         )
         self._safe_import(
+            "call_offering_components",
+            lambda: self.import_call_offering_components(
+                data.get("call_offering_components", [])
+            ),
+        )
+        self._safe_import(
             "rounds",
             lambda: self.import_rounds(data.get("rounds", [])),
         )
-        # Configure the per-call workflow steps. Every call already gets a full
-        # set of CallWorkflowStep rows auto-seeded by a post-save signal on
+        # A pool names its round, or none for the whole call.
+        self._safe_import(
+            "call_resource_pools",
+            lambda: self.import_call_resource_pools(
+                data.get("call_resource_pools", [])
+            ),
+        )
+        # The evaluator roles a call gives on its proposals; workflow steps
+        # name them by key, so they come first.
+        self._safe_import(
+            "call_proposal_roles",
+            lambda: self.import_call_proposal_roles(
+                data.get("call_proposal_roles", [])
+            ),
+        )
+        # Configure the per-call workflow steps. Every call already gets the
+        # default CallWorkflowStep rows auto-seeded by a post-save signal on
         # creation; this overrides their enable/transition/blind-review config
         # for calls that want a non-default workflow (e.g. enabling the review
-        # steps). Matched by (call, step), not uuid.
+        # steps) and adds steps of their own. Matched by (call, key), not uuid.
         self._safe_import(
             "call_workflow_steps",
             lambda: self.import_call_workflow_steps(
@@ -1330,10 +1430,27 @@ class Command(BaseCommand):
             "assignment_items",
             lambda: self.import_assignment_items(data.get("assignment_items", [])),
         )
+        # After the steps, reviews and assignment items they belong to, and
+        # before the completions holding their answers.
+        self._safe_import(
+            "step_contributions",
+            lambda: self.import_step_contributions(data.get("step_contributions", [])),
+        )
 
         # Import user_roles AFTER proposal entities (user_roles may scope to Calls)
         self._safe_import(
             "user_roles", lambda: self.import_user_roles(data.get("user_roles", []))
+        )
+
+        # Panel seats AFTER user_roles: a chair and every panel member must
+        # hold the panel member role on the call.
+        self._safe_import(
+            "call_panel_chairs",
+            lambda: self.import_call_panel_chairs(data.get("call_panel_chairs", [])),
+        )
+        self._safe_import(
+            "call_panels",
+            lambda: self.import_call_panels(data.get("call_panels", [])),
         )
 
         # Import role mappings AFTER user_roles (user_roles import triggers
@@ -1342,6 +1459,14 @@ class Command(BaseCommand):
             "role_mappings",
             lambda: self.import_role_mappings(data.get("role_mappings", [])),
         )
+
+        # Roles and pool entries are written around the signals that keep a
+        # call's reviewer role and its reviewer pool as one list.
+        if not self.dry_run:
+            self._safe_import(
+                "call_reviewers",
+                lambda: reviewer_membership.sync_call_reviewers(Call.objects.all()),
+            )
 
         # Import account types
         self._safe_import(
@@ -1460,6 +1585,11 @@ class Command(BaseCommand):
         )
         self._safe_import(
             "answers", lambda: self.import_answers(data.get("answers", []))
+        )
+        # Answers to a step's form are kept per contribution; data written
+        # before then has them on the proposal.
+        self._safe_import(
+            "step_contribution_answers", self.adopt_step_contribution_answers
         )
 
         # Import user management data (after roles and users are ready)
@@ -4357,6 +4487,19 @@ class Command(BaseCommand):
                             self.stats["user_roles"]["updated"] += 1
                         else:
                             self.stats["user_roles"]["skipped"] += 1
+                    elif (
+                        defaults["is_active"]
+                        and UserRole.objects.filter(
+                            user=user,
+                            role=role,
+                            content_type=content_type,
+                            object_id=object_id,
+                            is_active=True,
+                        ).exists()
+                    ):
+                        # Granted already, by a signal of an earlier section
+                        # (an accepted reviewer pool entry gives the role).
+                        self.stats["user_roles"]["skipped"] += 1
                     else:
                         with transaction.atomic():
                             obj = UserRole.objects.create(uuid=uuid, **defaults)
@@ -5946,6 +6089,13 @@ class Command(BaseCommand):
                     "callback_url": order_data.get("callback_url", ""),
                     "termination_comment": order_data.get("termination_comment", ""),
                     "request_comment": order_data.get("request_comment", ""),
+                    "consumer_rejection_comment": order_data.get(
+                        "consumer_rejection_comment", ""
+                    ),
+                    "provider_rejection_comment": order_data.get(
+                        "provider_rejection_comment", ""
+                    ),
+                    "error_message": order_data.get("error_message", ""),
                     "attributes": order_data.get("attributes", {}),
                     "limits": order_data.get("limits", {}),
                     "cost": cost,
@@ -6674,6 +6824,26 @@ class Command(BaseCommand):
                         )
                         self.stats["checklist_completions"]["errors"] += 1
                         continue
+
+                # A contribution's answers go to that contribution or nowhere:
+                # an id from another deployment may be another proposal's.
+                if model == "stepcontribution":
+                    scope_uuid = completion_data.get("scope_object_uuid")
+                    contribution = (
+                        StepContribution.objects.filter(uuid=scope_uuid).first()
+                        if scope_uuid
+                        else None
+                    )
+                    if contribution is None:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping completion {uuid}: its contribution "
+                                f"{scope_uuid or '(not named)'} not found"
+                            )
+                        )
+                        self.stats["checklist_completions"]["errors"] += 1
+                        continue
+                    scope_object_id = contribution.id
 
                 # For proposal scope, try to resolve by UUID if provided
                 if model == "proposal" and completion_data.get("scope_object_uuid"):
@@ -8265,6 +8435,8 @@ class Command(BaseCommand):
                         "reviews_visible_to_submitters", True
                     ),
                     "fixed_duration_in_days": call_data.get("fixed_duration_in_days"),
+                    "allowed_duration_months": call_data.get("allowed_duration_months")
+                    or [],
                     "compliance_checklist": compliance_checklist,
                 }
 
@@ -8298,6 +8470,93 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["calls"]["errors"] += 1
+
+    def import_call_templates(self, entries):
+        """Create calls from the call templates shipped with the call module.
+
+        Each entry is ``{"uuid", "manager_uuid", "template"}`` with optional
+        ``name``, ``created_by_uuid``, ``state`` and
+        ``compliance_checklist_uuid``: the template is imported
+        as a call manager would import it (``call_templates.import_template``)
+        and the call then takes the preset's uuid, so the preset's rounds,
+        requested offerings and user roles can refer to it. ``state`` is set
+        afterwards, as for the preset's other calls; the import creates a
+        draft. A template carries no compliance checklist, so the preset may
+        give the call one of its own checklists.
+
+        The shipped presets are loaded as published call templates too, so
+        the demo's call managers can start further calls from them.
+        """
+        if not entries:
+            return
+        self.stdout.write("Importing calls from call templates...")
+        stats = self.stats["call_templates"]
+        if not self.dry_run:
+            # Keyed on the name a preset is loaded under: a template of that
+            # name, loaded or not, is kept as it is.
+            loaded = call_templates.load_presets(
+                call_templates.names(), publish=True, skip_existing=True
+            )
+            if loaded["created"]:
+                self.stdout.write(
+                    f"Loaded call template presets: {', '.join(loaded['created'])}"
+                )
+        for entry in entries:
+            uuid = entry.get("uuid")
+            manager_uuid = entry.get("manager_uuid")
+            template = entry.get("template")
+            try:
+                if not uuid or not manager_uuid or not template:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call template entry without uuid, "
+                            "manager_uuid or template"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+                if template not in call_templates.names():
+                    raise ValueError(f"no call template named '{template}'")
+                manager = CallManagingOrganisation.objects.filter(
+                    uuid=manager_uuid
+                ).first()
+                if manager is None:
+                    raise ValueError(f"manager {manager_uuid} not found")
+                if Call.objects.filter(uuid=uuid).exists():
+                    stats["skipped"] += 1
+                    continue
+                if self.dry_run:
+                    stats["created"] += 1
+                    continue
+                created_by = None
+                if entry.get("created_by_uuid"):
+                    created_by = User.objects.filter(
+                        uuid=entry["created_by_uuid"]
+                    ).first()
+                with transaction.atomic():
+                    call, _, warnings = call_templates.import_template(
+                        template, manager, created_by, call_name=entry.get("name")
+                    )
+                    compliance_checklist = None
+                    if entry.get("compliance_checklist_uuid"):
+                        compliance_checklist = Checklist.objects.get(
+                            uuid=entry["compliance_checklist_uuid"]
+                        )
+                    Call.objects.filter(pk=call.pk).update(
+                        uuid=uuid,
+                        state=entry.get("state", call.state),
+                        compliance_checklist=compliance_checklist,
+                    )
+                for warning in warnings:
+                    self.stdout.write(
+                        self.style.WARNING(f"Call template {template}: {warning}")
+                    )
+                stats["created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(f"Failed to import call template {uuid}: {e}")
+                )
+                stats["errors"] += 1
 
     def import_requested_offerings(self, requested_offerings_data):
         """Import requested offering data."""
@@ -8498,6 +8757,110 @@ class Command(BaseCommand):
                 )
                 self.stats["call_resource_templates"]["errors"] += 1
 
+    def _upsert(self, section, model, uuid, defaults):
+        """Create or, with update_existing, update the ``model`` row ``uuid``."""
+        existing = model.objects.filter(uuid=uuid).exists()
+        if existing and not self.update_existing:
+            self.stats[section]["skipped"] += 1
+            return
+        if not self.dry_run:
+            if existing:
+                model.objects.filter(uuid=uuid).update(**defaults)
+            else:
+                model.objects.create(uuid=uuid, **defaults)
+        self.stats[section]["updated" if existing else "created"] += 1
+
+    def import_call_offering_components(self, components_data):
+        """What a proposal may request of each component of a call offering."""
+        self.stdout.write("Importing call offering components...")
+        for data in components_data:
+            try:
+                requested_offering = RequestedOffering.objects.filter(
+                    uuid=data.get("requested_offering_uuid")
+                ).first()
+                if not data.get("uuid") or requested_offering is None:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call offering component {data.get('uuid')}: "
+                            "no UUID or requested offering not found"
+                        )
+                    )
+                    self.stats["call_offering_components"]["errors"] += 1
+                    continue
+                default = data.get("default_amount")
+                is_fixed = data.get("is_fixed", False)
+                with transaction.atomic():
+                    self._upsert(
+                        "call_offering_components",
+                        CallOfferingComponent,
+                        data["uuid"],
+                        {
+                            "requested_offering": requested_offering,
+                            "component_type": data["component_type"],
+                            "min_per_proposal": default
+                            if is_fixed
+                            else data.get("min_per_proposal"),
+                            "max_per_proposal": default
+                            if is_fixed
+                            else data.get("max_per_proposal"),
+                            "default_amount": default,
+                            "is_fixed": is_fixed,
+                        },
+                    )
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call offering component {data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["call_offering_components"]["errors"] += 1
+
+    def import_call_resource_pools(self, pools_data):
+        """How much of each call offering component a call awards, over the
+        whole call or one round."""
+        self.stdout.write("Importing call resource pools...")
+        for data in pools_data:
+            try:
+                rule = CallOfferingComponent.objects.filter(
+                    uuid=data.get("offering_component_uuid")
+                ).first()
+                call_round = (
+                    Round.objects.filter(uuid=data["round_uuid"]).first()
+                    if data.get("round_uuid")
+                    else None
+                )
+                if (
+                    not data.get("uuid")
+                    or rule is None
+                    or (data.get("round_uuid") and call_round is None)
+                ):
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call resource pool {data.get('uuid')}: "
+                            "no UUID, or component rule or round not found"
+                        )
+                    )
+                    self.stats["call_resource_pools"]["errors"] += 1
+                    continue
+                with transaction.atomic():
+                    self._upsert(
+                        "call_resource_pools",
+                        CallResourcePool,
+                        data["uuid"],
+                        {
+                            "offering_component": rule,
+                            "round": call_round,
+                            "offered_total": data["offered_total"],
+                        },
+                    )
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call resource pool {data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["call_resource_pools"]["errors"] += 1
+
     def import_rounds(self, rounds_data):
         """Import round data."""
         self.stdout.write("Importing rounds...")
@@ -8530,7 +8893,11 @@ class Command(BaseCommand):
                     round_data.get("allocation_date")
                 )
 
-                if not start_time or not cutoff_time:
+                # A null cut-off is a round open until closed; only a cut-off
+                # that was given but cannot be read is an error.
+                if not start_time or (
+                    round_data.get("cutoff_time") and not cutoff_time
+                ):
                     self.stdout.write(
                         self.style.WARNING(
                             f"Skipping round {uuid}: missing start_time or cutoff_time"
@@ -8548,6 +8915,20 @@ class Command(BaseCommand):
                     ),
                     "allocation_date": allocation_date,
                 }
+                # Where a round stands after its cut-off, for a round shown as
+                # already decided (results published, closed). Imported as is:
+                # nothing of the transitions that lead there is replayed.
+                lifecycle_state = round_data.get("lifecycle_state")
+                if lifecycle_state:
+                    defaults["lifecycle_state"] = lifecycle_state
+                    for field in (
+                        "evaluation_started_at",
+                        "deciding_started_at",
+                        "results_published_at",
+                        "closed_at",
+                    ):
+                        if round_data.get(field):
+                            defaults[field] = self._parse_datetime(round_data[field])
 
                 if not self.dry_run:
                     existing = Round.objects.filter(uuid=uuid).first()
@@ -8641,6 +9022,15 @@ class Command(BaseCommand):
                     "allocation_comment": proposal_data.get("allocation_comment", ""),
                     "awarded_resources_prefilled_at": self._parse_datetime(
                         proposal_data.get("awarded_resources_prefilled_at")
+                    ),
+                    "requested_duration_months": proposal_data.get(
+                        "requested_duration_months"
+                    ),
+                    "awarded_duration_months": proposal_data.get(
+                        "awarded_duration_months"
+                    ),
+                    "completed_at": self._parse_datetime(
+                        proposal_data.get("completed_at")
                     ),
                 }
 
@@ -8965,10 +9355,15 @@ class Command(BaseCommand):
                     self.stats["reviews"]["errors"] += 1
                     continue
 
+                state = review_data.get("state", ReviewStates.IN_REVIEW)
+                if state not in dict(ReviewStates.CHOICES):
+                    # Stored as written, an unknown state reaches the
+                    # pages unlabelled.
+                    raise ValueError(f"review state '{state}' is not one of ours")
                 defaults = {
                     "proposal": proposal,
                     "reviewer": reviewer,
-                    "state": review_data.get("state", "created"),
+                    "state": state,
                     "summary_score": review_data.get("summary_score", 0),
                     "summary_public_comment": review_data.get(
                         "summary_public_comment", ""
@@ -9007,6 +9402,12 @@ class Command(BaseCommand):
                         with transaction.atomic():
                             Review.objects.create(uuid=uuid, **defaults)
                         self.stats["reviews"]["created"] += 1
+                    if review_data.get("criteria_scores"):
+                        review = Review.objects.get(uuid=uuid)
+                        review.criteria_scores = self._review_criteria_scores(
+                            review, review_data["criteria_scores"]
+                        )
+                        review.save(update_fields=["criteria_scores"])
                 else:
                     existing = Review.objects.filter(uuid=uuid).exists()
                     if existing:
@@ -9025,42 +9426,171 @@ class Command(BaseCommand):
                 )
                 self.stats["reviews"]["errors"] += 1
 
+    def _review_criteria_scores(self, review, scores_by_name):
+        """``scores_by_name`` keyed by criterion UUID, as the review stores them.
+
+        A dump names the criteria: their UUIDs are minted when the call's
+        workflow is imported, so they differ from one load to the next.
+        """
+        criteria = {
+            criterion.name: UUID(str(criterion.uuid)).hex
+            for criterion in contributions.review_criteria(review)
+        }
+        unknown = sorted(set(scores_by_name) - set(criteria))
+        if unknown:
+            raise ValueError(f"its step has no criterion named {', '.join(unknown)}")
+        return {criteria[name]: score for name, score in scores_by_name.items()}
+
+    def import_call_proposal_roles(self, roles_data):
+        """Configure the evaluator roles of a call, matched by ``(call, key)``.
+
+        Like workflow steps, the configuration is always applied: an existing
+        role is updated rather than skipped.
+        """
+        self.stdout.write("Importing call evaluator roles...")
+        config_fields = (
+            "name",
+            "description",
+            "eligible_from",
+            "min_holders",
+            "max_holders",
+            "allows_lead",
+        )
+        for role_data in roles_data:
+            key = role_data.get("key")
+            try:
+                call = Call.objects.filter(uuid=role_data.get("call_uuid")).first()
+                if not call or not key:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping evaluator role {key}: no call or key"
+                        )
+                    )
+                    self.stats["call_proposal_roles"]["errors"] += 1
+                    continue
+                values = {
+                    field: role_data[field]
+                    for field in config_fields
+                    if field in role_data
+                }
+                existing = CallProposalRole.objects.filter(call=call, key=key).first()
+                if not self.dry_run:
+                    if existing:
+                        for field, value in values.items():
+                            setattr(existing, field, value)
+                        existing.full_clean()
+                        existing.save()
+                    else:
+                        if role_data.get("uuid"):
+                            values["uuid"] = role_data["uuid"]
+                        role = CallProposalRole(call=call, key=key, **values)
+                        role.full_clean()
+                        role.save()
+                self.stats["call_proposal_roles"][
+                    "updated" if existing else "created"
+                ] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(f"Failed to import evaluator role {key}: {e}")
+                )
+                self.stats["call_proposal_roles"]["errors"] += 1
+
+    @staticmethod
+    def _call_proposal_role(call, key):
+        role = CallProposalRole.objects.filter(call=call, key=key).first()
+        if role is None:
+            raise ValueError(f"call has no evaluator role {key}")
+        return role
+
+    @staticmethod
+    def _contributor_source(call, contributor_source):
+        """A ``proposal_role:`` source pointed at the call's evaluator role,
+        which the entry may name by id, uuid or key."""
+        try:
+            kind, _ = parse_contributor_source(contributor_source)
+        except ValueError:
+            # clean() reports it.
+            return contributor_source
+        if kind != ContributorSources.PROPOSAL_ROLE:
+            return contributor_source
+        role = proposal_roles.resolve_role(call, contributor_source)
+        if role is None:
+            raise ValueError(
+                f"call has no evaluator role {contributor_source.partition(':')[2]}"
+            )
+        return f"{proposal_roles.ROLE_REF_PREFIX}{role.pk}"
+
+    @staticmethod
+    def _clean_step(step):
+        """The checks the API runs on a step: which steps collect reviewer
+        suggestions or release their report, who completes and contributes."""
+        try:
+            step.clean()
+        except DjangoValidationError as exc:
+            raise ValueError(
+                "; ".join(
+                    f"{field}: {' '.join(messages)}"
+                    for field, messages in exc.message_dict.items()
+                )
+                if hasattr(exc, "error_dict")
+                else " ".join(exc.messages)
+            )
+
     def import_call_workflow_steps(self, steps_data):
         """Configure per-call workflow steps.
 
-        Every call auto-seeds a full set of ``CallWorkflowStep`` rows via a
-        post-save signal on creation, so the rows this configures already
-        exist; matched by ``(call, step)`` it overrides their enable /
-        transition / review settings for calls that want a non-default
-        workflow (e.g. enabling the review steps). A missing ``(call, step)``
-        (such as ``award_response``, which the signal skips) is created.
-        The configuration is always applied — unlike most entities these are
-        never "skipped" on re-import, since the point is to override defaults.
+        Every call auto-seeds the default ``CallWorkflowStep`` rows via a
+        post-save signal on creation; an entry matched by ``(call, key)``
+        overrides such a row's settings for calls that want a non-default
+        workflow (e.g. enabling the review steps). A missing ``(call, key)`` is
+        created: as the default step of that key (such as ``award_response``,
+        which the signal skips) unless the entry gives its ``kind``, so a call
+        can hold several steps of one kind under names of its own. Entries
+        written before steps had a kind name the step in ``step`` and its
+        actor in ``responsible_role``; both are still read. The configuration
+        is always applied — unlike most entities these are never "skipped" on
+        re-import, since the point is to override defaults.
         """
         self.stdout.write("Importing call workflow steps...")
         config_fields = (
+            "kind",
+            "name",
+            "description",
+            "order",
+            "outcome_set",
+            "on_negative",
+            "is_allocation_decision",
             "is_enabled",
             "duration_in_days",
             "blind_review",
             "requires_coi_confirmation",
             "checklist_required",
-            "min_reviewers",
+            "contributor_source",
+            "per_requested_offering",
+            "contributors_lead_only",
+            "min_contributions",
+            "max_contributions",
             "min_score_threshold",
             "applicant_visible",
-            "responsible_role",
+            "completer",
             "transition_mode",
             "display_order",
             "include_award_response",
+            "decides_automatically",
             "allocation_time",
+            "release_to_applicant",
+            "collects_reviewer_suggestions",
+            "phase",
+            "project_end_offset_days",
         )
         for step_data in steps_data:
+            key = step_data.get("key") or step_data.get("step")
             try:
                 call_uuid = step_data.get("call_uuid")
-                step = step_data.get("step")
-                if not call_uuid or not step:
+                if not call_uuid or not key:
                     self.stdout.write(
                         self.style.WARNING(
-                            "Skipping call workflow step without call_uuid or step"
+                            "Skipping call workflow step without call_uuid or key"
                         )
                     )
                     self.stats["call_workflow_steps"]["errors"] += 1
@@ -9070,54 +9600,122 @@ class Command(BaseCommand):
                 if not call:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Skipping call workflow step {step}: call {call_uuid} not found"
+                            f"Skipping call workflow step {key}: call {call_uuid} not found"
                         )
                     )
                     self.stats["call_workflow_steps"]["errors"] += 1
                     continue
 
-                defaults = {
+                values = {
                     field: step_data[field]
                     for field in config_fields
                     if field in step_data
                 }
+                if "completer" not in values and "responsible_role" in step_data:
+                    values["completer"] = step_data["responsible_role"]
+                # Written before steps counted contributions.
+                if "min_contributions" not in values and "min_reviewers" in step_data:
+                    values["min_contributions"] = step_data["min_reviewers"]
+
+                # Evaluator roles of the call, named by key.
+                if "completer_proposal_role" in step_data:
+                    role_key = step_data["completer_proposal_role"]
+                    values["completer_proposal_role"] = (
+                        self._call_proposal_role(call, role_key) if role_key else None
+                    )
+                if "contributor_source" in values:
+                    values["contributor_source"] = self._contributor_source(
+                        call, values["contributor_source"]
+                    )
+                assigns_roles = None
+                if "assigns_roles" in step_data:
+                    assigns_roles = [
+                        self._call_proposal_role(call, role_key)
+                        for role_key in step_data["assigns_roles"] or []
+                    ]
 
                 # Resolve the optional workflow-step checklist (a WORKFLOW_STEP
-                # checklist the responsible role fills in during the step).
+                # checklist the completer fills in during the step).
                 checklist_uuid = step_data.get("checklist_uuid")
                 if checklist_uuid:
                     checklist = Checklist.objects.filter(uuid=checklist_uuid).first()
                     if checklist:
-                        defaults["checklist"] = checklist
+                        values["checklist"] = checklist
                     else:
                         self.stdout.write(
                             self.style.WARNING(
-                                f"Call workflow step {step}: "
+                                f"Call workflow step {key}: "
                                 f"checklist {checklist_uuid} not found"
                             )
                         )
 
+                existing = CallWorkflowStep.objects.filter(call=call, key=key).first()
                 if self.dry_run:
-                    exists = CallWorkflowStep.objects.filter(
-                        call=call, step=step
-                    ).exists()
                     self.stats["call_workflow_steps"][
-                        "updated" if exists else "created"
+                        "updated" if existing else "created"
                     ] += 1
                     continue
 
                 with transaction.atomic():
-                    _, created = CallWorkflowStep.objects.update_or_create(
-                        call=call, step=step, defaults=defaults
-                    )
+                    if existing:
+                        order = values.get("order")
+                        if order is not None and order != existing.order:
+                            CallWorkflowStep.make_room(
+                                call.pk, order, exclude_pk=existing.pk
+                            )
+                        for field, value in values.items():
+                            setattr(existing, field, value)
+                        self._clean_step(existing)
+                        existing.save()
+                        step = existing
+                    elif "kind" in values or key not in DEFAULT_CALL_STEPS_MAP:
+                        order = values.pop("order", None)
+                        if order is None:
+                            order = CallWorkflowStep.next_order(call.pk)
+                        else:
+                            CallWorkflowStep.make_room(call.pk, order)
+                        step = CallWorkflowStep(
+                            call=call, key=key, order=order, **values
+                        )
+                        step.apply_kind_defaults()
+                        self._clean_step(step)
+                        step.save()
+                        notification_rules.seed_default_rules(step)
+                    else:
+                        step = CallWorkflowStep.create_default(call, key, **values)
+                        self._clean_step(step)
+                        notification_rules.seed_default_rules(step)
+                    if assigns_roles is not None:
+                        CallWorkflowStep.check_assigned_roles(
+                            step.kind, call.pk, assigns_roles
+                        )
+                        step.assigns_roles.set(assigns_roles)
+                    if "input_steps" in step_data:
+                        # Earlier steps of the call, named by key: an entry
+                        # comes after the steps it reads.
+                        input_keys = step_data["input_steps"] or []
+                        inputs = list(
+                            CallWorkflowStep.objects.filter(
+                                call=call, key__in=input_keys
+                            )
+                        )
+                        missing = set(input_keys) - {s.key for s in inputs}
+                        if missing:
+                            raise ValueError(
+                                f"input steps not found: {', '.join(sorted(missing))}"
+                            )
+                        CallWorkflowStep.check_input_steps(
+                            step.pk, call.pk, step.order, inputs
+                        )
+                        step.input_steps.set(inputs)
                 self.stats["call_workflow_steps"][
-                    "created" if created else "updated"
+                    "updated" if existing else "created"
                 ] += 1
 
             except Exception as e:
                 self.stdout.write(
                     self.style.WARNING(
-                        f"Failed to import call workflow step {step_data.get('step')}: {e}"
+                        f"Failed to import call workflow step {key}: {e}"
                     )
                 )
                 self.stats["call_workflow_steps"]["errors"] += 1
@@ -9131,10 +9729,13 @@ class Command(BaseCommand):
         ``submit`` / ``workflow_service`` produce: exactly one ``active``
         instance per proposal (enforced by a DB constraint), ``pending`` for
         enabled-but-not-yet-reached steps, ``skipped`` for disabled steps, and
-        ``completed`` (with an ``outcome``) for finished ones. When an instance
-        is ``active`` the parent proposal's ``workflow_step`` is set to match.
+        ``completed`` (with an ``outcome``) for finished ones. ``step`` is the
+        key of the call step; a default step the call lacks is added disabled,
+        as the migration to call steps did for skipped instances. When an
+        instance is ``active`` the parent proposal's current step is set to it.
         """
         self.stdout.write("Importing proposal workflow step instances...")
+        touched_proposals = set()
         for inst in instances_data:
             try:
                 uuid = inst.get("uuid")
@@ -9149,7 +9750,11 @@ class Command(BaseCommand):
                     self.stats["proposal_workflow_step_instances"]["errors"] += 1
                     continue
 
-                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                proposal = (
+                    Proposal.objects.select_related("round__call")
+                    .filter(uuid=proposal_uuid)
+                    .first()
+                )
                 if not proposal:
                     self.stdout.write(
                         self.style.WARNING(
@@ -9173,6 +9778,7 @@ class Command(BaseCommand):
                     "outcome": inst.get("outcome"),
                     "outcome_reason": inst.get("outcome_reason", ""),
                     "started_at": self._parse_datetime(inst.get("started_at")),
+                    "deadline": self._parse_datetime(inst.get("deadline")),
                     "completed_at": self._parse_datetime(inst.get("completed_at")),
                     "completed_by": completed_by,
                     "internal_notes": inst.get("internal_notes", ""),
@@ -9186,15 +9792,35 @@ class Command(BaseCommand):
                         self.stats["proposal_workflow_step_instances"]["skipped"] += 1
                         continue
                     with transaction.atomic():
+                        call = proposal.round.call
+                        call_step = CallWorkflowStep.objects.filter(
+                            call=call, key=step
+                        ).first()
+                        if call_step is None:
+                            if step not in DEFAULT_CALL_STEPS_MAP:
+                                raise ValueError(
+                                    f"call {call.uuid.hex} has no step {step}"
+                                )
+                            call_step = CallWorkflowStep.create_default(
+                                call, step, is_enabled=False
+                            )
+                        defaults["call_step"] = call_step
+                        defaults["order"] = call_step.order
+                        defaults["is_allocation_decision"] = (
+                            call_step.is_allocation_decision
+                        )
                         if existing:
                             ProposalWorkflowStepInstance.objects.filter(
                                 uuid=uuid
                             ).update(**defaults)
+                            instance = ProposalWorkflowStepInstance.objects.get(
+                                uuid=uuid
+                            )
                             self.stats["proposal_workflow_step_instances"][
                                 "updated"
                             ] += 1
                         else:
-                            ProposalWorkflowStepInstance.objects.create(
+                            instance = ProposalWorkflowStepInstance.objects.create(
                                 uuid=uuid, **defaults
                             )
                             self.stats["proposal_workflow_step_instances"][
@@ -9202,9 +9828,23 @@ class Command(BaseCommand):
                             ] += 1
                         # Keep the proposal's pointer consistent with its
                         # active step (the submit/advance actions do this).
-                        if status == "active" and proposal.workflow_step != step:
-                            proposal.workflow_step = step
-                            proposal.save(update_fields=["workflow_step"])
+                        if (
+                            status == "active"
+                            and proposal.current_step_id != instance.pk
+                        ):
+                            proposal.current_step = instance
+                            proposal.save(update_fields=["current_step"])
+                        # An active step is due when the engine would have
+                        # made it due on starting it, and has the
+                        # contributions known then, due with it.
+                        if status == "active":
+                            if instance.deadline is None:
+                                instance.deadline = workflow_service.step_deadline(
+                                    instance
+                                )
+                                instance.save(update_fields=["deadline"])
+                            contributions.create_contributions(instance)
+                        touched_proposals.add(proposal.pk)
                 else:
                     existing = ProposalWorkflowStepInstance.objects.filter(
                         uuid=uuid
@@ -9223,6 +9863,34 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["proposal_workflow_step_instances"]["errors"] += 1
+
+        # Reviews are imported before the steps they contribute to exist.
+        for review in Review.objects.filter(
+            proposal_id__in=touched_proposals, contribution__isnull=True
+        ):
+            contributions.attach_review(review)
+
+    def adopt_step_contribution_answers(self):
+        """Move answers to step forms kept on proposals into contributions."""
+        proposal_ids = (
+            ChecklistCompletion.objects.filter(
+                scope_content_type=ContentType.objects.get_for_model(Proposal),
+                checklist_id__in=CallWorkflowStep.objects.filter(
+                    checklist__isnull=False
+                ).values("checklist_id"),
+            )
+            .values_list("scope_object_id", flat=True)
+            .distinct()
+        )
+        moved = 0
+        for proposal in Proposal.objects.filter(id__in=proposal_ids).select_related(
+            "round__call"
+        ):
+            moved += contributions.adopt_proposal_answers(proposal)
+        if moved:
+            self.stdout.write(
+                f"Moved {moved} answers to step forms into contributions."
+            )
 
     def import_user_agreements(self, user_agreements_data):
         """Import user agreement data (Terms of Service, Privacy Policy)."""
@@ -9310,6 +9978,61 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["user_agreements"]["errors"] += 1
+
+    def import_science_domains(self, domains_data):
+        """Import science domains with their sub-domains, matched by code.
+
+        Each entry is ``{"code", "name", "sub_domains": [{"code", "name"}]}``,
+        the shape of the taxonomies in ``waldur_core.structure.presets``. A
+        domain or sub-domain whose code the portal already has is left alone
+        unless ``--update`` is given.
+        """
+        if not domains_data:
+            return
+        self.stdout.write("Importing science domains...")
+        stats = self.stats["science_domains"]
+
+        def upsert(model, code, defaults):
+            existing = model.objects.filter(code=code).first()
+            if existing is None:
+                if not self.dry_run:
+                    existing = model.objects.create(code=code, **defaults)
+                stats["created"] += 1
+            elif self.update_existing:
+                if not self.dry_run:
+                    model.objects.filter(pk=existing.pk).update(**defaults)
+                stats["updated"] += 1
+            else:
+                stats["skipped"] += 1
+            return existing
+
+        for domain_data in domains_data:
+            code = domain_data.get("code")
+            try:
+                if not code or not domain_data.get("name"):
+                    raise ValueError("a science domain needs a code and a name")
+                with transaction.atomic():
+                    domain = upsert(ScienceDomain, code, {"name": domain_data["name"]})
+                    for sub_data in domain_data.get("sub_domains", []):
+                        sub_code = sub_data.get("code")
+                        if not sub_code or not sub_data.get("name"):
+                            raise ValueError(
+                                f"a sub-domain of {code} needs a code and a name"
+                            )
+                        if domain is None:
+                            # Dry run of a new domain: nothing to attach to.
+                            stats["created"] += 1
+                            continue
+                        upsert(
+                            ScienceSubDomain,
+                            sub_code,
+                            {"name": sub_data["name"], "domain": domain},
+                        )
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(f"Failed to import science domain {code}: {e}")
+                )
+                stats["errors"] += 1
 
     def import_expertise_categories(self, categories_data):
         """Import expertise category data."""
@@ -9680,84 +10403,6 @@ class Command(BaseCommand):
                 )
                 self.stats["reviewer_publications"]["errors"] += 1
 
-    def import_reviewer_stats(self, stats_data):
-        """Import reviewer stats data."""
-        self.stdout.write("Importing reviewer stats...")
-        for stat_data in stats_data:
-            try:
-                uuid = stat_data.get("uuid")
-                reviewer_uuid = stat_data.get("reviewer_profile_uuid")
-
-                if not uuid or not reviewer_uuid:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            "Skipping reviewer stats without UUID or reviewer_profile_uuid"
-                        )
-                    )
-                    self.stats["reviewer_stats"]["errors"] += 1
-                    continue
-
-                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
-                if not reviewer:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"Skipping stats {uuid}: reviewer {reviewer_uuid} not found"
-                        )
-                    )
-                    self.stats["reviewer_stats"]["errors"] += 1
-                    continue
-
-                defaults = {
-                    "reviewer_profile": reviewer,
-                    "total_reviews_completed": stat_data.get(
-                        "total_reviews_completed", 0
-                    ),
-                    "total_reviews_declined": stat_data.get(
-                        "total_reviews_declined", 0
-                    ),
-                    "total_reviews_timeout": stat_data.get("total_reviews_timeout", 0),
-                    "average_review_time_days": stat_data.get(
-                        "average_review_time_days"
-                    ),
-                    "average_score_given": stat_data.get("average_score_given"),
-                    "last_review_date": stat_data.get("last_review_date"),
-                    "quality_rating": stat_data.get("quality_rating"),
-                    "quality_rating_count": stat_data.get("quality_rating_count", 0),
-                }
-
-                if not self.dry_run:
-                    existing = ReviewerStats.objects.filter(uuid=uuid).first()
-                    if existing:
-                        if self.update_existing:
-                            with transaction.atomic():
-                                ReviewerStats.objects.filter(uuid=uuid).update(
-                                    **defaults
-                                )
-                            self.stats["reviewer_stats"]["updated"] += 1
-                        else:
-                            self.stats["reviewer_stats"]["skipped"] += 1
-                    else:
-                        with transaction.atomic():
-                            ReviewerStats.objects.create(uuid=uuid, **defaults)
-                        self.stats["reviewer_stats"]["created"] += 1
-                else:
-                    existing = ReviewerStats.objects.filter(uuid=uuid).exists()
-                    if existing:
-                        if self.update_existing:
-                            self.stats["reviewer_stats"]["updated"] += 1
-                        else:
-                            self.stats["reviewer_stats"]["skipped"] += 1
-                    else:
-                        self.stats["reviewer_stats"]["created"] += 1
-
-            except Exception as e:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"Failed to import reviewer stats {stat_data.get('uuid')}: {e}"
-                    )
-                )
-                self.stats["reviewer_stats"]["errors"] += 1
-
     def import_call_coi_configurations(self, configs_data):
         """Import call COI configuration data."""
         self.stdout.write("Importing call COI configurations...")
@@ -10068,6 +10713,137 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["matching_configurations"]["errors"] += 1
+
+    def _call_panel_members(self, call, uuids, stats, label):
+        """The users ``uuids`` names, each a panel member of ``call``; None,
+        with a warning, if one is not."""
+        wanted = {self._normalize_uuid(uuid) for uuid in uuids if uuid}
+        found = {
+            self._normalize_uuid(str(user.uuid)): user
+            for user in proposal_panels.call_panel_members(call)
+        }
+        missing = sorted(wanted - set(found))
+        if missing:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Skipping {label} of call {call.uuid.hex}: not a panel "
+                    f"member of the call: {', '.join(missing)}"
+                )
+            )
+            stats["errors"] += 1
+            return None
+        return [found[uuid] for uuid in wanted]
+
+    def import_call_panel_chairs(self, entries):
+        """Seat a call's panel chair and vice-chair.
+
+        Each entry is ``{"call_uuid", "chair_uuid", "vice_chair_uuid"}``,
+        either seat optional. Both must hold the panel member role on the
+        call, as the API requires; the seats are set on every import.
+        """
+        if not entries:
+            return
+        self.stdout.write("Importing call panel chairs...")
+        stats = self.stats["call_panel_chairs"]
+        for entry in entries:
+            call = Call.objects.filter(uuid=entry.get("call_uuid") or None).first()
+            if call is None:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Skipping panel chairs: call {entry.get('call_uuid')} "
+                        "not found"
+                    )
+                )
+                stats["errors"] += 1
+                continue
+            seats = {
+                field: entry.get(key)
+                for field, key in (
+                    ("panel_chair", "chair_uuid"),
+                    ("panel_vice_chair", "vice_chair_uuid"),
+                )
+                if entry.get(key)
+            }
+            users = self._call_panel_members(
+                call, seats.values(), stats, "the panel chairs"
+            )
+            if users is None:
+                continue
+            if self.dry_run:
+                stats["updated"] += 1
+                continue
+            by_uuid = {self._normalize_uuid(str(u.uuid)): u for u in users}
+            Call.objects.filter(pk=call.pk).update(
+                **{
+                    field: by_uuid[self._normalize_uuid(uuid)]
+                    for field, uuid in seats.items()
+                }
+            )
+            stats["updated"] += 1
+
+    def import_call_panels(self, entries):
+        """Seat the members and the chair of a call's panels.
+
+        Each entry is ``{"call_uuid", "key", "member_uuids", "chair_uuid"}``
+        and names a panel the call already has -- one its template brought,
+        say. Members must hold the panel member role on the call and the
+        chair must be one of them, as the API requires. The seats are set on
+        every import, replacing the panel's members.
+        """
+        if not entries:
+            return
+        self.stdout.write("Importing call panels...")
+        stats = self.stats["call_panels"]
+        for entry in entries:
+            panel = (
+                CallPanel.objects.filter(
+                    call__uuid=entry.get("call_uuid") or None, key=entry.get("key")
+                )
+                .select_related("call")
+                .first()
+            )
+            if panel is None:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Skipping panel {entry.get('key')}: no such panel on call "
+                        f"{entry.get('call_uuid')}"
+                    )
+                )
+                stats["errors"] += 1
+                continue
+            members = self._call_panel_members(
+                panel.call, entry.get("member_uuids") or [], stats, f"panel {panel.key}"
+            )
+            if members is None:
+                continue
+            chair = None
+            if entry.get("chair_uuid"):
+                chair = next(
+                    (
+                        m
+                        for m in members
+                        if self._normalize_uuid(str(m.uuid))
+                        == self._normalize_uuid(entry["chair_uuid"])
+                    ),
+                    None,
+                )
+                if chair is None:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping panel {panel.key}: its chair is not one of "
+                            "its members"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+            if self.dry_run:
+                stats["updated"] += 1
+                continue
+            with transaction.atomic():
+                panel.members.set(members)
+                panel.chair = chair
+                panel.save(update_fields=["chair"])
+            stats["updated"] += 1
 
     def import_call_reviewer_pools(self, pools_data):
         """Import call reviewer pool data."""
@@ -10609,7 +11385,8 @@ class Command(BaseCommand):
                     "top_matching_proposals": item.get("top_matching_proposals", []),
                 }
                 if item.get("reviewed_at"):
-                    defaults["reviewed_at"] = item["reviewed_at"]
+                    # A date or an offset from now (relative:-13days).
+                    defaults["reviewed_at"] = self._parse_datetime(item["reviewed_at"])
 
                 if not self.dry_run:
                     existing = ReviewerSuggestion.objects.filter(uuid=uuid).first()
@@ -10667,6 +11444,13 @@ class Command(BaseCommand):
                 project_role = Role.objects.filter(
                     name=project_role_name, is_active=True
                 ).first()
+                # A system role this release defines exists once something
+                # asks for it, as for user roles above.
+                if not project_role and project_role_name in ROLE_DESCRIPTIONS:
+                    project_role = Role.objects.get_system_role(
+                        project_role_name,
+                        ContentType.objects.get_by_natural_key("structure", "project"),
+                    )
 
                 if not proposal_role or not project_role:
                     self.stdout.write(
@@ -10824,6 +11608,127 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["assignment_batches"]["errors"] += 1
+
+    def _step_contribution_instance(self, row):
+        """The proposal's step instance an exported contribution belongs to."""
+        if row.get("proposal_step_uuid"):
+            instance = ProposalWorkflowStepInstance.objects.filter(
+                uuid=row["proposal_step_uuid"]
+            ).first()
+            if instance is not None:
+                return instance
+        if row.get("proposal_uuid") and row.get("step"):
+            return ProposalWorkflowStepInstance.objects.filter(
+                proposal__uuid=row["proposal_uuid"], call_step__key=row["step"]
+            ).first()
+        return None
+
+    @staticmethod
+    def _existing_step_contribution(instance, values):
+        """The slot the importing deployment already made for this contribution.
+
+        Starting a step makes a slot per requested offering, and a review
+        brings its own.
+        """
+        if values["review"] is not None:
+            return StepContribution.objects.filter(review=values["review"]).first()
+        if values["requested_offering"] is not None:
+            return StepContribution.objects.filter(
+                proposal_step=instance,
+                requested_offering=values["requested_offering"],
+            ).first()
+        if values["contributor"] is not None:
+            return StepContribution.objects.filter(
+                proposal_step=instance,
+                contributor=values["contributor"],
+                requested_offering__isnull=True,
+                review__isnull=True,
+            ).first()
+        return None
+
+    def import_step_contributions(self, rows):
+        """Import the contributions to proposals' workflow steps."""
+        from django.utils.dateparse import parse_datetime
+
+        self.stdout.write("Importing step contributions...")
+        stats = self.stats["step_contributions"]
+        for row in rows:
+            uuid = row.get("uuid")
+            try:
+                instance = self._step_contribution_instance(row) if uuid else None
+                if instance is None:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping step contribution {uuid}: its step not found"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+
+                def by_uuid(model, key, manager=None):
+                    value = row.get(key)
+                    if not value:
+                        return None
+                    return (manager or model.objects).filter(uuid=value).first()
+
+                values = {
+                    "proposal_step": instance,
+                    "requested_offering": by_uuid(
+                        RequestedOffering, "requested_offering_uuid"
+                    ),
+                    "contributor": by_uuid(
+                        User, "contributor_uuid", manager=User.all_objects
+                    ),
+                    "review": by_uuid(Review, "review_uuid"),
+                    "assignment_item": by_uuid(AssignmentItem, "assignment_item_uuid"),
+                    "is_lead": row.get("is_lead", False),
+                    "status": row.get("status") or "pending",
+                    "outcome": row.get("outcome") or "",
+                    "conditions": row.get("conditions") or "",
+                    "comment": row.get("comment") or "",
+                    "due_at": parse_datetime(row["due_at"])
+                    if row.get("due_at")
+                    else None,
+                    "submitted_at": parse_datetime(row["submitted_at"])
+                    if row.get("submitted_at")
+                    else None,
+                }
+                if row.get("requested_offering_uuid") and (
+                    values["requested_offering"] is None
+                ):
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping step contribution {uuid}: requested "
+                            f"offering {row['requested_offering_uuid']} not found"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+                if self.dry_run:
+                    stats["created"] += 1
+                    continue
+                existing = StepContribution.objects.filter(uuid=uuid).first()
+                if existing is not None and not self.update_existing:
+                    stats["skipped"] += 1
+                    continue
+                if existing is None:
+                    existing = self._existing_step_contribution(instance, values)
+                with transaction.atomic():
+                    if existing is None:
+                        StepContribution.objects.create(uuid=uuid, **values)
+                        stats["created"] += 1
+                    else:
+                        StepContribution.objects.filter(pk=existing.pk).update(
+                            uuid=uuid, **values
+                        )
+                        stats["updated"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import step contribution {uuid}: {e}"
+                    )
+                )
+                stats["errors"] += 1
 
     def import_assignment_items(self, items_data):
         """Import assignment item data."""

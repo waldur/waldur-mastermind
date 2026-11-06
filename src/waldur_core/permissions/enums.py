@@ -11,6 +11,12 @@ class RoleEnum(StrEnum):
     PROJECT_ADMIN = "PROJECT.ADMIN"
     PROJECT_MANAGER = "PROJECT.MANAGER"
     PROJECT_MEMBER = "PROJECT.MEMBER"
+    # The team of a project awarded through a call: each acts as the role it
+    # names as its template (notifications, the one-manager rule), with the
+    # allocation itself left to the call's own workflow.
+    PROJECT_PRINCIPAL_INVESTIGATOR = "PROJECT.PRINCIPAL_INVESTIGATOR"
+    PROJECT_CO_INVESTIGATOR = "PROJECT.CO_INVESTIGATOR"
+    PROJECT_COLLABORATOR = "PROJECT.COLLABORATOR"
 
     OFFERING_MANAGER = "OFFERING.MANAGER"
     CALL_REVIEWER = "CALL.REVIEWER"
@@ -20,6 +26,12 @@ class RoleEnum(StrEnum):
     PROPOSAL_MEMBER = "PROPOSAL.MEMBER"
     PROPOSAL_MANAGER = "PROPOSAL.MANAGER"
     PROPOSAL_ADMIN = "PROPOSAL.ADMIN"
+
+
+# An offering's team member for call work only: the managers may hand the
+# offering's part of a call step to its holders. Kept out of RoleEnum for the
+# reason CUSTOMER.CALL_ORGANIZER is (the published role choices).
+OFFERING_EVALUATOR = "OFFERING.EVALUATOR"
 
 
 # Descriptions for every system role, keyed by role name. get_system_role()
@@ -36,6 +48,9 @@ ROLE_DESCRIPTIONS: dict[str, str] = {
     RoleEnum.PROJECT_ADMIN: "Project administrator",
     RoleEnum.PROJECT_MANAGER: "Project manager",
     RoleEnum.PROJECT_MEMBER: "Project member",
+    RoleEnum.PROJECT_PRINCIPAL_INVESTIGATOR: "Principal investigator",
+    RoleEnum.PROJECT_CO_INVESTIGATOR: "Co-investigator",
+    RoleEnum.PROJECT_COLLABORATOR: "Collaborator",
     RoleEnum.OFFERING_MANAGER: "Offering manager",
     RoleEnum.CALL_REVIEWER: "Call reviewer",
     RoleEnum.CALL_MANAGER: "Call manager",
@@ -47,6 +62,18 @@ ROLE_DESCRIPTIONS: dict[str, str] = {
     # adding a member there would extend the role choices published in the
     # OpenAPI schema, so it is keyed by name here instead.
     "CUSTOMER.CALL_ORGANIZER": "Organization call organizer",
+    OFFERING_EVALUATOR: "Offering evaluator",
+}
+
+
+# System roles that act as another one: the template a role names is what
+# get_users, has_user and the one-manager rule match it as, while its own
+# permissions decide what its holders may do. Kept in sync with the template
+# keys in permissions.yaml; a test fails if the two drift.
+ROLE_TEMPLATES: dict[str, str] = {
+    RoleEnum.PROJECT_PRINCIPAL_INVESTIGATOR: RoleEnum.PROJECT_MANAGER,
+    RoleEnum.PROJECT_CO_INVESTIGATOR: RoleEnum.PROJECT_ADMIN,
+    RoleEnum.PROJECT_COLLABORATOR: RoleEnum.PROJECT_MEMBER,
 }
 
 
@@ -153,6 +180,11 @@ class PermissionEnum(StrEnum):
     TERMINATE_RESOURCE = "RESOURCE.TERMINATE"
     LIST_IMPORTABLE_RESOURCES = "RESOURCE.LIST_IMPORTABLE"
     SET_RESOURCE_END_DATE = "RESOURCE.SET_END_DATE"
+    # Asking the provider for a change is a permission of its own: a role
+    # without the direct one is not thereby offered the request.
+    REQUEST_RESOURCE_END_DATE_CHANGE = "RESOURCE.REQUEST_END_DATE_CHANGE"
+    REQUEST_RESOURCE_LIMITS_CHANGE = "RESOURCE.REQUEST_LIMITS_CHANGE"
+    PULL_RESOURCE = "RESOURCE.PULL"
     SET_RESOURCE_USAGE = "RESOURCE.SET_USAGE"
     SWITCH_RESOURCE_PLAN = "RESOURCE.SET_PLAN"
     UPDATE_RESOURCE_LIMITS = "RESOURCE.SET_LIMITS"
@@ -237,6 +269,8 @@ class PermissionEnum(StrEnum):
     CREATE_PROJECT = "PROJECT.CREATE"
     DELETE_PROJECT = "PROJECT.DELETE"
     UPDATE_PROJECT = "PROJECT.UPDATE"
+    SET_PROJECT_END_DATE = "PROJECT.SET_END_DATE"
+    REQUEST_PROJECT_END_DATE_CHANGE = "PROJECT.REQUEST_END_DATE_CHANGE"
     UPDATE_PROJECT_METADATA = "PROJECT.UPDATE_METADATA"
     # Granted to no role, like SET_RESOURCE_SLUG.
     SET_PROJECT_SLUG = "PROJECT.SET_SLUG"
@@ -286,6 +320,7 @@ class PermissionEnum(StrEnum):
     LIST_CUSTOMER_PERMISSION_REVIEWS = "CUSTOMER.LIST_PERMISSION_REVIEWS"
 
     LIST_CALLS = "CALL.LIST"
+    VIEW_CALL_RESULTS = "CALL.VIEW_RESULTS"
     CREATE_CALL = "CALL.CREATE"
     UPDATE_CALL = "CALL.UPDATE"
 
@@ -400,6 +435,9 @@ SYSTEM_ROLE_SCOPES: dict[str, tuple[str, str]] = {
     RoleEnum.PROJECT_ADMIN: TYPE_MAP["project"],
     RoleEnum.PROJECT_MANAGER: TYPE_MAP["project"],
     RoleEnum.PROJECT_MEMBER: TYPE_MAP["project"],
+    RoleEnum.PROJECT_PRINCIPAL_INVESTIGATOR: TYPE_MAP["project"],
+    RoleEnum.PROJECT_CO_INVESTIGATOR: TYPE_MAP["project"],
+    RoleEnum.PROJECT_COLLABORATOR: TYPE_MAP["project"],
     RoleEnum.OFFERING_MANAGER: TYPE_MAP["offering"],
     RoleEnum.CALL_REVIEWER: TYPE_MAP["call"],
     RoleEnum.CALL_MANAGER: TYPE_MAP["call"],

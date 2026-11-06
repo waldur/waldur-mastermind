@@ -36,6 +36,20 @@ class Checklist(
         default=enums.ChecklistTypes.PROJECT_COMPLIANCE,
         help_text=_("Type of compliance this checklist addresses"),
     )
+    # Not "customer": Customer.project_metadata_checklist already takes that
+    # name for its reverse query.
+    organization = models.ForeignKey(
+        "structure.Customer",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="owned_checklists",
+        help_text=_(
+            "Organization the checklist belongs to: only its own calls use it "
+            "and only its people see it. Empty for a checklist the whole "
+            "portal shares."
+        ),
+    )
 
     def get_questions(self):
         """Questions in display order, with what visibility and serializers read prefetched."""

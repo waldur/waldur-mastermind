@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.coi_detection import (
@@ -59,89 +59,120 @@ class NameMatchingTest(TestCase):
 
 
 class CoauthorshipConflictDetectionTest(TestCase):
-    """Test co-authorship based COI detection."""
+    """Co-authorship between the reviewer and the proposal's applicant team."""
 
     def setUp(self):
-        # Create call with round and proposal
         self.call = factories.CallFactory()
         self.round = factories.RoundFactory(call=self.call)
         self.proposal = factories.ProposalFactory(round=self.round)
-
-        # Create reviewer with profile
         self.reviewer = factories.ReviewerProfileFactory()
-
-        # Create COI configuration
         self.config = factories.CallCOIConfigurationFactory(
             call=self.call,
             coauthorship_lookback_years=3,
             coauthorship_threshold_papers=1,
         )
+        self.member = structure_factories.UserFactory(full_name="Alice Johnson")
+        self.proposal.add_user(self.member, ProposalRole.MEMBER)
+
+    def publish(self, year=None, **kwargs):
+        return factories.ReviewerPublicationFactory(
+            reviewer_profile=self.reviewer,
+            publication_year=year or date.today().year,
+            **kwargs,
+        )
+
+    def detect(self):
+        return detect_coauthorship_conflicts(self.reviewer, self.proposal, self.config)
 
     def test_no_conflict_without_shared_publications(self):
-        """No conflict when reviewer has no shared publications with proposal team."""
-        # Add a publication to reviewer but no overlap with proposal team
-        factories.ReviewerPublicationFactory(
-            reviewer_profile=self.reviewer,
-            publication_year=date.today().year,
-            coauthors=[{"name": "Random Person", "orcid": None}],
-        )
-
-        conflicts = detect_coauthorship_conflicts(
-            self.reviewer, self.proposal, self.config
-        )
-        self.assertEqual(len(conflicts), 0)
+        self.publish(coauthors=[{"name": "Random Person", "orcid": None}])
+        self.assertEqual(self.detect(), [])
 
     def test_conflict_detected_by_name_match(self):
-        """Conflict detected when coauthor name matches proposal team member."""
-        # Get the proposal creator's name
-        team_member = self.proposal.created_by
-        team_member.full_name = "Alice Johnson"
-        team_member.save()
+        self.publish(coauthors=[{"name": "Alice Johnson", "orcid": None}])
 
-        # Create publication with matching coauthor name
-        factories.ReviewerPublicationFactory(
-            reviewer_profile=self.reviewer,
-            publication_year=date.today().year,
-            coauthors=[{"name": "Alice Johnson", "orcid": None}],
-        )
+        (conflict,) = self.detect()
 
-        # Add a team member via projectindication
-        if hasattr(self.proposal, "projectindication"):
-            self.proposal.projectindication.project_pi = team_member
-            self.proposal.projectindication.save()
+        self.assertEqual(conflict.coi_type, COITypes.COAUTH_RECENT)
+        self.assertEqual(conflict.severity, COISeverityLevels.APPARENT)
+        self.assertEqual(conflict.conflicting_user, self.member)
+        self.assertEqual(conflict.status, COIStatuses.PENDING)
+        (shared,) = conflict.evidence_data["shared_publications"]
+        self.assertEqual(shared["match_type"], "name")
 
-        detect_coauthorship_conflicts(self.reviewer, self.proposal, self.config)
-        # May or may not find conflict depending on proposal structure
-        # The test verifies the algorithm runs without error
+    def test_conflict_detected_by_coauthor_listed_as_a_plain_name(self):
+        self.publish(coauthors=["Alice Johnson"])
+        (conflict,) = self.detect()
+        self.assertEqual(conflict.conflicting_user, self.member)
 
     def test_conflict_detected_by_orcid_match(self):
-        """Conflict detected when coauthor ORCID matches proposal team member."""
-        team_member_orcid = "0000-0001-2345-6789"
+        factories.ReviewerProfileFactory(
+            user=self.member, orcid_id="0000-0001-2345-6789"
+        )
+        self.publish(coauthors=[{"name": "A. J.", "orcid": "0000-0001-2345-6789"}])
 
-        # Create publication with matching ORCID
+        (conflict,) = self.detect()
+
+        self.assertEqual(conflict.conflicting_user, self.member)
+        (shared,) = conflict.evidence_data["shared_publications"]
+        self.assertEqual(shared["match_type"], "orcid")
+
+    def test_conflict_detected_by_team_members_alternative_name(self):
+        factories.ReviewerProfileFactory(
+            user=self.member, alternative_names=["A. M. Johnson"]
+        )
+        self.publish(coauthors=[{"name": "A. M. Johnson", "orcid": None}])
+        (conflict,) = self.detect()
+        self.assertEqual(conflict.conflicting_user, self.member)
+
+    def test_conflict_detected_by_a_publication_both_list(self):
+        """The same DOI on the reviewer's and a team member's publication
+        list is a shared paper, whoever the coauthor list names."""
+        member_profile = factories.ReviewerProfileFactory(user=self.member)
+        self.publish(doi="10.5555/shared.1")
         factories.ReviewerPublicationFactory(
-            reviewer_profile=self.reviewer,
+            reviewer_profile=member_profile,
+            doi="10.5555/SHARED.1",
             publication_year=date.today().year,
-            coauthors=[{"name": "Some Author", "orcid": team_member_orcid}],
         )
 
-        detect_coauthorship_conflicts(self.reviewer, self.proposal, self.config)
-        # Verify algorithm handles ORCID matching
+        (conflict,) = self.detect()
+
+        self.assertEqual(conflict.conflicting_user, self.member)
+        (shared,) = conflict.evidence_data["shared_publications"]
+        self.assertEqual(shared["match_type"], "doi")
+
+    def test_distant_coauthorship_is_a_potential_conflict(self):
+        self.publish(
+            year=date.today().year - 2,
+            coauthors=[{"name": "Alice Johnson", "orcid": None}],
+        )
+        (conflict,) = self.detect()
+        self.assertEqual(conflict.coi_type, COITypes.COAUTH_OLD)
+        self.assertEqual(conflict.severity, COISeverityLevels.POTENTIAL)
+
+    def test_the_author_removed_from_the_team_is_not_matched(self):
+        author = self.proposal.created_by
+        author.full_name = "Bob Author"
+        author.save()
+        self.publish(coauthors=[{"name": "Bob Author", "orcid": None}])
+        self.assertEqual(self.detect(), [])
+
+        self.proposal.add_user(author, ProposalRole.MANAGER)
+        (conflict,) = self.detect()
+        self.assertEqual(conflict.conflicting_user, author)
+
+    def test_the_reviewer_on_the_team_is_not_their_own_coauthor(self):
+        self.proposal.add_user(self.reviewer.user, ProposalRole.MEMBER)
+        self.publish(coauthors=[{"name": "Random Person", "orcid": None}])
+        self.assertEqual(self.detect(), [])
 
     def test_old_publications_outside_lookback_ignored(self):
-        """Publications outside lookback window are not considered."""
-        old_year = date.today().year - 5  # Outside 3-year lookback
-
-        factories.ReviewerPublicationFactory(
-            reviewer_profile=self.reviewer,
-            publication_year=old_year,
-            coauthors=[{"name": self.proposal.created_by.full_name, "orcid": None}],
+        self.publish(
+            year=date.today().year - 5,
+            coauthors=[{"name": "Alice Johnson", "orcid": None}],
         )
-
-        conflicts = detect_coauthorship_conflicts(
-            self.reviewer, self.proposal, self.config
-        )
-        self.assertEqual(len(conflicts), 0)
+        self.assertEqual(self.detect(), [])
 
 
 class InstitutionalConflictDetectionTest(TestCase):
@@ -251,29 +282,190 @@ class InstitutionalConflictDetectionTest(TestCase):
 
 
 class NamedPersonnelConflictDetectionTest(TestCase):
-    """Test detection of reviewer being named on proposal."""
+    """The reviewer is on the proposal's applicant team."""
+
+    def setUp(self):
+        self.call = factories.CallFactory()
+        self.round = factories.RoundFactory(call=self.call)
+        self.proposal = factories.ProposalFactory(round=self.round)
+        self.reviewer = factories.ReviewerProfileFactory(
+            user=structure_factories.UserFactory(
+                full_name="Maria Garcia", email="maria@example.com"
+            )
+        )
+
+    def detect(self):
+        return detect_named_personnel_conflicts(self.reviewer, self.proposal)
+
+    def test_conflict_detected_when_reviewer_is_on_the_team(self):
+        self.proposal.add_user(self.reviewer.user, ProposalRole.MANAGER)
+
+        (conflict,) = self.detect()
+
+        self.assertEqual(conflict.coi_type, COITypes.ROLE_NAMED)
+        self.assertEqual(conflict.severity, COISeverityLevels.REAL)
+        self.assertEqual(conflict.conflicting_user, self.reviewer.user)
+        self.assertEqual(conflict.evidence_data["match_reason"], "User account match")
+
+    def test_the_author_counts_only_while_on_the_team(self):
+        self.proposal.created_by = self.reviewer.user
+        self.proposal.save()
+        self.assertEqual(self.detect(), [])
+
+    def test_conflict_detected_by_email_of_another_account(self):
+        other = structure_factories.UserFactory(
+            full_name="Someone Else", email="MARIA@example.com"
+        )
+        self.proposal.add_user(other, ProposalRole.MEMBER)
+
+        (conflict,) = self.detect()
+
+        self.assertEqual(conflict.conflicting_user, other)
+        self.assertTrue(conflict.evidence_data["match_reason"].startswith("Email"))
+
+    def test_conflict_detected_by_name(self):
+        other = structure_factories.UserFactory(full_name="maria  garcia")
+        self.proposal.add_user(other, ProposalRole.MEMBER)
+        (conflict,) = self.detect()
+        self.assertTrue(conflict.evidence_data["match_reason"].startswith("Name"))
+
+    def test_conflict_detected_by_reviewers_alternative_name(self):
+        self.reviewer.alternative_names = ["M. Garcia-Lopez"]
+        self.reviewer.save()
+        other = structure_factories.UserFactory(full_name="M. Garcia-Lopez")
+        self.proposal.add_user(other, ProposalRole.MEMBER)
+        (conflict,) = self.detect()
+        self.assertTrue(
+            conflict.evidence_data["match_reason"].startswith("Alternative name")
+        )
+
+    def test_no_conflict_when_different_person(self):
+        self.proposal.add_user(
+            structure_factories.UserFactory(full_name="John Smith"),
+            ProposalRole.MEMBER,
+        )
+        self.assertEqual(self.detect(), [])
+
+
+class SameDepartmentConflictDetectionTest(TestCase):
+    """Same department: the reviewer's and a team member's current
+    affiliations name the same organisation and department."""
 
     def setUp(self):
         self.call = factories.CallFactory()
         self.round = factories.RoundFactory(call=self.call)
         self.proposal = factories.ProposalFactory(round=self.round)
         self.reviewer = factories.ReviewerProfileFactory()
+        self.config = factories.CallCOIConfigurationFactory(
+            call=self.call, include_same_institution=False
+        )
+        self.university = structure_factories.CustomerFactory(name="Uni")
+        factories.ReviewerAffiliationFactory(
+            reviewer_profile=self.reviewer,
+            organization=self.university,
+            department="Physics",
+        )
+        self.member = structure_factories.UserFactory()
+        self.proposal.add_user(self.member, ProposalRole.MEMBER)
+        self.member_profile = factories.ReviewerProfileFactory(user=self.member)
 
-    def test_conflict_detected_when_reviewer_is_pi(self):
-        """Conflict detected when reviewer is the proposal PI."""
-        # Make the reviewer's user the proposal creator
-        self.proposal.created_by = self.reviewer.user
-        self.proposal.save()
+    def affiliate_member(self, **kwargs):
+        kwargs.setdefault("organization", self.university)
+        kwargs.setdefault("department", "physics ")
+        return factories.ReviewerAffiliationFactory(
+            reviewer_profile=self.member_profile, **kwargs
+        )
 
-        detect_named_personnel_conflicts(self.reviewer, self.proposal)
+    def detect(self):
+        return detect_institutional_conflicts(self.reviewer, self.proposal, self.config)
 
-        # Note: Detection depends on proposal having projectindication with project_pi
-        # This test verifies the algorithm runs without error
+    def test_same_department_detected(self):
+        self.affiliate_member()
 
-    def test_no_conflict_when_different_person(self):
-        """No conflict when reviewer is not on proposal."""
-        conflicts = detect_named_personnel_conflicts(self.reviewer, self.proposal)
-        self.assertEqual(len(conflicts), 0)
+        (conflict,) = self.detect()
+
+        self.assertEqual(conflict.coi_type, COITypes.INST_DEPT)
+        self.assertEqual(conflict.severity, COISeverityLevels.APPARENT)
+        self.assertEqual(conflict.conflicting_user, self.member)
+        self.assertEqual(conflict.conflicting_organization, self.university)
+
+    def test_not_detected_when_the_call_turns_it_off(self):
+        self.affiliate_member()
+        self.config.include_same_department = False
+        self.config.save()
+        self.assertEqual(self.detect(), [])
+
+    def test_other_department_is_not_a_match(self):
+        self.affiliate_member(department="Chemistry")
+        self.assertEqual(self.detect(), [])
+
+    def test_same_department_name_elsewhere_is_not_a_match(self):
+        self.affiliate_member(organization=structure_factories.CustomerFactory())
+        self.assertEqual(self.detect(), [])
+
+    def test_a_past_affiliation_is_not_a_match(self):
+        self.affiliate_member(end_date=date.today() - timedelta(days=30))
+        self.assertEqual(self.detect(), [])
+
+    def test_no_department_recorded_is_not_a_match(self):
+        self.affiliate_member(department="")
+        self.assertEqual(self.detect(), [])
+
+
+class COITypeHandlingTest(TestCase):
+    """The call's type handling sets the severity a detected conflict is
+    recorded with, and the conflict still waits for a manager."""
+
+    def setUp(self):
+        self.call = factories.CallFactory()
+        self.round = factories.RoundFactory(call=self.call)
+        self.proposal = factories.ProposalFactory(round=self.round)
+        self.reviewer = factories.ReviewerProfileFactory()
+        self.config = factories.CallCOIConfigurationFactory(call=self.call)
+        self.proposal.add_user(self.reviewer.user, ProposalRole.MEMBER)
+
+    def test_without_handling_the_type_default_applies(self):
+        (conflict,) = run_coi_detection_for_pair(
+            self.reviewer, self.proposal, self.config
+        )
+        self.assertEqual(conflict.severity, COISeverityLevels.REAL)
+
+    def test_disclosure_only_type_is_a_potential_conflict_still_pending(self):
+        self.config.disclosure_only_types = [COITypes.ROLE_NAMED]
+        self.config.save()
+        (conflict,) = run_coi_detection_for_pair(
+            self.reviewer, self.proposal, self.config
+        )
+        self.assertEqual(conflict.severity, COISeverityLevels.POTENTIAL)
+        self.assertEqual(conflict.status, COIStatuses.PENDING)
+
+    def test_management_type_is_an_apparent_conflict(self):
+        self.config.management_allowed_types = [COITypes.ROLE_NAMED]
+        self.config.save()
+        (conflict,) = run_coi_detection_for_pair(
+            self.reviewer, self.proposal, self.config
+        )
+        self.assertEqual(conflict.severity, COISeverityLevels.APPARENT)
+
+    def test_recusal_type_is_a_real_conflict(self):
+        self.proposal.remove_user(self.reviewer.user)
+        member = structure_factories.UserFactory(full_name="Alice Johnson")
+        self.proposal.add_user(member, ProposalRole.MEMBER)
+        factories.ReviewerPublicationFactory(
+            reviewer_profile=self.reviewer,
+            publication_year=date.today().year - 2,
+            coauthors=["Alice Johnson"],
+        )
+        self.config.recusal_required_types = [COITypes.COAUTH_OLD]
+        self.config.save()
+
+        (conflict,) = run_coi_detection_for_pair(
+            self.reviewer, self.proposal, self.config
+        )
+
+        self.assertEqual(conflict.coi_type, COITypes.COAUTH_OLD)
+        self.assertEqual(conflict.severity, COISeverityLevels.REAL)
+        self.assertEqual(conflict.status, COIStatuses.PENDING)
 
 
 class COIDetectionForPairTest(TestCase):
@@ -537,6 +729,12 @@ class COIResolutionPermissionTest(test.APITestCase):
         )
         self.url = factories.ConflictOfInterestFactory.get_url(self.coi)
 
+    def test_conflict_names_its_proposal_by_slug(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["proposal_slug"], self.proposal.slug)
+
     def test_conflicted_reviewer_cannot_patch_own_conflict(self):
         self.client.force_authenticate(self.reviewer_user)
         response = self.client.patch(self.url, {"review_notes": "nothing to see"})
@@ -556,6 +754,26 @@ class COIResolutionPermissionTest(test.APITestCase):
         self.coi.refresh_from_db()
         self.assertEqual(self.coi.status, COIStatuses.PENDING)
 
+    def test_a_manager_on_the_applicant_team_neither_lists_nor_resolves_it(self):
+        self.proposal.add_user(self.manager, ProposalRole.MEMBER)
+        other = factories.ConflictOfInterestFactory(
+            reviewer=self.profile,
+            proposal=factories.ProposalFactory(round=self.round),
+            call=self.call,
+        )
+        self.client.force_authenticate(self.manager)
+
+        response = self.client.get(factories.ConflictOfInterestFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["uuid"] for row in response.data], [other.uuid.hex])
+
+        response = self.client.post(
+            self.url + "dismiss/", {"status": COIStatuses.DISMISSED}
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.coi.refresh_from_db()
+        self.assertEqual(self.coi.status, COIStatuses.PENDING)
+
     def test_manager_resolves_through_the_dismiss_action(self):
         self.client.force_authenticate(self.manager)
         response = self.client.post(
@@ -566,3 +784,86 @@ class COIResolutionPermissionTest(test.APITestCase):
         self.assertEqual(self.coi.status, COIStatuses.DISMISSED)
         self.assertEqual(self.coi.reviewed_by, self.manager)
         self.assertIsNotNone(self.coi.reviewed_at)
+
+
+class COIStatusTransitionTest(test.APITestCase):
+    """A conflict is resolved once: dismissed, waived or recused from
+    pending, and never moved between those outcomes."""
+
+    def setUp(self):
+        self.call = factories.CallFactory()
+        self.round = factories.RoundFactory(call=self.call)
+        self.proposal = factories.ProposalFactory(round=self.round)
+        self.manager = structure_factories.UserFactory()
+        self.call.add_user(self.manager, CallRole.MANAGER)
+        CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
+        self.coi = factories.ConflictOfInterestFactory(
+            proposal=self.proposal,
+            call=self.call,
+            coi_type=COITypes.COAUTH_RECENT,
+        )
+        self.url = factories.ConflictOfInterestFactory.get_url(self.coi)
+        self.client.force_authenticate(self.manager)
+
+    OUTCOME = {
+        "dismiss": COIStatuses.DISMISSED,
+        "waive": COIStatuses.WAIVED,
+        "recuse": COIStatuses.RECUSED,
+    }
+
+    def post(self, action, **payload):
+        payload.setdefault("status", self.OUTCOME[action])
+        return self.client.post(self.url + action + "/", payload, format="json")
+
+    def test_each_resolution_is_allowed_from_pending(self):
+        for action, outcome, payload in (
+            ("dismiss", COIStatuses.DISMISSED, {}),
+            ("waive", COIStatuses.WAIVED, {"management_plan": "Second reader"}),
+            ("recuse", COIStatuses.RECUSED, {}),
+        ):
+            with self.subTest(action=action):
+                self.coi.status = COIStatuses.PENDING
+                self.coi.save()
+                response = self.post(action, **payload)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.coi.refresh_from_db()
+                self.assertEqual(self.coi.status, outcome)
+
+    def test_a_resolved_conflict_cannot_be_resolved_again(self):
+        for current in (
+            COIStatuses.DISMISSED,
+            COIStatuses.WAIVED,
+            COIStatuses.RECUSED,
+        ):
+            for action, payload in (
+                ("dismiss", {}),
+                ("waive", {"management_plan": "Second reader"}),
+                ("recuse", {}),
+            ):
+                with self.subTest(current=current, action=action):
+                    self.coi.status = current
+                    self.coi.save()
+                    response = self.post(action, **payload)
+                    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                    self.assertIn("pending", str(response.data).lower())
+                    self.coi.refresh_from_db()
+                    self.assertEqual(self.coi.status, current)
+
+    def test_a_type_requiring_recusal_cannot_be_waived(self):
+        factories.CallCOIConfigurationFactory(
+            call=self.call, recusal_required_types=[COITypes.COAUTH_RECENT]
+        )
+
+        response = self.post("waive", management_plan="Second reader")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.coi.refresh_from_db()
+        self.assertEqual(self.coi.status, COIStatuses.PENDING)
+        # A false positive is still dismissed, and the reviewer still recused.
+        self.assertEqual(self.post("recuse").status_code, status.HTTP_200_OK)
+
+    def test_a_type_requiring_recusal_can_be_dismissed_as_no_conflict(self):
+        factories.CallCOIConfigurationFactory(
+            call=self.call, recusal_required_types=[COITypes.COAUTH_RECENT]
+        )
+        self.assertEqual(self.post("dismiss").status_code, status.HTTP_200_OK)

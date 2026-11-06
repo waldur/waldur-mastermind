@@ -149,6 +149,7 @@ from waldur_core.structure.managers import (
     get_connected_projects,
     get_connected_projects_by_permission,
     get_organization_groups,
+    get_read_only_resource_q,
     get_visible_users,
 )
 from waldur_core.structure.registry import SupportedServices
@@ -166,6 +167,7 @@ from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import (
     billing_mode,
     callbacks,
+    dependents,
     derived_limits,
     display_limits,
     provider_accounts,
@@ -240,6 +242,7 @@ from . import (
     posix_maintenance,
     project_groups,
     resource_api_keys,
+    resource_changes,
     serializers,
     spending_limits,
     tasks,
@@ -3200,6 +3203,9 @@ class ProviderOfferingViewSet(
 
     def destroy(self, request, *args, **kwargs):
         offering: models.Offering = self.get_object()
+        dependents.guard(
+            dependents.Changes.OFFERING_DELETED, offering, self.request.user
+        )
 
         if offering.plugin_options.get(
             "restrict_deletion_with_active_resources", False
@@ -3545,8 +3551,15 @@ class ProviderOfferingViewSet(
         )
         return Response(serializer.data)
 
+    # The state changes that stop an offering from taking orders.
+    WITHDRAWING_ACTIONS = ("archive", "pause", "draft", "make_unavailable")
+
     def _update_state(self, action, request=None):
         offering: models.Offering = self.get_object()
+        if action in self.WITHDRAWING_ACTIONS:
+            dependents.guard(
+                dependents.Changes.OFFERING_WITHDRAWN, offering, self.request.user
+            )
 
         try:
             getattr(offering, action)()
@@ -3614,6 +3627,78 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         ),
     ]
+
+    @extend_schema(
+        summary="What depends on an offering",
+        description=(
+            "What other parts of the portal -- calls for proposals, say -- "
+            "have built on the offering, one of its plans or one of its "
+            "components, and whether they would refuse the given change. "
+            "Shown before the change is confirmed."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "change",
+                {
+                    "type": "string",
+                    "enum": [
+                        value
+                        for key, value in vars(dependents.Changes).items()
+                        if key.isupper()
+                    ],
+                },
+                location=OpenApiParameter.QUERY,
+                required=True,
+            ),
+            OpenApiParameter(
+                "plan_uuid",
+                OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="For a plan change: the plan.",
+                extensions={"x-waldur-operation-id": "marketplace_plans_retrieve"},
+            ),
+            OpenApiParameter(
+                "component_type",
+                OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="For a component change: the component's type.",
+            ),
+        ],
+        responses=serializers.OfferingDependentSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    def dependents(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        change = request.query_params.get("change")
+        known = {
+            value for key, value in vars(dependents.Changes).items() if key.isupper()
+        }
+        if change not in known:
+            raise rf_exceptions.ValidationError({"change": _("Unknown change.")})
+        obj = offering
+        if change in (
+            dependents.Changes.PLAN_ARCHIVED,
+            dependents.Changes.PLAN_DELETED,
+        ):
+            obj = get_object_or_404(
+                models.Plan,
+                offering=offering,
+                uuid=request.query_params.get("plan_uuid"),
+            )
+        elif change in (
+            dependents.Changes.COMPONENT_REMOVED,
+            dependents.Changes.COMPONENT_CHANGED,
+        ):
+            obj = get_object_or_404(
+                models.OfferingComponent,
+                offering=offering,
+                type=request.query_params.get("component_type"),
+            )
+        return Response(
+            serializers.OfferingDependentSerializer(
+                dependents.dependents(change, obj), many=True
+            ).data
+        )
 
     # Each validator list is built independently on purpose. Previously these
     # were created via chained assignment and `activate_validators += [...]`,
@@ -4880,6 +4965,14 @@ class ProviderOfferingViewSet(
                     instance=offering_component, data=request.data, partial=True
                 )
                 serializer.is_valid(raise_exception=True)
+                # Ask what is built on the component, as it would be after
+                # the change.
+                candidate = copy.copy(offering_component)
+                for field, value in serializer.validated_data.items():
+                    setattr(candidate, field, value)
+                dependents.guard(
+                    dependents.Changes.COMPONENT_CHANGED, candidate, request.user
+                )
 
                 # If component type is being changed, migrate connected objects
                 if new_type and new_type != original_type:
@@ -4898,6 +4991,9 @@ class ProviderOfferingViewSet(
                                 old_component_type=original_type,
                                 new_component_type=new_type,
                                 logger=logger,
+                            )
+                            dependents.component_renamed(
+                                offering, original_type, new_type
                             )
 
                             logger.info(
@@ -5021,6 +5117,9 @@ class ProviderOfferingViewSet(
 
         if not offering_component:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        dependents.guard(
+            dependents.Changes.COMPONENT_REMOVED, offering_component, request.user
+        )
 
         if resources_exist:
             return Response(
@@ -5600,6 +5699,10 @@ class ProviderOfferingViewSet(
 
         target_customer = serializer.validated_data["customer"]
         preserve_permissions = serializer.validated_data["preserve_permissions"]
+        if not preserve_permissions:
+            dependents.guard(
+                dependents.Changes.OFFERING_TEAM_DROPPED, offering, request.user
+            )
 
         utils.move_offering(
             offering, target_customer, request.user, preserve_permissions
@@ -7998,6 +8101,7 @@ class ProviderPlanViewSet(
 
     def perform_destroy(self, instance):
         user = self.request.user
+        dependents.guard(dependents.Changes.PLAN_DELETED, instance, user)
         logger.info(
             f"Plan {instance.name} from {instance.offering.name} deleted by user {user}."
         )
@@ -8104,6 +8208,7 @@ class ProviderPlanViewSet(
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
         plan: models.Plan = self.get_object()
+        dependents.guard(dependents.Changes.PLAN_ARCHIVED, plan, request.user)
         with reversion.create_revision():
             plan.archived = True
             plan.save(update_fields=["archived"])
@@ -10295,6 +10400,14 @@ class BaseResourceViewSet(
             status=status.HTTP_202_ACCEPTED,
         )
 
+    # A pull talks to the provider's backend, so seeing the resource is not
+    # enough to schedule one.
+    pull_permissions = [
+        permission_factory(
+            PermissionEnum.PULL_RESOURCE,
+            ["project", "project.customer", *ORDER_PROVIDER_SOURCES],
+        )
+    ]
     pull_validators = [
         core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
         structure_views.check_resource_backend_id,
@@ -10442,6 +10555,12 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     filter_backends = BaseResourceViewSet.filter_backends + (
         filters.ResourceAccessSubnetConcealmentFilterBackend,
     )
+    # Resources of projects an app grants read-only access to (a call manager
+    # following the projects of the call's accepted proposals) are reachable
+    # by these actions only; every other action needs a role. ``details`` stays
+    # closed: it serialises the backend object in full, which for some plugins
+    # includes credentials meant for project members only.
+    read_only_project_actions = ("list", "retrieve")
     # The GLauth exports are the provider's: its agent and Homeport read the
     # offering- and provider-level routes, and nothing calls these.
     disabled_actions = BaseResourceViewSet.disabled_actions + [
@@ -10457,7 +10576,9 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     @access.shows(filters.CONSUMER_ACCESS_VISIBILITY)
     def get_queryset(self):
         queryset = filters.filter_resources_by_consumer_access(
-            self.queryset, self.request
+            self.queryset,
+            self.request,
+            read_only=structure_filters.is_read_only_project_action(self),
         )
         return serializers.ResourceSerializer.eager_load(queryset)
 
@@ -12067,8 +12188,19 @@ def _apply_runtime_state_scope_filters(
 
 
 def _get_runtime_state_scoped_resources(user, scope):
-    projects = filter_queryset_for_user(structure_models.Project.objects.all(), user)
+    # Only ever read, so read-only grants count: a granted project can be named
+    # as the scope, but in it only the granted resources contribute.
+    projects = filter_queryset_for_user(
+        structure_models.Project.objects.all(), user, read_only=True
+    )
     resources = models.Resource.objects.exclude(state=ResourceStates.TERMINATED)
+    if not (user.is_staff or user.is_support):
+        role_projects = filter_queryset_for_user(
+            structure_models.Project.objects.all(), user
+        )
+        resources = resources.filter(
+            Q(project__in=role_projects) | get_read_only_resource_q(user)
+        )
     resources = _apply_runtime_state_scope_filters(resources, user, scope, projects)
 
     if offering_uuid := scope.get("offering_uuid"):
@@ -12374,6 +12506,9 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     )
     lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    # Usage reported for resources of projects an app grants read-only access
+    # to (a call manager following what the call allocated) is readable too.
+    read_only_project_actions = ("list", "retrieve")
     filterset_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
 
@@ -21128,25 +21263,13 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
                 _("This offering no longer accepts limit change requests.")
             )
 
-        requested_limits = utils.validate_limits(
-            requested_limits, resource.offering, resource
-        )
-
         with transaction.atomic():
-            order = models.Order(
-                project=resource.project,
-                created_by=request.user,
-                resource=resource,
-                offering=resource.offering,
-                plan=resource.plan,
-                type=OrderTypes.UPDATE,
-                limits=requested_limits,
-                attributes={"old_limits": resource.limits},
+            order = resource_changes.create_limit_update_order(
+                resource,
+                requested_limits,
+                request.user,
+                validate_order=lambda order: serializers.validate_order(order, request),
             )
-            serializers.validate_order(order, request)
-            order.init_cost()
-            order.save()
-
             limit_change_request.approve(request.user, comment)
 
         return Response(
@@ -21312,25 +21435,9 @@ class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsView
             # releases nothing — so the approval writes it directly. The
             # approver is recorded as the requester of the date, mirroring the
             # direct path.
-            resource.end_date = requested_end_date
-            resource.end_date_requested_by = request.user
-            resource.save(update_fields=["end_date", "end_date_requested_by"])
+            resource_changes.apply_end_date(resource, requested_end_date, request.user)
 
             end_date_request.approve(request.user, comment)
-
-        transaction.on_commit(
-            lambda: tasks.notify_about_resource_termination.delay(
-                resource.uuid.hex, request.user.uuid.hex, False
-            )
-        )
-        log.log_resource_end_date_has_been_updated(
-            resource,
-            request.user,
-            "End date of marketplace resource %(resource_name)s has been updated"
-            " through an approved change request."
-            " End date: %(end_date)s."
-            " User: %(user)s.",
-        )
 
         return Response(status=status.HTTP_200_OK)
 

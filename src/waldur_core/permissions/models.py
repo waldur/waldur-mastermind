@@ -1,3 +1,5 @@
+import contextlib
+from contextvars import ContextVar
 from typing import cast
 
 from django.conf import settings
@@ -16,28 +18,50 @@ from waldur_core.core.models import DescribableMixin, User, UuidMixin
 from waldur_core.logging.mixins import LoggableMixin
 
 from . import signals
-from .enums import ROLE_DESCRIPTIONS
+from .enums import ROLE_DESCRIPTIONS, ROLE_TEMPLATES
+
+# Whether system roles found in this context may be cached: not inside work
+# that is always rolled back, whose roles the process must never see.
+_caching_system_roles = ContextVar("caching_system_roles", default=True)
 
 
 class RoleManager(models.Manager):
     _cache: dict[str, "Role"] = {}
 
+    @staticmethod
+    @contextlib.contextmanager
+    def uncached():
+        """Look system roles up without caching them, in this context only:
+        for work that is rolled back, so that a role it creates -- or reads
+        back after creating it -- never reaches another thread through the
+        process-wide cache."""
+        token = _caching_system_roles.set(False)
+        try:
+            yield
+        finally:
+            _caching_system_roles.reset(token)
+
     def get_system_role(self, name: str, content_type) -> "Role":
         cache_key = name.value if hasattr(name, "value") else name
         if cache_key in self._cache:
             return self._cache[cache_key]
-        role, _ = self.get_or_create(
-            name=cache_key,
-            defaults={
-                "is_system_role": True,
-                "content_type": content_type,
-                # Without this a role first created here (rather than by a
-                # seeding migration) has a blank description, and the UI falls
-                # back to showing the raw enum name.
-                "description": ROLE_DESCRIPTIONS.get(cache_key, ""),
-            },
-        )
-        self._cache[cache_key] = role
+        defaults = {
+            "is_system_role": True,
+            "content_type": content_type,
+            # Without this a role first created here (rather than by a
+            # seeding migration) has a blank description, and the UI falls
+            # back to showing the raw enum name.
+            "description": ROLE_DESCRIPTIONS.get(cache_key, ""),
+        }
+        template_name = ROLE_TEMPLATES.get(cache_key)
+        if template_name:
+            defaults["template"] = self.get_system_role(template_name, content_type)
+        role, created = self.get_or_create(name=cache_key, defaults=defaults)
+        # A role created here is in a transaction that may yet roll back, and
+        # the cache is shared by every thread of the process: it is cached
+        # once it is read back.
+        if not created and _caching_system_roles.get():
+            self._cache[cache_key] = role
         return role
 
     @classmethod

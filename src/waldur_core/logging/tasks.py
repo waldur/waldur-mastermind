@@ -109,8 +109,8 @@ def check_event(event: models.Event, hook):
         qs = feed.content_type.model_class().get_permitted_objects(hook.user)
         if not qs.filter(id=feed.object_id).exists():
             continue
-        if feed.scope is not None and not utils.can_view_scope_events(
-            hook.user, feed.scope
+        if feed.scope is not None and not utils.can_view_scope_event(
+            hook.user, feed.scope, event
         ):
             continue
         return True

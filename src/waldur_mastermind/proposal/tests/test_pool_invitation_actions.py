@@ -6,7 +6,13 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.proposal.enums import ReviewerPoolInvitationStatuses
+from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import (
+    COIDetectionMethods,
+    COISeverityLevels,
+    COITypes,
+    ReviewerPoolInvitationStatuses,
+)
 
 from . import factories
 
@@ -104,6 +110,58 @@ class PoolInvitationAcceptTest(test.APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class SelfDeclaredConflictSeverityTest(test.APITestCase):
+    """A conflict declared on accepting takes the severity the reviewer
+    gives, else the call's handling of its type, else the type's default."""
+
+    def setUp(self):
+        self.call = factories.CallFactory()
+        self.reviewer_user = structure_factories.UserFactory()
+        self.pool_entry = factories.CallReviewerPoolFactory(
+            call=self.call,
+            reviewer=factories.ReviewerProfileFactory(
+                user=self.reviewer_user, is_published=True
+            ),
+            invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+        )
+        self.proposal = factories.ProposalFactory(
+            round=factories.RoundFactory(call=self.call)
+        )
+
+    def declare(self, **conflict):
+        self.client.force_authenticate(self.reviewer_user)
+        response = self.client.post(
+            factories.CallReviewerPoolFactory.get_url(self.pool_entry, action="accept"),
+            [{"proposal_uuid": self.proposal.uuid.hex, **conflict}],
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        coi = models.ConflictOfInterest.objects.get(proposal=self.proposal)
+        self.assertEqual(coi.detection_method, COIDetectionMethods.SELF_DISCLOSED)
+        return coi
+
+    def test_type_default_severity(self):
+        coi = self.declare(coi_type=COITypes.INST_SAME)
+        self.assertEqual(coi.severity, COISeverityLevels.REAL)
+
+    def test_distant_type_default_severity(self):
+        coi = self.declare(coi_type=COITypes.COAUTH_OLD)
+        self.assertEqual(coi.severity, COISeverityLevels.POTENTIAL)
+
+    def test_call_handling_of_the_type(self):
+        factories.CallCOIConfigurationFactory(
+            call=self.call, disclosure_only_types=[COITypes.INST_SAME]
+        )
+        coi = self.declare(coi_type=COITypes.INST_SAME)
+        self.assertEqual(coi.severity, COISeverityLevels.POTENTIAL)
+
+    def test_severity_given_by_the_reviewer(self):
+        coi = self.declare(
+            coi_type=COITypes.COAUTH_OLD, severity=COISeverityLevels.REAL
+        )
+        self.assertEqual(coi.severity, COISeverityLevels.REAL)
 
 
 class PoolInvitationAcceptByEmailTest(test.APITestCase):

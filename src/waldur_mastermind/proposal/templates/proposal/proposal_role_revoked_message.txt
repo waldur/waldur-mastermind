@@ -1,0 +1,5 @@
+Dear {{ holder_name }},
+
+You are no longer {{ role_name }} for the proposal "{{ proposal_name }}" in call "{{ call_name }}". The proposal is no longer available to you through this role.
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

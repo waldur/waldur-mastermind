@@ -10,7 +10,8 @@ Review summary:
 
 Review details:
 {% for r in reviews %}{{ forloop.counter }}. {{ r.reviewer_name }} - {{ r.score }}/5 - {{ r.submitted_at|date:"Y-m-d H:i" }}
-{% empty %}No individual reviews available.
+{% for c in r.criteria %}   - {{ c.name }}: {% if c.score %}{{ c.score }}/5{% else %}not rated{% endif %}
+{% endfor %}{% empty %}No individual reviews available.
 {% endfor %}
 ACTION REQUIRED: Please review the evaluation and make a decision on this proposal.
 

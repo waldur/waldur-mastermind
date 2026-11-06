@@ -35,6 +35,7 @@ class ProposalAsRoleFilterTest(test.APITestCase):
         self.own_proposal = factories.ProposalFactory(
             name="Mine", round=self.applicant_round, created_by=self.user
         )
+        self.own_proposal.add_user(self.user, ProposalRole.MANAGER)
 
         # Manages this one; the proposal on it is somebody else's.
         self.managed_round = self._make_round()
@@ -47,14 +48,22 @@ class ProposalAsRoleFilterTest(test.APITestCase):
         self.reviewed_round = self._make_round()
         self.reviewed_round.call.add_user(self.user, CallRole.REVIEWER)
         self.reviewed_proposal = factories.ProposalFactory(
-            name="On a call I review for", round=self.reviewed_round
+            name="On a call I review for",
+            round=self.reviewed_round,
+            state=ProposalStates.SUBMITTED,
         )
+        # The call's reviewer role is its pool: the proposal is read through
+        # the review.
+        factories.ReviewFactory(proposal=self.reviewed_proposal, reviewer=self.user)
 
         # Sits on this one's panel.
         self.panel_round = self._make_round()
         self.panel_round.call.add_user(self.user, CallRole.PANEL_MEMBER)
+        # The panel reads the call's submitted proposals, not its drafts.
         self.panel_proposal = factories.ProposalFactory(
-            name="On a call I sit on the panel of", round=self.panel_round
+            name="On a call I sit on the panel of",
+            round=self.panel_round,
+            state=ProposalStates.SUBMITTED,
         )
 
         # Technically assesses this one: it requested an accepted offering they
@@ -119,10 +128,19 @@ class ProposalAsRoleFilterTest(test.APITestCase):
             self._names(ResponsibleRoles.CALL_MANAGER), {self.managed_proposal.name}
         )
 
-    def test_reviewer_sees_only_proposals_of_calls_they_review_for(self):
+    def test_reviewer_sees_only_proposals_they_review(self):
         self.assertEqual(
             self._names(ResponsibleRoles.REVIEWER), {self.reviewed_proposal.name}
         )
+
+    def test_the_call_reviewer_role_alone_grants_no_proposal(self):
+        unreviewed = factories.ProposalFactory(
+            name="Unreviewed on a call I review for",
+            round=self.reviewed_round,
+            state=ProposalStates.SUBMITTED,
+        )
+        self.assertNotIn(unreviewed.name, self._names())
+        self.assertNotIn(unreviewed.name, self._names(ResponsibleRoles.REVIEWER))
 
     def test_reviewer_sees_proposals_they_hold_a_review_for(self):
         # Accepting a pool invitation or an assignment grants no call role at

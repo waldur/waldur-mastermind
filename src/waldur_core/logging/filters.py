@@ -14,6 +14,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.logging import models, utils
 from waldur_core.logging.event_logger import expand_event_groups
+from waldur_core.logging.log import can_view_actor_details
 from waldur_core.structure import models as structure_models
 
 
@@ -129,10 +130,19 @@ class EventFilter(django_filters.FilterSet):
     def filter_user_uuid(self, queryset, name, value):
         return queryset.filter(context__user_uuid=value.hex)
 
+    # How an event's actor authenticated is visible to staff and support only,
+    # so filtering by it must not let anyone else probe for it either.
+    def _can_filter_by_actor_details(self):
+        return can_view_actor_details(getattr(self.request, "user", None))
+
     def filter_auth_method(self, queryset, name, value):
+        if not self._can_filter_by_actor_details():
+            return queryset.none()
         return queryset.filter(context__auth_method=value)
 
     def filter_pat_uuid(self, queryset, name, value):
+        if not self._can_filter_by_actor_details():
+            return queryset.none()
         return queryset.filter(context__pat_uuid=value)
 
 

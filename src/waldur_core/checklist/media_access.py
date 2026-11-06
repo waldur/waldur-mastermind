@@ -108,6 +108,12 @@ def _user_can_access_scope(user: User, scope_obj, checklist=None) -> bool:
         # Use Django's permission framework and established Waldur patterns
         # This delegates to the same permission logic used by ViewSets
 
+        # A scope that says itself who may read its answers (a workflow
+        # step's contribution) is taken at its word.
+        reader_check = getattr(scope_obj, "user_can_read_checklist", None)
+        if callable(reader_check):
+            return reader_check(user)
+
         # For Projects - use the established structure permission patterns
         if hasattr(scope_obj, "_meta") and scope_obj._meta.model_name == "project":
             # Projects use role-based permissions through the PermissionsMixin

@@ -1,0 +1,10 @@
+Hello {{ recipient_name }},
+
+Open work of your offering teams on calls for proposals:
+{% for slot in slots %}
+- {{ slot.offering_name }} / {{ slot.call_name }}: {{ slot.step_name }} of "{{ slot.proposal_name }}" -- {{ slot.holder }}{% if slot.due_at %}, due {{ slot.due_at }}{% endif %}{% if slot.overdue %} (overdue){% endif %}
+  {{ slot.proposal_url }}
+{% endfor %}
+Your calls: {{ calls_url }}
+
+This is an automated message from {{ site_name }}.

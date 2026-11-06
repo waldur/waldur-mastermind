@@ -30,15 +30,28 @@ T = TypeVar("T", bound=Model)
 
 
 def filter_queryset_for_user[T: Model](
-    queryset: QuerySet[T], user: User, *, sees_all: bool | None = None
+    queryset: QuerySet[T],
+    user: User,
+    read_only: bool = False,
+    *,
+    sees_all: bool | None = None,
 ) -> QuerySet[T]:
-    """The rows of ``queryset`` the user's roles reach.
+    """Narrow ``queryset`` to the objects ``user`` may see.
 
     ``sees_all`` says whether the caller reaches every row instead. It
     defaults to the user's staff or support flag; a write path passes
     ``has_staff_or_support_read_access(request)``, so that support, which
     only reads, and a token without the staff or support scope reach only
     what the user's roles do.
+
+    ``read_only`` additionally lets through the projects an app grants
+    read-only access to (see ``register_read_only_project_provider``) and,
+    for models declaring ``Permissions.read_only_resource_path``, whatever
+    belongs to the resources an app grants read-only access to (see
+    ``register_read_only_resource_provider``). A project grant opens the
+    project itself, never everything in it. Pass ``read_only`` only from read
+    paths: those grants carry no permission, so any other action must keep
+    seeing the plain role-based queryset.
     """
 
     def get_customer_subquery(path):
@@ -57,7 +70,10 @@ def filter_queryset_for_user[T: Model](
             )
         else:
             connected_projects = get_connected_projects(user)
-        return build_filter(path, connected_projects)
+        query = build_filter(path, connected_projects)
+        if read_only and path == "self":
+            query |= get_read_only_project_q(user)
+        return query
 
     if queryset is None:
         return queryset
@@ -101,6 +117,10 @@ def filter_queryset_for_user[T: Model](
         else:
             subquery |= get_project_subquery(project_path)
 
+    read_only_resource_path = getattr(permissions, "read_only_resource_path", None)
+    if read_only and read_only_resource_path:
+        subquery |= get_read_only_resource_q(user, read_only_resource_path)
+
     build_query = getattr(permissions, "build_query", None)
     if build_query:
         subquery |= build_query(user)
@@ -128,6 +148,80 @@ def filter_queryset_for_user[T: Model](
         return queryset
 
     return queryset.filter(subquery).distinct()
+
+
+_read_only_project_providers: list = []
+_read_only_resource_providers: list = []
+
+
+def register_read_only_project_provider(provider) -> None:
+    """Register ``provider(user)``, returning a lazy QuerySet of the ids of
+    projects ``user`` may read without holding any role on them.
+
+    This is how an app outside structure grants read-only project access
+    without core importing it. The grant is visibility only: it confers no
+    permission, so every write and every permission-checked action still
+    refuses the user. It opens the project record, not its contents: the
+    resources in it are granted separately, one by one, through
+    ``register_read_only_resource_provider``.
+    """
+    if provider not in _read_only_project_providers:
+        _read_only_project_providers.append(provider)
+
+
+def register_read_only_resource_provider(provider) -> None:
+    """Register ``provider(user)``, returning a lazy QuerySet of the ids of
+    marketplace resources ``user`` may read without holding any role on them
+    or on their project. Visibility only, as for project grants."""
+    if provider not in _read_only_resource_providers:
+        _read_only_resource_providers.append(provider)
+
+
+def _read_only_q(providers, user, path: str) -> models.Q:
+    q = models.Q()
+    if user is None or not user.is_authenticated:
+        return q
+    for provider in providers:
+        q |= models.Q(**{f"{path}__in": provider(user)})
+    return q
+
+
+def get_read_only_project_q(user, path: str = "id") -> models.Q:
+    """``Q`` matching ``path`` against the read-only project grants of
+    ``user``; empty when no provider grants anything. The provider querysets
+    stay lazy and fold into the caller's SQL as subqueries."""
+    return _read_only_q(_read_only_project_providers, user, path)
+
+
+def get_read_only_resource_q(user, path: str = "id") -> models.Q:
+    """``Q`` matching ``path`` against the read-only resource grants of
+    ``user``; empty when no provider grants anything. Lazy, as above."""
+    return _read_only_q(_read_only_resource_providers, user, path)
+
+
+def get_read_only_only_project_ids(user, project_ids=None) -> set:
+    """Subset of ``project_ids`` (all projects when ``None``) that ``user``
+    reaches solely through a read-only grant, i.e. not through any role.
+    Serializers use it to keep financial figures and backend details away
+    from such readers.
+
+    For users without any grant this costs one query that returns nothing.
+    """
+    if not user or not user.is_authenticated or user.is_staff or user.is_support:
+        return set()
+    read_only_q = get_read_only_project_q(user)
+    if not read_only_q:
+        return set()
+    granted_qs = structure_models.Project.objects.filter(read_only_q)
+    if project_ids is not None:
+        granted_qs = granted_qs.filter(id__in=project_ids)
+    granted = set(granted_qs.order_by().values_list("id", flat=True))
+    if not granted:
+        return set()
+    otherwise_visible = filter_queryset_for_user(
+        structure_models.Project.objects.filter(id__in=granted), user
+    ).values_list("id", flat=True)
+    return granted - set(otherwise_visible)
 
 
 def _get_resource_role_project_ids_qs(user):

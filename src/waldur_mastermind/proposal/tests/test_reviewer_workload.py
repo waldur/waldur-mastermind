@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.logging.enums import EventType
@@ -309,8 +312,9 @@ class ManualAssignmentLimitTest(WorkloadBaseTest):
         item = self.make_item()
         self.make_item()
         response = self.assign([item.proposal])
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["items_created"], 0)
+        # Refused for having nothing new to assign, not for the workload.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already exists", str(response.data["proposal_uuids"][0]))
 
     def test_override_allows_assignment_and_is_logged(self):
         self.make_item()
@@ -373,3 +377,228 @@ class ReviewCreateLimitTest(WorkloadBaseTest):
         self.pool_entry.delete()
         response = self.create_review()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class GenerateAssignmentsExistingReviewersTest(WorkloadBaseTest):
+    """A proposal's reviewers are not offered it again, and a proposal that
+    has its reviewers is not given more."""
+
+    def setUp(self):
+        super().setUp()
+        self.proposal = self.make_proposal()
+        self.other_entry = factories.CallReviewerPoolFactory(
+            call=self.call,
+            invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+            max_assignments=5,
+        )
+
+    def generate(self, per_proposal):
+        self.client.force_authenticate(self.staff)
+        return self.client.post(
+            factories.CallFactory.get_protected_url(
+                self.call, action="generate-assignments"
+            ),
+            {
+                "reviewers_per_proposal": per_proposal,
+                "proposal_uuids": [self.proposal.uuid.hex],
+            },
+            format="json",
+        )
+
+    def offered(self):
+        return set(
+            models.AssignmentItem.objects.filter(proposal=self.proposal).values_list(
+                "batch__reviewer_pool_entry", flat=True
+            )
+        )
+
+    def test_a_reviewer_of_the_proposal_is_not_offered_it(self):
+        factories.ReviewFactory(
+            proposal=self.proposal, reviewer=self.reviewer_profile.user
+        )
+        response = self.generate(per_proposal=2)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.offered(), {self.other_entry.pk})
+
+    def test_a_proposal_with_its_reviewers_gets_no_more(self):
+        factories.ReviewFactory(
+            proposal=self.proposal, reviewer=self.reviewer_profile.user
+        )
+        response = self.generate(per_proposal=1)
+        self.assertEqual(response.data["items_created"], 0)
+        self.assertEqual(self.offered(), set())
+        (skipped,) = response.data["skipped_proposals"]
+        self.assertEqual(skipped["reason"], "Already has enough reviewers")
+
+
+class GenerateAssignmentsMatchingTest(WorkloadBaseTest):
+    """Reviewers are taken by affinity, within the call's matching limits."""
+
+    def setUp(self):
+        super().setUp()
+        self.pool_entry.max_assignments = 5
+        self.pool_entry.save()
+        self.proposal = self.make_proposal()
+
+    def put_first_in_pool_order(self, entry):
+        # The pool is ordered newest invitation first.
+        models.CallReviewerPool.objects.filter(pk=entry.pk).update(
+            invited_at=timezone.now() + timedelta(days=1)
+        )
+
+    def entry(self, affinity=None, proposal=None, **kwargs):
+        entry = factories.CallReviewerPoolFactory(
+            call=self.call,
+            invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+            **kwargs,
+        )
+        if affinity is not None:
+            models.ReviewerProposalAffinity.objects.create(
+                call=self.call,
+                reviewer=entry.reviewer,
+                proposal=proposal or self.proposal,
+                affinity_score=affinity,
+            )
+        return entry
+
+    def generate(self, **payload):
+        self.client.force_authenticate(self.staff)
+        return self.client.post(
+            factories.CallFactory.get_protected_url(
+                self.call, action="generate-assignments"
+            ),
+            payload,
+            format="json",
+        )
+
+    def offered(self, proposal=None):
+        return set(
+            models.AssignmentItem.objects.filter(
+                proposal=proposal or self.proposal
+            ).values_list("batch__reviewer_pool_entry", flat=True)
+        )
+
+    def test_a_full_top_reviewer_is_replaced_by_the_next_best(self):
+        top = self.entry(affinity=0.9, max_assignments=1)
+        self.make_item(pool_entry=top)
+        second = self.entry(affinity=0.8)
+        third = self.entry(affinity=0.7)
+        # A reviewer with no affinity, first in pool order, is not preferred
+        # to the next-best scored one.
+        self.put_first_in_pool_order(self.pool_entry)
+
+        response = self.generate(
+            reviewers_per_proposal=2, proposal_uuids=[self.proposal.uuid.hex]
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.offered(), {second.pk, third.pk})
+
+    def test_reviewers_without_affinity_fill_up_after_the_scored_ones(self):
+        scored = self.entry(affinity=0.5)
+
+        self.generate(reviewers_per_proposal=2, proposal_uuids=[self.proposal.uuid.hex])
+
+        self.assertEqual(self.offered(), {scored.pk, self.pool_entry.pk})
+
+    def test_a_reviewer_below_the_minimum_affinity_is_not_offered(self):
+        factories.MatchingConfigurationFactory(
+            call=self.call, min_affinity_threshold=0.3
+        )
+        good = self.entry(affinity=0.6)
+        self.entry(affinity=0.2)
+
+        self.generate(reviewers_per_proposal=3, proposal_uuids=[self.proposal.uuid.hex])
+
+        # The poor match is left out even though the proposal stays short;
+        # the reviewer with no affinity computed still fills up.
+        self.assertEqual(self.offered(), {good.pk, self.pool_entry.pk})
+
+    def test_without_configuration_the_default_minimum_applies(self):
+        default = models.MatchingConfiguration._meta.get_field(
+            "min_affinity_threshold"
+        ).default
+        self.entry(affinity=default / 2)
+
+        self.generate(reviewers_per_proposal=2, proposal_uuids=[self.proposal.uuid.hex])
+
+        self.assertEqual(self.offered(), {self.pool_entry.pk})
+
+    def test_a_proposal_nobody_matches_closely_enough_is_skipped(self):
+        models.ReviewerProposalAffinity.objects.create(
+            call=self.call,
+            reviewer=self.reviewer_profile,
+            proposal=self.proposal,
+            affinity_score=0.01,
+        )
+
+        response = self.generate(
+            reviewers_per_proposal=1, proposal_uuids=[self.proposal.uuid.hex]
+        )
+
+        self.assertEqual(response.data["items_created"], 0)
+        self.assertEqual(
+            response.data["skipped_proposals"][0]["reason"],
+            "No eligible reviewer reaches the minimum affinity",
+        )
+
+    def test_without_configuration_the_model_default_is_used(self):
+        for _ in range(3):
+            self.entry()
+        default = models.MatchingConfiguration._meta.get_field(
+            "min_reviewers_per_proposal"
+        ).default
+
+        response = self.generate(proposal_uuids=[self.proposal.uuid.hex])
+
+        self.assertEqual(response.data["items_created"], default)
+
+    def test_configured_minimum_is_used(self):
+        for _ in range(3):
+            self.entry()
+        factories.MatchingConfigurationFactory(
+            call=self.call, min_reviewers_per_proposal=2
+        )
+        response = self.generate(proposal_uuids=[self.proposal.uuid.hex])
+        self.assertEqual(response.data["items_created"], 2)
+
+    def test_more_reviewers_than_the_call_allows_is_refused(self):
+        factories.MatchingConfigurationFactory(
+            call=self.call, min_reviewers_per_proposal=1, max_reviewers_per_proposal=2
+        )
+        response = self.generate(reviewers_per_proposal=3)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("reviewers_per_proposal", response.data)
+        self.assertFalse(models.AssignmentItem.objects.exists())
+
+    def test_max_proposals_per_reviewer_caps_the_pool_limit(self):
+        factories.MatchingConfigurationFactory(
+            call=self.call,
+            min_reviewers_per_proposal=1,
+            max_proposals_per_reviewer=1,
+        )
+        self.make_proposal()
+
+        response = self.generate()
+
+        self.assertEqual(response.data["items_created"], 1)
+        self.assertEqual(
+            models.AssignmentItem.objects.filter(
+                batch__reviewer_pool_entry=self.pool_entry
+            ).count(),
+            1,
+        )
+
+    def test_the_pool_limit_holds_below_max_proposals_per_reviewer(self):
+        self.pool_entry.max_assignments = 1
+        self.pool_entry.save()
+        factories.MatchingConfigurationFactory(
+            call=self.call,
+            min_reviewers_per_proposal=1,
+            max_proposals_per_reviewer=10,
+        )
+        self.make_proposal()
+
+        response = self.generate()
+
+        self.assertEqual(response.data["items_created"], 1)

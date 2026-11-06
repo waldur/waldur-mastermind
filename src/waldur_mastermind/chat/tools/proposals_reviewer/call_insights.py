@@ -9,6 +9,7 @@ from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.enums import ProposalStates
+from waldur_mastermind.proposal.managers import round_open_q
 from waldur_mastermind.proposal.models import (
     Call,
     ConflictOfInterest,
@@ -132,12 +133,13 @@ class CallInsightsTool(BaseTool):
                 ),
             )
 
-            open_rounds = call.round_set.filter(
-                start_time__lte=now, cutoff_time__gte=now
-            )
+            open_rounds = call.round_set.filter(round_open_q(now=now))
             nearest_deadline = None
+            continuously_open = False
             for r in open_rounds:
-                if nearest_deadline is None or r.cutoff_time < nearest_deadline:
+                if r.cutoff_time is None:
+                    continuously_open = True
+                elif nearest_deadline is None or r.cutoff_time < nearest_deadline:
                     nearest_deadline = r.cutoff_time
 
             proposals_without_reviews = (
@@ -183,6 +185,7 @@ class CallInsightsTool(BaseTool):
                         if review_stats["score_stddev"]
                         else None,
                     },
+                    "continuously_open": continuously_open,
                     "nearest_deadline": nearest_deadline.isoformat()
                     if nearest_deadline
                     else None,

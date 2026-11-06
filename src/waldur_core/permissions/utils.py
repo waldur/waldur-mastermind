@@ -885,6 +885,58 @@ def validate_role_change(scope, role, acting_user, change, user=None):
         guard(scope, role, acting_user, change, user)
 
 
+def guard_project_role_escalation(scope, role, acting_user, change, user=None):
+    """On a project, whoever manages the team through a role on the project
+    itself hands out no role that lets its holder do more than they can.
+
+    The team permissions say who may manage people, not which roles: without
+    this, an awarded project's principal investigator could make a
+    collaborator a project manager, who changes what the call awarded. Staff,
+    and those managing the team through the organization, are not narrowed;
+    roles today's project managers hand out are all within their own.
+    """
+    if change == RoleChange.REVOKE or acting_user is None:
+        return
+    if getattr(scope, "_meta", None) is None or scope._meta.model_name != "project":
+        return
+    if acting_user.is_staff:
+        return
+    permission = (
+        get_update_permission(type(scope))
+        if change == RoleChange.UPDATE
+        else get_create_permission(type(scope))
+    )
+    if permission and has_permission(acting_user, permission, scope.customer):
+        return
+    own_roles = (
+        models.UserRole.objects.filter(
+            user=acting_user,
+            content_type=ContentType.objects.get_for_model(scope),
+            object_id=scope.pk,
+            is_active=True,
+            role__is_active=True,
+        )
+        .filter(Q(expiration_time=None) | Q(expiration_time__gte=timezone.now()))
+        .values("role_id")
+    )
+    if not own_roles.exists():
+        # Not managing the team through a role on the project at all: the
+        # grant was authorised otherwise (an invitation's auto-approval, a
+        # permission request), and is that path's to decide.
+        return
+    own = set(
+        models.RolePermission.objects.filter(role_id__in=own_roles).values_list(
+            "permission", flat=True
+        )
+    )
+    granted = set(role.permissions.values_list("permission", flat=True))
+    if not granted <= own:
+        raise ValidationError(
+            "You can only grant roles that allow no more than your own role "
+            "on this project."
+        )
+
+
 @dataclass(frozen=True)
 class RoleEventDetails:
     """What a scope adds to the generic role granted/updated/revoked event.

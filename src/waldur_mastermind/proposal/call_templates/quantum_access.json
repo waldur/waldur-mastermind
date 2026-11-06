@@ -1,0 +1,723 @@
+{
+  "schema_version": 3,
+  "preset": {
+    "programme": "eurohpc-ju-access",
+    "process": "Quantum Access Pilot Mode",
+    "reference_url": "https://eurohpc-ju.europa.eu/eurohpc-ju-call-proposals-quantum-access-pilot-mode_en",
+    "reference_title": "EuroHPC JU Call for Proposals - Quantum Access Pilot Mode",
+    "category": "programme",
+    "tags": [
+      "quantum",
+      "cut-off",
+      "development"
+    ],
+    "summary": "Three- or six-month access to EuroHPC quantum computers for tests, development and training, after monthly cut-offs."
+  },
+  "call": {
+    "name": "Quantum Access",
+    "description": "Access of three or six months to the quantum infrastructure for tests, benchmarks, code, algorithm and workflow development, and training. Continuously open with monthly cut-offs; the proposals of each cut-off get a technical assessment per quantum system, a second one after emulator benchmarks where the hosting entity asks for them, and the award follows automatically once every system has accepted.",
+    "reference_code": "",
+    "external_url": null,
+    "reviewer_identity_visible_to_submitters": false,
+    "reviews_visible_to_submitters": false,
+    "fixed_duration_in_days": null,
+    "allowed_duration_months": [
+      3,
+      6
+    ],
+    "proposal_slug_template": null,
+    "order_author": "applicant",
+    "evaluation_start": "at_cutoff",
+    "carry_over_drafts": true,
+    "publish_results": "immediately",
+    "undecided_at_round_completion": "refuse",
+    "applicant_cc_roles": [
+      "PROPOSAL.MANAGER",
+      "PROPOSAL.ADMIN"
+    ]
+  },
+  "proposal_roles": [],
+  "workflow_steps": [
+    {
+      "key": "technical_assessment",
+      "kind": "assessment",
+      "name": "Technical assessment",
+      "description": "The team of each requested quantum system assesses whether the proposal can run there: accepted, conditionally accepted or rejected. Conditionally accepted forwards the proposal to a quantum emulator first; the condition says what the benchmark must show. A rejected system rejects the proposal.",
+      "status_labels": {
+        "evaluators": {
+          "active": "Under Technical Assessment"
+        }
+      },
+      "outcome_set": "per_offering",
+      "completer": "offering_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 14,
+      "transition_mode": "manual",
+      "contributor_source": "requested_offering_team",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "per_requested_offering": true,
+      "delegable_to": "offering_team",
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 0
+    },
+    {
+      "key": "emulation_assessment",
+      "kind": "assessment",
+      "name": "Technical assessment after emulation",
+      "description": "Runs only for a proposal forwarded to a quantum emulator: once the emulator benchmarks are in, the team of each system that conditionally accepted it assesses the proposal again from them. A proposal accepted outright in the first assessment skips this step. A rejected system rejects the proposal.",
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending emulation results"
+        },
+        "offering_team": {
+          "active": "Pending Emulator Benchmarks"
+        }
+      },
+      "outcome_set": "per_offering",
+      "completer": "offering_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 30,
+      "transition_mode": "automatic_on_completion",
+      "run_condition": {
+        "step": "technical_assessment",
+        "outcomes": [
+          "conditionally_accepted"
+        ]
+      },
+      "contributor_source": "requested_offering_team",
+      "input_steps": [
+        "technical_assessment"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "per_requested_offering": true,
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 1
+    },
+    {
+      "key": "allocation_decision",
+      "kind": "decision",
+      "name": "Allocation decision",
+      "description": "Awarded automatically, as requested, once every requested system has accepted the proposal in the technical assessments; the applicant is told the result at once. The call managers decide only when the award cannot be made automatically.",
+      "status_labels": {
+        "evaluators": {
+          "outcomes": {
+            "approved": "Awarded",
+            "declined": "Not awarded"
+          }
+        }
+      },
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 4,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [
+        "technical_assessment",
+        "emulation_assessment"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "is_allocation_decision": true,
+      "decides_automatically": true,
+      "include_award_response": false,
+      "allocation_time": "on_decision",
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "offering_teams",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 2
+    },
+    {
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Final report",
+        "checklist_type": "workflow_step"
+      },
+      "key": "final_report",
+      "kind": "applicant_action",
+      "name": "Final report",
+      "description": "The awarded applicant submits the project's final report. The step opens at the end of the allocation period, an extension included.",
+      "outcome_set": "submitted",
+      "completer": "applicant",
+      "duration_in_days": 30,
+      "applicant_visible": true,
+      "phase": "closing",
+      "project_end_offset_days": 0,
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "applicant",
+          "days_before": 7,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 3,
+      "status_labels": {
+        "applicant": {
+          "active": "Pending final report",
+          "completed": "Final report submitted"
+        },
+        "evaluators": {
+          "active": "Pending final report",
+          "completed": "Final report submitted"
+        }
+      }
+    },
+    {
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "key": "final_report_approval",
+      "kind": "decision",
+      "name": "Final report approval",
+      "description": "The call managers approve the final report, which completes the project.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "duration_in_days": 30,
+      "phase": "closing",
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 4,
+      "status_labels": {
+        "applicant": {
+          "active": "Final report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        },
+        "evaluators": {
+          "active": "Final report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        }
+      }
+    }
+  ],
+  "checklists": [
+    {
+      "name": "Final report",
+      "checklist_type": "workflow_step",
+      "description": "The results of an awarded project once its allocation ends.",
+      "questions": [
+        {
+          "description": "Final results of the work",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Report what the project achieved with the allocated resources, including publications and outcomes.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        },
+        {
+          "description": "Final report document",
+          "required": false,
+          "question_type": "file",
+          "user_guidance": "Optional. One PDF file with the full report.",
+          "allowed_file_types": [
+            ".pdf"
+          ],
+          "allowed_mime_types": [
+            "application/pdf"
+          ],
+          "max_file_size_mb": 10
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "key": "happy_path_and_final_report",
+      "name": "Happy path and final report",
+      "description": "Every partition accepts the proposal outright: the assessment after emulation is skipped, the award follows automatically and the final report is submitted and approved.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "technical_assessment",
+            "outcome": "feasible"
+          },
+          {
+            "advance": true
+          },
+          {
+            "final_report": true
+          },
+          {
+            "step": "final_report",
+            "outcome": "submitted"
+          },
+          {
+            "step": "final_report_approval",
+            "outcome": "approved"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "accepted"
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "completed",
+            "outcome": "feasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "emulation_assessment",
+            "status": "skipped"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report_approval",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "notified": {
+            "actor": "offering_team",
+            "trigger": "step_started",
+            "step": "technical_assessment"
+          }
+        },
+        {
+          "not_notified": {
+            "actor": "offering_team",
+            "trigger": "step_started",
+            "step": "emulation_assessment"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        },
+        {
+          "label": {
+            "step": "final_report_approval",
+            "text": "Project completed",
+            "role": "applicant"
+          }
+        }
+      ]
+    },
+    {
+      "key": "emulation_before_award",
+      "name": "Emulation before the award",
+      "description": "A partition accepts the proposal on condition of emulator benchmarks: the assessment runs again after emulation and the proposal is then awarded.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "technical_assessment",
+            "outcome": "feasible",
+            "contributions": [
+              {
+                "offering": 0,
+                "outcome": "conditionally_accepted"
+              },
+              {
+                "offering": 1,
+                "outcome": "accepted"
+              }
+            ]
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "emulation_assessment",
+            "outcome": "feasible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "accepted"
+        },
+        {
+          "step_status": {
+            "step": "emulation_assessment",
+            "status": "completed",
+            "outcome": "feasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "notified": {
+            "actor": "offering_team",
+            "trigger": "step_started",
+            "step": "emulation_assessment"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_at_technical_assessment",
+      "name": "Rejected at the technical assessment",
+      "description": "A partition rejects the proposal: it is not awarded.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "technical_assessment",
+            "outcome": "infeasible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "completed",
+            "outcome": "infeasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "technical_assessment"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_after_emulation",
+      "name": "Rejected after emulation",
+      "description": "The emulator benchmarks do not convince the partition: the proposal is rejected after the second assessment.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "technical_assessment",
+            "outcome": "feasible",
+            "contributions": [
+              {
+                "offering": 0,
+                "outcome": "conditionally_accepted"
+              },
+              {
+                "offering": 1,
+                "outcome": "accepted"
+              }
+            ]
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "emulation_assessment",
+            "outcome": "infeasible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "emulation_assessment",
+            "status": "completed",
+            "outcome": "infeasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "emulation_assessment"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        }
+      ]
+    }
+  ]
+}

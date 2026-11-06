@@ -1,0 +1,1183 @@
+{
+  "schema_version": 3,
+  "preset": {
+    "programme": "eurohpc-ju-access",
+    "process": "AI Factories Large Scale Access",
+    "reference_url": "https://eurohpc-ju.europa.eu/large-scale-access-ai-factories_en",
+    "reference_title": "Large Scale Access to AI Factories",
+    "category": "programme",
+    "tags": [
+      "AI",
+      "industry",
+      "cut-off"
+    ],
+    "summary": "Large allocations on AI Factories for industrial AI, evaluated after two cut-offs a month."
+  },
+  "call": {
+    "name": "AI Factory Large Scale Access",
+    "description": "Access for industrial AI applications that need large allocations, continuously open with two cut-offs a month. Proposals are evaluated together after each cut-off: administrative check, technical assessment and Industrial Innovation Group evaluation per AI Factory, the adoption of the ranking lists, and the allocation decision before the applicant accepts the award.",
+    "reference_code": "",
+    "external_url": null,
+    "reviewer_identity_visible_to_submitters": false,
+    "reviews_visible_to_submitters": false,
+    "fixed_duration_in_days": null,
+    "allowed_duration_months": [
+      3,
+      6,
+      12
+    ],
+    "proposal_slug_template": null,
+    "order_author": "applicant",
+    "evaluation_start": "at_cutoff",
+    "carry_over_drafts": true,
+    "publish_results": "with_round",
+    "undecided_at_round_completion": "refuse",
+    "target_decision_days": 14,
+    "applicant_cc_roles": [
+      "PROPOSAL.MANAGER",
+      "PROPOSAL.ADMIN"
+    ]
+  },
+  "proposal_roles": [],
+  "workflow_steps": [
+    {
+      "key": "administrative_check",
+      "kind": "decision",
+      "name": "Administrative check",
+      "description": "The call managers check the online submission form and the Project Scope and Plan document for administrative inconsistencies after the cut-off. An ineligible proposal is rejected and may be resubmitted to a later cut-off.",
+      "status_labels": {
+        "applicant": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "eligible": "Under evaluation",
+            "ineligible": "Administratively Rejected"
+          }
+        },
+        "evaluators": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "ineligible": "Administratively Rejected"
+          }
+        }
+      },
+      "outcome_set": "eligibility",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 2,
+      "transition_mode": "automatic_on_completion",
+      "allows_change_requests": true,
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "applicant_visible": true,
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_rejected",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 0
+    },
+    {
+      "key": "technical_assessment",
+      "kind": "assessment",
+      "name": "Technical assessment",
+      "description": "The team of each requested partition (the AI Factory's computing centre representative or a technical reviewer they delegate to) assesses whether the proposal can run there: accepted or rejected. A proposal rejected on any partition is not awarded.",
+      "status_labels": {
+        "evaluators": {
+          "active": "Under Assessment",
+          "completed": "Technical Assessment Submitted"
+        },
+        "offering_team": {
+          "active": "Under Technical Assessment",
+          "completed": "Technical Assessment Submitted"
+        }
+      },
+      "outcome_set": "per_offering",
+      "completer": "offering_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 3,
+      "transition_mode": "manual",
+      "contributor_source": "requested_offering_team",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "per_requested_offering": true,
+      "allows_conditional_acceptance": false,
+      "delegable_to": "offering_team",
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 1
+    },
+    {
+      "key": "innovation_group_evaluation",
+      "kind": "assessment",
+      "name": "Industrial Innovation Group evaluation",
+      "description": "Alongside the technical assessment, the Industrial Innovation Group of each requested AI Factory evaluates the proposal on innovation and impact and recommends it, recommends it with conditions, or does not recommend it. A negative recommendation does not end the evaluation; the ranking lists decide.",
+      "status_labels": {
+        "evaluators": {
+          "active": "Under Assessment",
+          "completed": "Industry Innovation Group Evaluation Submitted"
+        },
+        "offering_team": {
+          "active": "Under Evaluation",
+          "completed": "Evaluation Submitted"
+        }
+      },
+      "outcome_set": "per_offering",
+      "completer": "offering_manager",
+      "completer_proposal_role": null,
+      "on_negative": "continue",
+      "is_enabled": true,
+      "duration_in_days": 3,
+      "transition_mode": "manual",
+      "parallel_with_previous": true,
+      "contributor_source": "requested_offering_team",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [
+        {
+          "name": "Innovation and impact",
+          "order": 1
+        }
+      ],
+      "checklist": {
+        "name": "Industrial Innovation Group evaluation",
+        "checklist_type": "workflow_step"
+      },
+      "per_requested_offering": true,
+      "delegable_to": "offering_team",
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 2
+    },
+    {
+      "key": "ranking_list_adoption",
+      "kind": "decision",
+      "name": "AI Factory ranking list adoption",
+      "description": "Each AI Factory forwards its resources distribution list and the Executive Director approves the ranking lists. The call managers open it for the round once the round's proposals have reached it. Completed for the whole round at once.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 2,
+      "transition_mode": "automatic_on_completion",
+      "round_scoped": true,
+      "contributor_source": "none",
+      "input_steps": [
+        "innovation_group_evaluation"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 3
+    },
+    {
+      "key": "allocation_decision",
+      "kind": "decision",
+      "name": "Resources allocation decision",
+      "description": "The call managers enter the results and the allocation per proposal, following the adopted ranking lists. The results are communicated to all applicants together when the round's results are published.",
+      "status_labels": {
+        "applicant": {
+          "outcomes": {
+            "approved": "Awarded (tentative)",
+            "declined": "Not awarded"
+          }
+        },
+        "evaluators": {
+          "outcomes": {
+            "approved": "Awarded (tentative)",
+            "declined": "Not awarded"
+          }
+        }
+      },
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 1,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "is_allocation_decision": true,
+      "include_award_response": true,
+      "allocation_time": "on_decision",
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 4
+    },
+    {
+      "key": "award_response",
+      "kind": "applicant_action",
+      "name": "Award response",
+      "description": "The applicant accepts or declines the award before resources are created.",
+      "status_labels": {
+        "applicant": {
+          "outcomes": {
+            "accepted": "Awarded",
+            "declined": "Rejected award"
+          }
+        },
+        "evaluators": {
+          "outcomes": {
+            "accepted": "Awarded",
+            "declined": "Rejected award"
+          }
+        }
+      },
+      "outcome_set": "acceptance",
+      "completer": "applicant",
+      "completer_proposal_role": null,
+      "on_negative": "cancel",
+      "is_enabled": true,
+      "duration_in_days": 3,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "applicant_visible": true,
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "applicant",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_rejected",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "offering_teams",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 5
+    },
+    {
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Final report",
+        "checklist_type": "workflow_step"
+      },
+      "key": "final_report",
+      "kind": "applicant_action",
+      "name": "Final report",
+      "description": "The awarded applicant submits the project's final report. The step opens at the end of the allocation period, an extension included.",
+      "outcome_set": "submitted",
+      "completer": "applicant",
+      "duration_in_days": 30,
+      "applicant_visible": true,
+      "phase": "closing",
+      "project_end_offset_days": 0,
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "applicant",
+          "days_before": 7,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 6,
+      "status_labels": {
+        "applicant": {
+          "active": "Pending final report",
+          "completed": "Final report submitted"
+        },
+        "evaluators": {
+          "active": "Pending final report",
+          "completed": "Final report submitted"
+        }
+      }
+    },
+    {
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "key": "final_report_approval",
+      "kind": "decision",
+      "name": "Final report approval",
+      "description": "The call managers approve the final report, which completes the project.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "duration_in_days": 30,
+      "phase": "closing",
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 7,
+      "status_labels": {
+        "applicant": {
+          "active": "Final report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        },
+        "evaluators": {
+          "active": "Final report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        }
+      }
+    }
+  ],
+  "checklists": [
+    {
+      "name": "Industrial Innovation Group evaluation",
+      "checklist_type": "workflow_step",
+      "description": "An AI Factory's Industrial Innovation Group evaluation of the proposal.",
+      "questions": [
+        {
+          "description": "Assessment of innovation and impact",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Assess the innovation and the expected impact of the proposal for the AI Factory.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        },
+        {
+          "description": "Score: Innovation and impact",
+          "required": true,
+          "question_type": "rating",
+          "user_guidance": "From 1 (poor) to 5 (excellent).",
+          "min_value": 1,
+          "max_value": 5
+        }
+      ]
+    },
+    {
+      "name": "Final report",
+      "checklist_type": "workflow_step",
+      "description": "The results of an awarded project once its allocation ends.",
+      "questions": [
+        {
+          "description": "Final results of the work",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Report what the project achieved with the allocated resources, including publications and outcomes.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        },
+        {
+          "description": "Final report document",
+          "required": false,
+          "question_type": "file",
+          "user_guidance": "Optional. One PDF file with the full report.",
+          "allowed_file_types": [
+            ".pdf"
+          ],
+          "allowed_mime_types": [
+            "application/pdf"
+          ],
+          "max_file_size_mb": 10
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "key": "happy_path",
+      "name": "Happy path",
+      "description": "Every step passes and the applicant accepts the award.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "administrative_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "technical_assessment",
+            "outcome": "feasible"
+          },
+          {
+            "step": "innovation_group_evaluation",
+            "outcome": "feasible"
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "ranking_list_adoption",
+            "outcome": "approved",
+            "round_step": true
+          },
+          {
+            "step": "allocation_decision",
+            "outcome": "approved"
+          },
+          {
+            "publish": true
+          },
+          {
+            "step": "award_response",
+            "outcome": "accepted"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "accepted"
+        },
+        {
+          "step_status": {
+            "step": "administrative_check",
+            "status": "completed",
+            "outcome": "eligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "step_status": {
+            "step": "award_response",
+            "status": "completed",
+            "outcome": "accepted"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_submitted"
+          }
+        },
+        {
+          "notified": {
+            "actor": "call_manager",
+            "trigger": "proposal_submitted"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "step_completed",
+            "step": "administrative_check"
+          }
+        },
+        {
+          "notified": {
+            "actor": "offering_team",
+            "trigger": "step_started",
+            "step": "technical_assessment"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        },
+        {
+          "notified": {
+            "actor": "offering_team",
+            "trigger": "step_completed",
+            "step": "award_response"
+          }
+        },
+        {
+          "visible": {
+            "role": "applicant",
+            "step": "administrative_check"
+          }
+        },
+        {
+          "hidden": {
+            "role": "applicant",
+            "step": "technical_assessment"
+          }
+        },
+        {
+          "label": {
+            "step": "administrative_check",
+            "text": "Under evaluation",
+            "role": "applicant"
+          }
+        },
+        {
+          "label": {
+            "step": "allocation_decision",
+            "text": "Awarded (tentative)",
+            "audience": "applicant"
+          }
+        },
+        {
+          "label": {
+            "step": "award_response",
+            "text": "Awarded",
+            "role": "applicant"
+          }
+        },
+        {
+          "notified": {
+            "actor": "offering_team",
+            "trigger": "step_started",
+            "step": "innovation_group_evaluation"
+          }
+        },
+        {
+          "step_status": {
+            "step": "innovation_group_evaluation",
+            "status": "completed",
+            "outcome": "feasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "ranking_list_adoption",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_at_administrative_check",
+      "name": "Rejected at the administrative check",
+      "description": "The office finds the proposal ineligible: it is rejected, the applicant is told and no other step runs.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "administrative_check",
+            "outcome": "ineligible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "administrative_check",
+            "status": "completed",
+            "outcome": "ineligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "administrative_check"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "step_rejected",
+            "step": "administrative_check"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        },
+        {
+          "not_notified": {
+            "actor": "offering_team"
+          }
+        },
+        {
+          "label": {
+            "step": "administrative_check",
+            "text": "Administratively Rejected",
+            "role": "applicant"
+          }
+        }
+      ]
+    },
+    {
+      "key": "changes_requested_at_administrative_check",
+      "name": "Changes requested at the administrative check",
+      "description": "The office asks for changes, the applicant submits them and the proposal is then found eligible; the technical assessment starts together with the Industrial Innovation Group evaluation.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "administrative_check",
+            "request_changes": true,
+            "message": "Please complete the Project Scope and Plan."
+          },
+          {
+            "submit_changes": true
+          },
+          {
+            "step": "administrative_check",
+            "outcome": "eligible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "in_review"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "changes_requested",
+            "step": "administrative_check"
+          }
+        },
+        {
+          "step_status": {
+            "step": "administrative_check",
+            "status": "completed",
+            "outcome": "eligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "active"
+          }
+        },
+        {
+          "step_status": {
+            "step": "innovation_group_evaluation",
+            "status": "active"
+          }
+        },
+        {
+          "label": {
+            "step": "administrative_check",
+            "text": "Under evaluation",
+            "role": "applicant"
+          }
+        }
+      ]
+    },
+    {
+      "key": "final_report",
+      "name": "Final report",
+      "description": "After the award the final report opens; the applicant submits it and the call managers approve it.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "administrative_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "technical_assessment",
+            "outcome": "feasible"
+          },
+          {
+            "step": "innovation_group_evaluation",
+            "outcome": "feasible"
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "ranking_list_adoption",
+            "outcome": "approved",
+            "round_step": true
+          },
+          {
+            "step": "allocation_decision",
+            "outcome": "approved"
+          },
+          {
+            "publish": true
+          },
+          {
+            "step": "award_response",
+            "outcome": "accepted"
+          },
+          {
+            "final_report": true
+          },
+          {
+            "step": "final_report",
+            "outcome": "submitted"
+          },
+          {
+            "step": "final_report_approval",
+            "outcome": "approved"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "accepted"
+        },
+        {
+          "step_status": {
+            "step": "final_report",
+            "status": "completed",
+            "outcome": "submitted"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report_approval",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "step_started",
+            "step": "final_report"
+          }
+        },
+        {
+          "notified": {
+            "actor": "call_manager",
+            "trigger": "step_completed",
+            "step": "final_report"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "step_completed",
+            "step": "final_report_approval"
+          }
+        },
+        {
+          "label": {
+            "step": "final_report_approval",
+            "text": "Project completed",
+            "role": "applicant"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_at_technical_assessment",
+      "name": "Rejected at the technical assessment",
+      "description": "A partition rejects the proposal: it is not awarded.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "administrative_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "technical_assessment",
+            "outcome": "infeasible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "completed",
+            "outcome": "infeasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "technical_assessment"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        },
+        {
+          "step_status": {
+            "step": "innovation_group_evaluation",
+            "status": "withdrawn"
+          }
+        }
+      ]
+    }
+  ]
+}

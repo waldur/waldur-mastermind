@@ -37,6 +37,16 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "notify-offering-teams-on-round-start": {
+                "task": "waldur_mastermind.proposal.notify_offering_teams_on_round_start",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+            "send-offering-team-digests": {
+                "task": "waldur_mastermind.proposal.send_offering_team_digests",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
             "notify_reviewer_on_round_start": {
                 "task": "waldur_mastermind.proposal.notify_reviewer_on_round_start",
                 "schedule": timedelta(hours=24),
@@ -77,6 +87,16 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "open-due-final-reports": {
+                "task": "waldur_mastermind.proposal.open_due_final_reports",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+            "lapse-change-requests": {
+                "task": "waldur_mastermind.proposal.lapse_change_requests",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
             "send-workflow-step-deadline-reminders": {
                 "task": "waldur_mastermind.proposal.send_workflow_step_deadline_reminders",
                 "schedule": timedelta(hours=24),
@@ -84,6 +104,11 @@ class ProposalExtension(WaldurExtension):
             },
             "send-assignment-expiry-reminders": {
                 "task": "waldur_mastermind.proposal.send_assignment_expiry_reminders",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+            "send-round-report-reminders": {
+                "task": "waldur_mastermind.proposal.send_round_report_reminders",
                 "schedule": timedelta(hours=24),
                 "args": (),
             },

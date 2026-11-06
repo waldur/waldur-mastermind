@@ -4,6 +4,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -16,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def schedule_sync(*args, **kwargs):
-    """Schedule a synchronization task."""
+    """Schedule a synchronization task, unless side effects are switched
+    off: a change made in a transaction that is rolled back -- a workflow
+    dry run, say -- is nothing to synchronise."""
+    if get_skip_side_effects():
+        return
     tasks.schedule_sync()
 
 

@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.openapi_extensions import AnyJSONField
+from waldur_core.structure import models as structure_models
 
 from . import enums, models, utils
 
@@ -11,6 +12,20 @@ class ChecklistSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     questions_count = serializers.IntegerField(source="questions.count", read_only=True)
+    customer = serializers.SlugRelatedField(
+        source="organization",
+        slug_field="uuid",
+        queryset=structure_models.Customer.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text=(
+            "Organization the checklist belongs to; only its calls use it. "
+            "Empty for a checklist the whole portal shares."
+        ),
+    )
+    customer_name = serializers.ReadOnlyField(
+        source="organization.name", allow_null=True
+    )
 
     class Meta:
         model = models.Checklist
@@ -22,6 +37,8 @@ class ChecklistSerializer(
             "description",
             "checklist_type",
             "questions_count",
+            "customer",
+            "customer_name",
         ]
 
         extra_kwargs = {

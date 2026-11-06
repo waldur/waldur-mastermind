@@ -1,0 +1,13 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear {{ proposal_creator_name }},</p>
+    <p>Your access request "{{ proposal_name }}" has been canceled: it was still a draft when its submission period ended ({{ cancellation_date }}).</p>
+    <p>A request is reviewed only once it has been submitted. You can still view it here:<br>
+        <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+    <p>To ask for the service again, request it from its offering page.</p>
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+</body>
+</html>

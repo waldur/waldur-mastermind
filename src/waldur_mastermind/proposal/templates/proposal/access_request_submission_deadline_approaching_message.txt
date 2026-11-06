@@ -1,0 +1,9 @@
+Dear {{ proposal_creator_name }},
+
+Your access request "{{ proposal_name }}" is still a draft. Submit it by {{ deadline_date }} ({{ time_remaining_days }} days {{ time_remaining_hours }} hours from now) to have it reviewed.
+
+Complete and submit the request: {{ proposal_url }}
+
+{% if draft_carries_over %}A request still in draft after that date stays a draft and can be submitted for the next review period.{% else %}A request still in draft after that date is canceled.{% endif %}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

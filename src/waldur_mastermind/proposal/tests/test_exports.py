@@ -124,8 +124,9 @@ class ProposalExportTest(BaseExportTest):
         self.assertEqual(row[column], "0.3")
 
     def test_row_carries_the_applicant_state_and_step(self):
-        self.proposal.workflow_step = "administrative_check"
-        self.proposal.save()
+        factories.ProposalWorkflowStepInstanceFactory(
+            proposal=self.proposal, step="administrative_check", status="active"
+        )
         rows = read_csv(self.get("staff", "export-proposals"))
         header, *body = rows
         row = next(row for row in body if row[0] == "ROUND-001")
@@ -234,6 +235,28 @@ class ProposalExportTest(BaseExportTest):
         slugs = [row[0] for row in rows[1:]]
         self.assertIn(self.proposal.slug, slugs)
         self.assertNotIn(other.slug, slugs)
+
+    def test_export_can_be_limited_to_selected_proposals(self):
+        second = factories.ProposalFactory(round=self.fixture.round, slug="ROUND-002")
+        left_out = factories.ProposalFactory(round=self.fixture.round, slug="ROUND-003")
+        rows = read_csv(
+            self.get(
+                "staff",
+                "export-proposals",
+                proposal_uuid=[self.proposal.uuid.hex, second.uuid.hex],
+            )
+        )
+        slugs = [row[0] for row in rows[1:]]
+        self.assertEqual(sorted(slugs), [self.proposal.slug, second.slug])
+        self.assertNotIn(left_out.slug, slugs)
+
+    def test_malformed_proposal_uuid_is_refused(self):
+        response = self.get(
+            "staff",
+            "export-proposals",
+            proposal_uuid=[self.proposal.uuid.hex, "not-a-uuid"],
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_malformed_applicant_uuid_is_refused(self):
         response = self.get("staff", "export-proposals", created_by_uuid="not-a-uuid")
@@ -404,6 +427,34 @@ class ReviewExportTest(BaseExportTest):
         self.assertIn(self.fixture.reviewer_1.full_name, reviewers)
         self.assertNotIn(other.reviewer.full_name, reviewers)
 
+    def test_export_can_be_limited_to_selected_proposals(self):
+        other_proposal = factories.ProposalFactory(
+            round=self.fixture.round, name="Selected too"
+        )
+        other = factories.ReviewFactory(
+            proposal=other_proposal,
+            reviewer=self.fixture.reviewer_2,
+            state=models.Review.States.SUBMITTED,
+        )
+        left_out = factories.ReviewFactory(
+            proposal=factories.ProposalFactory(
+                round=self.fixture.round, name="Not selected"
+            ),
+            reviewer=self.fixture.reviewer_2,
+            state=models.Review.States.SUBMITTED,
+        )
+        rows = read_csv(
+            self.get(
+                "staff",
+                "export-reviews",
+                proposal_uuid=[self.proposal.uuid.hex, other_proposal.uuid.hex],
+            )
+        )
+        header, *body = rows
+        proposals = {row[header.index("Proposal")] for row in body}
+        self.assertEqual(proposals, {self.proposal.name, other.proposal.name})
+        self.assertNotIn(left_out.proposal.name, proposals)
+
     def test_private_comment_is_never_exported(self):
         body = b"".join(self.get("staff", "export-reviews").streaming_content).decode(
             "utf-8"
@@ -439,3 +490,65 @@ class ReviewExportTest(BaseExportTest):
         reviewers = [row[header.index("Reviewer")] for row in body]
         self.assertEqual(reviewers, [self.fixture.reviewer_1.full_name])
         self.assertNotIn(other.reviewer.full_name, reviewers)
+
+
+class CriterionScoreExportTest(BaseExportTest):
+    """Reviews scored per criterion export a column per criterion."""
+
+    def setUp(self):
+        super().setUp()
+        self.step = models.CallWorkflowStep.review_step_for(self.call)
+        self.excellence = models.WorkflowCriterion.objects.create(
+            workflow_step=self.step, name="Excellence", order=0, weight=2
+        )
+        self.impact = models.WorkflowCriterion.objects.create(
+            workflow_step=self.step, name="Impact", order=1
+        )
+        self.scored = factories.ReviewFactory(
+            proposal=self.proposal,
+            reviewer=self.fixture.reviewer_1,
+            state=models.Review.States.SUBMITTED,
+            summary_score=4,
+            criteria_scores={self.excellence.uuid.hex: 5, self.impact.uuid.hex: 3},
+            summary_public_comment="Scored.",
+        )
+        factories.ReviewFactory(
+            proposal=self.proposal,
+            reviewer=self.fixture.reviewer_2,
+            state=models.Review.States.SUBMITTED,
+            summary_score=3,
+            criteria_scores={self.excellence.uuid.hex: 3, self.impact.uuid.hex: 2},
+        )
+
+    def test_review_row_carries_each_criterion_after_the_score(self):
+        header, *body = read_csv(self.get("call_manager", "export-reviews"))
+        score_at = header.index("Score")
+        self.assertEqual(
+            header[score_at : score_at + 3], ["Score", "Excellence", "Impact"]
+        )
+        row = next(r for r in body if r[header.index("Public comment")] == "Scored.")
+        self.assertEqual(row[header.index("Excellence")], "5")
+        self.assertEqual(row[header.index("Impact")], "3")
+
+    def test_criteria_are_blank_until_the_review_is_submitted(self):
+        self.scored.state = models.Review.States.IN_REVIEW
+        self.scored.save()
+        header, *body = read_csv(self.get("call_manager", "export-reviews"))
+        row = next(r for r in body if r[header.index("Public comment")] == "Scored.")
+        self.assertEqual(row[header.index("Excellence")], "")
+
+    def test_proposal_row_averages_each_criterion(self):
+        header, *body = read_csv(self.get("staff", "export-proposals"))
+        row = next(r for r in body if r[0] == "ROUND-001")
+        self.assertEqual(row[header.index("Average Excellence")], "4.0")
+        self.assertEqual(row[header.index("Average Impact")], "2.5")
+
+    def test_a_name_two_steps_share_is_headed_by_its_step(self):
+        other = models.CallWorkflowStep.objects.filter(call=self.call).exclude(
+            pk=self.step.pk
+        )[0]
+        models.WorkflowCriterion.objects.create(workflow_step=other, name="Impact")
+        header, *_ = read_csv(self.get("call_manager", "export-reviews"))
+        self.assertIn(f"{self.step.name}: Impact", header)
+        self.assertIn(f"{other.name}: Impact", header)
+        self.assertIn("Excellence", header)

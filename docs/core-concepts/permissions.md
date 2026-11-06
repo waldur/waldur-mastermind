@@ -93,6 +93,32 @@ The platform includes several predefined system roles:
 - `PROJECT.MANAGER` - Project management capabilities
 - `PROJECT.MEMBER` - Basic project member access
 
+A project awarded through a call has a team of its own: by default the call's
+role mapping makes the proposal's manager, administrator and member its
+`PROJECT.PRINCIPAL_INVESTIGATOR`, `PROJECT.CO_INVESTIGATOR` and
+`PROJECT.COLLABORATOR`. Each names a template in `permissions.yaml`
+(`PROJECT.MANAGER`, `PROJECT.ADMIN`, `PROJECT.MEMBER`) and is matched as that
+role wherever a role is looked up by name (`get_users`, `has_user`, the
+one-manager rule), so its holders get the same notifications. What they may
+do comes from their own permissions, and none of them changes what the call
+awarded: not the project's or its resources' names and descriptions, nor
+limits, plan, end dates, new orders or change requests. The
+allocation changes only through the call's own workflow (an extension
+request). The principal investigator manages the team.
+
+On a project, whoever manages the team through a role on the project itself
+grants no role that allows more than their own: a principal investigator adds
+collaborators, not a `PROJECT.MANAGER`. Staff, and those managing the team
+through the organization, are not narrowed.
+
+Changes to dates and limits that a role may not make directly are asked for
+with permissions of their own (`PROJECT.REQUEST_END_DATE_CHANGE`,
+`RESOURCE.REQUEST_END_DATE_CHANGE`, `RESOURCE.REQUEST_LIMITS_CHANGE`), so a
+role is not offered a request just because it lacks the direct right. A
+project's end date is set, and requests to change it approved, with
+`PROJECT.SET_END_DATE`; a resource's with `RESOURCE.SET_END_DATE`, through
+`set_end_date` or a resource edit alike.
+
 #### Offering Roles
 
 - `OFFERING.MANAGER` - Manage marketplace offerings
@@ -101,6 +127,9 @@ The platform includes several predefined system roles:
 
 - `CALL.REVIEWER` - Review proposals in calls
 - `CALL.MANAGER` - Manage calls for proposals
+- `CALL.VIEW_RESULTS` (granted to `CUSTOMER.READER`) - On a call-managing
+  organisation, read its calls' submitted proposals and each round's ranking
+  once the round's results are published
 - `PROPOSAL.MANAGER` - Proposal manager: the principal investigator. Edits,
   submits and deletes the proposal and adds, re-roles and removes its team
   members (`PROPOSAL.MANAGE`, `PROPOSAL.UPDATE`, `PROPOSAL.UPDATE_PERMISSION`,
