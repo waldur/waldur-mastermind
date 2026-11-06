@@ -21,7 +21,7 @@ from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail, validate_outbound_url
 from waldur_core.logging.enums import ConsumerAuthorization, ObservableObjectType
-from waldur_core.logging.log import scrub_sensitive
+from waldur_core.logging.log import event_context_for, scrub_sensitive
 
 logger = logging.getLogger(__name__)
 
@@ -137,10 +137,13 @@ class WebHook(BaseHook):
 
         # Scrub credential-named keys from the context before it leaves for an
         # external URL — defence in depth against a secret ever reaching a context.
+        # The hook owner reads the context as they would through the events API;
+        # a hook without an owner gets what any ordinary reader gets.
+        owner = self.user if self.user_id else None
         payload = dict(
             created=event.created.isoformat(),
             message=event.message,
-            context=scrub_sensitive(event.context),
+            context=scrub_sensitive(event_context_for(owner, event.context)),
             event_type=event.event_type,
         )
 

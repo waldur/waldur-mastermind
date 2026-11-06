@@ -55,6 +55,8 @@
 
 - call_document_added
 - call_document_removed
+- review_assignment_force_unblocked
+- reviewer_invitation_force_accepted
 - reviewer_workload_limit_overridden
 
 ## Chat
@@ -340,17 +342,45 @@
 
 ## Proposal
 
+- proposal_applicant_responded
+- proposal_automatic_decision_deferred
+- proposal_budget_overridden
 - proposal_canceled
+- proposal_change_request_closed
+- proposal_changes_requested
+- proposal_changes_submitted
+- proposal_contribution_reopened
+- proposal_contribution_submitted
+- proposal_decision_held
+- proposal_decision_published
 - proposal_decision_reopened
 - proposal_document_added
 - proposal_document_removed
 - proposal_draft_carried_over
+- proposal_evaluator_assigned
+- proposal_evaluator_revoked
+- proposal_notification_sent
+- proposal_panel_changed
 - proposal_rejected_at_round_completion
+- proposal_report_released
+- proposal_run_closed
+- proposal_run_opened
+- proposal_step_completed
+- proposal_step_skipped
+- proposal_step_started
+- proposal_step_withdrawn
+- proposal_submitted
 - proposal_workflow_advanced
+- proposal_workflow_notification_sent
+- round_allocated_in_submission_order
 - round_closed
 - round_decision_started
 - round_evaluation_started
+- round_report_reopened
+- round_report_submitted
+- round_results_adopted
 - round_results_published
+- round_step_opened
 - round_undecided_proposals_rejected
 
 ## Providers
@@ -523,7 +553,16 @@
 
 ## Review
 
+- review_accepted
+- review_assigned
 - review_canceled
+- review_declined
+- review_rejected
+- review_submitted
+- reviewer_publication_approved
+- reviewer_publication_rejected
+- reviewer_publication_requested
+- reviewer_standing_changed
 
 ## Ssh
 

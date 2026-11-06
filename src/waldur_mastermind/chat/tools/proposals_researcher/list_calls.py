@@ -14,6 +14,7 @@ from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.enums import CallStates, RoundStatuses
+from waldur_mastermind.proposal.managers import round_open_q
 from waldur_mastermind.proposal.models import Call
 
 logger = logging.getLogger(__name__)
@@ -190,7 +191,7 @@ Skip-ahead is fine and expected.\
         if round_status:
             now = timezone.now()
             if round_status == RoundStatuses.OPEN:
-                qs = qs.filter(round__start_time__lte=now, round__cutoff_time__gte=now)
+                qs = qs.filter(round_open_q("round", now=now))
             elif round_status == RoundStatuses.SCHEDULED:
                 qs = qs.filter(round__start_time__gt=now)
             elif round_status == RoundStatuses.ENDED:

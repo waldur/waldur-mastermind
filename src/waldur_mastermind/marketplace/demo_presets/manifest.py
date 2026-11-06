@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from waldur_mastermind.invoices.models import Invoice
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
+from waldur_mastermind.marketplace.demo_presets import order_history, proposal_history
 from waldur_mastermind.marketplace.demo_presets.credit_history import (
     generate_credit_history,
 )
@@ -202,6 +203,10 @@ class DemoPresetManager:
 
             # Generate invoices for imported resources (if not dry run)
             if not dry_run:
+                # Before billing: a resource is billed from the orders that
+                # made it, as in production.
+                order_history.generate_order_history(output)
+                proposal_history.generate_proposal_history(output)
                 cls._generate_billing_for_resources(output)
                 cls._generate_credit_history(output, file_path)
 

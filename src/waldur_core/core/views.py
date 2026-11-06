@@ -2219,7 +2219,9 @@ class ActionMethodMixin:
     """
 
     @staticmethod
-    def action_list_method(set_name, additional_validators=None):
+    def action_list_method(set_name, additional_validators=None, narrow=None):
+        """``narrow(view, obj, queryset)``, when given, returns the part of
+        the related set the caller may read: the list shows only that."""
         additional_validators = additional_validators or []
 
         def func(self, request, uuid=None):
@@ -2268,6 +2270,8 @@ class ActionMethodMixin:
             queryset = getattr(obj, set_name)
             if hasattr(queryset, "all"):
                 queryset = queryset.all()
+            if narrow is not None:
+                queryset = narrow(self, obj, queryset)
             # Respect ?page / ?page_size when the viewset has a pagination
             # class configured (LinkHeaderPagination by default).
             page = self.paginate_queryset(queryset)
@@ -2290,7 +2294,11 @@ class ActionMethodMixin:
         return func
 
     @staticmethod
-    def action_detail_method(set_name, delete_validators=None, update_validators=None):
+    def action_detail_method(
+        set_name, delete_validators=None, update_validators=None, narrow=None
+    ):
+        """``narrow`` as for ``action_list_method``: an item outside the
+        part the caller may read is not found, whatever the method."""
         delete_validators = delete_validators or []
         update_validators = update_validators or []
 
@@ -2298,7 +2306,11 @@ class ActionMethodMixin:
             method = self.request.method
 
             try:
-                obj = getattr(self.get_object(), set_name).get(uuid=obj_uuid)
+                parent = self.get_object()
+                queryset = getattr(parent, set_name).all()
+                if narrow is not None:
+                    queryset = narrow(self, parent, queryset)
+                obj = queryset.get(uuid=obj_uuid)
 
                 if method == "DELETE":
                     [validator(obj) for validator in delete_validators]

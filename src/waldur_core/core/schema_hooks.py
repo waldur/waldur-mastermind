@@ -386,6 +386,34 @@ def relax_conditionally_optional_fields(result, generator, **kwargs):
     return result
 
 
+# Maps a response schema component name to writable fields its serializer
+# always returns even though a request may leave them out (the server derives
+# them). drf-spectacular marks a field required in both directions or neither,
+# so without this hook the SDKs type these as optional on read.
+ALWAYS_RETURNED_RESPONSE_FIELDS: dict[str, set[str]] = {
+    # CallWorkflowStepSerializer (waldur_mastermind.proposal.serializers):
+    # derived from the kind, the name or the call's other steps when left out.
+    "CallWorkflowStep": {"key", "step", "kind", "name", "order", "outcome_set"},
+}
+
+
+def require_always_returned_fields(result, generator, **kwargs):
+    """
+    Add the fields listed in ALWAYS_RETURNED_RESPONSE_FIELDS to their response
+    component's required[] array; request components are left as they are.
+    """
+    schemas = result.get("components", {}).get("schemas", {})
+    for schema_name, fields in ALWAYS_RETURNED_RESPONSE_FIELDS.items():
+        schema = schemas.get(schema_name)
+        if not schema:
+            continue
+        required = schema.setdefault("required", [])
+        for field in sorted(fields):
+            if field in schema.get("properties", {}) and field not in required:
+                required.append(field)
+    return result
+
+
 def remove_waldur_cookie_auth(result, generator, **kwargs):
     """
     Remove waldurCookieAuth from security schemes in an OpenAPI schema.

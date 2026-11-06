@@ -21,6 +21,7 @@ from django.contrib.contenttypes.models import ContentType
 from waldur_core.permissions import models
 from waldur_core.permissions.enums import (
     GLOBAL_DENIED_PERMISSIONS,
+    ROLE_TEMPLATES,
     SCOPE_NAME_PREFIXES,
     SYSTEM_ROLE_SCOPES,
     TYPE_KEY_BY_CT,
@@ -256,7 +257,16 @@ class RoleHygieneChecker:
                 )
             )
 
-        if role.template_id and not has_any_availability:
+        if (
+            role.template_id
+            and not has_any_availability
+            # A system role declared to act as another one is grantable
+            # everywhere on purpose; it is no organization's copy.
+            and not (
+                role.is_system_role
+                and ROLE_TEMPLATES.get(role.name) == role.template.name
+            )
+        ):
             findings.append(
                 self._finding(
                     "template-without-scope",

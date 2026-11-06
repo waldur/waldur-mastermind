@@ -30,8 +30,16 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
+def grant_end_date_change_requests():
+    """The project roles ask (PermissionEnum.REQUEST_RESOURCE_END_DATE_CHANGE), as permissions.yaml
+    grants them; tests do not load it."""
+    for role in (ProjectRole.ADMIN, ProjectRole.MANAGER, ProjectRole.MEMBER):
+        role.add_permission(PermissionEnum.REQUEST_RESOURCE_END_DATE_CHANGE)
+
+
 class BaseEndDateChangeRequestTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_change_requests()
         self.fixture = MarketplaceFixture()
         # The manager manages limits but not end dates: they ask like anyone
         # else, and only SET_RESOURCE_END_DATE writes or decides.
@@ -149,6 +157,7 @@ class EndDateChangeRequestCreateTest(BaseEndDateChangeRequestTest):
 
 class EndDateChangeRequestApproveTest(BaseEndDateChangeRequestTest):
     def setUp(self):
+        grant_end_date_change_requests()
         super().setUp()
         self.request_obj = self.make_request()
         self.approve_url = (
@@ -393,6 +402,7 @@ class EndDateChangeRequestTokenTest(BaseEndDateChangeRequestTest):
 
 class EndDateChangeRequestFilterTest(BaseEndDateChangeRequestTest):
     def setUp(self):
+        grant_end_date_change_requests()
         super().setUp()
         self.make_request(created_by=self.fixture.member)
         self.client.force_authenticate(self.fixture.owner)
@@ -495,6 +505,7 @@ class EndDateChangeRequestExternalApprovalTest(BaseEndDateChangeRequestTest):
     """The seams an external approval system drives: events and backend_id."""
 
     def setUp(self):
+        grant_end_date_change_requests()
         super().setUp()
         self.request_obj = self.make_request()
         self.backend_id_url = (
@@ -710,6 +721,7 @@ class EndDateChangeRequestNotificationDispatchTest(BaseEndDateChangeRequestTest)
     """
 
     def setUp(self):
+        grant_end_date_change_requests()
         super().setUp()
         # Fixture roles are created lazily on first access. Materialize them
         # before the task looks up who holds the permission.

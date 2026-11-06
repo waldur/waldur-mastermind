@@ -2,6 +2,7 @@ import collections
 import datetime
 import decimal
 import json
+import math
 import pathlib
 import re
 import uuid
@@ -18,6 +19,7 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core.models import User
+from waldur_core.permissions.enums import OFFERING_EVALUATOR
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
@@ -28,9 +30,10 @@ from waldur_mastermind.marketplace.demo_presets.manifest import (
 from waldur_mastermind.marketplace.demo_presets.time_shift import (
     rebase_to_current_month,
 )
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 from waldur_mastermind.marketplace.models import (
     Offering,
+    Order,
     PlanComponent,
     Resource,
     ResourceProject,
@@ -38,9 +41,24 @@ from waldur_mastermind.marketplace.models import (
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_openstack import utils as openstack_utils
+from waldur_mastermind.proposal import call_templates, offering_demand, provider_calls
+from waldur_mastermind.proposal import enums as proposal_enums
+from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.enums import (
+    AssignmentItemStatuses,
+    ProposalStates,
+    RequestedOfferingStates,
+)
 from waldur_mastermind.proposal.models import (
+    AssignmentItem,
+    Call,
     CallAssignmentConfiguration,
     CallCOIConfiguration,
+    CallManagingOrganisation,
+    CallReviewerPool,
+    CallTemplate,
+    Proposal,
+    Review,
 )
 from waldur_openstack.models import Tenant
 
@@ -482,6 +500,29 @@ class GenerateBillingTest(test.APITestCase):
 class DemoPresetLoadTest(test.APITestCase):
     """Integration tests for loading demo presets into the database."""
 
+    def test_call_management_proposals_meet_their_calls_rules(self):
+        """Every submitted demo proposal answers its call's required compliance
+        questions and asks for its resource templates as they define it: a
+        request for changes on one would otherwise ask the applicant to mend
+        what the demo left broken."""
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result.get("message"))
+
+        submitted = proposal_models.Proposal.objects.exclude(
+            state=proposal_enums.ProposalStates.DRAFT
+        )
+        self.assertTrue(submitted.exists())
+        for proposal in submitted:
+            with self.subTest(proposal=proposal.name):
+                self.assertEqual(proposal.unanswered_compliance_questions(), 0)
+                self.assertIsNone(proposal.resource_template_error())
+
     @data(
         "minimal_quickstart",
         "government_cloud",
@@ -516,6 +557,36 @@ class DemoPresetLoadTest(test.APITestCase):
             .filter(count__gt=1)
         )
         self.assertFalse(list(billed_twice))
+        self.assert_resources_have_their_order_history()
+
+    def assert_resources_have_their_order_history(self):
+        """Every resource came about, changed and ended through orders, as in
+        production: its Order history tab is never empty."""
+        for resource in Resource.objects.prefetch_related("order_set"):
+            with self.subTest(resource=resource.name):
+                orders = list(resource.order_set.all())
+                creates = [o for o in orders if o.type == OrderTypes.CREATE]
+                self.assertTrue(creates, "no CREATE order")
+                if resource.state == ResourceStates.OK:
+                    self.assertTrue(
+                        any(o.state == OrderStates.DONE for o in creates),
+                        "an active resource whose CREATE order is not done",
+                    )
+                if resource.state == ResourceStates.TERMINATED:
+                    self.assertTrue(
+                        any(
+                            o.type == OrderTypes.TERMINATE
+                            and o.state == OrderStates.DONE
+                            for o in orders
+                        )
+                        or any(
+                            o.state in (OrderStates.REJECTED, OrderStates.CANCELED)
+                            for o in creates
+                        ),
+                        "a terminated resource without the order that ended it",
+                    )
+                for order in orders:
+                    self.assertTrue(order.slug, "an order without a slug")
 
     def test_call_management_preset_loads_call_configurations(self):
         preset = json.loads(
@@ -555,6 +626,416 @@ class DemoPresetLoadTest(test.APITestCase):
                 "send_reminder_before_expiry_days",
             ):
                 self.assertEqual(getattr(config, field), entry[field], field)
+
+    def test_call_management_preset_scores_reviews_per_criterion(self):
+        preset = json.loads(
+            pathlib.Path(
+                DemoPresetManager.get_preset_path("call_management")
+            ).read_text()
+        )
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        scored = [entry for entry in preset["reviews"] if entry.get("criteria_scores")]
+        self.assertTrue(scored)
+        for entry in scored:
+            review = Review.objects.get(uuid=entry["uuid"])
+            # Every named criterion is one of the review's step.
+            self.assertEqual(
+                sorted(review.criteria_scores.values()),
+                sorted(entry["criteria_scores"].values()),
+                entry["uuid"],
+            )
+            # The summary score is what the criteria would give it.
+            scores = list(review.criteria_scores.values())
+            self.assertEqual(
+                math.floor(sum(scores) / len(scores) + 0.5),
+                review.summary_score,
+                entry["uuid"],
+            )
+
+    def test_call_management_preset_loads_a_call_from_a_call_template(self):
+        preset = json.loads(
+            pathlib.Path(
+                DemoPresetManager.get_preset_path("call_management")
+            ).read_text()
+        )
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        # Every shipped preset is loaded as a published call template.
+        self.assertEqual(
+            sorted(
+                CallTemplate.objects.filter(is_published=True).values_list(
+                    "name", flat=True
+                )
+            ),
+            sorted(call_templates.preset_name(name) for name in call_templates.names()),
+        )
+
+        # The demo's calls are the EuroHPC JU access calls, one per JU
+        # template, and nothing else: the other templates are only offered
+        # for import.
+        in_preset = [entry["template"] for entry in preset["call_templates"]]
+        ju_templates = {
+            name
+            for name in call_templates.names()
+            if (call_templates.preset_block(name) or {}).get("programme")
+            == "eurohpc-ju-access"
+        }
+        self.assertEqual(sorted(in_preset), sorted(ju_templates))
+        self.assertFalse(preset["calls"])
+        self.assertEqual(Call.objects.count(), len(preset["call_templates"]))
+        for other in preset["call_templates"]:
+            other_call = Call.objects.get(uuid=other["uuid"])
+            self.assertEqual(other_call.name, other["name"])
+            self.assertEqual(
+                other_call.workflow_steps.count(),
+                len(call_templates.load(other["template"])["workflow_steps"]),
+            )
+        # Every reference a template makes resolves on the loaded portal: the
+        # preset's own, and every other shipped template, imported here as a
+        # call the way a call manager would.
+        self.assertNotIn("was not found on this portal", result["output"])
+        # The Regular Access domain panels find the science domains they
+        # map to, which the preset loads alongside the calls.
+        (regular,) = [
+            entry
+            for entry in preset["call_templates"]
+            if entry["template"] == "regular_access"
+        ]
+        regular_call = Call.objects.get(uuid=regular["uuid"])
+        expected = {
+            panel["key"]: sorted(domain["code"] for domain in panel["science_domains"])
+            for panel in call_templates.load("regular_access")["panels"]
+        }
+        self.assertTrue(expected)
+        self.assertEqual(
+            {
+                panel.key: sorted(panel.science_domains.values_list("code", flat=True))
+                for panel in regular_call.panels.all()
+            },
+            expected,
+        )
+
+        (entry,) = [
+            entry
+            for entry in preset["call_templates"]
+            if entry["template"] == "extreme_scale"
+        ]
+        call = Call.objects.get(uuid=entry["uuid"])
+        template = call_templates.load(entry["template"])
+        self.assertEqual(call.name, entry["name"])
+        self.assertEqual(call.state, entry["state"])
+        self.assertEqual(
+            list(call.workflow_steps.order_by("order").values_list("key", flat=True)),
+            [step["key"] for step in template["workflow_steps"]],
+        )
+        self.assertEqual(
+            list(call.proposal_roles.values_list("key", flat=True)),
+            [role["key"] for role in template["proposal_roles"]],
+        )
+        # The steps come with the template's evaluation forms.
+        forms = {
+            step["key"]: step["checklist"]["name"]
+            for step in template["workflow_steps"]
+            if step["checklist"]
+        }
+        self.assertIn("response_to_reviews", forms)
+        # A form whose name another call's form has taken carries the
+        # call's name too.
+        self.assertEqual(
+            {
+                step.key: step.checklist.name.removesuffix(f" ({call.name})")
+                for step in call.workflow_steps.filter(checklist__isnull=False)
+            },
+            forms,
+        )
+        response_form = call.workflow_steps.get(key="response_to_reviews").checklist
+        self.assertTrue(response_form.questions.filter(required=True).exists())
+        # The preset's rounds, partitions and people find the call by the
+        # uuid it was given: an ended spring round and the open one.
+        self.assertEqual(call.round_set.count(), 2)
+        self.assertEqual(call.requestedoffering_set.count(), 2)
+        self.assertEqual(
+            UserRole.objects.filter(
+                object_id=call.id, role__name="CALL.PANEL_MEMBER", is_active=True
+            ).count(),
+            3,
+        )
+        # Each partition belongs to its own HPC centre, not to the
+        # organisation running the call, and only that centre's team
+        # assesses it.
+        cmo_customer = call.manager.customer
+        partitions = list(call.requestedoffering_set.select_related("offering"))
+        self.assertEqual(
+            len({requested.offering.customer_id for requested in partitions}), 2
+        )
+        for requested in partitions:
+            offering = requested.offering
+            self.assertNotEqual(offering.customer, cmo_customer, offering.name)
+            (manager,) = (
+                role.user
+                for role in UserRole.objects.filter(
+                    object_id=offering.id,
+                    content_type__model="offering",
+                    role__name="OFFERING.MANAGER",
+                    is_active=True,
+                ).select_related("user")
+            )
+            self.assertTrue(
+                UserRole.objects.filter(
+                    user=manager,
+                    object_id=offering.customer_id,
+                    content_type__model="customer",
+                    role__name="CUSTOMER.OWNER",
+                    is_active=True,
+                ).exists(),
+                offering.name,
+            )
+            self.assertEqual(
+                UserRole.objects.filter(
+                    user=manager,
+                    content_type__model="offering",
+                    role__name="OFFERING.MANAGER",
+                    is_active=True,
+                ).count(),
+                1,
+                offering.name,
+            )
+        self.assertFalse(
+            UserRole.objects.filter(
+                user__username="call_director",
+                object_id__in=[requested.offering_id for requested in partitions],
+                content_type__model="offering",
+                role__name="OFFERING.MANAGER",
+            ).exists()
+        )
+        # Last: the forms these imports bring share names with the ones above.
+        manager = CallManagingOrganisation.objects.get(
+            uuid=preset["call_templates"][0]["manager_uuid"]
+        )
+        for name in sorted(set(call_templates.names()) - set(in_preset)):
+            with self.subTest(template=name):
+                call, _, warnings = call_templates.import_template(name, manager, None)
+                self.assertEqual(
+                    call.workflow_steps.count(),
+                    len(call_templates.load(name)["workflow_steps"]),
+                )
+                self.assertFalse(
+                    [w for w in warnings if "was not found on this portal" in w]
+                )
+
+    def test_call_management_accepted_proposals_are_provisioned_from_their_award(
+        self,
+    ):
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        def order_of(resource):
+            return Order.objects.get(resource=resource, type=OrderTypes.CREATE)
+
+        accepted = Proposal.objects.filter(state=ProposalStates.ACCEPTED)
+        self.assertEqual(accepted.count(), 4)
+        for proposal in accepted:
+            # Accepted the way allocation accepts: into a project, through an
+            # award, each provisioned item linked back to what was asked.
+            self.assertIsNotNone(proposal.project, proposal.name)
+            self.assertIsNotNone(proposal.awarded_resources_prefilled_at)
+            awards = list(proposal.awarded_resources.all())
+            self.assertTrue(awards, proposal.name)
+            for awarded in awards:
+                provisioned = (
+                    awarded.requested_offering.state == RequestedOfferingStates.ACCEPTED
+                )
+                self.assertEqual(awarded.resource is not None, provisioned)
+                if not provisioned:
+                    continue
+                self.assertEqual(awarded.resource.project, proposal.project)
+                self.assertEqual(awarded.resource.limits, awarded.limits)
+                order = order_of(awarded.resource)
+                self.assertEqual(order.limits, awarded.limits)
+                if awarded.requested_resource is not None:
+                    self.assertEqual(
+                        awarded.requested_resource.resource, awarded.resource
+                    )
+
+        fulfilled = Proposal.objects.get(uuid="ca600000000000000000000000000006")
+        (requested,) = fulfilled.requestedresource_set.all()
+        self.assertEqual(requested.resource.name, "ML Training GPU Allocation")
+        self.assertEqual(order_of(requested.resource).state, OrderStates.DONE)
+
+        # One item awarded less than asked, one not awarded at all, and one
+        # on an offering the provider withdrew from the call.
+        partial = Proposal.objects.get(uuid="ca600000000000000000000000000008")
+        by_offering = {
+            requested.requested_offering.offering.name: requested
+            for requested in partial.requestedresource_set.all()
+        }
+        hpc = by_offering["HPC Standard Allocation"]
+        (hpc_award,) = hpc.awarded_resources.all()
+        self.assertLess(hpc_award.limits["cpu_hours"], hpc.limits["cpu_hours"])
+        self.assertEqual(order_of(hpc.resource).state, OrderStates.DONE)
+        storage = by_offering["Research Data Storage"]
+        self.assertFalse(storage.awarded_resources.exists())
+        self.assertIsNone(storage.resource)
+        withdrawn = by_offering["Cloud VM Package"]
+        self.assertEqual(
+            withdrawn.requested_offering.state, RequestedOfferingStates.CANCELED
+        )
+        self.assertIsNone(withdrawn.resource)
+
+        # Still with the provider: one order waiting, one refused with a reason.
+        pending = Proposal.objects.get(uuid="ca600000000000000000000000000009")
+        states = {
+            requested.requested_offering.offering.name: order_of(requested.resource)
+            for requested in pending.requestedresource_set.all()
+        }
+        self.assertEqual(
+            states["HPC Standard Allocation"].state, OrderStates.PENDING_PROVIDER
+        )
+        refused = states["Research Data Storage"]
+        self.assertEqual(refused.state, OrderStates.REJECTED)
+        self.assertTrue(refused.provider_rejection_comment)
+
+    def test_call_management_shows_a_partition_its_demand(self):
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        # The booster partition's centre sees its own partition only: a
+        # pending proposal in the open round, and in the spring round one
+        # accepted with less GPU time than asked and one rejected, against
+        # the call's GPU pools.
+        user = User.objects.get(username="centre_south_admin")
+        rows = offering_demand.demand(user)
+        self.assertEqual({row["offering"].name for row in rows}, {"Booster partition"})
+        by_group = {row["state_group"]: row for row in rows}
+        self.assertEqual(set(by_group), {"pending", "accepted", "closed"})
+        (gpu,) = [
+            component
+            for component in by_group["accepted"]["components"]
+            if component["type"] == "gpu_hours"
+        ]
+        self.assertLess(gpu["awarded"], gpu["requested"])
+        self.assertEqual(gpu["call_pool"]["awarded"], gpu["awarded"])
+        self.assertEqual(gpu["round_pool"]["remaining"], 30000)
+
+    def test_call_management_partition_has_an_evaluator_to_hand_work_to(self):
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        # Booster partition's managers can hand its technical assessments
+        # to someone who does not manage the offering itself.
+        booster = Offering.objects.get(uuid="f4000000000000000000000000000008")
+        team = provider_calls.team_people(booster)
+        self.assertEqual(
+            [person["full_name"] for person in team["delegates"]],
+            ["Southern Centre Evaluator"],
+        )
+        role = Role.objects.get(name=OFFERING_EVALUATOR)
+        self.assertEqual(role.description, "Offering evaluator")
+        self.assertFalse(role.permissions.exists())
+
+    def test_call_management_reviewer_pool_and_role_are_one_list(self):
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        call_type = ContentType.objects.get_for_model(Call)
+        for call in Call.objects.all():
+            with self.subTest(call=call.name):
+                accepted = CallReviewerPool.objects.filter(
+                    call=call, invitation_status="accepted"
+                )
+                holders = UserRole.objects.filter(
+                    content_type=call_type,
+                    object_id=call.pk,
+                    role__name="CALL.REVIEWER",
+                    is_active=True,
+                ).values_list("user_id", flat=True)
+                self.assertEqual(len(holders), len(set(holders)))
+                self.assertEqual(
+                    sorted(holders),
+                    sorted(
+                        entry.reviewer.user_id
+                        if entry.reviewer_id
+                        else entry.invited_user_id
+                        for entry in accepted
+                    ),
+                )
+
+    def test_call_management_reviews_from_assignments_are_linked(self):
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        items = AssignmentItem.objects.select_related(
+            "batch__reviewer_pool_entry__reviewer__user",
+            "batch__call",
+            "proposal__round",
+            "review",
+        )
+        self.assertTrue(items.exists())
+        for item in items:
+            label = item.uuid.hex
+            # A batch offers its reviewer proposals of its own call.
+            self.assertEqual(item.proposal.round.call, item.batch.call, label)
+            profile = item.batch.reviewer_pool_entry.reviewer
+            if profile is None:
+                continue
+            reviews = Review.objects.filter(
+                proposal=item.proposal, reviewer=profile.user
+            )
+            if item.status == AssignmentItemStatuses.ACCEPTED:
+                # Accepting an item is what creates the review, and the item
+                # keeps hold of it.
+                self.assertIsNotNone(item.review, label)
+                self.assertEqual(item.review.reviewer, profile.user, label)
+                self.assertEqual(item.review.proposal, item.proposal, label)
+            elif item.status == AssignmentItemStatuses.PENDING:
+                # A pending item still grants the reviewer read access; one
+                # whose review already exists would outlive that review.
+                self.assertFalse(reviews.exists(), label)
 
 
 class OpenStackCloudPresetTest(test.APITestCase):

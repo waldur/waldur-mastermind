@@ -290,17 +290,48 @@ class EventType(StrEnum):
     PROJECT_UPDATE_SUCCEEDED = "project_update_succeeded"
     PROJECT_PERMISSION_REVIEW_CREATED = "project_permission_review_created"
     PROJECT_PERMISSION_REVIEW_CLOSED = "project_permission_review_closed"
+    PROPOSAL_APPLICANT_RESPONDED = "proposal_applicant_responded"
+    PROPOSAL_AWARD_CHANGED = "proposal_award_changed"
+    PROPOSAL_EDITED_FOR_APPLICANT = "proposal_edited_for_applicant"
+    PROPOSAL_AUTOMATIC_DECISION_DEFERRED = "proposal_automatic_decision_deferred"
+    PROPOSAL_BUDGET_OVERRIDDEN = "proposal_budget_overridden"
     PROPOSAL_CANCELED = "proposal_canceled"
+    PROPOSAL_CHANGE_REQUEST_CLOSED = "proposal_change_request_closed"
+    PROPOSAL_CHANGES_REQUESTED = "proposal_changes_requested"
+    PROPOSAL_CHANGES_SUBMITTED = "proposal_changes_submitted"
+    PROPOSAL_CONTRIBUTION_REOPENED = "proposal_contribution_reopened"
+    PROPOSAL_CONTRIBUTION_SUBMITTED = "proposal_contribution_submitted"
     PROPOSAL_DOCUMENT_ADDED = "proposal_document_added"
+    PROPOSAL_CREATED = "proposal_created"
     PROPOSAL_DRAFT_CARRIED_OVER = "proposal_draft_carried_over"
     PROPOSAL_DOCUMENT_REMOVED = "proposal_document_removed"
+    PROPOSAL_DECISION_HELD = "proposal_decision_held"
+    PROPOSAL_DECISION_PUBLISHED = "proposal_decision_published"
     PROPOSAL_DECISION_REOPENED = "proposal_decision_reopened"
+    PROPOSAL_EVALUATOR_ASSIGNED = "proposal_evaluator_assigned"
+    PROPOSAL_EVALUATOR_REVOKED = "proposal_evaluator_revoked"
+    PROPOSAL_PANEL_CHANGED = "proposal_panel_changed"
     PROPOSAL_REJECTED_AT_ROUND_COMPLETION = "proposal_rejected_at_round_completion"
+    PROPOSAL_REPORT_RELEASED = "proposal_report_released"
+    PROPOSAL_RUN_CLOSED = "proposal_run_closed"
+    PROPOSAL_RUN_OPENED = "proposal_run_opened"
+    PROPOSAL_STEP_COMPLETED = "proposal_step_completed"
+    PROPOSAL_STEP_SKIPPED = "proposal_step_skipped"
+    PROPOSAL_STEP_STARTED = "proposal_step_started"
+    PROPOSAL_STEP_WITHDRAWN = "proposal_step_withdrawn"
+    PROPOSAL_SUBMITTED = "proposal_submitted"
     PROPOSAL_WORKFLOW_ADVANCED = "proposal_workflow_advanced"
+    PROPOSAL_WORKFLOW_NOTIFICATION_SENT = "proposal_workflow_notification_sent"
+    PROPOSAL_NOTIFICATION_SENT = "proposal_notification_sent"
     ROUND_CLOSED = "round_closed"
     ROUND_DECISION_STARTED = "round_decision_started"
     ROUND_EVALUATION_STARTED = "round_evaluation_started"
+    ROUND_RESULTS_ADOPTED = "round_results_adopted"
+    ROUND_REPORT_REOPENED = "round_report_reopened"
+    ROUND_REPORT_SUBMITTED = "round_report_submitted"
     ROUND_RESULTS_PUBLISHED = "round_results_published"
+    ROUND_STEP_OPENED = "round_step_opened"
+    ROUND_ALLOCATED_IN_SUBMISSION_ORDER = "round_allocated_in_submission_order"
     ROUND_UNDECIDED_PROPOSALS_REJECTED = "round_undecided_proposals_rejected"
     QUERY_EXECUTED = "query_executed"
     INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE = (
@@ -419,8 +450,19 @@ class EventType(StrEnum):
     )
     RESOURCE_UPDATE_SUCCEEDED = "resource_update_succeeded"
     RESTRICT_MEMBERS = "restrict_members"
+    REVIEW_ACCEPTED = "review_accepted"
+    REVIEW_ASSIGNED = "review_assigned"
     REVIEW_CANCELED = "review_canceled"
+    REVIEW_DECLINED = "review_declined"
+    REVIEW_REJECTED = "review_rejected"
+    REVIEW_SUBMITTED = "review_submitted"
     REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN = "reviewer_workload_limit_overridden"
+    REVIEWER_INVITATION_FORCE_ACCEPTED = "reviewer_invitation_force_accepted"
+    REVIEW_ASSIGNMENT_FORCE_UNBLOCKED = "review_assignment_force_unblocked"
+    REVIEWER_STANDING_CHANGED = "reviewer_standing_changed"
+    REVIEWER_PUBLICATION_REQUESTED = "reviewer_publication_requested"
+    REVIEWER_PUBLICATION_APPROVED = "reviewer_publication_approved"
+    REVIEWER_PUBLICATION_REJECTED = "reviewer_publication_rejected"
     ROLE_CLONED = "role_cloned"
     ROLE_CONCEALED = "role_concealed"
     ROLE_DEFINITION_CREATED = "role_definition_created"
@@ -593,6 +635,8 @@ EVENT_GROUP_MAPPING = {
         EventType.CALL_DOCUMENT_ADDED,
         EventType.CALL_DOCUMENT_REMOVED,
         EventType.REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN,
+        EventType.REVIEWER_INVITATION_FORCE_ACCEPTED,
+        EventType.REVIEW_ASSIGNMENT_FORCE_UNBLOCKED,
     ],
     EventGroup.CREDITS: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,
@@ -722,17 +766,48 @@ EVENT_GROUP_MAPPING = {
         EventType.PROJECT_PERMISSION_REVIEW_CLOSED,
     ],
     EventGroup.PROPOSAL: [
+        EventType.PROPOSAL_APPLICANT_RESPONDED,
+        EventType.PROPOSAL_AWARD_CHANGED,
+        EventType.PROPOSAL_EDITED_FOR_APPLICANT,
+        EventType.PROPOSAL_AUTOMATIC_DECISION_DEFERRED,
+        EventType.PROPOSAL_BUDGET_OVERRIDDEN,
         EventType.PROPOSAL_CANCELED,
+        EventType.PROPOSAL_CHANGE_REQUEST_CLOSED,
+        EventType.PROPOSAL_CHANGES_REQUESTED,
+        EventType.PROPOSAL_CHANGES_SUBMITTED,
+        EventType.PROPOSAL_CONTRIBUTION_REOPENED,
+        EventType.PROPOSAL_CONTRIBUTION_SUBMITTED,
+        EventType.PROPOSAL_CREATED,
         EventType.PROPOSAL_DOCUMENT_ADDED,
         EventType.PROPOSAL_DOCUMENT_REMOVED,
         EventType.PROPOSAL_DRAFT_CARRIED_OVER,
+        EventType.PROPOSAL_DECISION_HELD,
+        EventType.PROPOSAL_DECISION_PUBLISHED,
         EventType.PROPOSAL_DECISION_REOPENED,
+        EventType.PROPOSAL_EVALUATOR_ASSIGNED,
+        EventType.PROPOSAL_EVALUATOR_REVOKED,
+        EventType.PROPOSAL_PANEL_CHANGED,
         EventType.PROPOSAL_REJECTED_AT_ROUND_COMPLETION,
+        EventType.PROPOSAL_REPORT_RELEASED,
+        EventType.PROPOSAL_STEP_COMPLETED,
+        EventType.PROPOSAL_STEP_SKIPPED,
+        EventType.PROPOSAL_STEP_STARTED,
+        EventType.PROPOSAL_STEP_WITHDRAWN,
+        EventType.PROPOSAL_SUBMITTED,
+        EventType.PROPOSAL_RUN_OPENED,
+        EventType.PROPOSAL_RUN_CLOSED,
         EventType.PROPOSAL_WORKFLOW_ADVANCED,
+        EventType.PROPOSAL_WORKFLOW_NOTIFICATION_SENT,
+        EventType.PROPOSAL_NOTIFICATION_SENT,
         EventType.ROUND_CLOSED,
         EventType.ROUND_DECISION_STARTED,
         EventType.ROUND_EVALUATION_STARTED,
+        EventType.ROUND_RESULTS_ADOPTED,
+        EventType.ROUND_REPORT_REOPENED,
+        EventType.ROUND_REPORT_SUBMITTED,
         EventType.ROUND_RESULTS_PUBLISHED,
+        EventType.ROUND_STEP_OPENED,
+        EventType.ROUND_ALLOCATED_IN_SUBMISSION_ORDER,
         EventType.ROUND_UNDECIDED_PROPOSALS_REJECTED,
     ],
     EventGroup.POLICIES: [
@@ -972,7 +1047,16 @@ EVENT_GROUP_MAPPING = {
         EventType.RESOURCE_UPDATE_SUCCEEDED,
     ],
     EventGroup.REVIEW: [
+        EventType.REVIEW_ACCEPTED,
+        EventType.REVIEW_ASSIGNED,
         EventType.REVIEW_CANCELED,
+        EventType.REVIEW_DECLINED,
+        EventType.REVIEW_REJECTED,
+        EventType.REVIEW_SUBMITTED,
+        EventType.REVIEWER_STANDING_CHANGED,
+        EventType.REVIEWER_PUBLICATION_REQUESTED,
+        EventType.REVIEWER_PUBLICATION_APPROVED,
+        EventType.REVIEWER_PUBLICATION_REJECTED,
     ],
     EventGroup.SSH: [
         EventType.SSH_KEY_CREATION_SUCCEEDED,

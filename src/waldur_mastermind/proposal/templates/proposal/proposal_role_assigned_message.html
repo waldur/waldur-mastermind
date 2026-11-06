@@ -1,0 +1,18 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Dear {{ holder_name }},</p>
+
+<p>You have been assigned as <strong>{{ role_name }}</strong>{% if is_lead %} (lead){% endif %} for the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>".</p>
+{% if coi_confirmation_required %}
+<p>Before the proposal opens to you, please confirm that you have no conflict of interest with it.</p>
+{% endif %}
+<p>Open the proposal:</p>
+
+<a href="{{ proposal_url }}">{{ proposal_url }}</a>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>

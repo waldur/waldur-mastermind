@@ -1,0 +1,9 @@
+<html>
+<body>
+    <p>Hello,</p>
+    <p>Round "<strong>{{ round_name }}</strong>" of call "<strong>{{ call_name }}</strong>" has opened. The call takes in your offering "<strong>{{ offering_name }}</strong>", and closes for submissions on {{ cutoff }}.</p>
+    {% if team_steps %}<p>Your offering's team acts in these steps of the call: {{ team_steps }}. You will be asked once proposals reach them.</p>{% endif %}
+    <p><a href="{{ calls_url }}">Your calls</a></p>
+    <p><em>This is an automated message from {{ site_name }}.</em></p>
+</body>
+</html>

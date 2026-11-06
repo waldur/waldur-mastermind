@@ -7,6 +7,7 @@ from waldur_core.media import access
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.marketplace.models import Offering
 from waldur_mastermind.proposal import permissions as proposal_permissions
+from waldur_mastermind.proposal import rankings
 from waldur_mastermind.proposal.models import (
     Call,
     CallDocument,
@@ -15,6 +16,7 @@ from waldur_mastermind.proposal.models import (
     ProposalDocumentation,
     RequestedResource,
     Round,
+    RoundMeetingNoteDocument,
 )
 
 # CallManagingOrganisationViewSet is a PublicViewsetMixin listing.
@@ -85,4 +87,19 @@ access.register(
 access.register(
     access.upload_prefix(RequestedResource, "attachment"),
     user_can_access_requested_resource_attachment,
+)
+
+
+def user_can_access_round_meeting_note_document(file, user) -> bool:
+    """Mirror RoundMeetingNoteViewSet.get_queryset, which owns the note."""
+    if not user.is_authenticated:
+        return False
+    return RoundMeetingNoteDocument.objects.filter(
+        file=file.name, note__in=rankings.readable_meeting_notes(user)
+    ).exists()
+
+
+access.register(
+    access.upload_prefix(RoundMeetingNoteDocument, "file"),
+    user_can_access_round_meeting_note_document,
 )

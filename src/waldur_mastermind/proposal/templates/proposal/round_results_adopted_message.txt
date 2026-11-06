@@ -1,0 +1,10 @@
+Dear call manager,
+
+The results of the round "{{ round_name }}" of the call "{{ call_name }}" were adopted on {{ adopted_at }}. {{ recorded_by }} recorded the adoption.
+
+The round's results can now be published to the applicants.
+
+You can view the round here:
+{{ round_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

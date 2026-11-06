@@ -183,24 +183,6 @@ class ExpertiseCategoryModelTest(TestCase):
         self.assertEqual(child.level, 1)
 
 
-class ReviewerStatsModelTest(TestCase):
-    """Test ReviewerStats model."""
-
-    def test_create_stats(self):
-        """Can create stats for a reviewer."""
-        profile = factories.ReviewerProfileFactory()
-
-        stats = models.ReviewerStats.objects.create(
-            reviewer_profile=profile,
-            total_reviews_completed=10,
-            total_reviews_declined=2,
-            average_review_time_days=14.5,
-        )
-
-        self.assertEqual(stats.total_reviews_completed, 10)
-        self.assertEqual(stats.average_review_time_days, 14.5)
-
-
 class CallReviewerPoolModelTest(TestCase):
     """Test CallReviewerPool model."""
 
@@ -328,6 +310,7 @@ class ReviewerInvitationAPITest(test.APITestCase):
         )
         token = pool_member.invitation_token
 
+        self.client.force_authenticate(pool_member.reviewer.user)
         url = f"http://testserver/api/reviewer-invitations/{token}/decline/"
         response = self.client.post(url, {"reason": "Too busy"})
 

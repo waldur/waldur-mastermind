@@ -16,7 +16,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         self.proposal.save()
         self.review = factories.ReviewFactory(proposal=self.proposal)
 
-        self.proposal_submitter = self.proposal.created_by
+        self.proposal_submitter = self.fixture.proposal_creator
         self.reviewer = self.review.reviewer
         self.call_manager = self.fixture.call_manager
 

@@ -152,6 +152,54 @@ def scrub_sensitive(value):
     return value
 
 
+# The request details every event inherits from whoever caused it (see
+# CaptureEventContextMiddleware and compile_context): where the actor was, what
+# they used, how they authenticated and who stood behind an impersonation.
+# Reading an event does not entitle a reader to them -- only staff and support
+# see them. The actor's name, username and UUID are not among them.
+ACTOR_DETAIL_KEYS = frozenset(
+    (
+        "ip_address",
+        "user_agent",
+        "auth_method",
+        "pat_uuid",
+        "pat_name",
+        "request_id",
+    )
+)
+_ACTOR_DETAIL_SUFFIXES = (
+    "_impersonator_uuid",
+    "_impersonator_full_name",
+    "_impersonator_username",
+)
+
+
+def can_view_actor_details(user) -> bool:
+    return bool(user and (user.is_staff or user.is_support))
+
+
+def _is_actor_detail_key(key) -> bool:
+    return key in ACTOR_DETAIL_KEYS or (
+        isinstance(key, str) and key.endswith(_ACTOR_DETAIL_SUFFIXES)
+    )
+
+
+def strip_actor_details(context):
+    """Return ``context`` without the actor's request details."""
+    if not isinstance(context, dict):
+        return context
+    return {
+        key: value for key, value in context.items() if not _is_actor_detail_key(key)
+    }
+
+
+def event_context_for(user, context):
+    """The event context as ``user`` may read it."""
+    if can_view_actor_details(user):
+        return context
+    return strip_actor_details(context)
+
+
 def scrub_query_string(path):
     """Mask credentials in the query string of a request path.
 

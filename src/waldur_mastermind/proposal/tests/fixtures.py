@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 
 from waldur_core.permissions import enums
-from waldur_core.permissions.fixtures import CallRole, CustomerRole
+from waldur_core.permissions.fixtures import CallRole, CustomerRole, ProposalRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -17,6 +17,15 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
 )
 from waldur_mastermind.proposal.tests import factories as proposal_factories
+
+
+def author_as_manager(proposal):
+    """The proposal's author, holding the proposal manager role the API grants
+    on creation: access goes through the team, not ``created_by``."""
+    author = proposal.created_by
+    if not proposal.has_user(author, ProposalRole.MANAGER):
+        proposal.add_user(author, ProposalRole.MANAGER)
+    return author
 
 
 class ProposalFixture(structure_fixtures.CustomerFixture):
@@ -169,11 +178,11 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
 
     @cached_property
     def proposal_creator(self):
-        return self.proposal.created_by
+        return author_as_manager(self.proposal)
 
     @cached_property
     def proposal_submitted_creator(self):
-        return self.proposal_submitted.created_by
+        return author_as_manager(self.proposal_submitted)
 
     @cached_property
     def requested_resource(self):

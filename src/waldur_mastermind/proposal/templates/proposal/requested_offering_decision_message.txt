@@ -10,7 +10,10 @@ Offering details:
 
 {% if decision == "accepted" %}This offering is now available for selection in proposals submitted to this call.{% endif %}
 
-{% if decision == "canceled" %}You may need to look for alternative offerings or contact the provider directly for more information about their decision.{% endif %}
+{% if decision == "rejected" %}{% if reason %}The provider gave this reason:
+{{ reason }}
+
+{% endif %}You may need to look for alternative offerings.{% endif %}
 
 You can view the call details and manage offerings by visiting:
 {{ call_url }}

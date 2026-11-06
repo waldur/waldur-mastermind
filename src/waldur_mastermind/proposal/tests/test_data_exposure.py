@@ -25,7 +25,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalStates,
     ReviewerPoolInvitationStatuses,
 )
-from waldur_mastermind.proposal.tests import factories
+from waldur_mastermind.proposal.tests import factories, fixtures
 
 # =============================================================================
 # Review Data Exposure Tests
@@ -53,6 +53,7 @@ class ReviewDataExposureTestCase(APITestCase):
             created_by=self.submitter,
             state=models.Proposal.States.ACCEPTED,
         )
+        fixtures.author_as_manager(self.proposal)
 
         # Create review with sensitive data
         self.reviewer_user = structure_factories.UserFactory()
@@ -128,6 +129,26 @@ class ReviewDataExposureTestCase(APITestCase):
         self.assertIn("summary_private_comment", response.data)
         self.assertIn("reviewer_full_name", response.data)
         self.assertIn("reviewer_uuid", response.data)
+
+    def test_only_the_call_team_reads_how_to_reach_the_reviewer(self):
+        # The submitter may see who reviewed, never the reviewer's email or
+        # organisation; the call's manager sees both.
+        self.call.reviewer_identity_visible_to_submitters = True
+        self.call.reviews_visible_to_submitters = True
+        self.call.save()
+        url = f"/api/proposal-reviews/{self.review.uuid.hex}/"
+
+        self.client.force_authenticate(self.call_manager)
+        response = self.client.get(url)
+        self.assertEqual(response.data["reviewer_email"], self.reviewer_user.email)
+        self.assertIn("reviewer_organization", response.data)
+
+        self.client.force_authenticate(self.submitter)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("reviewer_full_name", response.data)
+        self.assertNotIn("reviewer_email", response.data)
+        self.assertNotIn("reviewer_organization", response.data)
 
     def test_submitter_cannot_access_reviews_when_not_visible(self):
         """When reviews_visible_to_submitters=False, submitters get 404."""

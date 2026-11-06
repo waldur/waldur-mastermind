@@ -978,6 +978,11 @@ class ProjectViewSet(
     core_views.ActionsViewSet,
 ):
     queryset = models.Project.available_objects.all().order_by("name")
+    # Projects an app grants read-only access to (a call manager reading the
+    # projects of the call's accepted proposals) are reachable by these read
+    # actions and nowhere else on this viewset: every other action needs a
+    # role on the project.
+    read_only_project_actions = ("list", "retrieve", "stats")
 
     def get_queryset(self):
         user = getattr(self.request, "user", None)
@@ -994,7 +999,9 @@ class ProjectViewSet(
             # Get the base queryset using normal filtering but include terminated projects
             base_queryset = models.Project.objects.all().order_by("name")
             # Apply the same filters that would normally be applied (GenericRoleFilter logic)
-            queryset = filter_queryset_for_user(base_queryset, user)
+            queryset = filter_queryset_for_user(
+                base_queryset, user, read_only=filters.is_read_only_project_action(self)
+            )
             queryset = filter_queryset_by_user_ip(queryset, self.request)
         else:
             queryset = models.Project.available_objects.all().order_by("name")
@@ -1044,7 +1051,9 @@ class ProjectViewSet(
 
             # Regular users need to have normal access to the project
             filtered_queryset = filter_queryset_for_user(
-                models.Project.objects.filter(id=project.id), user
+                models.Project.objects.filter(id=project.id),
+                user,
+                read_only=filters.is_read_only_project_action(self),
             )
             filtered_queryset = filter_queryset_by_user_ip(
                 filtered_queryset, self.request
@@ -1324,8 +1333,16 @@ class ProjectViewSet(
     def stats(self, request, *args, **kwargs):
         project = self.get_object()
 
+        # Terminated resources are left to include_terminated, below.
         resources = marketplace_models.Resource.objects.filter(project=project)
-        resources = filter_resources_for_consumer(resources, request, self)
+        # On this read action, also the resources an app grants read-only
+        # access to: a call manager reading the projects its call allocated.
+        resources = filter_resources_for_consumer(
+            resources,
+            request,
+            self,
+            read_only=filters.is_read_only_project_action(self),
+        )
 
         for_current_month = (
             request.query_params.get("for_current_month", "").lower()
@@ -2628,12 +2645,13 @@ class ProjectEndDateChangeRequestViewSet(
     core_mixins.EagerLoadMixin, core_views.ActionsViewSet
 ):
     queryset = models.ProjectEndDateChangeRequest.objects.all()
-    # The rule for changing the end date directly (ProjectViewSet's update),
-    # so that a personal access token approves exactly where it could make
-    # the change itself.
+    # Approving writes the end date, so it takes the permission that sets it
+    # directly (ProjectViewSet's update): deciding a request is never easier
+    # than doing it yourself, and a personal access token approves exactly
+    # where it could make the change itself.
     approve_permissions = reject_permissions = [
         permission_factory(
-            PermissionEnum.UPDATE_PROJECT,
+            PermissionEnum.SET_PROJECT_END_DATE,
             ["project", "project.customer"],
             binding_on_path=True,
         )

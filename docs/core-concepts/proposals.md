@@ -44,7 +44,7 @@ graph TB
 - **`CallManagingOrganisation`**: Organizations that create and manage calls for proposals
 - **`Call`**: Main entity representing calls with configuration for review settings and duration
 - **`Round`**: Time-bounded submission periods, with a lifecycle after the cut-off (evaluating → deciding → results published → closed)
-- **`CallWorkflowStep`**: Per-call evaluation policy — which steps run and how each is gated
+- **`CallWorkflowStep`**: A step of a call's evaluation workflow — ordered, named, of a code-defined kind, and how it is gated
 - **`Proposal`**: Individual proposals with project details and resource requests
 - **`RequestedResource`**: Specific resource requests within proposals linked to marketplace
 - **`AwardedResource`**: What the allocation decision grants; starts as a copy of the requests and is what allocation provisions
@@ -115,6 +115,30 @@ results are published, and only then moves on as the decision says.
 | **REJECTED** | Declined after review | Review completion | View feedback, appeal |
 | **CANCELED** | Withdrawn or administratively canceled | User/admin action | Archive |
 
+#### The applicant team
+
+The applicant is the proposal's team as it stands: everyone holding an active
+role on the proposal (`PROPOSAL.MANAGER`, `PROPOSAL.ADMIN`, `PROPOSAL.MEMBER`).
+Nothing is granted through `created_by`: the author is on the team only while
+they still hold one of those roles, and once removed reads, edits and submits
+nothing of it.
+
+- **Who acts for the applicant.** A step the applicant completes -- the
+  response to reviews, the award response -- is completed by any current
+  proposal manager. The other members read it. Nobody on the team rejects the
+  proposal at such a step; a rejection is the call's.
+- **The team is frozen once the award is accepted.** Adding, removing or
+  changing a team role, and inviting to the team, are refused from then on,
+  staff included: the people are managed on the awarded project.
+- **Joining the team ends evaluating.** Whoever joins the team of a proposal
+  they evaluate is treated as for a recorded conflict of interest: their
+  evaluator role on it is revoked ("Joined the applicant team."), a review in
+  progress is rejected, assignments not yet answered are blocked and their open
+  contributions are withdrawn. The access checks refuse team members on their
+  own as well, so an offering manager on the team no longer fills their
+  offering's technical assessment, and a panel member on the team reads the
+  proposal as an applicant.
+
 ### Review States
 
 Reviews maintain independent state for tracking progress:
@@ -163,34 +187,124 @@ the round would delete them with it. `ProtectedRoundSerializer.has_proposals`
 tells clients whether deletion is possible; it counts every proposal, including
 those the viewer cannot see.
 
+### Panels
+
+A call may route its proposals to panels (`CallPanel`: `key`, `name`,
+`description`, `order`, `chair`, `members`, `science_domains`,
+`science_sub_domains`), such as the Domain Panels of Regular Access. They are
+managed at `/api/proposal-protected-calls/{uuid}/panels/` by whoever may update
+the call, and read by them and by the call's panel members; not by its
+reviewers.
+
+- Members must hold the call's panel member role, and the chair must be a
+  member. Losing the panel member role takes the user off the call's panels
+  and clears them as chair.
+- Within a call no science domain, and no sub-domain, is mapped to two panels.
+- When a proposal's evaluation starts (on submission or at the cut-off) it
+  goes to the panel mapping its sub-domain, else the panel mapping that
+  sub-domain's domain, else to none. The routing is logged as
+  `proposal_panel_changed`.
+- `POST /api/proposal-proposals/{uuid}/set_panel/` moves a submitted proposal.
+  Allowed to those who manage the call and to the completer of the
+  proposal's running assignment step that assigns a panel-based role (the
+  call's panel chair in Regular Access); never to the applicant team. The
+  panel chair the workflow assigned, while they have done nothing on the
+  proposal yet, is revoked with the move ("Moved to panel X.") and told so,
+  and a running assignment step assigns the new panel's chair. Any other
+  holder of a panel-based role -- assigned by hand, or a chair who has
+  contributed, completed a step, assigned someone or requested changes --
+  refuses the move with the reason: revoke them first. Logged as
+  `proposal_panel_changed`.
+- Two evaluator role eligibilities follow the panel: `panel:chair` (the chair
+  of the proposal's panel) and `panel:member` (its members). Staffing warnings
+  on the role count the call's smallest panel.
+- When an assignment step starts, each of its roles with `panel:chair` and at
+  most one holder is given to the proposal's panel chair, who confirms having
+  no conflict of interest when the step asks for it. A chair who cannot take
+  the proposal is not assigned, and the step says why.
+- `panel_uuid` and `panel_name` on a proposal are shown to whoever sees who
+  evaluates it, never to the applicant team. Proposals and rankings filter by
+  `panel_uuid`.
+- A panel with proposals cannot be deleted. Panels travel with exports,
+  imports and duplicates of the call by the code and name of each domain,
+  without their chair and members. On import a domain is matched by both: one
+  whose code this portal gives another name is skipped with a warning, so a
+  portal with another taxonomy never routes a panel to the wrong domains.
+  Older documents that give codes alone are matched by code, with a warning.
+
 ### Where evaluation policy lives
 
 Review and allocation policy is configured per call, on its workflow steps
-(`CallWorkflowStep`, one row per catalogue step, seeded when the call is created):
+(`CallWorkflowStep`). The call manager composes the workflow from ordered,
+named steps, each of one of four code-defined kinds, and a kind may appear any
+number of times:
+
+| Kind | Behaviour | Outcome sets |
+| --- | --- | --- |
+| `applicant_action` | The applicant fills in a form or answers, e.g. accepts the award | `submitted`, `acceptance`, `done` |
+| `assignment` | Someone picks the people who act later | `done` |
+| `assessment` | Assigned people assess, e.g. technical assessment, peer review | `reviewed`, `feasibility`, `done` |
+| `decision` | One completer picks an outcome, e.g. eligibility, panel, allocation | `approval`, `eligibility` |
+
+`GET /api/proposal-protected-calls/workflow_step_kinds/` lists the kinds with
+their outcome sets, default completer and the step fields that apply to them.
+A proposal walks its call's enabled steps by `order`; a negative outcome
+(`ineligible`, `infeasible`, `declined`) rejects it, or cancels it on a step
+with `on_negative=cancel`, and passing the last step allocates it.
 
 | Setting | Meaning |
 | --- | --- |
-| `is_enabled` | Whether the step runs; `allocation_decision` is mandatory |
+| `key`, `name`, `description` | Identifier within the call (fixed once created), and what the call manager calls the step |
+| `kind`, `outcome_set` | Behaviour of the step, and which of its kind's outcome sets it is completed with |
+| `order` | Position in the workflow; inserting at a taken position moves the later steps down |
+| `on_negative` | `reject` (default) or `cancel` the proposal on a negative outcome |
+| `is_allocation_decision` | The decision step that settles the award; a call is activated with exactly one enabled |
+| `is_enabled` | Whether the step runs; the allocation decision cannot be disabled |
 | `duration_in_days` | Step deadline, counted from when the step starts |
-| `responsible_role` | Who acts on the step (call manager, offering manager, reviewer, panel member, applicant) |
+| `completer` | Who acts on the step (call manager, offering manager, reviewer, panel member, applicant) |
 | `checklist`, `checklist_required` | Evaluation form for the step, and whether it must be answered |
 | `min_reviewers`, `min_score_threshold` | Completion gates: the step cannot be completed until enough reviews are in and their average reaches the threshold. They never decide on their own |
 | `blind_review`, `requires_coi_confirmation` | Evaluator isolation and conflict-of-interest attestation |
 | `applicant_visible` | Whether the applicant sees the step |
 | `transition_mode` | `automatic_on_completion` advances to the next step when this one is completed; `manual` waits for a separate advance |
-| `include_award_response`, `allocation_time` | On `allocation_decision` only: whether the applicant must accept the award, and whether allocation happens `on_decision` or on the round's `allocation_date` (`fixed_date`) |
+| `include_award_response`, `allocation_time` | On the allocation decision only: whether the applicant must accept the award (an `award_response` step right after it), and whether allocation happens `on_decision` or on the round's `allocation_date` (`fixed_date`) |
 
-The step catalogue, in order: `administrative_check`, `technical_assessment`,
-`expert_review`, `panel_review`, `allocation_decision`, `award_response`.
+A new call is seeded with the steps that were once a fixed catalogue, in order:
+`administrative_check`, `technical_assessment`, `expert_review`,
+`panel_review`, `allocation_decision`; `award_response` is added by
+`include_award_response`. For one release the API keeps the old names as
+aliases: `step` for `key` (read and write), `responsible_role` for
+`completer`, and `?step=<key>` next to `?step_uuid=` on the step checklist
+actions.
 
 Each step also carries notification rules (`CallWorkflowStepNotificationRule`):
 on a trigger (`step_started`, `step_completed`, `step_rejected`,
 `step_expired`, `deadline_approaching`) mail an audience. A rule addressed to
-the applicant (or to the responsible role of a step the applicant is
-responsible for) lists in `notified_proposal_roles` the proposal roles whose
+the applicant (or to the responsible role of a step the applicant
+completes) lists in `notified_proposal_roles` the proposal roles whose
 holders are told, for example only `PROPOSAL.MANAGER`. Left empty, it reaches
-the proposal's creator and its whole team. The applicant side gets one message
+the proposal's whole team as it stands. The applicant side gets one message
 with every recipient in To; other audiences get a private copy each.
+
+`contribution_submitted` fires once per contribution handed in (an offering's
+assessment, a review, a report, again after it was reopened). Its mail never
+names who handed it in; recipients who read the step's dashboard labels are
+told how many contributions are in, the applicant is not.
+
+A call copies the holders of the proposal roles in `Call.applicant_cc_roles`
+(for example `PROPOSAL.MANAGER`, the principal investigator, and
+`PROPOSAL.ADMIN`) on every mail to the applicant: state changes, step mails to
+the applicant, requests for changes, cancellation and deadline reminders. Only
+the proposal's current team is copied, each address once, and never on mail
+to any other audience.
+
+A step's `status_labels` name it per audience: `applicant`, `evaluators`,
+`call_team` (call managers, staff and support) and `offering_team` (the
+offering teams, on the steps they work on). The call team's and the offering
+teams' labels fall back, state by state, to the evaluators'. Labels other than
+the applicant's may show counts of the step's work: `{invited}`, `{accepted}`,
+`{declined}`, `{submitted}`, `{expected}`, `{reports_submitted}`,
+`{reports_expected}`; any other placeholder is refused.
 
 ```mermaid
 graph LR
@@ -251,7 +365,7 @@ on `ProtectedCallViewSet`:
 | Start deciding | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/start_deciding/` | `evaluating` → `deciding` |
 | Publish results | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/publish_results/` | `evaluating`/`deciding` → `results_published`; retries held decisions in `results_published` |
 | Complete | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/complete/` | `results_published` → `closed` |
-| Record adoption | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/record_adoption/` | No transition; any time after the cut-off |
+| Record adoption | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/record_adoption/` | No transition; any time after the cut-off, or only in `deciding` when the call requires adoption |
 
 All four take the permissions of `close_round` (`CLOSE_ROUNDS` on the call or
 its managing organisation) and require an active call. Each transition records
@@ -354,7 +468,124 @@ and an optional `adoption_document` — for results that a board or another body
 must adopt. While the round withholds its results, `adoption_note`,
 `adoption_document` and `results_forced_reason` serialise as `null` for anyone
 who may not see held decisions (`user_can_view_round_adoption`), and the media
-endpoint applies the same rule to the document.
+endpoint applies the same rule to the document. Writing the record follows the
+same rule: while the round withholds its results, a holder of `CLOSE_ROUNDS`
+who may not read the record gets `403`, so no one saves over a note they were
+never shown.
+
+`Call.adoption_required` makes the adoption a gate between the decision body
+and the applicants, as when a governing board adopts the allocation list:
+
+- `record_adoption` is accepted only while the round is `deciding`.
+- `publish_results` is refused with `400` until `adopted_at` is set. `force`
+  does not bypass it: it answers for undecided proposals only.
+- Once adopted, a held decision can no longer be reopened (`409`).
+- The first recording emits `round_results_adopted` against the managing
+  organisation and mails the call managers (`proposal.round_results_adopted`):
+  the date and who recorded it, never the note. Correcting the record later
+  does neither.
+
+### Steps run once per round
+
+A step with `round_scoped` -- a panel meeting, a committee's ranking, the
+adoption of a ranking list -- runs once for the round's proposals rather than
+on each. It is an assessment or a decision, never the allocation decision,
+not per requested offering, without minimum or maximum contributions, score
+threshold, delegation, reviewer suggestions or change requests, and its
+contributors are nobody, the holders of an evaluator role
+(`proposal_role:<id>`) or of a call role (`call_role:<role>`, such as the
+panel chair and vice-chair). The call evaluates at the cut-off.
+
+- A proposal reaching it stands at it with nothing to do: no contribution,
+  no per-proposal start mail, no expiry one by one, and it is not completed
+  on its own (`400`). A call manager can still reject it there.
+- `rounds/{uuid}/open_workflow_step` (`UPDATE_CALL`) opens it for the round.
+  It is refused while a proposal of the round has not reached the step
+  (`lagging_count`), unless forced with a reason. The proposals parked just
+  before it are moved in, each committed on its own, and each contributor
+  gets one round report -- a `RoundMeetingNote` with the step -- covering
+  the proposals they hold the step for, and one mail
+  (`proposal.round_report_requested`); the call managers get one
+  (`proposal.round_step_opened`). A proposal arriving later joins its
+  author's draft.
+- A round report is written by its author: notes, documents, the step's
+  form (`checklist` / `submit_answers` on the note) and a ranking within the
+  report (`ProposalRanking.meeting_note`, ranks unique per report). `submit`
+  fixes it; `reopen` (call managers) hands it back so a late proposal joins.
+  Once every report covering a proposal is in, an assessment step is
+  completed for it with `done`. A decision step is completed for the round
+  with `complete_workflow_step`, which the step's completer -- the panel
+  chair, say -- may use too.
+- A report and its ranking are read by staff, support, the call's managers,
+  the author and those working on a later step that reads the round step on
+  a covered proposal; never by anyone on the team of, or in conflict with,
+  any proposal it covers. The round's overall ranking stays as it was, and
+  the call's panel chair and vice-chair may write it as well.
+
+`RoundStep.due_at` (`rounds/{uuid}/set_workflow_step_due_date`) sets when any
+step is due in a round, for every proposal; the proposals at the step get the
+new deadline and their reminders again. `rounds/{uuid}/advance_workflow_step`
+moves on every proposal of the round parked on a completed manual step, such
+as a technical assessment the call managers check before it moves on. The
+round's `round_steps` field lists each step's due date, proposals before, at
+and after it, and the state of its reports.
+
+## Checking a Workflow and Its History
+
+### Workflow check before activation
+
+`GET /api/proposal-protected-calls/{uuid}/workflow-check/` runs a registry of
+rules (`proposal/workflow_checks.py`) over the call's workflow description.
+Each finding has a stable `code`, a `severity`, the `step` it concerns (null
+for the call) and the `field` that fixes it, so the UI can open that setting.
+
+- **Errors** mean the call cannot run as configured: no round, no enabled step,
+  no or several allocation decisions, an award response before the decision,
+  an unguarded automatic decision, an applicant step without a form, no
+  accepted offering or an offering without a plan (the checks activation always
+  made, with the same messages), and a completer, contributor or delegation
+  target nobody can hold, a run condition naming a missing or later step or an
+  outcome that ends the proposal first, an input read from the same or a later
+  stage, a decision or applicant step inside a parallel stage, and a
+  notification rule that can never reach anyone.
+- **Warnings** never block: durations up to the decision longer than the
+  round's time to decision (allocation date minus cut-off, else the call's
+  `target_decision_days`, else the review duration), steps without a duration,
+  a negative outcome that changes nothing, blind review released with reviewer
+  identities shown, an empty reviewer pool, notification gaps, and the
+  domain-panel and round-step rules once those features are configured.
+- **Info**: roles the call managers assign by hand, and each step that differs
+  from the template the call was created from.
+
+`activate` runs the same check and refuses the call with every error at once,
+as `{"detail": ..., "workflow_check": [...]}`. There is no override.
+`GET /api/call-templates/{uuid}/workflow-check/` runs the document-only rules on
+a template. Both endpoints have the workflow description's audience: the call's
+team, staff and support; panel members, reviewers and applicants get 404.
+
+### Template link and version history
+
+A call created from a template keeps `template` and `template_version`.
+`CallTemplate.version` increases whenever the template's document changes;
+name, description and publication leave it alone.
+
+Every write that changes what the call exports as its settings and workflow
+(call settings, steps, evaluator roles, notification rules, role
+mappings, review configuration, activation) records a `WorkflowVersion` once it
+commits, only when the document changed. While the call is a draft, one user's
+versions within 15 minutes merge into one; after activation every version is
+kept. A call created from a template starts with the template's document as
+version 1 and its own export as version 2, so import normalisation shows once.
+Calls created before versions were kept get their current state as version 1
+the first time they are written to or their history is read.
+
+- `GET .../workflow-versions/` and `.../workflow-versions/{number}/`;
+- `GET .../workflow-diff/?from=<n|template|template_latest|current>&to=<...>`:
+  changes keyed by step key, field by field, each `behaviour` or `cosmetic`
+  (names, descriptions, help texts); a step counts as moved only when its place
+  relative to the other steps changed.
+
+The same pair exists on `call-templates/{uuid}/` for staff.
 
 ## Resource Template System
 
@@ -450,6 +681,90 @@ submitted without a template marked as required.
 
 ## Review System Architecture
 
+### Reviewer registry and standing
+
+The platform operator decides who may review, through the staff-only
+reviewer registry (`/api/reviewer-registry/`, Administration → Call
+management → Reviewers in the UI).
+
+Each reviewer profile has a **standing**:
+
+| Standing | Meaning |
+|---|---|
+| `active` | The default. Selected for, invited to and offered review work as usual. |
+| `suspended` | Temporarily kept from new review work; meant to be lifted. |
+| `blocked` | Kept from new review work until staff decide otherwise. |
+
+Staff set the standing with `POST /api/reviewer-registry/{uuid}/set-standing/`
+(`{"standing": ..., "reason": ...}`; a reason is required unless the standing
+is `active`). The profile records who changed it, when and why, and a
+`reviewer_standing_changed` event is logged with the same details.
+
+A reviewer who is not `active`, or whose account is deactivated:
+
+- is left out of reviewer suggestions, affinity scores and matrices,
+  generated and manual assignments, bids, and the reviewer counts a workflow
+  check makes;
+- cannot be invited to a call's pool (by profile or by e-mail), cannot accept
+  a pending pool invitation or assignment, cannot be force-accepted by a call
+  manager, and is given no review directly or through the call's reviewer
+  role or an evaluator role;
+- keeps everything already accepted: pool memberships, reviews in progress,
+  conflicts of interest, disclosures and submitted reviews. The pool shows
+  the reviewer's standing so the call's managers can reassign.
+
+A reviewer whose profile is suspended or blocked cannot delete it; staff can.
+The reviewer sees their standing on their profile; the reason is visible to
+staff only.
+
+#### Publication approval
+
+With `REVIEWER_PUBLICATION_REQUIRES_APPROVAL` on (off by default), publishing a
+profile creates a request instead, and the profile stays undiscoverable until
+staff approve it (`approve-publication` / `reject-publication` on the
+registry, with an optional comment the reviewer reads). Profiles already
+published when the setting is turned on stay published. Turning it off leaves
+pending requests resolvable by staff, and the reviewer's next publish goes
+through at once.
+
+#### Reviewer eligibility per call
+
+A call may restrict who reviews for it (`reviewer_eligibility` on the call:
+e-mail patterns, affiliations, identity sources and AAI requirements, read
+like the applicant restrictions). These are kept apart from the restrictions
+on applicants and are checked when a reviewer is invited, accepts, is
+suggested, or is given the call's reviewer role.
+
+#### Reviewer record
+
+A reviewer profile's `stats` give the reviewer's record across every call. Nothing
+is stored: each figure is worked out from the reviews and assignments when the
+profile is read.
+
+| Figure | Counts |
+|---|---|
+| `total_reviews_completed` | Reviews submitted. |
+| `total_reviews_declined` | Assignments declined, and reviews the reviewer (or staff for them) rejected. |
+| `total_reviews_timeout` | Assignments left unanswered until they expired, and reviews rejected at their deadline. |
+| `average_score_given` | Mean overall score of the submitted reviews, 1–5. |
+| `average_review_time_days` | Mean days from a review's creation to its submission. |
+| `last_review_date` | When the reviewer last submitted a review. |
+
+A review records why it was rejected (`rejection_cause`: `declined`, `expired`,
+or `withdrawn` when the reviewer joined the proposal team). A withdrawn review
+counts as none of these; a review rejected before the cause was recorded counts
+as declined.
+
+#### Reviewer settings
+
+| Setting | Default | Effect |
+|---|---|---|
+| `REVIEWER_PROFILES_ENABLED` | on | Off: no new profile is created or published, and no reviewer is discovered from published profiles. Existing profiles stay. |
+| `REVIEWER_PUBLICATION_REQUIRES_APPROVAL` | off | See above. |
+| `COI_DETECTION_ENABLED` | on | Off: call managers cannot run automated conflict detection. |
+| `COI_DISCLOSURE_REQUIRED` | off | On: a reviewer takes on a call's reviews only with a certified, current disclosure for that call. |
+| `AUTOMATED_MATCHING_ENABLED` | on | Off: reviewer suggestions, affinity scores and generated assignments are refused. |
+
 ### Conflict of Interest Detection
 
 Before assigning reviewers, the system can automatically detect potential conflicts of interest between reviewers and proposals. This ensures fair and unbiased peer review processes.
@@ -505,7 +820,8 @@ Reviews include comprehensive scoring and feedback:
 ```python
 class Review:
     # Overall assessment
-    summary_score: int  # 1-10 scale
+    summary_score: int  # 1-5 (0 until rated)
+    criteria_scores: dict  # criterion UUID -> 1-5, when the step has criteria
     summary_public_comment: str  # Visible to submitters
     summary_private_comment: str  # Internal use only
 
@@ -521,6 +837,26 @@ class Review:
     comment_project_has_civilian_purpose: str
     comment_project_supporting_documentation: str
 ```
+
+Every review is scored on the same 1-5 scale. Score gates (`min_score_threshold`),
+score-spread run conditions and the averages across a call compare reviews of
+different steps, so the scale is not configurable per step.
+
+An assessment step can name **criteria** (for example *Excellence*, *Impact*,
+*Quality of implementation*). The reviewer then rates each criterion 1-5, and
+`summary_score` is derived from them: their average weighted by each
+criterion's `weight` (1-100, relative to the step's other criteria), rounded
+half up. A review cannot be submitted until every criterion is rated. Without
+criteria the reviewer gives `summary_score` directly.
+
+Once a reviewer has scored a step's criteria, or submitted a review in it, the
+criteria and their weights are fixed: they can be reordered, not renamed,
+removed, added or reweighted (the step reports this as `criteria_locked`).
+Duplicating a call, exporting it and importing it carry the criteria and
+their weights over.
+
+The proposals and reviews CSV exports carry a column per criterion, and the
+review e-mails to call managers list each criterion's score.
 
 ### Review Visibility Configuration
 
@@ -730,12 +1066,71 @@ Endpoints: `GET`/`POST /api/proposal-proposals/{uuid}/awarded_resources/` and
 - staff and support, the call's managers and the managing organisation's call
   organisers, and managers of the offerings requested or awarded — at any time
   (an offering manager who is the applicant waits like an applicant);
-- the applicant team (creator, proposal members, members of the granted project)
+- the applicant team (the proposal's team, members of the granted project)
   once the award is released (`awarded_resources_released`): the proposal is
   accepted, or the decision is an approval and the award response step has
   started or the allocation step is `applicant_visible` — never while the
   decision is held for the round's publication;
 - nobody else; reviewers and panel members judge the proposal, not the award.
+
+### What a call depends on in the marketplace
+
+A call takes in an offering, has applicants request its components on one of
+its plans, and orders the award on them later. The provider stays in charge of
+the offering, so the marketplace asks before a change would pull any of that
+from under a call (`marketplace.dependents`, answered by
+`proposal.offering_impact`):
+
+| Change | While a proposal still needs the offering | While only a call depends on it |
+| --- | --- | --- |
+| Archive, pause, send to draft or make unavailable the offering | Refused, except for staff | Allowed, with the calls named |
+| Move it to another organisation without its team | Refused, except for staff | Allowed, with the calls named |
+| Delete the offering or the call's plan | Refused for everyone | Refused for everyone |
+| Archive the call's plan | Refused, except for staff | Allowed, with the calls named |
+| Remove a component the call names, or stop billing it by limit | Refused for everyone | Refused for everyone |
+| Lower a component's maximum below what the call allows or grants | Refused for everyone | Refused for everyone |
+
+A proposal *needs* the offering while it is in evaluation with a request on
+it, accepted with an item on it that allocation could not order, or has an
+extension under way on it. `GET /api/marketplace-provider-offerings/{uuid}/dependents/?change=…`
+returns the same answer before the change, for the confirmation dialog.
+
+Renaming a component carries the new type into the call's limits, pools,
+requests, awards, resource templates and extension requests. A component rule
+keeps the limit period it had when the call took it in (`limit_period`), and
+the pools count awards by it.
+
+Allocation still checks each item as the order endpoint would: the offering
+takes orders, its provider is not blocked, the plan is not archived and the
+limits fit the components. An item that fails is not ordered: it records
+`provision_error`, the call's managers are mailed, and once the provider has
+fixed it a call manager orders it again with
+`POST /api/proposal-proposals/{uuid}/provision_awarded_item/`. An item whose
+order the provider refused hands its share back to the call's pools and is
+left out of the proposal's extension and closing steps.
+
+### The provider's side
+
+The provider sees each call its offering is requested by, and acts on it:
+
+- **The request.** Accepting shows what the provider commits to: the plan, the
+  call's limits per proposal (`component_rules`) and its pools. Declining
+  takes a reason, which the call's managers are told.
+- **The team.** `team/` names the offering's managers, who do the team's part
+  of each step, and everyone else with a role on the offering, whom a slot may
+  be handed to. Only active users count: a deactivated sole manager leaves the
+  call's managers standing in.
+- **The open work.** `team_step_slots/` lists, per proposal, the team's open
+  slots and who holds them; `team_slots/` does so across the provider's calls.
+  `delegate_slots/` hands several slots to one person at once, and
+  `set_default_delegate/` names who new slots go to as they open.
+- **The orders.** An order an award places carries `award`: the call, the
+  proposal and what was awarded against what was asked.
+
+The offering's managers are mailed when a round of a call that took the
+offering in opens (`offering_round_opened`), when the call changes its limits
+or pools after they accepted (`call_offering_terms_changed`), and once a day
+when their teams' slots opened or fell overdue (`offering_team_digest`).
 
 ### Role Mapping System
 
@@ -882,7 +1277,7 @@ round = Round.objects.create(
 )
 
 # Evaluation policy: expert review with three reviewers and a 7.0 average
-CallWorkflowStep.objects.filter(call=call, step="expert_review").update(
+CallWorkflowStep.objects.filter(call=call, key="expert_review").update(
     is_enabled=True,
     min_reviewers=3,
     min_score_threshold=7.0,
@@ -935,10 +1330,10 @@ round_q1 = Round.objects.create(
     allocation_date=datetime(2024, 4, 1)
 )
 
-CallWorkflowStep.objects.filter(call=call, step="panel_review").update(
+CallWorkflowStep.objects.filter(call=call, key="panel_review").update(
     is_enabled=True
 )
-CallWorkflowStep.objects.filter(call=call, step="allocation_decision").update(
+CallWorkflowStep.objects.filter(call=call, key="allocation_decision").update(
     allocation_time=AllocationTimes.FIXED_DATE
 )
 
@@ -994,7 +1389,7 @@ rolling_round = Round.objects.create(
     review_duration_in_days=14  # Fast turnaround
 )
 
-CallWorkflowStep.objects.filter(call=call, step="expert_review").update(
+CallWorkflowStep.objects.filter(call=call, key="expert_review").update(
     is_enabled=True, duration_in_days=14
 )
 
@@ -1188,23 +1583,25 @@ completion.save()
 
 #### 4. Submission Validation
 
-Proposals cannot be submitted until compliance requirements are met:
+Proposals cannot be submitted while required questions of the call's
+compliance checklist are unanswered. `Proposal.can_submit()` reports it, so the
+form says what is missing before the applicant presses Submit, and the submit
+action refuses it with the same message:
 
 ```python
-class Proposal:
-    def can_submit(self):
-        """Check if proposal can be submitted."""
-        # Check compliance checklist completion
-        if self.round.call.compliance_checklist:
-            try:
-                completion = self.checklist_completion
-                if not completion.is_completed:
-                    return False, "Compliance checklist must be completed before submission"
-            except ProposalChecklistCompletion.DoesNotExist:
-                return False, "Compliance checklist completion missing"
-
-        return True, None
+def unanswered_compliance_questions(self) -> int:
+    checklist = self.round.call.compliance_checklist
+    if not checklist:
+        return 0
+    completion = self.get_checklist_completion_for(checklist)
+    if completion is None:
+        # Nothing answered yet: every required question is open.
+        return checklist.questions.filter(required=True).count()
+    return completion.get_unanswered_required_questions().count()
 ```
+
+Optional questions never block submission, and answers that call for review
+are reviewed after submission rather than holding it back.
 
 ### Call Manager Oversight
 

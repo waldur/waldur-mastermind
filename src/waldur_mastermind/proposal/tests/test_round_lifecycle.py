@@ -31,7 +31,7 @@ from waldur_mastermind.proposal import (
     workflow_service,
 )
 from waldur_mastermind.proposal.enums import (
-    WORKFLOW_STEPS,
+    DEFAULT_CALL_STEPS,
     CallStates,
     EvaluationStart,
     NotificationRuleRecipients,
@@ -89,22 +89,22 @@ class LifecycleTestBase(test.APITestCase):
         proposal = factories.ProposalFactory(
             round=self.round,
             state=ProposalStates.IN_REVIEW,
-            workflow_step="allocation_decision",
             project=None,
         )
         proposal.add_user(proposal.created_by, ProposalRole.MANAGER)
-        for step_def in WORKFLOW_STEPS:
-            if step_def.id == "administrative_check":
+        for step_def in DEFAULT_CALL_STEPS:
+            factories.ensure_default_step(self.call, step_def.key)
+            if step_def.key == "administrative_check":
                 step_status = WorkflowStepInstanceStatuses.COMPLETED
-            elif step_def.id == "allocation_decision":
+            elif step_def.key == "allocation_decision":
                 step_status = WorkflowStepInstanceStatuses.ACTIVE
-            elif step_def.id == "award_response" and award_response:
+            elif step_def.key == "award_response" and award_response:
                 step_status = WorkflowStepInstanceStatuses.PENDING
             else:
                 step_status = WorkflowStepInstanceStatuses.SKIPPED
-            models.ProposalWorkflowStepInstance.objects.create(
+            factories.ProposalWorkflowStepInstanceFactory(
                 proposal=proposal,
-                step=step_def.id,
+                step=step_def.key,
                 status=step_status,
                 started_at=timezone.now()
                 if step_status == WorkflowStepInstanceStatuses.ACTIVE
@@ -318,7 +318,7 @@ class HeldDecisionTest(LifecycleTestBase):
 
     def test_held_decision_cannot_be_advanced_by_hand(self, decision_email, step_event):
         models.CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         ).update(transition_mode=TransitionModes.MANUAL)
         proposal = self.make_decidable()
         self.decide(proposal)
@@ -393,7 +393,7 @@ class HeldDecisionTest(LifecycleTestBase):
 
     def test_publish_advances_a_manual_decision(self, decision_email, step_event):
         models.CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         ).update(transition_mode=TransitionModes.MANUAL)
         proposal = self.make_decidable()
         self.decide(proposal)
@@ -417,8 +417,8 @@ class HeldDecisionTest(LifecycleTestBase):
         award.status = WorkflowStepInstanceStatuses.ACTIVE
         award.started_at = timezone.now()
         award.save()
-        proposal.workflow_step = "award_response"
-        proposal.save(update_fields=["workflow_step"])
+        factories.point_at_step(proposal, "award_response")
+        proposal.save(update_fields=["current_step"])
         return proposal
 
     def test_proposal_past_its_decision_is_not_undecided(
@@ -597,7 +597,7 @@ class LapsedDecisionTest(LifecycleTestBase):
     def setUp(self):
         super().setUp()
         call_step = models.CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         ).first() or factories.CallWorkflowStepFactory(
             call=self.call, step="allocation_decision"
         )
@@ -1352,7 +1352,10 @@ class HeldDecisionsCountTest(LifecycleTestBase):
         self.client.force_authenticate(self.call_manager)
         url = self.rounds_url()
 
-        # Warm up one-off lookups so the measurements differ only in row count.
+        # Warm up one-off lookups so the measurements differ only in row count:
+        # a system role is created by the first request and cached only when
+        # the next one reads it back.
+        self.client.get(url)
         self.client.get(url)
         with CaptureQueriesContext(db_connection) as ctx_one:
             self.client.get(url)
@@ -1609,7 +1612,7 @@ class EvaluationStartsAtTheCutoffTest(test.APITestCase):
         proposal = factories.ProposalFactory(
             round=self.round, state=ProposalStates.SUBMITTED
         )
-        models.ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -1714,8 +1717,8 @@ class RoundCompletionTest(LifecycleTestBase):
         instances["technical_assessment"].status = WorkflowStepInstanceStatuses.ACTIVE
         instances["technical_assessment"].started_at = timezone.now()
         instances["technical_assessment"].save()
-        proposal.workflow_step = "technical_assessment"
-        proposal.save(update_fields=["workflow_step"])
+        factories.point_at_step(proposal, "technical_assessment")
+        proposal.save(update_fields=["current_step"])
         return proposal
 
     def complete(self, user=None):
@@ -1826,7 +1829,7 @@ class RoundCompletionTest(LifecycleTestBase):
         assessment.completed_at = timezone.now()
         assessment.save()
         call_step = models.CallWorkflowStep.objects.filter(
-            call=self.call, step="technical_assessment"
+            call=self.call, key="technical_assessment"
         ).first() or factories.CallWorkflowStepFactory(
             call=self.call, step="technical_assessment"
         )
@@ -1841,7 +1844,7 @@ class RoundCompletionTest(LifecycleTestBase):
         self.set_rule(call_rule=UndecidedAtRoundCompletion.REJECT)
         parked = self.parked_after_assessment()
         decision_step = models.CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         ).first() or factories.CallWorkflowStepFactory(
             call=self.call, step="allocation_decision"
         )

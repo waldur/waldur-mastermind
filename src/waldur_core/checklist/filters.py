@@ -15,6 +15,16 @@ class ChecklistFilter(django_filters.FilterSet):
         choices=enums.ChecklistTypes.CHOICES,
         help_text="Filter by multiple checklist types",
     )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="organization__uuid",
+        help_text="Checklists of this organization",
+    )
+    is_shared = django_filters.BooleanFilter(
+        field_name="organization",
+        lookup_expr="isnull",
+        help_text="Checklists the whole portal shares (no organization)",
+    )
 
     class Meta:
         model = models.Checklist

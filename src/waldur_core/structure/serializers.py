@@ -402,6 +402,44 @@ class LoadScienceDomainPresetResponseSerializer(serializers.Serializer):
     skipped_subdomains = serializers.IntegerField()
 
 
+def granted_resource_counts(user, project_ids) -> tuple[dict, dict]:
+    """The resource counts ``ProjectSerializer`` shows (active resources, and
+    non-terminated ones per category), taken over only the resources ``user``
+    is granted read-only access to, for each of ``project_ids``.
+
+    For projects the user reads solely through a read-only grant: the grant
+    opens the project record, not everything in it, so its counts must not
+    reveal the resources the user cannot see.
+    """
+    from waldur_mastermind.marketplace import models as marketplace_models
+
+    resources_count = dict.fromkeys(project_ids, 0)
+    category_counts = {project_id: {} for project_id in project_ids}
+    granted_q = managers.get_read_only_resource_q(user)
+    if not granted_q:
+        return resources_count, category_counts
+    resources = (
+        marketplace_models.Resource.objects.order_by()
+        .filter(project_id__in=project_ids)
+        .filter(granted_q)
+    )
+    for item in (
+        resources.filter(state__in=(ResourceStates.OK, ResourceStates.UPDATING))
+        .values("project_id")
+        .annotate(count=Count("*"))
+    ):
+        resources_count[item["project_id"]] = item["count"]
+    for item in (
+        resources.exclude(state=ResourceStates.TERMINATED)
+        .values("project_id", "offering__category__uuid")
+        .annotate(count=Count("*"))
+    ):
+        category_counts[item["project_id"]][str(item["offering__category__uuid"])] = (
+            item["count"]
+        )
+    return resources_count, category_counts
+
+
 class ProjectListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
         project_ids = [item.id for item in data]
@@ -456,7 +494,27 @@ class ProjectListSerializer(serializers.ListSerializer):
 
             bulk_data["project_has_metrics"] = projects_with_metrics(project_ids)
 
+        # 7. Bulk fetch the proposal each project was awarded for
+        if not requested_fields or "awarded_proposal" in requested_fields:
+            from waldur_mastermind.proposal.project_link import awarded_proposals
+
+            bulk_data["awarded_proposals"] = awarded_proposals(
+                project_ids, getattr(request, "user", None)
+            )
+
+        user = getattr(request, "user", None)
+        read_only_only = managers.get_read_only_only_project_ids(user, project_ids)
+        if read_only_only:
+            # Projects read solely through a grant count only the resources
+            # granted along with them.
+            resources_count, category_counts = granted_resource_counts(
+                user, read_only_only
+            )
+            bulk_data["resources_count"].update(resources_count)
+            bulk_data["marketplace_resource_counts"].update(category_counts)
+
         self.context["bulk_data"] = bulk_data
+        self.context["read_only_only_project_ids"] = read_only_only
         return super().to_representation(data)
 
     def _bulk_fetch_project_metadata(self, project_ids):
@@ -941,7 +999,9 @@ class ProjectSerializer(
             current_end_date = self.instance.end_date if self.instance else None
             if attrs["end_date"] != current_end_date:
                 if not has_permission(
-                    self.context["request"], PermissionEnum.DELETE_PROJECT, customer
+                    self.context["request"],
+                    PermissionEnum.SET_PROJECT_END_DATE,
+                    customer,
                 ):
                     raise exceptions.PermissionDenied()
                 attrs["end_date_requested_by"] = self.context["request"].user
@@ -1014,6 +1074,41 @@ class ProjectSerializer(
                 )
 
         return attrs
+
+    # Cost figures the billing and invoices apps add to this serializer. They
+    # are withheld from a reader whose only access to the project is a
+    # read-only grant: such a reader follows the allocation, not its money.
+    FINANCIAL_FIELDS = ("billing_price_estimate", "project_credit")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        hidden = self.context.get("read_only_only_project_ids")
+        is_list = hidden is not None
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not is_list:
+            hidden = managers.get_read_only_only_project_ids(user, [instance.id])
+        if instance.id not in hidden:
+            return data
+        for field in self.FINANCIAL_FIELDS:
+            data.pop(field, None)
+        # Such a reader sees only the resources granted along with the
+        # project, so the counts cover only those (the list serializer has
+        # already counted them in bulk), and the metrics, which aggregate
+        # over the whole project, stay closed.
+        if not is_list and (
+            "resources_count" in data or "marketplace_resource_count" in data
+        ):
+            resources_count, category_counts = granted_resource_counts(
+                user, [instance.id]
+            )
+            if "resources_count" in data:
+                data["resources_count"] = resources_count[instance.id]
+            if "marketplace_resource_count" in data:
+                data["marketplace_resource_count"] = category_counts[instance.id]
+        if "has_metrics" in data:
+            data["has_metrics"] = False
+        return data
 
     def get_resources_count(self, project) -> int:
         bulk_data = self.context.get("bulk_data", {})
@@ -2321,16 +2416,34 @@ class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 _("You don't have access to this project.")
             )
-        # The user's roles, not the request, deliberately: a True answer only
-        # refuses the request, so a token's limits cannot be widened here.
+        # The date is set directly, and requests approved, with one permission
+        # (see ProjectEndDateChangeRequestViewSet.approve_permissions); its holders
+        # would only be asking themselves. The user's roles, not the request,
+        # deliberately: a True answer only refuses the request, so a token's
+        # limits cannot be widened here.
         if has_permission(
-            user, PermissionEnum.UPDATE_PROJECT, project
-        ) or has_permission(user, PermissionEnum.UPDATE_PROJECT, project.customer):
+            user, PermissionEnum.SET_PROJECT_END_DATE, project
+        ) or has_permission(
+            user, PermissionEnum.SET_PROJECT_END_DATE, project.customer
+        ):
             raise serializers.ValidationError(
                 _(
                     "You have permission to change project end date directly. "
                     "Use project edit instead of creating a request."
                 )
+            )
+        # Asking is a permission of its own: an awarded project's end date is
+        # extended through its call, not through this request.
+        if not (
+            has_permission(
+                user, PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE, project
+            )
+            or has_permission(
+                user, PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE, project.customer
+            )
+        ):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to request an end date change.")
             )
         return project
 

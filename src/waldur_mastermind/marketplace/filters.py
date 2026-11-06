@@ -78,6 +78,7 @@ from waldur_mastermind.marketplace.managers import (
     OfferingQuerySet,
     ResourceQuerySet,
     get_connected_offerings,
+    get_connected_offerings_by_permission,
     get_connected_provider_customers_by_permission,
 )
 from waldur_mastermind.proposal import models as proposal_models
@@ -803,20 +804,23 @@ CONSUMER_ACCESS_VISIBILITY = (
 )
 
 
-def filter_resources_by_consumer_access(queryset, request):
+def filter_resources_by_consumer_access(queryset, request, read_only=False):
     """The resources of ``queryset`` the caller's consumer roles reach, within
     the organization's network restriction.
 
     ConsumerResourceViewSet.get_queryset and ManagedRancherViewSet.get_queryset
     start from this; their filter backends then conceal subnet-restricted
-    resources.
+    resources. ``read_only`` also lets through the resources an app grants
+    read-only access to (see filter_for_service_consumer); pass it only from
+    read paths.
     """
     return filter_queryset_by_user_ip(
-        queryset.filter_for_service_consumer(request.user), request
+        queryset.filter_for_service_consumer(request.user, read_only=read_only),
+        request,
     )
 
 
-def filter_resources_for_consumer(queryset, request, view=None):
+def filter_resources_for_consumer(queryset, request, view=None, read_only=False):
     """The resources of ``queryset`` that the consumer resource list shows.
 
     What ConsumerResourceViewSet shows: filter_resources_by_consumer_access,
@@ -825,7 +829,9 @@ def filter_resources_for_consumer(queryset, request, view=None):
     For views that count or summarize resources rather than list them.
     """
     return ResourceAccessSubnetConcealmentFilterBackend().filter_queryset(
-        request, filter_resources_by_consumer_access(queryset, request), view
+        request,
+        filter_resources_by_consumer_access(queryset, request, read_only=read_only),
+        view,
     )
 
 
@@ -1661,7 +1667,15 @@ class OrderFilter(
             provider_customers = get_connected_provider_customers_by_permission(
                 user, PermissionEnum.APPROVE_ORDER
             )
-            queryset = queryset.filter(offering__customer__in=provider_customers)
+            # The offering's own manager approves its orders as well, as the
+            # approve_by_provider action already lets them.
+            managed_offerings = get_connected_offerings_by_permission(
+                user, PermissionEnum.APPROVE_ORDER
+            )
+            queryset = queryset.filter(
+                Q(offering__customer__in=provider_customers)
+                | Q(offering__in=managed_offerings)
+            )
 
         return queryset
 

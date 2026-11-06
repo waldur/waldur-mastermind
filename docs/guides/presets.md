@@ -18,7 +18,7 @@ shows a preset's scenarios and entity counts.
 | `ai_factory` | Multi-provider AI value chain with user demographics and 12 months of invoices |
 | `efp` | EuroHPC federation: 10 hosting entities, maintenance announcements |
 | `openstack_cloud` | OpenStack tenants, instances and volumes with backend scopes |
-| `call_management` | Calls for proposals, peer review, conflict-of-interest detection, allocation |
+| `call_management` | The EuroHPC JU access calls, one per JU call template: peer review, conflict-of-interest detection, allocation |
 | `reporting` | Small dataset for proposal reporting dashboards |
 | `credit_management` | Organization and project credits with cost policies |
 | `credit_realistic` | Production-shaped credit usage over six months |

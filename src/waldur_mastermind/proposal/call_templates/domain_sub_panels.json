@@ -1,0 +1,1158 @@
+{
+  "schema_version": 3,
+  "preset": {
+    "programme": "dirac-rac",
+    "process": "Domain sub-panels with a joint allocation meeting",
+    "reference_url": "https://dirac.ac.uk/getting-access/",
+    "reference_title": "DiRAC: getting access",
+    "category": "programme",
+    "tags": [
+      "HPC",
+      "annual",
+      "domain panels",
+      "no rebuttal"
+    ],
+    "summary": "Modelled on the DiRAC Resource Allocation Committee: an annual call, assessment by domain sub-panels without external review, and a joint meeting that sets the overall allocation."
+  },
+  "call": {
+    "name": "Domain sub-panel allocation",
+    "description": "Modelled on the DiRAC Resource Allocation Committee's full call: an annual call with a mandatory technical case. Proposals are not sent to external reviewers, so there is no applicant response. Each proposal gets a technical assessment per requested resource and goes to the sub-panel of its research domain -- astronomy and cosmology, or particle and nuclear physics, matched by science domain; a proposal of another domain is moved to a panel by hand. Two sub-panel members assess it, each sub-panel ranks its proposals at its meeting, and a joint meeting sets the overall allocation. Awards start together on the call's allocation date and run twelve months.",
+    "reference_code": "",
+    "external_url": null,
+    "reviewer_identity_visible_to_submitters": false,
+    "reviews_visible_to_submitters": false,
+    "fixed_duration_in_days": 365,
+    "proposal_slug_template": null,
+    "order_author": "applicant",
+    "evaluation_start": "at_cutoff",
+    "carry_over_drafts": true,
+    "publish_results": "with_round",
+    "undecided_at_round_completion": "refuse",
+    "target_decision_days": 150
+  },
+  "panels": [
+    {
+      "key": "astronomy-cosmology",
+      "name": "Astronomy and cosmology",
+      "description": "Sub-panel for astronomy, astrophysics and cosmology.",
+      "order": 0,
+      "science_domains": [],
+      "science_sub_domains": [
+        {
+          "code": "1.1",
+          "name": "Astrophysics & Cosmology"
+        }
+      ]
+    },
+    {
+      "key": "particle-nuclear",
+      "name": "Particle and nuclear physics",
+      "description": "Sub-panel for particle and nuclear theory and the other physics domains.",
+      "order": 1,
+      "science_domains": [
+        {
+          "code": "1",
+          "name": "Physics"
+        }
+      ],
+      "science_sub_domains": []
+    }
+  ],
+  "proposal_roles": [
+    {
+      "key": "sub_panel_chair",
+      "name": "Sub-panel chair",
+      "description": "The chair of the sub-panel the proposal is routed to, assigned when the sub-panel chair assignment starts. Assigns the assessors and reports the sub-panel's meeting.",
+      "eligible_from": "panel:chair",
+      "min_holders": 1,
+      "max_holders": 1,
+      "allows_lead": false
+    },
+    {
+      "key": "panel_assessor",
+      "name": "Sub-panel assessor",
+      "description": "A member of the proposal's sub-panel who assesses it. Each proposal has two.",
+      "eligible_from": "panel:member",
+      "min_holders": 2,
+      "max_holders": 2,
+      "allows_lead": false
+    }
+  ],
+  "workflow_steps": [
+    {
+      "key": "eligibility_check",
+      "kind": "decision",
+      "name": "Eligibility check",
+      "description": "The call managers check that the proposal is complete and carries the mandatory technical case. A proposal without it is not eligible.",
+      "outcome_set": "eligibility",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 7,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "applicant_visible": true,
+      "status_labels": {
+        "applicant": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "eligible": "Under evaluation",
+            "ineligible": "Not eligible"
+          }
+        },
+        "evaluators": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "ineligible": "Not eligible"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 0
+    },
+    {
+      "key": "technical_assessment",
+      "kind": "assessment",
+      "name": "Technical assessment",
+      "description": "The research software engineering team of each requested resource assesses the technical case: accepted, conditionally accepted or rejected. A rejected resource does not stop the proposal; the sub-panel reads the assessment.",
+      "outcome_set": "per_offering",
+      "completer": "offering_manager",
+      "completer_proposal_role": null,
+      "on_negative": "continue",
+      "is_enabled": true,
+      "duration_in_days": 21,
+      "transition_mode": "manual",
+      "contributor_source": "requested_offering_team",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "per_requested_offering": true,
+      "delegable_to": "offering_team",
+      "status_labels": {
+        "evaluators": {
+          "active": "Under technical assessment",
+          "completed": "Technical assessment submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 1
+    },
+    {
+      "key": "sub_panel_chair_assignment",
+      "kind": "assignment",
+      "name": "Sub-panel chair assignment",
+      "description": "Alongside the technical assessment, the proposal goes to the sub-panel covering its research domain, and that sub-panel's chair is assigned to it and confirms having no conflict of interest. The committee chair checks the routing, moves the proposal to the other sub-panel when its topic calls for it, and completes the step.",
+      "outcome_set": "done",
+      "completer": "panel_chair",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 7,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [
+        "sub_panel_chair"
+      ],
+      "criteria": [],
+      "checklist": null,
+      "parallel_with_previous": true,
+      "requires_coi_confirmation": true,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending sub-panel chair assignment",
+          "completed": "Sub-panel chair assigned"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "panel_chair",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "proposal_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": "sub_panel_chair"
+        }
+      ],
+      "order": 2
+    },
+    {
+      "key": "assessor_assignment",
+      "kind": "assignment",
+      "name": "Assessor assignment",
+      "description": "The sub-panel chair assigns two members of the sub-panel to assess the proposal. Each confirms having no conflict of interest.",
+      "outcome_set": "done",
+      "completer": "proposal_role",
+      "completer_proposal_role": "sub_panel_chair",
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 7,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [
+        "technical_assessment"
+      ],
+      "assigns_roles": [
+        "panel_assessor"
+      ],
+      "criteria": [],
+      "checklist": null,
+      "requires_coi_confirmation": true,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending assessor assignment",
+          "completed": "Assessors assigned"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "proposal_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": "panel_assessor"
+        }
+      ],
+      "order": 3
+    },
+    {
+      "key": "sub_panel_assessment",
+      "kind": "assessment",
+      "name": "Sub-panel assessment",
+      "description": "Each of the two assessors scores the proposal on its science case and technical case. The call managers then open the sub-panel meeting.",
+      "outcome_set": "done",
+      "completer": "proposal_role",
+      "completer_proposal_role": "panel_assessor",
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 21,
+      "transition_mode": "manual",
+      "contributor_source": "proposal_role:panel_assessor",
+      "input_steps": [
+        "technical_assessment"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Sub-panel assessment",
+        "checklist_type": "workflow_step"
+      },
+      "min_contributions": 2,
+      "max_contributions": 2,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending sub-panel assessment",
+          "completed": "Sub-panel assessment submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "proposal_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": "sub_panel_chair"
+        }
+      ],
+      "order": 4
+    },
+    {
+      "key": "sub_panel_meeting",
+      "kind": "assessment",
+      "name": "Sub-panel meeting",
+      "description": "Run once per round: the call managers open it for the round once the round's proposals have reached it. Each sub-panel chair writes one report for the sub-panel's meeting, ranking the sub-panel's proposals with a score and a resource recommendation.",
+      "outcome_set": "done",
+      "completer": "proposal_role",
+      "completer_proposal_role": "sub_panel_chair",
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 14,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "proposal_role:sub_panel_chair",
+      "input_steps": [
+        "technical_assessment",
+        "sub_panel_assessment"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Sub-panel meeting report",
+        "checklist_type": "workflow_step"
+      },
+      "round_scoped": true,
+      "min_contributions": null,
+      "max_contributions": null,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending sub-panel meeting",
+          "completed": "Sub-panel report submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 5
+    },
+    {
+      "key": "panel_meeting",
+      "kind": "assessment",
+      "name": "Joint allocation meeting",
+      "description": "Run once per round: the call managers open it for the round once the round's proposals have reached it. The committee meets with both sub-panels and sets the overall allocation across them; its chair writes the meeting report.",
+      "outcome_set": "done",
+      "completer": "panel_chair",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 14,
+      "transition_mode": "manual",
+      "contributor_source": "call_role:panel_chair",
+      "input_steps": [
+        "technical_assessment",
+        "sub_panel_assessment",
+        "sub_panel_meeting"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Joint allocation meeting report",
+        "checklist_type": "workflow_step"
+      },
+      "round_scoped": true,
+      "min_contributions": null,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending joint allocation meeting",
+          "completed": "Panel report submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 6
+    },
+    {
+      "key": "allocation_decision",
+      "kind": "decision",
+      "name": "Allocation decision",
+      "description": "The call managers record each proposal's result following the joint meeting's allocation. Awarded resources are created on the call's allocation date.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 14,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [
+        "sub_panel_meeting",
+        "panel_meeting"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "is_allocation_decision": true,
+      "include_award_response": false,
+      "allocation_time": "fixed_date",
+      "status_labels": {
+        "evaluators": {
+          "outcomes": {
+            "approved": "Awarded",
+            "declined": "Not awarded"
+          }
+        },
+        "applicant": {
+          "outcomes": {
+            "approved": "Awarded",
+            "declined": "Not awarded"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "offering_teams",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 7
+    },
+    {
+      "key": "final_report",
+      "kind": "applicant_action",
+      "name": "Final report",
+      "description": "The awarded applicant submits the project's final report. The step opens at the end of the allocation period, an extension included.",
+      "outcome_set": "submitted",
+      "completer": "applicant",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 30,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Final report",
+        "checklist_type": "workflow_step"
+      },
+      "applicant_visible": true,
+      "phase": "closing",
+      "project_end_offset_days": 0,
+      "status_labels": {
+        "applicant": {
+          "active": "Pending final report",
+          "completed": "Final report submitted"
+        },
+        "evaluators": {
+          "active": "Pending final report",
+          "completed": "Final report submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "applicant",
+          "days_before": 7,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 8
+    },
+    {
+      "key": "final_report_approval",
+      "kind": "decision",
+      "name": "Final report approval",
+      "description": "The call managers approve the final report, which completes the project, or ask the applicant to change it.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 30,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "applicant_visible": true,
+      "phase": "closing",
+      "status_labels": {
+        "applicant": {
+          "active": "Final report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        },
+        "evaluators": {
+          "active": "Final report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 9
+    }
+  ],
+  "checklists": [
+    {
+      "name": "Sub-panel assessment",
+      "checklist_type": "workflow_step",
+      "description": "A sub-panel member's assessment and score of a proposal.",
+      "questions": [
+        {
+          "description": "Assessment of the proposal",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Assess the science case and the technical case, taking the technical assessment into account.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        },
+        {
+          "description": "Score",
+          "required": true,
+          "question_type": "rating",
+          "user_guidance": "From 1 (poor) to 5 (excellent).",
+          "min_value": 1,
+          "max_value": 5
+        }
+      ]
+    },
+    {
+      "name": "Sub-panel meeting report",
+      "checklist_type": "workflow_step",
+      "description": "The sub-panel's meeting for its proposals of the call. Each proposal's score, rank and resource recommendation are entered in the report's ranking.",
+      "questions": [
+        {
+          "description": "Panel comments",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "The sub-panel's discussion of its proposals at the meeting.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        }
+      ]
+    },
+    {
+      "name": "Joint allocation meeting report",
+      "checklist_type": "workflow_step",
+      "description": "The joint meeting of the sub-panels that sets the overall allocation. The recommended award of each proposal is entered in the round's ranking.",
+      "questions": [
+        {
+          "description": "Panel comments",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "The joint meeting's discussion and the overall allocation it sets.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        }
+      ]
+    },
+    {
+      "name": "Final report",
+      "checklist_type": "workflow_step",
+      "description": "The results of an awarded project once its allocation ends.",
+      "questions": [
+        {
+          "description": "Final results of the work",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Report what the project achieved with the allocated resources, including publications and outcomes.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        },
+        {
+          "description": "Final report document",
+          "required": false,
+          "question_type": "file",
+          "user_guidance": "Optional. One PDF file with the full report.",
+          "allowed_file_types": [
+            ".pdf"
+          ],
+          "allowed_mime_types": [
+            "application/pdf"
+          ],
+          "max_file_size_mb": 10
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "key": "happy_path",
+      "name": "Happy path",
+      "description": "Eligible, assessed by its domain sub-panel, ranked by the sub-panel and then the full panel, and approved; the round publishes the result and the final report closes the project.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "technical_assessment",
+            "outcome": "feasible"
+          },
+          {
+            "step": "sub_panel_chair_assignment",
+            "outcome": "done"
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "assessor_assignment",
+            "outcome": "done"
+          },
+          {
+            "step": "sub_panel_assessment",
+            "outcome": "done"
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "sub_panel_meeting",
+            "outcome": "done",
+            "round_step": true
+          },
+          {
+            "step": "panel_meeting",
+            "outcome": "done",
+            "round_step": true
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "allocation_decision",
+            "outcome": "approved"
+          },
+          {
+            "publish": true
+          },
+          {
+            "final_report": true
+          },
+          {
+            "step": "final_report",
+            "outcome": "submitted"
+          },
+          {
+            "step": "final_report_approval",
+            "outcome": "approved"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "accepted"
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "eligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_submitted"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        },
+        {
+          "step_status": {
+            "step": "sub_panel_meeting",
+            "status": "completed",
+            "outcome": "done"
+          }
+        },
+        {
+          "step_status": {
+            "step": "panel_meeting",
+            "status": "completed",
+            "outcome": "done"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report",
+            "status": "completed",
+            "outcome": "submitted"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report_approval",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_at_eligibility_check",
+      "name": "Rejected at the eligibility check",
+      "description": "The proposal is found ineligible: it is rejected, the applicant is told and no other step runs.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "ineligible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "ineligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "eligibility_check"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        }
+      ]
+    },
+    {
+      "key": "changes_requested_at_eligibility_check",
+      "name": "Changes requested at the eligibility check",
+      "description": "The proposal goes back to the applicant for changes, is resubmitted and found eligible.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "request_changes": true,
+            "message": "Please complete the project description."
+          },
+          {
+            "submit_changes": true
+          },
+          {
+            "step": "eligibility_check",
+            "outcome": "eligible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "in_review"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "changes_requested",
+            "step": "eligibility_check"
+          }
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "eligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "active"
+          }
+        }
+      ]
+    }
+  ]
+}

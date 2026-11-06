@@ -5,6 +5,11 @@
 <body>
 <p>You have been invited by <strong>{{ invited_by_name }}</strong> to join the reviewer pool for the call "<strong>{{ call_name }}</strong>" on {{ site_name }}.</p>
 
+{% if invitation_message %}
+<p>Their message:</p>
+
+<blockquote>{{ invitation_message|linebreaksbr }}</blockquote>
+{% endif %}
 <p>To accept or decline this invitation, please follow the link below:</p>
 
 <p><a href="{{ invitation_link }}">{{ invitation_link }}</a></p>

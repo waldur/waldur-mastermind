@@ -8,7 +8,11 @@ from rest_framework import status, test
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
-from waldur_mastermind.proposal.enums import ProposalStates
+from waldur_mastermind.proposal.enums import (
+    ContributorSources,
+    ProposalStates,
+    WorkflowStepInstanceStatuses,
+)
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -18,26 +22,39 @@ class CallStatsTest(test.APITestCase):
         self.call = self.fixture.call
         self.url = factories.CallFactory.get_protected_url(self.call, action="stats")
         self.call.workflow_steps.all().delete()
-        for step, enabled in (
-            ("administrative_check", True),
-            ("technical_assessment", False),
-            ("expert_review", True),
-        ):
-            models.CallWorkflowStep.objects.create(
-                call=self.call, step=step, is_enabled=enabled, min_reviewers=2
-            )
+        factories.CallWorkflowStepFactory(
+            call=self.call, step="administrative_check", is_enabled=True
+        )
+        factories.CallWorkflowStepFactory(
+            call=self.call, step="technical_assessment", is_enabled=False
+        )
+        # A step of reviews: assigned reviewers, two of them needed.
+        factories.CallWorkflowStepFactory(
+            call=self.call,
+            step="expert_review",
+            is_enabled=True,
+            contributor_source=ContributorSources.ASSIGNED_REVIEWERS,
+            min_contributions=2,
+        )
         self.client.force_authenticate(self.fixture.staff)
 
     def add_proposal(self, round_obj, step, admin_status=None):
         proposal = factories.ProposalFactory(
-            round=round_obj, state=ProposalStates.IN_REVIEW, workflow_step=step
+            round=round_obj, state=ProposalStates.IN_REVIEW
         )
         if admin_status:
-            models.ProposalWorkflowStepInstance.objects.create(
+            factories.ProposalWorkflowStepInstanceFactory(
                 proposal=proposal,
                 step="administrative_check",
                 status=admin_status,
                 outcome="eligible" if admin_status == "completed" else None,
+            )
+        # The proposal stands at ``step``: its active instance is current.
+        if step != "administrative_check" or not admin_status:
+            factories.ProposalWorkflowStepInstanceFactory(
+                proposal=proposal,
+                step=step,
+                status=WorkflowStepInstanceStatuses.ACTIVE,
             )
         return proposal
 

@@ -11,7 +11,11 @@ class PermissionsConfig(AppConfig):
 
         from waldur_core.structure.models import Customer
 
-        from . import global_scope, handlers, models, signals
+        from . import global_scope, handlers, models, signals, utils
+
+        # On a project, nobody managing its team through a project role hands
+        # out more than that role allows.
+        utils.register_role_change_guard(utils.guard_project_role_escalation)
 
         signals.role_granted.connect(
             handlers.log_role_granted,

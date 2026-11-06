@@ -15,7 +15,9 @@ from django.test import TestCase
 from django.utils import timezone
 
 from waldur_core.checklist.models import ChecklistCompletion
+from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.core.models import User
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
@@ -59,12 +61,15 @@ from waldur_mastermind.proposal.models import (
     AwardedResource,
     CallAssignmentConfiguration,
     CallCOIConfiguration,
+    CallPanel,
     CallWorkflowStep,
     Proposal,
     ProposalWorkflowStepInstance,
     Review,
+    WorkflowCriterion,
 )
 from waldur_mastermind.proposal.tests import factories as proposal_factories
+from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 from waldur_openstack import models as openstack_models
 from waldur_openstack.tests import factories as openstack_factories
 
@@ -4015,7 +4020,7 @@ class ImportWorkflowEngineStateTest(TestCase):
 
         # Step config overrides the row auto-seeded by the call's post-save
         # signal (matched by call + step, not uuid).
-        step = CallWorkflowStep.objects.get(call=call, step="expert_review")
+        step = CallWorkflowStep.objects.get(call=call, key="expert_review")
         self.assertTrue(step.is_enabled)
         self.assertTrue(step.blind_review)
 
@@ -4030,6 +4035,458 @@ class ImportWorkflowEngineStateTest(TestCase):
         # The active instance keeps the proposal's workflow_step pointer in sync.
         proposal.refresh_from_db()
         self.assertEqual(proposal.workflow_step, "expert_review")
+
+    def test_an_active_step_is_due_as_the_engine_makes_it(self):
+        proposal = proposal_factories.ProposalFactory()
+        call = proposal.round.call
+        started = "2026-10-01T12:00:00+00:00"
+        self._run(
+            {
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "step": "expert_review",
+                        "is_enabled": True,
+                        "duration_in_days": 21,
+                    },
+                ],
+                "proposal_workflow_step_instances": [
+                    {
+                        "uuid": "cf000000000000000000000000000009",
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "expert_review",
+                        "status": "active",
+                        "started_at": started,
+                    },
+                ],
+            }
+        )
+        instance = ProposalWorkflowStepInstance.objects.get(
+            uuid="cf000000000000000000000000000009"
+        )
+        self.assertEqual(
+            instance.deadline,
+            datetime.datetime.fromisoformat(started) + datetime.timedelta(days=21),
+        )
+
+    def test_evaluator_roles_and_a_step_assigning_two_of_them(self):
+        call = proposal_factories.CallFactory()
+        role_values = {
+            "call_uuid": call.uuid.hex,
+            "eligible_from": "call_role:panel_member",
+            "max_holders": 1,
+        }
+        self._run(
+            {
+                "call_proposal_roles": [
+                    {**role_values, "key": "lead", "name": "Lead rapporteur"},
+                    {**role_values, "key": "second", "name": "Second rapporteur"},
+                    # No call: skipped, and the rest still imports.
+                    {"key": "orphan", "name": "Orphan"},
+                ],
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "rapporteur-assignment",
+                        "kind": "assignment",
+                        "name": "Rapporteur assignment",
+                        "assigns_roles": ["lead", "second"],
+                        "order": 1,
+                    },
+                ],
+            }
+        )
+        roles = {role.key: role for role in call.proposal_roles.all()}
+        self.assertEqual(set(roles), {"lead", "second"})
+        self.assertEqual(roles["lead"].name, "Lead rapporteur")
+        self.assertEqual(roles["second"].max_holders, 1)
+        step = CallWorkflowStep.objects.get(call=call, key="rapporteur-assignment")
+        self.assertEqual(set(step.assigns_roles.all()), set(roles.values()))
+
+        # Importing again updates a role in place rather than adding one.
+        self._run(
+            {
+                "call_proposal_roles": [
+                    {**role_values, "key": "lead", "name": "Lead", "min_holders": 1},
+                ],
+            }
+        )
+        self.assertEqual(call.proposal_roles.count(), 2)
+        self.assertEqual(call.proposal_roles.get(key="lead").name, "Lead")
+
+    def _role_and_steps(self, call, *steps):
+        return self._run(
+            {
+                "call_proposal_roles": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "rapporteur",
+                        "name": "Rapporteur",
+                        "eligible_from": "any_user",
+                    }
+                ],
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "kind": "assessment",
+                        "outcome_set": "done",
+                        "contributor_source": "proposal_role:rapporteur",
+                        "collects_reviewer_suggestions": True,
+                        "completer": "proposal_role",
+                        "completer_proposal_role": "rapporteur",
+                        **step,
+                    }
+                    for step in steps
+                ],
+            }
+        )
+
+    def test_a_step_names_its_evaluator_role_by_key(self):
+        call = proposal_factories.CallFactory()
+        output = self._role_and_steps(
+            call,
+            {"key": "suggestions", "name": "Reviewer suggestions", "order": 1},
+            {
+                "key": "unknown-role",
+                "name": "Unknown role",
+                "contributor_source": "proposal_role:nobody",
+            },
+        )
+        role = call.proposal_roles.get(key="rapporteur")
+        step = CallWorkflowStep.objects.get(call=call, key="suggestions")
+        # Stored by the identity the evaluator-role resolver reads.
+        self.assertEqual(step.contributor_source, f"proposal_role:{role.pk}")
+        self.assertTrue(step.collects_reviewer_suggestions)
+        self.assertFalse(
+            CallWorkflowStep.objects.filter(call=call, key="unknown-role").exists()
+        )
+        self.assertIn("Failed to import call workflow step unknown-role", output)
+
+    def test_a_lead_only_step_needs_a_role_with_a_lead(self):
+        call = proposal_factories.CallFactory()
+        lead_only = {
+            "collects_reviewer_suggestions": False,
+            "contributors_lead_only": True,
+        }
+        output = self._role_and_steps(
+            call, {"key": "no-lead", "name": "No lead", **lead_only}
+        )
+        self.assertFalse(
+            CallWorkflowStep.objects.filter(call=call, key="no-lead").exists()
+        )
+        self.assertIn("Failed to import call workflow step no-lead", output)
+
+        call.proposal_roles.update(allows_lead=True)
+        self._run(
+            {
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "consolidated",
+                        "name": "Consolidated report",
+                        "kind": "assessment",
+                        "outcome_set": "done",
+                        "contributor_source": "proposal_role:rapporteur",
+                        "completer": "proposal_role",
+                        "completer_proposal_role": "rapporteur",
+                        **lead_only,
+                    }
+                ]
+            }
+        )
+        step = CallWorkflowStep.objects.get(call=call, key="consolidated")
+        self.assertTrue(step.contributors_lead_only)
+
+    def test_steps_are_checked_as_the_api_checks_them(self):
+        call = proposal_factories.CallFactory()
+        output = self._role_and_steps(
+            call,
+            # Its completer would read every suggestion.
+            {
+                "key": "read-by-reviewers",
+                "name": "Read by reviewers",
+                "completer": "reviewer",
+                "completer_proposal_role": None,
+            },
+            # Only an assessment step's report is released.
+            {
+                "key": "released-decision",
+                "name": "Released decision",
+                "kind": "decision",
+                "outcome_set": "",
+                "contributor_source": "none",
+                "collects_reviewer_suggestions": False,
+                "completer": "call_manager",
+                "completer_proposal_role": None,
+                "release_to_applicant": True,
+            },
+        )
+        for key in ("read-by-reviewers", "released-decision"):
+            self.assertFalse(
+                CallWorkflowStep.objects.filter(call=call, key=key).exists(), key
+            )
+            self.assertIn(f"Failed to import call workflow step {key}", output)
+
+    def test_steps_of_one_kind_under_names_of_their_own(self):
+        proposal = proposal_factories.ProposalFactory()
+        call = proposal.round.call
+
+        self._run(
+            {
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "individual-report",
+                        "kind": "assessment",
+                        "name": "Individual report",
+                        "completer": "reviewer",
+                        "order": 1,
+                    },
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "consolidated-report",
+                        "kind": "assessment",
+                        "name": "Consolidated report",
+                        "outcome_set": "done",
+                        "order": 2,
+                    },
+                ],
+                "proposal_workflow_step_instances": [
+                    {
+                        "uuid": "cf000000000000000000000000000003",
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "consolidated-report",
+                        "status": "active",
+                    },
+                    # The call was never given an award response step.
+                    {
+                        "uuid": "cf000000000000000000000000000004",
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "award_response",
+                        "status": "skipped",
+                    },
+                ],
+            }
+        )
+
+        self.assertEqual(
+            list(
+                CallWorkflowStep.objects.filter(call=call).values_list(
+                    "key", "kind", "name", "order"
+                )
+            ),
+            [
+                ("administrative_check", "decision", "Administrative check", 0),
+                ("individual-report", "assessment", "Individual report", 1),
+                ("consolidated-report", "assessment", "Consolidated report", 2),
+                ("technical_assessment", "assessment", "Technical assessment", 3),
+                ("expert_review", "assessment", "Expert review", 4),
+                ("panel_review", "decision", "Panel review", 5),
+                ("allocation_decision", "decision", "Allocation decision", 6),
+                ("award_response", "applicant_action", "Award response", 7),
+            ],
+        )
+        self.assertFalse(
+            CallWorkflowStep.objects.get(call=call, key="award_response").is_enabled
+        )
+        consolidated = CallWorkflowStep.objects.get(
+            call=call, key="consolidated-report"
+        )
+        self.assertEqual(consolidated.outcome_set, "done")
+        self.assertEqual(consolidated.completer, "reviewer")
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.current_step.call_step, consolidated)
+
+    def test_contribution_settings_and_review_contributions(self):
+        proposal = proposal_factories.ProposalFactory()
+        call = proposal.round.call
+        review = proposal_factories.ReviewFactory(proposal=proposal, state="submitted")
+
+        self._run(
+            {
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "technical_assessment",
+                        "is_enabled": True,
+                        "contributor_source": "requested_offering_team",
+                        "per_requested_offering": True,
+                        "outcome_set": "per_offering",
+                        "on_negative": "continue",
+                    },
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "expert_review",
+                        "is_enabled": True,
+                        "min_reviewers": 2,
+                        "max_contributions": 3,
+                    },
+                ],
+                "proposal_workflow_step_instances": [
+                    {
+                        "uuid": "cf000000000000000000000000000005",
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "expert_review",
+                        "status": "active",
+                    },
+                ],
+            }
+        )
+
+        technical = CallWorkflowStep.objects.get(call=call, key="technical_assessment")
+        self.assertEqual(technical.contributor_source, "requested_offering_team")
+        self.assertTrue(technical.per_requested_offering)
+        self.assertEqual(technical.outcome_set, "per_offering")
+        self.assertEqual(technical.on_negative, "continue")
+        expert = CallWorkflowStep.objects.get(call=call, key="expert_review")
+        self.assertEqual(expert.min_contributions, 2)
+        self.assertEqual(expert.max_contributions, 3)
+        review.refresh_from_db()
+        self.assertEqual(review.contribution.proposal_step.call_step, expert)
+
+    def test_a_step_the_api_would_refuse_is_not_imported(self):
+        # A step assessed per requested offering takes one contribution from
+        # each: a maximum is refused by the API, and so on import.
+        proposal = proposal_factories.ProposalFactory()
+        call = proposal.round.call
+        self._run(
+            {
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "key": "technical_assessment",
+                        "is_enabled": True,
+                        "contributor_source": "requested_offering_team",
+                        "per_requested_offering": True,
+                        "max_contributions": 3,
+                    },
+                ],
+            }
+        )
+        technical = CallWorkflowStep.objects.get(call=call, key="technical_assessment")
+        self.assertIsNone(technical.max_contributions)
+
+    def test_step_answers_kept_on_the_proposal_become_contributions(self):
+        proposal = proposal_factories.ProposalFactory()
+        call = proposal.round.call
+        checklist = checklist_factories.ChecklistFactory()
+        question = checklist_factories.QuestionFactory(
+            checklist=checklist, required=True
+        )
+        CallWorkflowStep.objects.filter(call=call, key="technical_assessment").update(
+            is_enabled=True, checklist=checklist
+        )
+        completion = ChecklistCompletion.objects.create(
+            scope_content_type=ContentType.objects.get_for_model(Proposal),
+            scope_object_id=proposal.id,
+            checklist=checklist,
+        )
+        first, second = structure_factories.UserFactory.create_batch(2)
+        for user in (first, second):
+            checklist_factories.AnswerFactory(
+                completion=completion, question=question, user=user
+            )
+
+        self._run(
+            {
+                "proposal_workflow_step_instances": [
+                    {
+                        "uuid": "cf000000000000000000000000000006",
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "technical_assessment",
+                        "status": "active",
+                    },
+                ],
+            }
+        )
+
+        instance = ProposalWorkflowStepInstance.objects.get(
+            uuid="cf000000000000000000000000000006"
+        )
+        self.assertFalse(ChecklistCompletion.objects.filter(pk=completion.pk).exists())
+        for user in (first, second):
+            contribution = instance.contributions.get(contributor=user)
+            self.assertEqual(contribution.status, "pending")
+            answers = contribution.get_checklist_completion(checklist).answers.all()
+            self.assertEqual([a.user for a in answers], [user])
+
+    def test_contribution_answers_round_trip_by_uuid(self):
+        from waldur_mastermind.marketplace.management.commands.export_structure import (
+            Command as ExportCommand,
+        )
+        from waldur_mastermind.proposal.models import StepContribution
+
+        proposal = proposal_factories.ProposalFactory()
+        other = proposal_factories.ProposalFactory()
+        checklist = checklist_factories.ChecklistFactory()
+        question = checklist_factories.QuestionFactory(checklist=checklist)
+        user = structure_factories.UserFactory()
+        completion = proposal_factories.contribution_completion(
+            proposal, "technical_assessment", user, checklist
+        )
+        checklist_factories.AnswerFactory(
+            completion=completion, question=question, user=user, answer_data="Fits"
+        )
+        contribution = StepContribution.objects.get(id=completion.scope_object_id)
+        exporter = ExportCommand()
+        data = {
+            "step_contributions": exporter.export_step_contributions(),
+            "checklist_completions": exporter.export_checklist_completions(),
+            "answers": exporter.export_answers(),
+        }
+        self.assertEqual(
+            data["checklist_completions"][0]["scope_object_uuid"],
+            contribution.uuid.hex,
+        )
+
+        # Another deployment: the contribution's id is another proposal's.
+        old_id, old_uuid = contribution.id, contribution.uuid.hex
+        completion.delete()
+        contribution.delete()
+        other_instance = proposal_factories.ProposalWorkflowStepInstanceFactory(
+            proposal=other, step="technical_assessment"
+        )
+        squatter = StepContribution.objects.create(
+            id=old_id, proposal_step=other_instance, contributor=user
+        )
+
+        self._run(data)
+
+        restored = StepContribution.objects.get(uuid=old_uuid)
+        self.assertEqual(restored.proposal_step.proposal, proposal)
+        self.assertEqual(
+            restored.get_checklist_completion(checklist).answers.get().answer_data,
+            "Fits",
+        )
+        self.assertIsNone(squatter.get_checklist_completion(checklist))
+
+    def test_answers_of_an_unknown_contribution_are_skipped(self):
+        proposal = proposal_factories.ProposalFactory()
+        checklist = checklist_factories.ChecklistFactory()
+        completion = proposal_factories.contribution_completion(
+            proposal,
+            "technical_assessment",
+            structure_factories.UserFactory(),
+            checklist,
+        )
+        output = self._run(
+            {
+                "checklist_completions": [
+                    {
+                        "uuid": "cf0000000000000000000000000000aa",
+                        "checklist_uuid": checklist.uuid.hex,
+                        "scope_content_type": "proposal.stepcontribution",
+                        "scope_object_id": completion.scope_object_id,
+                    }
+                ]
+            }
+        )
+        self.assertIn("contribution (not named) not found", output)
+        self.assertFalse(
+            ChecklistCompletion.objects.filter(
+                uuid="cf0000000000000000000000000000aa"
+            ).exists()
+        )
 
     def test_instance_without_uuid_is_skipped(self):
         proposal = proposal_factories.ProposalFactory()
@@ -4099,6 +4556,78 @@ class ImportRetiredProposalFieldsTest(TestCase):
         review = Review.objects.get(uuid=self.REVIEW_UUID)
         self.assertEqual(review.proposal, proposal)
         self.assertEqual(review.comment_project_summary, "Well written")
+
+
+class ImportReviewCriteriaScoresTest(TestCase):
+    """A dump names a review's criteria: their UUIDs are minted anew each time
+    the call's workflow is imported."""
+
+    REVIEW_UUID = "cf300000000000000000000000000001"
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.temp_dir, "test_structure.json")
+        fixture = proposal_fixtures.ProposalFixture()
+        self.proposal = fixture.proposal
+        self.reviewer = fixture.reviewer_1
+        step = CallWorkflowStep.review_step_for(self.proposal.round.call)
+        self.relevance = WorkflowCriterion.objects.create(
+            workflow_step=step, name="Relevance", order=0
+        )
+        self.feasibility = WorkflowCriterion.objects.create(
+            workflow_step=step, name="Feasibility", order=1
+        )
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def _import(self, scores):
+        data = {
+            "reviews": [
+                {
+                    "uuid": self.REVIEW_UUID,
+                    "proposal_uuid": self.proposal.uuid.hex,
+                    "reviewer_uuid": self.reviewer.uuid.hex,
+                    "state": "submitted",
+                    "summary_score": 4,
+                    "criteria_scores": scores,
+                }
+            ]
+        }
+        with open(self.test_file_path, "w") as f:
+            json.dump(data, f)
+        output = StringIO()
+        call_command("import_structure", input=self.test_file_path, stdout=output)
+        return output.getvalue()
+
+    def _key(self, criterion):
+        return uuid.UUID(str(criterion.uuid)).hex
+
+    def test_scores_are_stored_under_the_named_criteria(self):
+        self._import({"Relevance": 5, "Feasibility": 3})
+        review = Review.objects.get(uuid=self.REVIEW_UUID)
+        self.assertEqual(
+            review.criteria_scores,
+            {self._key(self.relevance): 5, self._key(self.feasibility): 3},
+        )
+
+    def test_a_criterion_the_step_lacks_is_reported(self):
+        output = self._import({"Relevance": 5, "Novelty": 4})
+        self.assertIn("no criterion named Novelty", output)
+        review = Review.objects.get(uuid=self.REVIEW_UUID)
+        self.assertEqual(review.criteria_scores, {})
+
+    def test_export_names_the_criteria(self):
+        self._import({"Relevance": 5, "Feasibility": 3})
+        export_path = os.path.join(self.temp_dir, "export.json")
+        call_command("export_structure", "-o", export_path, stdout=StringIO())
+        with open(export_path) as f:
+            reviews = json.load(f)["reviews"]
+        [exported] = [r for r in reviews if r["uuid"] == self.REVIEW_UUID]
+        self.assertEqual(
+            exported["criteria_scores"], {"Relevance": 5, "Feasibility": 3}
+        )
 
 
 class ImportCallCOIConfigurationTest(TestCase):
@@ -4416,6 +4945,85 @@ class AwardedResourcesRoundTripTest(TestCase):
         output = out.getvalue()
         for missing in (missing_plan, missing_request, missing_resource):
             self.assertIn(missing, output)
+
+
+class ImportCallPanelSeatsTest(TestCase):
+    """The preset's panel seats: a call's chair and vice-chair, and the members
+    and chair of its panels. Each must hold the panel member role on the call,
+    as the API requires."""
+
+    def setUp(self):
+        self.call = proposal_fixtures.ProposalFixture().call
+        self.members = [structure_factories.UserFactory() for _ in range(2)]
+        for user in self.members:
+            self.call.add_user(user, RoleEnum.CALL_PANEL_MEMBER)
+        self.outsider = structure_factories.UserFactory()
+        self.panel = CallPanel.objects.create(
+            call=self.call, key="physics", name="Physics"
+        )
+        self.temp_dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.temp_dir, "seats.json")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def _import(self, data):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        output = StringIO()
+        call_command("import_structure", "-i", self.path, stdout=output)
+        return output.getvalue()
+
+    def test_seats_the_chairs_and_the_panel(self):
+        first, second = self.members
+        self._import(
+            {
+                "call_panel_chairs": [
+                    {
+                        "call_uuid": self.call.uuid.hex,
+                        "chair_uuid": first.uuid.hex,
+                        "vice_chair_uuid": second.uuid.hex,
+                    }
+                ],
+                "call_panels": [
+                    {
+                        "call_uuid": self.call.uuid.hex,
+                        "key": "physics",
+                        "member_uuids": [first.uuid.hex, second.uuid.hex],
+                        "chair_uuid": second.uuid.hex,
+                    }
+                ],
+            }
+        )
+        self.call.refresh_from_db()
+        self.panel.refresh_from_db()
+        self.assertEqual(self.call.panel_chair, first)
+        self.assertEqual(self.call.panel_vice_chair, second)
+        self.assertEqual(set(self.panel.members.all()), {first, second})
+        self.assertEqual(self.panel.chair, second)
+
+    def test_refuses_seats_for_someone_off_the_panel(self):
+        output = self._import(
+            {
+                "call_panel_chairs": [
+                    {
+                        "call_uuid": self.call.uuid.hex,
+                        "chair_uuid": self.outsider.uuid.hex,
+                    }
+                ],
+                "call_panels": [
+                    {
+                        "call_uuid": self.call.uuid.hex,
+                        "key": "physics",
+                        "member_uuids": [self.outsider.uuid.hex],
+                    }
+                ],
+            }
+        )
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.panel_chair)
+        self.assertFalse(self.panel.members.exists())
+        self.assertIn("not a panel member of the call", output)
 
 
 class ImportOpenStackNetworkingTest(TestCase):

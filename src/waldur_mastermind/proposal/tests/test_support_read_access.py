@@ -247,3 +247,29 @@ class AssignmentConfigurationWriteTest(SupportReadAccessBase):
             "/api/call-assignment-configurations/", {"assignment_expiration_days": 3}
         )
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class SuggestionPoolStatusTest(SupportReadAccessBase):
+    """Discovery says where a suggested reviewer stands in the call's pool,
+    whether they came from the suggestion or were invited directly."""
+
+    def status_of_suggestion(self):
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+        response = self.client.get(
+            f"/api/reviewer-suggestions/{self.suggestion.uuid.hex}/"
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data["pool_invitation_status"]
+
+    def test_not_invited(self):
+        self.assertIsNone(self.status_of_suggestion())
+
+    def test_invited_directly_after_the_suggestion_was_rejected(self):
+        self.suggestion.status = ReviewerSuggestionStatuses.REJECTED
+        self.suggestion.save()
+        factories.CallReviewerPoolFactory(
+            call=self.call,
+            reviewer=self.suggestion.reviewer,
+            invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+        )
+        self.assertEqual(self.status_of_suggestion(), "accepted")

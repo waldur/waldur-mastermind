@@ -1,0 +1,15 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear {{ proposal_creator_name }},</p>
+    <p>Your access request "{{ proposal_name }}" was still a draft when its submission period ended. It has not been canceled: it moved on, unchanged, to the next review period.</p>
+    <ul>
+        <li>Submissions open: {{ round_start_date }}</li>
+        <li>Submit by: {{ deadline_date }}</li>
+    </ul>
+    <p>Submit it to have it reviewed: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+</body>
+</html>

@@ -20,8 +20,9 @@
     <p>This offering is now available for selection in proposals submitted to this call.</p>
     {% endif %}
 
-    {% if decision == "canceled" %}
-    <p>You may need to look for alternative offerings or contact the provider directly for more information about their decision.</p>
+    {% if decision == "rejected" %}
+    {% if reason %}<p>The provider gave this reason:</p><blockquote>{{ reason }}</blockquote>{% endif %}
+    <p>You may need to look for alternative offerings.</p>
     {% endif %}
 
     <p>You can view the call details and manage offerings by visiting:<br>

@@ -2150,6 +2150,9 @@ class Resource(
         customer_path = "project__customer"
         project_path = "project"
         list_permission = PermissionEnum.LIST_RESOURCES
+        # Read paths also let through resources granted read-only one by one
+        # (a call manager reading what the call allocated).
+        read_only_resource_path = "id"
 
     class Meta:
         ordering = ["created", "id"]
@@ -3552,6 +3555,7 @@ class ComponentUsage(
     class Permissions:
         customer_path = ["resource__project__customer", "resource__offering__customer"]
         project_path = "resource__project"
+        read_only_resource_path = "resource"
 
         @staticmethod
         def build_query(user):

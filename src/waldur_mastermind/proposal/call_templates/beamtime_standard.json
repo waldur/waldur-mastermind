@@ -1,0 +1,1088 @@
+{
+  "schema_version": 3,
+  "preset": {
+    "programme": "esrf-beamtime",
+    "process": "Standard proposals",
+    "reference_url": "https://www.esrf.fr/home/UsersAndScience/Apply-for-beamtime/proposal-types-and-deadlines.html",
+    "reference_title": "ESRF proposal types and deadlines",
+    "category": "programme",
+    "tags": [
+      "beamtime",
+      "cut-off",
+      "domain panels",
+      "peer review"
+    ],
+    "summary": "Modelled on ESRF standard proposals: two deadlines a year, review panels by science area, feasibility by the instrument scientists."
+  },
+  "call": {
+    "name": "Beamtime: standard proposals",
+    "description": "Modelled on the standard proposals of the ESRF; ISIS, ILL and similar facilities run comparable panels. Two proposal deadlines a year, each a round whose proposals are evaluated together: an eligibility check (a proposal with a correctable flaw is sent back for changes), the feasibility assessment by the scientists of each requested instrument alongside the routing to the review panel of the proposal's science area, one or two referees from the panel, and the panel's meeting, which grades and ranks its proposals before the call managers decide. Panels map to generic science domains matched by code and name. The beamtime is scheduled within six months, and the experiment report is due by the next deadline.",
+    "reference_code": "",
+    "external_url": null,
+    "reviewer_identity_visible_to_submitters": false,
+    "reviews_visible_to_submitters": false,
+    "fixed_duration_in_days": 183,
+    "proposal_slug_template": null,
+    "order_author": "applicant",
+    "evaluation_start": "at_cutoff",
+    "carry_over_drafts": true,
+    "publish_results": "with_round",
+    "undecided_at_round_completion": "refuse",
+    "target_decision_days": 60
+  },
+  "panels": [
+    {
+      "key": "life-sciences",
+      "name": "Structural biology and life sciences",
+      "description": "Review panel for structural biology and the life sciences.",
+      "order": 0,
+      "science_domains": [
+        {
+          "code": "4",
+          "name": "Life Science"
+        }
+      ],
+      "science_sub_domains": []
+    },
+    {
+      "key": "chemistry-materials",
+      "name": "Chemistry and materials",
+      "description": "Review panel for chemistry, materials science and condensed matter.",
+      "order": 1,
+      "science_domains": [
+        {
+          "code": "2",
+          "name": "Chemistry & Materials"
+        }
+      ],
+      "science_sub_domains": []
+    },
+    {
+      "key": "earth-environment",
+      "name": "Earth and environmental sciences",
+      "description": "Review panel for geoscience, climate and the environment.",
+      "order": 2,
+      "science_domains": [
+        {
+          "code": "3",
+          "name": "Earth & Environmental Science"
+        }
+      ],
+      "science_sub_domains": []
+    },
+    {
+      "key": "physics-engineering",
+      "name": "Physics, engineering and other domains",
+      "description": "Review panel for physics, engineering and the other domains.",
+      "order": 3,
+      "science_domains": [
+        {
+          "code": "1",
+          "name": "Physics"
+        },
+        {
+          "code": "5",
+          "name": "Mechanics & Engineering"
+        },
+        {
+          "code": "6",
+          "name": "Computer Science"
+        },
+        {
+          "code": "7",
+          "name": "Others"
+        }
+      ],
+      "science_sub_domains": []
+    }
+  ],
+  "proposal_roles": [
+    {
+      "key": "review_panel_chair",
+      "name": "Review panel chair",
+      "description": "The chair of the review panel the proposal is routed to. Assigns the referees and reports the panel's meeting.",
+      "eligible_from": "panel:chair",
+      "min_holders": 1,
+      "max_holders": 1,
+      "allows_lead": false
+    },
+    {
+      "key": "panel_referee",
+      "name": "Referee",
+      "description": "A member of the proposal's review panel who grades it. Each proposal has one or two.",
+      "eligible_from": "panel:member",
+      "min_holders": 1,
+      "max_holders": 2,
+      "allows_lead": false
+    }
+  ],
+  "workflow_steps": [
+    {
+      "key": "eligibility_check",
+      "kind": "decision",
+      "name": "Eligibility check",
+      "description": "The call managers check that the proposal is complete and eligible. A proposal with a correctable flaw is sent back for changes and checked again once resubmitted.",
+      "outcome_set": "eligibility",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 3,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "applicant_visible": true,
+      "status_labels": {
+        "applicant": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "eligible": "Under evaluation",
+            "ineligible": "Not eligible"
+          }
+        },
+        "evaluators": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "ineligible": "Not eligible"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 0
+    },
+    {
+      "key": "technical_assessment",
+      "kind": "assessment",
+      "name": "Feasibility assessment",
+      "description": "The scientists of each requested instrument assess whether the experiment is feasible there: accepted, conditionally accepted or rejected. A rejected instrument does not stop the proposal; the panel reads the assessment.",
+      "outcome_set": "per_offering",
+      "completer": "offering_manager",
+      "completer_proposal_role": null,
+      "on_negative": "continue",
+      "is_enabled": true,
+      "duration_in_days": 14,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "requested_offering_team",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "per_requested_offering": true,
+      "delegable_to": "offering_team",
+      "status_labels": {
+        "evaluators": {
+          "active": "Under feasibility assessment",
+          "completed": "Feasibility assessment submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 1
+    },
+    {
+      "key": "panel_chair_assignment",
+      "kind": "assignment",
+      "name": "Review panel assignment",
+      "description": "Alongside the feasibility assessment, the proposal goes to the review panel of its science area and that panel's chair is assigned to it, confirming no conflict of interest. The chair of the review committee checks the routing, moves the proposal to another panel when its topic calls for it, and completes the step.",
+      "outcome_set": "done",
+      "completer": "panel_chair",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 7,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [
+        "review_panel_chair"
+      ],
+      "criteria": [],
+      "checklist": null,
+      "parallel_with_previous": true,
+      "requires_coi_confirmation": true,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending review panel assignment",
+          "completed": "Review panel assigned"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "panel_chair",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "proposal_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": "review_panel_chair"
+        }
+      ],
+      "order": 2
+    },
+    {
+      "key": "referee_assignment",
+      "kind": "assignment",
+      "name": "Referee assignment",
+      "description": "The panel chair assigns one or two members of the panel as the proposal's referees. Each confirms having no conflict of interest.",
+      "outcome_set": "done",
+      "completer": "proposal_role",
+      "completer_proposal_role": "review_panel_chair",
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 5,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [
+        "technical_assessment"
+      ],
+      "assigns_roles": [
+        "panel_referee"
+      ],
+      "criteria": [],
+      "checklist": null,
+      "requires_coi_confirmation": true,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending referee assignment",
+          "completed": "Referees assigned"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "proposal_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": "panel_referee"
+        }
+      ],
+      "order": 3
+    },
+    {
+      "key": "referee_reports",
+      "kind": "assessment",
+      "name": "Referee reports",
+      "description": "Each referee grades the proposal from its scientific case and the feasibility assessment.",
+      "outcome_set": "done",
+      "completer": "proposal_role",
+      "completer_proposal_role": "panel_referee",
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 14,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "proposal_role:panel_referee",
+      "input_steps": [
+        "technical_assessment"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Referee report",
+        "checklist_type": "workflow_step"
+      },
+      "min_contributions": 1,
+      "max_contributions": 2,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending referee reports",
+          "completed": "Referee reports submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "proposal_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": "review_panel_chair"
+        }
+      ],
+      "order": 4
+    },
+    {
+      "key": "review_panel_meeting",
+      "kind": "assessment",
+      "name": "Review panel meeting",
+      "description": "Run once per round, about seven weeks after the deadline: the call managers open it for the round once the round's proposals have reached it. Each panel chair writes one report for the panel's meeting, grading and ranking the panel's proposals with the beamtime recommended for each.",
+      "outcome_set": "done",
+      "completer": "proposal_role",
+      "completer_proposal_role": "review_panel_chair",
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 7,
+      "transition_mode": "manual",
+      "contributor_source": "proposal_role:review_panel_chair",
+      "input_steps": [
+        "technical_assessment",
+        "referee_reports"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Review panel meeting report",
+        "checklist_type": "workflow_step"
+      },
+      "round_scoped": true,
+      "min_contributions": null,
+      "max_contributions": null,
+      "status_labels": {
+        "evaluators": {
+          "active": "Pending review panel meeting",
+          "completed": "Review panel report submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 5
+    },
+    {
+      "key": "allocation_decision",
+      "kind": "decision",
+      "name": "Beamtime allocation",
+      "description": "The call managers decide each proposal following the panel's grades and recommendations. The applicant learns the result when the round's results are published.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 7,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [
+        "technical_assessment",
+        "review_panel_meeting"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "is_allocation_decision": true,
+      "include_award_response": false,
+      "allocation_time": "on_decision",
+      "status_labels": {
+        "evaluators": {
+          "outcomes": {
+            "approved": "Awarded",
+            "declined": "Not awarded"
+          }
+        },
+        "applicant": {
+          "outcomes": {
+            "approved": "Awarded",
+            "declined": "Not awarded"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "offering_teams",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 6
+    },
+    {
+      "key": "final_report",
+      "kind": "applicant_action",
+      "name": "Experiment report",
+      "description": "The awarded team submits the experiment report. The step opens when the allocation ends and stays open until the next proposal deadline.",
+      "outcome_set": "submitted",
+      "completer": "applicant",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 180,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Experiment report",
+        "checklist_type": "workflow_step"
+      },
+      "applicant_visible": true,
+      "phase": "closing",
+      "project_end_offset_days": 0,
+      "status_labels": {
+        "applicant": {
+          "active": "Pending experiment report",
+          "completed": "Experiment report submitted"
+        },
+        "evaluators": {
+          "active": "Pending experiment report",
+          "completed": "Experiment report submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "applicant",
+          "days_before": 7,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 7
+    },
+    {
+      "key": "final_report_approval",
+      "kind": "decision",
+      "name": "Experiment report approval",
+      "description": "The call managers approve the experiment report, which completes the project, or ask the applicant to change it.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 30,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "applicant_visible": true,
+      "phase": "closing",
+      "status_labels": {
+        "applicant": {
+          "active": "Experiment report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        },
+        "evaluators": {
+          "active": "Experiment report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 8
+    }
+  ],
+  "checklists": [
+    {
+      "name": "Referee report",
+      "checklist_type": "workflow_step",
+      "description": "A panel member's grading of a beamtime proposal.",
+      "questions": [
+        {
+          "description": "Assessment of the proposal",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Assess the scientific case and the need for the requested technique, taking the feasibility assessment into account.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        },
+        {
+          "description": "Grade",
+          "required": true,
+          "question_type": "rating",
+          "user_guidance": "From 1 (poor) to 5 (outstanding).",
+          "min_value": 1,
+          "max_value": 5
+        }
+      ]
+    },
+    {
+      "name": "Review panel meeting report",
+      "checklist_type": "workflow_step",
+      "description": "The review panel's meeting for its proposals of the deadline. Each proposal's grade, rank and recommended beamtime are entered in the report's ranking.",
+      "questions": [
+        {
+          "description": "Panel comments",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "The panel's discussion of its proposals at the meeting.",
+          "rich_text_char_limit": 10000,
+          "rich_text_toolbar_level": "minimal"
+        }
+      ]
+    },
+    {
+      "name": "Experiment report",
+      "checklist_type": "workflow_step",
+      "description": "What an experiment did with its beamtime.",
+      "questions": [
+        {
+          "description": "Experiment report",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Report what was measured, how the beamtime was used and the results so far.",
+          "rich_text_char_limit": 5000,
+          "rich_text_toolbar_level": "minimal"
+        },
+        {
+          "description": "Experiment report document",
+          "required": false,
+          "question_type": "file",
+          "user_guidance": "Optional. One PDF file.",
+          "allowed_file_types": [
+            ".pdf"
+          ],
+          "allowed_mime_types": [
+            "application/pdf"
+          ],
+          "max_file_size_mb": 10
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "key": "happy_path",
+      "name": "Happy path",
+      "description": "Eligible, feasible on the beamline, refereed, ranked by the review panel and approved; the round publishes the result and the final report closes the experiment.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "technical_assessment",
+            "outcome": "feasible"
+          },
+          {
+            "step": "panel_chair_assignment",
+            "outcome": "done"
+          },
+          {
+            "step": "referee_assignment",
+            "outcome": "done"
+          },
+          {
+            "step": "referee_reports",
+            "outcome": "done"
+          },
+          {
+            "step": "review_panel_meeting",
+            "outcome": "done",
+            "round_step": true
+          },
+          {
+            "advance": true
+          },
+          {
+            "step": "allocation_decision",
+            "outcome": "approved"
+          },
+          {
+            "publish": true
+          },
+          {
+            "final_report": true
+          },
+          {
+            "step": "final_report",
+            "outcome": "submitted"
+          },
+          {
+            "step": "final_report_approval",
+            "outcome": "approved"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "accepted"
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "eligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_submitted"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        },
+        {
+          "step_status": {
+            "step": "review_panel_meeting",
+            "status": "completed",
+            "outcome": "done"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report",
+            "status": "completed",
+            "outcome": "submitted"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report_approval",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_at_eligibility_check",
+      "name": "Rejected at the eligibility check",
+      "description": "The proposal is found ineligible: it is rejected, the applicant is told and no other step runs.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "ineligible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "ineligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "eligibility_check"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        }
+      ]
+    },
+    {
+      "key": "infeasible_beamline_still_reviewed",
+      "name": "An infeasible beamline does not end the review",
+      "description": "The technical assessment finds a requested beamline infeasible: the proposal is not rejected and the panel still reviews it.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "technical_assessment",
+            "outcome": "infeasible"
+          },
+          {
+            "step": "panel_chair_assignment",
+            "outcome": "done"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "in_review"
+        },
+        {
+          "step_status": {
+            "step": "technical_assessment",
+            "status": "completed",
+            "outcome": "infeasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "referee_assignment",
+            "status": "active"
+          }
+        }
+      ]
+    }
+  ]
+}

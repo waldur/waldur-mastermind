@@ -1086,6 +1086,18 @@ class NewProposalSubmittedContext(BaseModel):
     submission_date: Any = Field(description="The date and time of submission.")
 
 
+class ProposalWithdrawnContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    proposal_url: str = Field(
+        description="URL for the call manager to view the proposal."
+    )
+    proposal_name: str = Field(description="Name of the withdrawn proposal.")
+    withdrawn_by: str = Field(description="Full name of who withdrew it.")
+    reason: str = Field(default="", description="The reason they gave, if any.")
+    call_name: str = Field(description="Name of the call.")
+    round_name: str = Field(description="Name of the round.")
+
+
 class NewReviewSubmittedContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
     review_url: str = Field(description="URL for the call manager to view the review.")
@@ -1095,9 +1107,15 @@ class NewReviewSubmittedContext(BaseModel):
     submission_date: Any = Field(
         description="The timestamp when the review was submitted."
     )
-    review_date: Any = Field(description="The timestamp when the review was submitted.")
-    score: float = Field(description="The summary score given by the reviewer.")
-    max_score: str = Field(description="The maximum possible score (string '5').")
+    score: float = Field(description="The summary score given by the reviewer, 1-5.")
+    max_score: str = Field(
+        description="The maximum of the review scale: always the string '5'."
+    )
+    criteria: list[dict[str, Any]] = Field(
+        description="The score on each criterion of the review's step, in order, "
+        "each with `name`, `weight` and `score` (1-5, or None when unrated). "
+        "Empty when the step has no criteria."
+    )
     submitted_reviews: int = Field(description="Number of reviews already submitted.")
     pending_reviews: int = Field(description="Number of reviews still pending.")
     rejected_reviews: int = Field(description="Number of rejected/canceled reviews.")
@@ -1183,6 +1201,94 @@ class RequestedOfferingDecisionContext(BaseModel):
     decision: str = Field(description="The state of the request (e.g., 'accepted').")
     decision_date: Any = Field(description="The date the decision was made.")
     call_url: str = Field(description="A URL to the call management page.")
+    reason: str = Field(
+        default="", description="Why the provider declined, when it did."
+    )
+
+
+class OfferingRoundOpenedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    offering_name: str = Field(description="Name of the offering the call takes in.")
+    call_name: str = Field(description="Name of the call.")
+    round_name: str = Field(description="Name of the round that opened.")
+    cutoff: Any = Field(description="When the round closes for submissions.")
+    team_steps: str = Field(
+        description="The steps of the call the offering's team acts in."
+    )
+    calls_url: str = Field(description="The provider's calls page.")
+
+
+class OfferingTeamDigestContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    recipient_name: str = Field(description="Who the digest is for.")
+    slots: list = Field(
+        description=(
+            "Open slots of the recipient's offering teams: each with "
+            "offering_name, call_name, proposal_name, step_name, holder, "
+            "due_at, overdue and proposal_url."
+        )
+    )
+    new_count: int = Field(description="Slots opened since the last digest.")
+    overdue_count: int = Field(description="Slots past their due date.")
+    calls_url: str = Field(description="The provider's calls page.")
+
+
+class CallOfferingTermsChangedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    offering_name: str = Field(description="Name of the offering.")
+    call_name: str = Field(description="Name of the call.")
+    changed_by: str = Field(description="Who changed the terms.")
+    rules: list = Field(
+        description=(
+            "The call's limits now: component_type, min_per_proposal, "
+            "max_per_proposal, default_amount."
+        )
+    )
+    pools: list = Field(
+        description="The call's pools now: component_type, round_name, offered_total."
+    )
+    calls_url: str = Field(description="The provider's calls page.")
+
+
+class AwardProvisionFailedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    call_name: str = Field(description="Name of the call.")
+    proposal_name: str = Field(description="Name of the proposal.")
+    offering_name: str = Field(description="Name of the offering.")
+    error: str = Field(description="Why the item could not be ordered.")
+    proposal_url: str = Field(description="The proposal's page.")
+
+
+class RequestedOfferingCreatedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    offering_name: str = Field(description="Name of the requested offering.")
+    provider_name: str = Field(description="Name of the offering's provider.")
+    call_name: str = Field(description="Name of the call.")
+    call_managing_organisation: str = Field(
+        description="Name of the organization running the call."
+    )
+    requested_by: str = Field(
+        default="", description="Full name of whoever requested the offering."
+    )
+    message: str = Field(default="", description="The request's message, if any.")
+    team_steps: str = Field(
+        default="",
+        description=(
+            "Comma-separated names of the call's workflow steps the offering's "
+            "team acts in; empty when the workflow hands it no work."
+        ),
+    )
+    needs_offering_managers: bool = Field(
+        default=False,
+        description=(
+            "Whether the call's workflow hands work to the offering's team "
+            "and the offering has no offering manager yet."
+        ),
+    )
+    requests_url: str = Field(
+        description="Link to the provider's requests for offerings, to answer it."
+    )
+    team_url: str = Field(description="Link to the offering's Team tab.")
 
 
 class RoundOpeningForReviewersContext(BaseModel):
@@ -1195,6 +1301,40 @@ class RoundOpeningForReviewersContext(BaseModel):
     reviewer_name: str = Field(
         description="Full name of the reviewer receiving the notification."
     )
+
+
+class RoundResultsAdoptedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    call_name: str = Field(description="Name of the call.")
+    round_name: str = Field(description="Name of the round whose results were adopted.")
+    adopted_at: Any = Field(description="The date the results were adopted.")
+    recorded_by: str = Field(description="Full name of who recorded the adoption.")
+    round_url: str = Field(description="A URL to the round management page.")
+
+
+class RoundReportRequestedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    call_name: str = Field(description="Name of the call.")
+    round_name: str = Field(description="Name of the round.")
+    step_name: str = Field(description="Name of the step run once per round.")
+    proposals_count: int = Field(description="Proposals the report covers.")
+    due_at: Any = Field(description="When the step is due in the round, if set.")
+    days_left: Any = Field(
+        description="Days until the due date for a reminder; empty when the step opens."
+    )
+    report_url: str = Field(description="A URL to the round report.")
+
+
+class RoundStepOpenedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    call_name: str = Field(description="Name of the call.")
+    round_name: str = Field(description="Name of the round.")
+    step_name: str = Field(description="Name of the step opened for the round.")
+    opened_by: str = Field(description="Full name of who opened the step.")
+    proposals_count: int = Field(description="Proposals standing at the step.")
+    reports_count: int = Field(description="Round reports asked for.")
+    due_at: Any = Field(description="When the step is due in the round, if set.")
+    round_url: str = Field(description="A URL to the round management page.")
 
 
 class RoundClosingForManagersContext(BaseModel):
@@ -1256,6 +1396,15 @@ class ProposalDraftCarriedOverContext(BaseModel):
     proposal_url: str = Field(description="A URL to the proposal details page.")
 
 
+class ProposalManagerMessageContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    subject: str = Field(description="Subject written by the call manager.")
+    body: str = Field(description="Message written by the call manager.")
+    proposal_name: str = Field(description="Name of the proposal.")
+    call_name: str = Field(description="Name of the call for proposals.")
+    proposal_url: str = Field(description="A URL to the proposal details page.")
+
+
 class ReviewsCompleteContext(BaseModel):
     site_name: str = Field(description="The name of the site from settings.")
     proposal_name: str = Field(
@@ -1270,7 +1419,7 @@ class ReviewsCompleteContext(BaseModel):
         description="The average summary score calculated from all completed reviews (a float or decimal number)."
     )
     reviews: list[dict[str, Any]] = Field(
-        description="A list of dictionaries representing completed reviews, each containing `reviewer_name`, `score`, and `submitted_at`."
+        description="A list of dictionaries representing completed reviews, each containing `reviewer_name`, `score` (1-5), `submitted_at` and `criteria` -- the score on each criterion of the review's step, each with `name`, `weight` and `score` (empty when the step has no criteria)."
     )
     proposal_url: str = Field(
         description="A direct URL for the call manager to view the proposal and its completed reviews."
@@ -1285,6 +1434,10 @@ class ReviewerInvitationContext(BaseModel):
     )
     invitation_link: str = Field(
         description="URL for the invitee to accept or decline the invitation."
+    )
+    invitation_message: str = Field(
+        default="",
+        description="Personal message the inviter wrote, or empty.",
     )
 
 
@@ -1352,7 +1505,9 @@ class WorkflowStepEventContext(BaseModel):
     trigger: str = Field(
         description=(
             "Workflow event: step_started, step_completed, step_rejected, "
-            "step_expired or deadline_approaching."
+            "step_expired, deadline_approaching, changes_requested, "
+            "changes_submitted, contribution_reopened or "
+            "contribution_submitted."
         )
     )
     step_name: str = Field(description="Human-readable workflow step name.")
@@ -1360,8 +1515,21 @@ class WorkflowStepEventContext(BaseModel):
     proposal_url: str = Field(
         description="Link to the proposal, applicant- or manager-side depending on audience."
     )
-    call_name: str = Field(description="Name of the call.")
-    round_name: str = Field(description="Name of the round.")
+    names_calls: bool = Field(
+        default=True,
+        description=(
+            "False when the mail goes to an applicant of a deployment that hides "
+            "calls from them (SERVICE_ACCESS_MODE = 'marketplace'): the wording "
+            "then names the access request, and no call or round."
+        ),
+    )
+    call_name: str | None = Field(
+        default=None, description="Name of the call; omitted when names_calls is false."
+    )
+    round_name: str | None = Field(
+        default=None,
+        description="Name of the round; omitted when names_calls is false.",
+    )
     deadline: Any = Field(
         default=None, description="Step deadline, if the step has one."
     )
@@ -1377,6 +1545,85 @@ class WorkflowStepEventContext(BaseModel):
     is_applicant: bool = Field(
         description="True when the mail goes to the applicant side (status-only wording)."
     )
+    project_name: str | None = Field(
+        default=None,
+        description=(
+            "Name of the project granted to the proposal; only in mail to the "
+            "teams of its offerings, once the project exists."
+        ),
+    )
+    project_url: str | None = Field(
+        default=None,
+        description="Link to the project granted to the proposal, as project_name.",
+    )
+    counts: dict | None = Field(
+        default=None,
+        description=(
+            "For contribution_submitted, how far the step's work is, as its "
+            "dashboard labels count it (submitted, expected, invited, "
+            "accepted, declined); only for recipients reading the step's "
+            "labels, never the applicant. Counts name nobody."
+        ),
+    )
+    message: str = Field(
+        default="",
+        description=(
+            "What is to change: for changes_requested, to the applicant; for "
+            "contribution_reopened, to the contributor. Empty otherwise."
+        ),
+    )
+    unlocked_parts: list[str] = Field(
+        default_factory=list,
+        description="For changes_requested: the parts the applicant may edit.",
+    )
+    due_at: Any = Field(
+        default=None, description="For changes_requested: when the changes are due."
+    )
+    submitted_requests: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "For changes_submitted: the requests the submission answered that "
+            "concern the recipient, each with its step_name and unlocked_parts."
+        ),
+    )
+
+
+class ProposalRoleChangedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    holder_name: str = Field(description="Full name of the role holder.")
+    role_name: str = Field(description="Name of the evaluator role, e.g. Rapporteur.")
+    is_lead: bool = Field(default=False, description="Whether the holder is the lead.")
+    proposal_name: str = Field(description="Name of the proposal.")
+    call_name: str = Field(description="Name of the call.")
+    proposal_url: str = Field(description="Link to the proposal.")
+    coi_confirmation_required: bool = Field(
+        default=False,
+        description=(
+            "Whether the holder must confirm having no conflict of interest "
+            "before the proposal opens to them."
+        ),
+    )
+
+
+class ContributionDelegatedContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    event: str = Field(
+        description=(
+            "What happened to the handed-on slot: delegated (to the recipient), "
+            "accepted or declined (by the delegate, told to whoever handed it "
+            "on) or revoked (taken back from the recipient)."
+        )
+    )
+    recipient_name: str = Field(description="Full name of the recipient.")
+    actor_name: str = Field(description="Full name of who acted.")
+    step_name: str = Field(description="Name of the workflow step.")
+    offering_name: str = Field(
+        default="", description="Offering the slot assesses, for a per-offering slot."
+    )
+    proposal_name: str = Field(description="Name of the proposal.")
+    call_name: str = Field(description="Name of the call.")
+    due_at: str = Field(default="", description="When the slot is due, if it is.")
+    proposal_url: str = Field(description="Link to the proposal.")
 
 
 class ProposalSection(NotificationSection):
@@ -1392,10 +1639,43 @@ class ProposalSection(NotificationSection):
         ),
         context_model=WorkflowStepEventContext,
     )
+    proposal_role_assigned = Notification(
+        key="proposal_role_assigned",
+        description=(
+            "Tells a user they now hold an evaluator role, such as rapporteur, "
+            "on a proposal."
+        ),
+        context_model=ProposalRoleChangedContext,
+    )
+    proposal_role_revoked = Notification(
+        key="proposal_role_revoked",
+        description=(
+            "Tells a user they no longer hold an evaluator role on a proposal."
+        ),
+        context_model=ProposalRoleChangedContext,
+    )
+    contribution_delegated = Notification(
+        key="contribution_delegated",
+        description=(
+            "Tells an evaluator or provider that a contribution slot of a "
+            "workflow step -- a technical assessment, a report -- was handed to "
+            "them or taken back, or that the person they handed it to accepted "
+            "or declined it."
+        ),
+        context_model=ContributionDelegatedContext,
+    )
     new_proposal_submitted = Notification(
         key="new_proposal_submitted",
         description="Notifies call managers about a new proposal submission.",
         context_model=NewProposalSubmittedContext,
+    )
+    proposal_withdrawn = Notification(
+        key="proposal_withdrawn",
+        description=(
+            "Notifies call managers that an applicant withdrew a submitted "
+            "proposal from evaluation."
+        ),
+        context_model=ProposalWithdrawnContext,
     )
     new_review_submitted = Notification(
         key="new_review_submitted",
@@ -1406,6 +1686,11 @@ class ProposalSection(NotificationSection):
         key="proposal_cancelled",
         description="A notification to proposal creator about the proposal cancellation.",
         context_model=ProposalCancelledContext,
+        templates=[
+            NotificationTemplate(path=f"{base}_{suffix}", name=f"{base}_{suffix}")
+            for base in ("proposal_cancelled", "access_request_cancelled")
+            for suffix in ("subject.txt", "message.txt", "message.html")
+        ],
     )
     proposal_decision_for_reviewer = Notification(
         key="proposal_decision_for_reviewer",
@@ -1432,6 +1717,14 @@ class ProposalSection(NotificationSection):
             for suffix in ("subject.txt", "message.txt", "message.html")
         ],
     )
+    proposal_manager_message = Notification(
+        key="proposal_manager_message",
+        description=(
+            "A message a call manager writes to the applicants of selected "
+            "proposals. Subject and body are the manager's own text."
+        ),
+        context_model=ProposalManagerMessageContext,
+    )
     proposal_draft_carried_over = Notification(
         key="proposal_draft_carried_over",
         description=(
@@ -1439,16 +1732,75 @@ class ProposalSection(NotificationSection):
             "round's cut-off passed, has moved on to the call's next round."
         ),
         context_model=ProposalDraftCarriedOverContext,
+        templates=[
+            NotificationTemplate(path=f"{base}_{suffix}", name=f"{base}_{suffix}")
+            for base in (
+                "proposal_draft_carried_over",
+                "access_request_draft_carried_over",
+            )
+            for suffix in ("subject.txt", "message.txt", "message.html")
+        ],
     )
     proposal_submission_deadline_approaching = Notification(
         key="proposal_submission_deadline_approaching",
         description="Reminds proposal creators to submit draft proposals during the last 3 days before the round cutoff.",
         context_model=ProposalSubmissionDeadlineApproachingContext,
+        templates=[
+            NotificationTemplate(path=f"{base}_{suffix}", name=f"{base}_{suffix}")
+            for base in (
+                "proposal_submission_deadline_approaching",
+                "access_request_submission_deadline_approaching",
+            )
+            for suffix in ("subject.txt", "message.txt", "message.html")
+        ],
+    )
+    requested_offering_created = Notification(
+        key="requested_offering_created",
+        description=(
+            "Tells the offering's managers and its provider's owners that a "
+            "call requests the offering, and asks the owners to add offering "
+            "managers where the call's workflow needs the offering's team "
+            "and it has none."
+        ),
+        context_model=RequestedOfferingCreatedContext,
     )
     requested_offering_decision = Notification(
         key="requested_offering_decision",
         description="A notification to call manager about the decision on requested offering (accepted/rejected).",
         context_model=RequestedOfferingDecisionContext,
+    )
+    offering_round_opened = Notification(
+        key="offering_round_opened",
+        description=(
+            "Tells the managers of an offering a call takes in that one of "
+            "the call's rounds has opened."
+        ),
+        context_model=OfferingRoundOpenedContext,
+    )
+    offering_team_digest = Notification(
+        key="offering_team_digest",
+        description=(
+            "A daily digest to offering managers and those slots are handed "
+            "to: their teams' open work on proposals, sent when slots opened "
+            "or fell overdue."
+        ),
+        context_model=OfferingTeamDigestContext,
+    )
+    call_offering_terms_changed = Notification(
+        key="call_offering_terms_changed",
+        description=(
+            "Tells the managers of an offering a call took in that the call's "
+            "limits or pools on it changed after they accepted."
+        ),
+        context_model=CallOfferingTermsChangedContext,
+    )
+    award_provision_failed = Notification(
+        key="award_provision_failed",
+        description=(
+            "Tells a call's managers that allocation could not order an "
+            "awarded item, and why."
+        ),
+        context_model=AwardProvisionFailedContext,
     )
     review_assigned = Notification(
         key="review_assigned",
@@ -1469,6 +1821,30 @@ class ProposalSection(NotificationSection):
         key="round_closing_for_managers",
         description="Notifies call managers that a round has ended, with a summary of proposals and reviews.",
         context_model=RoundClosingForManagersContext,
+    )
+    round_results_adopted = Notification(
+        key="round_results_adopted",
+        description=(
+            "Tells call managers that a round's results were adopted, so they "
+            "can be published."
+        ),
+        context_model=RoundResultsAdoptedContext,
+    )
+    round_report_requested = Notification(
+        key="round_report_requested",
+        description=(
+            "Asks an evaluator for their round report when a step run once "
+            "per round is opened, and reminds them before it is due."
+        ),
+        context_model=RoundReportRequestedContext,
+    )
+    round_step_opened = Notification(
+        key="round_step_opened",
+        description=(
+            "Tells call managers that a step run once per round was opened "
+            "for a round, with how many reports were asked for."
+        ),
+        context_model=RoundStepOpenedContext,
     )
     round_opening_for_reviewers = Notification(
         key="round_opening_for_reviewers",

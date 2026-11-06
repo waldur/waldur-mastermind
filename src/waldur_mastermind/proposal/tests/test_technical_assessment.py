@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.checklist import enums as checklist_enums
@@ -5,8 +6,13 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.permissions.fixtures import OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.proposal import permissions
-from waldur_mastermind.proposal.enums import ProposalStates, RequestedOfferingStates
+from waldur_mastermind.proposal import models, permissions
+from waldur_mastermind.proposal.enums import (
+    ProposalStates,
+    RequestedOfferingStates,
+    StepContributionStatuses,
+    WorkflowStepInstanceStatuses,
+)
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -18,8 +24,9 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         self.fixture = fixtures.ProposalFixture()
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal_submitted
+        self.fixture.proposal_submitted_creator
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "technical_assessment"
+        factories.point_at_step(self.proposal, "technical_assessment")
         self.proposal.save()
 
         self.checklist = checklist_factories.ChecklistFactory(
@@ -51,7 +58,12 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
             responsible_role="offering_manager",
             applicant_visible=False,
         )
-        self.completion = self.proposal.ensure_checklist_completion_for(self.checklist)
+        factories.ProposalWorkflowStepInstanceFactory(
+            proposal=self.proposal,
+            step="technical_assessment",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
 
         self.reviewer_a = structure_factories.UserFactory()
         self.reviewer_b = structure_factories.UserFactory()
@@ -59,15 +71,21 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
             self.proposal, action="step-checklist-responses"
         )
 
+    def _completion(self, user):
+        return factories.contribution_completion(
+            self.proposal, "technical_assessment", user
+        )
+
     def _answer(self, user, decision_option, comment_text):
+        completion = self._completion(user)
         checklist_factories.AnswerFactory(
-            completion=self.completion,
+            completion=completion,
             question=self.decision,
             user=user,
             answer_data=[str(decision_option.uuid)],
         )
         checklist_factories.AnswerFactory(
-            completion=self.completion,
+            completion=completion,
             question=self.comment,
             user=user,
             answer_data=comment_text,
@@ -76,6 +94,57 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
     def _get(self, user):
         self.client.force_authenticate(user)
         return self.client.get(self.url, {"step": "technical_assessment"})
+
+    def _submit_all(self):
+        models.StepContribution.objects.filter(
+            proposal_step__proposal=self.proposal
+        ).update(status=StepContributionStatuses.SUBMITTED)
+
+    def _show_to_applicant(self, reviews_visible=True):
+        self.call_step.applicant_visible = True
+        self.call_step.save()
+        self.call.reviews_visible_to_submitters = reviews_visible
+        self.call.save()
+
+    def test_applicant_does_not_read_a_contribution_still_being_written(self):
+        self._show_to_applicant()
+        self._answer(self.reviewer_a, self.accepted_option, "Feasible")
+        applicant = self.proposal.created_by
+        response = self._get(applicant)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+        self.client.force_authenticate(applicant)
+        response = self.client.get(
+            factories.ProposalFactory.get_url(self.proposal, action="contributions")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+        contribution = models.StepContribution.objects.get(
+            proposal_step__proposal=self.proposal, contributor=self.reviewer_a
+        )
+        response = self.client.get(
+            factories.ProposalFactory.get_url(self.proposal, action="step-checklist"),
+            {
+                "step": "technical_assessment",
+                "contribution_uuid": contribution.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_applicant_reads_a_submitted_contribution_where_reviews_are_shown(self):
+        self._show_to_applicant(reviews_visible=False)
+        self._answer(self.reviewer_a, self.accepted_option, "Feasible")
+        self._submit_all()
+        applicant = self.proposal.created_by
+        self.assertEqual(self._get(applicant).data, [])
+
+        self.call.reviews_visible_to_submitters = True
+        self.call.save()
+        response = self._get(applicant)
+        self.assertEqual(len(response.data), 1)
+        self.assertTrue(response.data[0]["answers"])
 
     def test_offering_manager_can_retrieve_requested_proposal(self):
         # An offering manager may retrieve a NON-DRAFT proposal that requested
@@ -102,6 +171,27 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         self.client.force_authenticate(manager)
         response = self.client.get(factories.ProposalFactory.get_url(self.proposal))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_offering_manager_cannot_retrieve_draft_canceled_at_round_close(self):
+        # A draft canceled when its round closed was never submitted: it stays
+        # the applicant's, unlike a proposal canceled after submission.
+        manager = self.fixture.offering_fixture.offering_manager
+        self.client.force_authenticate(manager)
+        for submitted_at, expected in (
+            (None, status.HTTP_404_NOT_FOUND),
+            (timezone.now(), status.HTTP_200_OK),
+        ):
+            proposal = factories.ProposalFactory(
+                round=self.proposal.round,
+                state=ProposalStates.CANCELED,
+                submitted_at=submitted_at,
+            )
+            factories.RequestedResourceFactory(
+                proposal=proposal,
+                requested_offering=self.fixture.requested_offering_accepted,
+            )
+            response = self.client.get(factories.ProposalFactory.get_url(proposal))
+            self.assertEqual(response.status_code, expected, submitted_at)
 
     def test_offering_manager_cannot_retrieve_unrequested_proposal(self):
         # A proposal on the same call that did NOT request this manager's
@@ -260,13 +350,13 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         self._link_offering_to_proposal()
         manager = self.fixture.offering_fixture.offering_manager
         checklist_factories.AnswerFactory(
-            completion=self.completion,
+            completion=self._completion(manager),
             question=follow_up,
             user=manager,
             answer_data=False,
         )
         checklist_factories.AnswerFactory(
-            completion=self.completion,
+            completion=self._completion(self.reviewer_a),
             question=follow_up,
             user=self.reviewer_a,
             answer_data=True,
@@ -305,6 +395,9 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         self.call.reviewer_identity_visible_to_submitters = False
         self.call.save()
         self._answer(self.reviewer_a, self.accepted_option, "Feasible")
+        self._submit_all()
+        self.call.reviews_visible_to_submitters = True
+        self.call.save()
         response = self._get(self.proposal.created_by)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(response.data[0]["user_uuid"])
@@ -319,5 +412,8 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         self.call.reviewer_identity_visible_to_submitters = True
         self.call.save()
         self._answer(self.reviewer_a, self.accepted_option, "Feasible")
+        self._submit_all()
+        self.call.reviews_visible_to_submitters = True
+        self.call.save()
         response = self._get(self.proposal.created_by)
         self.assertEqual(response.data[0]["user_full_name"], self.reviewer_a.full_name)

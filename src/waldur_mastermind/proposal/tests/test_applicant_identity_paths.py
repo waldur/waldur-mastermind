@@ -40,6 +40,9 @@ class ApplicantIdentityTestMixin:
         self.proposal = self.fixture.proposal_submitted
         self.applicant = self.proposal.created_by
         self.reviewer = self.fixture.reviewer_1
+        # The call's reviewer role is its pool: the reviewer reads the
+        # proposal through their review of it.
+        factories.ReviewFactory(proposal=self.proposal, reviewer=self.reviewer)
         self.call_manager = self.fixture.call_manager
         self.staff = self.fixture.staff
         self.support = self.fixture.global_support
@@ -152,6 +155,8 @@ class RoundListingApplicantIdentityTest(ApplicantIdentityTestMixin, test.APITest
         own_draft = factories.ProposalFactory(
             round=self.round, state=ProposalStates.DRAFT, created_by=self.reviewer
         )
+        # Their own as its team, as creating it through the API makes them.
+        fixtures.author_as_manager(own_draft)
         detail_rows, _ = self._rows(self.reviewer)
         self.assertEqual(
             detail_rows[own_draft.uuid.hex]["created_by_name"],
@@ -216,7 +221,9 @@ class RoundListingQueryCountTest(ApplicantIdentityTestMixin, test.APITestCase):
         }.items():
             with self.subTest(viewer=label):
                 self._add_proposals(1)
-                # The first request may seed system roles; measure after it.
+                # The first request may create system roles, which are cached
+                # once the next one reads them back; measure after both.
+                self._queries(user)
                 self._queries(user)
                 few = self._queries(user)
                 self._add_proposals(5)
@@ -258,6 +265,8 @@ class ProposalCreatorFilterApplicantIdentityTest(
             state=ProposalStates.SUBMITTED,
             created_by=self.reviewer,
         )
+        # Read as its team; the reviewer's call role grants no proposal.
+        fixtures.author_as_manager(own)
         self.assertEqual(self._uuids(self.reviewer, self.reviewer), {own.uuid.hex})
 
     def test_full_data_viewers_can_filter(self):
@@ -400,6 +409,52 @@ class ChecklistAnswerApplicantIdentityTest(
                 answer = self._answer(user)
                 self.assertEqual(answer["user_name"], self.co_applicant.full_name)
                 self.assertIn("user", answer)
+
+    def test_support_reads_the_answers_but_does_not_answer(self):
+        # Support reads every call, and so the compliance answers of its
+        # proposals; answering stays with those who may edit the proposal.
+        support = structure_factories.UserFactory(is_support=True)
+        self._answer(support)
+        self.client.force_authenticate(support)
+        response = self.client.post(
+            factories.ProposalFactory.get_url(self.proposal, action="submit_answers"),
+            [{"question_uuid": self.question.uuid.hex, "answer_data": False}],
+            format="json",
+        )
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_the_completion_status_is_read_where_the_answers_are(self):
+        # The completion status is the same kind of information as the answers
+        # it is computed from, so it is read by the same people: the applicant
+        # team, the call team and support. Nobody who may not read the answers
+        # may read it, so it is not the applicant's alone.
+        status_url = factories.ProposalFactory.get_url(
+            self.proposal, action="completion_status"
+        )
+        readers = {
+            "call manager": self.call_manager,
+            "staff": self.staff,
+            "support": self.support,
+            "applicant": self.applicant,
+            # The fixture gives the reviewer a live review, so it reads the
+            # answers and the status the same way a call reviewer does.
+            "reviewer": self.reviewer,
+        }
+        for label, user in readers.items():
+            with self.subTest(reader=label):
+                # get() asserts the status.
+                self.get(user, status_url)
+
+        # A user with no role on the proposal at all reads neither.
+        stranger = structure_factories.UserFactory()
+        self.client.force_authenticate(stranger)
+        self.assertIn(
+            self.client.get(status_url).status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
 
 
 class ProposalEventsApplicantIdentityTest(ApplicantIdentityTestMixin, test.APITestCase):
@@ -581,8 +636,13 @@ class WorkflowStepActorApplicantIdentityTest(
 ):
     def setUp(self):
         super().setUp()
+        # A reviewer reads who completed a step only on a step they take part
+        # in, or when the call reveals step actors; the call's applicant
+        # visibility config then still conceals an applicant-side completer.
+        self.call.reviewer_identity_visible_to_submitters = True
+        self.call.save(update_fields=["reviewer_identity_visible_to_submitters"])
         now = timezone.now()
-        self.admin_step = models.ProposalWorkflowStepInstance.objects.create(
+        self.admin_step = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.COMPLETED,
@@ -590,7 +650,7 @@ class WorkflowStepActorApplicantIdentityTest(
             completed_at=now,
             completed_by=self.call_manager,
         )
-        self.award_step = models.ProposalWorkflowStepInstance.objects.create(
+        self.award_step = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="award_response",
             status=WorkflowStepInstanceStatuses.COMPLETED,
@@ -642,3 +702,92 @@ class WorkflowStepActorApplicantIdentityTest(
                     str(completed_by["award_response"]).replace("-", ""),
                     self.co_applicant.uuid.hex,
                 )
+
+
+class ProviderApplicantIdentityTest(ApplicantIdentityTestMixin, test.APITestCase):
+    """The managers of an offering the proposal requested assess it as
+    evaluators: on a call that conceals the applicant they read the proposal,
+    its requested resources and its team as reviewers do, and not its event
+    feed. After the award they still read the project it was awarded."""
+
+    def setUp(self):
+        super().setUp()
+        self.provider = self.fixture.offering_fixture.offering_manager
+        self.requested_resource = factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.fixture.requested_offering_accepted,
+            created_by=self.applicant,
+        )
+        self.detail_url = factories.ProposalFactory.get_url(self.proposal)
+        self.scope_url = self.detail_url
+        event_logger.emit(
+            "Invitation to {invitation_email} for {scope_name} has been deleted.",
+            event_type=EventType.USER_INVITATION_DELETED,
+            event_context={
+                "invitation_email": "invitee@example.com",
+                "scope_name": self.proposal.name,
+            },
+            scopes=[self.proposal],
+        )
+
+    def _rows(self, data):
+        return data["results"] if isinstance(data, dict) else data
+
+    def test_provider_reads_the_applicant_as_reviewers_do(self):
+        self.conceal_identity()
+        detail = self.get(self.provider, self.detail_url)
+        for field in (
+            "created_by",
+            "created_by_name",
+            "created_by_uuid",
+            "applicant_full_name",
+            "applicant_username",
+            "applicant_email",
+        ):
+            self.assertNotIn(field, detail)
+        resources = self._rows(
+            self.get(
+                self.provider,
+                factories.RequestedResourceFactory.get_list_url(self.proposal),
+            )
+        )
+        self.assertEqual(len(resources), 1)
+        self.assertNotIn("created_by", resources[0])
+        self.assertNotIn("created_by_name", resources[0])
+        # The team list is not theirs to read at all.
+        self.client.force_authenticate(self.provider)
+        response = self.client.get(
+            factories.ProposalFactory.get_url(self.proposal, "list_users")
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            self._rows(self.get(self.provider, EVENTS_URL, {"scope": self.scope_url})),
+            [],
+        )
+
+    def test_provider_sees_what_the_call_exposes(self):
+        self.expose_identity()
+        detail = self.get(self.provider, self.detail_url)
+        self.assertEqual(detail["applicant_full_name"], self.applicant.full_name)
+
+    def test_provider_reads_the_awarded_project_but_not_who_accepted(self):
+        self.conceal_identity()
+        project = structure_factories.ProjectFactory()
+        self.proposal.state = ProposalStates.ACCEPTED
+        self.proposal.project = project
+        self.proposal.approved_by = self.applicant
+        self.proposal.save()
+        detail = self.get(self.provider, self.detail_url)
+        self.assertIn(project.uuid.hex, detail["project"])
+        self.assertIn("project_name", detail)
+        self.assertNotIn("approved_by", detail)
+        for viewer in (self.reviewer, self.provider):
+            self.assertNotIn("approved_by", self.get(viewer, self.detail_url))
+        detail = self.get(self.call_manager, self.detail_url)
+        self.assertIn(self.applicant.uuid.hex, detail["approved_by"])
+
+    def test_provider_who_manages_the_call_keeps_full_data(self):
+        self.conceal_identity()
+        self.call.add_user(self.provider, CallRole.MANAGER)
+        detail = self.get(self.provider, self.detail_url)
+        self.assertEqual(detail["applicant_full_name"], self.applicant.full_name)

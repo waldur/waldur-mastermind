@@ -13,11 +13,12 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.structure.notifications import NOTIFICATIONS
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.proposal import models, tasks
+from waldur_mastermind.proposal import enums, models, tasks
 from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     ProposalDisclosureLevels,
+    ProposalStates,
     ReviewerPoolInvitationStatuses,
 )
 
@@ -47,6 +48,7 @@ class AssignmentBatchTestMixin:
         self.round = factories.RoundFactory(call=self.call)
         self.proposal = factories.ProposalFactory(
             round=self.round,
+            state=ProposalStates.SUBMITTED,
             name="Protein folding at scale",
             project_summary="Secret summary of the work",
         )
@@ -313,7 +315,9 @@ class ExtendDeadlineMovesReviewDeadlineTest(AssignmentBatchTestMixin, test.APITe
         # (and its deadline extendable) after the first one is accepted.
         factories.AssignmentItemFactory(
             batch=self.batch,
-            proposal=factories.ProposalFactory(round=self.round),
+            proposal=factories.ProposalFactory(
+                round=self.round, state=ProposalStates.SUBMITTED
+            ),
             status=AssignmentItemStatuses.PENDING,
         )
         self.review = self.item.accept()
@@ -353,6 +357,9 @@ class ExtendDeadlineMovesReviewDeadlineTest(AssignmentBatchTestMixin, test.APITe
 
         self.review.refresh_from_db()
         self.assertEqual(self.review.state, models.Review.States.REJECTED)
+        self.assertEqual(
+            self.review.rejection_cause, enums.ReviewRejectionCauses.EXPIRED
+        )
 
     def test_expiry_task_skips_reviews_without_deadline(self):
         self.round.review_duration_in_days = None
@@ -377,7 +384,15 @@ class AcceptedAssignmentGrantsProposalAccessTest(
         )
         self.url = factories.ProposalFactory.get_url(self.proposal)
 
-    def test_reviewer_cannot_read_proposal_before_accepting(self):
+    def test_reviewer_reads_proposal_while_the_assignment_is_pending(self):
+        # They read the proposal to decide whether to take it.
+        self.client.force_authenticate(self.reviewer_user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_reviewer_cannot_read_proposal_after_declining(self):
+        self.item.status = AssignmentItemStatuses.DECLINED
+        self.item.save(update_fields=["status"])
         self.client.force_authenticate(self.reviewer_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -500,6 +515,8 @@ class ReviewPathReviewerApplicantVisibilityTest(
     def test_call_reviewer_sees_only_exposed_fields(self):
         call_reviewer = structure_factories.UserFactory()
         self.call.add_user(call_reviewer, CallRole.REVIEWER)
+        # The call's reviewer role is its pool; the review grants the proposal.
+        factories.ReviewFactory(proposal=self.proposal, reviewer=call_reviewer)
         self._assert_hidden(call_reviewer)
 
     def test_call_manager_sees_unfiltered_applicant(self):

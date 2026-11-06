@@ -1,0 +1,12 @@
+Dear call manager,
+
+{{ withdrawn_by }} withdrew the proposal "{{ proposal_name }}" from evaluation in the call "{{ call_name }}", round "{{ round_name }}".{% if reason %}
+
+Reason given: {{ reason }}{% endif %}
+
+Its unfinished steps were skipped, reviews still being written were closed and unanswered review assignments lapsed. Nothing is left to do on it.
+
+You can view the proposal here:
+{{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

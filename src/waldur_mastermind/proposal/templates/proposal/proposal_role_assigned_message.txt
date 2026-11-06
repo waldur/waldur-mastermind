@@ -1,0 +1,11 @@
+Dear {{ holder_name }},
+
+You have been assigned as {{ role_name }}{% if is_lead %} (lead){% endif %} for the proposal "{{ proposal_name }}" in call "{{ call_name }}".
+{% if coi_confirmation_required %}
+Before the proposal opens to you, please confirm that you have no conflict of interest with it.
+{% endif %}
+Open the proposal:
+
+{{ proposal_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

@@ -15,6 +15,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import (
+    DEFAULT_CALL_STEPS_MAP,
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     AssignmentSources,
@@ -28,6 +29,8 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerAffiliationTypes,
     ReviewerPoolInvitationStatuses,
+    StepKinds,
+    WorkflowStepInstanceStatuses,
 )
 
 
@@ -504,22 +507,6 @@ class ReviewerPublicationFactory(
     is_excluded_from_matching = False
 
 
-class ReviewerStatsFactory(
-    factory.django.DjangoModelFactory,
-    metaclass=BaseMetaFactory[models.ReviewerStats],
-):
-    class Meta:
-        model = models.ReviewerStats
-
-    reviewer_profile = factory.SubFactory(ReviewerProfileFactory)
-    total_reviews_completed = factory.Faker("random_int", min=0, max=50)
-    total_reviews_declined = factory.Faker("random_int", min=0, max=10)
-    total_reviews_timeout = factory.Faker("random_int", min=0, max=5)
-    average_review_time_days = factory.Faker(
-        "pyfloat", min_value=1.0, max_value=30.0, right_digits=1
-    )
-
-
 class CallCOIConfigurationFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.CallCOIConfiguration],
@@ -728,19 +715,35 @@ class CallWorkflowStepFactory(
         model = models.CallWorkflowStep
 
     call = factory.SubFactory(CallFactory)
-    step = "administrative_check"
+    key = "administrative_check"
     is_enabled = True
 
     @classmethod
     def _create(cls, model_class, *args, **kwargs):
-        # Mandatory steps (e.g. allocation_decision) are pre-seeded on Call
-        # creation; reuse the existing row instead of triggering unique_together.
+        # The default steps are pre-seeded on Call creation; reuse the existing
+        # row instead of tripping unique(call, key). ``step`` and
+        # ``responsible_role`` are the names key and completer had before steps
+        # had a kind.
         call = kwargs.pop("call")
-        step = kwargs.pop("step")
-        instance, _ = model_class.objects.update_or_create(
-            call=call, step=step, defaults=kwargs
-        )
-        return instance
+        key = kwargs.pop("step", None) or kwargs.pop("key")
+        kwargs.pop("key", None)
+        if "responsible_role" in kwargs:
+            kwargs["completer"] = kwargs.pop("responsible_role")
+        instance = model_class.objects.filter(call=call, key=key).first()
+        if instance is not None:
+            order = kwargs.get("order")
+            if order is not None and order != instance.order:
+                model_class.make_room(call.pk, order, exclude_pk=instance.pk)
+            for field, value in kwargs.items():
+                setattr(instance, field, value)
+            instance.save()
+            return instance
+        if key in DEFAULT_CALL_STEPS_MAP and "kind" not in kwargs:
+            return model_class.create_default(call, key, **kwargs)
+        kwargs.setdefault("kind", StepKinds.DECISION)
+        if kwargs.get("order") is not None:
+            model_class.make_room(call.pk, kwargs["order"])
+        return model_class.objects.create(call=call, key=key, **kwargs)
 
     @classmethod
     def get_list_url(cls, call):
@@ -755,3 +758,89 @@ class CallWorkflowStepFactory(
             + workflow_step.uuid.hex
             + "/"
         )
+
+
+class ProposalWorkflowStepInstanceFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProposalWorkflowStepInstance],
+):
+    """A proposal's instance of a call step, named by the step's key.
+
+    An instance created active becomes the proposal's current step, as the
+    engine makes it when it activates one. A default step the call lacks is
+    added disabled, as the migration to call steps did.
+    """
+
+    class Meta:
+        model = models.ProposalWorkflowStepInstance
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        key = kwargs.get("step")
+        if "call_step" not in kwargs and key in DEFAULT_CALL_STEPS_MAP:
+            ensure_default_step(kwargs["proposal"].round.call, key)
+        instance = model_class.objects.create(*args, **kwargs)
+        if instance.status == WorkflowStepInstanceStatuses.ACTIVE:
+            proposal = instance.proposal
+            proposal.current_step = instance
+            proposal.save(update_fields=["current_step"])
+        return instance
+
+
+def point_at_step(proposal, key):
+    """Make the proposal's instance of the call step ``key`` its current step.
+
+    None when the proposal has no such instance (yet): an instance created
+    active later points it there itself.
+    """
+    proposal.current_step = (
+        proposal.workflow_step_instances.filter(step=key).first() if key else None
+    )
+    return proposal.current_step
+
+
+def ensure_default_step(call, key):
+    """The call's step of a default ``key``, added disabled when it lacks one.
+
+    As the migration to call steps did for every call, so a fixture can give
+    a proposal an instance of every default step.
+    """
+    step = models.CallWorkflowStep.objects.filter(call=call, key=key).first()
+    if step is None:
+        step = models.CallWorkflowStep.create_default(call, key, is_enabled=False)
+    return step
+
+
+class StepContributionFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.StepContribution],
+):
+    class Meta:
+        model = models.StepContribution
+
+    contributor = factory.SubFactory(structure_factories.UserFactory)
+
+
+def contribution_completion(proposal, key, user, checklist=None):
+    """The completion of a step's form kept for ``user``'s own contribution.
+
+    The proposal's instance of the step ``key`` is made active when it has
+    none yet.
+    """
+    instance = proposal.workflow_step_instances.filter(step=key).first()
+    if instance is None:
+        instance = ProposalWorkflowStepInstanceFactory(
+            proposal=proposal,
+            step=key,
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+    contribution, _ = models.StepContribution.objects.get_or_create(
+        proposal_step=instance,
+        contributor=user,
+        requested_offering=None,
+        review=None,
+    )
+    return contribution.ensure_checklist_completion(
+        checklist or instance.call_step.checklist
+    )

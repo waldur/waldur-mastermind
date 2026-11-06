@@ -8,6 +8,7 @@ from waldur_mastermind.proposal.affinity_scoring import (
     compute_affinity,
     compute_idf,
     compute_keyword_affinity,
+    compute_suggestions_for_call_configurable,
     compute_tf,
     compute_tfidf_affinity,
     compute_tfidf_vector,
@@ -16,7 +17,10 @@ from waldur_mastermind.proposal.affinity_scoring import (
     get_reviewer_text,
     tokenize,
 )
-from waldur_mastermind.proposal.enums import ExpertiseProficiencyLevels
+from waldur_mastermind.proposal.enums import (
+    ExpertiseProficiencyLevels,
+    ProposalStates,
+)
 from waldur_mastermind.proposal.tests import factories
 
 
@@ -217,6 +221,66 @@ class CombinedAffinityTest(TestCase):
 
         score = compute_affinity(self.reviewer, self.proposal, self.config)
         self.assertIn("affinity_score", score)
+
+
+class ProposalSuggestionsTest(TestCase):
+    """A reviewer is suggested for the proposal they match best."""
+
+    SUMMARIES = {
+        "cryo": "Cryo-EM density map refinement of membrane protein structures",
+        "climate": "Ocean circulation and sea ice in a coupled climate model",
+        "stars": "Turbulent convection in the envelopes of massive stars",
+        "qec": "Surface code decoders for quantum error correction",
+    }
+
+    def setUp(self):
+        self.call = factories.CallFactory()
+        self.round = factories.RoundFactory(call=self.call)
+        self.proposals = {
+            key: factories.ProposalFactory(
+                round=self.round,
+                name=summary,
+                project_summary=summary,
+                description="",
+                state=ProposalStates.IN_REVIEW,
+            )
+            for key, summary in self.SUMMARIES.items()
+        }
+        self.reviewer = factories.ReviewerProfileFactory(
+            is_published=True,
+            available_for_reviews=True,
+            biography="Structural biologist refining cryo-EM density maps "
+            "of membrane protein structures",
+        )
+        factories.ReviewerExpertiseFactory(
+            reviewer_profile=self.reviewer, expertise_keyword="cryo-em"
+        )
+
+    def suggestion(self):
+        return models.ReviewerSuggestion.objects.filter(
+            call=self.call, reviewer=self.reviewer
+        ).first()
+
+    def test_a_specialist_is_suggested_in_a_call_spanning_several_fields(self):
+        compute_suggestions_for_call_configurable(self.call, min_threshold=0.1)
+
+        suggestion = self.suggestion()
+        self.assertIsNotNone(suggestion)
+        best = suggestion.top_matching_proposals[0]
+        self.assertEqual(best["uuid"], str(self.proposals["cryo"].uuid))
+        # The score shown is the best match, not an average over proposals
+        # the reviewer has nothing to do with.
+        self.assertEqual(suggestion.affinity_score, best["affinity"])
+        self.assertGreaterEqual(suggestion.affinity_score, 0.1)
+
+    def test_a_reviewer_matching_only_a_cancelled_proposal_is_not_suggested(self):
+        cryo = self.proposals["cryo"]
+        cryo.state = ProposalStates.CANCELED
+        cryo.save()
+
+        compute_suggestions_for_call_configurable(self.call, min_threshold=0.1)
+
+        self.assertIsNone(self.suggestion())
 
 
 class MatchingConfigurationTest(TestCase):

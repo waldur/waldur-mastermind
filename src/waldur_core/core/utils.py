@@ -247,12 +247,14 @@ def send_mail(
     fail_silently: bool = False,
     connection=None,
     headers: dict[str, str] | None = None,
+    cc: list[str] | None = None,
 ) -> int:
     """Send one message.
 
     :param headers: extra message headers, e.g. the ``Message-ID`` /
         ``In-Reply-To`` / ``References`` trio that lets a mail client group
         several notifications about the same object into one thread.
+    :param cc: addresses copied on the message, seen by every recipient.
     """
     from waldur_core.logging.models import EmailLog
 
@@ -263,6 +265,7 @@ def send_mail(
         body=body,
         to=to,
         from_email=from_email,
+        cc=cc or None,
         bcc=bcc,
         reply_to=[reply_to],
         connection=connection,
@@ -285,8 +288,10 @@ def send_mail(
 
     result = email.send(fail_silently=fail_silently)
 
-    # Extend emails with BCC recipients if provided
+    # Extend emails with Cc and BCC recipients if provided
     logged_emails = list(to)
+    if cc:
+        logged_emails.extend(cc)
     if bcc is not None:
         logged_emails.extend(bcc)
 
@@ -314,17 +319,66 @@ def _unique_recipients(recipient_list) -> list:
     return result
 
 
-def _send_single_message(event_type, subject, text_message, html_message, to, **kwargs):
-    """Send one message to everyone in ``to``; return them, or [] if it failed."""
+def _send_single_message(
+    event_type, subject, text_message, html_message, to, cc=None, **kwargs
+):
+    """Send one message to everyone in ``to``, copying ``cc``; return them
+    all, or [] if it failed."""
     if not to:
         return []
     logger.info(f"About to send {event_type} notification to {to} in one message")
     try:
-        send_mail(subject, text_message, to=to, html_message=html_message, **kwargs)
+        send_mail(
+            subject,
+            text_message,
+            to=to,
+            html_message=html_message,
+            cc=cc or None,
+            **kwargs,
+        )
     except Exception:
         logger.exception(f"Failed to send {event_type} notification to {to}")
         return []
-    return list(to)
+    return list(to) + list(cc or [])
+
+
+def split_cc(to, cc):
+    """``(to, cc)`` without blanks or repeats, compared case-insensitively:
+    an address in To is not copied again, and with nobody in To the copied
+    addresses are addressed instead."""
+    to = _unique_recipients(to)
+    addressed = {str(r).lower() for r in to}
+    cc = [r for r in _unique_recipients(cc or []) if str(r).lower() not in addressed]
+    if not to:
+        return cc, []
+    return to, cc
+
+
+def render_mail(app, event_type, context, template_variant=None):
+    """``(subject, text, html)`` of a notification as ``broadcast_mail``
+    renders it: the deployment's own templates where it has them."""
+    subject = format_text(
+        find_template_from_registry(app, event_type, "subject.txt", template_variant),
+        context,
+    )
+    text_message = format_text(
+        find_template_from_registry(app, event_type, "message.txt", template_variant),
+        context,
+    )
+    html_message = render_to_string(
+        find_template_from_registry(app, event_type, "message.html", template_variant),
+        context,
+    )
+    return subject, text_message, html_message
+
+
+def notification_enabled(app, event_type) -> bool | None:
+    """Whether ``broadcast_mail`` sends the notification at all: None when it
+    is not registered, False when it is switched off."""
+    from .models import Notification
+
+    notification = Notification.objects.filter(key=f"{app}.{event_type}").first()
+    return None if notification is None else notification.enabled
 
 
 def broadcast_mail(
@@ -339,6 +393,8 @@ def broadcast_mail(
     template_variant=None,
     headers=None,
     single_message=False,
+    cc=None,
+    rendered=None,
 ):
     """
     Shorthand to format email message from template file and sent it to all recipients.
@@ -371,11 +427,17 @@ def broadcast_mail(
     :param single_message: send one message with every recipient in To, so
         each sees who else received it, instead of a private copy each. Each
         mailbox is addressed once, compared case-insensitively.
-    :returns: the recipients the mail was handed to the mail server for.
-        Sending is isolated per recipient and failures are only logged, so a
-        caller that records who was told must record these, not
-        ``recipient_list``. Empty when the notification is unregistered or
-        disabled. A bounce after the server accepted the mail is not seen here.
+    :param cc: addresses copied on the message. Implies ``single_message``;
+        an address already in To is not copied again (``split_cc``).
+    :param rendered: ``(subject, text, html)`` worded by the caller -- a
+        call's own wording of the mail -- instead of the templates; the
+        notification's switch still decides whether it is sent.
+    :returns: the recipients the mail was handed to the mail server for,
+        copied ones included. Sending is isolated per recipient and failures
+        are only logged, so a caller that records who was told must record
+        these, not ``recipient_list``. Empty when the notification is
+        unregistered or disabled. A bounce after the server accepted the mail
+        is not seen here.
     """
     from .models import Notification
 
@@ -397,27 +459,22 @@ def broadcast_mail(
         return []
 
     if notification.enabled:
-        subject_template_name = find_template_from_registry(
-            app, event_type, "subject.txt", template_variant
-        )
-        text_template_name = find_template_from_registry(
-            app, event_type, "message.txt", template_variant
-        )
-        html_template_name = find_template_from_registry(
-            app, event_type, "message.html", template_variant
-        )
+        if rendered is not None:
+            subject, text_message, html_message = rendered
+        else:
+            subject, text_message, html_message = render_mail(
+                app, event_type, context, template_variant
+            )
 
-        subject = format_text(subject_template_name, context)
-        text_message = format_text(text_template_name, context)
-        html_message = render_to_string(html_template_name, context)
-
-        if single_message:
+        if single_message or cc:
+            to, copied = split_cc(recipient_list, cc)
             return _send_single_message(
                 event_type,
                 subject,
                 text_message,
                 html_message,
-                _unique_recipients(recipient_list),
+                to,
+                cc=copied,
                 filename=filename,
                 attachment=attachment,
                 content_type=content_type,

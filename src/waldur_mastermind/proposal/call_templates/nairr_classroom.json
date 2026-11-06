@@ -1,0 +1,663 @@
+{
+  "schema_version": 3,
+  "preset": {
+    "programme": "nsf-nairr-pilot",
+    "process": "Classroom allocation",
+    "reference_url": "https://nairrpilot.org/opportunities/education-call",
+    "reference_title": "NAIRR Pilot classroom call",
+    "category": "programme",
+    "tags": [
+      "AI",
+      "rolling",
+      "education",
+      "classroom"
+    ],
+    "summary": "Modelled on the NAIRR Pilot classroom call: course allocations, continuously open, checked for eligibility and resource fit."
+  },
+  "call": {
+    "name": "Classroom allocation",
+    "description": "Modelled on the NAIRR Pilot classroom call: allocations for courses with AI content, continuously open. Each request is checked for the course's alignment and readiness -- the instructor or a teaching assistant gives first-line support to students -- and for the fit of the requested resources, then decided by the call managers. The allocation covers the course's dates (three, six or twelve months) and ends with a short teaching outcome report.",
+    "reference_code": "",
+    "external_url": null,
+    "reviewer_identity_visible_to_submitters": false,
+    "reviews_visible_to_submitters": false,
+    "fixed_duration_in_days": null,
+    "proposal_slug_template": null,
+    "order_author": "applicant",
+    "evaluation_start": "on_submission",
+    "carry_over_drafts": true,
+    "publish_results": "immediately",
+    "undecided_at_round_completion": "refuse",
+    "allowed_duration_months": [
+      3,
+      6,
+      12
+    ],
+    "target_decision_days": 14
+  },
+  "proposal_roles": [],
+  "workflow_steps": [
+    {
+      "key": "eligibility_check",
+      "kind": "decision",
+      "name": "Eligibility check",
+      "description": "The call managers check that the instructor teaches at an eligible institution, that the course has AI content, and that the course is ready: dates, syllabus, and who supports the students. They may ask for changes.",
+      "outcome_set": "eligibility",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 5,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "applicant_visible": true,
+      "status_labels": {
+        "applicant": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "eligible": "Under evaluation",
+            "ineligible": "Not eligible"
+          }
+        },
+        "evaluators": {
+          "changes_requested": "Changes requested",
+          "outcomes": {
+            "ineligible": "Not eligible"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 0
+    },
+    {
+      "key": "resource_fit",
+      "kind": "assessment",
+      "name": "Resource fit",
+      "description": "The team of each requested resource checks that it suits the course and the number of students: accepted, conditionally accepted or rejected. A rejected resource rejects the request.",
+      "outcome_set": "per_offering",
+      "completer": "offering_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 5,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "requested_offering_team",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "per_requested_offering": true,
+      "delegable_to": "offering_team",
+      "status_labels": {
+        "evaluators": {
+          "active": "Under resource fit check",
+          "completed": "Resource fit submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 1
+    },
+    {
+      "key": "allocation_decision",
+      "kind": "decision",
+      "name": "Allocation decision",
+      "description": "The call managers decide the request, and the instructor is told the result at once.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 4,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [
+        "resource_fit"
+      ],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "is_allocation_decision": true,
+      "include_award_response": false,
+      "allocation_time": "on_decision",
+      "status_labels": {
+        "evaluators": {
+          "outcomes": {
+            "approved": "Awarded",
+            "declined": "Not awarded"
+          }
+        },
+        "applicant": {
+          "outcomes": {
+            "approved": "Awarded",
+            "declined": "Not awarded"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "offering_teams",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 2
+    },
+    {
+      "key": "final_report",
+      "kind": "applicant_action",
+      "name": "Teaching outcome report",
+      "description": "The instructor submits a short teaching outcome report once the allocation ends.",
+      "outcome_set": "submitted",
+      "completer": "applicant",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 30,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": {
+        "name": "Teaching outcome report",
+        "checklist_type": "workflow_step"
+      },
+      "applicant_visible": true,
+      "phase": "closing",
+      "project_end_offset_days": 0,
+      "status_labels": {
+        "applicant": {
+          "active": "Pending teaching outcome report",
+          "completed": "Teaching outcome report submitted"
+        },
+        "evaluators": {
+          "active": "Pending teaching outcome report",
+          "completed": "Teaching outcome report submitted"
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_started",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "applicant",
+          "days_before": 7,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 3
+    },
+    {
+      "key": "final_report_approval",
+      "kind": "decision",
+      "name": "Teaching outcome report approval",
+      "description": "The call managers approve the teaching outcome report, which completes the project, or ask the applicant to change it.",
+      "outcome_set": "approval",
+      "completer": "call_manager",
+      "completer_proposal_role": null,
+      "on_negative": "reject",
+      "is_enabled": true,
+      "duration_in_days": 30,
+      "transition_mode": "automatic_on_completion",
+      "contributor_source": "none",
+      "input_steps": [],
+      "assigns_roles": [],
+      "criteria": [],
+      "checklist": null,
+      "allows_change_requests": true,
+      "applicant_visible": true,
+      "phase": "closing",
+      "status_labels": {
+        "applicant": {
+          "active": "Teaching outcome report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        },
+        "evaluators": {
+          "active": "Teaching outcome report submitted",
+          "outcomes": {
+            "approved": "Project completed"
+          }
+        }
+      },
+      "notification_rules": [
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "responsible_role",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "deadline_approaching",
+          "recipient": "call_managers",
+          "days_before": 1,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "responsible_role",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_expired",
+          "recipient": "call_managers",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        },
+        {
+          "trigger": "step_completed",
+          "recipient": "applicant",
+          "days_before": null,
+          "is_enabled": true,
+          "notified_proposal_roles": [],
+          "proposal_role": null
+        }
+      ],
+      "order": 4
+    }
+  ],
+  "checklists": [
+    {
+      "name": "Teaching outcome report",
+      "checklist_type": "workflow_step",
+      "description": "What a course did with its allocation once the course has ended.",
+      "questions": [
+        {
+          "description": "Teaching outcomes",
+          "required": true,
+          "question_type": "rich_text",
+          "user_guidance": "Describe how the students used the resources, how many took part and what the course achieved with them.",
+          "rich_text_char_limit": 5000,
+          "rich_text_toolbar_level": "minimal"
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "key": "happy_path",
+      "name": "Happy path",
+      "description": "Eligible, the resources fit the course and the allocation is approved; the final report closes the project.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "resource_fit",
+            "outcome": "feasible"
+          },
+          {
+            "step": "allocation_decision",
+            "outcome": "approved"
+          },
+          {
+            "final_report": true
+          },
+          {
+            "step": "final_report",
+            "outcome": "submitted"
+          },
+          {
+            "step": "final_report_approval",
+            "outcome": "approved"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "accepted"
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "eligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_submitted"
+          }
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report",
+            "status": "completed",
+            "outcome": "submitted"
+          }
+        },
+        {
+          "step_status": {
+            "step": "final_report_approval",
+            "status": "completed",
+            "outcome": "approved"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_at_eligibility_check",
+      "name": "Rejected at the eligibility check",
+      "description": "The proposal is found ineligible: it is rejected, the applicant is told and no other step runs.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "ineligible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "ineligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "resource_fit",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "eligibility_check"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "proposal_decided"
+          }
+        }
+      ]
+    },
+    {
+      "key": "changes_requested_at_eligibility_check",
+      "name": "Changes requested at the eligibility check",
+      "description": "The proposal goes back to the applicant for changes, is resubmitted and found eligible.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "request_changes": true,
+            "message": "Please complete the project description."
+          },
+          {
+            "submit_changes": true
+          },
+          {
+            "step": "eligibility_check",
+            "outcome": "eligible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "in_review"
+        },
+        {
+          "notified": {
+            "actor": "applicant",
+            "trigger": "changes_requested",
+            "step": "eligibility_check"
+          }
+        },
+        {
+          "step_status": {
+            "step": "eligibility_check",
+            "status": "completed",
+            "outcome": "eligible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "resource_fit",
+            "status": "active"
+          }
+        }
+      ]
+    },
+    {
+      "key": "rejected_at_resource_fit",
+      "name": "Rejected at the resource fit",
+      "description": "No requested resource fits the course: the proposal is rejected.",
+      "request": {
+        "offerings": 2,
+        "actions": [
+          {
+            "step": "eligibility_check",
+            "outcome": "eligible"
+          },
+          {
+            "step": "resource_fit",
+            "outcome": "infeasible"
+          }
+        ]
+      },
+      "assertions": [
+        {
+          "proposal_state": "rejected"
+        },
+        {
+          "step_status": {
+            "step": "resource_fit",
+            "status": "completed",
+            "outcome": "infeasible"
+          }
+        },
+        {
+          "step_status": {
+            "step": "allocation_decision",
+            "status": "pending"
+          }
+        },
+        {
+          "ends_at": "resource_fit"
+        }
+      ]
+    }
+  ]
+}

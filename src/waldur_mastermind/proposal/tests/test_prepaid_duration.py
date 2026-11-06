@@ -330,7 +330,7 @@ class ProjectDurationTest(PrepaidFixture, test.APITestCase):
         proposal_round.save()
         models.CallWorkflowStep.objects.update_or_create(
             call=proposal_round.call,
-            step="allocation_decision",
+            key="allocation_decision",
             defaults={"allocation_time": AllocationTimes.FIXED_DATE},
         )
         return proposal_round.allocation_date.date()

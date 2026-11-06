@@ -1,0 +1,22 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear call manager,</p>
+    <p>
+        {{ withdrawn_by }} withdrew the proposal "{{ proposal_name }}" from evaluation in the call "{{ call_name }}", round "{{ round_name }}".
+        {% if reason %}<br>Reason given: {{ reason }}{% endif %}
+    </p>
+    <p>
+        Its unfinished steps were skipped, reviews still being written were closed and unanswered review assignments lapsed. Nothing is left to do on it.
+    </p>
+    <p>
+        You can view the proposal here:<br>
+        <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+    </p>
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>

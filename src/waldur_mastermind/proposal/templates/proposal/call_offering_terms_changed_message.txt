@@ -1,0 +1,13 @@
+Hello,
+
+{{ changed_by }} changed what call "{{ call_name }}" asks of your offering "{{ offering_name }}", which you accepted into the call. The terms now:
+{% for rule in rules %}
+- {{ rule.component_type }}: {% if rule.min_per_proposal is not None %}at least {{ rule.min_per_proposal }}{% endif %}{% if rule.max_per_proposal is not None %} at most {{ rule.max_per_proposal }}{% endif %}{% if rule.default_amount is not None %}, {{ rule.default_amount }} by default{% endif %} per proposal
+{% endfor %}{% for pool in pools %}
+- {{ pool.component_type }}: {{ pool.offered_total }} in all{% if pool.round_name %} in round {{ pool.round_name }}{% endif %}
+{% endfor %}
+If the call now asks more than your offering can give, contact the call's managers.
+
+Your calls: {{ calls_url }}
+
+This is an automated message from {{ site_name }}.

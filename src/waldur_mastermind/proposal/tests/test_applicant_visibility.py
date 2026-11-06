@@ -500,6 +500,8 @@ class PanelMemberApplicantVisibilityTest(test.APITestCase):
         other = factories.ProposalFactory(
             round=self.proposal.round, state=self.proposal.state
         )
+        # The call's reviewer role is its pool; the review grants the proposal.
+        factories.ReviewFactory(proposal=other, reviewer=user)
         data = self._get(user, factories.ProposalFactory.get_url(other))
         self.assertNotIn("applicant_email", data)
         self.assertNotIn("applicant_civil_number", data)

@@ -9,9 +9,9 @@ import datetime
 from importlib import import_module
 
 from dateutil.relativedelta import relativedelta
-from django.apps import apps as django_apps
 from django.core.files.base import ContentFile
 from django.db import connection, transaction
+from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status, test
@@ -35,7 +35,7 @@ from waldur_mastermind.proposal.enums import (
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
-from waldur_mastermind.proposal.tests import factories, fixtures
+from waldur_mastermind.proposal.tests import factories, fixtures, migration_helpers
 
 backfill_migration = import_module(
     "waldur_mastermind.proposal.migrations.0089_awardedresource"
@@ -70,7 +70,7 @@ class AwardedResourcesBase(test.APITestCase):
         self.proposal = self.fixture.proposal
         self.proposal.project = None
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
         # Only the requests made below.
         self.proposal.requestedresource_set.all().delete()
@@ -94,19 +94,19 @@ class AwardedResourcesBase(test.APITestCase):
 
         factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
         factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
-        self.admin_instance = models.ProposalWorkflowStepInstance.objects.create(
+        self.admin_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
             started_at=timezone.now(),
         )
-        models.ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
         )
         self.call_manager = self.fixture.call_manager
-        self.applicant = self.proposal.created_by
+        self.applicant = fixtures.author_as_manager(self.proposal)
 
     def _start_allocation(self):
         workflow_service.complete_step(
@@ -181,7 +181,7 @@ class PrefillTest(AwardedResourcesBase):
         self.proposal.workflow_step_instances.all().delete()
         self.proposal.state = ProposalStates.SUBMITTED
         self.proposal.save()
-        models.ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="allocation_decision",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -397,6 +397,10 @@ class EditAwardTest(AwardedResourcesBase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_a_reviewer_may_not_edit(self):
+        # A reviewer of the proposal reads the award, and still may not edit it.
+        factories.ReviewFactory(
+            proposal=self.awarded.proposal, reviewer=self.fixture.reviewer_1
+        )
         response = self._patch_json(
             {"limits": {"cpu": 999}}, user=self.fixture.reviewer_1
         )
@@ -869,7 +873,7 @@ class AwardVisibilityTest(AwardedResourcesBase):
         factories.CallWorkflowStepFactory(
             call=self.call, step="award_response", is_enabled=True
         )
-        models.ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="award_response",
             status=WorkflowStepInstanceStatuses.PENDING,
@@ -884,7 +888,7 @@ class AwardVisibilityTest(AwardedResourcesBase):
 
     def test_a_decision_parked_for_manual_advance_follows_applicant_visibility(self):
         models.CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         ).update(transition_mode="manual", applicant_visible=False)
         self._decide()
 
@@ -893,7 +897,7 @@ class AwardVisibilityTest(AwardedResourcesBase):
         )
 
         models.CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         ).update(applicant_visible=True)
 
         self.assertEqual(self._get(self.applicant).status_code, status.HTTP_200_OK)
@@ -955,7 +959,8 @@ class AwardVisibilityTest(AwardedResourcesBase):
 
     def test_the_manager_of_an_awarded_offering_sees_the_proposal_and_award(self):
         # Nothing was requested on this offering: the call manager moved the
-        # item there, so its manager is the one who will provision it.
+        # item there, so its manager is the one who will provision it -- once
+        # the award is decided, not while it is drafted.
         awarded = self._awarded()
         awarded.requested_offering = self.other_requested_offering
         awarded.plan = self.other_plan
@@ -964,7 +969,12 @@ class AwardVisibilityTest(AwardedResourcesBase):
         self.other_offering.add_user(manager, OfferingRole.MANAGER)
 
         self.client.force_authenticate(manager)
-        response = self.client.get(factories.ProposalFactory.get_url(self.proposal))
+        url = factories.ProposalFactory.get_url(self.proposal)
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_404_NOT_FOUND)
+        self._decide()
+
+        self.client.force_authenticate(manager)
+        response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get(self._list_url())
@@ -1044,7 +1054,7 @@ class HeldDecisionAwardTest(AwardedResourcesBase):
         # Even where the call shows the decision step to applicants: until
         # the round publishes, the decision is still being made to them.
         models.CallWorkflowStep.objects.filter(
-            call=self.call, step="allocation_decision"
+            call=self.call, key="allocation_decision"
         ).update(transition_mode="manual", applicant_visible=True)
 
         self.assertEqual(
@@ -1062,13 +1072,27 @@ class HeldDecisionAwardTest(AwardedResourcesBase):
         self.assertEqual(self._get(self.applicant).status_code, status.HTTP_200_OK)
 
 
+@override_settings(MIGRATION_MODULES={})
 class BackfillMigrationTest(AwardedResourcesBase):
     def _backfill(self):
-        backfill_migration.prefill_open_allocations(django_apps, None)
+        # Against the schema the migration was written for, where the
+        # proposal names its step by key.
+        apps = migration_helpers.migrate_back([("proposal", "0089_awardedresource")])
+        backfill_migration.prefill_open_allocations(apps, None)
+        migration_helpers.migrate_forward()
         self.proposal.refresh_from_db()
 
     def _at(self, step, project=None):
-        self.proposal.workflow_step = step
+        self.admin_instance.status = WorkflowStepInstanceStatuses.COMPLETED
+        self.admin_instance.save(update_fields=["status"])
+        factories.ensure_default_step(self.call, step)
+        self.proposal.workflow_step_instances.filter(step=step).delete()
+        factories.ProposalWorkflowStepInstanceFactory(
+            proposal=self.proposal,
+            step=step,
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
         self.proposal.project = project
         self.proposal.save()
 

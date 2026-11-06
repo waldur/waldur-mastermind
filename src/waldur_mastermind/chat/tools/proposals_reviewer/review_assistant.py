@@ -233,7 +233,8 @@ class ReviewAssistantTool(BaseTool):
                 "project_summary": proposal.project_summary[:1000]
                 if proposal.project_summary
                 else "",
-                "requested_duration_months": get_proposal_duration_months(proposal),
+                "requested_duration_months": proposal.requested_duration_months
+                or get_proposal_duration_months(proposal),
                 "fixed_duration_days": call.fixed_duration_in_days if call else None,
             },
             "call_name": call.name if call else "",

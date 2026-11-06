@@ -9,7 +9,7 @@ related API endpoints.
 from unittest.mock import patch
 
 from ddt import ddt
-from rest_framework import status, test
+from rest_framework import exceptions, status, test
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
@@ -20,6 +20,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal import views
 from waldur_mastermind.proposal.enums import CallStates, ProposalStates
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
@@ -202,10 +203,20 @@ class ProposalComplianceAPITest(ProposalComplianceTestMixin, test.APITestCase):
         # Verify questions
         self.assertEqual(len(data["questions"]), 3)
 
-    def test_creator_without_manager_role_can_view_checklist(self):
-        # Regression: the author reads the compliance answers they submitted
-        # even without the ProposalRole.MANAGER grant (preset/imported
-        # proposals, or a co-author who never held MANAGE_PROPOSAL).
+    def test_a_member_without_the_manager_role_can_view_checklist(self):
+        # The whole applicant team reads the compliance answers it submitted,
+        # members who never held MANAGE_PROPOSAL included.
+        creator = structure_factories.UserFactory()
+        proposal = proposal_factories.ProposalFactory(
+            round=self.fixture.round, created_by=creator
+        )
+        proposal.add_user(creator, ProposalRole.MEMBER)
+        url = proposal_factories.ProposalFactory.get_url(proposal) + "checklist/"
+        self.client.force_authenticate(creator)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_an_author_off_the_team_cannot_view_checklist(self):
         creator = structure_factories.UserFactory()
         proposal = proposal_factories.ProposalFactory(
             round=self.fixture.round, created_by=creator
@@ -213,7 +224,7 @@ class ProposalComplianceAPITest(ProposalComplianceTestMixin, test.APITestCase):
         url = proposal_factories.ProposalFactory.get_url(proposal) + "checklist/"
         self.client.force_authenticate(creator)
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_get_compliance_checklist_without_checklist(self):
         """Test getting checklist for proposal without compliance checklist."""
@@ -357,9 +368,16 @@ class ProposalComplianceAPITest(ProposalComplianceTestMixin, test.APITestCase):
 
     def test_reviewer_can_access_compliance_checklist(self):
         """Test that reviewers can access compliance checklist (same permission as viewing proposal)."""
+        # Submitted: the call's reviewers do not read drafts
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
             + "checklist/"
+        )
+        # The call's reviewer role is its pool; the review grants the proposal.
+        proposal_factories.ReviewFactory(
+            proposal=self.fixture.proposal, reviewer=self.fixture.reviewer_1
         )
         self.client.force_authenticate(self.fixture.reviewer_1)
 
@@ -371,13 +389,18 @@ class ProposalComplianceAPITest(ProposalComplianceTestMixin, test.APITestCase):
 
     def test_unauthorized_answer_submission(self):
         """Test that unauthorized users cannot submit answers."""
+        # Submitted: the call's reviewers do not read drafts
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
             + "submit_answers/"
         )
-        self.client.force_authenticate(
-            self.fixture.reviewer_1
-        )  # Reviewer can see proposal but not manage it
+        # A reviewer of the proposal sees it but may not manage it.
+        proposal_factories.ReviewFactory(
+            proposal=self.fixture.proposal, reviewer=self.fixture.reviewer_1
+        )
+        self.client.force_authenticate(self.fixture.reviewer_1)
 
         response = self.client.post(url, [], format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -583,24 +606,26 @@ class ProposalSubmissionWithComplianceTest(
 ):
     """Test proposal submission with compliance requirements."""
 
-    def test_can_submit_regardless_of_compliance_completion(self):
-        """Test that proposals can be submitted regardless of compliance completion (non-blocking)."""
-        # Try to submit proposal without completing checklist
+    def test_unanswered_required_questions_block_submission(self):
         can_submit, error = self.fixture.proposal.can_submit()
-        self.assertTrue(can_submit)  # Compliance doesn't block submission
-        self.assertIsNone(error)
+        self.assertFalse(can_submit)
+        self.assertIn("compliance checklist", str(error))
+
+    def test_submit_action_refuses_unanswered_required_questions(self):
+        with self.assertRaises(exceptions.ValidationError) as raised:
+            views.validate_compliance_answered(self.fixture.proposal)
+        self.assertIn("compliance checklist", str(raised.exception))
 
     def test_can_submit_with_completed_compliance(self):
-        """Test that proposals can be submitted with completed compliance (same as incomplete)."""
-        # Complete the compliance checklist
         self._complete_compliance_checklist()
 
         can_submit, error = self.fixture.proposal.can_submit()
-        self.assertTrue(can_submit)  # Still submittable - compliance doesn't block
+        self.assertTrue(can_submit)
         self.assertIsNone(error)
+        views.validate_compliance_answered(self.fixture.proposal)
 
     def test_proposal_submission_validation_in_serializer(self):
-        """Test that proposal serializer includes compliance status."""
+        """The form reads why it cannot submit yet from the proposal."""
         url = proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
         self.client.force_authenticate(self.fixture.proposal_creator)
 
@@ -608,18 +633,9 @@ class ProposalSubmissionWithComplianceTest(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         data = response.json()
-        self.assertIn("compliance_status", data)
-        self.assertIn("can_submit", data)
-
-        # Compliance status shows completion but doesn't block submission
-        compliance_status = data["compliance_status"]
-        can_submit = data["can_submit"]
-
-        self.assertFalse(compliance_status["is_completed"])
-        self.assertTrue(
-            can_submit["can_submit"]
-        )  # Can always submit - compliance is for evaluation
-        self.assertIsNone(can_submit["error"])
+        self.assertFalse(data["compliance_status"]["is_completed"])
+        self.assertFalse(data["can_submit"]["can_submit"])
+        self.assertIn("compliance checklist", data["can_submit"]["error"])
 
     def test_proposal_without_checklist_can_submit(self):
         """Test that proposals without compliance checklist can be submitted normally."""
@@ -1049,16 +1065,26 @@ class AssignedReviewerComplianceAccessTest(
         )
         self.assertFalse(self.completion.answers.filter(user=self.reviewer).exists())
 
-    def test_live_review_holder_cannot_read_review_logic_or_status(self):
+    def test_live_review_holder_cannot_read_review_logic(self):
+        # The review logic -- which answers trigger a review, and the review's
+        # own state -- stays closed. The completion status is not review logic:
+        # it is computed from the answers the holder already reads, so it is
+        # read alongside them (see
+        # test_live_review_holder_reads_completion_status).
         self.client.force_authenticate(self.reviewer)
         for action in (
             "checklist_review/",
             "completion_review_status/",
-            "completion_status/",
         ):
             with self.subTest(action=action):
                 response = self.client.get(self.base_url + action)
                 self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_live_review_holder_reads_completion_status(self):
+        # Same gate as the answers it is computed from.
+        self.client.force_authenticate(self.reviewer)
+        response = self.client.get(self.base_url + "completion_status/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_applicant_call_manager_and_staff_unchanged(self):
         for user in (
@@ -1073,13 +1099,16 @@ class AssignedReviewerComplianceAccessTest(
                 )
 
     def test_review_view_of_compliance_checklist_is_for_call_managers(self):
+        # Submitted: the call's reviewers do not read drafts at all
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         for user, expected in (
             (self.fixture.call_manager, status.HTTP_200_OK),
             (self.fixture.call_organizer_user, status.HTTP_200_OK),
             (self.fixture.global_support, status.HTTP_200_OK),
             (self.fixture.staff, status.HTTP_200_OK),
             (self.fixture.proposal_creator, status.HTTP_403_FORBIDDEN),
-            (self.fixture.reviewer_1, status.HTTP_403_FORBIDDEN),
+            (self.reviewer, status.HTTP_403_FORBIDDEN),
         ):
             self.client.force_authenticate(user)
             for action in ("checklist_review/", "completion_review_status/"):

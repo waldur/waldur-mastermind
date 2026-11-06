@@ -18,8 +18,16 @@ from waldur_core.structure import models
 from waldur_core.structure.tests import factories, fixtures
 
 
+def grant_end_date_requests():
+    """The project roles ask for a later end date (PROJECT.REQUEST_END_DATE_CHANGE),
+    as permissions.yaml grants them; tests do not load it."""
+    for role in (ProjectRole.ADMIN, ProjectRole.MANAGER, ProjectRole.MEMBER):
+        role.add_permission(PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE)
+
+
 class ProjectEndDateChangeRequestCreateTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.list_url = factories.ProjectEndDateChangeRequestFactory.get_list_url()
@@ -45,11 +53,13 @@ class ProjectEndDateChangeRequestCreateTest(test.APITestCase):
             1,
         )
 
-    def test_user_with_update_project_permission_cannot_create_request(self):
-        """User with UPDATE_PROJECT should edit directly, not create request."""
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+    def test_user_who_sets_the_end_date_cannot_create_request(self):
+        """A holder of PROJECT.SET_END_DATE sets it directly, not by request."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.list_url, self.get_valid_payload())
@@ -135,6 +145,7 @@ class ProjectEndDateChangeRequestCreateTest(test.APITestCase):
 
 class ProjectEndDateChangeRequestListTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.request = factories.ProjectEndDateChangeRequestFactory(
@@ -145,9 +156,11 @@ class ProjectEndDateChangeRequestListTest(test.APITestCase):
         self.list_url = factories.ProjectEndDateChangeRequestFactory.get_list_url()
 
     def test_owner_can_list_requests_for_organization_projects(self):
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.list_url)
@@ -208,6 +221,7 @@ class ProjectEndDateChangeRequestListTest(test.APITestCase):
 
 class ProjectEndDateChangeRequestRetrieveTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.request = factories.ProjectEndDateChangeRequestFactory(
             project=self.fixture.project,
@@ -229,11 +243,14 @@ class ProjectEndDateChangeRequestRetrieveTest(test.APITestCase):
 
 class ProjectEndDateChangeRequestApproveRejectTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         self.request = factories.ProjectEndDateChangeRequestFactory(
             project=self.project,
@@ -273,11 +290,13 @@ class ProjectEndDateChangeRequestApproveRejectTest(test.APITestCase):
         self.project.refresh_from_db()
         self.assertNotEqual(self.project.end_date, self.request.requested_end_date)
 
-    def test_project_manager_with_update_permission_can_approve(self):
-        """Project manager with UPDATE_PROJECT can approve."""
-        ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROJECT)
+    def test_project_manager_with_set_end_date_permission_can_approve(self):
+        """Approving takes the permission that sets the date directly."""
+        ProjectRole.MANAGER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: ProjectRole.MANAGER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: ProjectRole.MANAGER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         # Request created by member, manager approves
         self.request.created_by = self.fixture.member
@@ -286,8 +305,21 @@ class ProjectEndDateChangeRequestApproveRejectTest(test.APITestCase):
         response = self.client.post(self.approve_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_updating_the_project_does_not_approve(self):
+        """PROJECT.UPDATE used to approve, writing a date its holder could not
+        set directly."""
+        ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        self.addCleanup(
+            lambda: ProjectRole.MANAGER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+        )
+        self.request.created_by = self.fixture.member
+        self.request.save()
+        self.client.force_authenticate(self.fixture.manager)
+        response = self.client.post(self.approve_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_member_without_update_permission_cannot_approve(self):
-        """Project member without UPDATE_PROJECT cannot approve."""
+        """A project member does not approve."""
         self.client.force_authenticate(self.fixture.member)
         response = self.client.post(self.approve_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -330,17 +362,21 @@ class ProjectEndDateChangeRequestApproveRejectTest(test.APITestCase):
 class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
     """A personal access token acts within its scopes and bindings.
 
-    Approving or rejecting needs PROJECT.UPDATE among the token's scopes, on
-    the project or its organization, as changing the end date directly does.
+    Approving or rejecting needs PROJECT.SET_END_DATE among the token's
+    scopes, on the project or its organization, as changing the end date
+    directly does.
     A token bound elsewhere neither sees a project's requests nor files one.
     """
 
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         self.owner = self.fixture.owner
         self.manager = self.fixture.manager
@@ -366,12 +402,12 @@ class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
         self.request.refresh_from_db()
         self.assertEqual(self.request.state, ReviewStates.PENDING)
 
-    def test_token_without_update_scope_cannot_approve(self):
+    def test_token_without_end_date_scope_cannot_approve(self):
         use_pat(self.client, self.owner, PermissionEnum.LIST_PROJECTS.value)
         self.assertEqual(self.review("approve").status_code, status.HTTP_403_FORBIDDEN)
         self.assert_still_pending()
 
-    def test_token_without_update_scope_cannot_reject(self):
+    def test_token_without_end_date_scope_cannot_reject(self):
         use_pat(self.client, self.owner, PermissionEnum.LIST_PROJECTS.value)
         self.assertEqual(self.review("reject").status_code, status.HTTP_403_FORBIDDEN)
         self.assert_still_pending()
@@ -381,14 +417,14 @@ class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
         use_pat(
             self.client,
             self.owner,
-            PermissionEnum.UPDATE_PROJECT.value,
+            PermissionEnum.SET_PROJECT_END_DATE.value,
             bindings=[self.other_customer],
         )
         self.assertEqual(self.review("approve").status_code, status.HTTP_404_NOT_FOUND)
         self.assert_still_pending()
 
-    def test_token_with_update_scope_can_approve(self):
-        use_pat(self.client, self.owner, PermissionEnum.UPDATE_PROJECT.value)
+    def test_token_with_end_date_scope_can_approve(self):
+        use_pat(self.client, self.owner, PermissionEnum.SET_PROJECT_END_DATE.value)
         self.assertEqual(self.review("approve").status_code, status.HTTP_200_OK)
         self.request.refresh_from_db()
         self.assertEqual(self.request.state, ReviewStates.APPROVED)
@@ -397,7 +433,7 @@ class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
         use_pat(
             self.client,
             self.owner,
-            PermissionEnum.UPDATE_PROJECT.value,
+            PermissionEnum.SET_PROJECT_END_DATE.value,
             bindings=[self.fixture.customer],
         )
         self.assertEqual(self.review("reject").status_code, status.HTTP_200_OK)
@@ -410,7 +446,7 @@ class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
         use_pat(
             self.client,
             self.owner,
-            PermissionEnum.UPDATE_PROJECT.value,
+            PermissionEnum.SET_PROJECT_END_DATE.value,
             bindings=[self.project],
         )
         self.assertEqual(self.review("approve").status_code, status.HTTP_200_OK)
@@ -532,6 +568,7 @@ class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
 
 class ProjectEndDateChangeRequestCancelTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.request = factories.ProjectEndDateChangeRequestFactory(
@@ -585,6 +622,9 @@ class ProjectEndDateChangeRequestCancelTest(test.APITestCase):
 
 @override_settings(task_always_eager=True)
 class ProjectEndDateChangeRequestNotificationTest(test.APITransactionTestCase):
+    def setUp(self):
+        grant_end_date_requests()
+
     @mock.patch(
         "waldur_core.structure.handlers.tasks.send_project_end_date_change_request_notification"
     )
@@ -615,9 +655,11 @@ class ProjectEndDateChangeRequestNotificationTest(test.APITransactionTestCase):
         """Approved notification task is scheduled when request is approved."""
         mock_task.delay = mock.Mock()
         self.fixture = fixtures.ProjectFixture()
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         request = factories.ProjectEndDateChangeRequestFactory(
             project=self.fixture.project,
@@ -640,9 +682,11 @@ class ProjectEndDateChangeRequestNotificationTest(test.APITransactionTestCase):
         """Rejected notification task is scheduled when request is rejected."""
         mock_task.delay = mock.Mock()
         self.fixture = fixtures.ProjectFixture()
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         request = factories.ProjectEndDateChangeRequestFactory(
             project=self.fixture.project,
@@ -661,6 +705,7 @@ class ProjectEndDateChangeRequestNotificationTest(test.APITransactionTestCase):
 
 class ProjectEndDateChangeRequestEventTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.request = factories.ProjectEndDateChangeRequestFactory(
             project=self.fixture.project,
@@ -692,6 +737,7 @@ class ProjectEndDateChangeRequestEventTest(test.APITestCase):
 
 class ProjectEndDateUpdatedAtTest(test.APITestCase):
     def setUp(self):
+        grant_end_date_requests()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.url = factories.ProjectFactory.get_url(self.project)
@@ -724,9 +770,11 @@ class ProjectEndDateUpdatedAtTest(test.APITestCase):
 
     def test_end_date_updated_at_set_on_approval(self):
         """end_date_updated_at is set when end_date changes via change request approval."""
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_PROJECT_END_DATE)
         self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+            lambda: CustomerRole.OWNER.delete_permission(
+                PermissionEnum.SET_PROJECT_END_DATE
+            )
         )
         change_request = factories.ProjectEndDateChangeRequestFactory(
             project=self.project,

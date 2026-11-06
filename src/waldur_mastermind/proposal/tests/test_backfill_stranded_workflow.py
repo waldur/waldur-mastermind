@@ -1,28 +1,33 @@
 """Tests for the 0064 stranded-workflow backfill.
 
-The migration function is exercised directly against the live app registry
-(django_test_migrations is not available), mirroring
-marketplace/tests/test_enable_posix_account_backfill.py.
+The migration function runs against the schema it was written for: the test
+database is migrated back to before steps had a kind, the function runs with
+the historical models, and the database is migrated forward again, so the
+proposals are read back through the current models.
 """
 
-from django.apps import apps as live_apps
+from django.test import override_settings
 from rest_framework import test
 
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import (
-    WORKFLOW_STEPS,
     ProposalStates,
     WorkflowStepInstanceStatuses,
 )
 from waldur_mastermind.proposal.migrations._backfill_stranded_workflow_instances import (
+    CATALOGUE_STEPS,
     backfill_stranded_workflow_instances,
 )
-from waldur_mastermind.proposal.tests import factories, fixtures
+from waldur_mastermind.proposal.tests import factories, fixtures, migration_helpers
 
 ACTIVE = WorkflowStepInstanceStatuses.ACTIVE
 PENDING = WorkflowStepInstanceStatuses.PENDING
 
+# Any state before steps had a kind has the columns the function uses.
+HISTORICAL = [("proposal", "0089_awardedresource")]
 
+
+@override_settings(MIGRATION_MODULES={})
 class BackfillStrandedWorkflowTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
@@ -32,20 +37,26 @@ class BackfillStrandedWorkflowTest(test.APITestCase):
 
     def _make_stranded(self, state=ProposalStates.SUBMITTED):
         proposal = factories.ProposalFactory(round=self.round, state=state)
+        proposal.current_step = None
+        proposal.save(update_fields=["current_step"])
         proposal.workflow_step_instances.all().delete()
-        proposal.workflow_step = None
-        proposal.save(update_fields=["workflow_step"])
         return proposal
+
+    def _backfill(self, times=1):
+        apps = migration_helpers.migrate_back(HISTORICAL)
+        for _ in range(times):
+            backfill_stranded_workflow_instances(apps, None)
+        migration_helpers.migrate_forward()
 
     def test_backfills_submitted_proposal_into_in_review(self):
         proposal = self._make_stranded()
 
-        backfill_stranded_workflow_instances(live_apps, None)
+        self._backfill()
 
         proposal.refresh_from_db()
         self.assertEqual(proposal.state, ProposalStates.IN_REVIEW)
         self.assertIsNotNone(proposal.workflow_step)
-        self.assertEqual(proposal.workflow_step_instances.count(), len(WORKFLOW_STEPS))
+        self.assertEqual(proposal.workflow_step_instances.count(), len(CATALOGUE_STEPS))
         self.assertEqual(
             proposal.workflow_step_instances.filter(status=ACTIVE).count(), 1
         )
@@ -55,7 +66,7 @@ class BackfillStrandedWorkflowTest(test.APITestCase):
         models.CallWorkflowStep.objects.filter(call=self.call).delete()
         proposal = self._make_stranded()
 
-        backfill_stranded_workflow_instances(live_apps, None)
+        self._backfill()
 
         proposal.refresh_from_db()
         self.assertEqual(proposal.state, ProposalStates.IN_REVIEW)
@@ -71,7 +82,7 @@ class BackfillStrandedWorkflowTest(test.APITestCase):
         models.CallWorkflowStep.objects.filter(call=self.call).update(is_enabled=False)
         proposal = self._make_stranded()
 
-        backfill_stranded_workflow_instances(live_apps, None)
+        self._backfill()
 
         proposal.refresh_from_db()
         self.assertEqual(proposal.state, ProposalStates.IN_REVIEW)
@@ -79,11 +90,10 @@ class BackfillStrandedWorkflowTest(test.APITestCase):
     def test_is_idempotent(self):
         proposal = self._make_stranded()
 
-        backfill_stranded_workflow_instances(live_apps, None)
-        backfill_stranded_workflow_instances(live_apps, None)
+        self._backfill(times=2)
 
         proposal.refresh_from_db()
-        self.assertEqual(proposal.workflow_step_instances.count(), len(WORKFLOW_STEPS))
+        self.assertEqual(proposal.workflow_step_instances.count(), len(CATALOGUE_STEPS))
         self.assertEqual(
             proposal.workflow_step_instances.filter(status=ACTIVE).count(), 1
         )
@@ -92,11 +102,11 @@ class BackfillStrandedWorkflowTest(test.APITestCase):
         proposal = factories.ProposalFactory(
             round=self.round, state=ProposalStates.SUBMITTED
         )
-        models.ProposalWorkflowStepInstance.objects.create(
+        factories.ProposalWorkflowStepInstanceFactory(
             proposal=proposal, step="administrative_check", status=PENDING
         )
 
-        backfill_stranded_workflow_instances(live_apps, None)
+        self._backfill()
 
         proposal.refresh_from_db()
         # Untouched: still exactly the one instance we added.
@@ -105,7 +115,7 @@ class BackfillStrandedWorkflowTest(test.APITestCase):
     def test_skips_terminal_proposal(self):
         proposal = self._make_stranded(state=ProposalStates.ACCEPTED)
 
-        backfill_stranded_workflow_instances(live_apps, None)
+        self._backfill()
 
         proposal.refresh_from_db()
         self.assertEqual(proposal.state, ProposalStates.ACCEPTED)

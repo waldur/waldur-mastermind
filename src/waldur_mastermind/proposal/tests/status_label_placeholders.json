@@ -1,0 +1,16 @@
+{
+  "comment": "Which status label texts the step dialog accepts, by audience: counts as placeholders, from a fixed list, and none on the applicant's labels. The same cases are pinned in waldur-homeport (src/proposals/workflow/statusLabelPlaceholders.fixture.json); change both together.",
+  "audiences": ["applicant", "evaluators", "call_team", "offering_team"],
+  "placeholders": ["invited", "accepted", "declined", "submitted", "expected", "reports_submitted", "reports_expected"],
+  "cases": [
+    {"audience": "call_team", "text": "Under Scientific Evaluation - {invited} reviewers invited, {accepted} accepted, {declined} declined, {submitted} reviews submitted", "valid": true},
+    {"audience": "evaluators", "text": "Pending {reports_expected} Individual Reports, {reports_submitted} submitted", "valid": true},
+    {"audience": "offering_team", "text": "{submitted} of {expected} assessed", "valid": true},
+    {"audience": "evaluators", "text": "Under Technical Assessment", "valid": true},
+    {"audience": "call_team", "text": "{reviewers} invited", "valid": false},
+    {"audience": "call_team", "text": "{} invited", "valid": false},
+    {"audience": "evaluators", "text": "{Submitted} reviews", "valid": false},
+    {"audience": "applicant", "text": "{submitted} reviews in", "valid": false},
+    {"audience": "applicant", "text": "Under evaluation", "valid": true}
+  ]
+}

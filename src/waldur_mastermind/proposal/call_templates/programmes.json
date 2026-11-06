@@ -1,0 +1,42 @@
+{
+  "dirac-rac": {
+    "name": "DiRAC resource allocation calls",
+    "organization": "DiRAC (STFC)",
+    "organization_url": "https://dirac.ac.uk",
+    "reference_url": "https://dirac.ac.uk/getting-access/",
+    "summary": "The calls of the UK's DiRAC HPC facility for theoretical astronomy, particle and nuclear physics, allocated by its Resource Allocation Committee."
+  },
+  "doe-alcc": {
+    "name": "ASCR Leadership Computing Challenge",
+    "organization": "U.S. Department of Energy, Office of Science",
+    "organization_url": "https://science.osti.gov/ascr",
+    "reference_url": "https://science.osti.gov/ascr/Facilities/Accessing-ASCR-Facilities/ALCC",
+    "summary": "The annual ALCC call for time on the DOE leadership computing facilities, for work of high priority to the DOE mission."
+  },
+  "esrf-beamtime": {
+    "name": "ESRF beamtime proposals",
+    "organization": "European Synchrotron Radiation Facility (ESRF)",
+    "organization_url": "https://www.esrf.fr",
+    "reference_url": "https://www.esrf.fr/home/UsersAndScience/Apply-for-beamtime/proposal-types-and-deadlines.html",
+    "summary": "Beamtime at a synchrotron: standard proposals reviewed by panels twice a year, and a rolling route for rapid access."
+  },
+  "eurohpc-ju-access": {
+    "name": "EuroHPC JU access calls",
+    "organization": "EuroHPC Joint Undertaking",
+    "organization_url": "https://eurohpc-ju.europa.eu",
+    "summary": "The access calls of the EuroHPC Joint Undertaking: allocations on the EuroHPC supercomputers, AI Factories and quantum computers, from short benchmark and development access to peer-reviewed extreme-scale projects."
+  },
+  "nsf-access": {
+    "name": "NSF ACCESS allocations",
+    "organization": "U.S. National Science Foundation ACCESS",
+    "organization_url": "https://allocations.access-ci.org",
+    "reference_url": "https://allocations.access-ci.org/project-types",
+    "summary": "Allocations on the cyberinfrastructure NSF ACCESS coordinates, in project types from small Explore projects to semi-annual Maximize requests."
+  },
+  "nsf-nairr-pilot": {
+    "name": "NAIRR Pilot",
+    "organization": "U.S. National Science Foundation",
+    "reference_url": "https://nairrpilot.org/opportunities/allocations",
+    "summary": "The National AI Research Resource Pilot: research, start-up and classroom allocations on AI computing resources from government and industry providers."
+  }
+}

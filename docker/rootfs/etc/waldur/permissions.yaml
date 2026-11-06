@@ -132,6 +132,8 @@
     - OPENSTACK_INSTANCE.MANAGE_POWER
     - OPENSTACK_INSTANCE.MANAGE
     - MATRIX_ROOM.CREATE
+    - PROJECT.SET_END_DATE
+    - RESOURCE.PULL
 
 - role: CUSTOMER.MANAGER
   is_active: true
@@ -209,6 +211,7 @@
     - SERVICE_ACCOUNT.MANAGE
     - PROJECT.COURSE_ACCOUNT_MANAGE
     - SERVICE_PROVIDER.OPENSTACK_IMAGE_MANAGEMENT
+    - RESOURCE.PULL
 
 - role: PROJECT.ADMIN
   description: Project administrator
@@ -238,6 +241,10 @@
     - OPENSTACK_INSTANCE.CONSOLE_ACCESS
     - OPENSTACK_INSTANCE.MANAGE_POWER
     - OPENSTACK_INSTANCE.MANAGE
+    - PROJECT.REQUEST_END_DATE_CHANGE
+    - RESOURCE.REQUEST_END_DATE_CHANGE
+    - RESOURCE.REQUEST_LIMITS_CHANGE
+    - RESOURCE.PULL
 
 - role: PROJECT.MANAGER
   description: Project manager
@@ -276,6 +283,10 @@
     - OPENSTACK_INSTANCE.CONSOLE_ACCESS
     - OPENSTACK_INSTANCE.MANAGE_POWER
     - OPENSTACK_INSTANCE.MANAGE
+    - PROJECT.REQUEST_END_DATE_CHANGE
+    - RESOURCE.REQUEST_END_DATE_CHANGE
+    - RESOURCE.REQUEST_LIMITS_CHANGE
+    - RESOURCE.PULL
 
 - role: OFFERING.MANAGER
   description: Offering manager
@@ -315,6 +326,15 @@
     - RESOURCE.REJECT_BOOKING_REQUEST
     - OFFERING.MANAGE_BACKEND_RESOURCES
     - OFFERING.ACCEPT_CALL_REQUEST
+    - RESOURCE.PULL
+
+# Holds no marketplace permission: the offering's part in a call -- a
+# technical assessment, say -- can be handed to its holders by the offering's
+# managers, and the call's own rules decide what they read and write there.
+- role: OFFERING.EVALUATOR
+  description: Offering evaluator
+  scope: offering
+  permissions: []
 
 - role: CALL.REVIEWER
   description: Call reviewer
@@ -379,6 +399,56 @@
     - RESOURCE.LIST
     - PROJECT.LIST
     - ORDER.CREATE
+    - PROJECT.REQUEST_END_DATE_CHANGE
+    - RESOURCE.REQUEST_END_DATE_CHANGE
+    - RESOURCE.REQUEST_LIMITS_CHANGE
+
+# The team of a project awarded through a call (the call's role mapping hands
+# these out). Each acts as its template for notifications and lookups, but
+# what was awarded -- the project's and its resources' names and
+# descriptions, limits, plan, dates, new orders -- is changed only through the
+# call's own workflow, so none of them holds those permissions.
+- role: PROJECT.PRINCIPAL_INVESTIGATOR
+  description: Principal investigator
+  scope: project
+  template: PROJECT.MANAGER
+  permissions:
+    - PROJECT.LIST
+    - PROJECT.VIEW_TEAM
+    - PROJECT.CREATE_PERMISSION
+    - PROJECT.UPDATE_PERMISSION
+    - PROJECT.DELETE_PERMISSION
+    - PROJECT.REVIEW_MEMBERSHIP
+    - INVITATION.LIST
+    - ORDER.LIST
+    - RESOURCE.LIST
+    - RESOURCE.PULL
+    - RESOURCE.CREATE_PERMISSION
+    - RESOURCE.UPDATE_PERMISSION
+    - RESOURCE.DELETE_PERMISSION
+    - RESOURCE_PROJECT.CREATE_PERMISSION
+    - RESOURCE_PROJECT.UPDATE_PERMISSION
+    - RESOURCE_PROJECT.DELETE_PERMISSION
+
+- role: PROJECT.CO_INVESTIGATOR
+  description: Co-investigator
+  scope: project
+  template: PROJECT.ADMIN
+  permissions:
+    - PROJECT.LIST
+    - PROJECT.VIEW_TEAM
+    - ORDER.LIST
+    - RESOURCE.LIST
+    - RESOURCE.PULL
+
+- role: PROJECT.COLLABORATOR
+  description: Collaborator
+  scope: project
+  template: PROJECT.MEMBER
+  permissions:
+    - PROJECT.LIST
+    - PROJECT.VIEW_TEAM
+    - RESOURCE.LIST
 
 - role: CUSTOMER.READER
   description: Organization reader
@@ -391,6 +461,7 @@
     - RESOURCE.LIST
     - ORDER.LIST
     - INVITATION.LIST
+    - CALL.VIEW_RESULTS
     - INVOICE.LIST
 
 - role: CUSTOMER.CALL_ORGANIZER

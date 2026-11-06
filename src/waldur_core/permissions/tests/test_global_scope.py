@@ -261,8 +261,9 @@ class GlobalScopeApiTest(test.APITestCase):
 
     def test_support_user_with_both_permissions_can_set_a_project_end_date(self):
         support = factories.UserFactory(is_support=True)
+        # Setting the end date is its own permission, no longer PROJECT.DELETE.
         assign_global_role(
-            support, PermissionEnum.UPDATE_PROJECT, PermissionEnum.DELETE_PROJECT
+            support, PermissionEnum.UPDATE_PROJECT, PermissionEnum.SET_PROJECT_END_DATE
         )
         self.client.force_authenticate(support)
         with freeze_time("2020-01-01"):

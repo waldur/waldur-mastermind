@@ -1,0 +1,1 @@
+{{ call_name }}: a round opened, with {{ offering_name }}

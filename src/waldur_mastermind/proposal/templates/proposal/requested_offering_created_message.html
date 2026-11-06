@@ -1,0 +1,28 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Call {{ call_name }} requests your offering {{ offering_name }}</title>
+</head>
+<body>
+    <p>Hello,</p>
+
+    <p><strong>{{ call_managing_organisation }}</strong> asks to include the offering "<strong>{{ offering_name }}</strong>" of {{ provider_name }} in the call "<strong>{{ call_name }}</strong>".{% if requested_by %} The request was made by {{ requested_by }}.{% endif %}</p>
+
+    {% if message %}
+    <p><strong>Their message:</strong><br>{{ message|linebreaksbr }}</p>
+    {% endif %}
+
+    <p>Accept or reject the request:<br>
+    <a href="{{ requests_url }}">{{ requests_url }}</a></p>
+
+    {% if team_steps %}
+    <p>The call's workflow hands work to the offering's team in these steps: <strong>{{ team_steps }}</strong>. The offering's managers do it; the call cannot invite them.</p>
+    {% if needs_offering_managers %}
+    <p><strong>The offering has no offering manager yet</strong>, so nobody could do that work. Add offering managers on the offering's Team tab:<br>
+    <a href="{{ team_url }}">{{ team_url }}</a></p>
+    {% endif %}
+    {% endif %}
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>

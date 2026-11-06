@@ -9,6 +9,7 @@ from rest_framework import status, test
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_mastermind.proposal import call_transfer, tasks, utils, workflow_service
 from waldur_mastermind.proposal.enums import (
+    CallStates,
     EvaluationStart,
     ProposalStates,
     WorkflowStepInstanceStatuses,
@@ -49,7 +50,7 @@ class EvaluationStartTestBase(test.APITestCase):
             workflow_step__call=self.call
         ).delete()
         CallWorkflowStepNotificationRule.objects.create(
-            workflow_step=self.call.workflow_steps.get(step="administrative_check"),
+            workflow_step=self.call.workflow_steps.get(key="administrative_check"),
             trigger="step_started",
             recipient="call_managers",
         )
@@ -112,6 +113,15 @@ class OnSubmissionTest(EvaluationStartTestBase):
         self.assertEqual(proposal.state, ProposalStates.IN_REVIEW)
         self.assertIsNotNone(proposal.submitted_at)
         self.assertGreaterEqual(proposal.submitted_at, before)
+
+    def test_the_applicant_reads_when_it_was_submitted(self):
+        url = factories.ProposalFactory.get_url(self.proposal)
+        self.client.force_authenticate(self.proposal.created_by)
+        self.assertIsNone(self.client.get(url).data["submitted_at"])
+
+        proposal = self.submit()
+        response = self.client.get(url)
+        self.assertEqual(response.data["submitted_at"], proposal.submitted_at)
 
     def test_task_leaves_on_submission_proposals_alone(self):
         self.submit()
@@ -256,6 +266,53 @@ class AtCutoffTaskTest(EvaluationStartTestBase):
             self.proposal.uuid, ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW
         )
         self.assertEqual(notify.call_count, 2)
+
+
+class AtCutoffCloseRoundTest(EvaluationStartTestBase):
+    """Closing a round early is its cut-off: the held proposals start then."""
+
+    def setUp(self):
+        super().setUp()
+        self.set_evaluation_start(EvaluationStart.AT_CUTOFF)
+        self.call.state = CallStates.ACTIVE
+        self.call.save(update_fields=["state"])
+        self.submit()
+        self.dispatch.reset_mock()
+
+    def close_round(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.RoundFactory.get_url(self.call, self.round, "close")
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(url)
+
+    def test_closing_the_round_starts_its_held_proposals(self):
+        response = self.close_round()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.IN_REVIEW)
+        self.assertEqual(
+            self.instances().get(step="administrative_check").status,
+            WorkflowStepInstanceStatuses.ACTIVE,
+        )
+        self.assertEqual(len(self.step_started_dispatches()), 1)
+
+    def test_closing_a_round_leaves_other_rounds_alone(self):
+        other_round = factories.RoundFactory(
+            call=self.call,
+            start_time=timezone.now() - timedelta(days=30),
+            cutoff_time=timezone.now() - timedelta(days=20),
+        )
+        other = factories.ProposalFactory(round=other_round)
+        other.add_user(other.created_by, ProposalRole.MANAGER)
+        other.submitted_at = timezone.now() - timedelta(days=25)
+        other.state = ProposalStates.SUBMITTED
+        other.save(update_fields=["submitted_at", "state"])
+        workflow_service.create_step_instances(other)
+
+        self.close_round()
+
+        other.refresh_from_db()
+        self.assertEqual(other.state, ProposalStates.SUBMITTED)
 
 
 class EvaluationStartSettingTest(test.APITestCase):

@@ -8,27 +8,24 @@ from kombu import Exchange, Queue
 
 from waldur_core.core import WaldurExtension
 
+# An optional suffix on every queue name, so stacks sharing one broker -- the
+# dev stacks of one machine, say -- each consume only their own tasks. Unset
+# in a deployment, which keeps the plain names its workers listen on.
+CELERY_QUEUE_SUFFIX = os.environ.get("WALDUR_CELERY_QUEUE_SUFFIX", "")
+TASKS_QUEUE = f"tasks-durable{CELERY_QUEUE_SUFFIX}"
+HEAVY_QUEUE = f"heavy-durable{CELERY_QUEUE_SUFFIX}"
+BACKGROUND_QUEUE = f"background-durable{CELERY_QUEUE_SUFFIX}"
+
 CELERY_TASK_QUEUES = [
     Queue(
-        "tasks-durable",
-        exchange=Exchange("tasks-durable", type="topic"),
-        routing_key="tasks-durable",
+        name,
+        exchange=Exchange(name, type="topic"),
+        routing_key=name,
         queue_arguments={"x-queue-type": "quorum"},
-    ),
-    Queue(
-        "heavy-durable",
-        exchange=Exchange("heavy-durable", type="topic"),
-        routing_key="heavy-durable",
-        queue_arguments={"x-queue-type": "quorum"},
-    ),
-    Queue(
-        "background-durable",
-        exchange=Exchange("background-durable", type="topic"),
-        routing_key="background-durable",
-        queue_arguments={"x-queue-type": "quorum"},
-    ),
+    )
+    for name in (TASKS_QUEUE, HEAVY_QUEUE, BACKGROUND_QUEUE)
 ]
-CELERY_TASK_DEFAULT_QUEUE = "tasks-durable"
+CELERY_TASK_DEFAULT_QUEUE = TASKS_QUEUE
 CELERY_TASK_ROUTES = ("waldur_core.server.celeryconf.PriorityRouter",)
 CELERY_TRACK_STARTED = True
 CELERY_SEND_EVENTS = True

@@ -1,0 +1,10 @@
+Dear {{ proposal_creator_name }},
+
+Your access request "{{ proposal_name }}" was still a draft when its submission period ended. It has not been canceled: it moved on, unchanged, to the next review period.
+
+- Submissions open: {{ round_start_date }}
+- Submit by: {{ deadline_date }}
+
+Submit it to have it reviewed: {{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

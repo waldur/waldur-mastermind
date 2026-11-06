@@ -1,0 +1,24 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Dear {{ recipient_name }},</p>
+{% if event == "delegated" %}
+<p>{{ actor_name }} handed you "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>".{% if due_at %} It is due on {{ due_at }}.{% endif %}</p>
+<p>Open the proposal to accept or decline it:</p>
+{% elif event == "accepted" %}
+<p>{{ actor_name }} accepted "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>" that you handed to them.</p>
+<p>Open the proposal:</p>
+{% elif event == "declined" %}
+<p>{{ actor_name }} declined "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>" that you handed to them. It is yours again: write it, or hand it to someone else.</p>
+<p>Open the proposal:</p>
+{% else %}
+<p>{{ actor_name }} took back "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>"; it is no longer yours to write.</p>
+<p>The proposal:</p>
+{% endif %}
+<a href="{{ proposal_url }}">{{ proposal_url }}</a>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>

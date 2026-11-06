@@ -5,6 +5,7 @@ from django.utils import timezone
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal import reviewer_stats
 from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
@@ -13,7 +14,6 @@ from waldur_mastermind.proposal.models import (
     AssignmentItem,
     RequestedResource,
     Review,
-    ReviewerStats,
 )
 
 logger = logging.getLogger(__name__)
@@ -139,17 +139,14 @@ proposals_reviewer in the same search_tools batch.\
                 }
             )
 
-        stats = None
-        try:
-            reviewer_stats = ReviewerStats.objects.get(reviewer_profile__user=user)
-            stats = {
-                "total_completed": reviewer_stats.total_reviews_completed,
-                "total_declined": reviewer_stats.total_reviews_declined,
-                "avg_score": reviewer_stats.average_score_given,
-                "avg_review_time_days": reviewer_stats.average_review_time_days,
-            }
-        except ReviewerStats.DoesNotExist:
-            pass
+        figures = reviewer_stats.of_user(user)
+        stats = {
+            "total_completed": figures["total_reviews_completed"],
+            "total_declined": figures["total_reviews_declined"],
+            "total_timed_out": figures["total_reviews_timeout"],
+            "avg_score": figures["average_score_given"],
+            "avg_review_time_days": figures["average_review_time_days"],
+        }
 
         in_review = [r for r in review_items if r["state"] == Review.States.IN_REVIEW]
         submitted = [r for r in review_items if r["state"] == Review.States.SUBMITTED]

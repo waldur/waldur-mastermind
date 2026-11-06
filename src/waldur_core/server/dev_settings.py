@@ -32,6 +32,11 @@ CELERY_RESULT_BACKEND = os.environ.get(
 STATIC_ROOT = "static"
 
 
+# Where mail goes: a local catcher such as Mailpit, which the dev stack runs
+# per slot, so a sent mail can be read and is logged like a real one.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "25"))
+
 DEFAULT_FROM_EMAIL = "noreply@example.com"
 DEFAULT_REPLY_TO_EMAIL = "support@example.com"
 

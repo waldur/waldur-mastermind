@@ -1,0 +1,13 @@
+<html>
+<body>
+    <p>Hello {{ recipient_name }},</p>
+    <p>Open work of your offering teams on calls for proposals:</p>
+    <ul>
+    {% for slot in slots %}
+        <li>{{ slot.offering_name }} / {{ slot.call_name }}: {{ slot.step_name }} of "<a href="{{ slot.proposal_url }}">{{ slot.proposal_name }}</a>" &mdash; {{ slot.holder }}{% if slot.due_at %}, due {{ slot.due_at }}{% endif %}{% if slot.overdue %} <strong>(overdue)</strong>{% endif %}</li>
+    {% endfor %}
+    </ul>
+    <p><a href="{{ calls_url }}">Your calls</a></p>
+    <p><em>This is an automated message from {{ site_name }}.</em></p>
+</body>
+</html>

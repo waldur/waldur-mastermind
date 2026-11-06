@@ -24,6 +24,7 @@ from waldur_core.logging import (
     event_logger,
     models,
 )
+from waldur_core.logging.log import event_context_for
 from waldur_core.permissions.enums import BINDABLE_TYPE_MAP
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,15 @@ class EventSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
     class Meta:
         model = models.Event
         fields = ("uuid", "created", "event_type", "message", "context")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if "context" in data:
+            request = self.context.get("request")
+            data["context"] = event_context_for(
+                getattr(request, "user", None), data["context"]
+            )
+        return data
 
 
 class BaseHookSerializer(serializers.HyperlinkedModelSerializer):

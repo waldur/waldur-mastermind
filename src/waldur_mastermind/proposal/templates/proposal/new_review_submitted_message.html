@@ -11,9 +11,16 @@
     <p>
         <strong>Review summary:</strong><br>
         - Reviewer: {{ reviewer_name }}<br>
-        - Submission date: {{ review_date }}<br>
+        - Submission date: {{ submission_date }}<br>
         - Score: {{ score }}/{{ max_score }}
     </p>
+    {% if criteria %}
+    <p>
+        <strong>Scores per criterion:</strong><br>
+        {% for c in criteria %}- {{ c.name }}: {% if c.score %}{{ c.score }}/{{ max_score }}{% else %}not rated{% endif %}<br>
+        {% endfor %}
+    </p>
+    {% endif %}
 
     <p>
         <strong>Review Progress:</strong><br>

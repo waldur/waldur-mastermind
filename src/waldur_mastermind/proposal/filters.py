@@ -1,27 +1,38 @@
 import django_filters
-from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.enums import ReviewStates as CoreReviewStates
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CallRole
-from waldur_core.permissions.utils import get_scope_ids
 from waldur_mastermind.proposal.enums import (
-    WORKFLOW_STEPS_CHOICES,
     CallStates,
+    PostAwardStatuses,
+    ProposalRunStates,
     ProposalStates,
     RequestedOfferingStates,
     ResponsibleRoles,
+    ReviewerStandings,
+    StepKinds,
+    WorkflowPhases,
+    WorkflowStepInstanceStatuses,
 )
 
-from . import models, serializers
+from . import models, proposal_roles, serializers
+from . import permissions as proposal_permissions
 from .managers import (
+    assignment_batch_status_q,
+    assignment_item_status_q,
+    get_assigned_proposals,
     get_connected_call_organizers,
     get_connected_calls,
+    get_contributed_proposals,
     get_offering_manager_proposals,
     get_reviewed_proposals,
+    reviewer_pool_invitation_status_q,
+    round_not_ended_q,
 )
 
 
@@ -117,7 +128,7 @@ class CallFilter(django_filters.FilterSet):
             # no proposals, whatever their dates say.
             return (
                 queryset.exclude(state=CallStates.ARCHIVED)
-                .filter(round__cutoff_time__gte=timezone.now())
+                .filter(round_not_ended_q("round"))
                 .distinct()
             )
         return queryset
@@ -136,6 +147,19 @@ class CallFilter(django_filters.FilterSet):
         )
 
 
+class PublicCallFilter(CallFilter):
+    """The public list holds active and archived calls only: a draft is its
+    managers' to see, on their own list, so there is no draft to filter."""
+
+    state = django_filters.MultipleChoiceFilter(
+        choices=[
+            (value, label)
+            for value, label in CallStates.CHOICES
+            if value in (CallStates.ACTIVE, CallStates.ARCHIVED)
+        ]
+    )
+
+
 class ProposalFilter(django_filters.FilterSet):
     slug = django_filters.CharFilter(
         field_name="slug", lookup_expr="exact", label="Slug"
@@ -147,8 +171,9 @@ class ProposalFilter(django_filters.FilterSet):
         view_name="call-round-detail", field_name="round__uuid"
     )
     state = django_filters.MultipleChoiceFilter(choices=ProposalStates.CHOICES)
-    workflow_step = django_filters.MultipleChoiceFilter(
-        choices=WORKFLOW_STEPS_CHOICES, label="Current workflow step"
+    # The key of a step of the proposal's call: each call names its own.
+    workflow_step = core_filters.CharInFilter(
+        field_name="current_step__step", label="Current workflow step"
     )
     name = django_filters.CharFilter(lookup_expr="icontains")
     call_uuid = core_filters.RelatedUUIDFilter(
@@ -164,10 +189,50 @@ class ProposalFilter(django_filters.FilterSet):
         method="filter_my_proposals",
         widget=BooleanWidget,
     )
+    involved = django_filters.BooleanFilter(
+        method="filter_involved",
+        widget=BooleanWidget,
+        label="Only proposals the current user takes part in, leaving out "
+        "those read only through staff or support access",
+    )
+    panel_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-protected-call-panels",
+        method="filter_panel_uuid",
+        label="Panel UUID",
+    )
+    changes_requested = django_filters.BooleanFilter(
+        method="filter_changes_requested",
+        widget=BooleanWidget,
+        label="Only proposals waiting on changes asked of their applicant",
+    )
     as_role = django_filters.ChoiceFilter(
         choices=ResponsibleRoles.CHOICES,
         method="filter_as_role",
         label="Only proposals the current user holds this role on",
+    )
+    post_award_status = django_filters.MultipleChoiceFilter(
+        choices=PostAwardStatuses.CHOICES,
+        method="filter_post_award_status",
+        label="Where an accepted proposal's extension or final report stands",
+    )
+    run_phase = django_filters.ChoiceFilter(
+        choices=[
+            choice
+            for choice in WorkflowPhases.CHOICES
+            if choice[0] in WorkflowPhases.POST_AWARD
+        ],
+        method="filter_run_phase",
+        label="Only proposals with a run of this phase",
+    )
+    run_state = django_filters.ChoiceFilter(
+        choices=ProposalRunStates.CHOICES,
+        method="filter_run_state",
+        label="Only proposals with a run in this state",
+    )
+    final_report_overdue = django_filters.BooleanFilter(
+        method="filter_final_report_overdue",
+        widget=BooleanWidget,
+        label="Only proposals whose final report is past its due date",
     )
     o = django_filters.OrderingFilter(
         fields=(
@@ -198,6 +263,118 @@ class ProposalFilter(django_filters.FilterSet):
         ]
         return queryset.filter(pk__in=attributed)
 
+    def _run_readers_only(self, queryset, matching):
+        """``matching`` narrowed to the proposals whose runs the user reads:
+        a filter on runs must not tell a reviewer what followed an award
+        (``permissions.user_can_view_runs``)."""
+        user = self.request.user
+        ids = queryset.filter(matching).values_list("pk", flat=True).distinct()
+        if not (user.is_staff or user.is_support):
+            ids = [
+                proposal.pk
+                for proposal in models.Proposal.objects.filter(
+                    pk__in=list(ids)
+                ).select_related("round__call")
+                if proposal_permissions.user_can_view_runs(user, proposal)
+            ]
+        return queryset.filter(pk__in=list(ids))
+
+    @staticmethod
+    def _post_award_q(value):
+        open_run = Exists(
+            models.ProposalRun.objects.filter(
+                proposal=OuterRef("pk"), state=ProposalRunStates.OPEN
+            )
+        )
+
+        def open_of(phase):
+            return Exists(
+                models.ProposalRun.objects.filter(
+                    proposal=OuterRef("pk"),
+                    state=ProposalRunStates.OPEN,
+                    phase=phase,
+                )
+            )
+
+        at_applicant = Q(current_step__call_step__kind=StepKinds.APPLICANT_ACTION)
+        accepted = Q(state=ProposalStates.ACCEPTED, completed_at__isnull=True)
+        extension, closing = WorkflowPhases.EXTENSION, WorkflowPhases.CLOSING
+        return {
+            PostAwardStatuses.PROJECT_COMPLETED: Q(
+                state=ProposalStates.ACCEPTED, completed_at__isnull=False
+            ),
+            PostAwardStatuses.PENDING_FINAL_REPORT: accepted
+            & Q(open_of(closing))
+            & at_applicant,
+            PostAwardStatuses.FINAL_REPORT_SUBMITTED: accepted
+            & Q(open_of(closing))
+            & ~at_applicant,
+            PostAwardStatuses.EXTENSION_REQUESTED: accepted
+            & Q(open_of(extension))
+            & at_applicant,
+            PostAwardStatuses.EXTENSION_IN_ASSESSMENT: accepted
+            & Q(open_of(extension))
+            & Q(
+                current_step__call_step__kind__in=(
+                    StepKinds.ASSESSMENT,
+                    StepKinds.ASSIGNMENT,
+                )
+            ),
+            PostAwardStatuses.EXTENSION_PENDING_RESULTS: accepted
+            & Q(open_of(extension))
+            & Q(current_step__call_step__kind=StepKinds.DECISION),
+            PostAwardStatuses.PROJECT_EXTENDED: accepted
+            & ~Q(open_run)
+            & Q(
+                Exists(
+                    models.ProposalRun.objects.filter(
+                        proposal=OuterRef("pk"),
+                        phase=extension,
+                        state=ProposalRunStates.APPROVED,
+                    )
+                )
+            ),
+        }[value]
+
+    def filter_post_award_status(self, queryset, name, value):
+        if not value:
+            return queryset
+        matching = Q()
+        for status in value:
+            matching |= self._post_award_q(status)
+        return self._run_readers_only(queryset, matching)
+
+    def filter_run_phase(self, queryset, name, value):
+        return self._run_readers_only(queryset, Q(runs__phase=value))
+
+    def filter_run_state(self, queryset, name, value):
+        return self._run_readers_only(queryset, Q(runs__state=value))
+
+    def filter_final_report_overdue(self, queryset, name, value):
+        overdue = Q(
+            workflow_step_instances__run__phase=WorkflowPhases.CLOSING,
+            workflow_step_instances__run__state=ProposalRunStates.OPEN,
+            workflow_step_instances__call_step__kind=StepKinds.APPLICANT_ACTION,
+            workflow_step_instances__status=WorkflowStepInstanceStatuses.ACTIVE,
+            workflow_step_instances__deadline__lt=timezone.now(),
+        )
+        matching = self._run_readers_only(queryset, overdue)
+        if value:
+            return matching
+        return queryset.exclude(pk__in=matching.values("pk"))
+
+    def filter_changes_requested(self, queryset, name, value):
+        waiting = Q(
+            state=ProposalStates.IN_REVIEW,
+            change_requests__closed_at__isnull=True,
+            change_requests__contribution__isnull=True,
+            change_requests__step_instance__status=WorkflowStepInstanceStatuses.ACTIVE,
+        )
+        ids = queryset.filter(waiting).values("pk")
+        if value:
+            return queryset.filter(pk__in=ids)
+        return queryset.exclude(pk__in=ids)
+
     def filter_my_proposals(self, queryset, name, value):
         """Filter to show only proposals created by the current user."""
         if not value:
@@ -206,6 +383,31 @@ class ProposalFilter(django_filters.FilterSet):
         if not user or not user.is_authenticated:
             return queryset.none()
         return queryset.filter(created_by=user)
+
+    def filter_involved(self, queryset, name, value):
+        """The reader's own proposals, as anyone but staff and support reads
+        them: a staff member's "My proposals" lists what they take part in,
+        not the whole site (``permissions.involved_proposals``)."""
+        if not value:
+            return queryset
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return queryset.none()
+        return queryset.filter(
+            id__in=proposal_permissions.involved_proposals(user).values("id")
+        )
+
+    def filter_panel_uuid(self, queryset, name, value):
+        """Proposals routed to the panel. Never the reader's own team's
+        proposals: the applicant team is not told its proposal's panel, so a
+        filter must not tell it either."""
+        queryset = queryset.filter(panel__uuid=value)
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return queryset.none()
+        if user.is_staff or user.is_support:
+            return queryset
+        return queryset.exclude(id__in=proposal_roles.applicant_team_proposal_ids(user))
 
     def filter_as_role(self, queryset, name, value):
         """Narrow the readable queryset to what one of the reader's roles reaches.
@@ -229,15 +431,13 @@ class ProposalFilter(django_filters.FilterSet):
         if not user or not user.is_authenticated:
             return queryset.none()
 
+        team = proposal_roles.applicant_team_proposal_ids(user)
         if value == ResponsibleRoles.APPLICANT:
-            # Creator *or* proposal-role holder: a team member added to someone
-            # else's proposal (PROPOSAL.MEMBER / PROPOSAL.MANAGER) is an
-            # applicant on it too, which ``my_proposals`` — created_by only —
-            # misses.
-            proposal_ctype = ContentType.objects.get_for_model(models.Proposal)
-            return queryset.filter(
-                Q(created_by=user) | Q(id__in=get_scope_ids(user, proposal_ctype))
-            )
+            # The proposals whose team the user is on: a member added to
+            # someone else's proposal (PROPOSAL.MEMBER / PROPOSAL.MANAGER) is
+            # an applicant on it too, which ``my_proposals`` -- created_by
+            # only -- misses, and an author removed from the team is not.
+            return queryset.filter(id__in=team)
 
         if value == ResponsibleRoles.CALL_MANAGER:
             # Both ways a call is managed, as CALL_PERMISSION_SOURCES has it: a
@@ -257,7 +457,32 @@ class ProposalFilter(django_filters.FilterSet):
             # Offering managers hold no call-scoped role at all, so the call
             # traversals above cannot see them; this is the same predicate that
             # granted them read access in the first place.
-            return queryset.filter(id__in=get_offering_manager_proposals(user))
+            # Nobody evaluates a proposal whose team they are on.
+            return queryset.filter(id__in=get_offering_manager_proposals(user)).exclude(
+                id__in=team
+            )
+
+        if value == ResponsibleRoles.PROPOSAL_ROLE:
+            # An evaluator role (a rapporteur, say) is held per proposal, not
+            # through a call role; the predicate that granted the access.
+            return queryset.filter(id__in=proposal_roles.proposals_held_by(user))
+
+        if value == ResponsibleRoles.PANEL_CHAIR:
+            # The submitted proposals of the calls whose panel the user
+            # chairs or vice-chairs; a panel member's reach, so a subset.
+            return (
+                queryset.filter(
+                    Q(round__call__panel_chair=user)
+                    | Q(round__call__panel_vice_chair=user)
+                )
+                .filter(
+                    round__call__in=get_connected_calls(
+                        user, RoleEnum.CALL_PANEL_MEMBER
+                    )
+                )
+                .exclude(state=models.Proposal.States.DRAFT)
+                .exclude(id__in=team)
+            )
 
         # Fails closed on a role with no call-role mapping: a new call-level role
         # added to ResponsibleRoles (the observer of waldur-mastermind#546 would
@@ -270,18 +495,45 @@ class ProposalFilter(django_filters.FilterSet):
         if not call_role:
             return queryset.none()
 
-        # The call role, plus — for a reviewer — the proposals they hold a live
-        # review for. Accepting a pool invitation or an assignment grants no
-        # call role at all, so the reviewer reads the proposal through the
-        # review (models.filter_proposals) and the call traversal alone returned
-        # nothing for the most common reviewer there is.
-        by_call = Q(round__call__in=get_connected_calls(user, call_role))
+        # A reviewer: the proposals they hold reviewer work on -- a live
+        # review, a sent assignment they have not declined, a contribution
+        # that still counts -- as models.filter_proposals grants them. The
+        # call's reviewer role is the pool and grants no proposal by itself.
+        # A panel member: the call's submitted proposals, as the committee.
         if value == ResponsibleRoles.REVIEWER:
-            return queryset.filter(by_call | Q(pk__in=get_reviewed_proposals(user)))
-        return queryset.filter(by_call)
+            by_role = (
+                Q(pk__in=get_reviewed_proposals(user))
+                | Q(pk__in=get_assigned_proposals(user))
+                | Q(pk__in=get_contributed_proposals(user))
+            )
+        else:
+            by_role = Q(round__call__in=get_connected_calls(user, call_role)) & ~Q(
+                state=models.Proposal.States.DRAFT
+            )
+        return queryset.filter(by_role).exclude(id__in=team)
 
     class Meta:
         model = models.Proposal
+        fields = []
+
+
+class ProposalRoleAssignmentFilter(django_filters.FilterSet):
+    proposal_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-proposal-detail", field_name="proposal__uuid"
+    )
+    call_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-protected-call-detail",
+        field_name="proposal__round__call__uuid",
+    )
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
+    is_active = django_filters.BooleanFilter(
+        field_name="revoked_at", lookup_expr="isnull", widget=BooleanWidget
+    )
+
+    class Meta:
+        model = models.ProposalRoleAssignment
         fields = []
 
 
@@ -370,6 +622,9 @@ class RequestedOfferingFilter(django_filters.FilterSet):
     call_uuid = core_filters.RelatedUUIDFilter(
         view_name="proposal-public-call-detail", field_name="call__uuid"
     )
+    call_state = django_filters.MultipleChoiceFilter(
+        field_name="call__state", choices=CallStates.CHOICES, label="Call state"
+    )
     o = django_filters.OrderingFilter(
         fields=("created", "state", "offering__name", "call__name")
     )
@@ -381,6 +636,12 @@ class RequestedOfferingFilter(django_filters.FilterSet):
 
 
 class RequestedResourceFilter(django_filters.FilterSet):
+    involved = django_filters.BooleanFilter(
+        method="filter_involved",
+        widget=BooleanWidget,
+        label="Only requests of proposals the current user takes part in, "
+        "leaving out those read only through staff or support access",
+    )
     # RequestedResource reaches the offering through RequestedOffering; it has no
     # offering FK of its own, so the shorter path raises FieldError at query time.
     offering = core_filters.URLFilter(
@@ -408,6 +669,15 @@ class RequestedResourceFilter(django_filters.FilterSet):
     proposal_uuid = core_filters.RelatedUUIDFilter(
         view_name="proposal-proposal-detail", field_name="proposal__uuid"
     )
+    provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="requested_offering__offering__customer__uuid",
+        label="Provider",
+    )
+    call_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-public-call-detail",
+        field_name="requested_offering__call__uuid",
+    )
     proposal_state = django_filters.MultipleChoiceFilter(
         field_name="proposal__state",
         choices=ProposalStates.CHOICES,
@@ -428,6 +698,16 @@ class RequestedResourceFilter(django_filters.FilterSet):
             ("proposal__round__call__name", "call__name"),
         )
     )
+
+    def filter_involved(self, queryset, name, value):
+        """As ``ProposalFilter.filter_involved``, so "My proposals" and its
+        resource lens list the same proposals."""
+        if not value:
+            return queryset
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return queryset.none()
+        return proposal_permissions.involved_requested_resources(user, queryset)
 
     def filter_query(self, queryset, name, value):
         # The four names a row actually shows, so the box matches what is read.
@@ -452,7 +732,7 @@ class CallWorkflowStepNotificationRuleFilter(django_filters.FilterSet):
         view_name="proposal-call-workflow_step-detail",
         field_name="workflow_step__uuid",
     )
-    step = django_filters.CharFilter(field_name="workflow_step__step")
+    step = django_filters.CharFilter(field_name="workflow_step__key")
     trigger = django_filters.CharFilter()
     is_enabled = django_filters.BooleanFilter()
 
@@ -488,6 +768,40 @@ class ExpertiseCategoryFilter(django_filters.FilterSet):
     class Meta:
         model = models.ExpertiseCategory
         fields = []
+
+
+class ReviewerRegistryFilter(django_filters.FilterSet):
+    query = django_filters.CharFilter(method="filter_query")
+    standing = django_filters.MultipleChoiceFilter(choices=ReviewerStandings.CHOICES)
+    publication_pending = django_filters.BooleanFilter(
+        method="filter_publication_pending", widget=BooleanWidget
+    )
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("user__first_name", "user_name"),
+            ("user__email", "user_email"),
+            ("standing_changed_at", "standing_changed_at"),
+            "created",
+        )
+    )
+
+    class Meta:
+        model = models.ReviewerProfile
+        fields = []
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(user__first_name__icontains=value)
+            | Q(user__last_name__icontains=value)
+            | Q(user__email__icontains=value)
+            | Q(user__username__icontains=value)
+        )
+
+    def filter_publication_pending(self, queryset, name, value):
+        pending = Q(publication_requests__state=CoreReviewStates.PENDING)
+        return (
+            queryset.filter(pending).distinct() if value else queryset.exclude(pending)
+        )
 
 
 class ReviewerProfileFilter(django_filters.FilterSet):
@@ -604,7 +918,8 @@ class CallReviewerPoolFilter(django_filters.FilterSet):
         view_name="reviewer-profile-detail", field_name="reviewer__uuid"
     )
     invitation_status = django_filters.MultipleChoiceFilter(
-        choices=models.CallReviewerPool._meta.get_field("invitation_status").choices
+        choices=models.CallReviewerPool._meta.get_field("invitation_status").choices,
+        method="filter_invitation_status",
     )
     my_invitations = django_filters.BooleanFilter(
         method="filter_my_invitations",
@@ -619,6 +934,12 @@ class CallReviewerPoolFilter(django_filters.FilterSet):
         )
     )
 
+    def filter_invitation_status(self, queryset, name, value):
+        """Match the effective status: a pending invitation past its deadline is expired."""
+        if not value:
+            return queryset
+        return queryset.filter(reviewer_pool_invitation_status_q(value))
+
     def filter_my_invitations(self, queryset, name, value):
         """Filter to show only invitations for the current user."""
         if not value:
@@ -626,9 +947,7 @@ class CallReviewerPoolFilter(django_filters.FilterSet):
         user = self.request.user
         if not user or not user.is_authenticated:
             return queryset.none()
-        return queryset.filter(
-            models.Q(reviewer__user=user) | models.Q(invited_email=user.email)
-        )
+        return queryset.filter(models.CallReviewerPool.addressed_to(user))
 
     class Meta:
         model = models.CallReviewerPool
@@ -713,7 +1032,8 @@ class AssignmentBatchFilter(django_filters.FilterSet):
         view_name="call-reviewer-pool-detail", field_name="reviewer_pool_entry__uuid"
     )
     status = django_filters.MultipleChoiceFilter(
-        choices=models.AssignmentBatch._meta.get_field("status").choices
+        choices=models.AssignmentBatch._meta.get_field("status").choices,
+        method="filter_status",
     )
     source = django_filters.MultipleChoiceFilter(
         choices=models.AssignmentBatch._meta.get_field("source").choices
@@ -723,6 +1043,12 @@ class AssignmentBatchFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(
         fields=("created", "sent_at", "expires_at", "status")
     )
+
+    def filter_status(self, queryset, name, value):
+        """Match the effective status: a sent batch past its deadline is expired."""
+        if not value:
+            return queryset
+        return queryset.filter(assignment_batch_status_q(value))
 
     class Meta:
         model = models.AssignmentBatch
@@ -744,7 +1070,8 @@ class AssignmentItemFilter(django_filters.FilterSet):
         field_name="batch__reviewer_pool_entry__reviewer__uuid",
     )
     status = django_filters.MultipleChoiceFilter(
-        choices=models.AssignmentItem._meta.get_field("status").choices
+        choices=models.AssignmentItem._meta.get_field("status").choices,
+        method="filter_status",
     )
     has_coi = django_filters.BooleanFilter()
     min_affinity_score = django_filters.NumberFilter(
@@ -754,6 +1081,78 @@ class AssignmentItemFilter(django_filters.FilterSet):
         fields=("created", "affinity_score", "status", "responded_at")
     )
 
+    def filter_status(self, queryset, name, value):
+        """Match the effective status: a pending item past its deadline is expired."""
+        if not value:
+            return queryset
+        return queryset.filter(assignment_item_status_q(value))
+
     class Meta:
         model = models.AssignmentItem
         fields = []
+
+
+class ProposalRankingFilter(django_filters.FilterSet):
+    round_uuid = core_filters.RelatedUUIDFilter(
+        view_name="call-round-detail", field_name="round__uuid"
+    )
+    proposal_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-proposal-detail", field_name="proposal__uuid"
+    )
+    call_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-public-call-detail", field_name="round__call__uuid"
+    )
+    panel_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-protected-call-panels",
+        field_name="proposal__panel__uuid",
+    )
+    meeting_note_uuid = core_filters.RelatedUUIDFilter(
+        view_name="round-meeting-note-detail",
+        field_name="meeting_note__uuid",
+        help_text=(
+            "A round report's ranking; without it the list is the round's "
+            "overall ranking."
+        ),
+    )
+    o = django_filters.OrderingFilter(
+        fields=(
+            "rank",
+            "final_score",
+            ("proposal__name", "proposal_name"),
+            "modified",
+        )
+    )
+
+    class Meta:
+        model = models.ProposalRanking
+        fields = []
+
+
+class RoundMeetingNoteFilter(django_filters.FilterSet):
+    round_uuid = core_filters.RelatedUUIDFilter(
+        view_name="call-round-detail", field_name="round__uuid"
+    )
+    call_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-public-call-detail", field_name="round__call__uuid"
+    )
+    call_step_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-call-workflow_step-detail",
+        field_name="call_step__uuid",
+    )
+    is_report = django_filters.BooleanFilter(
+        field_name="call_step", lookup_expr="isnull", exclude=True
+    )
+
+    class Meta:
+        model = models.RoundMeetingNote
+        fields = []
+
+
+class CallTemplateFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    is_published = django_filters.BooleanFilter(widget=BooleanWidget)
+    o = django_filters.OrderingFilter(fields=("name", "created", "modified"))
+
+    class Meta:
+        model = models.CallTemplate
+        fields = ["name", "is_published"]

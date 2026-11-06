@@ -8,6 +8,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import Notification
 from waldur_core.permissions.fixtures import OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -31,7 +32,6 @@ from waldur_mastermind.proposal.enums import (
 from waldur_mastermind.proposal.models import (
     CallWorkflowStep,
     CallWorkflowStepNotificationRule,
-    ProposalWorkflowStepInstance,
 )
 from waldur_mastermind.proposal.tests import factories, fixtures
 
@@ -45,7 +45,7 @@ def rule_url(rule):
 class NotificationRuleSeedTest(test.APITestCase):
     def test_new_call_gets_wal_9502_defaults(self):
         call = fixtures.ProposalFixture().call
-        admin_step = call.workflow_steps.get(step="administrative_check")
+        admin_step = call.workflow_steps.get(key="administrative_check")
         rules = {
             (r.trigger, r.recipient, r.days_before)
             for r in admin_step.notification_rules.all()
@@ -61,11 +61,11 @@ class NotificationRuleSeedTest(test.APITestCase):
         )
         # Applicants are not told that evaluation is progressing unless a
         # manager opts in; the seed never addresses them on the decision step.
-        decision_step = call.workflow_steps.get(step="allocation_decision")
+        decision_step = call.workflow_steps.get(key="allocation_decision")
         self.assertFalse(
             decision_step.notification_rules.filter(recipient="applicant").exists()
         )
-        panel_step = call.workflow_steps.get(step="panel_review")
+        panel_step = call.workflow_steps.get(key="panel_review")
         self.assertEqual(
             set(
                 panel_step.notification_rules.filter(
@@ -78,14 +78,14 @@ class NotificationRuleSeedTest(test.APITestCase):
         self.assertFalse(
             CallWorkflowStepNotificationRule.objects.filter(
                 workflow_step__call=call,
-                workflow_step__step__in=["administrative_check", "expert_review"],
+                workflow_step__key__in=["administrative_check", "expert_review"],
                 recipient="applicant",
             ).exists()
         )
 
     def test_seed_is_idempotent(self):
         call = fixtures.ProposalFixture().call
-        step = call.workflow_steps.get(step="administrative_check")
+        step = call.workflow_steps.get(key="administrative_check")
         before = step.notification_rules.count()
         handlers.seed_notification_rules(step)
         self.assertEqual(step.notification_rules.count(), before)
@@ -96,8 +96,8 @@ class NotificationRuleApiTest(test.APITestCase):
         self.fixture = fixtures.ProposalFixture()
         self.call = self.fixture.call
         self.manager = self.fixture.call_manager
-        self.step = self.call.workflow_steps.get(step="allocation_decision")
-        self.internal_step = self.call.workflow_steps.get(step="expert_review")
+        self.step = self.call.workflow_steps.get(key="allocation_decision")
+        self.internal_step = self.call.workflow_steps.get(key="expert_review")
 
     def _create(self, user, **overrides):
         self.client.force_authenticate(user)
@@ -214,17 +214,17 @@ class NotificationRuleDeliveryTestBase(test.APITestCase):
         self.manager = self.fixture.call_manager
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.workflow_step = "administrative_check"
+        factories.point_at_step(self.proposal, "administrative_check")
         self.proposal.save()
         CallWorkflowStep.objects.filter(call=self.call).update(is_enabled=True)
-        self.admin_step = self.call.workflow_steps.get(step="administrative_check")
+        self.admin_step = self.call.workflow_steps.get(key="administrative_check")
         self.admin_step.duration_in_days = 5
         self.admin_step.save()
         # Only the rules under test should be live.
         CallWorkflowStepNotificationRule.objects.filter(
             workflow_step__call=self.call
         ).delete()
-        self.instance = ProposalWorkflowStepInstance.objects.create(
+        self.instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,
@@ -237,7 +237,7 @@ class NotificationRuleDeliveryTestBase(test.APITestCase):
             "panel_review",
             "allocation_decision",
         ):
-            ProposalWorkflowStepInstance.objects.create(
+            factories.ProposalWorkflowStepInstanceFactory(
                 proposal=self.proposal,
                 step=step,
                 status=WorkflowStepInstanceStatuses.PENDING,
@@ -282,7 +282,7 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
         self.assertIn("eligible", mail.outbox[0].body)
 
     def test_step_started_fires_for_next_step(self):
-        tech = self.call.workflow_steps.get(step="technical_assessment")
+        tech = self.call.workflow_steps.get(key="technical_assessment")
         self._rule("step_started", "call_managers", step=tech)
         self._complete()
         self.assertEqual(len(mail.outbox), 1)
@@ -290,7 +290,8 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
         self.assertIn("has started", mail.outbox[0].subject)
 
     def test_applicant_mail_is_status_only(self):
-        decision = self.call.workflow_steps.get(step="allocation_decision")
+        fixtures.author_as_manager(self.proposal)
+        decision = self.call.workflow_steps.get(key="allocation_decision")
         self._rule("step_rejected", "applicant", step=decision)
         # Move the workflow to the decision step.
         self.instance.status = WorkflowStepInstanceStatuses.COMPLETED
@@ -354,7 +355,7 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
         self.assertEqual(len(mail.outbox), 0)
 
     def test_assigned_reviewers_recipient(self):
-        expert = self.call.workflow_steps.get(step="expert_review")
+        expert = self.call.workflow_steps.get(key="expert_review")
         self._rule("step_started", "assigned_reviewers", step=expert)
         from waldur_mastermind.proposal.tests import factories
 
@@ -376,7 +377,7 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
         delay.assert_called_once_with(self.instance.uuid.hex, "step_completed")
 
     def test_panel_chair_recipient(self):
-        panel = self.call.workflow_steps.get(step="panel_review")
+        panel = self.call.workflow_steps.get(key="panel_review")
         self._rule("step_started", "panel_chair", step=panel)
         chair = self.fixture.panel_member
         self.call.panel_chair = chair
@@ -389,7 +390,7 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
         self.assertEqual(mail.outbox[0].to, [chair.email])
 
     def test_panel_chair_unset_is_inert(self):
-        panel = self.call.workflow_steps.get(step="panel_review")
+        panel = self.call.workflow_steps.get(key="panel_review")
         self._rule("step_started", "panel_chair", step=panel)
         self.proposal.workflow_step_instances.filter(
             step__in=["technical_assessment", "expert_review"]
@@ -413,6 +414,57 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
         self.assertIn("Out of scope", mail.outbox[0].body)
 
 
+class StepMailVocabularyTest(NotificationRuleDeliveryTestBase):
+    """A marketplace-only deployment never shows its applicants a call, so
+    their step mail names the access request alone. The call team's mail
+    keeps the call and round in every mode."""
+
+    def _rejection_mail(self, recipient):
+        fixtures.author_as_manager(self.proposal)
+        decision = self.call.workflow_steps.get(key="allocation_decision")
+        self._rule("step_rejected", recipient, step=decision)
+        # Move the workflow to the decision step.
+        self.instance.status = WorkflowStepInstanceStatuses.COMPLETED
+        self.instance.save()
+        decision_instance = self.proposal.workflow_step_instances.get(
+            step="allocation_decision"
+        )
+        decision_instance.status = WorkflowStepInstanceStatuses.ACTIVE
+        decision_instance.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            workflow_service.reject_at_step(
+                self.proposal, decision_instance, "Budget exhausted", self.manager
+            )
+        self.assertEqual(len(mail.outbox), 1)
+        return mail.outbox[0]
+
+    def assert_names_call(self, message):
+        for text in (message.body, message.alternatives[0][0]):
+            self.assertIn(self.call.name, text)
+            self.assertIn(self.proposal.round.name, text)
+
+    def assert_names_no_call(self, message):
+        for text in (message.subject, message.body, message.alternatives[0][0]):
+            self.assertNotIn(self.call.name, text)
+            self.assertNotIn(self.proposal.round.name, text)
+            # The link's path and the applicant's own name for it aside.
+            wording = text.replace("/proposals/", "").replace(self.proposal.name, "")
+            self.assertNotIn("proposal", wording.lower())
+        self.assertIn(f'Access request "{self.proposal.name}"', message.body)
+
+    @override_config(SERVICE_ACCESS_MODE="marketplace")
+    def test_applicant_mail_names_no_call_in_marketplace_mode(self):
+        self.assert_names_no_call(self._rejection_mail("applicant"))
+
+    @override_config(SERVICE_ACCESS_MODE="both")
+    def test_applicant_mail_names_the_call_in_other_modes(self):
+        self.assert_names_call(self._rejection_mail("applicant"))
+
+    @override_config(SERVICE_ACCESS_MODE="marketplace")
+    def test_call_team_mail_names_the_call_in_marketplace_mode(self):
+        self.assert_names_call(self._rejection_mail("call_managers"))
+
+
 class OfferingManagerRecipientTest(NotificationRuleDeliveryTestBase):
     """The offering-manager role is scoped to the offerings the proposal
     requested, as read access is; other providers in the call are not told
@@ -420,7 +472,7 @@ class OfferingManagerRecipientTest(NotificationRuleDeliveryTestBase):
 
     def setUp(self):
         super().setUp()
-        self.tech_step = self.call.workflow_steps.get(step="technical_assessment")
+        self.tech_step = self.call.workflow_steps.get(key="technical_assessment")
         self.tech_step.responsible_role = ResponsibleRoles.OFFERING_MANAGER
         self.tech_step.save()
 

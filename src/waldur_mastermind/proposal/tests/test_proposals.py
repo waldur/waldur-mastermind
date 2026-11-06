@@ -34,7 +34,14 @@ SVG_WITH_SCRIPT = (
 class ProposalGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
+        # Submitted: call reviewers do not read drafts
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save()
         self.url = factories.ProposalFactory.get_url(self.fixture.proposal)
+        # The call's reviewer role is its pool; the review grants the proposal.
+        factories.ReviewFactory(
+            proposal=self.fixture.proposal, reviewer=self.fixture.reviewer_1
+        )
 
     @data(
         "staff", "call_manager", "proposal_creator", "reviewer_1", "call_organizer_user"
@@ -77,7 +84,10 @@ class ProposalGetTest(test.APITestCase):
         another_round = factories.RoundFactory(call=another_call)
         another_reviewer = structure_factories.UserFactory()
         another_call.add_user(another_reviewer, CallRole.REVIEWER)
-        another_proposal = factories.ProposalFactory(round=another_round)
+        another_proposal = factories.ProposalFactory(
+            round=another_round, state=ProposalStates.SUBMITTED
+        )
+        factories.ReviewFactory(proposal=another_proposal, reviewer=another_reviewer)
         another_proposals_url = factories.ProposalFactory.get_url(another_proposal)
         return another_reviewer, another_proposals_url
 
@@ -338,6 +348,24 @@ class ProposalSummaryLengthTest(test.APITestCase):
 
         response = self.update_project_details(stored.replace("\r\n", "\n"))
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_limit_matches_the_form(self):
+        self.assertEqual(PROJECT_SUMMARY_LENGTH, 1000)
+
+    def test_stored_summary_over_limit_still_reads(self):
+        stored = self._store_summary_over_limit()
+
+        response = self.client.get(
+            factories.ProposalFactory.get_url(self.fixture.proposal)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["project_summary"], stored)
+
+    def test_applicant_is_held_to_the_limit_on_update(self):
+        self.client.force_authenticate(self.fixture.proposal_creator)
+        response = self.update_project_details("a" * (PROJECT_SUMMARY_LENGTH + 1))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project_summary", response.data)
 
     def test_stored_summary_over_limit_is_refused_once_edited(self):
         stored = self._store_summary_over_limit()
@@ -686,10 +714,10 @@ class ActionTest(test.APITestCase):
         new_proposal.round.save()
         # Allocation timing is a call-level policy on the allocation_decision
         # workflow step; the concrete date stays on the round.
-        models.CallWorkflowStep.objects.update_or_create(
+        factories.CallWorkflowStepFactory(
             call=new_proposal.round.call,
             step="allocation_decision",
-            defaults={"allocation_time": AllocationTimes.FIXED_DATE},
+            allocation_time=AllocationTimes.FIXED_DATE,
         )
 
         utils.allocate_proposal(new_proposal, approved_by=self.fixture.staff)
@@ -711,10 +739,10 @@ class ActionTest(test.APITestCase):
             weeks=1
         )
         new_proposal.round.save()
-        models.CallWorkflowStep.objects.update_or_create(
+        factories.CallWorkflowStepFactory(
             call=new_proposal.round.call,
             step="allocation_decision",
-            defaults={"allocation_time": AllocationTimes.FIXED_DATE},
+            allocation_time=AllocationTimes.FIXED_DATE,
         )
 
         utils.allocate_proposal(new_proposal)
@@ -948,7 +976,7 @@ class TaskTest(test.APITestCase):
         # in time must not be swept up with the unsent drafts.
         self.proposal.state = state
         self.proposal.save()
-        step_instance = models.ProposalWorkflowStepInstance.objects.create(
+        step_instance = factories.ProposalWorkflowStepInstanceFactory(
             proposal=self.proposal,
             step="administrative_check",
             status=WorkflowStepInstanceStatuses.ACTIVE,

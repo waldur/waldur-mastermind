@@ -57,6 +57,31 @@ class PublicCallGetTest(test.APITestCase):
         self.assertEqual(len(response.json()), 1)
 
 
+class PublicCallStateFilterTest(test.APITestCase):
+    """The public list holds no draft, so it offers no draft to filter by:
+    its managers see a draft on their own list."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.draft = factories.CallFactory(
+            manager=self.fixture.call.manager, state=CallStates.DRAFT
+        )
+        self.url = factories.CallFactory.get_public_list_url()
+
+    def test_a_draft_is_not_a_state_to_filter_by(self):
+        response = self.client.get(self.url, {"state": CallStates.DRAFT})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_its_manager_does_not_find_it_there_either(self):
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.get(self.url)
+        self.assertNotIn(self.draft.uuid.hex, [c["uuid"] for c in response.json()])
+        response = self.client.get(
+            self.url, {"state": [CallStates.ACTIVE, CallStates.ARCHIVED]}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
 class PublicCallOpenForOfferingFilterTest(test.APITestCase):
     """``open_for_offering_uuid`` must agree with the offering's open_for_proposals.
 
@@ -1127,6 +1152,23 @@ class AvailableChecklistsTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_call_manager_can_get_available_checklists(self):
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.get(
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.checklist.uuid.hex)
+
+    def test_call_manager_of_another_organization_cannot_get_checklists(self):
+        other = fixtures.ProposalFixture()
+        self.client.force_authenticate(other.call_manager)
+        response = self.client.get(
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     @override_config(PAT_ENABLED=True)
     def test_token_needs_create_call_scope(self):
         for scope, expected in (
@@ -1153,9 +1195,17 @@ class AvailableChecklistsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Customer not found", str(response.data))
 
-    def test_customer_without_call_managing_org_returns_error(self):
+    @data("staff", "call_manager")
+    def test_malformed_customer_uuid_returns_error(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url, {"customer_uuid": "not-a-uuid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Customer not found", str(response.data))
+
+    @data("staff", "call_manager")
+    def test_customer_without_call_managing_org_returns_error(self, user):
         customer = structure_factories.CustomerFactory()
-        self.client.force_authenticate(self.fixture.staff)
+        self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url, {"customer_uuid": customer.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(

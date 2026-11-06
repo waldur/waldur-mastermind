@@ -4,6 +4,7 @@ import os
 
 from celery import Celery, signals
 from celery.signals import setup_logging
+from django.conf import settings
 from django.db import connections
 from django_structlog.celery.steps import DjangoStructLogInitStep
 
@@ -33,9 +34,9 @@ class PriorityRouter:
     def route_for_task(self, task_name, *args, **kwargs):
         task = app.tasks.get(task_name)
         if getattr(task, "is_heavy_task", False):
-            return {"queue": "heavy-durable"}
+            return {"queue": settings.HEAVY_QUEUE}
         if getattr(task, "is_background", False):
-            return {"queue": "background-durable"}
+            return {"queue": settings.BACKGROUND_QUEUE}
         return None
 
 

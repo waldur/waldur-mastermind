@@ -27,6 +27,13 @@
         <strong>{{ r.reviewer_name }}</strong>
         &nbsp;-&nbsp;{{ r.score }}/5
         &nbsp;-&nbsp;{{ r.submitted_at|date:"Y-m-d H:i" }}
+        {% if r.criteria %}
+        <ul>
+          {% for c in r.criteria %}
+          <li>{{ c.name }}: {% if c.score %}{{ c.score }}/5{% else %}not rated{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
       </li>
       {% empty %}
       <li>No individual reviews available.</li>

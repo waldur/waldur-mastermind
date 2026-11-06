@@ -87,9 +87,11 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
+from waldur_core.structure.filters import is_read_only_project_action
 from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
+    get_read_only_only_project_ids,
 )
 from waldur_core.structure.serializers import get_options_serializer_class
 from waldur_mastermind.billing.serializers import (
@@ -9440,7 +9442,43 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         ):
             for hidden in utils.RESOURCE_PROJECT_ONLY_HIDDEN_FIELDS:
                 data.pop(hidden, None)
+        if instance.project_id in self._read_only_only_project_ids():
+            for hidden in self.READ_ONLY_GRANT_HIDDEN_FIELDS:
+                data.pop(hidden, None)
+            for order_field in ("creation_order", "order_in_progress"):
+                if order_field in data:
+                    data[order_field] = None
         return data
+
+    # Backend details withheld from a reader whose only access to the
+    # resource's project is a read-only grant (a call manager following what
+    # the call allocated): providers put access instructions in ``report``,
+    # ``attributes`` can carry user data, and the rest describes the backend.
+    # The orders (``creation_order``, ``order_in_progress``) carry their cost
+    # and are nulled for the same readers.
+    READ_ONLY_GRANT_HIDDEN_FIELDS = (
+        "report",
+        "backend_metadata",
+        "options",
+        "attributes",
+        "endpoints",
+        "error_traceback",
+    )
+
+    def _read_only_only_project_ids(self) -> set:
+        """Ids of the projects the requesting user reads solely through a
+        read-only grant. Computed once per serializer tree; empty unless the
+        view is serving one of the actions it opened to such grants."""
+        cache_key = "read_only_only_resource_project_ids"
+        if cache_key in self.context:
+            return self.context[cache_key]
+        request = self.context.get("request")
+        view = self.context.get("view")
+        hidden = set()
+        if request is not None and is_read_only_project_action(view):
+            hidden = get_read_only_only_project_ids(getattr(request, "user", None))
+        self.context[cache_key] = hidden
+        return hidden
 
     def get_state(self, resource: models.Resource) -> ResourceStatesType:
         return resource.get_state_display()
@@ -9675,6 +9713,19 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         # we can't perform these checks.
         if not self.instance:
             return end_date
+
+        # Editing a resource does not reach its end date: that takes the
+        # permission set_end_date checks, on either side, and everyone else
+        # asks through an end date change request.
+        if end_date != self.instance.end_date and not has_permission_on_any_source(
+            self.context["request"],
+            PermissionEnum.SET_RESOURCE_END_DATE,
+            self.instance,
+            ["project.customer", "project", "offering.customer", "offering"],
+        ):
+            raise PermissionDenied(
+                _("You do not have permission to change the end date of this resource.")
+            )
 
         if not end_date:
             return end_date  # Allowing end_date to be cleared is valid
@@ -10520,6 +10571,16 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
                     "Use update limits instead of creating a request."
                 )
             )
+        # Asking is a permission of its own, so a role left without the direct
+        # one -- an awarded project's, whose limits the call decides -- is not
+        # handed a second way in.
+        if not any(
+            has_permission(user, PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE, scope)
+            for scope in (resource.project, resource.project.customer)
+        ):
+            raise PermissionDenied(
+                _("You do not have permission to request a limit change.")
+            )
         accessible = filter_queryset_for_user(
             models.Resource.objects.filter(pk=resource.pk),
             user,
@@ -10626,6 +10687,14 @@ class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
                     "You have permission to change the resource end date directly. "
                     "Use set end date instead of creating a request."
                 )
+            )
+        # Asking is a permission of its own, as for limit change requests.
+        if not any(
+            has_permission(user, PermissionEnum.REQUEST_RESOURCE_END_DATE_CHANGE, scope)
+            for scope in (resource.project, resource.project.customer)
+        ):
+            raise PermissionDenied(
+                _("You do not have permission to request an end date change.")
             )
         return resource
 
@@ -16299,6 +16368,16 @@ class NameUUIDSerializer(serializers.Serializer):
 class DetailStateSerializer(serializers.Serializer):
     detail = serializers.CharField(read_only=True)
     state = serializers.CharField(read_only=True)
+
+
+class OfferingDependentSerializer(serializers.Serializer):
+    summary = serializers.CharField(read_only=True)
+    blocks = serializers.BooleanField(
+        read_only=True, help_text="The change is refused, except for staff."
+    )
+    blocks_staff = serializers.BooleanField(
+        read_only=True, help_text="The change is refused for staff too."
+    )
 
 
 class RemoveOfferingComponentSerializer(serializers.Serializer):
