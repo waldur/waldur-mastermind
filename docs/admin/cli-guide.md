@@ -523,6 +523,7 @@ waldur dump_constance_settings output.yaml
 ```bash
 
 usage: waldur dump_constance_settings [--include-secrets] [--include-defaults]
+                                      [--managed-only]
                                       [--export-media MEDIA_DIR]
                                       output_file
 
@@ -533,6 +534,9 @@ options:
   --include-secrets     Include sensitive values (passwords, tokens) in the
                         output
   --include-defaults    Include settings that are set to their default values
+  --managed-only        Dump only the settings a deploy re-applies, whatever
+                        their value, each with a comment naming the file or
+                        command
   --export-media MEDIA_DIR
                         Export media files (logos, images) to this directory
 
@@ -1209,7 +1213,9 @@ Override settings stored in django-constance. The example of .yaml file:
 
 ```bash
 
-usage: waldur override_constance_settings [--if-unset] constance_settings_file
+usage: waldur override_constance_settings [--if-unset] [--lock]
+                                          [--unlock SETTING]
+                                          [constance_settings_file]
 
 positional arguments:
   constance_settings_file
@@ -1221,6 +1227,17 @@ options:
                         already has a stored value, so a change made in the UI
                         survives the next run. Use this for settings an
                         administrator is expected to manage.
+  --lock                For a file the deployment applies on every deploy:
+                        record the file as managing its settings and lock
+                        them, so that they cannot be changed in the UI only to
+                        be reverted on the next deploy. Settings the file
+                        managed before but no longer holds are handed back to
+                        administrators.
+  --unlock SETTING      Let administrators change SETTING in the UI again,
+                        keeping its value. Can be repeated, and needs no file.
+                        This lasts until the next deploy: a --lock file that
+                        still holds the setting puts its value back and locks
+                        it again.
 
 ```
 

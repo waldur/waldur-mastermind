@@ -44,6 +44,21 @@ Recommended actions:
 
 ```
 
+### version_update_available_message.txt (waldur_core.core)
+
+```txt
+
+Hello!
+
+Waldur {{ latest_version }} is now available.
+
+Your Waldur installation {{ site_name }} is running version {{ current_version }} and needs to be upgraded. For upgrade instructions, please visit:
+
+- For Helm-based deployments: {{ helm_upgrade_url }}
+- For Docker Compose deployments: {{ docker_compose_upgrade_url }}
+
+```
+
 ### table_growth_alert_message.html (waldur_core.core)
 
 ```html
@@ -121,6 +136,39 @@ Recommended actions:
             </div>
         </div>
     </div>
+</body>
+</html>
+
+```
+
+### version_update_available_subject.txt (waldur_core.core)
+
+```txt
+
+[{{ site_name }}] Upgrade available: Waldur {{ latest_version }}
+
+```
+
+### version_update_available_message.html (waldur_core.core)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Upgrade available</title>
+</head>
+<body>
+<p>Hello!</p>
+<p>Waldur {{ latest_version }} is now available.</p>
+<p>
+    Your Waldur installation <strong>{{ site_name }}</strong> is running version
+    {{ current_version }} and needs to be upgraded. For upgrade instructions, please visit:
+</p>
+<ul>
+    <li><a href="{{ helm_upgrade_url }}">For Helm-based deployments</a></li>
+    <li><a href="{{ docker_compose_upgrade_url }}">For Docker Compose deployments</a></li>
+</ul>
 </body>
 </html>
 
