@@ -618,3 +618,99 @@ class OIDCAuthenticationTest(test.APITestCase):
         self.assertTrue(User.objects.filter(username=non_existent_username).exists())
         new_user = User.objects.get(username=non_existent_username)
         self.assertEqual(new_user.registration_method, config.OIDC_REGISTRATION_METHOD)
+
+    @respx.mock
+    def test_impersonation_header_is_rejected(self):
+        """Bearer tokens cannot impersonate, so the header must not be dropped.
+
+        Ignoring it would run the request as the caller while the caller
+        believes it runs as somebody else.
+        """
+        staff = User.objects.create_user(username="test_user", is_staff=True)
+        other = User.objects.create_user(username="other_user")
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": staff.username}
+            )
+        )
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {VALID_JWT_TOKEN}",
+            HTTP_X_IMPERSONATED_USER_UUID=other.uuid.hex,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["detail"],
+            "Impersonation is only supported with the Token authorization scheme.",
+        )
+
+    @respx.mock
+    def test_rejected_impersonation_provisions_no_user(self):
+        other = User.objects.create_user(username="other_user")
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": "new_test_user"}
+            )
+        )
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {VALID_JWT_TOKEN}",
+            HTTP_X_IMPERSONATED_USER_UUID=other.uuid.hex,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(User.all_objects.filter(username="new_test_user").exists())
+
+    @respx.mock
+    def test_invalid_token_with_impersonation_header_keeps_its_error(self):
+        other = User.objects.create_user(username="other_user")
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": False, "username": "test_user"}
+            )
+        )
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {VALID_JWT_TOKEN}",
+            HTTP_X_IMPERSONATED_USER_UUID=other.uuid.hex,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["detail"], "Token is inactive or invalid.")
+
+
+class SessionAuthenticationImpersonationTest(test.APITestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            "staff", "staff@example.com", "secret", is_staff=True
+        )
+        self.other = User.objects.create_user("other", "other@example.com")
+        self.client.force_login(self.staff)
+
+    def test_session_request_without_header_is_authenticated(self):
+        response = self.client.get("/api/users/me/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["username"], self.staff.username)
+
+    def test_impersonation_header_is_rejected(self):
+        response = self.client.get(
+            "/api/users/me/", HTTP_X_IMPERSONATED_USER_UUID=self.other.uuid.hex
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["detail"],
+            "Impersonation is only supported with the Token authorization scheme.",
+        )
+
+    def test_empty_impersonation_header_is_ignored(self):
+        # The token path reads an empty value as no impersonation; so do these.
+        response = self.client.get("/api/users/me/", HTTP_X_IMPERSONATED_USER_UUID="")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["username"], self.staff.username)

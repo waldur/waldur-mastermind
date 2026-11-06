@@ -2023,6 +2023,57 @@ class InvitationAcceptOnBehalfTest(BaseInvitationTest):
         )
         self.assertFalse(get_permissions(self.project, service_account).exists())
 
+    @override_config(
+        OIDC_INTROSPECTION_URL=OIDC_INTROSPECTION_URL,
+        OIDC_CLIENT_ID="test-client",
+        OIDC_CLIENT_SECRET="test-secret",
+        OIDC_USER_FIELD="username",
+    )
+    @respx.mock
+    def test_oidc_bearer_token_with_impersonation_header_is_rejected(self):
+        # The header used to be ignored on this path, which granted the role
+        # to the service account and returned 200.
+        service_account = structure_factories.UserFactory(
+            username="service-account", is_staff=True
+        )
+        respx.post(OIDC_INTROSPECTION_URL).mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": service_account.username}
+            )
+        )
+        token = jwt.encode(
+            {"exp": 9999999999, "username": service_account.username},
+            "test-secret-of-at-least-32-bytes!",
+        )
+
+        self.addCleanup(cache.clear)
+
+        response = self.client.post(
+            self.url,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **{IMPERSONATED_USER_HEADER: self.invitee.uuid.hex},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_not_accepted()
+        self.assertFalse(get_permissions(self.project, service_account).exists())
+
+    @override_config(PAT_ENABLED=True)
+    def test_staff_token_with_impersonation_header_is_rejected(self):
+        self.staff.can_use_personal_access_tokens = True
+        self.staff.save(update_fields=["can_use_personal_access_tokens"])
+        _, token = create_pat(self.staff, scopes=[PermissionEnum.STAFF_ACCESS.value])
+
+        response = self.client.post(
+            self.url,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **{IMPERSONATED_USER_HEADER: self.invitee.uuid.hex},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_not_accepted()
+        self.assertFalse(get_permissions(self.project, self.staff).exists())
+
     @override_config(PAT_ENABLED=True)
     def test_staff_token_without_staff_scope_cannot_accept_for_another_user(self):
         self.staff.can_use_personal_access_tokens = True
@@ -2241,6 +2292,16 @@ class InvitationAcceptOnBehalfTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assert_not_accepted()
+
+    def test_empty_impersonation_header_is_not_impersonation(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(self.invitee, **{IMPERSONATED_USER_HEADER: ""})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
 
     def test_accept_without_body_still_accepts_for_caller(self):
         self.client.force_authenticate(user=self.invitee)
