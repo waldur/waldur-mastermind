@@ -38,6 +38,21 @@ class BroadcastMailTest(TestCase):
         )
         self.assertTrue(any("bad@example.com" in line for line in logs.output))
 
+    def test_returns_only_recipients_actually_sent_to(self, mock_send_mail, *mocks):
+        # Callers that record who was told (e.g. the version update
+        # notification) must not record a recipient whose send failed.
+        def side_effect(subject, body, to, **kwargs):
+            if to == ["bad@example.com"]:
+                raise SMTPRecipientsRefused({"bad@example.com": (550, b"No such user")})
+            return 1
+
+        mock_send_mail.side_effect = side_effect
+
+        with self.assertLogs("waldur_core.core.utils", level="ERROR"):
+            sent = utils.broadcast_mail("app", "event", {}, self.recipients)
+
+        self.assertEqual(sent, ["first@example.com", "last@example.com"])
+
     def test_recipients_share_one_connection(self, mock_send_mail, *mocks):
         utils.broadcast_mail("app", "event", {}, self.recipients)
 
@@ -71,6 +86,16 @@ class DroppedNotificationIsLoggedTest(TestCase):
         mock_send_mail.assert_not_called()
         self.assertTrue(any("app.event" in line for line in logs.output))
         self.assertTrue(any("disabled" in line for line in logs.output))
+
+    def test_disabled_notification_returns_no_recipients(self, mock_send_mail, *mocks):
+        Notification.objects.create(key="app.event", enabled=False)
+
+        self.assertEqual(utils.broadcast_mail("app", "event", {}, self.recipients), [])
+
+    def test_unregistered_notification_returns_no_recipients(
+        self, mock_send_mail, *mocks
+    ):
+        self.assertEqual(utils.broadcast_mail("app", "event", {}, self.recipients), [])
 
     def test_unregistered_notification_is_logged(self, mock_send_mail, *mocks):
         with self.assertLogs("waldur_core.core.utils", level="WARNING") as logs:
@@ -162,3 +187,27 @@ class BroadcastMailSingleMessageTest(TestCase):
         utils.broadcast_mail("app", "event", {}, [], single_message=True)
 
         self.assertEqual(mail.outbox, [])
+
+    def test_single_message_returns_every_recipient_on_success(self, *mocks):
+        sent = utils.broadcast_mail(
+            "app",
+            "event",
+            {},
+            ["a@example.com", "A@Example.com", "b@example.com"],
+            single_message=True,
+        )
+
+        self.assertEqual(sent, ["a@example.com", "b@example.com"])
+
+    def test_single_message_returns_no_recipients_on_failure(self, *mocks):
+        with mock.patch.object(utils, "send_mail", side_effect=OSError("relay down")):
+            with self.assertLogs("waldur_core.core.utils", level="ERROR"):
+                sent = utils.broadcast_mail(
+                    "app",
+                    "event",
+                    {},
+                    ["a@example.com", "b@example.com"],
+                    single_message=True,
+                )
+
+        self.assertEqual(sent, [])

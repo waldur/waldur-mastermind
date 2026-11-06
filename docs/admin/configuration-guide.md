@@ -1535,6 +1535,12 @@ Random identifier sent with telemetry so reports from one deployment can be grou
 
 If true, the version endpoint queries GitHub for the latest released Waldur version. Disable in deployments without outbound internet access to avoid failed requests to api.github.com.
 
+#### VERSION_UPDATE_NOTIFICATION_EMAILS
+
+**Type:** str
+
+Receive email update notifications: comma-separated list of email addresses that are emailed once for every new Waldur release this deployment can be upgraded to. Leave empty to send none. An address added later also receives the current release.
+
 ### Custom Scripts
 
 #### SCRIPT_RUN_MODE

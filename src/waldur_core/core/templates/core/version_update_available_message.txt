@@ -1,0 +1,8 @@
+Hello!
+
+Waldur {{ latest_version }} is now available.
+
+Your Waldur installation {{ site_name }} is running version {{ current_version }} and needs to be upgraded. For upgrade instructions, please visit:
+
+- For Helm-based deployments: {{ helm_upgrade_url }}
+- For Docker Compose deployments: {{ docker_compose_upgrade_url }}
