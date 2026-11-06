@@ -2033,13 +2033,6 @@ class CustomerCreditConsumptionSerializer(serializers.Serializer):
     )
 
 
-class CustomerCreditConsumptionByMonthSerializer(serializers.Serializer):
-    month = serializers.CharField(read_only=True)
-    price = serializers.DecimalField(
-        read_only=True, max_digits=PRICE_MAX_DIGITS, decimal_places=2
-    )
-
-
 class ImportUsageItemSerializer(serializers.Serializer):
     customer_name = serializers.CharField(required=False, allow_blank=True)
     customer_uuid = serializers.UUIDField(required=False)
