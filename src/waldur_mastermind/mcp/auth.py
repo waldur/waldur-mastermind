@@ -1,10 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import ContextVar
 
 from asgiref.sync import sync_to_async
 from django.db import connections
-from fastmcp.server.auth import AccessToken, TokenVerifier
-from fastmcp.server.dependencies import get_http_request
+from mcp.server.auth.provider import AccessToken, TokenVerifier
 from rest_framework.exceptions import AuthenticationFailed
+from starlette.requests import HTTPConnection
 
 from waldur_core.core import models
 from waldur_core.core import utils as core_utils
@@ -65,6 +66,28 @@ def get_starlette_client_ip(request) -> str | None:
     )
 
 
+# No default: a verifier running without ClientIPMiddleware must fail, not treat
+# every caller as having no address.
+client_ip_var: ContextVar[str | None] = ContextVar("mcp_client_ip")
+
+
+class ClientIPMiddleware:
+    """Hands the caller's address to the verifier, which only receives the token."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        reset_token = client_ip_var.set(get_starlette_client_ip(HTTPConnection(scope)))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            client_ip_var.reset(reset_token)
+
+
 def authorize_mcp_pat(pat: models.PersonalAccessToken, client_ip: str | None) -> None:
     # Tools only receive the user, so a restriction they can't see must be
     # refused here rather than silently widened. The permission allowlist in
@@ -119,5 +142,6 @@ class WaldurTokenVerifier(TokenVerifier):
     async def verify_token(self, token: str) -> AccessToken | None:
         if not token.startswith(models.PAT_PREFIX):
             return None
-        client_ip = get_starlette_client_ip(get_http_request())
-        return await run_orm_async(verify_personal_access_token, token, client_ip)
+        return await run_orm_async(
+            verify_personal_access_token, token, client_ip_var.get()
+        )
