@@ -651,6 +651,12 @@ class WaldurAuthSAML2(BaseModel):
         "Needed for logins started in Waldur when the identity provider is on another site: "
         "browsers do not send the SameSite=Lax session cookie with its cross-site POST.",
     )
+    WANT_LOGOUT_REQUESTS_SIGNED: bool = Field(
+        True,
+        description="Accept a logout request from an identity provider only if the identity provider signed it. "
+        "Without a signature, anybody who knows a user's NameID could log that user out with a link. "
+        "Turn off only for an identity provider that does not sign its logout requests.",
+    )
     ALLOW_TO_SELECT_IDENTITY_PROVIDER: bool = Field(True, description="")
     IDENTITY_PROVIDER_URL: str | None = Field(None, description="")
     IDENTITY_PROVIDER_LABEL: str | None = Field(None, description="")

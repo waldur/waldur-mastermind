@@ -10,6 +10,7 @@ import logging
 
 from django.conf import settings
 from django.contrib import auth
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
@@ -44,6 +45,10 @@ from . import filters, models, serializers
 logger = logging.getLogger(__name__)
 
 validate_saml2 = validate_authentication_method("SAML2")
+
+# pysaml2 accepts a request issued up to a day either side of now, so a request
+# seen once is remembered for longer than that.
+LOGOUT_REQUEST_REPLAY_WINDOW = 3 * 24 * 60 * 60
 
 
 def metadata(request, config_loader_path=None, valid_for=None):
@@ -81,8 +86,9 @@ class BaseSaml2View(GenericAPIView):
     # browser that posts it. With ALLOW_UNSOLICITED (the default) that need
     # not be the browser that started the login, so another site can post a
     # signed response of its own account and sign a visitor into it (#1082).
-    # A logout ends the session only for a SAML exchange that names its
-    # subject; that an IdP-initiated logout request need not be signed is #1071.
+    # A logout ends the browser session only for a SAML exchange that concerns
+    # it: our own request answered, or a request the identity provider of the
+    # session signed for its subject, accepted once (#1071).
     access_declarations = {"get": [access.public()], "post": [access.public()]}
 
 
@@ -338,6 +344,12 @@ class Saml2LogoutView(BaseSaml2View):
         if subject_id is None:
             return logout_failed(_("Remote SAML2 logout has failed."))
 
+        # The portal's logout (POST /api-auth/logout/) ends the session before
+        # it hands out this URL. A browser still logged in did not come from
+        # there: a link on another site must not log it out of the IdP.
+        if not auth.get_user(request).is_anonymous:
+            return logout_failed(_("Remote SAML2 logout has failed."))
+
         try:
             result = client.global_logout(subject_id)
         except KeyError:
@@ -356,8 +368,10 @@ class Saml2LogoutCompleteView(BaseSaml2View):
     """
     SAML Logout Response endpoint
 
-    The IdP will send its response to this view, which
-    will logout the user and remove authorization token.
+    The IdP sends its logout response, or its own logout request, to this
+    view, which ends the browser session. A signed logout request from the
+    IdP also revokes the user's API token; for a logout started in the
+    portal, the portal's logout has already revoked it.
     """
 
     serializer_class = serializers.Saml2LogoutCompleteSerializer
@@ -387,15 +401,30 @@ class Saml2LogoutCompleteView(BaseSaml2View):
         from saml2.client import Saml2Client
 
         conf = get_config(request=request)
+        # pysaml2 requires a signed request only when the IdP role wants
+        # signed authentication requests; that flag applies to every request
+        # it parses, logout requests included. Set on this configuration only,
+        # it does not reach the metadata, which describes the SP role.
+        signatures_required = settings.WALDUR_AUTH_SAML2.get(
+            "WANT_LOGOUT_REQUESTS_SIGNED", True
+        )
+        conf.setattr("idp", "want_authn_requests_signed", signatures_required)
 
         state = StateCache(request.session)
         client = Saml2Client(
             conf, state_cache=state, identity_cache=IdentityCache(request.session)
         )
+        # What the redirect binding signs besides the request itself.
+        signed_with = {
+            "relay_state": data.get("RelayState"),
+            "sigalg": data.get("SigAlg"),
+            "signature": data.get("Signature"),
+        }
 
         # The session is ended only for a SAML exchange that concerns it: a link
         # to this endpoint must not be enough to log anybody out.
         confirmed = False
+        revoke_tokens = False
         subject_id = _get_subject_id(request.session)
         try:
             if "SAMLResponse" in data:
@@ -413,36 +442,65 @@ class Saml2LogoutCompleteView(BaseSaml2View):
                 # Logout started by IdP, for a browser without a SAML2 login.
                 http_response = logout_completed()
             else:
-                # Logout started by IdP: it must name the subject of this session.
+                # Logout started by IdP: the IdP the session logged in with
+                # must ask for it, naming the subject of this session.
                 logout_request = client.parse_logout_request(
-                    data["SAMLRequest"], binding
+                    data["SAMLRequest"], binding, **signed_with
                 )
-                confirmed = logout_request.message.name_id == subject_id
-                http_info = client.handle_logout_request(
-                    data["SAMLRequest"],
-                    subject_id,
-                    binding,
-                    relay_state=data.get("RelayState", ""),
+                confirmed = (
+                    logout_request.message.name_id == subject_id
+                    and logout_request.sender()
+                    in client.users.issuers_of_info(subject_id)
+                    # A request travels in a URL or a form, so it may be seen
+                    # by others; it is accepted only once.
+                    and cache.add(
+                        f"saml2-logout-request:{logout_request.sender()}:"
+                        f"{logout_request.message.id}",
+                        True,
+                        timeout=LOGOUT_REQUEST_REPLAY_WINDOW,
+                    )
                 )
-                http_response = HttpResponseRedirect(get_location(http_info))
+                if confirmed:
+                    # Only a signed request may end what the portal and the
+                    # user's scripts are logged in with.
+                    revoke_tokens = signatures_required
+                    http_info = client.handle_logout_request(
+                        data["SAMLRequest"], subject_id, binding, **signed_with
+                    )
+                    http_response = self.reply(http_info, get_location)
+                else:
+                    # Not answered: handling it would also drop the SAML
+                    # identity of this session, which its own logout needs.
+                    http_response = logout_failed(
+                        _("SAML2 logout request is not for this session.")
+                    )
         except Exception as e:
             logger.warning("SAML2 logout message could not be processed: %s", e)
             if confirmed:
                 # The identity provider did ask to log this session out.
-                self.end_session(request)
+                self.end_session(request, revoke_tokens)
             return logout_failed(_("SAML2 logout message has errors."))
 
         state.sync()
         if confirmed:
-            self.end_session(request)
+            self.end_session(request, revoke_tokens)
         return http_response
 
-    def end_session(self, request):
+    @staticmethod
+    def reply(http_info, get_location):
+        # The redirect binding answers with a Location; the POST binding with
+        # a page that posts the response to the identity provider.
+        if dict(http_info["headers"]).get("Location"):
+            return HttpResponseRedirect(get_location(http_info))
+        return HttpResponse(http_info["data"], content_type="text/html")
+
+    def end_session(self, request, revoke_tokens=False):
         # SAML views authenticate nobody, so request.user is always anonymous;
         # the user is the one of the Django session that the SAML login started.
         user = auth.get_user(request)
         if not user.is_anonymous:
-            Token.objects.filter(user=user).delete()
+            if revoke_tokens:
+                Token.objects.filter(user=user).delete()
             request.user = user  # carried by the user_logged_out signal
         auth.logout(request)
         if not user.is_anonymous:
