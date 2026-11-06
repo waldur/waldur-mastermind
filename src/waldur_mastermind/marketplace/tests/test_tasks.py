@@ -2,6 +2,7 @@ import datetime
 from unittest import mock
 from unittest.mock import patch
 
+from dateutil.relativedelta import relativedelta
 from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
@@ -530,6 +531,66 @@ class NotificationAboutStaleResourceTest(test.APITestCase):
         )
         self.resource.offering.type = "Test.Type"
         self.resource.offering.save()
+        # Older than the window (this month's invoice and the two before it),
+        # so it is judged by the whole of it.
+        self._set_created(self.resource, timezone.now() - relativedelta(months=4))
+
+    def _set_created(self, resource, created):
+        # ``created`` is set on insert, so it is moved with an update.
+        models.Resource.objects.filter(pk=resource.pk).update(created=created)
+
+    def _expect_mail(self):
+        event_type = "notification_about_stale_resources"
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
+
+    def test_do_not_send_notify_for_resource_created_yesterday(self):
+        # A resource ordered yesterday on a zero-priced offering has no priced
+        # invoice item, but it has not gone the window without a cost either.
+
+        # Assign
+        self._expect_mail()
+        self._set_created(self.resource, timezone.now() - relativedelta(days=1))
+
+        # Act
+        tasks.notify_about_stale_resource()
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 0)
+
+    @freeze_time("2026-11-05 15:00:00")
+    def test_do_not_send_notify_for_resource_created_after_window_opened(self):
+        # On 5 November the window is the September, October and November
+        # invoices; a resource created on 1 September existed for part of it.
+
+        # Assign
+        self._expect_mail()
+        self._set_created(
+            self.resource, timezone.make_aware(datetime.datetime(2026, 9, 1, 0, 0, 1))
+        )
+
+        # Act
+        tasks.notify_about_stale_resource()
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 0)
+
+    @freeze_time("2026-11-05 15:00:00")
+    def test_send_notify_for_resource_created_before_window_opened(self):
+        # Created on 31 August, it existed for the whole window and had no cost.
+
+        # Assign
+        self._expect_mail()
+        self._set_created(
+            self.resource,
+            timezone.make_aware(datetime.datetime(2026, 8, 31, 23, 59, 59)),
+        )
+
+        # Act
+        tasks.notify_about_stale_resource()
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(self.resource.name in mail.outbox[0].body)
 
     def test_send_notify_if_stale_resource_exists(self):
         event_type = "notification_about_stale_resources"
