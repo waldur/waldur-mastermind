@@ -353,6 +353,22 @@ class CallbackSendTest(test.APITestCase):
         self.assertEqual(self.guard.addresses, [])
         self.assertIn("refused", "\n".join(logs.output))
 
+    def test_refused_callback_is_logged_as_a_warning_at_most(self):
+        # Whoever stored the URL can make this happen: not an error of ours,
+        # and nothing for Sentry, which records ERROR and above.
+        for hosts in (
+            {"local-waldur.example.com": ["169.254.169.254"]},
+            {"local-waldur.example.com": []},
+        ):
+            with self.subTest(hosts=hosts):
+                with dns(hosts), self.server.patch(), self.guard.patch():
+                    with self.assertLogs(level=logging.DEBUG) as logs:
+                        tasks.trigger_order_callback(serialize_instance(self.order))
+                levels = {record.levelno for record in logs.records}
+                self.assertIn(logging.WARNING, levels)
+                self.assertLess(max(levels), logging.ERROR)
+                self.assertEqual(self.server.addresses, [])
+
     def test_rebinding_after_the_check_does_not_reach_the_new_address(self):
         resolver, _ = self.send(
             {"local-waldur.example.com": [["8.8.8.8"], ["127.0.0.1"]]}

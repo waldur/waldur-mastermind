@@ -4,6 +4,7 @@ import uuid
 from unittest import mock
 from uuid import uuid4
 
+import httpx
 import respx
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
@@ -13,6 +14,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 
+from waldur_core.core.client import RemoteCallLimits, remote_call_limits
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
@@ -84,7 +86,7 @@ class RemoteCustomersTest(test.APITestCase):
         mock_customer = respx.get("https://remote-waldur.com/api/customers/").respond(
             200, json=[]
         )
-        self.client.force_login(UserFactory())
+        self.client.force_login(UserFactory(is_staff=True))
         response = self.client.post(
             "/api/remote-waldur-api/remote_customers/",
             {
@@ -116,7 +118,7 @@ class RemoteСategoriesTest(test.APITestCase):
         categories_mock = respx.get(
             "https://remote-waldur.com/api/marketplace-categories/"
         ).respond(200, json=[])
-        self.client.force_login(UserFactory())
+        self.client.force_login(UserFactory(is_staff=True))
         response = self.client.post(
             "/api/remote-waldur-api/remote_categories/",
             {
@@ -157,7 +159,7 @@ class RemoteOfferingsListTest(test.APITestCase):
         offerings_mock = respx.get(
             "https://remote-waldur.com/api/marketplace-public-offerings/"
         ).respond(200, json=mock_offerings)
-        self.client.force_login(UserFactory())
+        self.client.force_login(UserFactory(is_staff=True))
         response = self.client.post(
             f"/api/remote-waldur-api/shared_offerings/?customer_uuid={customer_uuid}",
             {
@@ -182,7 +184,7 @@ class RemoteOfferingsListTest(test.APITestCase):
         offerings_mock = respx.get(
             "https://remote-waldur.com/api/marketplace-public-offerings/"
         ).respond(200, json=[])
-        self.client.force_login(UserFactory())
+        self.client.force_login(UserFactory(is_staff=True))
         response = self.client.post(
             f"/api/remote-waldur-api/shared_offerings/?customer_uuid={customer_uuid}",
             {
@@ -1103,6 +1105,47 @@ class OfferingScreenshotsTest(test.APITestCase):
             ).exists()
         )
 
+    def test_import_stops_once_the_budget_is_spent(self):
+        screenshots = []
+        for number in range(10):
+            screenshot = dict(self.serialized_screenshot)
+            screenshot["uuid"] = uuid4().hex
+            screenshot["image"] = (
+                f"https://remote-waldur.com/media/screenshot-{number}.png"
+            )
+            screenshot["thumbnail"] = None
+            screenshots.append(screenshot)
+        respx.get(f"{self.api_url}/api/marketplace-screenshots/").respond(
+            json=screenshots
+        )
+        images = respx.get(url__regex=r"/media/screenshot-").respond(
+            200, content=b"test-image-data"
+        )
+        limits = RemoteCallLimits(max_requests=3, timeout=60, max_bytes=10**7)
+        with remote_call_limits(limits):
+            import_offering_screenshots(self.offering)
+        # The list and two images; the third fetch is refused before its
+        # host is resolved, and the loop stops there.
+        self.assertEqual(images.call_count, 2)
+        self.assertEqual(
+            marketplace_models.Screenshot.objects.filter(
+                offering=self.offering, backend_id__in=[s["uuid"] for s in screenshots]
+            ).count(),
+            2,
+        )
+
+    def test_spent_budget_skips_the_import_before_resolving(self):
+        screenshots = self.mock_screenshots_list()
+        limits = RemoteCallLimits(max_requests=1, timeout=60, max_bytes=10**7)
+        with remote_call_limits(limits) as budget:
+            budget.requests = 1
+            with mock.patch(
+                "waldur_mastermind.marketplace_remote.utils.get_client_for_offering"
+            ) as get_client:
+                import_offering_screenshots(self.offering)
+        self.assertFalse(get_client.called)
+        self.assertFalse(screenshots.called)
+
 
 class GetRemoteOfferingsTest(test.APITestCase):
     @mock.patch(
@@ -1118,3 +1161,18 @@ class GetRemoteOfferingsTest(test.APITestCase):
         requested_types = sync_all.call_args.kwargs["type_"]
         self.assertIn(SITE_AGENT_OFFERING, requested_types)
         self.assertIn(LEGACY_SITE_AGENT_OFFERING, requested_types)
+
+
+class ImportOfferingThumbnailTest(test.APITestCase):
+    def test_failed_download_leaves_the_offering_as_it_is(self):
+        offering = OfferingFactory(type=REMOTE_OFFERING)
+        with mock.patch.object(
+            remote_utils,
+            "fetch_url",
+            side_effect=httpx.ConnectError("The remote Waldur call was stopped."),
+        ):
+            remote_utils.import_offering_thumbnail(
+                offering, "https://remote-waldur.com/media/thumbnail.png"
+            )
+        offering.refresh_from_db()
+        self.assertFalse(offering.thumbnail)

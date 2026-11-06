@@ -23,7 +23,12 @@ from httpx import TransportError
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
 
-from waldur_core.core.client import ClientValidationError, get_waldur_client
+from waldur_core.core.client import (
+    ClientValidationError,
+    get_waldur_client,
+    remote_call_limits,
+    sync_all_pages,
+)
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import (
     broadcast_mail,
@@ -62,7 +67,10 @@ from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
     PLAN_FIELDS,
+    REMOTE_PROJECTS_LIMITS,
     RESOURCE_FIELDS,
+    TEAM_SYNC_LIMITS,
+    USAGE_HISTORY_LIMITS,
 )
 from waldur_mastermind.marketplace_remote.exceptions import RemoteWaldurError
 from waldur_mastermind.marketplace_remote.utils import (
@@ -186,11 +194,10 @@ class OfferingPullTask(BackgroundPullTask):
             )
         else:
             try:
-                remote_terms_of_service_list = (
-                    marketplace_offering_terms_of_service_list.sync_all(
-                        client=client,
-                        offering_uuid=remote_offering_data.uuid,
-                    )
+                remote_terms_of_service_list = sync_all_pages(
+                    marketplace_offering_terms_of_service_list,
+                    client=client,
+                    offering_uuid=remote_offering_data.uuid,
                 )
                 if not remote_terms_of_service_list:
                     logger.info(
@@ -458,7 +465,8 @@ class OfferingUserPullTask(BackgroundPullTask):
         client = get_client_for_offering(local_offering)
         remote_offering_users = {
             remote_offering_user.user_username: remote_offering_user
-            for remote_offering_user in marketplace_offering_users_list.sync_all(
+            for remote_offering_user in sync_all_pages(
+                marketplace_offering_users_list,
                 client=client,
                 offering_uuid=[UUID(local_offering.backend_id)],
                 field=[
@@ -939,16 +947,20 @@ class UsagePullTask(BackgroundPullTask):
 
         client = get_client_for_offering(local_resource.offering)
         today = datetime.today()
+        limits = None
         if from_creation_date:
             start_date = month_start(local_resource.created)
+            limits = USAGE_HISTORY_LIMITS
         else:
             start_date = month_start(today - relativedelta(months=4))
 
         logger.info("Pulling resource %s usages from %s", local_resource, start_date)
 
         # Fetch remote component usages (1 API call)
-        remote_usages = marketplace_component_usages_list.sync_all(
+        remote_usages = sync_all_pages(
+            marketplace_component_usages_list,
             client=client,
+            limits=limits,
             resource_uuid=local_resource.backend_id,
             date_after=start_date.date(),
         )
@@ -958,8 +970,10 @@ class UsagePullTask(BackgroundPullTask):
 
         # Fetch ALL user usages for this resource upfront (1 API call)
         # This replaces N API calls with 1, significantly reducing remote API load
-        all_user_usages = marketplace_component_user_usages_list.sync_all(
+        all_user_usages = sync_all_pages(
+            marketplace_component_user_usages_list,
             client=client,
+            limits=limits,
             resource_uuid=local_resource.backend_id,
             date_after=start_date.date(),
         )
@@ -1191,8 +1205,10 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
 
         _patch_robot_account_states()
         client = get_client_for_offering(local_resource.offering)
-        remote_accounts = marketplace_robot_accounts_list.sync_all(
-            client=client, resource_uuid=local_resource.backend_id
+        remote_accounts = sync_all_pages(
+            marketplace_robot_accounts_list,
+            client=client,
+            resource_uuid=local_resource.backend_id,
         )
         local_accounts = models.RobotAccount.objects.filter(resource=local_resource)
 
@@ -1411,8 +1427,8 @@ def sync_remote_project_permissions():
                 remote_project_uuid = remote_project.uuid.hex
 
             try:
-                remote_permissions = projects_list_users_list.sync_all(
-                    client=client, uuid=remote_project_uuid
+                remote_permissions = sync_all_pages(
+                    projects_list_users_list, client=client, uuid=remote_project_uuid
                 )
             except (UnexpectedStatus, TransportError) as e:
                 logger.warning(
@@ -1552,10 +1568,34 @@ def sync_remote_project(serialized_request):
     request = deserialize_instance(serialized_request)
     try:
         utils.update_remote_project(request)
-    except (UnexpectedStatus, TransportError):
-        logger.exception(
-            f"Unable to update remote project {request.project} in offering {request.offering}"
+    except (UnexpectedStatus, TransportError) as exc:
+        # The remote's failure, or a limit it hit: not an error of ours.
+        logger.warning(
+            "Unable to update remote project %s in offering %s: %s",
+            request.project,
+            request.offering,
+            exc,
         )
+
+
+@shared_task(name="waldur_mastermind.marketplace_remote.sync_resource_team")
+def sync_resource_team(serialized_resource):
+    """Push a remote resource's project team to the remote Waldur.
+
+    A few requests for each member, so a large team takes longer than a web
+    request may.
+    """
+    from waldur_api_client.errors import UnexpectedStatus
+
+    try:
+        resource = deserialize_instance(serialized_resource)
+    except ObjectDoesNotExist:
+        return
+    try:
+        with remote_call_limits(TEAM_SYNC_LIMITS):
+            utils.sync_resource_team(resource)
+    except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
+        logger.warning("Unable to sync the team of resource %s: %s", resource, exc)
 
 
 @shared_task
@@ -1636,6 +1676,7 @@ def clean_remote_projects():
     """
     from waldur_api_client.api.projects import projects_destroy, projects_list
     from waldur_api_client.errors import UnexpectedStatus
+    from waldur_api_client.models.project_field_enum import ProjectFieldEnum
 
     clients = {}
     projects_backend_ids = set(
@@ -1668,9 +1709,16 @@ def clean_remote_projects():
             continue
 
         try:
-            remote_projects = projects_list.sync_all(client=client)
+            remote_projects = sync_all_pages(
+                projects_list,
+                client=client,
+                limits=REMOTE_PROJECTS_LIMITS,
+                field=[ProjectFieldEnum.UUID, ProjectFieldEnum.BACKEND_ID],
+            )
         except (UnexpectedStatus, TransportError) as e:
-            logger.debug(f"Unable to get remote projects (api_url: {api_url}): {e}")
+            logger.warning(
+                "Unable to get remote projects (api_url: %s): %s", api_url, e
+            )
             continue
 
         for remote_project in remote_projects:
@@ -1935,7 +1983,8 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
 
             client = get_client_for_offering(offering)
 
-            remote_maintenance_list = maintenance_announcements_list.sync_all(
+            remote_maintenance_list = sync_all_pages(
+                maintenance_announcements_list,
                 client=client,
                 state=[
                     MaintenanceAnnouncementStateEnum.SCHEDULED,

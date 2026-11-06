@@ -11,7 +11,11 @@ from httpx import TransportError
 # (~70 MB resident). Its symbols are imported lazily inside the methods below so
 # the SDK does not load at Django startup. See the "Lazy imports for heavy
 # optional backends" section of CLAUDE.md.
-from waldur_core.core.client import ClientValidationError, get_waldur_client
+from waldur_core.core.client import (
+    ClientValidationError,
+    get_waldur_client,
+    sync_all_pages,
+)
 
 if TYPE_CHECKING:
     from waldur_api_client.models.public_offering_details import PublicOfferingDetails
@@ -64,7 +68,8 @@ class RemoteSynchronisationRunner:
         )
         processed_offering_ids: set[int] = set()
         client = get_waldur_client(self.sync.api_url, self.sync.token)
-        remote_categories = marketplace_categories_list.sync_all(
+        remote_categories = sync_all_pages(
+            marketplace_categories_list,
             client=client,
             field=[
                 MarketplaceCategoryFieldEnum.UUID,

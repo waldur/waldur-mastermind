@@ -5,6 +5,7 @@ from django.db import transaction
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_core.core import middleware
+from waldur_core.core.client import REMOTE_REQUEST_LIMITS, remote_call_limits
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import serialize_instance
 from waldur_core.logging import event_logger
@@ -22,6 +23,16 @@ from waldur_mastermind.marketplace_remote import models, tasks, utils
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
 
 logger = logging.getLogger(__name__)
+
+
+def within_request(function, *args):
+    """Run a call to a remote Waldur that a request's save set off.
+
+    It runs in that request, so it gets a deadline short enough for the
+    request to finish within gunicorn's worker timeout.
+    """
+    with remote_call_limits(REMOTE_REQUEST_LIMITS):
+        function(*args)
 
 
 def sync_permission_with_remote(sender, instance: UserRole, signal, **kwargs):
@@ -150,7 +161,7 @@ def sync_remote_project_when_request_is_approved(
         return
 
     transaction.on_commit(
-        lambda: tasks.sync_remote_project(serialize_instance(instance))
+        lambda: within_request(tasks.sync_remote_project, serialize_instance(instance))
     )
 
 
@@ -235,7 +246,7 @@ def update_remote_resource_options(sender, instance: Resource, created=False, **
     if instance.offering.type != REMOTE_OFFERING:
         return
 
-    transaction.on_commit(lambda: utils.push_resource_options(instance))
+    transaction.on_commit(lambda: within_request(utils.push_resource_options, instance))
 
 
 def update_remote_resource_end_date(
@@ -250,4 +261,6 @@ def update_remote_resource_end_date(
     if instance.offering.type != REMOTE_OFFERING:
         return
 
-    transaction.on_commit(lambda: utils.push_resource_end_date(instance))
+    transaction.on_commit(
+        lambda: within_request(utils.push_resource_end_date, instance)
+    )
