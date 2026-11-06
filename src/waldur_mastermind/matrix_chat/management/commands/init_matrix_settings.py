@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.configuration import config, registry
-from waldur_core.configuration.models import Source
+from waldur_core.configuration.models import Setting, Source
 from waldur_core.configuration.secrets import UNDECRYPTABLE_PREFIX
 from waldur_core.core.serializers import ConstanceSettingsSerializer
 from waldur_mastermind.matrix_chat.serializers import (
@@ -205,6 +205,9 @@ class Command(BaseCommand):
         first_seeding = not stored["MATRIX_TOKENS_MANAGED_BY"] and not any(
             stored[key] for key in APPSERVICE_TOKENS
         )
+        # Re-applied on every deploy, and so recorded; the first-seeding
+        # default below is the administrator's to turn off.
+        managed = set(supplied)
         if "MATRIX_ENABLED" not in supplied and first_seeding:
             supplied["MATRIX_ENABLED"] = "true"
         # Forced rather than defaulted: the marker records that the deployment
@@ -214,6 +217,7 @@ class Command(BaseCommand):
         # as authoritative, and every wizard rotation would be silently
         # reverted at the next deploy.
         supplied["MATRIX_TOKENS_MANAGED_BY"] = "deployment"
+        managed.add("MATRIX_TOKENS_MANAGED_BY")
 
         serializer = self.validate(supplied)
         # Compared after validation, which trims the values, so a Secret
@@ -223,6 +227,13 @@ class Command(BaseCommand):
             source=Source.DEPLOYMENT,
             source_detail="init_matrix_settings",
             restamp_unchanged=True,
+            managed_by="init_matrix_settings",
+        )
+        # Including what an earlier run was supplied and this one is not.
+        Setting.objects.release(
+            *Setting.objects.filter(managed_by="init_matrix_settings")
+            .exclude(key__in=managed)
+            .values_list("key", flat=True)
         )
 
         for key in sorted(supplied):

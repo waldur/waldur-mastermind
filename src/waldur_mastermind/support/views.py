@@ -26,7 +26,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.configuration import config
-from waldur_core.configuration.models import Setting, Source
+from waldur_core.configuration.models import Setting, SettingLocked, Source
 from waldur_core.core import access
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
@@ -2408,79 +2408,86 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
 
         # Save settings to constance
         try:
-            # URL and options; a Cloud site URL is stored as its API gateway URL
-            # when the credentials need it.
-            save_setting("ATLASSIAN_API_URL", service.api_url)
-            save_setting("ATLASSIAN_VERIFY_SSL", data.get("verify_ssl", True))
+            # One transaction, so that a setting the deployment manages
+            # leaves none of the others changed.
+            with transaction.atomic():
+                # URL and options; a Cloud site URL is stored as its API gateway URL
+                # when the credentials need it.
+                save_setting("ATLASSIAN_API_URL", service.api_url)
+                save_setting("ATLASSIAN_VERIFY_SSL", data.get("verify_ssl", True))
 
-            # Store the chosen method's credentials and clear every other one.
-            # The backend picks the first method it finds configured (OAuth 2.0
-            # first), so a leftover credential would override the new one.
-            chosen = ATLASSIAN_CREDENTIAL_SETTINGS[data["auth_method"]]
-            for setting in ATLASSIAN_CREDENTIAL_KEYS:
-                field = chosen.get(setting)
-                save_setting(setting, data[field] if field else "")
+                # Store the chosen method's credentials and clear every other one.
+                # The backend picks the first method it finds configured (OAuth 2.0
+                # first), so a leftover credential would override the new one.
+                chosen = ATLASSIAN_CREDENTIAL_SETTINGS[data["auth_method"]]
+                for setting in ATLASSIAN_CREDENTIAL_KEYS:
+                    field = chosen.get(setting)
+                    save_setting(setting, data[field] if field else "")
 
-            # Project settings
-            save_setting("ATLASSIAN_PROJECT_ID", data["project_id"])
-            save_setting("ATLASSIAN_USE_OLD_API", data.get("use_old_api", False))
-            save_setting(
-                "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED",
-                data.get("custom_field_mapping_enabled", True),
-            )
+                # Project settings
+                save_setting("ATLASSIAN_PROJECT_ID", data["project_id"])
+                save_setting("ATLASSIAN_USE_OLD_API", data.get("use_old_api", False))
+                save_setting(
+                    "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED",
+                    data.get("custom_field_mapping_enabled", True),
+                )
 
-            # Activate selected request types in database
-            if data.get("issue_types"):
-                # Deactivate all request types first
-                models.RequestType.objects.update(is_active=False)
-                # Activate selected ones and set order
-                for idx, name in enumerate(data["issue_types"]):
-                    models.RequestType.objects.filter(name=name).update(
-                        is_active=True, order=idx
+                # Activate selected request types in database
+                if data.get("issue_types"):
+                    # Deactivate all request types first
+                    models.RequestType.objects.update(is_active=False)
+                    # Activate selected ones and set order
+                    for idx, name in enumerate(data["issue_types"]):
+                        models.RequestType.objects.filter(name=name).update(
+                            is_active=True, order=idx
+                        )
+
+                # Optional field mappings
+                if data.get("reporter_field"):
+                    save_setting("ATLASSIAN_REPORTER_FIELD", data["reporter_field"])
+                if data.get("impact_field"):
+                    save_setting("ATLASSIAN_IMPACT_FIELD", data["impact_field"])
+                if data.get("organisation_field"):
+                    save_setting(
+                        "ATLASSIAN_ORGANISATION_FIELD", data["organisation_field"]
                     )
-
-            # Optional field mappings
-            if data.get("reporter_field"):
-                save_setting("ATLASSIAN_REPORTER_FIELD", data["reporter_field"])
-            if data.get("impact_field"):
-                save_setting("ATLASSIAN_IMPACT_FIELD", data["impact_field"])
-            if data.get("organisation_field"):
-                save_setting("ATLASSIAN_ORGANISATION_FIELD", data["organisation_field"])
-            if data.get("project_field"):
-                save_setting("ATLASSIAN_PROJECT_FIELD", data["project_field"])
-            if data.get("affected_resource_field"):
-                save_setting(
-                    "ATLASSIAN_AFFECTED_RESOURCE_FIELD",
-                    data["affected_resource_field"],
-                )
-            if data.get("caller_field"):
-                save_setting("ATLASSIAN_CALLER_FIELD", data["caller_field"])
-            if data.get("template_field"):
-                save_setting("ATLASSIAN_TEMPLATE_FIELD", data["template_field"])
-            if data.get("sla_field"):
-                save_setting("ATLASSIAN_SLA_FIELD", data["sla_field"])
-            if data.get("resolution_sla_field"):
-                save_setting(
-                    "ATLASSIAN_RESOLUTION_SLA_FIELD",
-                    data["resolution_sla_field"],
-                )
-            if data.get("satisfaction_field"):
-                save_setting("ATLASSIAN_SATISFACTION_FIELD", data["satisfaction_field"])
-            if data.get("request_feedback_field"):
-                save_setting(
-                    "ATLASSIAN_REQUEST_FEEDBACK_FIELD",
-                    data["request_feedback_field"],
-                )
-            if data.get("waldur_backend_id_field"):
-                save_setting(
-                    "ATLASSIAN_WALDUR_BACKEND_ID_FIELD",
-                    data["waldur_backend_id_field"],
-                )
-            if data.get("default_offering_issue_type"):
-                save_setting(
-                    "ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE",
-                    data["default_offering_issue_type"],
-                )
+                if data.get("project_field"):
+                    save_setting("ATLASSIAN_PROJECT_FIELD", data["project_field"])
+                if data.get("affected_resource_field"):
+                    save_setting(
+                        "ATLASSIAN_AFFECTED_RESOURCE_FIELD",
+                        data["affected_resource_field"],
+                    )
+                if data.get("caller_field"):
+                    save_setting("ATLASSIAN_CALLER_FIELD", data["caller_field"])
+                if data.get("template_field"):
+                    save_setting("ATLASSIAN_TEMPLATE_FIELD", data["template_field"])
+                if data.get("sla_field"):
+                    save_setting("ATLASSIAN_SLA_FIELD", data["sla_field"])
+                if data.get("resolution_sla_field"):
+                    save_setting(
+                        "ATLASSIAN_RESOLUTION_SLA_FIELD",
+                        data["resolution_sla_field"],
+                    )
+                if data.get("satisfaction_field"):
+                    save_setting(
+                        "ATLASSIAN_SATISFACTION_FIELD", data["satisfaction_field"]
+                    )
+                if data.get("request_feedback_field"):
+                    save_setting(
+                        "ATLASSIAN_REQUEST_FEEDBACK_FIELD",
+                        data["request_feedback_field"],
+                    )
+                if data.get("waldur_backend_id_field"):
+                    save_setting(
+                        "ATLASSIAN_WALDUR_BACKEND_ID_FIELD",
+                        data["waldur_backend_id_field"],
+                    )
+                if data.get("default_offering_issue_type"):
+                    save_setting(
+                        "ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE",
+                        data["default_offering_issue_type"],
+                    )
 
             # Clear API configuration cache
             cache.delete("API_CONFIGURATION")
@@ -2493,6 +2500,11 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
                 status=status.HTTP_200_OK,
             )
 
+        except SettingLocked as e:
+            return response.Response(
+                {"saved": False, "error": " ".join(sum(e.detail.values(), []))},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:
             logger.exception("Failed to save Atlassian settings")
             return response.Response(

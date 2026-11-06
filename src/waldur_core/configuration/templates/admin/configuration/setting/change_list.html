@@ -13,6 +13,7 @@
 <div id="content-main">
   <form method="post" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
+    {{ form.read_only_settings }}
     {% if form.non_field_errors %}{{ form.non_field_errors }}{% endif %}
     {% for title, fields in fieldsets %}
     <fieldset class="module aligned">

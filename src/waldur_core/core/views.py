@@ -15,7 +15,7 @@ from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.db import connection, connections, transaction
-from django.db.models import ForeignKey, ProtectedError, RestrictedError
+from django.db.models import ForeignKey, ProtectedError, Q, RestrictedError
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.utils.http import content_disposition_header
@@ -102,6 +102,7 @@ from waldur_core.core.serializers import (
     PersonalAccessTokenNetworkAclSerializer,
     PersonalAccessTokenSerializer,
     QuerySerializer,
+    SettingSourceSerializer,
     TableGrowthStatsResponseSerializer,
     TableGrowthTriggerResponseSerializer,
     TokenExchangeSerializer,
@@ -961,6 +962,26 @@ def override_db_settings(request):
     serializer.save(source=Source.API, user=request.user)
     cache.delete("API_CONFIGURATION")
     return Response(status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    summary="Get where overridden settings come from",
+    description=(
+        "Lists every setting that has a value of its own or that the "
+        "deployment manages, with who wrote it last, what re-applies it on "
+        "every deploy and whether it is locked. A locked setting cannot be "
+        "changed through /api/override-settings/."
+    ),
+    responses={status.HTTP_200_OK: SettingSourceSerializer(many=True)},
+)
+@api_view(["GET"])
+@permission_classes((IsStaffWriterOrSupportReader,))
+def override_settings_sources(request):
+    # A managed row without a value is a deployment clearing the setting.
+    rows = Setting.objects.filter(
+        Q(value__isnull=False) | Q(locked=True) | ~Q(managed_by="")
+    ).select_related("updated_by")
+    return Response(SettingSourceSerializer(rows, many=True).data)
 
 
 @extend_schema(

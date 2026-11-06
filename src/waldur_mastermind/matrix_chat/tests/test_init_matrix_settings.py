@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.test.utils import override_settings
 
 from waldur_core.configuration import config, registry
-from waldur_core.configuration.models import Setting
+from waldur_core.configuration.models import Setting, Source
 from waldur_core.configuration.testing import override_config
 from waldur_mastermind.matrix_chat.management.commands import init_matrix_settings
 from waldur_mastermind.matrix_chat.management.commands.init_matrix_settings import (
@@ -307,6 +307,50 @@ class InitMatrixSettingsTest(TestCase):
         self._call()
 
         self.assertEqual(config.MATRIX_TOKENS_MANAGED_BY, "deployment")
+
+    def _managed(self):
+        return dict(
+            Setting.objects.exclude(managed_by="").values_list("key", "managed_by")
+        )
+
+    def test_supplied_settings_are_recorded_as_re_applied_but_not_locked(self):
+        self._call()
+
+        managed = self._managed()
+        self.assertEqual(set(managed), {*self.ENV, "MATRIX_TOKENS_MANAGED_BY"}, managed)
+        self.assertEqual(set(managed.values()), {"init_matrix_settings"})
+        self.assertFalse(Setting.objects.filter(locked=True).exists())
+
+    def test_the_first_seeding_default_is_the_administrators(self):
+        self._call()
+
+        self.assertTrue(config.MATRIX_ENABLED)
+        self.assertNotIn("MATRIX_ENABLED", self._managed())
+
+    def test_a_setting_no_longer_supplied_is_handed_back(self):
+        self._call(env={**self.ENV, "MATRIX_LIVEKIT_URL": "https://lk.example.com"})
+
+        self._call()
+
+        self.assertNotIn("MATRIX_LIVEKIT_URL", self._managed())
+        self.assertEqual(config.MATRIX_LIVEKIT_URL, "https://lk.example.com")
+
+    def test_a_lock_from_a_deployment_file_is_not_inherited(self):
+        # Helm without matrixChat.setup seeds LiveKit through a file; turning
+        # the setup on hands the keys to this command, which does not lock.
+        Setting.objects.set(
+            "MATRIX_LIVEKIT_KEY",
+            "lk-key",
+            source=Source.DEPLOYMENT,
+            source_detail="livekit.yaml",
+            locked=True,
+            managed_by="livekit.yaml",
+        )
+
+        self._call(env={**self.ENV, "MATRIX_LIVEKIT_KEY": "lk-key"})
+
+        row = Setting.objects.get(key="MATRIX_LIVEKIT_KEY")
+        self.assertEqual((row.locked, row.managed_by), (False, "init_matrix_settings"))
 
     @override_config(
         MATRIX_APPSERVICE_AS_TOKEN="hand-as-token",

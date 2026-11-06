@@ -8,7 +8,7 @@ from rest_framework import status, test
 
 from waldur_core.configuration import config, registry, secrets
 from waldur_core.configuration import models as configuration_models
-from waldur_core.configuration.models import Setting, Source
+from waldur_core.configuration.models import Setting, SettingLocked, Source
 from waldur_core.configuration.signals import setting_updated
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import encryption
@@ -145,6 +145,164 @@ class SettingsApiProvenanceTest(test.APITestCase):
         row = Setting.objects.get(key="SITE_NAME")
         self.assertEqual(row.source, Source.API)
         self.assertEqual(row.updated_by, staff)
+
+
+def lock(key, value, source_detail="whitelabeling.yaml"):
+    Setting.objects.set(
+        key,
+        value,
+        source=Source.DEPLOYMENT,
+        source_detail=source_detail,
+        locked=True,
+        managed_by=source_detail,
+    )
+
+
+class LockTest(TestCase):
+    def test_people_cannot_change_a_locked_setting(self):
+        lock("SITE_NAME", "Portal")
+
+        for source in (Source.API, Source.ADMIN):
+            with self.assertRaises(SettingLocked) as cm:
+                Setting.objects.set("SITE_NAME", "Other", source=source)
+            self.assertIn("whitelabeling.yaml", str(cm.exception.detail["SITE_NAME"]))
+        row = Setting.objects.get(key="SITE_NAME")
+        self.assertEqual((row.value, row.source), ("Portal", Source.DEPLOYMENT))
+
+    def test_writing_the_locked_value_again_is_a_no_op(self):
+        lock("MATRIX_APPSERVICE_AS_TOKEN", "as-secret")
+
+        Setting.objects.set(
+            "MATRIX_APPSERVICE_AS_TOKEN", "as-secret", source=Source.API
+        )
+
+        row = Setting.objects.get(key="MATRIX_APPSERVICE_AS_TOKEN")
+        self.assertEqual(row.source, Source.DEPLOYMENT)
+
+    def test_the_deployment_can_change_a_locked_setting(self):
+        lock("SITE_NAME", "Portal")
+
+        Setting.objects.set("SITE_NAME", "Redeployed", source=Source.DEPLOYMENT)
+
+        row = Setting.objects.get(key="SITE_NAME")
+        self.assertEqual(row.value, "Redeployed")
+        self.assertTrue(row.locked)
+
+    def test_a_write_by_waldur_keeps_what_manages_the_setting(self):
+        # The file still re-applies it, and is what releases it again.
+        lock("SITE_NAME", "Portal")
+
+        config.SITE_NAME = "By Waldur"
+
+        row = Setting.objects.get(key="SITE_NAME")
+        self.assertEqual((row.source, row.locked), (Source.APPLICATION, True))
+        self.assertEqual(row.managed_by, "whitelabeling.yaml")
+
+    def test_another_manager_does_not_inherit_the_lock(self):
+        lock("MATRIX_LIVEKIT_KEY", "key", source_detail="stdin")
+
+        Setting.objects.set(
+            "MATRIX_LIVEKIT_KEY",
+            "key",
+            source=Source.DEPLOYMENT,
+            source_detail="init_matrix_settings",
+            managed_by="init_matrix_settings",
+        )
+
+        row = Setting.objects.get(key="MATRIX_LIVEKIT_KEY")
+        self.assertEqual((row.locked, row.managed_by), (False, "init_matrix_settings"))
+
+    def test_unlock_keeps_the_value_and_the_manager(self):
+        lock("SITE_NAME", "Portal")
+
+        Setting.objects.unlock("SITE_NAME")
+        Setting.objects.set("SITE_NAME", "Other", source=Source.API)
+
+        row = Setting.objects.get(key="SITE_NAME")
+        self.assertEqual((row.value, row.locked), ("Other", False))
+        # The next deploy still puts its value back.
+        self.assertEqual(row.managed_by, "whitelabeling.yaml")
+
+    def test_release_hands_the_setting_back(self):
+        lock("SITE_NAME", "Portal")
+
+        Setting.objects.release("SITE_NAME")
+
+        row = Setting.objects.get(key="SITE_NAME")
+        self.assertEqual((row.value, row.locked, row.managed_by), ("Portal", False, ""))
+
+
+class SettingsApiLockTest(test.APITestCase):
+    def setUp(self):
+        self.client.force_authenticate(UserFactory(is_staff=True))
+
+    def test_a_change_to_a_locked_setting_is_rejected(self):
+        lock("SITE_NAME", "Portal")
+
+        response = self.client.post(
+            "/api/override-settings/",
+            {"SITE_NAME": "Other", "BRAND_COLOR": "#FF0000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("whitelabeling.yaml", response.data["SITE_NAME"][0])
+        self.assertEqual(config.SITE_NAME, "Portal")
+        # Nothing of the request is written.
+        self.assertFalse(Setting.objects.filter(key="BRAND_COLOR").exists())
+
+    def test_resubmitting_a_locked_value_is_accepted(self):
+        lock("SITE_NAME", "Portal")
+
+        response = self.client.post(
+            "/api/override-settings/",
+            {"SITE_NAME": "Portal", "BRAND_COLOR": "#FF0000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(config.BRAND_COLOR, "#FF0000")
+
+
+class SettingsSourcesApiTest(test.APITestCase):
+    url = "/api/override-settings/sources/"
+
+    def test_lists_stored_settings_with_their_source(self):
+        staff = UserFactory(is_staff=True)
+        lock("SITE_NAME", "Portal")
+        Setting.objects.set("BRAND_COLOR", "#FF0000", source=Source.API, user=staff)
+        Setting.objects.create(key="SITE_EMAIL", value=None, source=Source.API)
+        Setting.objects.create(
+            key="POWERED_BY_LOGO",
+            value=None,
+            source=Source.DEPLOYMENT,
+            source_detail="whitelabeling.yaml",
+            locked=True,
+        )
+        self.client.force_authenticate(staff)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = {row["key"]: row for row in response.data}
+        self.assertEqual(set(rows), {"BRAND_COLOR", "POWERED_BY_LOGO", "SITE_NAME"})
+        self.assertEqual(rows["SITE_NAME"]["source"], Source.DEPLOYMENT)
+        self.assertEqual(rows["SITE_NAME"]["source_detail"], "whitelabeling.yaml")
+        self.assertTrue(rows["SITE_NAME"]["locked"])
+        self.assertEqual(rows["SITE_NAME"]["managed_by"], "whitelabeling.yaml")
+        self.assertEqual(rows["BRAND_COLOR"]["managed_by"], "")
+        self.assertIsNone(rows["SITE_NAME"]["updated_by_username"])
+        self.assertEqual(rows["BRAND_COLOR"]["updated_by_username"], staff.username)
+        self.assertFalse(rows["BRAND_COLOR"]["locked"])
+
+    def test_support_can_read_and_users_cannot(self):
+        self.client.force_authenticate(UserFactory(is_support=True))
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(UserFactory())
+        self.assertEqual(
+            self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN
+        )
 
 
 @override_settings(CONFIGURATION_IN_MEMORY=True)

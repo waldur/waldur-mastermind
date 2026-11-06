@@ -13,6 +13,16 @@ from django.conf import settings
 
 SECRET_FIELD_TYPE = "secret_field"
 
+# Settings Waldur changes itself while it runs. A deployment file may give them
+# a first value, but never re-applies or locks them: it would put back a value
+# Waldur has since replaced, such as a rotated refresh token.
+RUNTIME_SETTINGS = frozenset(
+    {
+        "REMOTE_EDUTEAMS_REFRESH_TOKEN",
+        "TELEMETRY_DEPLOYMENT_ID",
+    }
+)
+
 
 def definitions():
     return settings.CONSTANCE_CONFIG

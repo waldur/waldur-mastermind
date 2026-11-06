@@ -32,8 +32,17 @@ class SettingAdmin(admin.ModelAdmin):
         if request.method == "POST" and can_change:
             form = SettingsForm(request.POST, request.FILES, initial=initial)
             if form.is_valid():
-                form.save(user=request.user)
+                not_saved = form.save(user=request.user)
                 messages.success(request, _("Settings have been saved."))
+                if not_saved:
+                    messages.warning(
+                        request,
+                        _(
+                            "Not saved: %(settings)s. The deployment manages "
+                            "them since this page was loaded."
+                        )
+                        % {"settings": ", ".join(not_saved)},
+                    )
                 return redirect(request.path)
         else:
             form = SettingsForm(initial=initial)

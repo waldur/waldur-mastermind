@@ -555,6 +555,38 @@ class TestAtlassianSettingsDiscoveryViewSet(test.APITestCase):
         assert row.source == Source.API
         assert row.updated_by == self.staff_user
 
+    def test_save_settings_writes_nothing_when_a_setting_is_locked(self):
+        Setting.objects.set(
+            "ATLASSIAN_PROJECT_ID",
+            "OPS",
+            source=Source.DEPLOYMENT,
+            source_detail="support.yaml",
+            locked=True,
+            managed_by="support.yaml",
+        )
+        self.client.force_authenticate(self.staff_user)
+        with mock.patch(
+            "waldur_mastermind.support.backend.atlassian_discovery.AtlassianDiscoveryService.validate_credentials"
+        ) as mock_validate:
+            mock_validate.return_value = {"valid": True}
+            response = self.client.post(
+                self.get_save_settings_url(),
+                {
+                    "api_url": "https://test.atlassian.net",
+                    "auth_method": "api_token",
+                    "email": "test@example.com",
+                    "token": "test-token",
+                    "project_id": "SD",
+                    "confirm_save": True,
+                },
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "support.yaml" in response.data["error"]
+        assert config.ATLASSIAN_PROJECT_ID == "OPS"
+        # Written before the locked one, and rolled back with it.
+        assert not Setting.objects.filter(key="ATLASSIAN_API_URL").exists()
+
     OAUTH2_CREDENTIALS = {
         "api_url": "https://test.atlassian.net",
         "auth_method": "oauth2_client_credentials",
