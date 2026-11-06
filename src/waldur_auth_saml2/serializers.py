@@ -24,6 +24,17 @@ class Saml2LoginCompleteSerializer(serializers.Serializer):
 class Saml2LogoutCompleteSerializer(serializers.Serializer):
     SAMLResponse = Base64Field(required=False)
     SAMLRequest = Base64Field(required=False)
+    # The redirect binding carries the signature of a request in the query
+    # string, over SAMLRequest, RelayState and SigAlg as they were sent.
+    RelayState = serializers.CharField(
+        required=False, allow_blank=True, trim_whitespace=False
+    )
+    SigAlg = serializers.CharField(
+        required=False, allow_blank=True, trim_whitespace=False
+    )
+    Signature = serializers.CharField(
+        required=False, allow_blank=True, trim_whitespace=False
+    )
 
     def validate(self, attrs):
         if not attrs.get("SAMLResponse") and not attrs.get("SAMLRequest"):

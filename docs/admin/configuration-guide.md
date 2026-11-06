@@ -41,6 +41,7 @@ WALDUR_AUTH_SAML2 = {'ALLOW_TO_SELECT_IDENTITY_PROVIDER': True,
  'REQUIRED_ATTRIBUTES': [],
  'SAML_ATTRIBUTE_MAPPING': {},
  'SIGNATURE_ALGORITHM': None,
+ 'WANT_LOGOUT_REQUESTS_SIGNED': True,
  'XMLSEC_BINARY': '/usr/bin/xmlsec1'}
 ```
 
@@ -233,6 +234,12 @@ Mapping between SAML attributes and User fields
 **Type:** Optional[str]
 
 Identifies the Signature algorithm URL according to the XML Signature specification (SHA1 is used by default)
+
+#### WANT_LOGOUT_REQUESTS_SIGNED
+
+**Type:** bool
+
+Accept a logout request from an identity provider only if the identity provider signed it. Without a signature, anybody who knows a user's NameID could log that user out with a link. Turn off only for an identity provider that does not sign its logout requests.
 
 #### XMLSEC_BINARY
 

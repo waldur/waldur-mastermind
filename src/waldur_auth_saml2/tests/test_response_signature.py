@@ -18,7 +18,7 @@ from django.test import Client, override_settings
 from django.urls import reverse
 from djangosaml2.conf import get_config
 from rest_framework import status, test
-from saml2 import BINDING_HTTP_REDIRECT
+from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
 from saml2.attribute_converter import ac_factory
 from saml2.config import IdPConfig
 from saml2.mdstore import InMemoryMetaData
@@ -65,10 +65,10 @@ def write_keypair(directory, name):
 
 
 @unittest.skipUnless(XMLSEC_BINARY, "xmlsec1 is required to sign and verify SAML")
-class Saml2ResponseSignatureTest(test.APITestCase):
-    """Only identity providers known from metadata may authenticate users.
+class Saml2SignedMessagesTestCase(test.APITestCase):
+    """A service provider and an identity provider with real keys.
 
-    The responses here are really signed, so pysaml2 verifies them with xmlsec1
+    The messages are really signed, so pysaml2 verifies them with xmlsec1
     exactly as it does in a deployment.
     """
 
@@ -131,7 +131,11 @@ class Saml2ResponseSignatureTest(test.APITestCase):
                         "endpoints": {
                             "single_sign_on_service": [
                                 (f"{entity_id}/sso", BINDING_HTTP_REDIRECT)
-                            ]
+                            ],
+                            "single_logout_service": [
+                                (f"{entity_id}/slo", BINDING_HTTP_REDIRECT),
+                                (f"{entity_id}/slo", BINDING_HTTP_POST),
+                            ],
                         },
                         "policy": {
                             "default": {
@@ -183,6 +187,10 @@ class Saml2ResponseSignatureTest(test.APITestCase):
         return self.client.post(
             self.url, {"SAMLResponse": saml_response, "RelayState": ""}
         )
+
+
+class Saml2ResponseSignatureTest(Saml2SignedMessagesTestCase):
+    """Only identity providers known from metadata may authenticate users."""
 
     def test_response_signed_by_known_identity_provider_logs_user_in(self):
         response = self.post(self.signed_response(KNOWN_IDP, "known-idp", "alice"))
