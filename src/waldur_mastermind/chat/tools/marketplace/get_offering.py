@@ -99,7 +99,19 @@ class GetOfferingTool(BaseTool):
                 "link 'Request access' (that is the Hub's own order "
                 "button). When `getting_started` is set, relay its "
                 "prerequisites before pointing the user onward. Never "
-                "imply that access has been granted."
+                "imply that access has been granted.\n"
+                "\n"
+                "PUBLISHED LINKS:\n"
+                "`documentation_url`, `helpdesk_url` and "
+                "`privacy_policy_link` are provider-published links. When "
+                "the user asks about documentation, support, or "
+                "data/privacy policies, relay the matching link as an "
+                "inline markdown link (e.g. "
+                "`[Documentation](documentation_url)`) and defer the "
+                "content to the provider. When the field is null, say the "
+                "offering does not publish one and point to the offering "
+                "page — never fabricate a link or summarise a document "
+                "you cannot see."
             ),
         )
 

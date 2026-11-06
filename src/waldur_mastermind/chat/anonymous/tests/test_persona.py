@@ -117,6 +117,15 @@ class AnonymousPromptAccessGuidanceTest(SimpleTestCase):
         )
         self.assertNotIn("not automatically", ANONYMOUS_SYSTEM_PROMPT)
 
+    def test_published_links_relayed_not_invented(self):
+        # Documentation / helpdesk / privacy-policy questions get the
+        # links the offering publishes; absent links are never made up.
+        self.assertIn("links the offering publishes", ANONYMOUS_SYSTEM_PROMPT)
+        self.assertIn(
+            "never fabricate a link the offering does not state",
+            ANONYMOUS_SYSTEM_PROMPT,
+        )
+
     def test_never_submits_requests(self):
         # The assistant must never claim to submit or track a request
         # on the user's behalf.

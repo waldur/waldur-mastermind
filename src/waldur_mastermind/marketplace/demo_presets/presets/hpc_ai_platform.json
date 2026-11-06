@@ -468,7 +468,9 @@
         "gpu_partition": "a100,h100",
         "cpu_partition": "compute"
       },
-      "getting_started": "## Getting Started with SLURM HPC Cluster\n\n### SSH Access\n```\nssh username@slurm.aiplatform.com\n```\n\n### Check Available Resources\n```bash\n# View available partitions\nsinfo -N -l\n\n# View your job queue\nsqueue -u $USER\n\n# Check your allocation usage\nsacctmgr show assoc user=$USER format=user,account,grptresrunmins\n```\n\n### Submit GPU Training Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=training\n#SBATCH --partition=a100\n#SBATCH --gres=gpu:4\n#SBATCH --cpus-per-task=32\n#SBATCH --mem=256G\n#SBATCH --time=24:00:00\n\nmodule load cuda/12.0 pytorch/2.0\npython train_model.py\n```\n\n### Monitor Usage\nView your allocation and usage in the Waldur dashboard.\n\n### Support\nEmail: hpc-support@aiplatform.com"
+      "getting_started": "## Getting Started with SLURM HPC Cluster\n\n### SSH Access\n```\nssh username@slurm.aiplatform.com\n```\n\n### Check Available Resources\n```bash\n# View available partitions\nsinfo -N -l\n\n# View your job queue\nsqueue -u $USER\n\n# Check your allocation usage\nsacctmgr show assoc user=$USER format=user,account,grptresrunmins\n```\n\n### Submit GPU Training Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=training\n#SBATCH --partition=a100\n#SBATCH --gres=gpu:4\n#SBATCH --cpus-per-task=32\n#SBATCH --mem=256G\n#SBATCH --time=24:00:00\n\nmodule load cuda/12.0 pytorch/2.0\npython train_model.py\n```\n\n### Monitor Usage\nView your allocation and usage in the Waldur dashboard.\n\n### Support\nEmail: hpc-support@aiplatform.com",
+      "documentation_url": "https://docs.aiplatform.com/slurm/",
+      "helpdesk_url": "https://support.aiplatform.com/"
     },
     {
       "uuid": "f3000000000000000000000000000030",

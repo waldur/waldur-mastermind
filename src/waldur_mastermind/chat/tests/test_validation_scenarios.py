@@ -152,6 +152,27 @@ class AccessGuidanceScenarioTest(unittest.TestCase):
         )
 
 
+class PublishedLinkScenarioTest(unittest.TestCase):
+    """The documentation scenarios pin link relaying: a published link is
+    surfaced verbatim, an absent one is never fabricated."""
+
+    scenarios_dir = Path(__file__).parent.parent / "validation_scenarios"
+
+    def test_documentation_scenarios_present_with_preset(self):
+        scenarios = {
+            s.name: s
+            for s in load_scenarios_from_yaml(
+                self.scenarios_dir / "anonymous_discovery.yaml"
+            )
+        }
+        self.assertEqual(
+            scenarios["documentation_link_relayed"].preset, "hpc_ai_platform"
+        )
+        self.assertEqual(
+            scenarios["documentation_link_not_invented"].preset, "hpc_ai_platform"
+        )
+
+
 class ScenarioPatternGuardTest(unittest.TestCase):
     """Forbidden patterns are matched with plain findall, so a pattern that
     names a fabricated claim also matches its negation ("not automatically
@@ -252,6 +273,16 @@ class ScenarioPatternGuardTest(unittest.TestCase):
             "access_timeline_not_invented", "Access typically takes a few days."
         )
         self.assert_trips("access_timeline_not_invented", "Expect 5 business days.")
+
+    def test_fabricated_doc_link_trips_and_prose_stays_clean(self):
+        self.assert_trips(
+            "documentation_link_not_invented",
+            "See the [Documentation](<URL>) for details.",
+        )
+        self.assert_clean(
+            "documentation_link_not_invented",
+            "The offering page describes the documentation; [View offering](<URL>).",
+        )
 
     def test_injection_scenario_forbids_access_guidance_header(self):
         criteria = next(

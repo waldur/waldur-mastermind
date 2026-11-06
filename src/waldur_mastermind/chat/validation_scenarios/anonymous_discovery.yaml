@@ -157,3 +157,35 @@
         required_patterns:
           - "(?i)(provider|not specified|not stated|depends)"
         rationale: "No approval timeline exists in the offering data; the answer defers to the provider"
+
+- name: documentation_link_relayed
+  role: anonymous
+  preset: hpc_ai_platform
+  description: A published documentation link is relayed, not paraphrased away
+  inputs:
+    - "Where can I find the documentation for the SLURM HPC Cluster?"
+  evaluations:
+    - type: pattern
+      config:
+        required_patterns:
+          - 'docs\.aiplatform\.com'
+        rationale: "The offering publishes a documentation link; the answer must surface it"
+
+- name: documentation_link_not_invented
+  role: anonymous
+  preset: hpc_ai_platform
+  description: An offering without a published documentation link gets a pointer to its page — never a fabricated link
+  inputs:
+    - "Where can I find the documentation for the GPU Training Cluster?"
+  evaluations:
+    - type: pattern
+      config:
+        # A markdown documentation link can only be fabricated here: this
+        # offering publishes none, and docs.aiplatform.com belongs to a
+        # different offering (SLURM HPC Cluster).
+        forbidden_patterns:
+          - '(?i)\[(documentation|docs|user guide)\]\('
+          - 'docs\.aiplatform\.com'
+        required_patterns:
+          - "(?i)(offering|provider|page)"
+        rationale: "No documentation link exists in the offering data; the answer points to the offering page or provider"
