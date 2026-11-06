@@ -1,12 +1,18 @@
 """Tests for core Celery tasks and management commands."""
 
+import threading
 from datetime import timedelta
 from io import StringIO
+from unittest import mock
 
 from django.core.management import call_command
 from django.db import connection
-from django.test import TestCase, TransactionTestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 from django.utils import timezone
+
+from waldur_core.core import models as core_models
+from waldur_core.core import tasks as core_tasks
+from waldur_core.core.enums import CoreStates
 
 
 class CleanCeleryResultsManagementCommandTest(TransactionTestCase):
@@ -124,3 +130,98 @@ class CleanCeleryResultsMissingTableTest(TestCase):
         call_command("clean_celery_results", stdout=out)
 
         self.assertIn("does not exist", out.getvalue())
+
+
+class ConcurrentTaskRunTest(SimpleTestCase):
+    """Celery keeps one object per task class in a worker process, so two runs
+    of the same task in a threads pool share it."""
+
+    def setUp(self):
+        self.barrier = threading.Barrier(2, timeout=5)
+        original_pre_execute = core_tasks.Task.pre_execute
+
+        def pre_execute(task, instance):
+            # Hold both runs between storing their arguments and executing.
+            self.barrier.wait()
+            original_pre_execute(task, instance)
+
+        patcher = mock.patch.object(core_tasks.Task, "pre_execute", pre_execute)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        patcher = mock.patch.object(
+            core_tasks.utils, "deserialize_instance", lambda instance: instance
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_concurrently(self, task, *calls):
+        errors = []
+
+        def target(args, kwargs):
+            try:
+                task.run(*args, **kwargs)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=target, args=call) for call in calls]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+
+    def test_each_run_calls_its_own_backend_method(self):
+        first = mock.Mock()
+        second = mock.Mock()
+
+        self.run_concurrently(
+            core_tasks.BackendMethodTask(),
+            ((first, "pull_tenant_security_groups"), {}),
+            ((second, "delete_tenant_ports"), {}),
+        )
+
+        backend = first.get_backend.return_value
+        backend.pull_tenant_security_groups.assert_called_once_with(first)
+        backend.delete_tenant_ports.assert_not_called()
+        backend = second.get_backend.return_value
+        backend.delete_tenant_ports.assert_called_once_with(second)
+        backend.pull_tenant_security_groups.assert_not_called()
+
+    def test_each_run_sets_its_own_success_runtime_state(self):
+        first = mock.Mock()
+        second = mock.Mock()
+
+        self.run_concurrently(
+            core_tasks.BackendMethodTask(),
+            ((first, "pull"), {"success_runtime_state": "ACTIVE"}),
+            ((second, "pull"), {"success_runtime_state": "SHUTOFF"}),
+        )
+
+        self.assertEqual(first.runtime_state, "ACTIVE")
+        self.assertEqual(second.runtime_state, "SHUTOFF")
+
+    def test_each_run_saves_its_own_error_message(self):
+        task = core_tasks.ErrorMessageTask()
+        task.AsyncResult = lambda result_id: mock.Mock(
+            result=f"{result_id} failed", traceback=""
+        )
+        first = mock.Mock(
+            spec=core_models.ErrorMessageMixin,
+            error_message="",
+            state=CoreStates.ERRED,
+        )
+        second = mock.Mock(
+            spec=core_models.ErrorMessageMixin,
+            error_message="",
+            state=CoreStates.ERRED,
+        )
+
+        self.run_concurrently(
+            task,
+            (("first-result", first), {}),
+            (("second-result", second), {}),
+        )
+
+        self.assertEqual(first.error_message, "first-result failed")
+        self.assertEqual(second.error_message, "second-result failed")
