@@ -213,6 +213,44 @@ class PersonalAccessTokenAuthenticationTest(test.APITestCase):
         # With PAT disabled, request falls through to next auth (no auth → 401)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_impersonation_header_is_rejected(self):
+        """A PAT cannot impersonate, so the header must not be silently dropped."""
+        other = self.fixture.user
+        pat = _create_pat(self.user)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}",
+            HTTP_X_IMPERSONATED_USER_UUID=other.uuid.hex,
+        )
+        response = self.client.get("/api/customers/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["detail"],
+            "Impersonation is only supported with the Token authorization scheme.",
+        )
+
+    def test_rejected_impersonation_does_not_record_usage(self):
+        pat = _create_pat(self.user)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}",
+            HTTP_X_IMPERSONATED_USER_UUID=self.fixture.user.uuid.hex,
+        )
+        self.client.get("/api/customers/")
+
+        pat.refresh_from_db()
+        self.assertIsNone(pat.last_used_at)
+        self.assertEqual(pat.use_count, 0)
+
+    def test_revoked_pat_with_impersonation_header_keeps_its_error(self):
+        other = self.fixture.user
+        pat = _create_pat(self.user, is_active=False)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}",
+            HTTP_X_IMPERSONATED_USER_UUID=other.uuid.hex,
+        )
+        response = self.client.get("/api/customers/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["detail"], "Invalid token.")
+
 
 class PersonalAccessTokenScopeEnforcementTest(test.APITestCase):
     def setUp(self):

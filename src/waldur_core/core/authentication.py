@@ -187,6 +187,23 @@ def parse_token_from_request(request, keyword) -> str | None:
     return token
 
 
+def reject_impersonation_header(request):
+    """Fail a request that asks for impersonation on a path that cannot do it.
+
+    Only ImpersonationAuthentication honours the header. Elsewhere, ignoring it
+    would run the request as the caller while the caller believes it runs as
+    somebody else. Call it after the credential is validated, so that an
+    invalid one keeps its own error.
+
+    403 rather than 401: the credential is valid, and Homeport treats any 401
+    as an expired session and signs the user out.
+    """
+    if request.META.get(IMPERSONATED_USER_HEADER):
+        raise exceptions.PermissionDenied(
+            _("Impersonation is only supported with the Token authorization scheme.")
+        )
+
+
 class ImpersonationAuthentication(DRFTokenAuthentication):
     """
     Token-based authentication with impersonation.
@@ -266,6 +283,7 @@ class SessionAuthentication(DRFSessionAuthentication):
     def authenticate(self, request):
         result = super().authenticate(request)
         if result is not None:
+            reject_impersonation_header(request)
             user, _ = result
             refresh_token(user)  # Ensure token exists before setting context
             set_user_context(user)
@@ -294,7 +312,9 @@ class PATAuthentication(BaseAuthentication):
         # is the trust boundary for X-Forwarded-For, mirroring its
         # whitelistSourceRange.
         result = authenticate_personal_access_token(
-            raw_token, core_utils.get_ip_address(request)
+            raw_token,
+            core_utils.get_ip_address(request),
+            authorize=lambda pat, client_ip: reject_impersonation_header(request),
         )
         if result is None:
             return None
@@ -506,11 +526,14 @@ def authenticate_personal_access_token(
     """Validate a raw ``w_...`` token presented from ``client_ip``.
 
     Returns ``(user, pat)``, or None while PATs are disabled. Raises
-    AuthenticationFailed for every rejection. Needs no request, so the MCP
-    server shares the exact checks, audit events and usage tracking of REST.
+    AuthenticationFailed for every rejection of the token itself. Needs no
+    request, so the MCP server shares the exact checks, audit events and usage
+    tracking of REST.
 
     ``authorize(pat, client_ip)`` adds caller-specific checks. It runs before
-    usage is recorded and rejects by raising AuthenticationFailed.
+    usage is recorded and rejects by raising an APIException, which propagates
+    unchanged. The MCP verifier catches only AuthenticationFailed, so its hook
+    must raise that.
     """
     # Quick expiry pre-check from embedded timestamp (w_<ts>_<random>)
     parts = raw_token.split("_", 2)
@@ -650,6 +673,9 @@ class OIDCAuthentication(BaseAuthentication):
                 f"Token does not contain required user identifier field: '{user_field}'"
             )
 
+        # Before provisioning, so that a rejected request creates or adopts no
+        # account.
+        reject_impersonation_header(request)
         user = self._get_or_provision_user(user_identifier, parsed_token)
         # LogoutView deletes the DRF authtoken; requiring it here rejected every still-valid
         # access token until the user signed in again.

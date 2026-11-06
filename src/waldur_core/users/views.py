@@ -502,8 +502,9 @@ class InvitationViewSet(viewsets.ModelViewSet):
     def _check_can_accept_for_others(self):
         # Naming the user replaces impersonation for this call; combining the
         # two would leave it unclear whose acceptance it is.
-        if settings.WALDUR_CORE["REQUEST_HEADER_IMPERSONATED_USER_UUID"] in (
-            self.request.META
+        # An empty value is no impersonation, as in authentication.
+        if self.request.META.get(
+            settings.WALDUR_CORE["REQUEST_HEADER_IMPERSONATED_USER_UUID"]
         ):
             raise ValidationError(
                 _("Do not combine user with an impersonation header.")
