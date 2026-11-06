@@ -511,6 +511,7 @@ td:nth-child(4) {
 | `create_offering_user_for_openportal_user` | `Custom Signal (openportal_association_created)` | `waldur_openportal.Allocation` | No description |
 | `create_offering_user_for_rancher_user` | `Django Signal (post_save)` | `waldur_rancher.RancherUser` | No description |
 | `create_offering_users_if_order_is_valid` | `Django Signal (post_save)` | `marketplace.Order` | Create offering users for all project members when order reaches PENDING_PROVIDER or EXECUTING. |
+| `create_offering_users_when_allowed` | `Django Signal (post_save)` | `marketplace.Offering` | Create the accounts an offering could not create until now. |
 | `create_offering_users_when_project_role_granted` | `Custom Signal (role_granted)` | `—` | Schedule task to create or restore offering users when project role is granted. |
 | `create_price_estimate` | `Django Signal (post_save)` | `structure.Project` | Create price estimate when customer or project is created. |
 | `create_price_estimate` | `Django Signal (post_save)` | `structure.Customer` | Create price estimate when customer or project is created. |
@@ -852,7 +853,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 768
+Total unique handlers found: 769
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -860,7 +861,7 @@ Total unique handlers found: 768
 - **waldur_core**: 348 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 356 handlers
+- **waldur_mastermind**: 357 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
