@@ -151,3 +151,18 @@ class AnonymousPromptClarificationTest(SimpleTestCase):
 
     def test_eligibility_stated_only_rule_present(self):
         self.assertIn("Eligibility or geographic restrictions", ANONYMOUS_SYSTEM_PROMPT)
+
+
+class AnonymousPromptNoMatchTest(SimpleTestCase):
+    """No-match handling: name the unmet requirement, offer a way forward."""
+
+    def test_no_match_section_present(self):
+        self.assertIn("=== WHEN NOTHING MATCHES ===", ANONYMOUS_SYSTEM_PROMPT)
+
+    def test_bare_no_results_forbidden(self):
+        # An empty search must end in guidance, not a dead end.
+        self.assertIn('never reply with a bare "no results"', ANONYMOUS_SYSTEM_PROMPT)
+        self.assertIn("requirement the catalog cannot meet", ANONYMOUS_SYSTEM_PROMPT)
+
+    def test_poor_matches_not_oversold(self):
+        self.assertIn("Never present a poor match as a fit", ANONYMOUS_SYSTEM_PROMPT)

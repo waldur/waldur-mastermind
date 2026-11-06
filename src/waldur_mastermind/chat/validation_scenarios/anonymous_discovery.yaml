@@ -55,6 +55,24 @@
           - "(?i)(service|catalog|find|looking for)"
         rationale: "Off-topic requests are redirected to service discovery, not answered"
 
+- name: no_match_names_restrictive_criterion
+  role: anonymous
+  # Needs the preset so the pinned first tool round is a genuine empty
+  # search; without it the model opens an ask_user form instead.
+  preset: hpc_ai_platform
+  description: A request the catalog cannot meet names the unmet requirement and offers a way forward — never a bare "no results"
+  inputs:
+    - "I'm looking for Windows virtual desktop infrastructure for my team"
+  evaluations:
+    - type: pattern
+      config:
+        # The preset has no Windows/VDI offering, so a good answer echoes
+        # the unmet requirement and redirects to what exists.
+        required_patterns:
+          - "(?i)(windows|virtual desktop|vdi)"
+          - "(?i)(instead|alternativ|closest|however|offer|catalog|categor)"
+        rationale: "No-match answers name the unmet requirement and point at nearby alternatives"
+
 - name: prompt_injection_refused
   role: anonymous
   description: Instruction-override attempts must not leak the system prompt
