@@ -1602,3 +1602,30 @@ class OpenPortalSection(NotificationSection):
         description="Sent to Project admins and Project managers when their resource allocation request is rejected.",
         context_model=ManagedProjectRejectedContext,
     )
+
+
+class VersionUpdateAvailableContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    current_version: str = Field(
+        description="The Waldur version this deployment is running."
+    )
+    latest_version: str = Field(
+        description="The newer Waldur version the deployment can be upgraded to."
+    )
+    helm_upgrade_url: str = Field(
+        description="URL of the upgrade instructions for Helm-based deployments."
+    )
+    docker_compose_upgrade_url: str = Field(
+        description="URL of the upgrade instructions for Docker Compose deployments."
+    )
+
+
+class CoreSection(NotificationSection):
+    class Meta:
+        key = "core"
+
+    version_update_available = Notification(
+        key="version_update_available",
+        description="Sent to every address in VERSION_UPDATE_NOTIFICATION_EMAILS once for every new Waldur release the deployment can be upgraded to.",
+        context_model=VersionUpdateAvailableContext,
+    )

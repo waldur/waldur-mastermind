@@ -21,10 +21,17 @@ from django.utils import timezone
 from django_fsm import FSMFieldMixin, TransitionNotAllowed
 from model_utils.fields import AutoLastModifiedField
 
+from waldur_core import __version__
+from waldur_core.changelog.utils import (
+    compare_versions,
+    fetch_changelog_index,
+    get_latest_version,
+)
 from waldur_core.configuration import config
 from waldur_core.core import models, utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import RuntimeStateException
+from waldur_core.media.validators import parse_email_list
 from waldur_core.structure.exceptions import ServiceBackendRateLimited
 
 logger = logging.getLogger(__name__)
@@ -992,6 +999,106 @@ def check_table_growth_alerts():
             )
     else:
         logger.info("No table growth alerts triggered")
+
+
+VERSION_UPDATE_NOTIFICATION_KEY = "core.version_update_available"
+# The same upgrade guides the "Upgrade available" dialog in the UI links to.
+HELM_UPGRADE_URL = "https://docs.waldur.com/latest/admin-guide/deployment/helm/"
+DOCKER_COMPOSE_UPGRADE_URL = (
+    "https://docs.waldur.com/latest/admin-guide/deployment/docker-compose/"
+)
+
+
+@shared_task(name="waldur_core.send_version_update_notification")
+def send_version_update_notification():
+    """Email VERSION_UPDATE_NOTIFICATION_EMAILS when a newer Waldur release exists.
+
+    The version is chosen the way the "Upgrade available" dialog chooses it
+    from the changelog index, but without the dialog's fallback to the latest
+    GitHub tag when the index cannot be fetched: that tag may be a release
+    candidate, which a stable deployment must not be told to upgrade to, and
+    unlike the dialog an email cannot be taken back on the next check.
+
+    Each address receives each release once: VersionUpdateNotification records
+    who was told about which version, so an address added later still gets the
+    current release and the daily run stays quiet otherwise.
+    """
+    # The address list is the on/off switch, as for Customer.notification_emails:
+    # empty means nobody asked for these emails.
+    # Keyed by the lowercased address, the form recorded per release.
+    recipients = {
+        address.lower(): address
+        for address in parse_email_list(config.VERSION_UPDATE_NOTIFICATION_EMAILS)
+    }
+    if not recipients:
+        return
+
+    index_data = fetch_changelog_index()
+    if not index_data:
+        return
+
+    latest_version = get_latest_version(index_data, __version__)
+    if not latest_version or compare_versions(latest_version, __version__) <= 0:
+        return
+
+    notified = set(
+        models.VersionUpdateNotification.objects.filter(
+            version=latest_version, recipient__in=list(recipients)
+        ).values_list("recipient", flat=True)
+    )
+    pending = {
+        key: address for key, address in recipients.items() if key not in notified
+    }
+    if not pending:
+        return
+
+    # broadcast_mail drops a disabled notification without saying so to the
+    # caller. Check first, so nobody is recorded as notified and the mail
+    # still goes out once an operator enables the notification. Whether it is
+    # enabled is the deployment's choice: load_notifications creates the row
+    # from notifications.json on every deploy. A warning, because the operator
+    # switched these emails on and would otherwise get no hint why none arrive.
+    if not models.Notification.objects.filter(
+        key=VERSION_UPDATE_NOTIFICATION_KEY, enabled=True
+    ).exists():
+        logger.warning(
+            "VERSION_UPDATE_NOTIFICATION_EMAILS is set, but notification '%s' is "
+            "missing or disabled, so no update notification for Waldur %s was "
+            "sent. Enable it under Administration -> Notifications or in "
+            "notifications.json.",
+            VERSION_UPDATE_NOTIFICATION_KEY,
+            latest_version,
+        )
+        return
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "current_version": __version__,
+        "latest_version": latest_version,
+        "helm_upgrade_url": HELM_UPGRADE_URL,
+        "docker_compose_upgrade_url": DOCKER_COMPOSE_UPGRADE_URL,
+    }
+    # Record only the addresses the mail actually went to: broadcast_mail
+    # logs a failed recipient and carries on, and that address must be
+    # retried on the next run rather than marked as told.
+    sent = utils.broadcast_mail(
+        "core", "version_update_available", context, list(pending.values())
+    )
+    models.VersionUpdateNotification.objects.bulk_create(
+        [
+            models.VersionUpdateNotification(
+                version=latest_version, recipient=address.lower()
+            )
+            for address in sent
+        ],
+        ignore_conflicts=True,
+    )
+    logger.info(
+        "Sent update notification for Waldur %s to %d of %d recipient(s).",
+        latest_version,
+        len(sent),
+        len(pending),
+    )
 
 
 @shared_task(name="waldur_core.delete_stale_user_revisions")

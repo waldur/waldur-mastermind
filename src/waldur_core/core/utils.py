@@ -315,13 +315,16 @@ def _unique_recipients(recipient_list) -> list:
 
 
 def _send_single_message(event_type, subject, text_message, html_message, to, **kwargs):
+    """Send one message to everyone in ``to``; return them, or [] if it failed."""
     if not to:
-        return
+        return []
     logger.info(f"About to send {event_type} notification to {to} in one message")
     try:
         send_mail(subject, text_message, to=to, html_message=html_message, **kwargs)
     except Exception:
         logger.exception(f"Failed to send {event_type} notification to {to}")
+        return []
+    return list(to)
 
 
 def broadcast_mail(
@@ -368,6 +371,11 @@ def broadcast_mail(
     :param single_message: send one message with every recipient in To, so
         each sees who else received it, instead of a private copy each. Each
         mailbox is addressed once, compared case-insensitively.
+    :returns: the recipients the mail was handed to the mail server for.
+        Sending is isolated per recipient and failures are only logged, so a
+        caller that records who was told must record these, not
+        ``recipient_list``. Empty when the notification is unregistered or
+        disabled. A bounce after the server accepted the mail is not seen here.
     """
     from .models import Notification
 
@@ -386,7 +394,7 @@ def broadcast_mail(
             event_type,
             len(recipient_list),
         )
-        return
+        return []
 
     if notification.enabled:
         subject_template_name = find_template_from_registry(
@@ -404,7 +412,7 @@ def broadcast_mail(
         html_message = render_to_string(html_template_name, context)
 
         if single_message:
-            _send_single_message(
+            return _send_single_message(
                 event_type,
                 subject,
                 text_message,
@@ -416,11 +424,11 @@ def broadcast_mail(
                 bcc=bcc,
                 headers=headers,
             )
-            return
 
         # One shared SMTP connection for the whole batch (a fresh connection
         # per recipient can trip relay rate limits), and per-recipient error
         # isolation so one undeliverable address cannot block the rest.
+        sent = []
         connection = get_connection()
         try:
             connection.open()
@@ -443,8 +451,11 @@ def broadcast_mail(
                     logger.exception(
                         f"Failed to send {event_type} notification to {recipient}"
                     )
+                else:
+                    sent.append(recipient)
         finally:
             connection.close()
+        return sent
     else:
         logger.info(
             "Notification '%s' is disabled, so no %s mail was sent to %s "
@@ -454,6 +465,7 @@ def broadcast_mail(
             event_type,
             len(recipient_list),
         )
+        return []
 
 
 def get_ordering(request):

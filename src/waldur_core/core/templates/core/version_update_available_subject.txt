@@ -1,0 +1,1 @@
+[{{ site_name }}] Upgrade available: Waldur {{ latest_version }}

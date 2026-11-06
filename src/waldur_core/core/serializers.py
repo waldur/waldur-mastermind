@@ -43,6 +43,7 @@ from waldur_core.core.validators import (
     normalize_network_acl,
     validate_access_email_patterns,
 )
+from waldur_core.media.validators import validate_notification_emails
 from waldur_core.permissions.enums import (
     BINDABLE_TYPE_MAP,
     TYPE_KEY_BY_CT,
@@ -840,6 +841,13 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         # lock users out instead of letting them in - reject it on write.
         validate_access_email_patterns(value)
         return value
+
+    def validate_VERSION_UPDATE_NOTIFICATION_EMAILS(self, value):
+        # A malformed address would only surface as a bounce, after the release
+        # it was meant to announce - reject it on write.
+        # Same rule as Customer.notification_emails; DRF turns the Django
+        # ValidationError into a 400 for this field.
+        return validate_notification_emails(value)
 
     def save(
         self,

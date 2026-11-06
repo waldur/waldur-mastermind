@@ -1742,6 +1742,27 @@ class DailyTableSizeHistory(models.Model):
         return f"{self.table_name} ({self.date})"
 
 
+class VersionUpdateNotification(models.Model):
+    """A Waldur release a recipient has been emailed about.
+
+    Kept per recipient so that an address added to
+    VERSION_UPDATE_NOTIFICATION_EMAILS later still receives the current
+    release, while addresses already told about it are not emailed again.
+    """
+
+    version = models.CharField(max_length=100)
+    # Stored lowercased: addresses are compared case-insensitively.
+    recipient = models.EmailField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("version", "recipient")
+        ordering = ["-sent_at", "id"]
+
+    def __str__(self):
+        return f"{self.version} to {self.recipient}"
+
+
 PAT_PREFIX = "w_"
 
 

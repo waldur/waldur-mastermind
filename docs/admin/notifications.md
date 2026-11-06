@@ -5567,3 +5567,59 @@ Sent to Project admins and Project managers when their resource allocation reque
     </html>
 
 ```
+
+## WALDUR_CORE.CORE
+
+### core.version_update_available
+
+Sent to every address in VERSION_UPDATE_NOTIFICATION_EMAILS once for every new Waldur release the deployment can be upgraded to.
+
+#### Templates
+
+=== "core/version_update_available_subject.txt"
+
+```txt
+
+    [{{ site_name }}] Upgrade available: Waldur {{ latest_version }}
+
+```
+
+=== "core/version_update_available_message.txt"
+
+```txt
+
+    Hello!
+
+    Waldur {{ latest_version }} is now available.
+
+    Your Waldur installation {{ site_name }} is running version {{ current_version }} and needs to be upgraded. For upgrade instructions, please visit:
+
+    - For Helm-based deployments: {{ helm_upgrade_url }}
+    - For Docker Compose deployments: {{ docker_compose_upgrade_url }}
+
+```
+
+=== "core/version_update_available_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Upgrade available</title>
+    </head>
+    <body>
+    <p>Hello!</p>
+    <p>Waldur {{ latest_version }} is now available.</p>
+    <p>
+        Your Waldur installation <strong>{{ site_name }}</strong> is running version
+        {{ current_version }} and needs to be upgraded. For upgrade instructions, please visit:
+    </p>
+    <ul>
+        <li><a href="{{ helm_upgrade_url }}">For Helm-based deployments</a></li>
+        <li><a href="{{ docker_compose_upgrade_url }}">For Docker Compose deployments</a></li>
+    </ul>
+    </body>
+    </html>
+
+```

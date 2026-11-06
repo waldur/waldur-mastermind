@@ -9,6 +9,7 @@ from django.utils.text import normalize_newlines
 from waldur_core.configuration import registry
 from waldur_core.configuration.models import Setting, Source, locked_message
 from waldur_core.core.validators import collect_access_email_pattern_errors
+from waldur_core.media.validators import validate_notification_emails
 
 NUMERIC_WIDGET = {"widget": forms.TextInput(attrs={"size": 10})}
 
@@ -139,6 +140,14 @@ class SettingsForm(forms.Form):
         if errors:
             raise forms.ValidationError(errors)
         return value
+
+    def clean_VERSION_UPDATE_NOTIFICATION_EMAILS(self):
+        # Mirrors ConstanceSettingsSerializer: a malformed address would only
+        # surface as a bounce, after the release it was meant to announce.
+        # Same rule as Customer.notification_emails.
+        return validate_notification_emails(
+            self.cleaned_data["VERSION_UPDATE_NOTIFICATION_EMAILS"]
+        )
 
     def _posted(self, key):
         """What was typed into the input of ``key``, cleaned by its own

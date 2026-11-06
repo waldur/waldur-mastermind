@@ -349,6 +349,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=2, minute=0),
         "args": (),
     },
+    # Email the configured address about a new Waldur release daily at 9 AM
+    "send-version-update-notification": {
+        "task": "waldur_core.send_version_update_notification",
+        "schedule": crontab(hour=9, minute=0),
+        "args": (),
+    },
     # Prune user revision history daily at 3 AM
     "delete-stale-user-revisions": {
         "task": "waldur_core.delete_stale_user_revisions",

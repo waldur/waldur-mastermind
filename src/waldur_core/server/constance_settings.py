@@ -509,6 +509,13 @@ CONSTANCE_CONFIG = {
         "Waldur version. Disable in deployments without outbound internet access "
         "to avoid failed requests to api.github.com.",
     ),
+    "VERSION_UPDATE_NOTIFICATION_EMAILS": (
+        "",
+        "Receive email update notifications: comma-separated list of email "
+        "addresses that are emailed once for every new Waldur release this "
+        "deployment can be upgraded to. Leave empty to send none. An address "
+        "added later also receives the current release.",
+    ),
     "SCRIPT_RUN_MODE": (
         "docker",
         'Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
@@ -2116,6 +2123,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "TELEMETRY_VERSION",
         "TELEMETRY_DEPLOYMENT_ID",
         "CHECK_FOR_UPDATES",
+        "VERSION_UPDATE_NOTIFICATION_EMAILS",
     ),
     "Custom Scripts": (
         "SCRIPT_RUN_MODE",
