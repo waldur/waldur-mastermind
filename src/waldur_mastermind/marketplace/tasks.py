@@ -1679,8 +1679,14 @@ def notify_about_stale_resource():
         if item.price:
             actual_resources_ids.append(item.resource.id)
 
+    # Only a resource that existed for the whole window is judged by it. One
+    # created since the window opened has invoice items for part of it at
+    # most -- on a zero-priced offering, unpriced ones only -- and was reported
+    # as stale the day after it was ordered.
+    window_start = timezone.make_aware(datetime.datetime(prev_2.year, prev_2.month, 1))
     resources = (
         models.Resource.objects.exclude(id__in=actual_resources_ids)
+        .exclude(created__gte=window_start)
         .exclude(
             Q(state=ResourceStates.TERMINATED)
             | Q(state=ResourceStates.TERMINATING)
