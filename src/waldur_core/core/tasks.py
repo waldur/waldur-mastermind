@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import logging
+import threading
 import traceback
 from io import StringIO
 from uuid import uuid4
@@ -136,11 +137,49 @@ class TaskType(type):
         return _reprtask(self)
 
 
+class RunLocal:
+    """Task attribute that holds the state of the current run.
+
+    Celery keeps one object per task class in a worker process. Under a
+    threads or gevent pool concurrent runs share that object, so their state
+    is kept in a threading.local instead of on the object itself. Gevent runs
+    are kept apart only because `celery worker --pool gevent` monkey-patches
+    threading before any task runs; prefork workers never share the object.
+    """
+
+    def __set_name__(self, owner, name):
+        self.name = name
+
+    def __get__(self, task, owner=None):
+        if task is None:
+            return self
+        try:
+            return getattr(self.run_state(task), self.name)
+        except AttributeError:
+            raise AttributeError(
+                f"{type(task).__name__}.{self.name} is set only while the task runs"
+            ) from None
+
+    def __set__(self, task, value):
+        setattr(self.run_state(task), self.name, value)
+
+    @staticmethod
+    def run_state(task):
+        # Created on first use so that subclasses need no __init__ of their own.
+        state = task.__dict__.get("_run_state")
+        if state is None:
+            state = task.__dict__.setdefault("_run_state", threading.local())
+        return state
+
+
 class Task(CeleryTask, metaclass=TaskType):
     """Base class for tasks that are run by executors.
 
     Provides standard way for input data deserialization.
     """
+
+    args = RunLocal()
+    kwargs = RunLocal()
 
     @classmethod
     def get_description(cls, *args, **kwargs):
@@ -262,6 +301,9 @@ class RuntimeStateChangeTask(Task):
      - success_runtime_state - to change instance runtime state after success tasks execution.
     """
 
+    runtime_state = RunLocal()
+    success_runtime_state = RunLocal()
+
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         runtime_state = kwargs.get("runtime_state")
@@ -360,6 +402,8 @@ class ErrorMessageTask(Task):
     as input argument.
     """
 
+    result = RunLocal()
+
     @classmethod
     def get_description(cls, result_id, instance, *args, **kwargs):
         return 'Add error message to instance "%s".' % instance
@@ -429,6 +473,8 @@ class RecoverTask(StateTransitionTask):
 
 class PreApplyExecutorTask(Task):
     """Run executor as a task"""
+
+    executor = RunLocal()
 
     @classmethod
     def get_description(cls, executor, instance, *args, **kwargs):
