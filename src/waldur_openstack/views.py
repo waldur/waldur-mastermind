@@ -310,17 +310,21 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     )
     serializer_class = serializers.OpenStackVolumeTypeSerializer
     lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, filters.VolumeTypeVisibilityFilterBackend)
     filterset_class = filters.VolumeTypeFilter
+
+    # The distinct names of the volume types the list shows the caller.
+    access_filtered_actions = ("names",)
 
     @extend_schema(
         summary="List unique volume type names",
-        description="Return a list of unique volume type names.",
+        description="Return the distinct names of the volume types the caller can see.",
         responses=list[str],
     )
     @decorators.action(detail=False, methods=["get"])
     def names(self, request):
         names = (
-            models.VolumeType.objects.filter(disabled=False)
+            self.filter_queryset(self.get_queryset())
             .values_list("name", flat=True)
             .distinct()
             .order_by("name")
@@ -3167,15 +3171,11 @@ class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet
     )
     serializer_class = serializers.OpenStackInstanceAvailabilityZoneSerializer
     lookup_field = "uuid"
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.AvailabilityZoneVisibilityFilterBackend,
+    )
     filterset_class = filters.InstanceAvailabilityZoneFilter
-
-    # Nothing narrows these rows: they are the cloud's availability zone
-    # catalog, which the order and details forms read by service settings or
-    # tenant.
-    access_declarations = {
-        "list": [access.authenticated()],
-        "retrieve": [access.authenticated()],
-    }
 
 
 @extend_schema_view(
@@ -4038,15 +4038,11 @@ class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeAvailabilityZone.objects.all().order_by("settings", "name")
     serializer_class = serializers.OpenStackVolumeAvailabilityZoneSerializer
     lookup_field = "uuid"
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.AvailabilityZoneVisibilityFilterBackend,
+    )
     filterset_class = filters.VolumeAvailabilityZoneFilter
-
-    # Nothing narrows these rows: they are the cloud's availability zone
-    # catalog, which the order and details forms read by service settings or
-    # tenant.
-    access_declarations = {
-        "list": [access.authenticated()],
-        "retrieve": [access.authenticated()],
-    }
 
 
 @extend_schema_view(

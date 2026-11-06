@@ -214,6 +214,71 @@ class ExternalNetworkVisibilityFilterBackend(BaseFilterBackend):
         )
 
 
+class VolumeTypeVisibilityFilterBackend(BaseFilterBackend):
+    """Every signed-in user sees the public volume types. A private one is
+    shown to staff and support (with a personal access token, only one
+    carrying the staff or support scope), to owners of the organization that
+    owns its cloud's service settings, and to those who see a tenant it is
+    assigned to.
+
+    A private Cinder volume type is given to particular projects, and its name
+    and description may name the organization it was made for. Public types
+    are the cloud's catalog, which the tenant order form reads by service
+    settings before the caller has a tenant there.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
+    def filter_queryset(self, request, queryset, view):
+        sees_all = has_staff_or_support_read_access(request)
+        if sees_all:
+            return queryset
+        user = request.user
+        owned_customers = get_connected_customers(user, CustomerRole.OWNER)
+        visible_tenants = filter_queryset_for_user(
+            models.Tenant.objects.all(), user, sees_all=sees_all
+        )
+        # A subquery rather than a join on the tenants, which would repeat a
+        # type once per tenant and need a DISTINCT over every column.
+        assigned = models.VolumeType.tenants.through.objects.filter(
+            tenant__in=visible_tenants
+        ).values("volumetype_id")
+        return queryset.filter(
+            Q(is_public=True)
+            | Q(settings__customer__in=owned_customers)
+            | Q(pk__in=assigned)
+        )
+
+
+class AvailabilityZoneVisibilityFilterBackend(BaseFilterBackend):
+    """Staff and support see every availability zone (with a personal access
+    token, only one carrying the staff or support scope); others see the
+    zones of the service settings they can see, and of the clouds of the
+    tenants they can see.
+
+    Zones are the cloud's, not a tenant's: they are pulled per service
+    settings, and their tenant field, which only rows from older pulls have
+    set, is not used.
+    """
+
+    access_visibility = access.CUSTOM_VISIBILITY
+
+    def filter_queryset(self, request, queryset, view):
+        sees_all = has_staff_or_support_read_access(request)
+        if sees_all:
+            return queryset
+        user = request.user
+        visible_settings = filter_queryset_for_user(
+            structure_models.ServiceSettings.objects.all(), user, sees_all=sees_all
+        )
+        tenant_settings = filter_queryset_for_user(
+            models.Tenant.objects.all(), user, sees_all=sees_all
+        ).values("service_settings")
+        return queryset.filter(
+            Q(settings__in=visible_settings) | Q(settings__in=tenant_settings)
+        )
+
+
 class HypervisorFilter(structure_filters.ServicePropertySettingsFilter):
     trait = django_filters.CharFilter(
         method="filter_traits_and",

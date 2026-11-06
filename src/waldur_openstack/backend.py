@@ -199,6 +199,18 @@ def reraise_exceptions(func):
     return wrapped
 
 
+def volume_type_is_public(volume_type) -> bool:
+    """Whether Cinder offers the volume type to every project.
+
+    cinderclient reports ``os-volume-type-access:is_public`` and falls back to
+    ``"N/A"`` when Cinder omits it, as releases older than the type access
+    extension do; such a type is taken as public, which is what those releases
+    made every type.
+    """
+    is_public = getattr(volume_type, "is_public", True)
+    return is_public if isinstance(is_public, bool) else True
+
+
 class OpenStackBackend(ServiceBackend):
     DEFAULTS = {
         "tenant_name": "admin",
@@ -923,6 +935,7 @@ class OpenStackBackend(ServiceBackend):
                     "name": volume_type.name,
                     "description": volume_type.description or "",
                     "disabled": volume_type.name in volume_type_blacklist,
+                    "is_public": volume_type_is_public(volume_type),
                 },
             )
 
@@ -1022,6 +1035,7 @@ class OpenStackBackend(ServiceBackend):
                     "name": remote_volume_type.name,
                     "description": remote_volume_type.description or "",
                     "disabled": remote_volume_type.name in volume_type_blacklist,
+                    "is_public": volume_type_is_public(remote_volume_type),
                 },
             )
             tenant.volume_types.add(local_volume_type)
@@ -1036,6 +1050,7 @@ class OpenStackBackend(ServiceBackend):
                     "name": remote_volume_type.name,
                     "description": remote_volume_type.description or "",
                     "disabled": remote_volume_type.name in volume_type_blacklist,
+                    "is_public": volume_type_is_public(remote_volume_type),
                 },
             )
 

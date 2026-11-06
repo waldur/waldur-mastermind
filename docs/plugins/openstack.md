@@ -151,6 +151,14 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | Delete Backup | Remove backup | `DELETE /api/openstack-backups/{uuid}/` |
 | Restore Backup | Restore volume from backup | `POST /api/openstack-backups/{uuid}/restore/` |
 
+Volume types record Cinder's `is_public` flag. Every signed-in user sees the
+public types, and a private type is listed only to staff, support, owners of
+the organization that owns the cloud, and users who see a tenant the type is
+assigned to. `GET /api/openstack-volume-types/names/` returns the distinct
+names among the types the caller can see. Availability zones are listed with
+the cloud they belong to: a user sees the zones of the service settings they
+can see and of the clouds of the tenants they can see.
+
 ### Neutron (Networking Service)
 
 | Operation | Description | API Endpoint |

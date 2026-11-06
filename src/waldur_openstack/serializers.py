@@ -325,7 +325,7 @@ class OpenStackImageSerializer(structure_serializers.BasePropertySerializer):
 class OpenStackVolumeTypeSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.VolumeType
-        fields = ("url", "uuid", "name", "description", "settings")
+        fields = ("url", "uuid", "name", "description", "settings", "is_public")
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "settings": {
