@@ -1665,33 +1665,46 @@ def notify_about_stale_resource():
     today = datetime.datetime.today()
     prev_1 = today - relativedelta(months=1)
     prev_2 = today - relativedelta(months=2)
-    items = invoices_models.InvoiceItem.objects.filter(
-        Q(
-            invoice__month=today.month,
-            invoice__year=today.year,
+    # Items of a deleted resource keep ``resource`` as NULL; they cannot make
+    # any resource current. Only the fields ``price`` reads are loaded.
+    items = (
+        invoices_models.InvoiceItem.objects.filter(
+            Q(
+                invoice__month=today.month,
+                invoice__year=today.year,
+            )
+            | Q(invoice__month=prev_1.month, invoice__year=prev_1.year)
+            | Q(invoice__month=prev_2.month, invoice__year=prev_2.year)
         )
-        | Q(invoice__month=prev_1.month, invoice__year=prev_1.year)
-        | Q(invoice__month=prev_2.month, invoice__year=prev_2.year)
+        .filter(resource__isnull=False)
+        .only("resource_id", "unit_price", "quantity")
     )
-    actual_resources_ids = []
+    actual_resources_ids = {item.resource_id for item in items if item.price}
 
-    for item in items:
-        if item.price:
-            actual_resources_ids.append(item.resource.id)
-
+    # Only a resource that existed for the whole window is judged by it. One
+    # created since the window opened has invoice items for part of it at
+    # most -- on a zero-priced offering, unpriced ones only -- and was reported
+    # as stale the day after it was ordered.
+    window_start = timezone.make_aware(datetime.datetime(prev_2.year, prev_2.month, 1))
     resources = (
         models.Resource.objects.exclude(id__in=actual_resources_ids)
+        .exclude(created__gte=window_start)
         .exclude(
             Q(state=ResourceStates.TERMINATED)
             | Q(state=ResourceStates.TERMINATING)
             | Q(state=ResourceStates.CREATING)
         )
         .exclude(offering__billable=False)
+        .select_related("project__customer")
     )
     user_resources = collections.defaultdict(list)
+    owner_mails = {}
 
     for resource in resources:
-        mails = resource.project.customer.get_owner_mails()
+        customer = resource.project.customer
+        if customer.id not in owner_mails:
+            owner_mails[customer.id] = list(customer.get_owner_mails())
+        mails = owner_mails[customer.id]
         resource_url = core_utils.format_homeport_link(
             "resource-details/{resource_uuid}/",
             project_uuid=resource.project.uuid.hex,
