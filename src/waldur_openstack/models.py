@@ -329,6 +329,13 @@ class Image(structure_models.ServiceProperty):
 class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
     tenants = models.ManyToManyField(to=Tenant, related_name="volume_types")
     disabled = models.BooleanField(default=False)
+    is_public = models.BooleanField(
+        default=True,
+        help_text=_(
+            "Whether every project of the cloud may use the volume type. "
+            "Cinder gives a private type only to the projects it is assigned to."
+        ),
+    )
 
     class Meta:
         unique_together = ("settings", "backend_id")
