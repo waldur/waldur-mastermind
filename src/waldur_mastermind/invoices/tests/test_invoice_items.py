@@ -43,6 +43,18 @@ class InvoiceItemDeleteTest(test.APITestCase):
         )
 
 
+class InvoiceItemConsumptionsRemovedTest(test.APITestCase):
+    # The action filtered items by credit=<InvoiceItem> and failed with 500 on
+    # every call; credit consumption is served by customer-credits instead.
+    def test_route_is_not_served(self):
+        fixture = fixtures.InvoiceFixture()
+        self.client.force_authenticate(fixture.staff)
+        response = self.client.get(
+            factories.InvoiceItemFactory.get_url(fixture.invoice_item, "consumptions")
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
 class InvoiceItemUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()

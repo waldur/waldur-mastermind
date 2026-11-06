@@ -593,9 +593,8 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.InvoiceItemFilter
-    # total_price lists filter_queryset(get_queryset()), as list does;
-    # consumptions looks the item up with get_object(), as retrieve does.
-    access_filtered_actions = ("total_price", "consumptions")
+    # total_price lists filter_queryset(get_queryset()), as list does.
+    access_filtered_actions = ("total_price",)
     # These sum the items that filter_queryset_for_user leaves, which is what
     # GenericRoleFilter narrows list to.
     access_declarations = {
@@ -960,33 +959,6 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     create_compensation_permissions = update_permissions = (
         partial_update_permissions
     ) = destroy_permissions = migrate_to_permissions = [structure_permissions.is_staff]
-
-    @extend_schema(
-        responses={
-            status.HTTP_200_OK: serializers.CustomerCreditConsumptionByMonthSerializer(
-                many=True
-            )
-        }
-    )
-    @action(detail=True, methods=["get"])
-    def consumptions(self, request, uuid=None):
-        customer_credit = self.get_object()
-        consumptions = (
-            models.InvoiceItem.objects.filter(credit=customer_credit, unit_price__lt=0)
-            .values("invoice__year", "invoice__month")
-            .annotate(price=Sum("price"))
-            .order_by("invoice__year", "invoice__month")
-        )
-
-        return Response(
-            [
-                {
-                    "month": f"{item['invoice__year']}-{item['invoice__month']:02d}",
-                    "price": item["price"],
-                }
-                for item in consumptions
-            ]
-        )
 
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):
