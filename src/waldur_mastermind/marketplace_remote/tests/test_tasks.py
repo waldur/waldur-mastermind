@@ -591,7 +591,7 @@ class DeleteRemoteProjectsTest(testcases.TransactionTestCase):
 
     @respx.mock
     def test_clean_remote_projects(self):
-        respx.get(f"{self.api_url}/api/projects/").respond(
+        list_mock = respx.get(f"{self.api_url}/api/projects/").respond(
             200,
             json=[{"backend_id": self.backend_id, "uuid": self.remote_project_uuid}],
         )
@@ -605,6 +605,11 @@ class DeleteRemoteProjectsTest(testcases.TransactionTestCase):
         tasks.clean_remote_projects()
 
         self.assertTrue(delete_mock.called)
+        # Only what the cleanup needs, so that a large remote fits its limits.
+        self.assertEqual(
+            sorted(list_mock.calls.last.request.url.params.get_list("field")),
+            ["backend_id", "uuid"],
+        )
 
     @mock.patch("waldur_mastermind.marketplace_remote.tasks.delete_remote_project")
     def test_handler(self, mock_task):

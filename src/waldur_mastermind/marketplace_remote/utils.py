@@ -27,10 +27,15 @@ from rest_framework.exceptions import ValidationError
 from waldur_auth_social.const import ProviderChoices
 from waldur_core.core.client import (
     ClientValidationError,
+    call_remote,
     describe_remote_error,
     fetch_url,
     get_waldur_client,
+    remote_call_limits,
+    spent_budget,
+    sync_all_pages,
 )
+from waldur_core.core.remote_errors import RemoteCallRefused
 from waldur_core.core.utils import get_system_robot, validate_uuid
 from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
@@ -54,6 +59,7 @@ from waldur_mastermind.marketplace_remote.constants import (
     LOCAL_PLUGIN_OPTIONS,
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
+    OFFERING_FILES_LIMITS,
     PLAN_FIELDS,
 )
 from waldur_mastermind.marketplace_remote.exceptions import (
@@ -689,7 +695,8 @@ def get_new_order_ids(client, backend_id):
     from waldur_api_client.api.marketplace_orders import marketplace_orders_list
     from waldur_api_client.models.order_details_field_enum import OrderDetailsFieldEnum
 
-    remote_orders = marketplace_orders_list.sync_all(
+    remote_orders = sync_all_pages(
+        marketplace_orders_list,
         client=client,
         resource_uuid=backend_id,
         field=[OrderDetailsFieldEnum.UUID],
@@ -824,7 +831,14 @@ def import_offering_thumbnail(
     local_offering: marketplace_models.Offering, thumbnail_url: str | None
 ):
     if thumbnail_url:
-        thumbnail_resp = fetch_url(thumbnail_url)
+        try:
+            thumbnail_resp = fetch_url(thumbnail_url)
+            thumbnail_resp.raise_for_status()
+        except httpx.HTTPError as e:
+            logger.warning(
+                "Failed to download thumbnail for offering %s: %s", local_offering, e
+            )
+            return
         content = ContentFile(thumbnail_resp.content)
         file_name = local_offering.uuid.hex
         if local_offering.thumbnail:
@@ -1062,7 +1076,7 @@ def get_remote_offerings(
 
     if fields:
         params.update({"field": fields})
-    return marketplace_public_offerings_list.sync_all(client=client, **params)
+    return sync_all_pages(marketplace_public_offerings_list, client=client, **params)
 
 
 def upsert_offering(
@@ -1177,9 +1191,18 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
     from waldur_api_client.errors import UnexpectedStatus
 
     remote_offering_uuid = local_offering.backend_id
+    if spent := spent_budget():
+        # Resolving the remote's host could not be interrupted.
+        logger.warning(
+            "Not importing screenshots of offering %s: the budget of %s is spent.",
+            local_offering,
+            spent.limits,
+        )
+        return
     client = get_client_for_offering(local_offering)
     try:
-        remote_screenshots = marketplace_screenshots_list.sync_all(
+        remote_screenshots = sync_all_pages(
+            marketplace_screenshots_list,
             client=client,
             offering_uuid=[uuid.UUID(remote_offering_uuid)],
         )
@@ -1216,8 +1239,23 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
             response = fetch_url(remote_screenshot.image)
             response.raise_for_status()
             remote_image_content = response.content
+        except RemoteCallRefused as e:
+            if spent_budget():
+                # Every further fetch would be refused too.
+                logger.warning(
+                    "Stopped importing screenshots of offering %s: %s",
+                    local_offering,
+                    e,
+                )
+                break
+            logger.warning(
+                "Refused image for remote screenshot uuid %s: %s",
+                remote_screenshot.uuid.hex,
+                e,
+            )
+            continue
         except httpx.HTTPError as e:
-            logger.error(
+            logger.warning(
                 "Failed to download image for remote screenshot uuid %s, with image url %s, error: %s",
                 remote_screenshot.uuid.hex,
                 remote_screenshot.image,
@@ -1245,6 +1283,7 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
 
         # Handle image thumbnail if present
         image_thumbnail_url = remote_screenshot.thumbnail
+        budget_spent = False
         if image_thumbnail_url:
             try:
                 response = fetch_url(image_thumbnail_url)
@@ -1253,8 +1292,15 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
                 screenshot.thumbnail.save(
                     screenshot.uuid.hex, io.BytesIO(thumbnail_content)
                 )
+            except RemoteCallRefused as e:
+                logger.warning(
+                    "Refused thumbnail for remote screenshot uuid %s: %s",
+                    remote_screenshot.uuid.hex,
+                    e,
+                )
+                budget_spent = spent_budget() is not None
             except httpx.HTTPError as e:
-                logger.error(
+                logger.warning(
                     "Failed to download thumbnail for remote screenshot uuid %s, with thumbnail url %s, error: %s",
                     remote_screenshot.uuid.hex,
                     image_thumbnail_url,
@@ -1262,6 +1308,8 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
                 )
 
         screenshot.save()
+        if budget_spent:
+            break
 
     # Delete local screenshots that don't exist in remote offering
     marketplace_models.Screenshot.objects.filter(offering=local_offering).exclude(
@@ -1273,9 +1321,10 @@ def update_offering_related_data(
     local_offering: marketplace_models.Offering,
     remote_offering: PublicOfferingDetails,
 ):
-    import_offering_image(local_offering, remote_offering)
-    import_offering_screenshots(local_offering)
-    import_offering_thumbnail(local_offering, remote_offering.thumbnail)
+    with remote_call_limits(OFFERING_FILES_LIMITS):
+        import_offering_image(local_offering, remote_offering)
+        import_offering_screenshots(local_offering)
+        import_offering_thumbnail(local_offering, remote_offering.thumbnail)
 
     local_components_map = import_offering_components(
         local_offering=local_offering, remote_components=remote_offering.components
@@ -1299,8 +1348,10 @@ def get_resource_sync_status(resource):
 
     try:
         client = get_client_for_offering(resource.offering)
-        remote_resource = marketplace_resources_retrieve.sync(
-            client=client, uuid=resource.backend_id
+        remote_resource = call_remote(
+            marketplace_resources_retrieve.sync,
+            client=client,
+            uuid=resource.backend_id,
         )
         if not remote_resource.state:
             return {
@@ -1322,7 +1373,8 @@ def get_resource_sync_status(resource):
         return status_data
     except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
         message = f"Unable to fetch remote resource state for resource {resource.uuid}"
-        logger.exception(message)
+        # The remote's failure, not ours: no traceback, and not to Sentry.
+        logger.warning("%s: %s", message, exc)
         raise RemoteStatusSyncFailed(
             error_message=message, error_description=describe_remote_error(exc)
         )
@@ -1339,8 +1391,8 @@ def get_resource_team(resource: marketplace_models.Resource):
 
     try:
         client = get_client_for_offering(resource.offering)
-        remote_team = marketplace_resources_team_list.sync_all(
-            client=client, uuid=resource.backend_id
+        remote_team = sync_all_pages(
+            marketplace_resources_team_list, client=client, uuid=resource.backend_id
         )
 
         local_roles = UserRole.objects.filter(scope=resource.project, is_active=True)
@@ -1396,7 +1448,8 @@ def get_resource_team(resource: marketplace_models.Resource):
         return team_data
     except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
         message = f"Unable to fetch remote team data for resource {resource.uuid}"
-        logger.exception(message)
+        # The remote's failure, not ours: no traceback, and not to Sentry.
+        logger.warning("%s: %s", message, exc)
         raise RemoteStatusSyncFailed(
             error_message=message, error_description=describe_remote_error(exc)
         )
@@ -1411,7 +1464,8 @@ def get_resource_order_sync_status(resource: marketplace_models.Resource):
 
     try:
         client = get_client_for_offering(resource.offering)
-        remote_orders = marketplace_orders_list.sync_all(
+        remote_orders = sync_all_pages(
+            marketplace_orders_list,
             client=client,
             resource_uuid=resource.backend_id,
         )
@@ -1449,7 +1503,8 @@ def get_resource_order_sync_status(resource: marketplace_models.Resource):
 
     except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
         message = f"Unable to fetch remote order data for resource {resource.uuid}"
-        logger.exception(message)
+        # The remote's failure, not ours: no traceback, and not to Sentry.
+        logger.warning("%s: %s", message, exc)
         raise RemoteStatusSyncFailed(
             error_message=message, error_description=describe_remote_error(exc)
         )

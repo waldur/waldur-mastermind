@@ -5,6 +5,7 @@ import os
 import socket
 import ssl
 import threading
+import time
 from unittest import mock
 
 import httpcore
@@ -12,18 +13,24 @@ import httpx
 from django.test import SimpleTestCase, override_settings
 
 from waldur_core.core.client import (
+    REFUSED_HOST_MESSAGE,
     ClientValidationError,
+    RemoteCallLimits,
     check_address,
     check_url,
     fetch_url,
     get_api_root,
     get_waldur_client,
     is_internal_address,
+    remote_call_limits,
 )
 from waldur_core.core.metadata import WaldurCore
 from waldur_core.core.pinned_transport import (
     MAX_ADDRESSES_TRIED,
     AddressCheckingBackend,
+    EncodedResponseRefused,
+    RemoteCallTimeout,
+    ResponseTooLarge,
 )
 
 DEFAULT_BLACKLIST = WaldurCore.__fields__["SUBNET_BLACKLIST"].default
@@ -209,6 +216,25 @@ class FakeServer:
         self.thread.join(timeout=5)
 
 
+class TricklingServer(FakeServer):
+    """Sends its answer a byte at a time."""
+
+    def __init__(self, response, delay):
+        self.delay = delay
+        super().__init__(response)
+
+    def _serve(self):
+        try:
+            self.received = self._read_head()
+            for byte in self.response:
+                self.server_socket.sendall(bytes([byte]))
+                time.sleep(self.delay)
+        except OSError:
+            pass
+        finally:
+            self.server_socket.close()
+
+
 @override_settings(WALDUR_CORE={"SUBNET_BLACKLIST": DEFAULT_BLACKLIST})
 class AddressCheckTest(SimpleTestCase):
     def test_bypasses_are_refused_by_default(self):
@@ -216,7 +242,7 @@ class AddressCheckTest(SimpleTestCase):
             with self.subTest(address=address):
                 self.assertTrue(is_internal_address(address))
                 with self.assertRaisesMessage(
-                    ClientValidationError, "Access to internal IPs is not allowed"
+                    ClientValidationError, REFUSED_HOST_MESSAGE
                 ):
                     check_address(address)
 
@@ -231,7 +257,7 @@ class AddressCheckTest(SimpleTestCase):
             with self.subTest(address=address):
                 with dns({"remote.example.com": [address]}):
                     with self.assertRaisesMessage(
-                        ClientValidationError, "Access to internal IPs is not allowed"
+                        ClientValidationError, REFUSED_HOST_MESSAGE
                     ):
                         check_url("https://remote.example.com/api/")
 
@@ -247,7 +273,7 @@ class AddressCheckTest(SimpleTestCase):
         ):
             with self.subTest(url=url):
                 with self.assertRaisesMessage(
-                    ClientValidationError, "Access to internal IPs is not allowed"
+                    ClientValidationError, REFUSED_HOST_MESSAGE
                 ):
                     check_url(url)
 
@@ -265,9 +291,7 @@ class AddressCheckTest(SimpleTestCase):
 
     def test_unresolvable_host_is_refused(self):
         with mock.patch("socket.getaddrinfo", side_effect=socket.gaierror):
-            with self.assertRaisesMessage(
-                ClientValidationError, "Error resolving client hostname"
-            ):
+            with self.assertRaisesMessage(ClientValidationError, REFUSED_HOST_MESSAGE):
                 check_url("https://nowhere.example.com/api/")
 
 
@@ -428,9 +452,7 @@ class PinnedTransportTest(SimpleTestCase):
         ):
             client = get_waldur_client("http://remote.example.com/api/", "t")
             with self.server.patch():
-                with self.assertRaisesMessage(
-                    httpx.ConnectError, "Access to internal IPs is not allowed"
-                ):
+                with self.assertRaisesMessage(httpx.ConnectError, REFUSED_HOST_MESSAGE):
                     client.get_httpx_client().get("http://other.example.com/api/")
         self.assertEqual(self.server.addresses, [])
 
@@ -482,9 +504,7 @@ class PinnedTransportTest(SimpleTestCase):
 
     def test_fetch_url_refuses_internal_address(self):
         with dns({"img.example.com": ["169.254.169.254"]}), self.server.patch():
-            with self.assertRaisesMessage(
-                httpx.ConnectError, "Access to internal IPs is not allowed"
-            ):
+            with self.assertRaisesMessage(httpx.ConnectError, REFUSED_HOST_MESSAGE):
                 fetch_url("http://img.example.com/media/image/")
         self.assertEqual(self.server.addresses, [])
 
@@ -503,7 +523,7 @@ class PinnedTransportTest(SimpleTestCase):
         )
         with dns({"img.example.com": ["8.8.8.8"]}), self.server.patch():
             with mock.patch("waldur_core.core.client.MAX_FETCH_BYTES", 16):
-                with self.assertRaises(httpx.ReadError):
+                with self.assertRaises(ResponseTooLarge):
                     fetch_url("http://img.example.com/media/image/")
 
     def test_malformed_url_is_a_connect_error_for_fetch_url(self):
@@ -540,7 +560,7 @@ class PinnedTransportTest(SimpleTestCase):
                     )
                 )
                 with dns({"img.example.com": ["8.8.8.8"]}), self.server.patch():
-                    with self.assertRaises(httpx.DecodingError):
+                    with self.assertRaises(EncodedResponseRefused):
                         fetch_url("http://img.example.com/media/image.svg")
 
     def test_a_few_addresses_are_tried_within_one_timeout(self):
@@ -560,6 +580,63 @@ class PinnedTransportTest(SimpleTestCase):
     def use_server(self, server):
         self.server.close()
         self.server = server
+
+    def test_deadline_holds_while_the_head_trickles_in(self):
+        head = (
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+            + b"X-Padding: "
+            + b"x" * 200
+            + b"\r\nContent-Length: 2\r\n\r\n[]"
+        )
+        self.use_server(TricklingServer(head, delay=0.05))
+        limits = RemoteCallLimits(max_requests=5, timeout=0.5, max_bytes=10**6)
+        with dns({"remote.example.com": ["8.8.8.8"]}):
+            client = get_waldur_client("http://remote.example.com/api/", "t")
+            started = time.monotonic()
+            with self.server.patch(), remote_call_limits(limits):
+                with self.assertRaises(RemoteCallTimeout):
+                    client.get_httpx_client().get("/api/")
+        # Every byte arrives within the read timeout; only the deadline stops it.
+        self.assertLess(time.monotonic() - started, 2)
+
+    def test_request_outside_any_budget_has_a_deadline(self):
+        head = b"HTTP/1.1 200 OK\r\nX-Padding: " + b"x" * 200 + b"\r\n\r\n"
+        self.use_server(TricklingServer(head, delay=0.05))
+        with mock.patch("waldur_core.core.client.REMOTE_TIMEOUT", 0.5):
+            with dns({"remote.example.com": ["8.8.8.8"]}):
+                client = get_waldur_client("http://remote.example.com/api/", "t")
+        started = time.monotonic()
+        with self.server.patch():
+            with self.assertRaises(RemoteCallTimeout):
+                client.get_httpx_client().get("/api/")
+        self.assertLess(time.monotonic() - started, 2)
+
+    def test_informational_heads_count_against_the_bytes(self):
+        continues = b"HTTP/1.1 100 Continue\r\n\r\n" * 4000
+        final = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n[]"
+        for name, limits in (
+            ("default budget", None),
+            (
+                "call budget",
+                RemoteCallLimits(max_requests=5, timeout=60, max_bytes=1000),
+            ),
+        ):
+            with self.subTest(name):
+                self.use_server(FakeServer(continues + final))
+                with (
+                    mock.patch(
+                        "waldur_core.core.pinned_transport.MAX_HEAD_BYTES", 1000
+                    ),
+                    mock.patch("waldur_core.core.client.MAX_RESPONSE_BYTES", 1000),
+                    dns({"remote.example.com": ["8.8.8.8"]}),
+                ):
+                    client = get_waldur_client("http://remote.example.com/api/", "t")
+                with self.server.patch(), self.assertRaises(ResponseTooLarge):
+                    if limits is None:
+                        client.get_httpx_client().get("/api/")
+                    else:
+                        with remote_call_limits(limits):
+                            client.get_httpx_client().get("/api/")
 
     def test_client_has_a_timeout_and_no_redirects(self):
         with dns({"remote.example.com": ["8.8.8.8"]}):
@@ -653,12 +730,10 @@ class EnvironmentProxyTest(SimpleTestCase):
         with proxy_env(**self.HTTP_PROXY), self.server.patch():
             with dns({"remote.example.com": ["10.0.0.1"]}):
                 with self.assertRaisesMessage(
-                    ClientValidationError, "Access to internal IPs is not allowed"
+                    ClientValidationError, REFUSED_HOST_MESSAGE
                 ):
                     get_waldur_client("http://remote.example.com/api/", "t")
-            with self.assertRaisesMessage(
-                httpx.ConnectError, "Access to internal IPs is not allowed"
-            ):
+            with self.assertRaisesMessage(httpx.ConnectError, REFUSED_HOST_MESSAGE):
                 fetch_url("http://[::ffff:169.254.169.254]/latest/meta-data/")
         self.assertEqual(self.server.addresses, [])
 
@@ -669,9 +744,7 @@ class EnvironmentProxyTest(SimpleTestCase):
         with proxy_env(**self.HTTP_PROXY), resolver:
             client = get_waldur_client("http://remote.example.com/api/", "t")
             with self.server.patch():
-                with self.assertRaisesMessage(
-                    httpx.ConnectError, "Access to internal IPs is not allowed"
-                ):
+                with self.assertRaisesMessage(httpx.ConnectError, REFUSED_HOST_MESSAGE):
                     client.get_httpx_client().get("http://other.example.com/")
         self.assertEqual(self.server.addresses, [])
 

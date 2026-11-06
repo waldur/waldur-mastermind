@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -19,10 +20,15 @@ from rest_framework.response import Response
 from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.client import (
+    REMOTE_VIEW_LIMITS,
     ClientValidationError,
+    call_remote,
     describe_remote_error,
     get_waldur_client,
+    remote_call_limits,
+    sync_all_pages,
 )
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
@@ -59,6 +65,7 @@ from waldur_mastermind.marketplace_remote import (
     utils,
     utils_sync_remote_offerings,
 )
+from waldur_mastermind.marketplace_remote.constants import OFFERING_IMPORT_LIMITS
 from waldur_mastermind.marketplace_remote.models import (
     ProjectUpdateRequest,
     RemoteSynchronisation,
@@ -96,15 +103,74 @@ def check_remote_resource_access(request: Request, resource: models.Resource):
         raise NotFound()
 
 
+def _bound_customer_ids(auth) -> set[int]:
+    """The organizations a personal access token is bound to by name."""
+    customer_type = ContentType.objects.get_for_model(Customer).id
+    ids = set()
+    for binding in auth.allowed_scopes or []:
+        try:
+            if binding["content_type_id"] == customer_type:
+                ids.add(int(binding["object_id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return ids
+
+
+class CanImportRemoteOfferings(rf_permissions.BasePermission):
+    """Who could import an offering into at least one organization.
+
+    The remote views make Waldur call a URL the caller names, so they are
+    open only to who can use their answer: the remote offering import, which
+    homeport offers to who may create offerings in a service provider. The
+    answer agrees with ``has_permission(request, OFFERING.CREATE, customer)``
+    for some organization, as OfferingCreateView checks it.
+    """
+
+    def has_permission(self, request, view):
+        permission = PermissionEnum.CREATE_OFFERING
+        user = request.user
+        if not (user and user.is_authenticated and user.is_active):
+            return False
+        if core_permissions.has_staff_access(request):
+            return True
+        auth = request.auth
+        if not is_pat_auth(auth):
+            # Includes every organization for a site-wide grant.
+            return get_connected_customers_by_permission(user, permission).exists()
+        if permission.value not in auth.scopes:
+            return False
+        if not auth.allowed_scopes:
+            # A token bound to nothing acts as its user on every object.
+            return (
+                user.is_staff
+                or get_connected_customers_by_permission(user, permission).exists()
+            )
+        # A bound token reaches an organization only by naming it.
+        return any(
+            has_permission(request, permission, customer)
+            for customer in Customer.objects.filter(id__in=_bound_customer_ids(auth))
+        )
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [
+            access.custom(
+                "Staff (a personal access token needs the "
+                f"{PermissionEnum.STAFF_ACCESS.value} scope to act as staff), "
+                f"or who holds {PermissionEnum.CREATE_OFFERING.value} on at "
+                "least one organization or site-wide. A personal access token "
+                f"also needs the {PermissionEnum.CREATE_OFFERING.value} scope "
+                "and, if it is bound, a binding to such an organization."
+            )
+        ]
+
+
 class RemoteView(GenericAPIView):
     """View for handling remote credentials for waldur client"""
 
     serializer_class = serializers.RemoteCredentialsSerializer
     filter_backends = []
-    # The remote Waldur answers with what the token in the request may see
-    # there, so any signed-in user may ask; importing an offering checks the
-    # local organization (OfferingCreateView).
-    access_declarations = {"post": [access.authenticated()]}
+    permission_classes = [rf_permissions.IsAuthenticated, CanImportRemoteOfferings]
 
     def get_client(self, request):
         serializer = serializers.RemoteCredentialsSerializer(data=request.data)
@@ -130,8 +196,10 @@ class CustomersView(RemoteView):
 
         client = self.get_client(request)
         try:
-            customers = customers_list.sync_all(
+            customers = sync_all_pages(
+                customers_list,
                 client=client,
+                limits=REMOTE_VIEW_LIMITS,
                 owned_by_current_user=True,
                 field=[
                     CustomerFieldEnum.UUID,
@@ -159,10 +227,23 @@ class СategoriesView(RemoteView):
             marketplace_categories_list,
         )
         from waldur_api_client.errors import UnexpectedStatus
+        from waldur_api_client.models.marketplace_category_field_enum import (
+            MarketplaceCategoryFieldEnum,
+        )
 
         client = self.get_client(request)
         try:
-            сategories = marketplace_categories_list.sync_all(client=client)
+            сategories = sync_all_pages(
+                marketplace_categories_list,
+                client=client,
+                limits=REMOTE_VIEW_LIMITS,
+                # What the import dialogs show and send back.
+                field=[
+                    MarketplaceCategoryFieldEnum.UUID,
+                    MarketplaceCategoryFieldEnum.TITLE,
+                    MarketplaceCategoryFieldEnum.URL,
+                ],
+            )
         except (UnexpectedStatus, TransportError) as e:
             return Response(
                 describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
@@ -195,17 +276,18 @@ class OfferingsListView(RemoteView):
 
         remote_customer_uuid = request.query_params["customer_uuid"]
         try:
-            remote_offerings = utils.get_remote_offerings(
-                client,
-                remote_customer_uuid,
-                fields=[
-                    PublicOfferingDetailsFieldEnum.UUID,
-                    PublicOfferingDetailsFieldEnum.NAME,
-                    PublicOfferingDetailsFieldEnum.TYPE,
-                    PublicOfferingDetailsFieldEnum.STATE,
-                    PublicOfferingDetailsFieldEnum.CATEGORY_TITLE,
-                ],
-            )
+            with remote_call_limits(REMOTE_VIEW_LIMITS):
+                remote_offerings = utils.get_remote_offerings(
+                    client,
+                    remote_customer_uuid,
+                    fields=[
+                        PublicOfferingDetailsFieldEnum.UUID,
+                        PublicOfferingDetailsFieldEnum.NAME,
+                        PublicOfferingDetailsFieldEnum.TYPE,
+                        PublicOfferingDetailsFieldEnum.STATE,
+                        PublicOfferingDetailsFieldEnum.CATEGORY_TITLE,
+                    ],
+                )
         except (UnexpectedStatus, TransportError) as e:
             return Response(
                 describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
@@ -250,7 +332,6 @@ class OfferingCreateView(RemoteView):
 
         serializer = serializers.RemoteOfferingCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        client = self.get_client(request)
 
         api_url = serializer.validated_data["api_url"]
         token = serializer.validated_data["token"]
@@ -265,26 +346,33 @@ class OfferingCreateView(RemoteView):
         if not has_permission(request, PermissionEnum.CREATE_OFFERING, local_customer):
             raise PermissionDenied()
 
-        try:
-            remote_offering = marketplace_public_offerings_retrieve.sync(
-                client=client, uuid=remote_offering_uuid.hex
-            )
-        except (UnexpectedStatus, TransportError) as e:
-            return Response(
-                describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
-            )
+        # One deadline for the whole import, which each step's own limits
+        # only narrow.
+        with remote_call_limits(OFFERING_IMPORT_LIMITS):
+            client = self.get_client(request)
+            try:
+                remote_offering = call_remote(
+                    marketplace_public_offerings_retrieve.sync,
+                    client=client,
+                    uuid=remote_offering_uuid.hex,
+                    limits=REMOTE_VIEW_LIMITS,
+                )
+            except (UnexpectedStatus, TransportError) as e:
+                return Response(
+                    describe_remote_error(e), status=status.HTTP_400_BAD_REQUEST
+                )
 
-        secret_options = {
-            "api_url": api_url,
-            "token": token,
-            "customer_uuid": remote_customer_uuid.hex,
-        }
-        local_offering = utils.upsert_offering(
-            remote_offering=remote_offering,
-            local_category=local_category,
-            secret_options=secret_options,
-            local_customer=local_customer,
-        )
+            secret_options = {
+                "api_url": api_url,
+                "token": token,
+                "customer_uuid": remote_customer_uuid.hex,
+            }
+            local_offering = utils.upsert_offering(
+                remote_offering=remote_offering,
+                local_category=local_category,
+                secret_options=secret_options,
+                local_customer=local_customer,
+            )
 
         return Response({"uuid": local_offering.uuid.hex})
 
@@ -415,8 +503,11 @@ class CancelTerminationOrderView(GenericAPIView):
 
         try:
             client = utils.get_client_for_offering(order.resource.offering)
-            marketplace_orders_reject_by_consumer.sync_detailed(
-                client=client, uuid=order.backend_id
+            call_remote(
+                marketplace_orders_reject_by_consumer.sync_detailed,
+                client=client,
+                uuid=order.backend_id,
+                limits=REMOTE_VIEW_LIMITS,
             )
         except (UnexpectedStatus, TransportError, ClientValidationError) as exc:
             raise ValidationError(describe_remote_error(exc))
@@ -479,11 +570,18 @@ class SyncResourceProjectPermissions(GenericAPIView):
 
     serializer_class = EmptySerializer
 
+    @extend_schema(
+        request=None,
+        responses={202: None},
+        description="Queue a push of the resource's project team to the remote Waldur.",
+    )
     def post(self, request, uuid):
         qs = models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
         resource = get_object_or_404(qs, uuid=uuid)
-        utils.sync_resource_team(resource)
-        return Response(status=status.HTTP_200_OK)
+        # A few requests for each member: more than a web request has time
+        # for when the team is large.
+        tasks.sync_resource_team.delay(serialize_instance(resource))
+        return Response(status=status.HTTP_202_ACCEPTED)
 
 
 class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
@@ -587,7 +685,8 @@ class RemoteResourceStatusView(GenericAPIView):
         resource = get_object_or_404(models.Resource, uuid=local_resource_uuid)
         check_remote_resource_access(request, resource)
 
-        sync_data = get_resource_sync_status(resource)
+        with remote_call_limits(REMOTE_VIEW_LIMITS):
+            sync_data = get_resource_sync_status(resource)
         serializer = self.get_serializer(sync_data, many=False)
         return Response(serializer.data)
 
@@ -612,7 +711,8 @@ class RemoteResourceOrderViewSet(GenericAPIView):
         resource = get_object_or_404(models.Resource, uuid=local_resource_uuid)
         check_remote_resource_access(request, resource)
 
-        sync_data = get_resource_order_sync_status(resource)
+        with remote_call_limits(REMOTE_VIEW_LIMITS):
+            sync_data = get_resource_order_sync_status(resource)
         serializer = self.get_serializer(sync_data, many=True)
         return Response(serializer.data)
 
@@ -638,7 +738,8 @@ class RemoteResourceTeamViewSet(GenericAPIView):
             raise ValidationError("UUID is invalid.")
         resource = get_object_or_404(models.Resource, uuid=local_resource_uuid)
         check_remote_resource_access(request, resource)
-        team_data = get_resource_team(resource)
+        with remote_call_limits(REMOTE_VIEW_LIMITS):
+            team_data = get_resource_team(resource)
         ordering = request.query_params.get("o", "full_name")
         if ordering.startswith("-"):
             reverse = True

@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest import mock
 
 import respx
 from django.test import override_settings
@@ -8,9 +9,11 @@ from rest_framework import test
 from waldur_auth_social.const import ProviderChoices
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.marketplace_remote import tasks
 from waldur_mastermind.marketplace_remote.tests.dns_utils import (
     create_selective_dns_mock,
 )
@@ -233,6 +236,38 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         self.assertFalse(mock_list_projects.called)
         self.assertFalse(add_user_mock.called)
 
+    def sync_team(self):
+        """Ask for the team sync; run the task it queues at once."""
+        self.client.force_login(self.fixture.staff)
+        with mock.patch.object(
+            tasks.sync_resource_team, "delay", side_effect=tasks.sync_resource_team
+        ):
+            return self.client.post(
+                f"http://testserver/api/remote-waldur-api/sync_resource_project_permissions/{self.resource.uuid.hex}/"
+            )
+
+    def test_sync_of_a_large_team_is_not_cut_short(self):
+        # Three requests a member: far past the 20 a web request is allowed.
+        members = [UserFactory() for _ in range(30)]
+        for member in members:
+            self.project.add_user(user=member, role=ProjectRole.MANAGER)
+        self.resource.backend_id = uuid.uuid4().hex
+        self.resource.save()
+        self.mock_list_projects()
+        self.mock_remote_eduteams()
+        respx.get(
+            f"{self.api_url}/api/marketplace-resources/{self.resource.backend_id}/team/"
+        ).respond(200, json=[])
+        self.mock_list_users([])
+        add_user_mock = self.mock_add_user()
+
+        response = self.sync_team()
+
+        self.assertEqual(202, response.status_code)
+        local_members = UserRole.objects.filter(scope=self.project, is_active=True)
+        self.assertGreaterEqual(local_members.count(), 30)
+        self.assertEqual(add_user_mock.call_count, local_members.count())
+
     def test_sync_resource_team(self):
         # Local team: one project manager. Remote team: one stale project admin.
         self.fixture.manager
@@ -272,12 +307,9 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         delete_user_mock = self.mock_delete_user()
         add_user_mock = self.mock_add_user()
 
-        self.client.force_login(self.fixture.staff)
-        response = self.client.post(
-            f"http://testserver/api/remote-waldur-api/sync_resource_project_permissions/{self.resource.uuid.hex}/"
-        )
+        response = self.sync_team()
 
-        self.assertEqual(200, response.status_code)
+        self.assertEqual(202, response.status_code)
         self.assertTrue(team_mock.called)
 
         self.assertTrue(delete_user_mock.called)

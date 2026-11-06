@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import respx
@@ -15,6 +16,8 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_remote.exceptions import RemoteStatusSyncFailed
 from waldur_mastermind.marketplace_remote.tests import fixtures
 from waldur_mastermind.marketplace_remote.utils import get_resource_sync_status
+
+UTILS_LOGGER = "waldur_mastermind.marketplace_remote.utils"
 
 
 class GetResourceSyncStatusTest(test.APITestCase):
@@ -238,7 +241,8 @@ class RemoteResourceStatusEndpointTest(test.APITestCase):
         ).respond(500, json={"error": "Internal server error"})
 
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.get(self.resource_status_url)
+        with self.assertNoLogs(UTILS_LOGGER, level=logging.ERROR):
+            response = self.client.get(self.resource_status_url)
 
         self.assertEqual(response.status_code, 502)
         self.assertIn(
@@ -461,7 +465,8 @@ class RemoteResourceTeamEndpointTest(test.APITestCase):
         ).respond(500, json={"error": "Internal server error"})
 
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.get(self.resource_team_url)
+        with self.assertNoLogs(UTILS_LOGGER, level=logging.ERROR):
+            response = self.client.get(self.resource_team_url)
         self.assertEqual(response.status_code, 502)
         self.assertIn(
             "Unable to fetch remote team data for resource",
@@ -666,9 +671,10 @@ class GetResourceOrderSyncStatusTest(test.APITestCase):
         ).respond(500, json={"error": "Internal server error"})
         self.client.force_authenticate(user=self.fixture.staff)
 
-        response = self.client.get(
-            f"/api/remote-waldur-api/remote_resource_order_status/{self.resource.uuid}/"
-        )
+        with self.assertNoLogs(UTILS_LOGGER, level=logging.ERROR):
+            response = self.client.get(
+                f"/api/remote-waldur-api/remote_resource_order_status/{self.resource.uuid}/"
+            )
         self.assertEqual(response.status_code, 502)
         self.assertIn(
             "Unable to fetch remote order data for resource",

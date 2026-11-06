@@ -28,12 +28,23 @@ Apart from the two proxy helpers, only public httpx/httpcore API is used:
 ``httpx.Client``. The request/response mapping below mirrors
 ``httpx.HTTPTransport``.
 
+Bounds. Requests go out with ``Accept-Encoding: identity`` and a response
+that comes encoded anyway is refused before its body is read: httpx would
+decode each chunk in full before anything could count it, and chained
+encodings expand a few hundred bytes into gigabytes. A body is read up to
+``max_response_bytes``, and the budgets of the ``remote_call_limits`` blocks
+the request is made in are spent here: one request each, the bytes read, and
+their deadline, which also shortens the request's own timeouts. Each refusal
+is a ``RemoteCallRefused``, an ``httpx.TransportError`` as a failed connection
+is, so callers that handle one handle the other.
+
 Imported lazily by ``waldur_core.core.client``, so httpcore does not load at
 Django startup.
 """
 
 import base64
 import contextlib
+import re
 import ssl
 import time
 import typing
@@ -47,6 +58,26 @@ from django.conf import settings
 from httpx._utils import URLPattern, get_environment_proxies
 
 from waldur_core.core import client as core_client
+from waldur_core.core.remote_errors import (
+    EncodedResponseRefused,
+    InvalidRemoteAnswer,
+    RemoteCallRefused,
+    RemoteCallTimeout,
+    ResponseTooLarge,
+    TooManyRequests,
+)
+
+__all__ = [
+    "EncodedResponseRefused",
+    "InvalidRemoteAnswer",
+    "PinnedTransport",
+    "RemoteCallRefused",
+    "RemoteCallTimeout",
+    "ResponseTooLarge",
+    "TooManyRequests",
+    "refuse_if_spent",
+    "transport_for",
+]
 
 # Most specific first: the first match wins.
 _EXCEPTION_MAP: tuple[tuple[type[Exception], type[httpx.TransportError]], ...] = (
@@ -66,10 +97,214 @@ _EXCEPTION_MAP: tuple[tuple[type[Exception], type[httpx.TransportError]], ...] =
     (httpcore.ProtocolError, httpx.ProtocolError),
 )
 
+
+Budgets = tuple[core_client.RemoteCallBudget, ...]
+
+
+def _past_deadline(budget: core_client.RemoteCallBudget) -> RemoteCallTimeout:
+    return RemoteCallTimeout(f"past the {budget.limits.timeout}s deadline of the call")
+
+
+def refuse_if_spent() -> None:
+    """Refuse to start another request once an active budget is spent.
+
+    For work done before a request reaches the transport, such as resolving
+    a URL's host, which no budget can interrupt.
+    """
+    budget = core_client.spent_budget()
+    if budget is None:
+        return
+    if time.monotonic() >= budget.deadline:
+        raise _past_deadline(budget)
+    if budget.requests >= budget.limits.max_requests:
+        raise TooManyRequests(
+            f"{budget.limits.max_requests} requests of the call already made"
+        )
+    raise ResponseTooLarge(f"{budget.limits.max_bytes} bytes of the call already read")
+
+
+def _spend_request(budgets: Budgets) -> None:
+    now = time.monotonic()
+    for budget in budgets:
+        if now >= budget.deadline:
+            raise _past_deadline(budget)
+        budget.requests += 1
+        if budget.requests > budget.limits.max_requests:
+            raise TooManyRequests(
+                f"more than {budget.limits.max_requests} requests in one call"
+            )
+
+
+def _spend_bytes(budgets: Budgets, size: int) -> None:
+    for budget in budgets:
+        budget.received += size
+        if budget.received > budget.limits.max_bytes:
+            raise ResponseTooLarge(
+                f"more than {budget.limits.max_bytes} bytes in one call"
+            )
+
+
+def _spend_values(budgets: Budgets, values: int) -> None:
+    now = time.monotonic()
+    for budget in budgets:
+        budget.values += values
+        if budget.values > budget.limits.max_values:
+            raise ResponseTooLarge(
+                f"more than {budget.limits.max_values} JSON values in one call"
+            )
+        if now >= budget.deadline:
+            raise _past_deadline(budget)
+
+
+def _timeouts_within(timeouts: dict | None, budgets: Budgets) -> dict | None:
+    """``timeouts`` (httpx's per-request timeout extension), each cut to the
+    time left before the nearest deadline."""
+    if not budgets:
+        return timeouts
+    # Not zero: a zero socket timeout means non-blocking, not "no time left".
+    remaining = max(min(budget.remaining() for budget in budgets), 0.01)
+    return {
+        name: remaining if value is None else min(value, remaining)
+        for name, value in (
+            timeouts or dict.fromkeys(("connect", "read", "write", "pool"))
+        ).items()
+    }
+
+
+@contextlib.contextmanager
+def _deadline_errors(budgets: Budgets) -> typing.Iterator[None]:
+    """A timeout cut short by a call's deadline is that call's timeout."""
+    try:
+        yield
+    except httpx.TimeoutException as exc:
+        if any(time.monotonic() >= budget.deadline for budget in budgets):
+            raise RemoteCallTimeout(f"deadline reached: {exc}") from exc
+        raise
+
+
+def _refuse_encoded(headers: httpx.Headers) -> None:
+    for encoding in headers.get_list("content-encoding", split_commas=True):
+        if encoding.strip().lower() not in ("", "identity"):
+            raise EncodedResponseRefused(f"Content-Encoding {encoding!r}")
+
+
+def _refuse_declared_size(
+    headers: httpx.Headers, max_bytes: int | None, budgets: Budgets
+) -> None:
+    length = headers.get("content-length", "")
+    if not length.isdigit():
+        return
+    limits = [budget.limits.max_bytes - budget.received for budget in budgets]
+    if max_bytes is not None:
+        limits.append(max_bytes)
+    if limits and int(length) > min(limits):
+        raise ResponseTooLarge(f"Content-Length {length} over {min(limits)}")
+
+
+def _json_values(chunk: bytes) -> int:
+    """What the JSON in ``chunk`` costs once the SDK has parsed it, in values.
+
+    Every value after the first in an array or object follows a comma, every
+    object value follows a colon, and every container opens with a bracket,
+    so these bytes bound the count; inside strings they are counted too,
+    which only overestimates. A scalar or a list parses to 30-60 bytes, an
+    object to an SDK model of about 800, so an object counts as
+    ``OBJECT_WEIGHT`` values and a value stands for about 50 bytes.
+    """
+    return (
+        chunk.count(b",")
+        + chunk.count(b":")
+        + chunk.count(b"[")
+        + OBJECT_WEIGHT * chunk.count(b"{")
+    )
+
+
+def _char_width(chunk: bytes) -> int:
+    """Bytes per character of a Python str holding text like ``chunk``.
+
+    A str stores every character at the width of its widest one: one byte for
+    ASCII, two for the Basic Multilingual Plane, four beyond it. One emoji in
+    a long string makes every character of it four bytes, so a body's text is
+    charged at the widest width seen in it so far. Two bytes is assumed for
+    any non-ASCII text below the astral planes, though Latin-1 needs one.
+    """
+    if chunk.isascii():
+        return 1
+    return 4 if _ASTRAL_LEAD.search(chunk) else 2
+
+
+class _BudgetedStream(httpcore.NetworkStream):
+    """A connection whose every read and write is held to the active budgets.
+
+    Each read is cut to the time left before the nearest deadline, and every
+    byte read, response heads included, counts against the budgets' bytes.
+    httpcore reads a head in many small reads, each with the full read
+    timeout, and reads any number of 1xx heads before the response, so
+    without this a server could hold a request long past its deadline or
+    send unbounded heads. The budgets are looked up at each call, as a pooled
+    connection serves one call after another.
+    """
+
+    def __init__(self, stream: httpcore.NetworkStream):
+        self._stream = stream
+
+    @staticmethod
+    def _timeout(timeout: float | None, error: type[Exception]) -> float | None:
+        budgets = core_client.active_budgets()
+        if not budgets:
+            return timeout
+        remaining = min(budget.remaining() for budget in budgets)
+        if remaining <= 0:
+            raise error("The deadline of the remote call has passed.")
+        return remaining if timeout is None else min(timeout, remaining)
+
+    def read(self, max_bytes: int, timeout: float | None = None) -> bytes:
+        data = self._stream.read(
+            max_bytes, timeout=self._timeout(timeout, httpcore.ReadTimeout)
+        )
+        _spend_bytes(core_client.active_budgets(), len(data))
+        return data
+
+    def write(self, buffer: bytes, timeout: float | None = None) -> None:
+        self._stream.write(
+            buffer, timeout=self._timeout(timeout, httpcore.WriteTimeout)
+        )
+
+    def close(self) -> None:
+        self._stream.close()
+
+    def start_tls(
+        self,
+        ssl_context: ssl.SSLContext,
+        server_hostname: str | None = None,
+        timeout: float | None = None,
+    ) -> httpcore.NetworkStream:
+        return _BudgetedStream(
+            self._stream.start_tls(
+                ssl_context,
+                server_hostname=server_hostname,
+                timeout=self._timeout(timeout, httpcore.ConnectTimeout),
+            )
+        )
+
+    def get_extra_info(self, info: str) -> typing.Any:
+        return self._stream.get_extra_info(info)
+
+
 # At most this many of a host's addresses are tried, within one connect timeout.
 MAX_ADDRESSES_TRIED = 4
 # A CONNECT response head larger than this is refused.
 MAX_PROXY_RESPONSE_HEAD = 16 * 1024
+# A parsed object costs about this many scalars (see _json_values).
+OBJECT_WEIGHT = 16
+# What one value stands for, in bytes of parsed Python objects; the text of a
+# body is charged at this rate too (see _char_width).
+BYTES_PER_VALUE = 50
+# UTF-8 lead bytes of characters beyond the Basic Multilingual Plane.
+_ASTRAL_LEAD = re.compile(rb"[\xf0-\xf7]")
+# What a request made outside any budget may read on top of its body: the
+# response head and any 1xx heads before it.
+MAX_HEAD_BYTES = 1024 * 1024
 
 
 @contextlib.contextmanager
@@ -143,6 +378,18 @@ class AddressCheckingBackend(httpcore.NetworkBackend):
         return proxy_url
 
     def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: typing.Iterable[httpcore.SOCKET_OPTION] | None = None,
+    ) -> httpcore.NetworkStream:
+        return _BudgetedStream(
+            self._connect_tcp(host, port, timeout, local_address, socket_options)
+        )
+
+    def _connect_tcp(
         self,
         host: str,
         port: int,
@@ -253,17 +500,80 @@ class AddressCheckingBackend(httpcore.NetworkBackend):
 
 
 class _ResponseStream(httpx.SyncByteStream):
-    def __init__(self, stream: typing.Iterable[bytes]):
+    """A response body, read within the budgets of the request it answers.
+
+    ``wire_counted`` says the connection already counts every byte against
+    the budgets (``_BudgetedStream``); a body that did not come through one,
+    as from a test double, is counted here instead.
+    """
+
+    def __init__(
+        self,
+        stream: typing.Iterable[bytes],
+        max_bytes: int | None = None,
+        budgets: Budgets = (),
+        max_values: int | None = None,
+        wire_counted: bool = False,
+    ):
         self._stream = stream
+        self._max_bytes = max_bytes
+        self._budgets = budgets
+        self._max_values = max_values
+        self._wire_counted = wire_counted
 
     def __iter__(self) -> typing.Iterator[bytes]:
-        with _httpx_exceptions():
-            yield from self._stream
+        size = values = text_charged = 0
+        width = 1
+        chunks = iter(self._stream)
+        with _deadline_errors(self._budgets), _httpx_exceptions():
+            while True:
+                # httpx reads the body after handle_request has returned,
+                # outside the block that set the budgets.
+                with core_client.using_budgets(self._budgets):
+                    chunk = next(chunks, None)
+                if chunk is None:
+                    return
+                size += len(chunk)
+                if self._max_bytes is not None and size > self._max_bytes:
+                    raise ResponseTooLarge(f"body over {self._max_bytes} bytes")
+                if not self._wire_counted:
+                    _spend_bytes(self._budgets, len(chunk))
+                # Only JSON is counted: in an image these bytes mean nothing.
+                counted = 0
+                if self._max_values is not None:
+                    width = max(width, _char_width(chunk))
+                    # The text itself, at the width Python will store it:
+                    # charged again for the earlier chunks when it widens.
+                    text_values = size * width // BYTES_PER_VALUE
+                    counted = _json_values(chunk) + text_values - text_charged
+                    text_charged = text_values
+                    values += counted
+                    if values > self._max_values:
+                        raise ResponseTooLarge(
+                            f"body over {self._max_values} JSON values"
+                        )
+                _spend_values(self._budgets, counted)
+                yield chunk
 
     def close(self) -> None:
         close = getattr(self._stream, "close", None)
         if close is not None:
             close()
+
+
+class _RemoteResponse(httpx.Response):
+    """A response whose JSON, if unreadable, is a refused remote call.
+
+    Invalid JSON, nesting too deep for the parser and integers too long to
+    convert would otherwise reach the SDK's callers as ValueError or
+    RecursionError, which no handler of a failed remote call catches.
+    """
+
+    def json(self, **kwargs: typing.Any) -> typing.Any:
+        try:
+            return super().json(**kwargs)
+        except (ValueError, RecursionError) as exc:
+            raise InvalidRemoteAnswer(f"{type(exc).__name__}: {exc}"[:500]) from None
 
 
 class PinnedTransport(httpx.BaseTransport):
@@ -272,6 +582,10 @@ class PinnedTransport(httpx.BaseTransport):
     ``pinned`` maps a hostname to the addresses ``check_url`` approved for it;
     connections to that host use those addresses without resolving it again,
     directly or through a CONNECT tunnel of the environment's proxy.
+    Response bodies are read unencoded, up to ``max_response_bytes`` and, for
+    JSON clients, ``max_response_values`` values. A request made outside any
+    ``remote_call_limits`` block gets a budget of its own: ``REMOTE_TIMEOUT``
+    for the whole request, and the response size.
     """
 
     def __init__(
@@ -280,7 +594,19 @@ class PinnedTransport(httpx.BaseTransport):
         scheme: str = "https",
         connect_by_hostname: bool = False,
         ssl_context: ssl.SSLContext | None = None,
+        max_response_bytes: int | None = None,
+        max_response_values: int | None = None,
     ):
+        self._max_response_bytes = max_response_bytes
+        self._max_response_values = max_response_values
+        self._default_limits = core_client.RemoteCallLimits(
+            max_requests=1,
+            timeout=core_client.REMOTE_TIMEOUT,
+            # The body, and room for the heads before it.
+            max_bytes=(max_response_bytes or core_client.MAX_FETCH_BYTES)
+            + MAX_HEAD_BYTES,
+            max_values=max_response_values or core_client.MAX_RESPONSE_VALUES,
+        )
         self._pool = httpcore.ConnectionPool(
             ssl_context=ssl_context or httpx.create_ssl_context(),
             network_backend=AddressCheckingBackend(
@@ -294,6 +620,17 @@ class PinnedTransport(httpx.BaseTransport):
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         assert isinstance(request.stream, httpx.SyncByteStream)
+        budgets = core_client.active_budgets() or (
+            core_client.RemoteCallBudget(
+                self._default_limits,
+                deadline=time.monotonic() + self._default_limits.timeout,
+            ),
+        )
+        _spend_request(budgets)
+        extensions = dict(request.extensions)
+        extensions["timeout"] = _timeouts_within(extensions.get("timeout"), budgets)
+        # Whatever the caller asked for: an encoded answer is refused below.
+        request.headers["Accept-Encoding"] = "identity"
         core_request = httpcore.Request(
             method=request.method,
             url=httpcore.URL(
@@ -304,15 +641,34 @@ class PinnedTransport(httpx.BaseTransport):
             ),
             headers=request.headers.raw,
             content=request.stream,
-            extensions=request.extensions,
+            extensions=extensions,
         )
-        with _httpx_exceptions():
+        with (
+            core_client.using_budgets(budgets),
+            _deadline_errors(budgets),
+            _httpx_exceptions(),
+        ):
             core_response = self._pool.handle_request(core_request)
         assert isinstance(core_response.stream, typing.Iterable)
-        return httpx.Response(
+        headers = httpx.Headers(core_response.headers)
+        try:
+            _refuse_encoded(headers)
+            _refuse_declared_size(headers, self._max_response_bytes, budgets)
+        except RemoteCallRefused:
+            core_response.close()
+            raise
+        return _RemoteResponse(
             status_code=core_response.status,
             headers=core_response.headers,
-            stream=_ResponseStream(core_response.stream),
+            stream=_ResponseStream(
+                core_response.stream,
+                self._max_response_bytes,
+                budgets,
+                self._max_response_values,
+                wire_counted=isinstance(
+                    core_response.extensions.get("network_stream"), _BudgetedStream
+                ),
+            ),
             extensions=core_response.extensions,
         )
 
@@ -320,7 +676,12 @@ class PinnedTransport(httpx.BaseTransport):
         self._pool.close()
 
 
-def transport_for(url: str, pinned: dict[str, list[str]]) -> PinnedTransport:
+def transport_for(
+    url: str,
+    pinned: dict[str, list[str]],
+    max_response_bytes: int | None = None,
+    max_response_values: int | None = None,
+) -> PinnedTransport:
     """The transport for a client of ``url``, whose host ``check_url`` passed.
 
     ``pinned`` maps that host to the addresses the check approved.
@@ -331,4 +692,6 @@ def transport_for(url: str, pinned: dict[str, list[str]]) -> PinnedTransport:
         connect_by_hostname=bool(
             settings.WALDUR_CORE.get("OUTBOUND_PROXY_CONNECT_BY_HOSTNAME", False)
         ),
+        max_response_bytes=max_response_bytes,
+        max_response_values=max_response_values,
     )
