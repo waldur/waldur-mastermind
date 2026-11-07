@@ -3634,7 +3634,11 @@ class ProviderOfferingViewSet(
             "What other parts of the portal -- calls for proposals, say -- "
             "have built on the offering, one of its plans or one of its "
             "components, and whether they would refuse the given change. "
-            "Shown before the change is confirmed."
+            "Shown before the change is confirmed. Open to whoever may change "
+            "the offering: staff, and holders of OFFERING.UPDATE on the "
+            "offering, its organization or its service provider. They see every "
+            "dependent, including calls run by other organizations, since those "
+            "are what the change would break."
         ),
         parameters=[
             OpenApiParameter(
@@ -3666,7 +3670,14 @@ class ProviderOfferingViewSet(
         ],
         responses=serializers.OfferingDependentSerializer(many=True),
     )
-    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    @action(
+        detail=True,
+        methods=["get"],
+        # The offering is looked up as retrieve does; the list filterset is
+        # left out, since change, plan_uuid and component_type are not its.
+        filter_backends=[filters.OfferingCustomersFilterBackend],
+        pagination_class=None,
+    )
     def dependents(self, request, uuid=None):
         offering: models.Offering = self.get_object()
         change = request.query_params.get("change")
@@ -3699,6 +3710,18 @@ class ProviderOfferingViewSet(
                 dependents.dependents(change, obj), many=True
             ).data
         )
+
+    # The warning before a change, so for whoever may change the offering. Not
+    # can_update_offering: its draft-only rule while
+    # ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT is off gates writes, and plan
+    # archiving, which this route warns about, is not under that rule.
+    dependents_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
+            binding_on_path=True,
+        )
+    ]
 
     # Each validator list is built independently on purpose. Previously these
     # were created via chained assignment and `activate_validators += [...]`,
