@@ -38,6 +38,7 @@ from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.configuration import config
+from waldur_core.core import access
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
@@ -70,7 +71,12 @@ from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.user_actions.providers import DASHBOARD_LIST_LIMIT
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
+from waldur_mastermind.marketplace import permissions as marketplace_permissions
+from waldur_mastermind.marketplace.views import (
+    PUBLIC_CATALOG_ACCESS,
+    BaseMarketplaceView,
+    PublicViewsetMixin,
+)
 from waldur_mastermind.proposal import (
     activity,
     affinity_scoring,
@@ -588,6 +594,23 @@ def _may_read_call_workflow(user, call) -> bool:
     )
 
 
+# Who _may_read_call_workflow lets read a call's workflow configuration, on a
+# call the caller sees. Change the two together.
+_CALL_WORKFLOW_READERS = (
+    "those who configure the call (CALL.UPDATE on the call, on its call "
+    "managing organisation or on the organization running it) and users with "
+    "the staff or support flag, read from the user whatever their token's "
+    "scopes; anyone else who sees the call gets 404."
+)
+CALL_WORKFLOW_READ_ACCESS = access.custom("For " + _CALL_WORKFLOW_READERS)
+# The same, on a route whose writes are checked as the call's other writes.
+CALL_WORKFLOW_READ_WRITE_ACCESS = access.custom(
+    "A read is for "
+    + _CALL_WORKFLOW_READERS
+    + " A write needs CALL.UPDATE, as the call's other writes do."
+)
+
+
 def _workflow_check_response(findings):
     return response.Response(
         serializers.WorkflowCheckSerializer(
@@ -690,6 +713,14 @@ class CallTemplateViewSet(ActionsViewSet):
     partial_update_permissions = [structure_permissions.is_staff]
     destroy_permissions = [structure_permissions.is_staff]
 
+    # Look the template up as retrieve does.
+    access_filtered_actions = ("workflow_check", "workflow_description")
+
+    @access.shows(
+        "Users with the staff flag see every template, whatever their token's "
+        "scopes; those holding CALL.CREATE on a call managing organisation see "
+        "the published ones; anyone else sees none."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -1056,6 +1087,14 @@ class CallManagingOrganisationViewSet(
     serializer_class = serializers.CallManagingOrganisationSerializer
     filterset_class = filters.CallManagingOrganisationFilter
 
+    # A directory of who runs calls, opened as the marketplace catalog is; the
+    # serializer checks the organization named in a create.
+    access_declarations = {
+        "list": [PUBLIC_CATALOG_ACCESS],
+        "retrieve": [PUBLIC_CATALOG_ACCESS],
+        "create": [marketplace_permissions.REGISTERS_SERVICE_PROVIDER],
+    }
+
     def destroy(self, request, *args, **kwargs):
         instance: models.CallManagingOrganisation = self.get_object()
         try:
@@ -1308,6 +1347,14 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.PublicCallFilter
     permission_classes = (rf_permissions.AllowAny,)
 
+    access_declarations = {
+        "check_eligibility": [
+            access.owned(
+                "The caller's own eligibility to submit to an active or archived call."
+            )
+        ],
+    }
+
     @extend_schema(
         description="Check if the current user is eligible to submit proposals to this call.",
         request=None,
@@ -1504,6 +1551,84 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     queryset = models.Call.objects.all().select_related("template")
 
+    # Reads of the call's own rounds, offerings, templates, component rules,
+    # evaluator roles and workflow steps: each looks the call up as retrieve
+    # does. Who reads a workflow step's team fields is narrowed further.
+    access_filtered_actions = (
+        "offerings",
+        "offering_detail",
+        "rounds",
+        "round_detail",
+        "resource_templates",
+        "resource_template_detail",
+        "offering_components",
+        "offering_component_detail",
+        "workflow_steps",
+        "workflow_step_detail",
+        "proposal_roles",
+        "proposal_role_detail",
+    )
+
+    access_declarations = {
+        # Checked by ProtectedCallSerializer: validate_manager and create().
+        "create": [
+            access.custom(
+                "CALL.CREATE on the call managing organisation named in "
+                "manager and, unless the user has the staff flag, "
+                "CALL.CREATE_PERMISSION on it too."
+            )
+        ],
+        # Checked by CallImportParametersSerializer.validate_manager.
+        "import_call": [
+            access.custom(
+                "CALL.CREATE on the call managing organisation named in "
+                "manager. Only users with the staff flag may name an "
+                "unpublished template."
+            )
+        ],
+        # Checked in the action body: _workflow_reader_call.
+        "workflow_description": [CALL_WORKFLOW_READ_ACCESS],
+        "workflow_report": [CALL_WORKFLOW_READ_ACCESS],
+        "workflow_progress": [CALL_WORKFLOW_READ_ACCESS],
+        "workflow_paths": [CALL_WORKFLOW_READ_ACCESS],
+        "scenario_results": [CALL_WORKFLOW_READ_ACCESS],
+        "workflow_check": [CALL_WORKFLOW_READ_ACCESS],
+        "workflow_versions": [CALL_WORKFLOW_READ_ACCESS],
+        "workflow_version": [CALL_WORKFLOW_READ_ACCESS],
+        "workflow_diff": [CALL_WORKFLOW_READ_ACCESS],
+        "notification_mail_types": [CALL_WORKFLOW_READ_ACCESS],
+        "notification_preview": [CALL_WORKFLOW_READ_ACCESS],
+        "notification_overrides": [CALL_WORKFLOW_READ_WRITE_ACCESS],
+        "notification_override_detail": [CALL_WORKFLOW_READ_WRITE_ACCESS],
+        # Checked in the action body: may_configure_calls.
+        "step_checklists": [
+            access.custom(
+                "Those who configure a call or may create one (CALL.UPDATE on "
+                "a call, its call managing organisation or organization, or "
+                "CALL.CREATE on a call managing organisation or organization) "
+                "and users with the staff or support flag, whatever their "
+                "token's scopes. Each sees the shared forms and those of the "
+                "organizations whose calls they configure or may create; "
+                "staff and support see every form."
+            )
+        ],
+        # The kinds are code, the same for every call.
+        "workflow_step_kinds": [access.authenticated()],
+        "dashboard_stats": [
+            access.owned(
+                "Counts over the calls where the caller holds the call "
+                "manager role on the call itself; zeros without one."
+            )
+        ],
+    }
+
+    @access.shows(
+        "Users with the staff or support flag see every call, whatever their "
+        "token's scopes, as does a site-wide CALL.LIST grant. Anyone else sees "
+        "the calls of organizations where they hold CALL.LIST, those of call "
+        "managing organisations where they hold a role, and the calls they "
+        "hold a role on, such as call manager or reviewer."
+    )
     def get_queryset(self):
         return filter_queryset_for_user(
             super().get_queryset(), self.request.user
@@ -5823,6 +5948,14 @@ def _terminal_workflow_detail(proposal_state):
     }.get(proposal_state, "Workflow completed.")
 
 
+# The call team's view of one proposal (ProposalViewSet._call_team_proposal).
+CALL_TEAM_VIEW = access.custom(
+    "Users with the staff or support flag, and holders of UPDATE_CALL on the "
+    "proposal's call, its managing organisation or the customer running it who "
+    "are not on the proposal's applicant team; 404 for anyone else."
+)
+
+
 class ProposalViewSet(
     UserChecklistMixin,
     ReviewerChecklistMixin,
@@ -5836,6 +5969,166 @@ class ProposalViewSet(
     disabled_actions = ["update", "partial_update"]
     model = models.Proposal
 
+    # Who may call the routes whose checks run in the action body or in the
+    # services it calls.
+    access_declarations = {
+        "create": [
+            access.custom(
+                "Any authenticated user drafts a proposal in an open round of an "
+                "active call, if they match the call's user restrictions (email, "
+                "affiliation, identity source, AAI); they become its manager."
+            )
+        ],
+        "dashboard_stats": [
+            access.owned("Counts of the proposals the caller created.")
+        ],
+        "workflow_states": [
+            access.custom(
+                "Whoever sees the proposal; the steps of its post-award runs only "
+                "for those who read its runs (user_can_view_runs)."
+            )
+        ],
+        "workflow_timeline": [CALL_TEAM_VIEW],
+        "workflow_mails": [CALL_TEAM_VIEW],
+        "preview_roles": [CALL_TEAM_VIEW],
+        "preview_as": [CALL_TEAM_VIEW],
+        "step_inputs": [
+            access.custom(
+                "Never from the applicant team, users with the staff or support "
+                "flag and those overseeing the call (its managers, organisers of "
+                "its managing organisation, UPDATE_CALL holders) read every "
+                "step's inputs; once the step has started, whoever holds its work "
+                "-- its contributors and completer, or the applicant team on an "
+                "applicant step (step_inputs.can_read_inputs)."
+            )
+        ],
+        "release_step_report": [
+            access.custom(
+                "Users with the staff flag; otherwise, never from the applicant "
+                "team, those overseeing the call (its managers, organisers of its "
+                "managing organisation) and the completer of a step the applicant "
+                "does not complete (step_inputs.can_release)."
+            )
+        ],
+        "released_reports": [
+            access.custom(
+                "Whoever sees the proposal; it lists only the reports they read: "
+                "the call team every one, the applicant team and the call's "
+                "reviewers and panel members unless the decision is held for the "
+                "round's publication."
+            )
+        ],
+        "request_changes": [
+            access.custom(
+                "Users with the staff flag, and, never from the applicant team, "
+                "whoever acts on the step named: the call's managers and "
+                "organisers driving its workflow, and the step's completer "
+                "(user_can_request_changes)."
+            )
+        ],
+        "cancel_change_request": [
+            access.custom(
+                "Of those who read the request: who made it, unless on the "
+                "applicant team; users with the staff flag; and the call's "
+                "managers and organisers driving its workflow, unless on the "
+                "applicant team (user_oversees_contributions)."
+            )
+        ],
+        "change_requests": [
+            access.custom(
+                "Whoever sees the proposal; it lists only the requests they read "
+                "(user_reads_change_request): every one for users with the staff "
+                "or support flag and the call's workflow managers, a request to "
+                "the applicant for the applicant team and the step's completers, "
+                "a reopened contribution for its holders and the person it is "
+                "handed to."
+            )
+        ],
+        "unlockable_parts": [
+            access.custom(
+                "Whoever sees the proposal reads which of its parts a request "
+                "for changes may unlock."
+            )
+        ],
+        "reopen_contribution": [
+            access.custom(
+                "Users with the staff flag, and the call's managers and "
+                "organisers driving its workflow who are not on the applicant "
+                "team (user_oversees_contributions)."
+            )
+        ],
+        "contributions": [
+            access.custom(
+                "Whoever sees the proposal; it lists only the contributions they "
+                "read (contributions.Access.can_read) and the slots handed to "
+                "them."
+            )
+        ],
+        "submit_contribution": [
+            access.custom(
+                "Whoever may fill the contribution (contributions.Access.can_fill): "
+                "never from the applicant team, users with the staff flag and the "
+                "call's managers and organisers; otherwise its filler -- the "
+                "offering's team or the contributor holding the slot, or the "
+                "person it is handed to once accepted -- while it is open on an "
+                "active step."
+            )
+        ],
+        "decline_contribution": [
+            access.custom(
+                "Of those who read the contribution or to whom it is handed: the "
+                "person it is handed to hands it back; users with the staff flag "
+                "and the call's managers and organisers, not on the applicant "
+                "team, withdraw any open one; a contributor declines their own "
+                "per-person slot."
+            )
+        ],
+        "delegate_contribution": [
+            access.custom(
+                "Of those who read the contribution: users with the staff flag "
+                "and the call's managers and organisers, not on the applicant "
+                "team, and its holders (the offering's team, the person whose "
+                "slot it is), on an open slot of an active step that can be "
+                "handed on (contributions.may_delegate)."
+            )
+        ],
+        "accept_contribution": [
+            access.custom(
+                "Only the person the contribution is handed to, while it awaits "
+                "their acceptance on an active step; they reach the proposal "
+                "before it is otherwise visible to them."
+            )
+        ],
+        "offering_assessments": [
+            access.custom(
+                "Whoever sees the proposal; it lists every per-offering outcome "
+                "for those overseeing the call who are not on the applicant team, "
+                "and otherwise only the contributions the caller reads "
+                "(contributions.Access.can_read)."
+            )
+        ],
+    }
+    # Read actions that look the proposal up with get_object() as retrieve
+    # does, and narrow what they return further as their declarations say.
+    access_filtered_actions = (
+        "workflow_states",
+        "released_reports",
+        "change_requests",
+        "unlockable_parts",
+        "contributions",
+        "offering_assessments",
+    )
+
+    @access.shows(
+        "Users with the staff or support flag, or a site-wide LIST_PROPOSALS "
+        "grant, see every proposal. Others see the proposals of calls whose "
+        "organisation's customer they hold LIST_PROPOSALS on, their applicant "
+        "team's, those they hold a role on, those of calls they manage or "
+        "organise, a panel member's submitted ones without a blocking conflict "
+        "of interest, those they review, are assigned, contribute to or hold an "
+        "evaluator role on, a results reader's once the round is published, and "
+        "an offering manager's or slot delegate's for their offering's part."
+    )
     def get_queryset(self):
         # Annotate the inputs to workflow_service.is_awaiting_manual_advance so
         # ProposalSerializer.awaiting_manual_advance is computable without a
@@ -5996,6 +6289,16 @@ class ProposalViewSet(
     # Both mixins use the default implementation (obj.checklist_completion)
     # UserChecklistMixin permissions - for proposal managers only
     # Checklist viewing: same permission as viewing proposal
+    @access.describes(
+        access.custom(
+            "Staff and support; the applicant team and whoever may update the "
+            "proposal; LIST_PROPOSALS holders on its call or the call's managing "
+            "organisation; the call's managers; a reviewer holding a live review "
+            "of it; and holders of an evaluator role on it "
+            "(reads_proposal_checklist)."
+        ),
+        needs_object=True,
+    )
     def _checklist_view_permission(request, view, obj=None):
         if not obj:
             return
@@ -9916,7 +10219,20 @@ class ReviewViewSet(ActionsViewSet):
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Review.States.IN_REVIEW)
     ]
+    access_declarations = {
+        "dashboard_stats": [access.owned("The caller's own reviews.")],
+    }
 
+    @access.shows(
+        "Users with the staff or support flag, and holders of a site-wide "
+        "CALL.LIST grant, see every review. Others see their own reviews, and "
+        "the reviews of a call's proposals when they hold a role on the call's "
+        "managing organisation, the call manager role on the call, or "
+        "CALL.APPROVE_AND_REJECT_PROPOSALS on its organisation -- except on "
+        "proposals they apply with, whose submitted reviews the applicant team "
+        "sees once the proposal is decided, if the call shows reviews to "
+        "submitters."
+    )
     def get_queryset(self):
         # Support reads everything staff does and writes nothing; writes on
         # this viewset are gated separately, not by queryset visibility.
@@ -9989,7 +10305,12 @@ class ReviewViewSet(ActionsViewSet):
     create_permissions = [check_create_permissions]
     destroy_permissions = [check_destroy_permissions]
 
+    @access.describes(
+        access.any_of(access.owned("The review's reviewer."), access.staff()),
+        needs_object=True,
+    )
     def action_permission_check(request, view, obj: models.Review | None = None):
+        """The review's reviewer, or a request acting as staff."""
         if not obj:
             return
 
@@ -10045,7 +10366,10 @@ class ReviewViewSet(ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @access.describes(needs_object=True)
     def reviewer_off_applicant_team(request, view, obj: models.Review | None = None):
+        """Refused, to staff as well, when the review's reviewer is on the
+        proposal's applicant team."""
         # Nobody reviews a proposal they are on the team of, however they
         # came to hold the review.
         if obj and proposal_roles.is_on_applicant_team(obj.reviewer, obj.proposal):
@@ -10132,6 +10456,19 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     serializer_class = serializers.ProviderRequestedOfferingSerializer
     filterset_class = filters.RequestedOfferingFilter
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    # Read the requested offering looked up, or the list filtered, as list
+    # and retrieve do.
+    access_filtered_actions = ("team_steps", "team", "team_step_slots", "team_slots")
+    access_declarations = {
+        "delegate_slots": [
+            access.custom(
+                "Whoever sees the requested offering. Each slot is handed on only "
+                "if the caller reads it and may hand it on -- staff, the call's "
+                "overseers or the slot's holder on an open slot of an active "
+                "step (contributions.may_delegate); any other is skipped."
+            )
+        ],
+    }
 
     def get_queryset(self):
         return provider_calls.annotate_requested_offerings(
@@ -10432,6 +10769,13 @@ class UserRequestedResourceViewSet(ReadOnlyActionsViewSet):
     filterset_class = filters.RequestedResourceFilter
     filter_backends = (DjangoFilterBackend,)
 
+    @access.shows(
+        "Requested resources of the proposals the caller can read, as the "
+        "proposal list shows them; those of rejected or canceled proposals only "
+        "with include_closed=true. Unless the caller has the staff or support "
+        "flag, a proposal read only as one of its providers shows only the "
+        "requests for offerings the caller holds a role on."
+    )
     def get_queryset(self):
         proposals = filter_queryset_for_user(
             models.Proposal.objects.all(), self.request.user
@@ -10467,6 +10811,13 @@ class ProviderRequestedResourceViewSet(ReadOnlyActionsViewSet):
     filterset_class = filters.RequestedResourceFilter
     filter_backends = (DjangoFilterBackend,)
 
+    @access.shows(
+        "Users with the staff flag see every requested resource. Others see "
+        "the requests for the offerings they can manage -- through a role on "
+        "the offering, its organisation, service provider or project, a "
+        "site-wide OFFERING.LIST grant, or the support flag -- except those of "
+        "draft proposals."
+    )
     def get_queryset(self):
         user = self.request.user
 
@@ -10561,6 +10912,11 @@ class OfferingDemandViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
+    @access.shows(
+        "Demand for the offerings of the organisations the caller owns and of "
+        "the offerings they hold a role on; users with the staff or support "
+        "flag see every offering's."
+    )
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return []
@@ -10590,7 +10946,23 @@ class RoundViewSet(ReadOnlyActionsViewSet):
     serializer_class = serializers.CallRoundSerializer
     filterset_class = []
     filter_backends = (DjangoFilterBackend,)
+    # Looks the round up as retrieve does and lists who reviews in it.
+    access_filtered_actions = ("reviewers",)
+    access_declarations = {
+        "dashboard_deadlines": [
+            access.owned(
+                "Open rounds of the calls on which the caller holds the call "
+                "manager role."
+            )
+        ],
+    }
 
+    @access.shows(
+        "Users with the staff or support flag, and holders of a site-wide "
+        "ROUND.LIST grant, see every round. Others see the rounds of calls "
+        "whose managing organisation they hold a role on, or whose "
+        "organisation grants them ROUND.LIST."
+    )
     def get_queryset(self):
         return filter_queryset_for_user(models.Round.objects.all(), self.request.user)
 
@@ -10696,7 +11068,19 @@ class ProposalProjectRoleMappingViewSet(ActionsViewSet):
     update_validators = partial_update_validators = destroy_validators = [
         validate_call_not_archived
     ]
+    access_declarations = {
+        "create": [
+            access.custom(
+                "The serializer requires CALL.UPDATE on the call named in the "
+                "request or on its managing organisation."
+            )
+        ],
+    }
 
+    @access.shows(
+        "Users with the staff or support flag see every mapping; others the "
+        "mappings of the calls they can see."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -10751,6 +11135,20 @@ class CallWorkflowStepNotificationRuleViewSet(ActionsViewSet):
         validate_call_not_archived
     ]
 
+    access_declarations = {
+        "create": [
+            access.custom(
+                "The serializer requires CALL.UPDATE on the call of the workflow "
+                "step named in the request or on its managing organisation."
+            )
+        ],
+    }
+
+    @access.shows(
+        "Users with the staff or support flag, and holders of a site-wide "
+        "CALL.LIST grant, see every rule; others the rules of the calls they "
+        "hold a role on."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -10793,7 +11191,18 @@ class ProposalRoleAssignmentViewSet(ReadOnlyActionsViewSet):
     filterset_class = filters.ProposalRoleAssignmentFilter
     filter_backends = (DjangoFilterBackend,)
     permission_classes = (rf_permissions.IsAuthenticated,)
+    access_declarations = {
+        "confirm_no_conflict": [
+            access.owned("The role assignment's holder, checked in the action.")
+        ],
+    }
 
+    @access.shows(
+        "Users with the staff or support flag see every assignment. Others see "
+        "their own, and those on proposals of calls they hold the call manager "
+        "role on or whose managing organisation they hold a role on, except "
+        "proposals they apply with."
+    )
     def get_queryset(self):
         user = self.request.user
         if getattr(self, "swagger_fake_view", False):
@@ -10874,10 +11283,19 @@ class ExpertiseCategoryViewSet(ReadOnlyActionsViewSet):
     filterset_class = filters.ExpertiseCategoryFilter
     filter_backends = (DjangoFilterBackend,)
     permission_classes = (rf_permissions.IsAuthenticated,)
+    # A taxonomy every reviewer picks their expertise from.
+    access_declarations = {
+        "list": [access.authenticated()],
+        "retrieve": [access.authenticated()],
+    }
 
 
+# ActionsPermission also calls these checks without the object, where they
+# refuse everyone but staff: the owner edits their profile through ``me``.
+@access.describes(access.staff())
 def check_reviewer_profile_update_permission(request, view, obj=None):
-    """Check if user can update a reviewer profile."""
+    """A request acting as staff. Meant to admit the profile's owner too, but
+    the check also runs without the object, where it refuses everyone else."""
     if has_staff_access(request):
         return
     if obj and obj.user == request.user:
@@ -10887,10 +11305,13 @@ def check_reviewer_profile_update_permission(request, view, obj=None):
     )
 
 
+@access.describes(access.staff())
 def check_reviewer_profile_delete_permission(request, view, obj=None):
-    """The owner deletes their profile only while in good standing: a
-    suspended or blocked reviewer would otherwise delete it, with its conflict
-    of interest history, and start afresh. Staff delete any."""
+    """A request acting as staff, through
+    ``check_reviewer_profile_update_permission``. Meant to let the owner
+    delete their profile only while in good standing: a suspended or blocked
+    reviewer would otherwise delete it, with its conflict of interest
+    history, and start afresh."""
     check_reviewer_profile_update_permission(request, view, obj)
     if (
         obj
@@ -10919,7 +11340,29 @@ class ReviewerProfileViewSet(ActionsViewSet):
         check_reviewer_profile_update_permission
     ]
     destroy_permissions = [check_reviewer_profile_delete_permission]
+    # The ORCID actions look the profile up as retrieve does, then check its
+    # owner in the action body.
+    _OWNER_OR_STAFF = [
+        access.any_of(access.owned("The profile's owner."), access.staff())
+    ]
+    access_declarations = {
+        "create": [access.owned("A reviewer profile for the caller themselves.")],
+        "me": [access.owned("The caller's own reviewer profile.")],
+        "publish": [access.owned("The caller's own reviewer profile.")],
+        "unpublish": [access.owned("The caller's own reviewer profile.")],
+        "connect_orcid": _OWNER_OR_STAFF,
+        "connect_orcid_callback": _OWNER_OR_STAFF,
+        "sync_orcid": _OWNER_OR_STAFF,
+        "disconnect_orcid": _OWNER_OR_STAFF,
+        "import_publications": _OWNER_OR_STAFF,
+    }
 
+    @access.shows(
+        "Users with the staff flag see every profile. Others see their own, "
+        "and those of reviewers who accepted a place in the pool of a call they "
+        "hold the call manager role on -- of any call with the support flag or "
+        "a site-wide CALL.LIST grant."
+    )
     def get_queryset(self):
         # The reviewer's record, worked out from their reviews for the whole
         # page in one query.
@@ -11448,6 +11891,13 @@ class ConflictOfInterestViewSet(ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     disabled_actions = ["create", "destroy"]
 
+    @access.shows(
+        "Users with the staff or support flag, and holders of a site-wide "
+        "CALL.LIST grant, see every conflict. Others see those about "
+        "themselves as reviewer, and those of calls they hold the call manager "
+        "role on, or any role on the call's managing organisation or on its "
+        "customer, except on proposals they apply with."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support or sees_every_call(user):
@@ -11680,7 +12130,17 @@ class COIDisclosureViewSet(ActionsViewSet):
     filterset_class = filters.COIDisclosureFormFilter
     filter_backends = (DjangoFilterBackend,)
     disabled_actions = ["update", "partial_update", "destroy"]
+    access_declarations = {
+        "create": [
+            access.owned("A disclosure filed under the caller's own reviewer profile.")
+        ],
+    }
 
+    @access.shows(
+        "Users with the staff flag see every disclosure. Others see their own, "
+        "and those of calls they hold the call manager role on, or any role on "
+        "the call's managing organisation or on its customer."
+    )
     def get_queryset(self):
         user = self.request.user
         # Staff only. Support and a call desk stay on the membership filter.
@@ -11940,7 +12400,22 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
             ["call", "call.manager"],
         )
     ]
+    # Checked in the action, after the entry is looked up as retrieve does.
+    _ADDRESSEE = [
+        access.owned(
+            "The invitation's addressee: the reviewer whose profile it names, "
+            "or, before a profile is linked, the invited user or the holder of "
+            "the invited email."
+        )
+    ]
+    access_declarations = {"accept": _ADDRESSEE, "decline": _ADDRESSEE}
 
+    @access.shows(
+        "Users with the staff or support flag, and holders of a site-wide "
+        "CALL.LIST grant, see every entry. Others see the entries addressed to "
+        "them, and those of calls they hold the call manager role on, or any "
+        "role on the call's managing organisation or on its customer."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support or sees_every_call(user):
@@ -12233,6 +12708,11 @@ class COIDetectionJobViewSet(ReadOnlyActionsViewSet):
     filterset_class = filters.COIDetectionJobFilter
     filter_backends = (DjangoFilterBackend,)
 
+    @access.shows(
+        "Users with the staff flag see every job. Others see the jobs of calls "
+        "they hold the call manager role on, or any role on the call's "
+        "managing organisation or on its customer."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
@@ -12264,6 +12744,24 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
     # Allow destroy action (override ReadOnlyActionsViewSet defaults)
     disabled_actions = ["create", "update", "partial_update"]
 
+    # Checked in the action body, on a suggestion get_object() found.
+    access_declarations = {
+        action: [
+            access.custom(
+                "A request acting as staff, the call's managers, and holders of "
+                "any role on the organization that runs the call's managing "
+                "organisation."
+            )
+        ]
+        for action in ("confirm", "reject")
+    }
+
+    @access.shows(
+        "Suggestions for calls the caller manages, calls run by an organization "
+        "they hold any role on, and calls of a call-managing organisation they "
+        "hold a role on; users with the staff or support flag and holders of a "
+        "site-wide CALL.LIST grant see all."
+    )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support or sees_every_call(user):
@@ -12397,6 +12895,24 @@ class PublicReviewerInvitationViewSet(InvitationAcceptanceMixin, viewsets.ViewSe
     """
 
     permission_classes = []  # Public - no auth required
+
+    # Answering takes signing in as the invitation's addressee
+    # (CallReviewerPool.is_addressed_to); the token only finds it.
+    _INVITEE = [
+        access.owned(
+            "A signed-in addressee with the invitation token: the reviewer whose "
+            "profile the invitation names or, before a profile is linked, the "
+            "invited user or any user with the invited e-mail address."
+        )
+    ]
+    access_declarations = {
+        # Anyone holding the invitation token from the e-mail reads the call's
+        # name, the invitation's status and deadline and who sent it -- no
+        # proposals -- and, when signed in, whether they have a reviewer profile.
+        "retrieve": [access.public()],
+        "accept": _INVITEE,
+        "decline": _INVITEE,
+    }
 
     def _get_invitation(self, token: str) -> models.CallReviewerPool:
         """Get and validate invitation by token."""
@@ -12571,6 +13087,29 @@ class ReviewerBidViewSet(ActionsViewSet):
     filterset_class = filters.ReviewerBidFilter
     filter_backends = (DjangoFilterBackend,)
 
+    access_declarations = {
+        "my_bids": [access.owned("The bids of the caller's own reviewer profile.")],
+        "submit_bid": [
+            access.owned(
+                "The caller bids from their own reviewer profile, on proposals "
+                "of calls whose reviewer pool they are an accepted member of, "
+                "in good standing."
+            )
+        ],
+        "bulk_submit": [
+            access.owned(
+                "The caller bids from their own reviewer profile, on proposals "
+                "of calls whose reviewer pool they are an accepted member of, "
+                "in good standing; other bids are reported as errors."
+            )
+        ],
+    }
+
+    @access.shows(
+        "The caller's own bids, and bids on calls they manage, calls run by an "
+        "organization they hold any role on, and calls of a call-managing "
+        "organisation they hold a role on; users with the staff flag see all."
+    )
     def get_queryset(self):
         user = self.request.user
         # Staff only. Support and a call desk stay on the membership filter.
@@ -12739,6 +13278,25 @@ class ReviewerBidViewSet(ActionsViewSet):
 
 # Nested ViewSets for ReviewerProfile sub-resources
 
+# Their check_permission, run by get_queryset and perform_create, refuses
+# everyone but the profile's own user and a request acting as staff.
+REVIEWER_PROFILE_PART_ACCESS = {
+    action: [
+        access.any_of(
+            access.owned("A part of the caller's own reviewer profile."),
+            access.staff(),
+        )
+    ]
+    for action in (
+        "list",
+        "retrieve",
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
+    )
+}
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -12822,6 +13380,8 @@ class ReviewerProfileAffiliationViewSet(
     queryset = models.ReviewerAffiliation.objects.all()
     serializer_class = serializers.ReviewerAffiliationSerializer
     filter_backends = (DjangoFilterBackend,)
+
+    access_declarations = REVIEWER_PROFILE_PART_ACCESS
 
     def get_reviewer_profile(self):
         profile_uuid = self.kwargs.get("reviewer_profile_uuid")
@@ -12930,6 +13490,8 @@ class ReviewerProfileExpertiseViewSet(
     serializer_class = serializers.ReviewerExpertiseSerializer
     filter_backends = (DjangoFilterBackend,)
 
+    access_declarations = REVIEWER_PROFILE_PART_ACCESS
+
     def get_reviewer_profile(self):
         profile_uuid = self.kwargs.get("reviewer_profile_uuid")
         return get_object_or_404(models.ReviewerProfile, uuid=profile_uuid)
@@ -13037,6 +13599,8 @@ class ReviewerProfilePublicationViewSet(
     serializer_class = serializers.ReviewerPublicationSerializer
     filter_backends = (DjangoFilterBackend,)
 
+    access_declarations = REVIEWER_PROFILE_PART_ACCESS
+
     def get_reviewer_profile(self):
         profile_uuid = self.kwargs.get("reviewer_profile_uuid")
         return get_object_or_404(models.ReviewerProfile, uuid=profile_uuid)
@@ -13106,6 +13670,11 @@ class AssignmentBatchViewSet(ActionsViewSet):
             return serializers.AssignmentBatchListSerializer
         return serializers.AssignmentBatchSerializer
 
+    @access.shows(
+        "Batches sent to the caller as a reviewer, and every batch of calls on "
+        "which they hold the call manager role; users with the staff or support "
+        "flag and holders of a site-wide CALL.LIST grant see all."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -13276,6 +13845,11 @@ class AssignmentItemViewSet(ActionsViewSet):
         )
     ]
 
+    @access.shows(
+        "Items of batches sent to the caller as a reviewer, and every item of "
+        "calls on which they hold the call manager role; users with the staff "
+        "flag see all."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -13632,6 +14206,11 @@ class CallAssignmentConfigurationViewSet(ActionsViewSet):
     # has no object to check the permission against. Refuse it outright.
     disabled_actions = ["create"]
 
+    @access.shows(
+        "Configurations of calls on which the caller holds any role; users with "
+        "the staff or support flag and holders of a site-wide CALL.LIST grant "
+        "see all."
+    )
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -13669,6 +14248,13 @@ class MyAssignmentBatchViewSet(viewsets.ViewSet):
 
     lookup_field = "uuid"
     permission_classes = [rf_permissions.IsAuthenticated]
+
+    access_declarations = {
+        "list": [access.owned("Assignment batches sent to the caller as a reviewer.")],
+        "retrieve": [
+            access.owned("An assignment batch sent to the caller as a reviewer.")
+        ],
+    }
 
     @staticmethod
     def _serialize_batch(batch: models.AssignmentBatch) -> dict:
@@ -13777,6 +14363,33 @@ class MyAssignmentBatchViewSet(viewsets.ViewSet):
         return response.Response({**self._serialize_batch(batch), "items": items})
 
 
+# Who reads and writes a round's ranking and meeting notes, as
+# waldur_mastermind.proposal.rankings decides it.
+ROUNDS_READ = (
+    "rounds of calls they manage (UPDATE_CALL on the call or its managing "
+    "organisation) or sit on the panel of, and rounds with published results "
+    "of calls whose results they read (CALL.VIEW_RESULTS on the managing "
+    "customer) -- every round with the support flag -- but no round with a "
+    "proposal they are on the team of or in conflict with"
+)
+REPORTS_READ = (
+    "with the support flag, every one; otherwise those they wrote, those of "
+    "calls they manage and those a later step they work on reads, when they "
+    "cover no proposal they are on the team of or in conflict with"
+)
+WRITES_ROUND = (
+    "Users with the staff flag, and the call's managers (UPDATE_CALL on the "
+    "call or its managing organisation) who read the round."
+)
+WRITES_RANKING = (
+    "The round's overall ranking: users with the staff flag, and the call's "
+    "managers (UPDATE_CALL on the call or its managing organisation), panel "
+    "chair and vice-chair who read the round. A round report's ranking: the "
+    "report's author while it is a draft and they still write for it. Nobody "
+    "ranks a proposal they are on the team of."
+)
+
+
 class ProposalRankingViewSet(ActionsViewSet):
     """A round's ranking: where each proposal was placed, its final score and
     the resources recommended for it.
@@ -13793,6 +14406,27 @@ class ProposalRankingViewSet(ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     disabled_actions = ["update"]
 
+    # Checked by the serializer (create, partial_update), perform_destroy
+    # and the import itself.
+    access_declarations = {
+        "create": [access.custom(WRITES_RANKING)],
+        "partial_update": [access.custom(WRITES_RANKING)],
+        "destroy": [access.custom(WRITES_RANKING)],
+        "import_csv": [access.custom(WRITES_RANKING)],
+        "export_csv": [
+            access.custom(
+                "Whoever reads the round's ranking, or the named round report; "
+                "the file holds the rankings they read, and for those who write "
+                "the ranking the proposals not ranked yet."
+            )
+        ],
+    }
+
+    @access.shows(
+        "Users with the staff flag read every ranking. Others read the overall "
+        f"ranking of {ROUNDS_READ}; and the ranking within the round reports "
+        f"they read: {REPORTS_READ}."
+    )
     def get_queryset(self):
         queryset = rankings.readable_rankings(self.request.user)
         if self.action == "list" and not self.request.query_params.get(
@@ -14019,6 +14653,38 @@ class RoundMeetingNoteViewSet(UserChecklistMixin, ActionsViewSet):
     # A report's form is its step's; there is no form for a new note.
     disabled_actions = ["update", "checklist_template"]
 
+    # Both read the form of a note get_object() found, and check nothing more.
+    access_filtered_actions = ("checklist", "completion_status")
+    # Checked by the serializer (create, partial_update), perform_destroy,
+    # the action body and round_steps.
+    access_declarations = {
+        "create": [access.custom(WRITES_ROUND)],
+        "partial_update": [
+            access.custom(
+                f"A free note: {WRITES_ROUND} A round report: its author while "
+                "it is a draft and they still write for it."
+            )
+        ],
+        "destroy": [access.custom(WRITES_ROUND)],
+        "submit_answers": [
+            access.custom(
+                "A round report's author while it is a draft and they still "
+                "write for it."
+            )
+        ],
+        "submit": [
+            access.custom(
+                "A round report's author while they still write for it: still "
+                "one of the authors of a proposal it covers."
+            )
+        ],
+        "reopen": [access.custom(WRITES_ROUND)],
+    }
+
+    @access.shows(
+        "Users with the staff flag read every note. Others read the free notes "
+        f"of {ROUNDS_READ}; and the round reports they read: {REPORTS_READ}."
+    )
     def get_queryset(self):
         return rankings.readable_meeting_notes(self.request.user).prefetch_related(
             "documents", "proposals"
@@ -14131,6 +14797,11 @@ class MyTaskViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = serializers.MyTaskSerializer
     permission_classes = (rf_permissions.IsAuthenticated,)
     filter_backends = ()
+
+    access_declarations = {
+        "list": [access.owned("The caller's own open workflow tasks.")],
+        "summary": [access.owned("The caller's own open workflow tasks.")],
+    }
 
     @extend_schema(
         parameters=[
