@@ -117,14 +117,15 @@ def _parse_uuid(value):
         raise exceptions.NotFound()
 
 
-def organisation_calls(user, manager):
-    """The calls of ``manager`` that ``user`` may report on: every one for
-    staff and support, else those whose configuration they may change --
-    as call manager of the call, or call organiser of the organisation."""
+def organisation_calls(request, manager):
+    """The calls of ``manager`` that the request may report on: every one for
+    staff and support, else those whose configuration it may change -- as
+    call manager of the call, or call organiser of the organisation, within
+    a personal access token's scopes and bindings."""
     calls = models.Call.objects.filter(manager=manager)
-    if user.is_staff or user.is_support:
+    if request.user.is_staff or request.user.is_support:
         return calls
-    return calls.filter(pk__in=proposal_permissions.configurable_call_ids(user))
+    return proposal_permissions.configurable_calls(request, calls)
 
 
 def _narrowed(calls, call_uuids=None, round_uuid=None, submitted_from=None, to=None):
@@ -151,12 +152,12 @@ def _narrowed(calls, call_uuids=None, round_uuid=None, submitted_from=None, to=N
     )
 
 
-def scope_for_organisation(user, manager, filters) -> Scope:
+def scope_for_organisation(request, manager, filters) -> Scope:
     """The scope of an organisation-wide report. ``filters`` are the
     validated ``call_uuid``, ``round_uuid``, ``submitted_from`` and
     ``submitted_to``."""
     return _narrowed(
-        organisation_calls(user, manager),
+        organisation_calls(request, manager),
         filters.get("call_uuid"),
         filters.get("round_uuid"),
         filters.get("submitted_from"),

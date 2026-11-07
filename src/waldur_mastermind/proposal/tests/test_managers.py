@@ -5,9 +5,14 @@ from waldur_core.configuration.testing import override_config
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.tests.test_pat_list_filtering import (
+    _auth_header,
+    _create_pat,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import CallStates, ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -202,3 +207,104 @@ class OrganizationVisibilityTest(test.APITestCase):
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@ddt
+class ManagerStatsAccessTest(test.APITestCase):
+    """Who may read an organisation's call statistics (#1108): those who may
+    read its reports, over the calls the reports cover."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        # Two active calls; the fixture's call manager manages the first.
+        self.fixture.call
+        self.other_call = factories.CallFactory(
+            manager=self.fixture.manager, state=CallStates.ACTIVE
+        )
+        self.url = factories.CallManagingOrganisationFactory.get_url(
+            self.fixture.manager, "stats"
+        )
+
+    @data("staff", "global_support", "call_organizer_user")
+    def test_organisation_wide_readers_count_every_call(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["open_calls"], 2)
+
+    def test_call_manager_counts_only_their_own_calls(self):
+        # A pending proposal in the call they do not manage, which an
+        # organisation-wide reader counts.
+        factories.ProposalFactory(
+            round=factories.RoundFactory(call=self.other_call),
+            state=ProposalStates.SUBMITTED,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        everyone = self.client.get(self.url).data
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["open_calls"], 1)
+        self.assertEqual(
+            response.data["pending_proposals"], everyone["pending_proposals"] - 1
+        )
+
+    # ``user`` holds no role at all.
+    @data("owner", "customer_support", "user")
+    def test_users_without_call_update_cannot_read_stats(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # Refused already: PublicViewsetMixin opens only list and retrieve.
+    @data(True, False)
+    def test_anonymous_user_cannot_read_stats(self, public_catalog):
+        with override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=public_catalog):
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+@override_config(PAT_ENABLED=True)
+class ManagerStatsTokenTest(test.APITestCase):
+    """A personal access token reads the statistics only within its scopes and
+    bindings, as the CALL.UPDATE check it stands in for would allow."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.fixture.call
+        self.url = factories.CallManagingOrganisationFactory.get_url(
+            self.fixture.manager, "stats"
+        )
+
+    def get_with_token(self, user, scopes, bindings=()):
+        user.can_use_personal_access_tokens = True
+        user.save()
+        pat = _create_pat(user, scopes=[s.value for s in scopes], bindings=bindings)
+        self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+        return self.client.get(self.url)
+
+    @data("call_organizer_user", "call_manager")
+    def test_token_with_call_update_reads_stats(self, user):
+        response = self.get_with_token(
+            getattr(self.fixture, user), [PermissionEnum.UPDATE_CALL]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["open_calls"], 1)
+
+    @data("call_organizer_user", "call_manager")
+    def test_token_without_call_update_cannot_read_stats(self, user):
+        response = self.get_with_token(
+            getattr(self.fixture, user), [PermissionEnum.LIST_PROJECTS]
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("call_organizer_user", "call_manager")
+    def test_token_bound_elsewhere_cannot_read_stats(self, user):
+        response = self.get_with_token(
+            getattr(self.fixture, user),
+            [PermissionEnum.UPDATE_CALL],
+            [structure_factories.CustomerFactory()],
+        )
+        # The binding hides the organisation itself.
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
