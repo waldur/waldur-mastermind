@@ -5966,7 +5966,7 @@ class ProposalViewSet(
     lookup_field = "uuid"
     serializer_class = serializers.ProposalSerializer
     filterset_class = filters.ProposalFilter
-    disabled_actions = ["update", "partial_update"]
+    disabled_actions = ["update", "partial_update", "checklist_template"]
     model = models.Proposal
 
     # Who may call the routes whose checks run in the action body or in the
