@@ -9385,9 +9385,12 @@ class ReviewerBidSerializer(
             "submitted_at",
             "modified_at",
         ]
+        # A bid is placed on a proposal through submit; an update changes only
+        # the bid and its comment.
         read_only_fields = [
             "call",
             "reviewer",
+            "proposal",
             "submitted_at",
             "modified_at",
         ]
