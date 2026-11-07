@@ -449,6 +449,7 @@ class CallManagingOrganisationSerializer(
             "customer_native_name",
             "customer_country",
             "image",
+            "max_active_proposals_per_applicant",
         )
         related_paths = {"customer": ("uuid", "name", "native_name", "abbreviation")}
         protected_fields = ("customer",)
@@ -2402,6 +2403,7 @@ class PublicCallSerializer(
             or obj.user_email_patterns
             or obj.user_affiliations
             or obj.user_identity_sources
+            or obj.manager.max_active_proposals_per_applicant is not None
         )
 
 

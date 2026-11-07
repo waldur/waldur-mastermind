@@ -80,6 +80,7 @@ from waldur_mastermind.marketplace.views import (
 from waldur_mastermind.proposal import (
     activity,
     affinity_scoring,
+    applicant_capacity,
     budgets,
     call_templates,
     call_transfer,
@@ -1370,29 +1371,35 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
         call = self.get_object()
         user = request.user
 
-        try:
-            permissions_utils.validate_user_restrictions(call, user)
-            data = {"is_eligible": True, "restrictions": []}
-        except exceptions.ValidationError as e:
-            # Extract restriction messages
-            if hasattr(e, "detail"):
-                if isinstance(e.detail, list):
-                    restrictions = [str(msg) for msg in e.detail]
-                elif isinstance(e.detail, dict):
-                    restrictions = []
-                    for key, value in e.detail.items():
-                        if isinstance(value, list):
-                            restrictions.extend([str(v) for v in value])
-                        else:
-                            restrictions.append(str(value))
-                else:
-                    restrictions = [str(e.detail)]
-            else:
-                restrictions = [str(e)]
-            data = {"is_eligible": False, "restrictions": restrictions}
+        restrictions = []
+        for check in (
+            permissions_utils.validate_user_restrictions,
+            applicant_capacity.validate_applicant_capacity,
+        ):
+            try:
+                check(call, user)
+            except exceptions.ValidationError as e:
+                restrictions.extend(_restriction_messages(e))
+        data = {"is_eligible": not restrictions, "restrictions": restrictions}
 
         serializer = serializers.EligibilityCheckSerializer(data)
         return response.Response(serializer.data)
+
+
+def _restriction_messages(error):
+    """The messages of an eligibility ``ValidationError``, flattened."""
+    detail = error.detail
+    if isinstance(detail, list):
+        return [str(msg) for msg in detail]
+    if isinstance(detail, dict):
+        messages = []
+        for value in detail.values():
+            if isinstance(value, list):
+                messages.extend(str(v) for v in value)
+            else:
+                messages.append(str(value))
+        return messages
+    return [str(detail)]
 
 
 # Shared by both exports. The extension names the endpoint the value comes
@@ -6536,6 +6543,18 @@ class ProposalViewSet(
             validate_round_is_open(proposal)
             # A request may have been removed or added since, too.
             validate_resource_templates_used(proposal)
+            # The applicant's row is locked so that two of their drafts
+            # submitted at once cannot both take the last place. The draft
+            # itself takes none yet, so it is not counted.
+            if proposal.created_by_id is not None:
+                list(
+                    User.all_objects.select_for_update()
+                    .filter(pk=proposal.created_by_id)
+                    .values_list("pk", flat=True)
+                )
+            applicant_capacity.validate_applicant_capacity(
+                proposal.round.call, proposal.created_by
+            )
 
             # A proposal must have a project team before it can be submitted.
             # (The creator is normally auto-added, so a solo-PI proposal passes;
@@ -6650,6 +6669,8 @@ class ProposalViewSet(
         if round_obj:
             call = round_obj.call
             permissions_utils.validate_user_restrictions(call, self.request.user)
+            # Checked again on submit, where it holds: a draft takes no place.
+            applicant_capacity.validate_applicant_capacity(call, self.request.user)
 
         proposal: models.Proposal = serializer.save()
         activity.log_created(proposal)
