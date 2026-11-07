@@ -137,6 +137,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`AllocationOrderFieldsMixin`](#allocationorderfieldsmixin) | `waldur_mastermind.proposal.serializers` | How the order that provisions an allocated item went |
 | [`CallNotArchivedCreateMixin`](#callnotarchivedcreatemixin) | `waldur_mastermind.proposal.serializers` | Provide the ``validate_call_not_archived`` hook used by ``ActionMethodMixin |
 | [`_RoundStepChoiceMixin`](#_roundstepchoicemixin) | `waldur_mastermind.proposal.serializers` | Names a call step of the round's call by step_uuid or its key |
+| [`ApplicantCapacityMixin`](#applicantcapacitymixin) | `waldur_mastermind.proposal.tests.test_applicant_capacity` | No description available |
 | [`ApplicantIdentityTestMixin`](#applicantidentitytestmixin) | `waldur_mastermind.proposal.tests.test_applicant_identity_paths` | No description available |
 | [`TeamTestMixin`](#teamtestmixin) | `waldur_mastermind.proposal.tests.test_applicant_team` | A proposal whose author manages it, with a second manager and a member, on a ... |
 | [`AssignmentBatchTestMixin`](#assignmentbatchtestmixin) | `waldur_mastermind.proposal.tests.test_assignment_batch_notifications` | No description available |
@@ -1909,6 +1910,12 @@ Call. It keeps archived calls read-only across their nested-create surface
 **Description:**
 
 Names a call step of the round's call by step_uuid or its key.
+
+### ApplicantCapacityMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_applicant_capacity`
+
+**Description:** No description available.
 
 ### ApplicantIdentityTestMixin
 
