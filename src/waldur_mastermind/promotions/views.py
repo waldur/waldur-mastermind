@@ -40,6 +40,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
     # orders and resources read the campaign with get_object(), then list what
     # it discounts, which is of the service provider's own offerings.
     access_declarations = {
+        "create": [serializers.CREATES_CAMPAIGN],
         "orders": [
             access.custom(
                 "A campaign the caller sees: a role on its service provider's "

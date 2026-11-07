@@ -6,6 +6,7 @@ value is tracked by (or that it is tracked by none).
 
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, utils
@@ -92,6 +93,60 @@ class OfferingUserPosixAllocationsTest(test.APITestCase):
         response = self.client.get(self.get_url(offering_user))
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data, [])
+
+
+class PosixAllocationsSharedOfferingsVisibilityTest(test.APITestCase):
+    """The offerings sharing a pool are named only where the caller sees the account."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
+        factories.PosixIdPoolFactory(
+            service_provider=self.service_provider,
+            min_uid=100000,
+            max_uid=199999,
+            next_uid=100000,
+            min_gid=200000,
+            max_gid=299999,
+            next_gid=200000,
+        )
+        self.user = structure_factories.UserFactory()
+        self.accounts = {}
+        for name in ("Cluster A", "Cluster B"):
+            offering = factories.OfferingFactory(
+                customer=self.fixture.customer,
+                name=name,
+                plugin_options={"service_provider_can_create_offering_user": True},
+            )
+            account = factories.OfferingUserFactory(offering=offering, user=self.user)
+            utils.setup_linux_related_data(account, offering)
+            account.save()
+            self.accounts[name] = account
+        self.manager = structure_factories.UserFactory()
+        self.accounts["Cluster A"].offering.add_user(self.manager, OfferingRole.MANAGER)
+
+    def shared_names(self, caller):
+        self.client.force_authenticate(caller)
+        url = factories.OfferingUserFactory.get_url(self.accounts["Cluster A"])
+        response = self.client.get(url + "posix_allocations/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data)
+        return {
+            offering["name"]
+            for row in response.data
+            for offering in row["shared_with_offerings"]
+        }
+
+    def test_staff_sees_every_offering_sharing_the_pool(self):
+        self.assertEqual(self.shared_names(self.fixture.staff), {"Cluster B"})
+
+    def test_manager_of_one_offering_does_not_learn_the_others(self):
+        self.assertEqual(self.shared_names(self.manager), set())
+
+    def test_the_account_owner_sees_their_own_offerings(self):
+        self.assertEqual(self.shared_names(self.user), {"Cluster B"})
 
 
 class UserPosixIdentitiesTest(test.APITestCase):

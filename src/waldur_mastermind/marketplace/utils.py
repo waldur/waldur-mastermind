@@ -4310,11 +4310,15 @@ def _posix_pool_scope_name(pool) -> str | None:
     return None
 
 
-def get_offerings_sharing_pool(user, pool, exclude_offering_id=None):
+def get_offerings_sharing_pool(user, pool, exclude_offering_id=None, accounts=None):
     """Offerings of ``user`` whose accounts resolve to ``pool``.
 
     A user identity is shared, so this is the set of accounts that carry the same
     UID and primary GID. Ordered by name for a stable report.
+
+    ``accounts`` narrows the search to those offering accounts, so that a
+    report for a requester names only the offerings whose accounts it may see;
+    by default every account of ``user`` counts.
 
     Accounts soft-deleted into ``OfferingUserStates.DELETED`` are included on
     purpose: release is tied to actual row deletion, so such an account is
@@ -4324,9 +4328,9 @@ def get_offerings_sharing_pool(user, pool, exclude_offering_id=None):
     if user is None or pool is None:
         return []
     offerings = []
-    for offering_user in models.OfferingUser.objects.filter(user=user).select_related(
-        "offering"
-    ):
+    if accounts is None:
+        accounts = models.OfferingUser.objects.all()
+    for offering_user in accounts.filter(user=user).select_related("offering"):
         offering = offering_user.offering
         if offering.id == exclude_offering_id:
             continue
@@ -4340,7 +4344,7 @@ def get_offerings_sharing_pool(user, pool, exclude_offering_id=None):
 
 
 def get_offering_user_posix_allocations(
-    offering_user, resolved_pool=_UNSET, shared_offerings=None
+    offering_user, resolved_pool=_UNSET, shared_offerings=None, visible_accounts=None
 ):
     """Return the offering user's POSIX identifiers and their originating pool.
 
@@ -4354,6 +4358,9 @@ def get_offering_user_posix_allocations(
     the user's accounts pass what it knows, instead of making this function walk
     them again per account. ``resolved_pool=None`` is a real answer — "this
     offering resolves to no pool" — and is honoured; omitting it resolves here.
+
+    ``visible_accounts`` are the offering accounts the requester may see: the
+    sharing offerings are looked up among them only.
     """
     metadata = offering_user.backend_metadata or {}
     identifiers = [
@@ -4386,7 +4393,10 @@ def get_offering_user_posix_allocations(
         ]
     else:
         shared_with = get_offerings_sharing_pool(
-            offering_user.user, pool, exclude_offering_id=offering_user.offering_id
+            offering_user.user,
+            pool,
+            exclude_offering_id=offering_user.offering_id,
+            accounts=visible_accounts,
         )
 
     rows = []
