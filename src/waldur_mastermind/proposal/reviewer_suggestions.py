@@ -813,6 +813,10 @@ def discard(proposal, suggestion_uuids, user):
 
 
 def can_view(request, view, obj=None):
+    """The proposal's suggested reviewers are read by staff and, unless a
+    conflict of interest is recorded against them, by support, those
+    overseeing its call and the evaluator-role holders completing a step that
+    collects them; never by anyone on the applicant team (``may_view``)."""
     if obj is None:
         return
     if not may_view(request.user, obj):
@@ -825,6 +829,9 @@ can_view.sources = ["*"]
 
 
 def can_invite(request, view, obj=None):
+    """Staff and those overseeing the proposal's call, who manage its reviewer
+    pool, turn suggestions into invitations; never anyone on the applicant
+    team, staff included (``may_invite``)."""
     if obj is None:
         return
     if not may_invite(request.user, obj):
@@ -853,6 +860,9 @@ can_suggest.sources = ["*"]
 
 
 def can_search_candidates(request, view, obj=None):
+    """A holder of the evaluator role contributing to the proposal's active step
+    collecting suggestions searches for reviewers to suggest; never anyone on
+    the applicant team (``may_search_candidates``)."""
     if obj is None:
         return
     if not may_search_candidates(request.user, obj):

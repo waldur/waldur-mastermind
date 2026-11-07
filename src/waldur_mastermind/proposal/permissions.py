@@ -490,6 +490,22 @@ def support_can_read(check):
 
 
 class CanUpdateCallPermission(permissions.BasePermission):
+    """UPDATE_CALL on the object's call, its managing organisation or the
+    customer running it.
+
+    It implements only ``has_object_permission``, so it checks routes that
+    look an object up and nothing else: a create or list says who may call
+    it on its own.
+    """
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        # Schema generation gives the view no URL arguments; detail says it
+        # looks an object up.
+        if not (getattr(view, "detail", False) or access.has_lookup(view)):
+            return []
+        return [access.permission(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)]
+
     def has_object_permission(self, request, view, obj):
         call = obj.call
         return has_permission_on_any_source(
@@ -1119,6 +1135,9 @@ def user_can_set_proposal_panel(user, proposal) -> bool:
 
 
 def can_set_proposal_panel(request, view, obj=None):
+    """Staff, whoever may update the proposal's call, and the completer of its
+    running panel-based assignment step move the proposal to another panel;
+    never the applicant team (``user_can_set_proposal_panel``)."""
     if obj is None:
         return
     if not user_can_set_proposal_panel(request.user, obj):
@@ -1507,6 +1526,10 @@ def user_can_view_proposal_roles(user, proposal) -> bool:
 
 
 def can_view_proposal_roles(request, view, obj=None):
+    """Who holds the evaluator roles on the proposal is read by users with the
+    staff or support flag, those overseeing its call, the holders themselves
+    and the completer of an active assignment step; never by the applicant
+    team (``user_can_view_proposal_roles``)."""
     if obj is None:
         return
     if not user_can_view_proposal_roles(request.user, obj):
@@ -1957,6 +1980,10 @@ def user_can_view_proposal_budget(user, proposal) -> bool:
 
 
 def can_view_proposal_budget(request, view, obj=None):
+    """Where the proposal's award stands against the call's budgets is read by
+    users with the staff or support flag, those overseeing its call and those
+    driving its workflow; never by the applicant team
+    (``user_can_view_proposal_budget``)."""
     if obj is None:
         return
     if not user_can_view_proposal_budget(request.user, obj):
@@ -1981,6 +2008,10 @@ def user_can_view_runs(user, proposal) -> bool:
 
 
 def can_view_runs(request, view, obj=None):
+    """An accepted proposal's extension requests and final report are read by
+    whoever reads its award (``user_can_view_runs``): users with the staff or
+    support flag, the call's managers, the managers of the offerings involved,
+    and the applicant team once the award is released."""
     if obj is None:
         return
     if not user_can_view_runs(request.user, obj):
@@ -2016,6 +2047,9 @@ def user_drives_runs(user, proposal) -> bool:
 
 
 def can_open_final_report(request, view, obj=None):
+    """Staff, and whoever drives the call's workflow without being on the
+    proposal's team, open a final report ahead of time
+    (``user_drives_runs``)."""
     if obj is None:
         return
     if not user_drives_runs(request.user, obj):
@@ -2028,6 +2062,8 @@ can_open_final_report.sources = ["*"]
 
 
 def can_provision_awarded_item(request, view, obj=None):
+    """Staff, and whoever drives the call's workflow without being on the
+    proposal's team, order an awarded item again (``user_drives_runs``)."""
     if obj is None:
         return
     if not user_drives_runs(request.user, obj):
