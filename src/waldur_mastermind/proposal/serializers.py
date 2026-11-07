@@ -11243,16 +11243,6 @@ class CallWorkflowStepSerializer(
 
         if self.instance is None:
             key = attrs.get("key")
-            if key == AWARD_RESPONSE_KEY:
-                raise serializers.ValidationError(
-                    {
-                        "step": (
-                            "award_response is provisioned automatically via the "
-                            "allocation_decision step's include_award_response flag "
-                            "and cannot be added directly."
-                        )
-                    }
-                )
             self._apply_default_step(attrs)
             if not attrs.get("kind"):
                 raise serializers.ValidationError(
@@ -11845,7 +11835,8 @@ class CallWorkflowStepSerializer(
 
         ``include_award_response`` predates steps of a kind: it stands for an
         applicant step, right after the allocation decision, whose decline
-        cancels the proposal. Kept for one release.
+        cancels the proposal. Kept for one release; the step is now added by
+        its key like any other.
         """
         if not instance.is_allocation_decision:
             return

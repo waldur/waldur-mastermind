@@ -870,8 +870,8 @@ DEFAULT_CALL_STEPS = [
 
 DEFAULT_CALL_STEPS_MAP = {step.key: step for step in DEFAULT_CALL_STEPS}
 
-# The applicant's answer to an award: added after the allocation decision by
-# the decision's include_award_response flag rather than seeded on a new call.
+# The applicant's answer to an award: not seeded on a new call. A call manager
+# adds it by its key, and it goes right after the allocation decision.
 AWARD_RESPONSE_KEY = "award_response"
 
 # =============================================================================

@@ -1643,17 +1643,18 @@ class IncludeAwardResponseSyncTest(test.APITestCase):
         award = CallWorkflowStep.objects.get(call=self.call, key="award_response")
         self.assertFalse(award.is_enabled)
 
-    def test_direct_post_of_award_response_step_rejected(self):
+    def test_direct_post_of_award_response_step_adds_it_after_the_decision(self):
+        # The award response is added as a step of its own, here through the
+        # deprecated ``step`` alias of its key, and keeps the flag in step.
         user = self.fixture.call_organizer_user
         self.client.force_authenticate(user)
         url = factories.CallWorkflowStepFactory.get_list_url(self.call)
         response = self.client.post(url, {"step": "award_response", "is_enabled": True})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(
-            CallWorkflowStep.objects.filter(
-                call=self.call, key="award_response"
-            ).exists()
-        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        award = CallWorkflowStep.objects.get(call=self.call, key="award_response")
+        self.allocation_step.refresh_from_db()
+        self.assertEqual(award.order, self.allocation_step.order + 1)
+        self.assertTrue(self.allocation_step.include_award_response)
 
 
 class WorkflowStatesFrontendFieldsTest(test.APITestCase):

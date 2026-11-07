@@ -375,6 +375,81 @@ class AwardResponseOrderTest(CallStepsTestMixin, test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
+class AwardResponseStepCreateTest(CallStepsTestMixin, test.APITestCase):
+    """A call manager adds the award response as a step of its own."""
+
+    def setUp(self):
+        super().setUp()
+        self.call.state = CallStates.DRAFT
+        self.call.save()
+        self.client.force_authenticate(self.fixture.call_organizer_user)
+        self.list_url = factories.CallWorkflowStepFactory.get_list_url(self.call)
+        self.decision = self.call.workflow_steps.get(key="allocation_decision")
+
+    def add_award_response(self, **payload):
+        return self.client.post(self.list_url, {"key": "award_response", **payload})
+
+    def test_award_response_is_added_by_its_key(self):
+        response = self.add_award_response()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        award = self.call.workflow_steps.get(key="award_response")
+        self.assertEqual(
+            (
+                award.kind,
+                award.outcome_set,
+                award.completer,
+                award.on_negative,
+                award.order,
+            ),
+            (
+                StepKinds.APPLICANT_ACTION,
+                OutcomeSets.ACCEPTANCE,
+                ResponsibleRoles.APPLICANT,
+                OnNegativeOutcomes.CANCEL,
+                self.decision.order + 1,
+            ),
+        )
+        self.decision.refresh_from_db()
+        self.assertTrue(self.decision.include_award_response)
+
+    def test_award_response_goes_right_after_the_decision(self):
+        self.add_step("final-report", StepKinds.APPLICANT_ACTION, "Final report", 5)
+        response = self.add_award_response()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["order"], self.decision.order + 1)
+        self.assertEqual(
+            self.call.workflow_steps.get(key="final-report").order,
+            self.decision.order + 2,
+        )
+
+    def test_award_response_follows_the_enabled_decision(self):
+        # A disabled decision earlier in the workflow does not run.
+        self.add_step(
+            "old-decision",
+            StepKinds.DECISION,
+            "Old decision",
+            0,
+            is_allocation_decision=True,
+            is_enabled=False,
+        )
+        self.decision.refresh_from_db()
+        response = self.add_award_response()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["order"], self.decision.order + 1)
+
+    def test_a_second_award_response_is_refused(self):
+        self.assertEqual(self.add_award_response().status_code, status.HTTP_201_CREATED)
+        response = self.add_award_response()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("key", response.data)
+
+    def test_award_response_before_the_decision_is_refused(self):
+        response = self.add_award_response(order=self.decision.order)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("order", response.data)
+        self.assertFalse(self.call.workflow_steps.filter(key="award_response").exists())
+
+
 class CallStepConfigurationApiTest(CallStepsTestMixin, test.APITestCase):
     def setUp(self):
         super().setUp()

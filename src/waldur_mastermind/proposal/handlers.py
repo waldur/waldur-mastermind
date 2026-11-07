@@ -292,8 +292,8 @@ def seed_workflow_steps(sender, instance, created, **kwargs):
     config UI once their actor-facing surfaces exist, without stranding the
     workflow in the meantime.
 
-    The award response is not seeded: the allocation decision's
-    ``include_award_response`` adds it. The allocation decision is always
+    The award response is not seeded: a call manager adds it as a step of its
+    own. The allocation decision is always
     enabled here: activation requires one.
     """
     if not created:
