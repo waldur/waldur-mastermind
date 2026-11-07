@@ -797,14 +797,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
 
-    # The role permission tables key a service provider as "service_provider",
-    # but the lookup goes by model name ("serviceprovider") and finds nothing,
-    # so UserRoleMutateSerializer admits staff alone. Say so until the tables
-    # match; then drop these and the mixin's description applies.
+    # add_user, update_user and delete_user are described by UserRoleMixin:
+    # an owner manages the provider's team like any other scope's (#986).
     access_declarations = {
-        "add_user": [access.staff()],
-        "update_user": [access.staff()],
-        "delete_user": [access.staff()],
         # Service providers are a public directory: the queryset is not
         # narrowed, and PublicViewsetMixin opens it to anonymous callers too.
         "list": [SERVICE_PROVIDER_DIRECTORY_ACCESS],
