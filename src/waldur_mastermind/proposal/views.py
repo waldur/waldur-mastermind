@@ -13074,6 +13074,35 @@ class PublicReviewerInvitationViewSet(InvitationAcceptanceMixin, viewsets.ViewSe
 # =============================================================================
 
 
+@access.describes(
+    access.owned(
+        "The bid's own reviewer, while they are an accepted member of the "
+        "reviewer pool of the bid's call, in good standing."
+    ),
+    needs_object=True,
+)
+def is_eligible_bid_reviewer(request, view, obj: models.ReviewerBid | None = None):
+    # Whoever may place the bid through submit may change or withdraw it.
+    # Nobody else, staff included, may speak for the reviewer.
+    if obj is None:
+        return
+    if obj.reviewer.user_id != request.user.pk:
+        raise exceptions.PermissionDenied(
+            _("Only the reviewer who placed a bid may change or withdraw it.")
+        )
+    if (
+        not models.CallReviewerPool.objects.eligible()
+        .filter(call=obj.call, reviewer=obj.reviewer)
+        .exists()
+    ):
+        raise exceptions.PermissionDenied(
+            _(
+                "Only an accepted member of the call's reviewer pool, in good "
+                "standing, may change or withdraw a bid."
+            )
+        )
+
+
 class ReviewerBidViewSet(ActionsViewSet):
     """
     ViewSet for managing reviewer bids on proposals.
@@ -13086,6 +13115,12 @@ class ReviewerBidViewSet(ActionsViewSet):
     serializer_class = serializers.ReviewerBidSerializer
     filterset_class = filters.ReviewerBidFilter
     filter_backends = (DjangoFilterBackend,)
+    # Bids are placed through submit and bulk_submit, which take the reviewer
+    # and the call from the caller and the proposal.
+    disabled_actions = ["create"]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        is_eligible_bid_reviewer
+    ]
 
     access_declarations = {
         "my_bids": [access.owned("The bids of the caller's own reviewer profile.")],
