@@ -22,6 +22,22 @@ from waldur_mastermind.proposal.models import (
 # CallManagingOrganisationViewSet is a PublicViewsetMixin listing.
 access.register_public(access.image_prefix(CallManagingOrganisation))
 
+
+def call_logo_in_use(file, user) -> bool:
+    """Serve a call's logo to anyone while some call still shows it.
+
+    PublicCallViewSet hands it out anonymously for active and archived calls,
+    and homeport renders it through <img src>, which cannot send the API token
+    -- the call manager's own pages show a draft call's logo the same way. Its
+    URL names a random file uuid and is handed only to those who may read the
+    call. A replaced or removed logo stays in storage, so it is refused once no
+    call points at it.
+    """
+    return Call.objects.filter(image=file.name).exists()
+
+
+access.register(access.image_prefix(Call), call_logo_in_use)
+
 # Call documents are embedded in PublicCallSerializer, served anonymously by
 # PublicCallViewSet for active and archived calls.
 access.register_public(access.upload_prefix(CallDocument, "file"))

@@ -28,7 +28,7 @@ from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.validators import get_project_name_regex_error
 from waldur_core.media import models as media_models
-from waldur_core.media.validators import DocumentValidator
+from waldur_core.media.validators import DocumentValidator, ImageValidator
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
@@ -2212,6 +2212,10 @@ class CallPanelSerializer(
         return instance
 
 
+# A call's logo is shown as a small avatar; anything larger only bloats the page.
+CALL_IMAGE_MAX_BYTES = 2 * 1024 * 1024
+
+
 class PublicCallSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -2258,6 +2262,7 @@ class PublicCallSerializer(
         required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
     )
     has_eligibility_restrictions = serializers.SerializerMethodField()
+    image = serializers.ImageField(read_only=True, allow_null=True)
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_max_prepaid_duration_months(self, call) -> int | None:
@@ -2277,6 +2282,7 @@ class PublicCallSerializer(
             "slug",
             "name",
             "description",
+            "image",
             "state",
             "manager",
             "manager_uuid",
@@ -3619,6 +3625,15 @@ class CallReviewerEligibilitySerializer(serializers.ModelSerializer):
 
 class ProtectedCallSerializer(PublicCallSerializer):
     reference_code = serializers.CharField(source="backend_id", required=False)
+    image = serializers.ImageField(
+        required=False,
+        allow_null=True,
+        validators=[ImageValidator],
+        help_text=(
+            "Logo shown on the call's card in place of its initials. A PNG, "
+            "JPEG or GIF of at most 2 MB; null or an empty value removes it."
+        ),
+    )
     fixed_duration_in_days = serializers.IntegerField(
         required=False, allow_null=True, min_value=1
     )
@@ -3936,6 +3951,13 @@ class ProtectedCallSerializer(PublicCallSerializer):
 
     def validate_applicant_cc_roles(self, value):
         return models.normalize_applicant_cc_roles(value)
+
+    def validate_image(self, image):
+        if image and image.size > CALL_IMAGE_MAX_BYTES:
+            raise serializers.ValidationError(
+                _("The logo must not be larger than 2 MB.")
+            )
+        return image
 
     def _validate_duration_policy(self, attrs):
         """A call fixes the length of its projects or offers a list, not both.

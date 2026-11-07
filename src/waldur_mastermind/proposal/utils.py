@@ -1094,7 +1094,17 @@ def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:
 
 # Fields managed by Django or set explicitly during duplication.
 _DUPLICATE_CALL_OVERRIDE_FIELDS = frozenset(
-    {"id", "uuid", "slug", "name", "state", "created_by", "created", "modified"}
+    {
+        "id",
+        "uuid",
+        "slug",
+        "name",
+        "state",
+        "created_by",
+        "created",
+        "modified",
+        "image",
+    }
 )
 
 # call/key are the upsert lookup keys; id/uuid/created/modified are
@@ -1271,6 +1281,8 @@ def duplicate_call(
         name=new_name,
         state=CallStates.DRAFT,
         created_by=created_by,
+        # The copy shares the stored logo by name, as it shares the documents.
+        image=source.image.name or None,
         **kwargs,
     )
 
