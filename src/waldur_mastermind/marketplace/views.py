@@ -401,6 +401,19 @@ OFFERING_USERS_VISIBLE_TO_USER = (
 )
 
 
+# Actions that read offering accounts, to which the consent and profile
+# completeness rules apply: an account they hide must stay hidden from every
+# read, not only from list and retrieve. Writes are not narrowed, so that a
+# service provider can still move a hidden account through its lifecycle.
+OFFERING_USER_READ_ACTIONS = (
+    "list",
+    "retrieve",
+    "posix_groups",
+    "posix_allocations",
+    "posix_identities",
+)
+
+
 def get_allowed_offering_users_for_user(
     request_user, include_consent_filtering=False, action=None
 ):
@@ -485,7 +498,7 @@ def get_allowed_offering_users_for_user(
     if (
         include_consent_filtering
         and config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
-        and action in ["list", "retrieve"]
+        and action in OFFERING_USER_READ_ACTIONS
     ):
         # Show if offering has no terms of service or user has active consent
         queryset = queryset.filter(
@@ -497,10 +510,10 @@ def get_allowed_offering_users_for_user(
             )
         )
 
-    if config.ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS and action in [
-        "list",
-        "retrieve",
-    ]:
+    if (
+        config.ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS
+        and action in OFFERING_USER_READ_ACTIONS
+    ):
         incomplete_q = utils.build_incomplete_profile_q()
         # Exclude incomplete profiles, but NOT for user's own records
         queryset = queryset.exclude(~Q(user=request_user) & incomplete_q)
@@ -13278,7 +13291,10 @@ class OfferingUsersViewSet(
     @action(detail=True, methods=["get"])
     def posix_allocations(self, request, uuid=None):
         offering_user = self.get_object()
-        rows = utils.get_offering_user_posix_allocations(offering_user)
+        # Name only the sharing offerings whose accounts the caller sees.
+        rows = utils.get_offering_user_posix_allocations(
+            offering_user, visible_accounts=self.get_queryset()
+        )
         serializer = serializers.OfferingUserPosixAllocationSerializer(rows, many=True)
         return Response(serializer.data)
 
@@ -13403,6 +13419,13 @@ class OfferingUsersViewSet(
         "partial_update": [serializers.UPDATES_OFFERING_USER],
         "update_restricted": [serializers.UPDATES_OFFERING_USER],
         "profile_field_warnings": [access.owned("The caller's own offering accounts.")],
+        "posix_allocations": [
+            access.custom(
+                "An offering account the caller sees, as retrieve does. Lists "
+                "the account owner's other offerings that share its POSIX pool "
+                "among the accounts the caller sees."
+            )
+        ],
     }
 
     # UserChecklistMixin's checklist_template needs get_parent_object_for_checklist,
@@ -13410,8 +13433,8 @@ class OfferingUsersViewSet(
     disabled_actions = ["checklist_template"]
 
     # Read actions that look their accounts up as retrieve and list do.
-    # posix_allocations is not one: it also lists the offerings sharing the
-    # account's POSIX pool, whether or not the caller sees them.
+    # posix_allocations declares its own access: it also names the offerings
+    # sharing the account's POSIX pool, from the accounts the caller sees.
     access_filtered_actions = ("posix_groups", "posix_identities")
 
     @access.shows(OFFERING_USERS_VISIBLE_TO_USER)

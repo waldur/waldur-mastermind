@@ -514,6 +514,9 @@ class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
 
 class TemplateVersionView(generics.GenericAPIView):
     filter_backends = []
+    # Templates carry no role scope, so filter_queryset_for_user narrows
+    # nothing: every signed-in user reads every template's versions.
+    access_declarations = {"get": [access.authenticated()]}
     serializer_class = serializers.TemplateVersionSerializer
 
     def get(self, request, template_uuid, version):

@@ -3601,6 +3601,39 @@ class OfferingUserProfileCompletenessTest(test.APITestCase):
         self.assertIn(str(self.incomplete_offering_user.uuid), uuids)
 
     @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_account_reads_hide_offering_user_with_incomplete_profile(self):
+        """Every read of an account hides what retrieve hides."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        for action in ("posix_groups", "posix_allocations"):
+            with self.subTest(action=action):
+                url = OfferingUserFactory.get_url(self.incomplete_offering_user)
+                response = self.client.get(url + f"{action}/")
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+                url = OfferingUserFactory.get_url(self.complete_offering_user)
+                response = self.client.get(url + f"{action}/")
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_posix_identities_skips_offering_user_with_incomplete_profile(self):
+        self.incomplete_offering_user.backend_metadata = {"uidnumber": 5001}
+        self.incomplete_offering_user.save()
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.get(
+            OfferingUserFactory.get_list_url() + "posix_identities/",
+            {"user_uuid": self.incomplete_user.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data, [])
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_user_reads_own_account_with_incomplete_profile(self):
+        self.client.force_authenticate(user=self.incomplete_user)
+        url = OfferingUserFactory.get_url(self.incomplete_offering_user)
+        response = self.client.get(url + "posix_allocations/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
     def test_json_field_empty_list_is_incomplete(self):
         """Empty affiliations list treated as incomplete."""
         self.config.expose_affiliations = True

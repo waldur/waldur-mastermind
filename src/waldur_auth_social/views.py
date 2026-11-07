@@ -91,6 +91,18 @@ STAFF_OR_IDENTITY_MANAGER = access.any_of(
     ),
 )
 
+# The Identity Bridge push and remove: checked in the view body, after the
+# feature switch, against the request's source.
+CHANGES_ISD_USERS = access.any_of(
+    access.staff(),
+    access.custom(
+        "An identity manager (`is_identity_manager`) whose `managed_isds` "
+        "include the request's `source`, with a personal access token of any "
+        "scopes. Only staff may push or remove staff, support or identity "
+        "manager accounts."
+    ),
+)
+
 PRIVILEGED_ACCOUNT_MESSAGE = (
     "Only staff may push or remove staff, support or identity manager accounts."
 )
@@ -717,6 +729,7 @@ class IdentityBridgeView(generics.GenericAPIView):
 
     filter_backends = []
     pagination_class = None
+    access_declarations = {"post": [CHANGES_ISD_USERS]}
     serializer_class = IdentityBridgeRequestSerializer
 
     @extend_schema(
@@ -799,6 +812,7 @@ class IdentityBridgeRemoveView(generics.GenericAPIView):
 
     filter_backends = []
     pagination_class = None
+    access_declarations = {"post": [CHANGES_ISD_USERS]}
     serializer_class = IdentityBridgeRemoveSerializer
 
     @extend_schema(

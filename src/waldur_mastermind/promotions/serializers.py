@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from waldur_core.core import access
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.permissions.enums import PermissionEnum
@@ -17,6 +18,16 @@ class CampaignOfferingSerializer(serializers.ModelSerializer):
     class Meta:
         model = marketplace_models.Offering
         fields = ("uuid", "name")
+
+
+# What CampaignSerializer.validate checks on create, which the viewset declares.
+CREATES_CAMPAIGN = access.any_of(
+    access.staff_or_support(),
+    access.custom(
+        "MANAGE_CAMPAIGN on the requested service provider or its "
+        "organization; every offering must belong to that organization."
+    ),
+)
 
 
 class CampaignSerializer(
