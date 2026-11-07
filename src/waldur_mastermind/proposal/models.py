@@ -291,6 +291,16 @@ class CallManagingOrganisation(
     """Organizations that create and manage calls for proposals, with one-to-one relationship to Waldur customers."""
 
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
+    max_active_proposals_per_applicant = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+        help_text=_(
+            "How many proposals an applicant may have under evaluation or "
+            "running as a project, across all of this organization's calls, "
+            "before they may submit another. Empty sets no limit."
+        ),
+    )
 
     class Permissions:
         customer_path = "customer"
@@ -4500,15 +4510,6 @@ class Proposal(
             .count()
         )
         return existing_count + 1
-
-    def submit(self, user):
-        """Submit proposal after validation."""
-        can_submit, error = self.can_submit()
-        if not can_submit:
-            raise ValidationError(error)
-
-        self.state = ProposalStates.SUBMITTED
-        self.save()
 
 
 class RequestedResource(
