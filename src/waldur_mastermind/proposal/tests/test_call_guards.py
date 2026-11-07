@@ -144,6 +144,56 @@ class OfferingWithNothingWaitingTest(CallGuardsBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
+class DependentsAccessTest(CallGuardsBase):
+    """Only whoever may change the offering is told what depends on it."""
+
+    def dependents(self, user):
+        self.client.force_authenticate(user)
+        return self.client.get(
+            marketplace_factories.OfferingFactory.get_url(self.offering, "dependents"),
+            {"change": "plan_archived", "plan_uuid": self.plan.uuid.hex},
+        )
+
+    def test_staff_and_the_provider_owner_see_the_dependents(self):
+        for user in (self.staff, self.owner):
+            response = self.dependents(user)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data), 1)
+
+    def test_an_offering_manager_who_may_change_it_sees_them(self):
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        response = self.dependents(self.fixture.offering_manager)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_who_sees_the_offering_but_may_not_change_it_is_refused(self):
+        for user in (
+            self.fixture.offering_support,
+            self.fixture.offering_admin,
+            structure_factories.UserFactory(is_support=True),
+        ):
+            response = self.dependents(user)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_who_does_not_see_the_offering_cannot_find_it(self):
+        outsider = structure_factories.UserFactory()
+        structure_factories.CustomerFactory().add_user(outsider, CustomerRole.OWNER)
+        for offering_state in (OfferingStates.ACTIVE, OfferingStates.DRAFT):
+            self.offering.state = offering_state
+            self.offering.save(update_fields=["state"])
+            for user in (outsider, structure_factories.UserFactory()):
+                response = self.dependents(user)
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_anonymous_is_refused(self):
+        self.client.force_authenticate(None)
+        response = self.client.get(
+            marketplace_factories.OfferingFactory.get_url(self.offering, "dependents"),
+            {"change": "offering_withdrawn"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
 class PlanGuardTest(CallGuardsBase):
     def test_the_provider_cannot_archive_the_call_plan(self):
         response = self.post(
