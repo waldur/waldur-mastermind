@@ -9,7 +9,11 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -51,6 +55,31 @@ class PlanGetTest(test.APITestCase):
         url = factories.PlanFactory.get_provider_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_offering_manager_sees_plans_of_their_offering_only(self):
+        user = structure_factories.UserFactory()
+        self.offering.add_user(user, OfferingRole.MANAGER)
+        other_plan = factories.PlanFactory(
+            offering=factories.OfferingFactory(customer=self.customer)
+        )
+        self.client.force_authenticate(user)
+        response = self.client.get(factories.PlanFactory.get_provider_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [plan["uuid"] for plan in response.json()], [self.plan.uuid.hex]
+        )
+        self.assertNotIn(other_plan.uuid.hex, str(response.json()))
+        response = self.client.get(factories.PlanFactory.get_url(self.plan))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_service_provider_manager_sees_the_providers_plans(self):
+        user = structure_factories.UserFactory()
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
+        service_provider.add_user(user, ServiceProviderRole.MANAGER)
+        self.client.force_authenticate(user)
+        response = self.client.get(factories.PlanFactory.get_provider_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
 
     @data("owner", "user")
     def test_owner_can_not_list_other_sp_plans(self, user):

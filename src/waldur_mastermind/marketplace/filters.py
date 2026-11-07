@@ -80,6 +80,7 @@ from waldur_mastermind.marketplace.managers import (
     get_connected_offerings,
     get_connected_offerings_by_permission,
     get_connected_provider_customers_by_permission,
+    get_connected_serviceproviders,
 )
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_openstack import models as openstack_models
@@ -3349,7 +3350,9 @@ class IntegrationStatusFilter(OfferingFilterMixin, django_filters.FilterSet):
 
 
 class ProviderPlanFilterBackend(BaseFilterBackend):
-    """Plans of offerings of organizations where the caller holds a role. Staff see all."""
+    """Plans of offerings of organizations where the caller holds a role, of
+    service providers they hold a role on, and of offerings they hold a role
+    on. Staff see all."""
 
     # Read by waldur_core.core.access: the first paragraph of the docstring
     # says what lists and retrieves show.
@@ -3361,8 +3364,17 @@ class ProviderPlanFilterBackend(BaseFilterBackend):
         if user.is_staff:
             return queryset
 
-        customer_ids = get_connected_customers(user)
-        return queryset.filter(offering__customer_id__in=customer_ids)
+        # As provider offering visibility, less the offering's own project:
+        # its users order from the offering and do not manage its plans.
+        return queryset.filter(
+            Q(offering__customer_id__in=get_connected_customers(user))
+            | Q(
+                offering__customer__serviceprovider__in=get_connected_serviceproviders(
+                    user
+                )
+            )
+            | Q(offering_id__in=get_connected_offerings(user))
+        ).distinct()
 
 
 class ProviderOfferingPlanFilterBackend(BaseFilterBackend):
