@@ -148,6 +148,8 @@ REST_FRAMEWORK = {
         "workflow_dry_run": "30/min",
         # Each call describes and checks a call's workflow and renders a PDF.
         "workflow_report": "20/min",
+        # Each call reads a whole proposal and renders it as a PDF.
+        "proposal_pdf": "20/min",
         # Each call creates a call and its whole workflow in one transaction.
         "call_import": "20/min",
         # Each call is a homeserver login on a new device. The drawer calls it on

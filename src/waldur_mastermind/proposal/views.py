@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 from typing import cast
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import (
@@ -24,6 +25,7 @@ from django.db.models.functions import Coalesce
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as timezone
+from django.utils.http import content_disposition_header
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
@@ -40,6 +42,7 @@ from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMi
 from waldur_core.configuration import config
 from waldur_core.core import access
 from waldur_core.core import models as core_models
+from waldur_core.core import pdf as core_pdf
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
@@ -56,6 +59,7 @@ from waldur_core.core.views import (
 )
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
@@ -98,6 +102,7 @@ from waldur_mastermind.proposal import (
     offering_demand,
     orcid_service,
     panels,
+    proposal_pdf,
     proposal_roles,
     provider_calls,
     rankings,
@@ -1513,6 +1518,16 @@ class WorkflowDryRunThrottle(UserRateThrottle):
     """Dry runs per user: each replays a whole path in a transaction."""
 
     scope = "workflow_dry_run"
+
+
+class ProposalPdfThrottle(UserRateThrottle):
+    """Proposal PDFs per user: each reads the whole proposal and renders it."""
+
+    scope = "proposal_pdf"
+
+
+# "No value" where None is one, for an attribute to restore after a read.
+_UNSET = object()
 
 
 class WorkflowReportThrottle(UserRateThrottle):
@@ -5981,6 +5996,8 @@ class ProposalViewSet(
     filterset_class = filters.ProposalFilter
     disabled_actions = ["update", "partial_update", "checklist_template"]
     model = models.Proposal
+    # The PDF reads in a transaction of its own and renders after it ends.
+    non_atomic_actions = ("pdf",)
 
     # Who may call the routes whose checks run in the action body or in the
     # services it calls.
@@ -6120,11 +6137,21 @@ class ProposalViewSet(
                 "(contributions.Access.can_read)."
             )
         ],
+        "pdf": [
+            access.custom(
+                "Whoever sees the proposal; each section of the document as the "
+                "endpoint serving it answers them (retrieve, resources, "
+                "list_users, workflow_states, workflow_timeline, contributions, "
+                "offering_assessments, released_reports, awarded_resources and "
+                "the readable rankings), left out where that endpoint refuses."
+            )
+        ],
     }
     # Read actions that look the proposal up with get_object() as retrieve
     # does, and narrow what they return further as their declarations say.
     access_filtered_actions = (
         "workflow_states",
+        "pdf",
         "released_reports",
         "change_requests",
         "unlockable_parts",
@@ -7770,6 +7797,142 @@ class ProposalViewSet(
         return response.Response(data, status=status.HTTP_200_OK)
 
     released_reports_permissions = []
+
+    # The proposal as a PDF
+
+    def _read_as_endpoint(self, action_name):
+        """What the ``action_name`` endpoint answers this request's user, or
+        None where it refuses them.
+
+        The PDF says nothing its reader could not read through the API, so
+        each of its sections is read through the action that serves it, with
+        that action's own permission checks, validators and narrowing. Lists
+        come whole: the document is not paginated.
+        """
+        previous_action = self.action
+        previous_paginator = self.__dict__.get("_paginator", _UNSET)
+        self.action = action_name
+        self._paginator = None
+        try:
+            self.check_permissions(self.request)
+            self.validate_object_action(action_name)
+            result = getattr(self, action_name)(self.request, uuid=self.kwargs["uuid"])
+        except (exceptions.PermissionDenied, exceptions.NotFound, Http404):
+            return None
+        finally:
+            self.action = previous_action
+            if previous_paginator is _UNSET:
+                del self._paginator
+            else:
+                self._paginator = previous_paginator
+        if result.status_code >= 300:
+            return None
+        return result.data
+
+    def _read_team(self, proposal):
+        """The proposal's team as list_users answers this user: refused,
+        and stripped of the attributes it conceals, by the same hooks."""
+        request = self.request
+        if not self.can_view_scope_team(request.user, proposal):
+            return None
+        queryset = permissions_utils.get_permissions(proposal).order_by(
+            "role__name", "user__first_name", "user__last_name"
+        )
+        data = self.get_list_users_serializer(queryset, proposal).data
+        return self.filter_user_roles_representation(data, proposal, request)
+
+    @extend_schema(
+        summary="Download the proposal as PDF",
+        description=(
+            "The proposal as one document: the application, requested "
+            "resources, team and attachment names, then the evaluation -- "
+            "workflow steps, contributions, per-offering assessments, released "
+            "reports, ranking and award. Each section holds exactly what the "
+            "endpoint serving it returns to the caller, and is left out where "
+            "that endpoint refuses them, so the applicant team, the call team "
+            "and an evaluator each get their own view of the proposal."
+        ),
+        request=None,
+        responses={(200, "application/pdf"): OpenApiTypes.BINARY},
+    )
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        throttle_classes=[ProposalPdfThrottle],
+    )
+    def pdf(self, request, uuid=None):
+        proposal = self.get_object()
+        # One document at a time per user, taken before the reads: each holds
+        # an API worker while it renders, so parallel requests from one user
+        # could take them all.
+        lock = f"proposal-pdf:{request.user.pk}"
+        if not cache.add(lock, True, timeout=core_pdf.ISOLATED_TIMEOUT + 15):
+            raise exceptions.Throttled(
+                detail=_("Another proposal PDF of yours is still rendering.")
+            )
+        try:
+            # The reads run in a transaction of their own, as each endpoint's
+            # does -- reading the award may start it, under a lock on the
+            # proposal. The render comes after it ends, holding neither.
+            with transaction.atomic():
+                reads = self._read_proposal(proposal)
+            try:
+                content = proposal_pdf.render_proposal_pdf(reads)
+            except core_pdf.PdfRenderTimeout:
+                raise exceptions.ValidationError(
+                    _("The proposal is too long to render as a PDF.")
+                )
+        finally:
+            cache.delete(lock)
+        result = HttpResponse(content, content_type="application/pdf")
+        result["Content-Disposition"] = content_disposition_header(
+            as_attachment=True, filename=proposal_pdf.file_name(reads.proposal)
+        )
+        # The document is the reader's own view of the proposal.
+        result["Cache-Control"] = "private, no-store"
+        return result
+
+    def _read_proposal(self, proposal):
+        request = self.request
+        reads = proposal_pdf.ProposalReads(
+            proposal=self._read_as_endpoint("retrieve"),
+            resources=self._read_as_endpoint("resources"),
+            team=self._read_team(proposal),
+            steps=self._read_as_endpoint("workflow_states"),
+            timeline=self._read_as_endpoint("workflow_timeline"),
+            contributions=self._read_as_endpoint("contributions"),
+            assessments=self._read_as_endpoint("offering_assessments"),
+            reports=self._read_as_endpoint("released_reports"),
+            rankings=serializers.ProposalRankingSerializer(
+                rankings.readable_rankings(request.user)
+                .filter(proposal=proposal)
+                .order_by("meeting_note_id", "rank"),
+                many=True,
+                context=self.get_serializer_context(),
+            ).data,
+            award=self._read_as_endpoint("awarded_resources"),
+        )
+        reads.role_labels = {
+            role.name: role.description or role.name
+            for role in permissions_models.Role.objects.filter(
+                name__in={member.get("role_name") for member in reads.team or []}
+            )
+        }
+        if reads.timeline is not None:
+            # Who completed each step, named as the timeline names them, on
+            # the rows whose completer workflow_states shows this reader: it
+            # hides a blind step's and a held decision's. A former user still
+            # completed the step: all_objects keeps them.
+            completer_uuids = {
+                proposal_pdf.uuid_key(step["completed_by"])
+                for step in reads.steps or []
+                if step.get("completed_by")
+            }
+            reads.completer_names = {
+                user.uuid.hex: user.full_name or user.username
+                for user in User.all_objects.filter(uuid__in=completer_uuids)
+            }
+        return reads
 
     # Evaluator roles on the proposal
 
