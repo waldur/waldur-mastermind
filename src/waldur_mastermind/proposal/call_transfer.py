@@ -83,8 +83,10 @@ _ALWAYS_EXCLUDED = frozenset(
 
 # Per-model plain fields that are portal-local or owned by someone other than
 # the call manager, on top of _ALWAYS_EXCLUDED.
-# Where the call came from is this portal's record, not its configuration.
-_CALL_EXCLUDED = frozenset({"state", "template_version"})
+# Where the call came from is this portal's record, not its configuration. The
+# logo is a stored file: its path means nothing on another portal, and taken
+# from a document it would point the call at whatever file that path names.
+_CALL_EXCLUDED = frozenset({"state", "template_version", "image"})
 # Call.backend_id is not an external system's id but the reference code a call
 # manager types in (it prefixes proposal names). It travels under the name the
 # API and the UI give it.

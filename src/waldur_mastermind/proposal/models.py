@@ -327,6 +327,7 @@ class Call(
     core_models.BackendMixin,
     core_models.SlugMixin,
     core_models.UserDetailsMatchMixin,
+    waldur_core.media.mixins.ImageModelMixin,
     PermissionMixin,
 ):
     """Main entity representing calls for proposals with states (draft, active, archived). Contains configuration for reviewer visibility, review settings, and fixed duration parameters."""
