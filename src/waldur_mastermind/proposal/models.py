@@ -1699,8 +1699,20 @@ class CallWorkflowStep(
 
         A default step goes back to where it stands among the call's other
         default steps, so a step that was deleted and is added again keeps its
-        place; any other step is appended.
+        place; any other step is appended. The award response goes right after
+        the allocation decision, ahead of anything that follows the award.
         """
+        if key == enums.AWARD_RESPONSE_KEY:
+            # The decision that runs: a disabled one before it would put the
+            # response ahead of the award it answers.
+            decision = (
+                cls.objects.filter(call_id=call_id, is_allocation_decision=True)
+                .order_by("-is_enabled", "order")
+                .first()
+            )
+            if decision is not None:
+                cls.make_room(call_id, decision.order + 1)
+                return decision.order + 1
         keys = [step.key for step in enums.DEFAULT_CALL_STEPS]
         if key in keys:
             successor = (
