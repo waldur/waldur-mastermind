@@ -7,7 +7,7 @@ import waldur_core.media.mixins
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("proposal", "0097_backfill_review_submitted_at"),
+        ("proposal", "0098_callmanagingorganisation_max_active_proposals"),
     ]
 
     operations = [
