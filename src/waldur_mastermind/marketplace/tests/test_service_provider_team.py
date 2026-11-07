@@ -1,7 +1,9 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
+from waldur_core.core import access
 from waldur_core.permissions import enums
+from waldur_core.permissions import serializers as permission_serializers
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -17,7 +19,7 @@ from waldur_core.permissions.utils import (
 )
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.utils import can_manage_invitation_with
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, views
 from waldur_mastermind.marketplace.tests import factories
 
 TEAM_PERMISSIONS = (
@@ -200,3 +202,24 @@ class ServiceProviderTeamApiTest(test.APITestCase):
         holder = make_site_wide_holder()
         request.user = holder
         self.assertFalse(can_manage_invitation_with(request, self.service_provider))
+
+
+class ServiceProviderTeamAccessDeclarationTest(test.APITestCase):
+    """The schema says who may manage the team as the server decides it.
+
+    The actions were declared staff-only while the role tables left the team
+    to staff; #986 let owners in, and x-permissions kept saying staff.
+    """
+
+    def test_team_actions_are_described_by_the_role_change_rules(self):
+        expected = {
+            "add_user": permission_serializers.GRANT_ROLE_ACCESS,
+            "update_user": permission_serializers.UPDATE_ROLE_ACCESS,
+            "delete_user": permission_serializers.REVOKE_ROLE_ACCESS,
+        }
+        for action, entry in expected.items():
+            with self.subTest(action=action):
+                view = views.ServiceProviderViewSet(action=action, detail=True)
+                route = access.access_for(view, "POST")
+                self.assertIn(entry, route.entries)
+                self.assertNotIn(access.staff(), route.entries)
