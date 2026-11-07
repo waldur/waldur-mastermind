@@ -3821,6 +3821,180 @@ Reminds a reviewer that their assignment batch expires soon; the lead time is se
 
 ```
 
+### proposal.award_provision_failed
+
+Tells a call's managers that allocation could not order an awarded item, and why.
+
+#### Templates
+
+=== "proposal/award_provision_failed_subject.txt"
+
+```txt
+
+    {{ proposal_name }}: an awarded item could not be ordered
+
+```
+
+=== "proposal/award_provision_failed_message.txt"
+
+```txt
+
+    Dear call manager,
+
+    Allocation could not order the item on "{{ offering_name }}" awarded to proposal "{{ proposal_name }}" of call "{{ call_name }}":
+
+    {{ error }}
+
+    Once the provider has fixed it, order the item again from the proposal's award:
+    {{ proposal_url }}
+
+    This is an automated message from {{ site_name }}.
+
+```
+
+=== "proposal/award_provision_failed_message.html"
+
+```txt
+
+    <html>
+    <body>
+        <p>Dear call manager,</p>
+        <p>Allocation could not order the item on "<strong>{{ offering_name }}</strong>" awarded to proposal "<strong>{{ proposal_name }}</strong>" of call "<strong>{{ call_name }}</strong>":</p>
+        <p>{{ error }}</p>
+        <p>Once the provider has fixed it, order the item again from the proposal's award: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+        <p><em>This is an automated message from {{ site_name }}.</em></p>
+    </body>
+    </html>
+
+```
+
+### proposal.call_offering_terms_changed
+
+Tells the managers of an offering a call took in that the call's limits or pools on it changed after they accepted.
+
+#### Templates
+
+=== "proposal/call_offering_terms_changed_subject.txt"
+
+```txt
+
+    {{ call_name }} changed its terms for {{ offering_name }}
+
+```
+
+=== "proposal/call_offering_terms_changed_message.txt"
+
+```txt
+
+    Hello,
+
+    {{ changed_by }} changed what call "{{ call_name }}" asks of your offering "{{ offering_name }}", which you accepted into the call. The terms now:
+    {% for rule in rules %}
+    - {{ rule.component_type }}: {% if rule.min_per_proposal is not None %}at least {{ rule.min_per_proposal }}{% endif %}{% if rule.max_per_proposal is not None %} at most {{ rule.max_per_proposal }}{% endif %}{% if rule.default_amount is not None %}, {{ rule.default_amount }} by default{% endif %} per proposal
+    {% endfor %}{% for pool in pools %}
+    - {{ pool.component_type }}: {{ pool.offered_total }} in all{% if pool.round_name %} in round {{ pool.round_name }}{% endif %}
+    {% endfor %}
+    If the call now asks more than your offering can give, contact the call's managers.
+
+    Your calls: {{ calls_url }}
+
+    This is an automated message from {{ site_name }}.
+
+```
+
+=== "proposal/call_offering_terms_changed_message.html"
+
+```txt
+
+    <html>
+    <body>
+        <p>Hello,</p>
+        <p>{{ changed_by }} changed what call "<strong>{{ call_name }}</strong>" asks of your offering "<strong>{{ offering_name }}</strong>", which you accepted into the call. The terms now:</p>
+        <ul>
+        {% for rule in rules %}<li>{{ rule.component_type }}: {% if rule.min_per_proposal is not None %}at least {{ rule.min_per_proposal }}{% endif %}{% if rule.max_per_proposal is not None %} at most {{ rule.max_per_proposal }}{% endif %}{% if rule.default_amount is not None %}, {{ rule.default_amount }} by default{% endif %} per proposal</li>{% endfor %}
+        {% for pool in pools %}<li>{{ pool.component_type }}: {{ pool.offered_total }} in all{% if pool.round_name %} in round {{ pool.round_name }}{% endif %}</li>{% endfor %}
+        </ul>
+        <p>If the call now asks more than your offering can give, contact the call's managers.</p>
+        <p><a href="{{ calls_url }}">Your calls</a></p>
+        <p><em>This is an automated message from {{ site_name }}.</em></p>
+    </body>
+    </html>
+
+```
+
+### proposal.contribution_delegated
+
+Tells an evaluator or provider that a contribution slot of a workflow step -- a technical assessment, a report -- was handed to them or taken back, or that the person they handed it to accepted or declined it.
+
+#### Templates
+
+=== "proposal/contribution_delegated_subject.txt"
+
+```txt
+
+    {% if event == "delegated" %}{{ step_name }} of proposal {{ proposal_name }} is handed to you{% elif event == "accepted" %}{{ actor_name }} accepted {{ step_name }} of proposal {{ proposal_name }}{% elif event == "declined" %}{{ actor_name }} declined {{ step_name }} of proposal {{ proposal_name }}{% else %}{{ step_name }} of proposal {{ proposal_name }} is no longer yours{% endif %}
+
+```
+
+=== "proposal/contribution_delegated_message.txt"
+
+```txt
+
+    Dear {{ recipient_name }},
+    {% if event == "delegated" %}
+    {{ actor_name }} handed you "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}".{% if due_at %} It is due on {{ due_at }}.{% endif %}
+
+    Open the proposal to accept or decline it:
+    {% elif event == "accepted" %}
+    {{ actor_name }} accepted "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you handed to them.
+
+    Open the proposal:
+    {% elif event == "declined" %}
+    {{ actor_name }} declined "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you handed to them. It is yours again: write it, or hand it to someone else.
+
+    Open the proposal:
+    {% else %}
+    {{ actor_name }} took back "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}"; it is no longer yours to write.
+
+    The proposal:
+    {% endif %}
+    {{ proposal_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/contribution_delegated_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <p>Dear {{ recipient_name }},</p>
+    {% if event == "delegated" %}
+    <p>{{ actor_name }} handed you "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>".{% if due_at %} It is due on {{ due_at }}.{% endif %}</p>
+    <p>Open the proposal to accept or decline it:</p>
+    {% elif event == "accepted" %}
+    <p>{{ actor_name }} accepted "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>" that you handed to them.</p>
+    <p>Open the proposal:</p>
+    {% elif event == "declined" %}
+    <p>{{ actor_name }} declined "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>" that you handed to them. It is yours again: write it, or hand it to someone else.</p>
+    <p>Open the proposal:</p>
+    {% else %}
+    <p>{{ actor_name }} took back "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>"; it is no longer yours to write.</p>
+    <p>The proposal:</p>
+    {% endif %}
+    <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
 ### proposal.new_proposal_submitted
 
 Notifies call managers about a new proposal submission.
@@ -3916,7 +4090,10 @@ A notification to the call manager about a new review submission.
     - Reviewer: {{ reviewer_name }}
     - Submission date: {{ submission_date }}
     - Score: {{ score }}/{{ max_score }}
-
+    {% if criteria %}
+    Scores per criterion:
+    {% for c in criteria %}- {{ c.name }}: {% if c.score %}{{ c.score }}/{{ max_score }}{% else %}not rated{% endif %}
+    {% endfor %}{% endif %}
     Review Progress:
     - Submitted reviews: {{ submitted_reviews }}
     - Pending reviews: {{ pending_reviews }}
@@ -3946,9 +4123,16 @@ A notification to the call manager about a new review submission.
         <p>
             <strong>Review summary:</strong><br>
             - Reviewer: {{ reviewer_name }}<br>
-            - Submission date: {{ review_date }}<br>
+            - Submission date: {{ submission_date }}<br>
             - Score: {{ score }}/{{ max_score }}
         </p>
+        {% if criteria %}
+        <p>
+            <strong>Scores per criterion:</strong><br>
+            {% for c in criteria %}- {{ c.name }}: {% if c.score %}{{ c.score }}/{{ max_score }}{% else %}not rated{% endif %}<br>
+            {% endfor %}
+        </p>
+        {% endif %}
 
         <p>
             <strong>Review Progress:</strong><br>
@@ -3965,6 +4149,103 @@ A notification to the call manager about a new review submission.
         <p>
             This is an automated message from the {{ site_name }}. Please do not reply to this email.
         </p>
+    </body>
+    </html>
+
+```
+
+### proposal.offering_round_opened
+
+Tells the managers of an offering a call takes in that one of the call's rounds has opened.
+
+#### Templates
+
+=== "proposal/offering_round_opened_subject.txt"
+
+```txt
+
+    {{ call_name }}: a round opened, with {{ offering_name }}
+
+```
+
+=== "proposal/offering_round_opened_message.txt"
+
+```txt
+
+    Hello,
+
+    Round "{{ round_name }}" of call "{{ call_name }}" has opened. The call takes in your offering "{{ offering_name }}", and closes for submissions on {{ cutoff }}.
+    {% if team_steps %}
+    Your offering's team acts in these steps of the call: {{ team_steps }}. You will be asked once proposals reach them.
+    {% endif %}
+    Your calls: {{ calls_url }}
+
+    This is an automated message from {{ site_name }}.
+
+```
+
+=== "proposal/offering_round_opened_message.html"
+
+```txt
+
+    <html>
+    <body>
+        <p>Hello,</p>
+        <p>Round "<strong>{{ round_name }}</strong>" of call "<strong>{{ call_name }}</strong>" has opened. The call takes in your offering "<strong>{{ offering_name }}</strong>", and closes for submissions on {{ cutoff }}.</p>
+        {% if team_steps %}<p>Your offering's team acts in these steps of the call: {{ team_steps }}. You will be asked once proposals reach them.</p>{% endif %}
+        <p><a href="{{ calls_url }}">Your calls</a></p>
+        <p><em>This is an automated message from {{ site_name }}.</em></p>
+    </body>
+    </html>
+
+```
+
+### proposal.offering_team_digest
+
+A daily digest to offering managers and those slots are handed to: their teams' open work on proposals, sent when slots opened or fell overdue.
+
+#### Templates
+
+=== "proposal/offering_team_digest_subject.txt"
+
+```txt
+
+    Your offering teams' open work{% if new_count %}: {{ new_count }} new{% endif %}{% if overdue_count %}, {{ overdue_count }} overdue{% endif %}
+
+```
+
+=== "proposal/offering_team_digest_message.txt"
+
+```txt
+
+    Hello {{ recipient_name }},
+
+    Open work of your offering teams on calls for proposals:
+    {% for slot in slots %}
+    - {{ slot.offering_name }} / {{ slot.call_name }}: {{ slot.step_name }} of "{{ slot.proposal_name }}" -- {{ slot.holder }}{% if slot.due_at %}, due {{ slot.due_at }}{% endif %}{% if slot.overdue %} (overdue){% endif %}
+      {{ slot.proposal_url }}
+    {% endfor %}
+    Your calls: {{ calls_url }}
+
+    This is an automated message from {{ site_name }}.
+
+```
+
+=== "proposal/offering_team_digest_message.html"
+
+```txt
+
+    <html>
+    <body>
+        <p>Hello {{ recipient_name }},</p>
+        <p>Open work of your offering teams on calls for proposals:</p>
+        <ul>
+        {% for slot in slots %}
+            <li>{{ slot.offering_name }} / {{ slot.call_name }}: {{ slot.step_name }} of "<a href="{{ slot.proposal_url }}">{{ slot.proposal_name }}</a>" &mdash; {{ slot.holder }}{% if slot.due_at %}, due {{ slot.due_at }}{% endif %}{% if slot.overdue %} <strong>(overdue)</strong>{% endif %}</li>
+        {% endfor %}
+        </ul>
+        <p><a href="{{ calls_url }}">Your calls</a></p>
+        <p><em>This is an automated message from {{ site_name }}.</em></p>
     </body>
     </html>
 
@@ -4041,6 +4322,51 @@ A notification to proposal creator about the proposal cancellation.
         <p>
             This is an automated message from the {{ site_name }}. Please do not reply to this email.
         </p>
+    </body>
+    </html>
+
+```
+
+=== "proposal/access_request_cancelled_subject.txt"
+
+```txt
+
+    Access request canceled: {{ proposal_name }}
+
+```
+
+=== "proposal/access_request_cancelled_message.txt"
+
+```txt
+
+    Dear {{ proposal_creator_name }},
+
+    Your access request "{{ proposal_name }}" has been canceled: it was still a draft when its submission period ended ({{ cancellation_date }}).
+
+    A request is reviewed only once it has been submitted. You can still view it here:
+    {{ proposal_url }}
+
+    To ask for the service again, request it from its offering page.
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/access_request_cancelled_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+        <p>Dear {{ proposal_creator_name }},</p>
+        <p>Your access request "{{ proposal_name }}" has been canceled: it was still a draft when its submission period ended ({{ cancellation_date }}).</p>
+        <p>A request is reviewed only once it has been submitted. You can still view it here:<br>
+            <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+        <p>To ask for the service again, request it from its offering page.</p>
+        <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
     </body>
     </html>
 
@@ -4174,6 +4500,206 @@ Tells a proposal creator that their draft, still open when its round's cut-off p
         <p>Your proposal is still in <strong>DRAFT</strong> state. Submit it before the new deadline to have it considered: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
 
         <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+    </body>
+    </html>
+
+```
+
+=== "proposal/access_request_draft_carried_over_subject.txt"
+
+```txt
+
+    Your draft access request {{ proposal_name }} can still be submitted
+
+```
+
+=== "proposal/access_request_draft_carried_over_message.txt"
+
+```txt
+
+    Dear {{ proposal_creator_name }},
+
+    Your access request "{{ proposal_name }}" was still a draft when its submission period ended. It has not been canceled: it moved on, unchanged, to the next review period.
+
+    - Submissions open: {{ round_start_date }}
+    - Submit by: {{ deadline_date }}
+
+    Submit it to have it reviewed: {{ proposal_url }}
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/access_request_draft_carried_over_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+        <p>Dear {{ proposal_creator_name }},</p>
+        <p>Your access request "{{ proposal_name }}" was still a draft when its submission period ended. It has not been canceled: it moved on, unchanged, to the next review period.</p>
+        <ul>
+            <li>Submissions open: {{ round_start_date }}</li>
+            <li>Submit by: {{ deadline_date }}</li>
+        </ul>
+        <p>Submit it to have it reviewed: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+        <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+    </body>
+    </html>
+
+```
+
+### proposal.proposal_manager_message
+
+A message a call manager writes to the applicants of selected proposals. Subject and body are the manager's own text.
+
+#### Templates
+
+=== "proposal/proposal_manager_message_subject.txt"
+
+```txt
+
+    {{ subject }}
+
+```
+
+=== "proposal/proposal_manager_message_message.txt"
+
+```txt
+
+    {{ body }}
+
+    Proposal: {{ proposal_name }} (call "{{ call_name }}")
+    {{ proposal_url }}
+
+    This message was sent by the call manager through {{ site_name }}.
+
+```
+
+=== "proposal/proposal_manager_message_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+        {{ body|linebreaks }}
+
+        <p>
+            Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
+            <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+        </p>
+
+        <p>
+            This message was sent by the call manager through {{ site_name }}.
+        </p>
+    </body>
+    </html>
+
+```
+
+### proposal.proposal_role_assigned
+
+Tells a user they now hold an evaluator role, such as rapporteur, on a proposal.
+
+#### Templates
+
+=== "proposal/proposal_role_assigned_subject.txt"
+
+```txt
+
+    You are {{ role_name }} for proposal {{ proposal_name }}
+
+```
+
+=== "proposal/proposal_role_assigned_message.txt"
+
+```txt
+
+    Dear {{ holder_name }},
+
+    You have been assigned as {{ role_name }}{% if is_lead %} (lead){% endif %} for the proposal "{{ proposal_name }}" in call "{{ call_name }}".
+    {% if coi_confirmation_required %}
+    Before the proposal opens to you, please confirm that you have no conflict of interest with it.
+    {% endif %}
+    Open the proposal:
+
+    {{ proposal_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/proposal_role_assigned_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <p>Dear {{ holder_name }},</p>
+
+    <p>You have been assigned as <strong>{{ role_name }}</strong>{% if is_lead %} (lead){% endif %} for the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>".</p>
+    {% if coi_confirmation_required %}
+    <p>Before the proposal opens to you, please confirm that you have no conflict of interest with it.</p>
+    {% endif %}
+    <p>Open the proposal:</p>
+
+    <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
+### proposal.proposal_role_revoked
+
+Tells a user they no longer hold an evaluator role on a proposal.
+
+#### Templates
+
+=== "proposal/proposal_role_revoked_subject.txt"
+
+```txt
+
+    You are no longer {{ role_name }} for proposal {{ proposal_name }}
+
+```
+
+=== "proposal/proposal_role_revoked_message.txt"
+
+```txt
+
+    Dear {{ holder_name }},
+
+    You are no longer {{ role_name }} for the proposal "{{ proposal_name }}" in call "{{ call_name }}". The proposal is no longer available to you through this role.
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/proposal_role_revoked_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <p>Dear {{ holder_name }},</p>
+
+    <p>You are no longer <strong>{{ role_name }}</strong> for the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>". The proposal is no longer available to you through this role.</p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
     </body>
     </html>
 
@@ -4594,6 +5120,183 @@ Reminds proposal creators to submit draft proposals during the last 3 days befor
 
 ```
 
+=== "proposal/access_request_submission_deadline_approaching_subject.txt"
+
+```txt
+
+    Reminder: submit your access request {{ proposal_name }}
+
+```
+
+=== "proposal/access_request_submission_deadline_approaching_message.txt"
+
+```txt
+
+    Dear {{ proposal_creator_name }},
+
+    Your access request "{{ proposal_name }}" is still a draft. Submit it by {{ deadline_date }} ({{ time_remaining_days }} days {{ time_remaining_hours }} hours from now) to have it reviewed.
+
+    Complete and submit the request: {{ proposal_url }}
+
+    {% if draft_carries_over %}A request still in draft after that date stays a draft and can be submitted for the next review period.{% else %}A request still in draft after that date is canceled.{% endif %}
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/access_request_submission_deadline_approaching_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+        <p>Dear {{ proposal_creator_name }},</p>
+        <p>Your access request "{{ proposal_name }}" is still a draft. Submit it by {{ deadline_date }} ({{ time_remaining_days }} days {{ time_remaining_hours }} hours from now) to have it reviewed.</p>
+        <p>Complete and submit the request: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+        <p>{% if draft_carries_over %}A request still in draft after that date stays a draft and can be submitted for the next review period.{% else %}A request still in draft after that date is canceled.{% endif %}</p>
+        <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+    </body>
+    </html>
+
+```
+
+### proposal.proposal_withdrawn
+
+Notifies call managers that an applicant withdrew a submitted proposal from evaluation.
+
+#### Templates
+
+=== "proposal/proposal_withdrawn_subject.txt"
+
+```txt
+
+    Proposal withdrawn: {{ proposal_name }}
+
+```
+
+=== "proposal/proposal_withdrawn_message.txt"
+
+```txt
+
+    Dear call manager,
+
+    {{ withdrawn_by }} withdrew the proposal "{{ proposal_name }}" from evaluation in the call "{{ call_name }}", round "{{ round_name }}".{% if reason %}
+
+    Reason given: {{ reason }}{% endif %}
+
+    Its unfinished steps were skipped, reviews still being written were closed and unanswered review assignments lapsed. Nothing is left to do on it.
+
+    You can view the proposal here:
+    {{ proposal_url }}
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/proposal_withdrawn_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+        <p>Dear call manager,</p>
+        <p>
+            {{ withdrawn_by }} withdrew the proposal "{{ proposal_name }}" from evaluation in the call "{{ call_name }}", round "{{ round_name }}".
+            {% if reason %}<br>Reason given: {{ reason }}{% endif %}
+        </p>
+        <p>
+            Its unfinished steps were skipped, reviews still being written were closed and unanswered review assignments lapsed. Nothing is left to do on it.
+        </p>
+        <p>
+            You can view the proposal here:<br>
+            <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+        </p>
+        <p>
+            This is an automated message from the {{ site_name }}. Please do not reply to this email.
+        </p>
+    </body>
+    </html>
+
+```
+
+### proposal.requested_offering_created
+
+Tells the offering's managers and its provider's owners that a call requests the offering, and asks the owners to add offering managers where the call's workflow needs the offering's team and it has none.
+
+#### Templates
+
+=== "proposal/requested_offering_created_subject.txt"
+
+```txt
+
+    Call {{ call_name }} requests your offering {{ offering_name }}
+
+```
+
+=== "proposal/requested_offering_created_message.txt"
+
+```txt
+
+    Hello,
+
+    {{ call_managing_organisation }} asks to include the offering "{{ offering_name }}" of {{ provider_name }} in the call "{{ call_name }}".{% if requested_by %} The request was made by {{ requested_by }}.{% endif %}
+    {% if message %}
+    Their message:
+    {{ message }}
+    {% endif %}
+    Accept or reject the request:
+    {{ requests_url }}
+    {% if team_steps %}
+    The call's workflow hands work to the offering's team in these steps: {{ team_steps }}. The offering's managers do it; the call cannot invite them.
+    {% if needs_offering_managers %}
+    The offering has no offering manager yet, so nobody could do that work. Add offering managers on the offering's Team tab:
+    {{ team_url }}
+    {% endif %}{% endif %}
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/requested_offering_created_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Call {{ call_name }} requests your offering {{ offering_name }}</title>
+    </head>
+    <body>
+        <p>Hello,</p>
+
+        <p><strong>{{ call_managing_organisation }}</strong> asks to include the offering "<strong>{{ offering_name }}</strong>" of {{ provider_name }} in the call "<strong>{{ call_name }}</strong>".{% if requested_by %} The request was made by {{ requested_by }}.{% endif %}</p>
+
+        {% if message %}
+        <p><strong>Their message:</strong><br>{{ message|linebreaksbr }}</p>
+        {% endif %}
+
+        <p>Accept or reject the request:<br>
+        <a href="{{ requests_url }}">{{ requests_url }}</a></p>
+
+        {% if team_steps %}
+        <p>The call's workflow hands work to the offering's team in these steps: <strong>{{ team_steps }}</strong>. The offering's managers do it; the call cannot invite them.</p>
+        {% if needs_offering_managers %}
+        <p><strong>The offering has no offering manager yet</strong>, so nobody could do that work. Add offering managers on the offering's Team tab:<br>
+        <a href="{{ team_url }}">{{ team_url }}</a></p>
+        {% endif %}
+        {% endif %}
+
+        <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
 ### proposal.requested_offering_decision
 
 A notification to call manager about the decision on requested offering (accepted/rejected).
@@ -4624,7 +5327,10 @@ A notification to call manager about the decision on requested offering (accepte
 
     {% if decision == "accepted" %}This offering is now available for selection in proposals submitted to this call.{% endif %}
 
-    {% if decision == "canceled" %}You may need to look for alternative offerings or contact the provider directly for more information about their decision.{% endif %}
+    {% if decision == "rejected" %}{% if reason %}The provider gave this reason:
+    {{ reason }}
+
+    {% endif %}You may need to look for alternative offerings.{% endif %}
 
     You can view the call details and manage offerings by visiting:
     {{ call_url }}
@@ -4659,8 +5365,9 @@ A notification to call manager about the decision on requested offering (accepte
         <p>This offering is now available for selection in proposals submitted to this call.</p>
         {% endif %}
 
-        {% if decision == "canceled" %}
-        <p>You may need to look for alternative offerings or contact the provider directly for more information about their decision.</p>
+        {% if decision == "rejected" %}
+        {% if reason %}<p>The provider gave this reason:</p><blockquote>{{ reason }}</blockquote>{% endif %}
+        <p>You may need to look for alternative offerings.</p>
         {% endif %}
 
         <p>You can view the call details and manage offerings by visiting:<br>
@@ -4696,8 +5403,8 @@ A notification to a reviewer about a new review assignment.
 
     Proposal details:
     - Proposal name: {{ proposal_name }}
-    - Submitted by: {{ proposal_creator_name }}
-    - Date submitted: {{ submission_date }}
+    {% if proposal_creator_name %}- Submitted by: {{ proposal_creator_name }}
+    {% endif %}- Date submitted: {{ submission_date }}
     - Review deadline: {{ review_deadline }}
 
     Please log in to the platform to review the proposal. You can accept or reject this review assignment by visiting:
@@ -4726,7 +5433,7 @@ A notification to a reviewer about a new review assignment.
     <p><strong>Proposal details:</strong></p>
     <ul>
         <li><strong>Proposal name:</strong> {{ proposal_name }}</li>
-        <li><strong>Submitted by:</strong> {{ proposal_creator_name }}</li>
+        {% if proposal_creator_name %}<li><strong>Submitted by:</strong> {{ proposal_creator_name }}</li>{% endif %}
         <li><strong>Date submitted:</strong> {{ submission_date }}</li>
         <li><strong>Review deadline:</strong> {{ review_deadline }}</li>
     </ul>
@@ -4981,7 +5688,11 @@ Sent to a person invited to join the reviewer pool for a call.
 
     You have been invited by {{ invited_by_name }} to join the reviewer pool for the call "{{ call_name }}" on {{ site_name }}.
 
-    To accept or decline this invitation, please follow the link below:
+    {% if invitation_message %}Their message:
+
+    {{ invitation_message }}
+
+    {% endif %}To accept or decline this invitation, please follow the link below:
 
     {{ invitation_link }}
 
@@ -5002,6 +5713,11 @@ Sent to a person invited to join the reviewer pool for a call.
     <body>
     <p>You have been invited by <strong>{{ invited_by_name }}</strong> to join the reviewer pool for the call "<strong>{{ call_name }}</strong>" on {{ site_name }}.</p>
 
+    {% if invitation_message %}
+    <p>Their message:</p>
+
+    <blockquote>{{ invitation_message|linebreaksbr }}</blockquote>
+    {% endif %}
     <p>To accept or decline this invitation, please follow the link below:</p>
 
     <p><a href="{{ invitation_link }}">{{ invitation_link }}</a></p>
@@ -5104,7 +5820,8 @@ Notifies call managers when all required reviews for a proposal have been submit
 
     Review details:
     {% for r in reviews %}{{ forloop.counter }}. {{ r.reviewer_name }} - {{ r.score }}/5 - {{ r.submitted_at|date:"Y-m-d H:i" }}
-    {% empty %}No individual reviews available.
+    {% for c in r.criteria %}   - {{ c.name }}: {% if c.score %}{{ c.score }}/5{% else %}not rated{% endif %}
+    {% endfor %}{% empty %}No individual reviews available.
     {% endfor %}
     ACTION REQUIRED: Please review the evaluation and make a decision on this proposal.
 
@@ -5147,6 +5864,13 @@ Notifies call managers when all required reviews for a proposal have been submit
             <strong>{{ r.reviewer_name }}</strong>
             &nbsp;-&nbsp;{{ r.score }}/5
             &nbsp;-&nbsp;{{ r.submitted_at|date:"Y-m-d H:i" }}
+            {% if r.criteria %}
+            <ul>
+              {% for c in r.criteria %}
+              <li>{{ c.name }}: {% if c.score %}{{ c.score }}/5{% else %}not rated{% endif %}</li>
+              {% endfor %}
+            </ul>
+            {% endif %}
           </li>
           {% empty %}
           <li>No individual reviews available.</li>
@@ -5312,6 +6036,181 @@ A notification to reviewers about a new call round opening.
 
 ```
 
+### proposal.round_report_requested
+
+Asks an evaluator for their round report when a step run once per round is opened, and reminds them before it is due.
+
+#### Templates
+
+=== "proposal/round_report_requested_subject.txt"
+
+```txt
+
+    {% if days_left %}Round report due in {{ days_left }} day{{ days_left|pluralize }}{% else %}Round report requested{% endif %}: {{ step_name }} - {{ call_name }}
+
+```
+
+=== "proposal/round_report_requested_message.txt"
+
+```txt
+
+    Dear evaluator,
+
+    {% if days_left %}Your round report for the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" is due in {{ days_left }} day{{ days_left|pluralize }} and has not been submitted yet.{% else %}The step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" has been opened for the round. You are asked for one round report covering the {{ proposals_count }} proposal{{ proposals_count|pluralize }} you hold this step for.{% endif %}
+    {% if due_at %}
+    The report is due on {{ due_at }}.
+    {% endif %}
+    You can write and submit the report here:
+    {{ report_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/round_report_requested_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Round report requested</title>
+    </head>
+    <body>
+        <p>Dear evaluator,</p>
+
+        {% if days_left %}
+        <p>Your round report for the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" is due in {{ days_left }} day{{ days_left|pluralize }} and has not been submitted yet.</p>
+        {% else %}
+        <p>The step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" has been opened for the round. You are asked for one round report covering the {{ proposals_count }} proposal{{ proposals_count|pluralize }} you hold this step for.</p>
+        {% endif %}
+
+        {% if due_at %}<p>The report is due on {{ due_at }}.</p>{% endif %}
+
+        <p>You can write and submit the report here: <a href="{{ report_url }}">{{ report_url }}</a></p>
+
+        <p>
+            This is an automated message from the {{ site_name }}. Please do not reply to this email.
+        </p>
+    </body>
+    </html>
+
+```
+
+### proposal.round_results_adopted
+
+Tells call managers that a round's results were adopted, so they can be published.
+
+#### Templates
+
+=== "proposal/round_results_adopted_subject.txt"
+
+```txt
+
+    Results adopted: {{ round_name }} - {{ call_name }}
+
+```
+
+=== "proposal/round_results_adopted_message.txt"
+
+```txt
+
+    Dear call manager,
+
+    The results of the round "{{ round_name }}" of the call "{{ call_name }}" were adopted on {{ adopted_at }}. {{ recorded_by }} recorded the adoption.
+
+    The round's results can now be published to the applicants.
+
+    You can view the round here:
+    {{ round_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/round_results_adopted_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Round results adopted</title>
+    </head>
+    <body>
+        <p>Dear call manager,</p>
+
+        <p>The results of the round "{{ round_name }}" of the call "{{ call_name }}" were adopted on {{ adopted_at }}. {{ recorded_by }} recorded the adoption.</p>
+
+        <p>The round's results can now be published to the applicants.</p>
+
+        <p>You can view the round here: <a href="{{ round_url }}">{{ round_url }}</a></p>
+
+        <p>
+            This is an automated message from the {{ site_name }}. Please do not reply to this email.
+        </p>
+    </body>
+    </html>
+
+```
+
+### proposal.round_step_opened
+
+Tells call managers that a step run once per round was opened for a round, with how many reports were asked for.
+
+#### Templates
+
+=== "proposal/round_step_opened_subject.txt"
+
+```txt
+
+    Step opened for the round: {{ step_name }} - {{ round_name }} - {{ call_name }}
+
+```
+
+=== "proposal/round_step_opened_message.txt"
+
+```txt
+
+    Dear call manager,
+
+    {{ opened_by }} opened the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" for the round. {{ proposals_count }} proposal{{ proposals_count|pluralize }} stand{{ proposals_count|pluralize:"s," }} at the step, and {{ reports_count }} round report{{ reports_count|pluralize }} {{ reports_count|pluralize:"was,were" }} asked for.
+    {% if due_at %}
+    The step is due on {{ due_at }}.
+    {% endif %}
+    You can follow the round here:
+    {{ round_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/round_step_opened_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Step opened for the round</title>
+    </head>
+    <body>
+        <p>Dear call manager,</p>
+
+        <p>{{ opened_by }} opened the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" for the round. {{ proposals_count }} proposal{{ proposals_count|pluralize }} stand{{ proposals_count|pluralize:"s," }} at the step, and {{ reports_count }} round report{{ reports_count|pluralize }} {{ reports_count|pluralize:"was,were" }} asked for.</p>
+
+        {% if due_at %}<p>The step is due on {{ due_at }}.</p>{% endif %}
+
+        <p>You can follow the round here: <a href="{{ round_url }}">{{ round_url }}</a></p>
+
+        <p>
+            This is an automated message from the {{ site_name }}. Please do not reply to this email.
+        </p>
+    </body>
+    </html>
+
+```
+
 ### proposal.workflow_step_event
 
 Sent when a call's workflow notification rule fires: a workflow step started, completed, was rejected, expired, or its deadline is approaching. Audience is configured per call and step.
@@ -5322,7 +6221,7 @@ Sent when a call's workflow notification rule fires: a workflow step started, co
 
 ```txt
 
-    {% if trigger == "deadline_approaching" %}Reminder: {{ step_name }} for "{{ proposal_name }}" is due in {{ days_before }} day{{ days_before|pluralize }}{% elif trigger == "step_started" %}{{ step_name }} has started for "{{ proposal_name }}"{% elif trigger == "step_completed" %}{{ step_name }} completed for "{{ proposal_name }}"{% elif trigger == "step_rejected" %}"{{ proposal_name }}" was rejected at {{ step_name }}{% elif trigger == "step_expired" %}{{ step_name }} for "{{ proposal_name }}" has expired{% else %}Update on "{{ proposal_name }}"{% endif %}
+    {% if trigger == "deadline_approaching" %}Reminder: {{ step_name }} for "{{ proposal_name }}" is due in {{ days_before }} day{{ days_before|pluralize }}{% elif trigger == "step_started" %}{{ step_name }} has started for "{{ proposal_name }}"{% elif trigger == "step_completed" %}{{ step_name }} completed for "{{ proposal_name }}"{% elif trigger == "step_rejected" %}"{{ proposal_name }}" was rejected at {{ step_name }}{% elif trigger == "step_expired" %}{{ step_name }} for "{{ proposal_name }}" has expired{% elif trigger == "changes_requested" %}Changes requested to "{{ proposal_name }}"{% elif trigger == "changes_submitted" %}Changes submitted to "{{ proposal_name }}"{% elif trigger == "changes_lapsed" %}Changes to "{{ proposal_name }}" were not submitted in time{% elif trigger == "contribution_reopened" %}Your contribution to {{ step_name }} for "{{ proposal_name }}" was reopened{% elif trigger == "contribution_submitted" %}A contribution to {{ step_name }} for "{{ proposal_name }}" was submitted{% else %}Update on "{{ proposal_name }}"{% endif %}
 
 ```
 
@@ -5332,15 +6231,31 @@ Sent when a call's workflow notification rule fires: a workflow step started, co
 
     Dear {% if is_applicant %}applicant{% else %}colleague{% endif %},
 
-    {% if trigger == "deadline_approaching" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.{% if is_applicant %} Please respond before the deadline.{% else %} Please complete the step or follow up before it expires.{% endif %}
-    {% elif trigger == "step_started" %}The "{{ step_name }}" step has started for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if deadline %} It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
-    {% elif trigger == "step_completed" %}The "{{ step_name }}" step has been completed for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if outcome %} Outcome: {{ outcome }}.{% endif %}{% if outcome_reason %}
+    {% if trigger == "deadline_approaching" %}The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.{% if is_applicant %} Please respond before the deadline.{% else %} Please complete the step or follow up before it expires.{% endif %}
+    {% elif trigger == "step_started" %}The "{{ step_name }}" step has started for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if deadline %} It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
+    {% elif trigger == "step_completed" %}The "{{ step_name }}" step has been completed for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if outcome %} Outcome: {{ outcome }}.{% endif %}{% if outcome_reason %}
     Reason: {{ outcome_reason }}{% endif %}
-    {% elif trigger == "step_rejected" %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") was rejected at the "{{ step_name }}" step.{% if outcome_reason %}
+    {% elif trigger == "step_rejected" %}{% if names_calls %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}Access request "{{ proposal_name }}"{% endif %} was rejected at the "{{ step_name }}" step.{% if outcome_reason %}
     Reason: {{ outcome_reason }}{% endif %}
-    {% elif trigger == "step_expired" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") has expired without being completed.{% if not is_applicant %} Please follow up so the workflow can continue.{% endif %}
+    {% elif trigger == "step_expired" %}The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has expired without being completed.{% if not is_applicant %} Please follow up so the workflow can continue.{% endif %}
+    {% elif trigger == "changes_requested" %}Changes have been requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if message %}
+
+    {{ message }}{% endif %}{% if unlocked_parts %}
+
+    You may now edit: {{ unlocked_parts|join:", " }}.{% endif %}{% if due_at %} Please submit the changes by {{ due_at|date:"Y-m-d" }}.{% else %} Please submit the changes once they are made.{% endif %}
+    {% elif trigger == "changes_submitted" %}{% if submitted_requests|length > 1 %}The changes requested at the steps {% for request in submitted_requests %}"{{ request.step_name }}"{% if not forloop.last %}, {% endif %}{% endfor %} have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}:
+    {% for request in submitted_requests %}- {{ request.step_name }}: {{ request.unlocked_parts|join:", " }}
+    {% endfor %}The steps are back with you.{% else %}The changes requested at the "{{ step_name }}" step have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% for request in submitted_requests %} Changed: {{ request.unlocked_parts|join:", " }}.{% endfor %} The step is back with you.{% endif %}
+    {% elif trigger == "changes_lapsed" %}The changes requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} were not submitted by their due date. The step is back with you.
+    {% elif trigger == "contribution_reopened" %}Your contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been reopened. Please revise and submit it again.{% if message %}
+
+    {{ message }}{% endif %}
+    {% elif trigger == "contribution_submitted" %}A contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been submitted.{% if counts %} {{ counts.submitted }} of {{ counts.expected }} submitted so far.{% endif %}
+    {% endif %}{% if project_url %}
+    The project granted to it is "{{ project_name }}":
+    {{ project_url }}
     {% endif %}
-    You can view the proposal here:
+    You can view the {% if names_calls %}proposal{% else %}access request{% endif %} here:
     {{ proposal_url }}
 
     This is an automated message from the {{ site_name }}. Please do not reply to this email.
@@ -5360,26 +6275,49 @@ Sent when a call's workflow notification rule fires: a workflow step started, co
 
         <p>
         {% if trigger == "deadline_approaching" %}
-            The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.
+            The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.
             {% if is_applicant %}Please respond before the deadline.{% else %}Please complete the step or follow up before it expires.{% endif %}
         {% elif trigger == "step_started" %}
-            The "{{ step_name }}" step has started for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").
+            The "{{ step_name }}" step has started for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
             {% if deadline %}It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
         {% elif trigger == "step_completed" %}
-            The "{{ step_name }}" step has been completed for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").
+            The "{{ step_name }}" step has been completed for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
             {% if outcome %}Outcome: {{ outcome }}.{% endif %}
             {% if outcome_reason %}<br>Reason: {{ outcome_reason }}{% endif %}
         {% elif trigger == "step_rejected" %}
-            Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") was rejected at the "{{ step_name }}" step.
+            {% if names_calls %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}Access request "{{ proposal_name }}"{% endif %} was rejected at the "{{ step_name }}" step.
             {% if outcome_reason %}<br>Reason: {{ outcome_reason }}{% endif %}
         {% elif trigger == "step_expired" %}
-            The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") has expired without being completed.
+            The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has expired without being completed.
             {% if not is_applicant %}Please follow up so the workflow can continue.{% endif %}
+        {% elif trigger == "changes_requested" %}
+            Changes have been requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
+            {% if message %}<br><br>{{ message|linebreaksbr }}{% endif %}
+            {% if unlocked_parts %}<br><br>You may now edit: {{ unlocked_parts|join:", " }}.{% endif %}
+            {% if due_at %}Please submit the changes by {{ due_at|date:"Y-m-d" }}.{% else %}Please submit the changes once they are made.{% endif %}
+        {% elif trigger == "changes_submitted" %}
+            {% if submitted_requests|length > 1 %}The changes requested at the steps {% for request in submitted_requests %}"{{ request.step_name }}"{% if not forloop.last %}, {% endif %}{% endfor %} have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
+            <ul>{% for request in submitted_requests %}<li>{{ request.step_name }}: {{ request.unlocked_parts|join:", " }}</li>{% endfor %}</ul>
+            The steps are back with you.{% else %}The changes requested at the "{{ step_name }}" step have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% for request in submitted_requests %} Changed: {{ request.unlocked_parts|join:", " }}.{% endfor %} The step is back with you.{% endif %}
+        {% elif trigger == "changes_lapsed" %}
+            The changes requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} were not submitted by their due date. The step is back with you.
+        {% elif trigger == "contribution_reopened" %}
+            Your contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been reopened. Please revise and submit it again.
+            {% if message %}<br><br>{{ message|linebreaksbr }}{% endif %}
+        {% elif trigger == "contribution_submitted" %}
+            A contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been submitted.{% if counts %} {{ counts.submitted }} of {{ counts.expected }} submitted so far.{% endif %}
         {% endif %}
         </p>
 
+        {% if project_url %}
         <p>
-            You can view the proposal here:<br>
+            The project granted to it is "{{ project_name }}":<br>
+            <a href="{{ project_url }}">{{ project_url }}</a>
+        </p>
+        {% endif %}
+
+        <p>
+            You can view the {% if names_calls %}proposal{% else %}access request{% endif %} here:<br>
             <a href="{{ proposal_url }}">{{ proposal_url }}</a>
         </p>
 

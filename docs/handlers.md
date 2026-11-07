@@ -398,12 +398,12 @@ td:nth-child(4) {
 | `log_profile_event` | `Django Signal (pre_save)` | `waldur_freeipa.Profile` | Log FreeIPA profile creation, enable, and disable events. |
 | `schedule_ssh_key_sync_when_key_is_created` | `Django Signal (post_save)` | `core.SshPublicKey` | Schedule an SSH key synchronization task when a key is created. |
 | `schedule_ssh_key_sync_when_key_is_deleted` | `Django Signal (pre_delete)` | `core.SshPublicKey` | Schedule an SSH key synchronization task when a key is deleted. |
-| `schedule_sync` | `Django Signal (post_save)` | `structure.Customer` | Schedule a synchronization task. |
-| `schedule_sync` | `Django Signal (post_save)` | `structure.Project` | Schedule a synchronization task. |
-| `schedule_sync` | `Django Signal (pre_delete)` | `structure.Customer` | Schedule a synchronization task. |
-| `schedule_sync` | `Django Signal (pre_delete)` | `structure.Project` | Schedule a synchronization task. |
-| `schedule_sync` | `Custom Signal (role_granted)` | `—` | Schedule a synchronization task. |
-| `schedule_sync` | `Custom Signal (role_revoked)` | `—` | Schedule a synchronization task. |
+| `schedule_sync` | `Django Signal (post_save)` | `structure.Customer` | Schedule a synchronization task, unless side effects are switched |
+| `schedule_sync` | `Django Signal (post_save)` | `structure.Project` | Schedule a synchronization task, unless side effects are switched |
+| `schedule_sync` | `Django Signal (pre_delete)` | `structure.Customer` | Schedule a synchronization task, unless side effects are switched |
+| `schedule_sync` | `Django Signal (pre_delete)` | `structure.Project` | Schedule a synchronization task, unless side effects are switched |
+| `schedule_sync` | `Custom Signal (role_granted)` | `—` | Schedule a synchronization task, unless side effects are switched |
+| `schedule_sync` | `Custom Signal (role_revoked)` | `—` | Schedule a synchronization task, unless side effects are switched |
 | `schedule_sync_on_quota_change` | `Django Signal (post_save)` | `quotas.QuotaLimit` | Schedule a synchronization task when a quota is changed. |
 | `update_user` | `Django Signal (post_save)` | `core.User` | Update a user's FreeIPA profile when their user account is updated. |
 
@@ -417,6 +417,9 @@ td:nth-child(4) {
 
 | Handler Name | Signal Type | Sender | Description |
 |--------------|-------------|--------|-------------|
+| `_record` | `Django Signal (post_save)` | `logging.EmailLog` | No description |
+| `add_award` | `Custom Signal (pre_serializer_fields)` | `OrderDetailsSerializer` | No description |
+| `add_awarded_proposal` | `Custom Signal (pre_serializer_fields)` | `ProjectSerializer` | No description |
 | `add_call_managing_organization_uuid` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a call managing organization UUID field to the serializer. |
 | `add_customer_credit` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a customer credit field to the serializer. |
 | `add_customer_unallocated_credit` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a customer unallocated credit field to the serializer. |
@@ -474,6 +477,8 @@ td:nth-child(4) {
 | `add_service_provider_uuid` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a service provider UUID field to the serializer. |
 | `apply_campaign_to_pending_invoices` | `Django Signal (post_save)` | `promotions.Campaign` | Apply campaign discounts to pending invoices and create discounted resources. |
 | `archive_offering` | `Django Signal (pre_delete)` | `openstack.Tenant` | Archive marketplace offerings when OpenStack tenant is deleted. |
+| `attach_assignment_contribution` | `Django Signal (post_save)` | `proposal.AssignmentItem` | Link an accepted assignment to its review's contribution. |
+| `attach_review_contribution` | `Django Signal (post_save)` | `proposal.Review` | Give every review a contribution on the step that collects reviews. |
 | `backfill_project_groups_when_enabled` | `Django Signal (post_save)` | `marketplace.ServiceProvider` | Create the groups of projects already using the provider when switched on. |
 | `backfill_project_groups_when_pool_saved` | `Django Signal (post_save)` | `marketplace.PosixIdPool` | Number the provider's groups whenever the pool may be able to. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | Change the state of an order based on resource state changes. |
@@ -485,7 +490,7 @@ td:nth-child(4) {
 | `change_order_state` | `Django Signal (post_save)` | `waldur_vmware.VirtualMachine` | Change the state of an order based on resource state changes. |
 | `cleanup_admin_announcement_on_maintenance_deletion` | `Django Signal (pre_delete)` | `marketplace.MaintenanceAnnouncement` | Ensure AdminAnnouncement is cleaned up when MaintenanceAnnouncement is deleted. |
 | `cleanup_agent_identity_queue` | `Django Signal (pre_delete)` | `marketplace_site_agent.AgentIdentity` | Delete the linked EventConsumer when an AgentIdentity is deleted. |
-| `clear_panel_chair_on_role_revoked` | `Custom Signal (role_revoked)` | `—` | Drop ``Call.panel_chair`` when the chair loses the panel member role. |
+| `clear_panel_chair_on_role_revoked` | `Custom Signal (role_revoked)` | `—` | Drop ``Call.panel_chair`` or ``Call.panel_vice_chair`` when its holder |
 | `close_course_accounts_after_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `close_customer_service_accounts_on_customer_deletion` | `Django Signal (pre_delete)` | `structure.Customer` | Close service accounts associated with a customer when the customer is deleted. |
 | `close_resource_plan_period_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Handle case when resource has been terminated by service provider. |
@@ -526,6 +531,7 @@ td:nth-child(4) {
 | `customer_credit_offerings_list_changed_handler` | `Django Signal (m2m_changed)` | `CustomerCredit_offerings` | Re-evaluate the cost policies of the organizations owning the credits |
 | `customer_estimated_cost_policy_trigger_handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Evaluate customer cost policies when invoice items are updated. |
 | `delete_checklist_completion` | `Django Signal (pre_delete)` | `proposal.Proposal` | Remove checklist completion tracking when proposal is deleted. |
+| `delete_contribution_completions` | `Django Signal (pre_delete)` | `proposal.StepContribution` | Remove the answers kept for a contribution along with it. |
 | `delete_expired_project_if_every_resource_has_been_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Schedule deletion of an expired project once its last resource is terminated. |
 | `delete_offering_component_for_volume_type` | `Django Signal (post_delete)` | `openstack.VolumeType` | No description |
 | `delete_offering_user_checklist_completions` | `Django Signal (pre_delete)` | `marketplace.OfferingUser` | Delete related checklist completions when OfferingUser is deleted. |
@@ -546,12 +552,17 @@ td:nth-child(4) {
 | `enable_service_settings_when_not_archived` | `Django Signal (post_save)` | `marketplace.Offering` | Enable service settings when an offering is not archived. |
 | `enable_service_settings_with_existing_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Enable service settings if there are existing resources. |
 | `encrypt_secret_options_on_raw_save` | `Django Signal (pre_save)` | `marketplace.Offering` | Encrypt secret_options on a raw save (django-reversion revert, loaddata). |
+| `end_evaluation_on_joining_team` | `Custom Signal (role_granted)` | `—` | Whoever joins a proposal's applicant team stops evaluating it. |
+| `end_evaluator_roles_on_call_role_revoked` | `Custom Signal (role_revoked)` | `—` | Whoever loses a role on a call -- taken away, or lapsed and swept by |
+| `end_evaluator_roles_on_chair_change` | `Django Signal (post_save)` | `proposal.CallPanel` | A panel's chair replaced, or cleared, loses the roles held as its |
+| `end_evaluator_roles_on_leaving_panel` | `Django Signal (m2m_changed)` | `CallPanel_members` | Whoever is taken off a call's panel loses the evaluator roles they |
 | `evaluate_usage_limit_on_component_change` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Re-evaluate an offering's resources when a component's limit_amount changes. |
 | `evaluate_usage_limit_on_daily_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentDailyUsage` | Re-evaluate a resource with spending limits when a day's usage changes. |
 | `evaluate_usage_limit_on_resource_limit_change` | `Django Signal (post_save)` | `marketplace.Resource` | Re-evaluate a resource's usage-limit restriction when its limits change. |
 | `evaluate_usage_limit_on_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Pause or downscale a resource when reported usage reaches a component limit. |
 | `forward_attachment_to_children` | `Django Signal (post_save)` | `support.Attachment` | Forward new attachments from parent issues to child issues. |
 | `forward_comment_to_children` | `Django Signal (post_save)` | `support.Comment` | Forward new public comments from parent issues to child issues. |
+| `grant_role_on_acceptance` | `Django Signal (post_save)` | `proposal.CallReviewerPool` | An accepted pool entry gives its reviewer the call's reviewer role. |
 | `handle_openstack_tenant_order_creation` | `Django Signal (post_save)` | `marketplace.Order` | No description |
 | `handle_openstack_tenant_order_termination` | `Django Signal (post_save)` | `marketplace.Order` | No description |
 | `handle_user_role_revoked` | `Custom Signal (role_revoked)` | `—` | Handle user role revocation by removing users from robot accounts |
@@ -563,6 +574,8 @@ td:nth-child(4) {
 | `import_resource_metadata_when_resource_is_created` | `Django Signal (post_save)` | `marketplace.Resource` | Import OpenStack resource metadata when marketplace resource is created |
 | `import_usage_on_tenant_quotas_pulled` | `Custom Signal (tenant_quotas_pulled)` | `openstack.Tenant` | No description |
 | `init_resource_parent` | `Django Signal (post_save)` | `marketplace.Resource` | Initialize the parent resource for a newly created resource. |
+| `join_pool_on_role_grant` | `Custom Signal (role_granted)` | `—` | Whoever is given the call's reviewer role is in its pool, accepted. |
+| `leave_pool_on_role_revoke` | `Custom Signal (role_revoked)` | `—` | Whoever loses the call's reviewer role is no longer an accepted member |
 | `lift_slurm_actions_upon_policy_deletion` | `Django Signal (post_delete)` | `policy.SlurmPeriodicUsagePolicy` | Lift the pause and downscale a deleted SLURM policy held. |
 | `limit_update_failed` | `Custom Signal (resource_limit_update_failed)` | `marketplace.Resource` | Handle failed limit updates. |
 | `limit_update_succeeded` | `Custom Signal (resource_limit_update_succeeded)` | `marketplace.Resource` | Handle successful limit updates. |
@@ -607,6 +620,11 @@ td:nth-child(4) {
 | `notify_approvers_when_order_is_created` | `Django Signal (post_save)` | `marketplace.Order` | Notify approvers when an order is created. |
 | `notify_offering_user_about_tos_requirement` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Notify user about ToS requirement when OfferingUser is created. |
 | `notify_owners_about_invoice_emails_change` | `Django Signal (post_save)` | `structure.Customer` | Owners stop getting invoices once invoice emails are set, so tell them. |
+| `notify_provider_about_changed_terms` | `Django Signal (post_save)` | `proposal.CallOfferingComponent` | The call changed a limit or a pool of an offering its provider has |
+| `notify_provider_about_changed_terms` | `Django Signal (post_save)` | `proposal.CallResourcePool` | The call changed a limit or a pool of an offering its provider has |
+| `notify_provider_about_changed_terms` | `Django Signal (post_delete)` | `proposal.CallOfferingComponent` | The call changed a limit or a pool of an offering its provider has |
+| `notify_provider_about_changed_terms` | `Django Signal (post_delete)` | `proposal.CallResourcePool` | The call changed a limit or a pool of an offering its provider has |
+| `notify_provider_about_offering_request` | `Django Signal (post_save)` | `proposal.RequestedOffering` | A call asks to include an offering: tell its provider side, once the |
 | `notify_recipients_when_order_needs_no_consumer_approval` | `Django Signal (post_save)` | `marketplace.Order` | Notify the offering's configured recipients about an order needing no consumer review. |
 | `notify_user_about_rejected_order` | `Django Signal (post_save)` | `marketplace.Order` | Notify user about rejected order. |
 | `notify_users_about_tos_update_signal` | `Django Signal (post_save)` | `marketplace.OfferingTermsOfService` | Notify users when ToS is updated and requires re-consent. |
@@ -650,6 +668,7 @@ td:nth-child(4) {
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingUserGroup` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingRoleGroup` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_provider_project_group_gid` | `Django Signal (post_delete)` | `marketplace.ServiceProviderProjectGroup` | Release a deleted project group's GID, never to be recycled. |
+| `remember_panel_chair` | `Django Signal (pre_save)` | `proposal.CallPanel` | Note the chair a panel had before it is saved, for |
 | `request_offering_user_deletion_when_project_access_lost` | `Custom Signal (role_revoked)` | `—` | Schedule task to request offering user deletion when project access is lost. |
 | `resource_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource changes. |
 | `resource_options_have_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle script execution when marketplace resource options are changed. |
@@ -661,7 +680,7 @@ td:nth-child(4) {
 | `schedule_component_usage_billing` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Thin post_save handler — schedules the async billing+policy task on commit. |
 | `seed_project_role_mappings` | `Django Signal (post_save)` | `proposal.Call` | Give a new call the default proposal-to-project role mappings. |
 | `seed_proposal_field_config` | `Django Signal (post_save)` | `proposal.Call` | Materialise a call's Project details field configuration at creation. |
-| `seed_workflow_steps` | `Django Signal (post_save)` | `proposal.Call` | Seed catalog workflow steps on call creation. |
+| `seed_workflow_steps` | `Django Signal (post_save)` | `proposal.Call` | Seed the default workflow steps on call creation, in order. |
 | `send_comment_added_notification` | `Django Signal (post_save)` | `support.Comment` | No description |
 | `send_course_account_deletion_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
 | `send_course_account_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
@@ -690,6 +709,8 @@ td:nth-child(4) {
 | `set_mtu_when_network_has_been_created` | `Django Signal (post_save)` | `openstack.Network` | No description |
 | `set_project_name_on_invoice_item_creation` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
 | `set_tax_percent_on_invoice_creation` | `Django Signal (pre_save)` | `invoices.Invoice` | No description |
+| `settle_slots_on_call_role_revoked` | `Custom Signal (role_revoked)` | `—` | Whoever loses a role on a call -- taken away, or lapsed and swept by |
+| `settle_slots_on_conflict` | `Django Signal (post_save)` | `proposal.ConflictOfInterest` | Settle the conflicted person's slots on the proposal's steps of an |
 | `soft_delete_resource_projects_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Cascade Resource → TERMINATED into a soft-delete of its child ResourceProjects. |
 | `switch_resource_plan_period_when_plan_is_updated` | `Django Signal (post_save)` | `marketplace.Resource` | Switch the resource plan period when a resource's plan is updated. |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_openportal.AllocationUserUsage` | No description |
@@ -853,7 +874,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 769
+Total unique handlers found: 790
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -861,7 +882,7 @@ Total unique handlers found: 769
 - **waldur_core**: 348 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 357 handlers
+- **waldur_mastermind**: 378 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers

@@ -344,6 +344,7 @@
 
 - proposal_applicant_responded
 - proposal_automatic_decision_deferred
+- proposal_award_changed
 - proposal_budget_overridden
 - proposal_canceled
 - proposal_change_request_closed
@@ -351,12 +352,14 @@
 - proposal_changes_submitted
 - proposal_contribution_reopened
 - proposal_contribution_submitted
+- proposal_created
 - proposal_decision_held
 - proposal_decision_published
 - proposal_decision_reopened
 - proposal_document_added
 - proposal_document_removed
 - proposal_draft_carried_over
+- proposal_edited_for_applicant
 - proposal_evaluator_assigned
 - proposal_evaluator_revoked
 - proposal_notification_sent

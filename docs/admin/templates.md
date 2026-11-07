@@ -3383,8 +3383,9 @@ New limits: {{ new_limits }}.
     <p>This offering is now available for selection in proposals submitted to this call.</p>
     {% endif %}
 
-    {% if decision == "canceled" %}
-    <p>You may need to look for alternative offerings or contact the provider directly for more information about their decision.</p>
+    {% if decision == "rejected" %}
+    {% if reason %}<p>The provider gave this reason:</p><blockquote>{{ reason }}</blockquote>{% endif %}
+    <p>You may need to look for alternative offerings.</p>
     {% endif %}
 
     <p>You can view the call details and manage offerings by visiting:<br>
@@ -3401,6 +3402,26 @@ New limits: {{ new_limits }}.
 ```txt
 
 Access request update: {{ proposal_name }} - {{ new_state }}
+
+```
+
+### call_offering_terms_changed_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Hello,
+
+{{ changed_by }} changed what call "{{ call_name }}" asks of your offering "{{ offering_name }}", which you accepted into the call. The terms now:
+{% for rule in rules %}
+- {{ rule.component_type }}: {% if rule.min_per_proposal is not None %}at least {{ rule.min_per_proposal }}{% endif %}{% if rule.max_per_proposal is not None %} at most {{ rule.max_per_proposal }}{% endif %}{% if rule.default_amount is not None %}, {{ rule.default_amount }} by default{% endif %} per proposal
+{% endfor %}{% for pool in pools %}
+- {{ pool.component_type }}: {{ pool.offered_total }} in all{% if pool.round_name %} in round {{ pool.round_name }}{% endif %}
+{% endfor %}
+If the call now asks more than your offering can give, contact the call's managers.
+
+Your calls: {{ calls_url }}
+
+This is an automated message from {{ site_name }}.
 
 ```
 
@@ -3456,6 +3477,31 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 
 ```
 
+### proposal_role_assigned_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Dear {{ holder_name }},</p>
+
+<p>You have been assigned as <strong>{{ role_name }}</strong>{% if is_lead %} (lead){% endif %} for the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>".</p>
+{% if coi_confirmation_required %}
+<p>Before the proposal opens to you, please confirm that you have no conflict of interest with it.</p>
+{% endif %}
+<p>Open the proposal:</p>
+
+<a href="{{ proposal_url }}">{{ proposal_url }}</a>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>
+
+```
+
 ### proposal_submission_deadline_approaching_message.txt (waldur_mastermind.proposal)
 
 ```txt
@@ -3497,7 +3543,7 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 <p><strong>Proposal details:</strong></p>
 <ul>
     <li><strong>Proposal name:</strong> {{ proposal_name }}</li>
-    <li><strong>Submitted by:</strong> {{ proposal_creator_name }}</li>
+    {% if proposal_creator_name %}<li><strong>Submitted by:</strong> {{ proposal_creator_name }}</li>{% endif %}
     <li><strong>Date submitted:</strong> {{ submission_date }}</li>
     <li><strong>Review deadline:</strong> {{ review_deadline }}</li>
 </ul>
@@ -3670,6 +3716,53 @@ This is an automated message from {{ site_name }}. Please do not reply to this e
 
 ```
 
+### round_report_requested_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Round report requested</title>
+</head>
+<body>
+    <p>Dear evaluator,</p>
+
+    {% if days_left %}
+    <p>Your round report for the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" is due in {{ days_left }} day{{ days_left|pluralize }} and has not been submitted yet.</p>
+    {% else %}
+    <p>The step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" has been opened for the round. You are asked for one round report covering the {{ proposals_count }} proposal{{ proposals_count|pluralize }} you hold this step for.</p>
+    {% endif %}
+
+    {% if due_at %}<p>The report is due on {{ due_at }}.</p>{% endif %}
+
+    <p>You can write and submit the report here: <a href="{{ report_url }}">{{ report_url }}</a></p>
+
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>
+
+```
+
+### round_step_opened_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear call manager,
+
+{{ opened_by }} opened the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" for the round. {{ proposals_count }} proposal{{ proposals_count|pluralize }} stand{{ proposals_count|pluralize:"s," }} at the step, and {{ reports_count }} round report{{ reports_count|pluralize }} {{ reports_count|pluralize:"was,were" }} asked for.
+{% if due_at %}
+The step is due on {{ due_at }}.
+{% endif %}
+You can follow the round here:
+{{ round_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
 ### assignment_batch_expired_subject.txt (waldur_mastermind.proposal)
 
 ```txt
@@ -3721,6 +3814,43 @@ Decision made: Proposal {{ proposal_state }} - {{ proposal_name }}
     </p>
 </body>
 </html>
+
+```
+
+### proposal_withdrawn_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear call manager,</p>
+    <p>
+        {{ withdrawn_by }} withdrew the proposal "{{ proposal_name }}" from evaluation in the call "{{ call_name }}", round "{{ round_name }}".
+        {% if reason %}<br>Reason given: {{ reason }}{% endif %}
+    </p>
+    <p>
+        Its unfinished steps were skipped, reviews still being written were closed and unanswered review assignments lapsed. Nothing is left to do on it.
+    </p>
+    <p>
+        You can view the proposal here:<br>
+        <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+    </p>
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>
+
+```
+
+### access_request_submission_deadline_approaching_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Reminder: submit your access request {{ proposal_name }}
 
 ```
 
@@ -3796,6 +3926,50 @@ Decision made: Proposal {{ proposal_state }} - {{ proposal_name }}
 
 ```
 
+### offering_round_opened_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Hello,
+
+Round "{{ round_name }}" of call "{{ call_name }}" has opened. The call takes in your offering "{{ offering_name }}", and closes for submissions on {{ cutoff }}.
+{% if team_steps %}
+Your offering's team acts in these steps of the call: {{ team_steps }}. You will be asked once proposals reach them.
+{% endif %}
+Your calls: {{ calls_url }}
+
+This is an automated message from {{ site_name }}.
+
+```
+
+### contribution_delegated_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear {{ recipient_name }},
+{% if event == "delegated" %}
+{{ actor_name }} handed you "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}".{% if due_at %} It is due on {{ due_at }}.{% endif %}
+
+Open the proposal to accept or decline it:
+{% elif event == "accepted" %}
+{{ actor_name }} accepted "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you handed to them.
+
+Open the proposal:
+{% elif event == "declined" %}
+{{ actor_name }} declined "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you handed to them. It is yours again: write it, or hand it to someone else.
+
+Open the proposal:
+{% else %}
+{{ actor_name }} took back "{{ step_name }}"{% if offering_name %} for {{ offering_name }}{% endif %} on the proposal "{{ proposal_name }}" in call "{{ call_name }}"; it is no longer yours to write.
+
+The proposal:
+{% endif %}
+{{ proposal_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
 ### proposal_cancelled_message.txt (waldur_mastermind.proposal)
 
 ```txt
@@ -3833,26 +4007,49 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 
     <p>
     {% if trigger == "deadline_approaching" %}
-        The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.
+        The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.
         {% if is_applicant %}Please respond before the deadline.{% else %}Please complete the step or follow up before it expires.{% endif %}
     {% elif trigger == "step_started" %}
-        The "{{ step_name }}" step has started for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").
+        The "{{ step_name }}" step has started for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
         {% if deadline %}It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
     {% elif trigger == "step_completed" %}
-        The "{{ step_name }}" step has been completed for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").
+        The "{{ step_name }}" step has been completed for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
         {% if outcome %}Outcome: {{ outcome }}.{% endif %}
         {% if outcome_reason %}<br>Reason: {{ outcome_reason }}{% endif %}
     {% elif trigger == "step_rejected" %}
-        Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") was rejected at the "{{ step_name }}" step.
+        {% if names_calls %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}Access request "{{ proposal_name }}"{% endif %} was rejected at the "{{ step_name }}" step.
         {% if outcome_reason %}<br>Reason: {{ outcome_reason }}{% endif %}
     {% elif trigger == "step_expired" %}
-        The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") has expired without being completed.
+        The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has expired without being completed.
         {% if not is_applicant %}Please follow up so the workflow can continue.{% endif %}
+    {% elif trigger == "changes_requested" %}
+        Changes have been requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
+        {% if message %}<br><br>{{ message|linebreaksbr }}{% endif %}
+        {% if unlocked_parts %}<br><br>You may now edit: {{ unlocked_parts|join:", " }}.{% endif %}
+        {% if due_at %}Please submit the changes by {{ due_at|date:"Y-m-d" }}.{% else %}Please submit the changes once they are made.{% endif %}
+    {% elif trigger == "changes_submitted" %}
+        {% if submitted_requests|length > 1 %}The changes requested at the steps {% for request in submitted_requests %}"{{ request.step_name }}"{% if not forloop.last %}, {% endif %}{% endfor %} have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.
+        <ul>{% for request in submitted_requests %}<li>{{ request.step_name }}: {{ request.unlocked_parts|join:", " }}</li>{% endfor %}</ul>
+        The steps are back with you.{% else %}The changes requested at the "{{ step_name }}" step have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% for request in submitted_requests %} Changed: {{ request.unlocked_parts|join:", " }}.{% endfor %} The step is back with you.{% endif %}
+    {% elif trigger == "changes_lapsed" %}
+        The changes requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} were not submitted by their due date. The step is back with you.
+    {% elif trigger == "contribution_reopened" %}
+        Your contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been reopened. Please revise and submit it again.
+        {% if message %}<br><br>{{ message|linebreaksbr }}{% endif %}
+    {% elif trigger == "contribution_submitted" %}
+        A contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been submitted.{% if counts %} {{ counts.submitted }} of {{ counts.expected }} submitted so far.{% endif %}
     {% endif %}
     </p>
 
+    {% if project_url %}
     <p>
-        You can view the proposal here:<br>
+        The project granted to it is "{{ project_name }}":<br>
+        <a href="{{ project_url }}">{{ project_url }}</a>
+    </p>
+    {% endif %}
+
+    <p>
+        You can view the {% if names_calls %}proposal{% else %}access request{% endif %} here:<br>
         <a href="{{ proposal_url }}">{{ proposal_url }}</a>
     </p>
 
@@ -3919,11 +4116,77 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 
 ```
 
+### contribution_delegated_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+{% if event == "delegated" %}{{ step_name }} of proposal {{ proposal_name }} is handed to you{% elif event == "accepted" %}{{ actor_name }} accepted {{ step_name }} of proposal {{ proposal_name }}{% elif event == "declined" %}{{ actor_name }} declined {{ step_name }} of proposal {{ proposal_name }}{% else %}{{ step_name }} of proposal {{ proposal_name }} is no longer yours{% endif %}
+
+```
+
+### award_provision_failed_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear call manager,
+
+Allocation could not order the item on "{{ offering_name }}" awarded to proposal "{{ proposal_name }}" of call "{{ call_name }}":
+
+{{ error }}
+
+Once the provider has fixed it, order the item again from the proposal's award:
+{{ proposal_url }}
+
+This is an automated message from {{ site_name }}.
+
+```
+
 ### new_proposal_submitted_subject.txt (waldur_mastermind.proposal)
 
 ```txt
 
 New proposal submitted: {{ proposal_name }}
+
+```
+
+### access_request_cancelled_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear {{ proposal_creator_name }},
+
+Your access request "{{ proposal_name }}" has been canceled: it was still a draft when its submission period ended ({{ cancellation_date }}).
+
+A request is reviewed only once it has been submitted. You can still view it here:
+{{ proposal_url }}
+
+To ask for the service again, request it from its offering page.
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+### proposal_manager_message_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    {{ body|linebreaks }}
+
+    <p>
+        Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
+        <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+    </p>
+
+    <p>
+        This message was sent by the call manager through {{ site_name }}.
+    </p>
+</body>
+</html>
 
 ```
 
@@ -3987,13 +4250,25 @@ This is an automated message from {{ site_name }}. Please do not reply to this e
 
 ```
 
+### proposal_manager_message_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+{{ subject }}
+
+```
+
 ### reviewer_invitation_message.txt (waldur_mastermind.proposal)
 
 ```txt
 
 You have been invited by {{ invited_by_name }} to join the reviewer pool for the call "{{ call_name }}" on {{ site_name }}.
 
-To accept or decline this invitation, please follow the link below:
+{% if invitation_message %}Their message:
+
+{{ invitation_message }}
+
+{% endif %}To accept or decline this invitation, please follow the link below:
 
 {{ invitation_link }}
 
@@ -4108,6 +4383,39 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 
 ```
 
+### round_results_adopted_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Results adopted: {{ round_name }} - {{ call_name }}
+
+```
+
+### offering_team_digest_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Your offering teams' open work{% if new_count %}: {{ new_count }} new{% endif %}{% if overdue_count %}, {{ overdue_count }} overdue{% endif %}
+
+```
+
+### round_results_adopted_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear call manager,
+
+The results of the round "{{ round_name }}" of the call "{{ call_name }}" were adopted on {{ adopted_at }}. {{ recorded_by }} recorded the adoption.
+
+The round's results can now be published to the applicants.
+
+You can view the round here:
+{{ round_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
 ### reviews_complete_subject.txt (waldur_mastermind.proposal)
 
 ```txt
@@ -4150,11 +4458,99 @@ All reviews complete for proposal: {{ proposal_name }}
 
 ```
 
+### award_provision_failed_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+{{ proposal_name }}: an awarded item could not be ordered
+
+```
+
 ### round_closing_for_managers_subject.txt (waldur_mastermind.proposal)
 
 ```txt
 
 Round closed: {{ round_name }} - {{ call_name }}
+
+```
+
+### round_report_requested_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+{% if days_left %}Round report due in {{ days_left }} day{{ days_left|pluralize }}{% else %}Round report requested{% endif %}: {{ step_name }} - {{ call_name }}
+
+```
+
+### requested_offering_created_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Hello,
+
+{{ call_managing_organisation }} asks to include the offering "{{ offering_name }}" of {{ provider_name }} in the call "{{ call_name }}".{% if requested_by %} The request was made by {{ requested_by }}.{% endif %}
+{% if message %}
+Their message:
+{{ message }}
+{% endif %}
+Accept or reject the request:
+{{ requests_url }}
+{% if team_steps %}
+The call's workflow hands work to the offering's team in these steps: {{ team_steps }}. The offering's managers do it; the call cannot invite them.
+{% if needs_offering_managers %}
+The offering has no offering manager yet, so nobody could do that work. Add offering managers on the offering's Team tab:
+{{ team_url }}
+{% endif %}{% endif %}
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+### access_request_draft_carried_over_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear {{ proposal_creator_name }},</p>
+    <p>Your access request "{{ proposal_name }}" was still a draft when its submission period ended. It has not been canceled: it moved on, unchanged, to the next review period.</p>
+    <ul>
+        <li>Submissions open: {{ round_start_date }}</li>
+        <li>Submit by: {{ deadline_date }}</li>
+    </ul>
+    <p>Submit it to have it reviewed: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+</body>
+</html>
+
+```
+
+### call_offering_terms_changed_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+{{ call_name }} changed its terms for {{ offering_name }}
+
+```
+
+### access_request_submission_deadline_approaching_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear {{ proposal_creator_name }},</p>
+    <p>Your access request "{{ proposal_name }}" is still a draft. Submit it by {{ deadline_date }} ({{ time_remaining_days }} days {{ time_remaining_hours }} hours from now) to have it reviewed.</p>
+    <p>Complete and submit the request: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+    <p>{% if draft_carries_over %}A request still in draft after that date stays a draft and can be submitted for the next review period.{% else %}A request still in draft after that date is canceled.{% endif %}</p>
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+</body>
+</html>
 
 ```
 
@@ -4191,6 +4587,13 @@ Round closed: {{ round_name }} - {{ call_name }}
         <strong>{{ r.reviewer_name }}</strong>
         &nbsp;-&nbsp;{{ r.score }}/5
         &nbsp;-&nbsp;{{ r.submitted_at|date:"Y-m-d H:i" }}
+        {% if r.criteria %}
+        <ul>
+          {% for c in r.criteria %}
+          <li>{{ c.name }}: {% if c.score %}{{ c.score }}/5{% else %}not rated{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
       </li>
       {% empty %}
       <li>No individual reviews available.</li>
@@ -4238,21 +4641,63 @@ Round closed: {{ round_name }} - {{ call_name }}
 
 ```
 
+### round_step_opened_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Step opened for the round</title>
+</head>
+<body>
+    <p>Dear call manager,</p>
+
+    <p>{{ opened_by }} opened the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" for the round. {{ proposals_count }} proposal{{ proposals_count|pluralize }} stand{{ proposals_count|pluralize:"s," }} at the step, and {{ reports_count }} round report{{ reports_count|pluralize }} {{ reports_count|pluralize:"was,were" }} asked for.</p>
+
+    {% if due_at %}<p>The step is due on {{ due_at }}.</p>{% endif %}
+
+    <p>You can follow the round here: <a href="{{ round_url }}">{{ round_url }}</a></p>
+
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>
+
+```
+
 ### workflow_step_event_message.txt (waldur_mastermind.proposal)
 
 ```txt
 
 Dear {% if is_applicant %}applicant{% else %}colleague{% endif %},
 
-{% if trigger == "deadline_approaching" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.{% if is_applicant %} Please respond before the deadline.{% else %} Please complete the step or follow up before it expires.{% endif %}
-{% elif trigger == "step_started" %}The "{{ step_name }}" step has started for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if deadline %} It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
-{% elif trigger == "step_completed" %}The "{{ step_name }}" step has been completed for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if outcome %} Outcome: {{ outcome }}.{% endif %}{% if outcome_reason %}
+{% if trigger == "deadline_approaching" %}The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.{% if is_applicant %} Please respond before the deadline.{% else %} Please complete the step or follow up before it expires.{% endif %}
+{% elif trigger == "step_started" %}The "{{ step_name }}" step has started for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if deadline %} It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
+{% elif trigger == "step_completed" %}The "{{ step_name }}" step has been completed for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if outcome %} Outcome: {{ outcome }}.{% endif %}{% if outcome_reason %}
 Reason: {{ outcome_reason }}{% endif %}
-{% elif trigger == "step_rejected" %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") was rejected at the "{{ step_name }}" step.{% if outcome_reason %}
+{% elif trigger == "step_rejected" %}{% if names_calls %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}Access request "{{ proposal_name }}"{% endif %} was rejected at the "{{ step_name }}" step.{% if outcome_reason %}
 Reason: {{ outcome_reason }}{% endif %}
-{% elif trigger == "step_expired" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") has expired without being completed.{% if not is_applicant %} Please follow up so the workflow can continue.{% endif %}
+{% elif trigger == "step_expired" %}The "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has expired without being completed.{% if not is_applicant %} Please follow up so the workflow can continue.{% endif %}
+{% elif trigger == "changes_requested" %}Changes have been requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% if message %}
+
+{{ message }}{% endif %}{% if unlocked_parts %}
+
+You may now edit: {{ unlocked_parts|join:", " }}.{% endif %}{% if due_at %} Please submit the changes by {{ due_at|date:"Y-m-d" }}.{% else %} Please submit the changes once they are made.{% endif %}
+{% elif trigger == "changes_submitted" %}{% if submitted_requests|length > 1 %}The changes requested at the steps {% for request in submitted_requests %}"{{ request.step_name }}"{% if not forloop.last %}, {% endif %}{% endfor %} have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}:
+{% for request in submitted_requests %}- {{ request.step_name }}: {{ request.unlocked_parts|join:", " }}
+{% endfor %}The steps are back with you.{% else %}The changes requested at the "{{ step_name }}" step have been submitted for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %}.{% for request in submitted_requests %} Changed: {{ request.unlocked_parts|join:", " }}.{% endfor %} The step is back with you.{% endif %}
+{% elif trigger == "changes_lapsed" %}The changes requested at the "{{ step_name }}" step to {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} were not submitted by their due date. The step is back with you.
+{% elif trigger == "contribution_reopened" %}Your contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been reopened. Please revise and submit it again.{% if message %}
+
+{{ message }}{% endif %}
+{% elif trigger == "contribution_submitted" %}A contribution to the "{{ step_name }}" step for {% if names_calls %}proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}"){% else %}access request "{{ proposal_name }}"{% endif %} has been submitted.{% if counts %} {{ counts.submitted }} of {{ counts.expected }} submitted so far.{% endif %}
+{% endif %}{% if project_url %}
+The project granted to it is "{{ project_name }}":
+{{ project_url }}
 {% endif %}
-You can view the proposal here:
+You can view the {% if names_calls %}proposal{% else %}access request{% endif %} here:
 {{ proposal_url }}
 
 This is an automated message from the {{ site_name }}. Please do not reply to this email.
@@ -4323,13 +4768,69 @@ Review summary:
 
 Review details:
 {% for r in reviews %}{{ forloop.counter }}. {{ r.reviewer_name }} - {{ r.score }}/5 - {{ r.submitted_at|date:"Y-m-d H:i" }}
-{% empty %}No individual reviews available.
+{% for c in r.criteria %}   - {{ c.name }}: {% if c.score %}{{ c.score }}/5{% else %}not rated{% endif %}
+{% endfor %}{% empty %}No individual reviews available.
 {% endfor %}
 ACTION REQUIRED: Please review the evaluation and make a decision on this proposal.
 
 Review & decide: {{ proposal_url }}
 
 This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+### award_provision_failed_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<body>
+    <p>Dear call manager,</p>
+    <p>Allocation could not order the item on "<strong>{{ offering_name }}</strong>" awarded to proposal "<strong>{{ proposal_name }}</strong>" of call "<strong>{{ call_name }}</strong>":</p>
+    <p>{{ error }}</p>
+    <p>Once the provider has fixed it, order the item again from the proposal's award: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+    <p><em>This is an automated message from {{ site_name }}.</em></p>
+</body>
+</html>
+
+```
+
+### proposal_role_assigned_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+You are {{ role_name }} for proposal {{ proposal_name }}
+
+```
+
+### contribution_delegated_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Dear {{ recipient_name }},</p>
+{% if event == "delegated" %}
+<p>{{ actor_name }} handed you "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>".{% if due_at %} It is due on {{ due_at }}.{% endif %}</p>
+<p>Open the proposal to accept or decline it:</p>
+{% elif event == "accepted" %}
+<p>{{ actor_name }} accepted "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>" that you handed to them.</p>
+<p>Open the proposal:</p>
+{% elif event == "declined" %}
+<p>{{ actor_name }} declined "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>" that you handed to them. It is yours again: write it, or hand it to someone else.</p>
+<p>Open the proposal:</p>
+{% else %}
+<p>{{ actor_name }} took back "<strong>{{ step_name }}</strong>"{% if offering_name %} for <strong>{{ offering_name }}</strong>{% endif %} on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>"; it is no longer yours to write.</p>
+<p>The proposal:</p>
+{% endif %}
+<a href="{{ proposal_url }}">{{ proposal_url }}</a>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>
 
 ```
 
@@ -4349,12 +4850,23 @@ Offering details:
 
 {% if decision == "accepted" %}This offering is now available for selection in proposals submitted to this call.{% endif %}
 
-{% if decision == "canceled" %}You may need to look for alternative offerings or contact the provider directly for more information about their decision.{% endif %}
+{% if decision == "rejected" %}{% if reason %}The provider gave this reason:
+{{ reason }}
+
+{% endif %}You may need to look for alternative offerings.{% endif %}
 
 You can view the call details and manage offerings by visiting:
 {{ call_url }}
 
 This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+### requested_offering_created_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Call {{ call_name }} requests your offering {{ offering_name }}
 
 ```
 
@@ -4412,6 +4924,26 @@ Reminder: your review assignments for "{{ call_name }}" expire soon
 
 ```
 
+### access_request_cancelled_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear {{ proposal_creator_name }},</p>
+    <p>Your access request "{{ proposal_name }}" has been canceled: it was still a draft when its submission period ended ({{ cancellation_date }}).</p>
+    <p>A request is reviewed only once it has been submitted. You can still view it here:<br>
+        <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+    <p>To ask for the service again, request it from its offering page.</p>
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+</body>
+</html>
+
+```
+
 ### reviewer_invitation_message.html (waldur_mastermind.proposal)
 
 ```html
@@ -4423,6 +4955,11 @@ Reminder: your review assignments for "{{ call_name }}" expire soon
 <body>
 <p>You have been invited by <strong>{{ invited_by_name }}</strong> to join the reviewer pool for the call "<strong>{{ call_name }}</strong>" on {{ site_name }}.</p>
 
+{% if invitation_message %}
+<p>Their message:</p>
+
+<blockquote>{{ invitation_message|linebreaksbr }}</blockquote>
+{% endif %}
 <p>To accept or decline this invitation, please follow the link below:</p>
 
 <p><a href="{{ invitation_link }}">{{ invitation_link }}</a></p>
@@ -4474,6 +5011,49 @@ Offering request {{ decision }}: {{ offering_name }}
 
 ```
 
+### offering_round_opened_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+{{ call_name }}: a round opened, with {{ offering_name }}
+
+```
+
+### offering_round_opened_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<body>
+    <p>Hello,</p>
+    <p>Round "<strong>{{ round_name }}</strong>" of call "<strong>{{ call_name }}</strong>" has opened. The call takes in your offering "<strong>{{ offering_name }}</strong>", and closes for submissions on {{ cutoff }}.</p>
+    {% if team_steps %}<p>Your offering's team acts in these steps of the call: {{ team_steps }}. You will be asked once proposals reach them.</p>{% endif %}
+    <p><a href="{{ calls_url }}">Your calls</a></p>
+    <p><em>This is an automated message from {{ site_name }}.</em></p>
+</body>
+</html>
+
+```
+
+### proposal_role_revoked_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Dear {{ holder_name }},</p>
+
+<p>You are no longer <strong>{{ role_name }}</strong> for the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>". The proposal is no longer available to you through this role.</p>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>
+
+```
+
 ### review_deadline_approaching_message.html (waldur_mastermind.proposal)
 
 ```html
@@ -4500,6 +5080,146 @@ Offering request {{ decision }}: {{ offering_name }}
     <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
 </body>
 </html>
+
+```
+
+### offering_team_digest_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<body>
+    <p>Hello {{ recipient_name }},</p>
+    <p>Open work of your offering teams on calls for proposals:</p>
+    <ul>
+    {% for slot in slots %}
+        <li>{{ slot.offering_name }} / {{ slot.call_name }}: {{ slot.step_name }} of "<a href="{{ slot.proposal_url }}">{{ slot.proposal_name }}</a>" &mdash; {{ slot.holder }}{% if slot.due_at %}, due {{ slot.due_at }}{% endif %}{% if slot.overdue %} <strong>(overdue)</strong>{% endif %}</li>
+    {% endfor %}
+    </ul>
+    <p><a href="{{ calls_url }}">Your calls</a></p>
+    <p><em>This is an automated message from {{ site_name }}.</em></p>
+</body>
+</html>
+
+```
+
+### requested_offering_created_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Call {{ call_name }} requests your offering {{ offering_name }}</title>
+</head>
+<body>
+    <p>Hello,</p>
+
+    <p><strong>{{ call_managing_organisation }}</strong> asks to include the offering "<strong>{{ offering_name }}</strong>" of {{ provider_name }} in the call "<strong>{{ call_name }}</strong>".{% if requested_by %} The request was made by {{ requested_by }}.{% endif %}</p>
+
+    {% if message %}
+    <p><strong>Their message:</strong><br>{{ message|linebreaksbr }}</p>
+    {% endif %}
+
+    <p>Accept or reject the request:<br>
+    <a href="{{ requests_url }}">{{ requests_url }}</a></p>
+
+    {% if team_steps %}
+    <p>The call's workflow hands work to the offering's team in these steps: <strong>{{ team_steps }}</strong>. The offering's managers do it; the call cannot invite them.</p>
+    {% if needs_offering_managers %}
+    <p><strong>The offering has no offering manager yet</strong>, so nobody could do that work. Add offering managers on the offering's Team tab:<br>
+    <a href="{{ team_url }}">{{ team_url }}</a></p>
+    {% endif %}
+    {% endif %}
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>
+
+```
+
+### round_results_adopted_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Round results adopted</title>
+</head>
+<body>
+    <p>Dear call manager,</p>
+
+    <p>The results of the round "{{ round_name }}" of the call "{{ call_name }}" were adopted on {{ adopted_at }}. {{ recorded_by }} recorded the adoption.</p>
+
+    <p>The round's results can now be published to the applicants.</p>
+
+    <p>You can view the round here: <a href="{{ round_url }}">{{ round_url }}</a></p>
+
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>
+
+```
+
+### round_step_opened_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Step opened for the round: {{ step_name }} - {{ round_name }} - {{ call_name }}
+
+```
+
+### access_request_draft_carried_over_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Your draft access request {{ proposal_name }} can still be submitted
+
+```
+
+### proposal_role_assigned_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear {{ holder_name }},
+
+You have been assigned as {{ role_name }}{% if is_lead %} (lead){% endif %} for the proposal "{{ proposal_name }}" in call "{{ call_name }}".
+{% if coi_confirmation_required %}
+Before the proposal opens to you, please confirm that you have no conflict of interest with it.
+{% endif %}
+Open the proposal:
+
+{{ proposal_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+### proposal_withdrawn_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Proposal withdrawn: {{ proposal_name }}
+
+```
+
+### access_request_draft_carried_over_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear {{ proposal_creator_name }},
+
+Your access request "{{ proposal_name }}" was still a draft when its submission period ended. It has not been canceled: it moved on, unchanged, to the next review period.
+
+- Submissions open: {{ round_start_date }}
+- Submit by: {{ deadline_date }}
+
+Submit it to have it reviewed: {{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
 
 ```
 
@@ -4694,7 +5414,10 @@ Review summary:
 - Reviewer: {{ reviewer_name }}
 - Submission date: {{ submission_date }}
 - Score: {{ score }}/{{ max_score }}
-
+{% if criteria %}
+Scores per criterion:
+{% for c in criteria %}- {{ c.name }}: {% if c.score %}{{ c.score }}/{{ max_score }}{% else %}not rated{% endif %}
+{% endfor %}{% endif %}
 Review Progress:
 - Submitted reviews: {{ submitted_reviews }}
 - Pending reviews: {{ pending_reviews }}
@@ -4707,11 +5430,66 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 
 ```
 
+### proposal_withdrawn_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear call manager,
+
+{{ withdrawn_by }} withdrew the proposal "{{ proposal_name }}" from evaluation in the call "{{ call_name }}", round "{{ round_name }}".{% if reason %}
+
+Reason given: {{ reason }}{% endif %}
+
+Its unfinished steps were skipped, reviews still being written were closed and unanswered review assignments lapsed. Nothing is left to do on it.
+
+You can view the proposal here:
+{{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+### call_offering_terms_changed_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<body>
+    <p>Hello,</p>
+    <p>{{ changed_by }} changed what call "<strong>{{ call_name }}</strong>" asks of your offering "<strong>{{ offering_name }}</strong>", which you accepted into the call. The terms now:</p>
+    <ul>
+    {% for rule in rules %}<li>{{ rule.component_type }}: {% if rule.min_per_proposal is not None %}at least {{ rule.min_per_proposal }}{% endif %}{% if rule.max_per_proposal is not None %} at most {{ rule.max_per_proposal }}{% endif %}{% if rule.default_amount is not None %}, {{ rule.default_amount }} by default{% endif %} per proposal</li>{% endfor %}
+    {% for pool in pools %}<li>{{ pool.component_type }}: {{ pool.offered_total }} in all{% if pool.round_name %} in round {{ pool.round_name }}{% endif %}</li>{% endfor %}
+    </ul>
+    <p>If the call now asks more than your offering can give, contact the call's managers.</p>
+    <p><a href="{{ calls_url }}">Your calls</a></p>
+    <p><em>This is an automated message from {{ site_name }}.</em></p>
+</body>
+</html>
+
+```
+
 ### workflow_step_event_subject.txt (waldur_mastermind.proposal)
 
 ```txt
 
-{% if trigger == "deadline_approaching" %}Reminder: {{ step_name }} for "{{ proposal_name }}" is due in {{ days_before }} day{{ days_before|pluralize }}{% elif trigger == "step_started" %}{{ step_name }} has started for "{{ proposal_name }}"{% elif trigger == "step_completed" %}{{ step_name }} completed for "{{ proposal_name }}"{% elif trigger == "step_rejected" %}"{{ proposal_name }}" was rejected at {{ step_name }}{% elif trigger == "step_expired" %}{{ step_name }} for "{{ proposal_name }}" has expired{% else %}Update on "{{ proposal_name }}"{% endif %}
+{% if trigger == "deadline_approaching" %}Reminder: {{ step_name }} for "{{ proposal_name }}" is due in {{ days_before }} day{{ days_before|pluralize }}{% elif trigger == "step_started" %}{{ step_name }} has started for "{{ proposal_name }}"{% elif trigger == "step_completed" %}{{ step_name }} completed for "{{ proposal_name }}"{% elif trigger == "step_rejected" %}"{{ proposal_name }}" was rejected at {{ step_name }}{% elif trigger == "step_expired" %}{{ step_name }} for "{{ proposal_name }}" has expired{% elif trigger == "changes_requested" %}Changes requested to "{{ proposal_name }}"{% elif trigger == "changes_submitted" %}Changes submitted to "{{ proposal_name }}"{% elif trigger == "changes_lapsed" %}Changes to "{{ proposal_name }}" were not submitted in time{% elif trigger == "contribution_reopened" %}Your contribution to {{ step_name }} for "{{ proposal_name }}" was reopened{% elif trigger == "contribution_submitted" %}A contribution to {{ step_name }} for "{{ proposal_name }}" was submitted{% else %}Update on "{{ proposal_name }}"{% endif %}
+
+```
+
+### access_request_submission_deadline_approaching_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear {{ proposal_creator_name }},
+
+Your access request "{{ proposal_name }}" is still a draft. Submit it by {{ deadline_date }} ({{ time_remaining_days }} days {{ time_remaining_hours }} hours from now) to have it reviewed.
+
+Complete and submit the request: {{ proposal_url }}
+
+{% if draft_carries_over %}A request still in draft after that date stays a draft and can be submitted for the next review period.{% else %}A request still in draft after that date is canceled.{% endif %}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
 
 ```
 
@@ -4732,9 +5510,16 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
     <p>
         <strong>Review summary:</strong><br>
         - Reviewer: {{ reviewer_name }}<br>
-        - Submission date: {{ review_date }}<br>
+        - Submission date: {{ submission_date }}<br>
         - Score: {{ score }}/{{ max_score }}
     </p>
+    {% if criteria %}
+    <p>
+        <strong>Scores per criterion:</strong><br>
+        {% for c in criteria %}- {{ c.name }}: {% if c.score %}{{ c.score }}/{{ max_score }}{% else %}not rated{% endif %}<br>
+        {% endfor %}
+    </p>
+    {% endif %}
 
     <p>
         <strong>Review Progress:</strong><br>
@@ -4849,11 +5634,32 @@ Proposal state update: {{ proposal_name }} - {{ new_state }}
 
 ```
 
+### proposal_manager_message_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+{{ body }}
+
+Proposal: {{ proposal_name }} (call "{{ call_name }}")
+{{ proposal_url }}
+
+This message was sent by the call manager through {{ site_name }}.
+
+```
+
 ### proposal_cancelled_subject.txt (waldur_mastermind.proposal)
 
 ```txt
 
 Proposal canceled: {{ proposal_name }}
+
+```
+
+### access_request_cancelled_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Access request canceled: {{ proposal_name }}
 
 ```
 
@@ -4873,6 +5679,23 @@ Reviewer pool invitation for "{{ call_name }}" has expired
 
 ```
 
+### offering_team_digest_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Hello {{ recipient_name }},
+
+Open work of your offering teams on calls for proposals:
+{% for slot in slots %}
+- {{ slot.offering_name }} / {{ slot.call_name }}: {{ slot.step_name }} of "{{ slot.proposal_name }}" -- {{ slot.holder }}{% if slot.due_at %}, due {{ slot.due_at }}{% endif %}{% if slot.overdue %} (overdue){% endif %}
+  {{ slot.proposal_url }}
+{% endfor %}
+Your calls: {{ calls_url }}
+
+This is an automated message from {{ site_name }}.
+
+```
+
 ### review_assigned_message.txt (waldur_mastermind.proposal)
 
 ```txt
@@ -4883,8 +5706,8 @@ You have been assigned to review a proposal in call "{{ call_name }}".
 
 Proposal details:
 - Proposal name: {{ proposal_name }}
-- Submitted by: {{ proposal_creator_name }}
-- Date submitted: {{ submission_date }}
+{% if proposal_creator_name %}- Submitted by: {{ proposal_creator_name }}
+{% endif %}- Date submitted: {{ submission_date }}
 - Review deadline: {{ review_deadline }}
 
 Please log in to the platform to review the proposal. You can accept or reject this review assignment by visiting:
@@ -4908,6 +5731,43 @@ The review assignments sent to {{ reviewer_name }} for the call "{{ call_name }}
 You can extend the deadline or reassign the proposals here:
 
 {{ assignments_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+### proposal_role_revoked_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+You are no longer {{ role_name }} for proposal {{ proposal_name }}
+
+```
+
+### round_report_requested_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear evaluator,
+
+{% if days_left %}Your round report for the step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" is due in {{ days_left }} day{{ days_left|pluralize }} and has not been submitted yet.{% else %}The step "{{ step_name }}" of the round "{{ round_name }}" of the call "{{ call_name }}" has been opened for the round. You are asked for one round report covering the {{ proposals_count }} proposal{{ proposals_count|pluralize }} you hold this step for.{% endif %}
+{% if due_at %}
+The report is due on {{ due_at }}.
+{% endif %}
+You can write and submit the report here:
+{{ report_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+### proposal_role_revoked_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear {{ holder_name }},
+
+You are no longer {{ role_name }} for the proposal "{{ proposal_name }}" in call "{{ call_name }}". The proposal is no longer available to you through this role.
 
 This is an automated message from {{ site_name }}. Please do not reply to this email.
 

@@ -134,14 +134,31 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
 | [`SlurmFlagTestMixin`](#slurmflagtestmixin) | `waldur_mastermind.policy.tests.test_slurm_flag_keepers` | A resource on an offering that pauses and downscales, with SLURM usage per po... |
 | [`PolicyEventsMixin`](#policyeventsmixin) | `waldur_mastermind.policy.views` | Log policy changes made through the API |
+| [`AllocationOrderFieldsMixin`](#allocationorderfieldsmixin) | `waldur_mastermind.proposal.serializers` | How the order that provisions an allocated item went |
 | [`CallNotArchivedCreateMixin`](#callnotarchivedcreatemixin) | `waldur_mastermind.proposal.serializers` | Provide the ``validate_call_not_archived`` hook used by ``ActionMethodMixin |
+| [`_RoundStepChoiceMixin`](#_roundstepchoicemixin) | `waldur_mastermind.proposal.serializers` | Names a call step of the round's call by step_uuid or its key |
 | [`ApplicantIdentityTestMixin`](#applicantidentitytestmixin) | `waldur_mastermind.proposal.tests.test_applicant_identity_paths` | No description available |
+| [`TeamTestMixin`](#teamtestmixin) | `waldur_mastermind.proposal.tests.test_applicant_team` | A proposal whose author manages it, with a second manager and a member, on a ... |
 | [`AssignmentBatchTestMixin`](#assignmentbatchtestmixin) | `waldur_mastermind.proposal.tests.test_assignment_batch_notifications` | No description available |
+| [`PanelsTestMixin`](#panelstestmixin) | `waldur_mastermind.proposal.tests.test_call_panels` | Two panels, physics and chemistry, each with a chair and members; a chair ass... |
+| [`CallStepsTestMixin`](#callstepstestmixin) | `waldur_mastermind.proposal.tests.test_call_steps` | No description available |
+| [`HeldDecisionMixin`](#helddecisionmixin) | `waldur_mastermind.proposal.tests.test_call_workflow_reads` | A proposal whose approved allocation decision is held for the round's publica... |
+| [`DelegationActionsMixin`](#delegationactionsmixin) | `waldur_mastermind.proposal.tests.test_contribution_delegation` | No description available |
+| [`FormIsolationMixin`](#formisolationmixin) | `waldur_mastermind.proposal.tests.test_form_isolation` | No description available |
+| [`LeadOnlyStepMixin`](#leadonlystepmixin) | `waldur_mastermind.proposal.tests.test_lead_only_contributions` | A call with a rapporteur role, picked from its panel members in an assignment... |
+| [`OverrideApiMixin`](#overrideapimixin) | `waldur_mastermind.proposal.tests.test_notification_overrides` | No description available |
 | [`ApplicantRolesMixin`](#applicantrolesmixin) | `waldur_mastermind.proposal.tests.test_notification_roles` | No description available |
+| [`PanelChairMixin`](#panelchairmixin) | `waldur_mastermind.proposal.tests.test_panel_chair_completer` | The rapporteur assignment is the panel chair's step |
 | [`ManagerSetupMixin`](#managersetupmixin) | `waldur_mastermind.proposal.tests.test_pool_invitation_expiry` | No description available |
+| [`ActivityReaderMixin`](#activityreadermixin) | `waldur_mastermind.proposal.tests.test_proposal_activity` | No description available |
 | [`ProposalAdminMixin`](#proposaladminmixin) | `waldur_mastermind.proposal.tests.test_proposal_admin` | No description available |
 | [`ProposalComplianceTestMixin`](#proposalcompliancetestmixin) | `waldur_mastermind.proposal.tests.test_proposal_compliance` | Common setup for proposal compliance tests |
+| [`ReviewerSuggestionsTestMixin`](#reviewersuggestionstestmixin) | `waldur_mastermind.proposal.tests.test_proposal_reviewer_suggestions` | No description available |
+| [`EvaluatorRoleTestMixin`](#evaluatorroletestmixin) | `waldur_mastermind.proposal.tests.test_proposal_roles` | A call with a rapporteur role, picked from its panel members in an assignment... |
 | [`ProposalTeamMixin`](#proposalteammixin) | `waldur_mastermind.proposal.tests.test_proposal_team` | No description available |
+| [`CallSetupMixin`](#callsetupmixin) | `waldur_mastermind.proposal.tests.test_reviewer_registry` | No description available |
+| [`StepInputsTestMixin`](#stepinputstestmixin) | `waldur_mastermind.proposal.tests.test_step_inputs` | No description available |
+| [`DryRunMixin`](#dryrunmixin) | `waldur_mastermind.proposal.tests.test_workflow_dry_run` | No description available |
 | [`InvitationAcceptanceMixin`](#invitationacceptancemixin) | `waldur_mastermind.proposal.views` | Mixin providing common logic for accepting/declining reviewer pool invitations |
 | [`BackendNameMixin`](#backendnamemixin) | `waldur_mastermind.support.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`FileMixin`](#filemixin) | `waldur_mastermind.support.models` | Mixin to provide file-related functionality and properties |
@@ -1852,6 +1869,26 @@ Log policy changes made through the API.
 Policies are saved by the background tasks too (has_fired, fired_datetime),
 so the events are emitted here rather than from post_save.
 
+### AllocationOrderFieldsMixin
+
+**Module:** `waldur_mastermind.proposal.serializers`
+
+**Description:**
+
+How the order that provisions an allocated item went.
+
+Allocation creates a resource and its order together, so the resource is
+there from the start whatever becomes of the order: waiting for the
+provider, provisioning, refused or failed. The outcome needs to say which,
+including to an applicant who holds no role on the created project and so
+cannot read the order itself.
+
+The state follows the item: whoever may read the item may read it. The
+provider's reason for refusing follows the order: only those who may read
+the order see it.
+
+**Base classes:** `Serializer`
+
 ### CallNotArchivedCreateMixin
 
 **Module:** `waldur_mastermind.proposal.serializers`
@@ -1865,15 +1902,90 @@ The hook is looked up by name on the serializer and called with the parent
 Call. It keeps archived calls read-only across their nested-create surface
 (offerings / resource templates / workflow steps).
 
+### _RoundStepChoiceMixin
+
+**Module:** `waldur_mastermind.proposal.serializers`
+
+**Description:**
+
+Names a call step of the round's call by step_uuid or its key.
+
 ### ApplicantIdentityTestMixin
 
 **Module:** `waldur_mastermind.proposal.tests.test_applicant_identity_paths`
 
 **Description:** No description available.
 
+### TeamTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_applicant_team`
+
+**Description:**
+
+A proposal whose author manages it, with a second manager and a
+member, on a call whose first step after the check is the applicant's.
+
+**Base classes:** `CallStepsTestMixin`
+
 ### AssignmentBatchTestMixin
 
 **Module:** `waldur_mastermind.proposal.tests.test_assignment_batch_notifications`
+
+**Description:** No description available.
+
+### PanelsTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_call_panels`
+
+**Description:**
+
+Two panels, physics and chemistry, each with a chair and members; a
+chair assignment step after the administrative check, then the
+rapporteurs' assignment.
+
+**Base classes:** `CallStepsTestMixin`
+
+### CallStepsTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_call_steps`
+
+**Description:** No description available.
+
+### HeldDecisionMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_call_workflow_reads`
+
+**Description:**
+
+A proposal whose approved allocation decision is held for the round's
+publication, applied for by one of the call's managers.
+
+### DelegationActionsMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_contribution_delegation`
+
+**Description:** No description available.
+
+### FormIsolationMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_form_isolation`
+
+**Description:** No description available.
+
+### LeadOnlyStepMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_lead_only_contributions`
+
+**Description:**
+
+A call with a rapporteur role, picked from its panel members in an
+assignment step right after the administrative check.
+
+**Base classes:** `EvaluatorRoleTestMixin`
+
+### OverrideApiMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_notification_overrides`
 
 **Description:** No description available.
 
@@ -1883,9 +1995,25 @@ Call. It keeps archived calls read-only across their nested-create surface
 
 **Description:** No description available.
 
+### PanelChairMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_panel_chair_completer`
+
+**Description:**
+
+The rapporteur assignment is the panel chair's step.
+
+**Base classes:** `EvaluatorRoleTestMixin`
+
 ### ManagerSetupMixin
 
 **Module:** `waldur_mastermind.proposal.tests.test_pool_invitation_expiry`
+
+**Description:** No description available.
+
+### ActivityReaderMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_proposal_activity`
 
 **Description:** No description available.
 
@@ -1903,9 +2031,48 @@ Call. It keeps archived calls read-only across their nested-create surface
 
 Common setup for proposal compliance tests.
 
+### ReviewerSuggestionsTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_proposal_reviewer_suggestions`
+
+**Description:** No description available.
+
+**Base classes:** `CallStepsTestMixin`
+
+### EvaluatorRoleTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_proposal_roles`
+
+**Description:**
+
+A call with a rapporteur role, picked from its panel members in an
+assignment step right after the administrative check.
+
+**Base classes:** `CallStepsTestMixin`
+
 ### ProposalTeamMixin
 
 **Module:** `waldur_mastermind.proposal.tests.test_proposal_team`
+
+**Description:** No description available.
+
+### CallSetupMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_reviewer_registry`
+
+**Description:** No description available.
+
+### StepInputsTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_step_inputs`
+
+**Description:** No description available.
+
+**Base classes:** `CallStepsTestMixin`
+
+### DryRunMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_workflow_dry_run`
 
 **Description:** No description available.
 
