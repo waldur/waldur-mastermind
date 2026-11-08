@@ -7,6 +7,7 @@ from django.db.models import Q
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.facets import Facet
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.core.resolvers import filter_by_resource_attribute
 from waldur_core.structure import filters as structure_filters
@@ -551,3 +552,29 @@ class FeedbackFilter(django_filters.FilterSet):
 
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value, "issue__caller")
+
+
+# Facets of the support lists; see waldur_core.core.facets. Status, type and
+# priority are free text synced from the service desk, so the facet is the
+# only place their values are known.
+ISSUE_FACETS = (
+    Facet("status", field="status", params=("status",)),
+    Facet("type", field="type", params=("type",)),
+    Facet(
+        "customer",
+        field="customer__uuid",
+        label="customer__name",
+        params=("customer", "customer_uuid"),
+    ),
+    Facet(
+        "project",
+        field="project__uuid",
+        label="project__name",
+        params=("project", "project_uuid"),
+    ),
+)
+
+PROVIDER_TICKET_FACETS = (
+    Facet("status", field="status", params=("status",)),
+    Facet("priority", field="priority", params=("priority",)),
+)

@@ -275,6 +275,109 @@ class ApplicantVisibility:
         return set(self._concealed_by_call[call_id])
 
 
+class ReviewerVisibility:
+    """Whether one viewer may know who wrote a review.
+
+    Staff, support, the reviewer and the call team read every review in full.
+    The applicant side -- the proposal's author and its team -- reads it as
+    the applicant and learns the reviewer only where the call shows reviewers
+    to submitters. Anyone else is kept from a blind review's author unless
+    they oversee the proposal's call.
+
+    Answers are per review and memoised per proposal and per call, so one
+    instance can resolve a whole listing without a query per row.
+    """
+
+    def __init__(self, user):
+        self.user = user
+        self._applicant_side = {}
+        self._managed_calls = {}
+        self._overseen_proposals = {}
+
+    def access(self, review) -> str:
+        """``full``, ``applicant`` or ``other``: what of ``review`` the user
+        reads. Decided per review, so a listing of several reviewers' reviews
+        never takes one review's answer for all of them."""
+        user = self.user
+        if user.is_staff or user.is_support or review.reviewer_id == user.id:
+            return "full"
+        # The applicant side reads the review as the applicant, even when it
+        # also manages the call.
+        if review.proposal_id not in self._applicant_side:
+            self._applicant_side[review.proposal_id] = (
+                proposal_roles.is_on_applicant_team(user, review.proposal)
+            )
+        if self._applicant_side[review.proposal_id]:
+            return "applicant"
+        call = review.proposal.round.call
+        if call.pk not in self._managed_calls:
+            # The call team: its managers and the managing organisation's
+            # organisers -- not every role there (an observer of the results).
+            self._managed_calls[call.pk] = proposal_permissions.manages_call_workflow(
+                user, call
+            )
+        return "full" if self._managed_calls[call.pk] else "other"
+
+    def blind_to(self, review) -> bool:
+        """Whether the user, reading another's review neither as the call
+        team nor as the applicant -- a fellow evaluator, say, reading it as
+        the input of a later step -- is kept from who wrote it: the review
+        was blind. Those overseeing the call still see who did."""
+        if not contributions.review_is_blind(review):
+            return False
+        # Per proposal: nobody oversees one they apply with.
+        if review.proposal_id not in self._overseen_proposals:
+            self._overseen_proposals[review.proposal_id] = (
+                proposal_permissions.oversees_proposal_call(self.user, review.proposal)
+            )
+        return not self._overseen_proposals[review.proposal_id]
+
+    def reveals_reviewer(self, review, access=None) -> bool:
+        access = access or self.access(review)
+        if access == "full":
+            return True
+        call = review.proposal.round.call
+        if access == "applicant":
+            return call.reviewer_identity_visible_to_submitters
+        return not self.blind_to(review)
+
+
+class PanelVisibility:
+    """Whether one viewer may know which panel evaluates a proposal.
+
+    Staff and support always do; the applicant team never does, not even of
+    a call it otherwise oversees; whoever oversees the call does; anyone else
+    only as ``user_can_view_proposal_panel`` allows (a member of that panel).
+    Memoised per viewer and per call, for a whole listing.
+    """
+
+    def __init__(self, user):
+        self.user = user
+        self._team_proposal_ids = None
+        self._oversees_call = {}
+
+    def sees(self, proposal) -> bool:
+        user = self.user
+        if user is None or user.is_anonymous:
+            return False
+        if user.is_staff or user.is_support:
+            return True
+        if self._team_proposal_ids is None:
+            self._team_proposal_ids = set(
+                proposal_roles.applicant_team_proposal_ids(user)
+            )
+        if proposal.pk in self._team_proposal_ids:
+            return False
+        call_id = proposal.round.call_id
+        if call_id not in self._oversees_call:
+            self._oversees_call[call_id] = proposal_permissions.oversees_proposal_call(
+                user, proposal
+            )
+        if self._oversees_call[call_id]:
+            return True
+        return proposal_permissions.user_can_view_proposal_panel(user, proposal)
+
+
 def _is_reviewer_only_view(user, proposal) -> bool:
     """True if the user views this proposal solely as an evaluator; see
     ``ApplicantVisibility``."""
@@ -957,43 +1060,12 @@ class ProposalReviewSerializer(
             return _("Reviewer")
         return _("Reviewer %(index)s") % {"index": index}
 
-    def _review_access(self, review, user):
-        """``full``, ``applicant`` or ``other``: what of ``review`` the user
-        reads. Decided per review, so a listing of several reviewers' reviews
-        never takes one review's answer for all of them."""
-        if user.is_staff or user.is_support or review.reviewer_id == user.id:
-            return "full"
-        # The applicant side -- the proposal's author and its team -- reads
-        # the review as the applicant, even when they also manage the call.
-        team = self.context.setdefault("_applicant_side", {})
-        if review.proposal_id not in team:
-            team[review.proposal_id] = proposal_roles.is_on_applicant_team(
-                user, review.proposal
-            )
-        if team[review.proposal_id]:
-            return "applicant"
-        call = review.proposal.round.call
-        managed = self.context.setdefault("_managed_calls", {})
-        if call.pk not in managed:
-            # The call team: its managers and the managing organisation's
-            # organisers -- not every role there (an observer of the results).
-            managed[call.pk] = proposal_permissions.manages_call_workflow(user, call)
-        return "full" if managed[call.pk] else "other"
-
-    def _blind_to(self, review, user) -> bool:
-        """Whether ``user``, reading another's review neither as the call
-        team nor as the applicant -- a fellow evaluator, say, reading it as
-        the input of a later step -- is kept from who wrote it: the review
-        was blind. Those overseeing the call still see who did."""
-        if not contributions.review_is_blind(review):
-            return False
-        # Per proposal: nobody oversees one they apply with.
-        overseen = self.context.setdefault("_overseen_proposals", {})
-        if review.proposal_id not in overseen:
-            overseen[review.proposal_id] = proposal_permissions.oversees_proposal_call(
-                user, review.proposal
-            )
-        return not overseen[review.proposal_id]
+    def _reviewer_visibility(self, user) -> "ReviewerVisibility":
+        # One per listing, so its memos span every row.
+        cached = self.context.get("_reviewer_visibility")
+        if cached is None or cached.user != user:
+            cached = self.context["_reviewer_visibility"] = ReviewerVisibility(user)
+        return cached
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -1001,7 +1073,8 @@ class ProposalReviewSerializer(
         user = getattr(request, "user", None)
         if user is None or not isinstance(instance, models.Review):
             return data
-        access = self._review_access(instance, user)
+        visibility = self._reviewer_visibility(user)
+        access = visibility.access(instance)
         if access == "full":
             data.pop("anonymous_reviewer_name", None)
             return data
@@ -1009,10 +1082,7 @@ class ProposalReviewSerializer(
         # even where the call shows the applicant who reviewed.
         data.pop("reviewer_email", None)
         data.pop("reviewer_organization", None)
-        call = instance.proposal.round.call
-        if (
-            access == "applicant" and not call.reviewer_identity_visible_to_submitters
-        ) or (access == "other" and self._blind_to(instance, user)):
+        if not visibility.reveals_reviewer(instance, access):
             # Hide real reviewer info, show anonymous identifier
             for field in (
                 "reviewer",
@@ -5639,25 +5709,12 @@ class ProposalSerializer(
         return cache[proposal.pk]
 
     def _sees_panel(self, user, proposal) -> bool:
-        """Whether ``user`` sees which panel evaluates ``proposal``; asked
-        once per call where the answer depends on the call alone."""
-        if user is None or user.is_anonymous:
-            return False
-        if user.is_staff or user.is_support:
-            return True
-        if "_team_proposal_ids" not in self.context:
-            self.context["_team_proposal_ids"] = set(
-                proposal_roles.applicant_team_proposal_ids(user)
-            )
-        if proposal.pk in self.context["_team_proposal_ids"]:
-            return False
-        cache = self.context.setdefault("_oversees_call", {})
-        call_id = proposal.round.call_id
-        if call_id not in cache:
-            cache[call_id] = proposal_permissions.oversees_proposal_call(user, proposal)
-        if cache[call_id]:
-            return True
-        return proposal_permissions.user_can_view_proposal_panel(user, proposal)
+        """Whether ``user`` sees which panel evaluates ``proposal``."""
+        # One per listing, so its memos span every row.
+        cached = self.context.get("_panel_visibility")
+        if cached is None or cached.user != user:
+            cached = self.context["_panel_visibility"] = PanelVisibility(user)
+        return cached.sees(proposal)
 
     def get_fields(self):
         fields = super().get_fields()

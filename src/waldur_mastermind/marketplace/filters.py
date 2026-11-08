@@ -28,6 +28,7 @@ from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.facets import Facet
 from waldur_core.core.filters import (
     CharInFilter,
     LooseMultipleChoiceFilter,
@@ -73,6 +74,7 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
     ServiceAccountState,
     expand_offering_types,
+    normalize_offering_type,
 )
 from waldur_mastermind.marketplace.managers import (
     OfferingQuerySet,
@@ -574,6 +576,34 @@ class OfferingFilter(
         return queryset.distinct()
 
 
+# The values each catalogue filter can still take; see core.facets.
+OFFERING_FACETS = (
+    Facet(
+        "customer",
+        field="customer__uuid",
+        label="customer__name",
+        params=("customer_uuid", "customer"),
+    ),
+    Facet(
+        "category",
+        field="category__uuid",
+        label="category__title",
+        params=("category_uuid",),
+    ),
+    Facet(
+        "tag",
+        field="tags__uuid",
+        label="tags__name",
+        params=("tag", "tag_name", "tags_and", "tag_names_and"),
+    ),
+    # The legacy site-agent name is stored on old rows but filters as, and is
+    # counted under, the current one.
+    Facet("type", field="type", params=("type",), normalize=normalize_offering_type),
+    Facet("state", field="state", params=("state",), choices=OfferingStates.CHOICES),
+    Facet("shared", field="shared", params=("shared",)),
+)
+
+
 class OfferingCustomersFilterBackend(BaseFilterBackend):
     # Read by waldur_core.core.access: the docstring says what lists and
     # retrieves show, as filter_for_user's own description.
@@ -1041,6 +1071,18 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         lookup_expr="icontains",
         label="Catalog version",
         help_text="Filter packages by catalog version (case-insensitive partial match)",
+    )
+    # The facets' values are whole names and versions: "2023" must not also
+    # select "2023.06".
+    catalog_name_exact = django_filters.CharFilter(
+        field_name="catalog__name",
+        label="Catalog name (exact)",
+        help_text="Filter packages by exact catalog name",
+    )
+    catalog_version_exact = django_filters.CharFilter(
+        field_name="catalog__version",
+        label="Catalog version (exact)",
+        help_text="Filter packages by exact catalog version",
     )
     name = django_filters.CharFilter(
         lookup_expr="icontains",
@@ -4019,3 +4061,141 @@ class OfferingMergeFilter(core_filters.CreatedModifiedFilter):
         return queryset.filter(
             Q(sources__uuid=value) | Q(target__uuid=value)
         ).distinct()
+
+
+# Facets of the marketplace lists; see waldur_core.core.facets. A facet's
+# params are every filter that selects by the same thing, so that counting it
+# ignores the user's choice of it, however the choice was made.
+OFFERING_OF_ROW_FACET = Facet(
+    "offering",
+    field="offering__uuid",
+    label="offering__name",
+    params=("offering", "offering_uuid", "offering_slug"),
+)
+PARENT_OFFERING_OF_ROW_FACET = Facet(
+    "parent_offering",
+    field="offering__parent__uuid",
+    label="offering__parent__name",
+    params=("parent_offering_uuid",),
+)
+PROVIDER_OF_ROW_FACET = Facet(
+    "provider",
+    field="offering__customer__uuid",
+    label="offering__customer__name",
+    params=("provider_uuid",),
+)
+CATEGORY_OF_ROW_FACET = Facet(
+    "category",
+    field="offering__category__uuid",
+    label="offering__category__title",
+    params=("category_uuid",),
+)
+OFFERING_TYPE_OF_ROW_FACET = Facet(
+    "offering_type",
+    field="offering__type",
+    params=("offering_type",),
+    normalize=normalize_offering_type,
+)
+PROJECT_FACET = Facet(
+    "project",
+    field="project__uuid",
+    label="project__name",
+    params=("project_uuid", "project_name"),
+)
+PROJECT_CUSTOMER_FACET = Facet(
+    "customer",
+    field="project__customer__uuid",
+    label="project__customer__name",
+    params=("customer_uuid", "customer"),
+)
+
+RESOURCE_FACETS = (
+    OFFERING_OF_ROW_FACET,
+    PARENT_OFFERING_OF_ROW_FACET,
+    PROVIDER_OF_ROW_FACET,
+    CATEGORY_OF_ROW_FACET,
+    OFFERING_TYPE_OF_ROW_FACET,
+    PROJECT_CUSTOMER_FACET,
+    PROJECT_FACET,
+    Facet("plan", field="plan__uuid", label="plan__name", params=("plan_uuid",)),
+    Facet("state", field="state", params=("state",), choices=ResourceStates.CHOICES),
+    Facet(
+        "runtime_state",
+        field="backend_metadata__runtime_state",
+        params=("runtime_state",),
+    ),
+)
+
+ORDER_FACETS = (
+    OFFERING_OF_ROW_FACET,
+    PARENT_OFFERING_OF_ROW_FACET,
+    PROVIDER_OF_ROW_FACET,
+    CATEGORY_OF_ROW_FACET,
+    OFFERING_TYPE_OF_ROW_FACET,
+    # Orders have no project_name filter.
+    Facet(
+        "project",
+        field="project__uuid",
+        label="project__name",
+        params=("project_uuid",),
+    ),
+    Facet(
+        "customer",
+        field="project__customer__uuid",
+        label="project__customer__name",
+        params=("customer_uuid",),
+    ),
+    Facet("state", field="state", params=("state",), choices=OrderStates.CHOICES),
+    Facet("type", field="type", params=("type",), choices=OrderTypes.CHOICES),
+)
+
+OFFERING_USER_FACETS = (
+    OFFERING_OF_ROW_FACET,
+    PARENT_OFFERING_OF_ROW_FACET,
+    PROVIDER_OF_ROW_FACET,
+    Facet(
+        "state", field="state", params=("state",), choices=OfferingUserStates.CHOICES
+    ),
+    Facet(
+        "runtime_state",
+        field="runtime_state",
+        params=("runtime_state",),
+        choices=OfferingUserRuntimeStates.CHOICES,
+    ),
+)
+
+SOFTWARE_PACKAGE_FACETS = (
+    # By name and version, as the catalogue table filters: the same catalog
+    # name comes in several versions.
+    Facet(
+        "catalog_name",
+        field="catalog__name",
+        label="catalog__name",
+        params=("catalog_name_exact", "catalog_name", "catalog_uuid"),
+    ),
+    Facet(
+        "catalog_version",
+        field="catalog__version",
+        label="catalog__version",
+        params=("catalog_version_exact", "catalog_version"),
+    ),
+    Facet(
+        "catalog_type",
+        field="catalog__catalog_type",
+        params=("catalog_type",),
+        labels=models.SoftwareCatalog.CATALOG_TYPE_CHOICES,
+    ),
+    Facet("category", field="categories", params=("category",), array=True),
+    Facet("license", field="licenses", params=("license",), array=True),
+    Facet(
+        "toolchain",
+        field="versions__metadata__toolchain__name",
+        params=("toolchain_name",),
+    ),
+    Facet(
+        "gpu_arch",
+        field="versions__targets__gpu_architectures",
+        params=("gpu_arch",),
+        array=True,
+    ),
+)

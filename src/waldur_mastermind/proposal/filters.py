@@ -5,6 +5,8 @@ from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core.enums import ReviewStates as CoreReviewStates
+from waldur_core.core.facets import Facet
+from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CallRole
 from waldur_mastermind.proposal.enums import (
@@ -160,6 +162,87 @@ class PublicCallFilter(CallFilter):
     )
 
 
+def attributed_proposals(queryset, user, attributes=("username",)):
+    """The proposals whose author ``user`` may know, by every one of
+    ``attributes``.
+
+    An evaluator from whom the call conceals the applicant's username does not
+    learn who wrote them: a match on the author, or a count of them, would
+    confirm it. A facet that also names the author asks for ``full_name`` too,
+    which a call may conceal while it shows the username.
+    """
+    if not user or not user.is_authenticated:
+        return queryset.none()
+    if user.is_staff or user.is_support:
+        # Never solely an evaluator, so nothing is concealed from them.
+        return queryset
+    visibility = serializers.ApplicantVisibility(user)
+    attributed = [
+        proposal.pk
+        for proposal in queryset.select_related("round__call")
+        if not set(attributes) & (visibility.concealed_attributes(proposal) or set())
+    ]
+    return queryset.filter(pk__in=attributed)
+
+
+def proposals_with_known_panel(queryset, user):
+    """The proposals whose panel ``user`` may know, as the proposal payload
+    shows it (``PanelVisibility``): never the reader's own team's, and to
+    anyone outside the call team only a panel they may view."""
+    if not user or not user.is_authenticated:
+        return queryset.none()
+    if user.is_staff or user.is_support:
+        return queryset
+    visibility = serializers.PanelVisibility(user)
+    known = [
+        proposal.pk
+        for proposal in queryset.select_related("round__call")
+        if visibility.sees(proposal)
+    ]
+    return queryset.filter(pk__in=known)
+
+
+def reviews_with_known_reviewer(queryset, user):
+    """The reviews whose author ``user`` may know (``ReviewerVisibility``):
+    not a blind review's to a fellow evaluator, nor any to the applicant side
+    unless the call shows reviewers to submitters."""
+    if not user or not user.is_authenticated:
+        return queryset.none()
+    if user.is_staff or user.is_support:
+        return queryset
+    visibility = serializers.ReviewerVisibility(user)
+    known = [
+        review.pk
+        for review in queryset.select_related("proposal__round__call")
+        if visibility.reveals_reviewer(review)
+    ]
+    return queryset.filter(pk__in=known)
+
+
+def round_names(uuids) -> dict:
+    # A round's name is a property over its dates.
+    return {
+        round.uuid: round.name for round in models.Round.objects.filter(uuid__in=uuids)
+    }
+
+
+def applicant_names(uuids) -> dict:
+    # Counted only where the viewer knows both (see the applicant facet). The
+    # author of an old proposal may since have been deactivated.
+    return {
+        user.uuid: user.full_name or user.username
+        for user in User.all_objects.filter(uuid__in=uuids)
+    }
+
+
+def reviewer_names(uuids) -> dict:
+    # A review shows its reviewer's full name, never the username: without a
+    # name the facet falls back to the uuid the review already carries.
+    return {
+        user.uuid: user.full_name for user in User.all_objects.filter(uuid__in=uuids)
+    }
+
+
 class ProposalFilter(django_filters.FilterSet):
     slug = django_filters.CharFilter(
         field_name="slug", lookup_expr="exact", label="Slug"
@@ -254,14 +337,9 @@ class ProposalFilter(django_filters.FilterSet):
         They are left out rather than the request refused, because a refusal
         that depended on the matches would confirm the same thing.
         """
-        queryset = queryset.filter(created_by__uuid=value)
-        visibility = serializers.ApplicantVisibility(self.request.user)
-        attributed = [
-            proposal.pk
-            for proposal in queryset.select_related("round__call")
-            if "username" not in (visibility.concealed_attributes(proposal) or ())
-        ]
-        return queryset.filter(pk__in=attributed)
+        return attributed_proposals(
+            queryset.filter(created_by__uuid=value), self.request.user
+        )
 
     def _run_readers_only(self, queryset, matching):
         """``matching`` narrowed to the proposals whose runs the user reads:
@@ -398,16 +476,13 @@ class ProposalFilter(django_filters.FilterSet):
         )
 
     def filter_panel_uuid(self, queryset, name, value):
-        """Proposals routed to the panel. Never the reader's own team's
-        proposals: the applicant team is not told its proposal's panel, so a
-        filter must not tell it either."""
-        queryset = queryset.filter(panel__uuid=value)
-        user = self.request.user
-        if not user or not user.is_authenticated:
-            return queryset.none()
-        if user.is_staff or user.is_support:
-            return queryset
-        return queryset.exclude(id__in=proposal_roles.applicant_team_proposal_ids(user))
+        """Proposals routed to the panel, among those whose panel the reader
+        is shown: a filter must not tell what the proposal payload hides (the
+        applicant team its own proposal's panel, an evaluator outside the call
+        team a panel it may not view)."""
+        return proposals_with_known_panel(
+            queryset.filter(panel__uuid=value), self.request.user
+        )
 
     def filter_as_role(self, queryset, name, value):
         """Narrow the readable queryset to what one of the reader's roles reaches.
@@ -559,8 +634,11 @@ class ReviewFilter(django_filters.FilterSet):
     round_uuid = core_filters.RelatedUUIDFilter(
         view_name="call-round-detail", field_name="proposal__round__uuid"
     )
+    # Who wrote a blind review is not told by matching on its author either.
     reviewer_uuid = core_filters.RelatedUUIDFilter(
-        view_name="reviewer-profile-detail", field_name="reviewer__uuid"
+        view_name="reviewer-profile-detail",
+        field_name="reviewer__uuid",
+        method="filter_reviewer_uuid",
     )
     state = django_filters.MultipleChoiceFilter(choices=models.Review.States.CHOICES)
     due_within_days = django_filters.NumberFilter(
@@ -589,6 +667,11 @@ class ReviewFilter(django_filters.FilterSet):
         # Also narrows to in-review reviews, whatever the state filter says.
         # NumberFilter yields a Decimal, which timedelta does not accept.
         return queryset.due_within(int(value))
+
+    def filter_reviewer_uuid(self, queryset, name, value):
+        return reviews_with_known_reviewer(
+            queryset.filter(reviewer__uuid=value), self.request.user
+        )
 
     def filter_managed_calls_only(self, queryset, name, value):
         if not value:
@@ -1156,3 +1239,118 @@ class CallTemplateFilter(django_filters.FilterSet):
     class Meta:
         model = models.CallTemplate
         fields = ["name", "is_published"]
+
+
+# Facets of the proposal lists; see waldur_core.core.facets.
+PROPOSAL_FACETS = (
+    Facet("state", field="state", params=("state",), labels=ProposalStates.CHOICES),
+    Facet(
+        "call",
+        field="round__call__uuid",
+        label="round__call__name",
+        params=("call_uuid",),
+    ),
+    Facet(
+        "organization",
+        field="round__call__manager__customer__uuid",
+        label="round__call__manager__customer__name",
+        params=("organization_uuid",),
+    ),
+    Facet("workflow_step", field="current_step__step", params=("workflow_step",)),
+    Facet(
+        "round",
+        field="round__uuid",
+        params=("round", "round_uuid"),
+        describe=round_names,
+    ),
+    Facet(
+        "applicant",
+        field="created_by__uuid",
+        params=("created_by_uuid",),
+        describe=applicant_names,
+        visible=lambda view, rows: attributed_proposals(
+            rows, view.request.user, attributes=("username", "full_name")
+        ),
+    ),
+    Facet(
+        "panel",
+        field="panel__uuid",
+        label="panel__name",
+        params=("panel_uuid",),
+        visible=lambda view, rows: proposals_with_known_panel(rows, view.request.user),
+    ),
+)
+
+REVIEW_FACETS = (
+    Facet(
+        "state",
+        field="state",
+        params=("state",),
+        labels=models.Review.States.CHOICES,
+    ),
+    Facet(
+        "call",
+        field="proposal__round__call__uuid",
+        label="proposal__round__call__name",
+        params=("call_uuid",),
+    ),
+    Facet(
+        "organization",
+        field="proposal__round__call__manager__customer__uuid",
+        label="proposal__round__call__manager__customer__name",
+        params=("organization_uuid",),
+    ),
+    Facet(
+        "proposal",
+        field="proposal__uuid",
+        label="proposal__name",
+        params=("proposal", "proposal_uuid", "proposal_name"),
+    ),
+    Facet(
+        "round",
+        field="proposal__round__uuid",
+        params=("round_uuid",),
+        describe=round_names,
+    ),
+    Facet(
+        "reviewer",
+        field="reviewer__uuid",
+        params=("reviewer_uuid",),
+        describe=reviewer_names,
+        visible=lambda view, rows: reviews_with_known_reviewer(rows, view.request.user),
+    ),
+)
+
+REQUESTED_OFFERING_FACETS = (
+    Facet(
+        "state",
+        field="state",
+        params=("state",),
+        labels=RequestedOfferingStates.CHOICES,
+    ),
+    Facet(
+        "offering",
+        field="offering__uuid",
+        label="offering__name",
+        params=("offering", "offering_uuid"),
+    ),
+    Facet(
+        "provider",
+        field="offering__customer__uuid",
+        label="offering__customer__name",
+        params=("provider_uuid",),
+    ),
+    Facet(
+        "organization",
+        field="call__manager__customer__uuid",
+        label="call__manager__customer__name",
+        params=("organization_uuid",),
+    ),
+    Facet("call", field="call__uuid", label="call__name", params=("call", "call_uuid")),
+    Facet(
+        "call_state",
+        field="call__state",
+        params=("call_state",),
+        labels=CallStates.CHOICES,
+    ),
+)

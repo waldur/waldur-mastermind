@@ -1119,3 +1119,62 @@ class CrossCallIsolationTestCase(APITestCase):
         response = self.client.get(f"/api/call-reviewer-pools/{self.pool2.uuid.hex}/")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ReviewerFacetExposureTestCase(APITestCase):
+    """The reviewer facet, and the reviewer filter, name no more reviewers
+    than the reviews show."""
+
+    def setUp(self):
+        ReviewDataExposureTestCase.setUp(self)
+        self.url = "/api/proposal-reviews/facets/"
+
+    def _reviewers(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {"facet": "reviewer"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        [facet] = response.data
+        return {value["value"]: value["label"] for value in facet["values"]}
+
+    def _filtered(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            "/api/proposal-reviews/", {"reviewer_uuid": self.reviewer_user.uuid.hex}
+        )
+        return [row["uuid"] for row in response.data]
+
+    def test_submitter_is_not_told_a_hidden_reviewer(self):
+        self.assertEqual(self._reviewers(self.submitter), {})
+        self.assertEqual(self._filtered(self.submitter), [])
+
+    def test_submitter_is_told_a_reviewer_the_call_shows(self):
+        self.call.reviewer_identity_visible_to_submitters = True
+        self.call.save()
+
+        self.assertIn(self.reviewer_user.uuid.hex, self._reviewers(self.submitter))
+        self.assertEqual(self._filtered(self.submitter), [self.review.uuid.hex])
+
+    def test_call_manager_and_staff_are_told_the_reviewer(self):
+        for user in (self.call_manager, self.staff):
+            with self.subTest(user=user.username):
+                self.assertEqual(
+                    self._reviewers(user),
+                    {
+                        self.reviewer_user.uuid.hex: self.reviewer_user.full_name
+                        or self.reviewer_user.uuid.hex
+                    },
+                )
+                self.assertEqual(self._filtered(user), [self.review.uuid.hex])
+
+    def test_reviewer_without_a_name_is_not_labeled_by_username(self):
+        # A review shows its reviewer's full name, never the username.
+        self.reviewer_user.first_name = ""
+        self.reviewer_user.last_name = ""
+        self.reviewer_user.save()
+        self.reviewer_user.refresh_from_db()
+        self.assertEqual(self.reviewer_user.full_name, "")
+
+        self.assertEqual(
+            self._reviewers(self.call_manager),
+            {self.reviewer_user.uuid.hex: self.reviewer_user.uuid.hex},
+        )
