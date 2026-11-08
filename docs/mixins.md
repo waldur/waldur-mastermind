@@ -18,6 +18,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`DeleteExecutorMixin`](#deleteexecutormixin) | `waldur_core.core.executors` | Delete object on success or if force flag is enabled |
 | [`ErrorExecutorMixin`](#errorexecutormixin) | `waldur_core.core.executors` | Set object as erred on fail |
 | [`SuccessExecutorMixin`](#successexecutormixin) | `waldur_core.core.executors` | Set object as OK on success, cleanup action and its details |
+| [`FacetsMixin`](#facetsmixin) | `waldur_core.core.facets` | Adds a ``facets`` collection action; see the module docstring |
 | [`SelectiveEncryptionMixin`](#selectiveencryptionmixin) | `waldur_core.core.fields` | Encrypts the values under sensitive keys of a JSON-valued field |
 | [`GenericKeyMixin`](#generickeymixin) | `waldur_core.core.managers` | Filtering by generic key field  Support filtering by:  - generic key directly... |
 | [`CreateExecutorMixin`](#createexecutormixin) | `waldur_core.core.mixins` | Mixin to execute create operations using background executors |
@@ -346,6 +347,14 @@ Set object as erred on fail.
 **Description:**
 
 Set object as OK on success, cleanup action and its details.
+
+### FacetsMixin
+
+**Module:** `waldur_core.core.facets`
+
+**Description:**
+
+Adds a ``facets`` collection action; see the module docstring.
 
 ### SelectiveEncryptionMixin
 
