@@ -31,6 +31,7 @@ from waldur_core.core import access
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.core.facets import FacetsMixin
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.core.serializers import EmptySerializer, StatusSerializer
 from waldur_core.permissions.fixtures import CustomerRole
@@ -105,7 +106,7 @@ def validate_status_change_allowed(issue):
         )
 
 
-class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+class IssueViewSet(FacetsMixin, CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Issue.objects.prefetch_related(
         Prefetch(
             "child_issues",
@@ -121,6 +122,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         filters.IssueResourceFilterBackend,
     )
     filterset_class = filters.IssueFilter
+    facet_fields = filters.ISSUE_FACETS
     serializer_class = serializers.IssueSerializer
 
     # Checked by the serializer, against what the request names.
@@ -803,7 +805,9 @@ class SupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         )
 
 
-class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+class ProviderTicketViewSet(
+    FacetsMixin, CheckExtensionMixin, core_views.ActionsViewSet
+):
     """Provider's view of tickets routed to their helpdesk."""
 
     queryset = models.Issue.objects.filter(parent_issue__isnull=False)
@@ -811,6 +815,7 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProviderTicketFilter
+    facet_fields = filters.PROVIDER_TICKET_FACETS
     disabled_actions = ["create", "destroy"]
 
     access_filtered_actions = ("stats",)

@@ -93,6 +93,7 @@ from waldur_core.core import views as core_views
 from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.core.facets import FacetsMixin
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.models import User
 from waldur_core.core.pagination import LinkHeaderPagination
@@ -1779,15 +1780,17 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
         summary="List offerings of a service provider",
         description="Returns a paginated list of all billable, shared offerings provided by the specified service provider.",
         parameters=[SERVICE_PROVIDER_UUID],
-    )
+    ),
+    facets=extend_schema(parameters=[SERVICE_PROVIDER_UUID]),
 )
 class ServiceProviderOfferingsViewSet(
-    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+    FacetsMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
 ):
     serializer_class = serializers.ProviderOfferingSerializer
     queryset = models.Offering.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingFilter
+    facet_fields = filters.OFFERING_FACETS
     # types counts the rows that list shows.
     access_filtered_actions = ("types",)
 
@@ -3034,6 +3037,7 @@ OFFERING_SEEN_ACCESS = access.custom(
     ),
 )
 class ProviderOfferingViewSet(
+    FacetsMixin,
     UserRoleMixin,
     PublicViewsetMixin,
     core_views.HistoryViewSetMixin,
@@ -3066,6 +3070,7 @@ class ProviderOfferingViewSet(
     create_serializer_class = serializers.OfferingCreateSerializer
     disabled_actions = ["update", "partial_update"]
     filterset_class = filters.OfferingFilter
+    facet_fields = filters.OFFERING_FACETS
     filter_backends = (
         DjangoFilterBackend,
         filters.OfferingCustomersFilterBackend,
@@ -7243,11 +7248,12 @@ class ProviderOfferingViewSet(
         description="Returns the details of a specific public offering. Access is granted if the offering is available for ordering by the current user or if anonymous access is enabled.",
     ),
 )
-class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
+class PublicOfferingViewSet(FacetsMixin, rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()
     lookup_field = "uuid"
     serializer_class = serializers.PublicOfferingDetailsSerializer
     filterset_class = filters.OfferingFilter
+    facet_fields = filters.OFFERING_FACETS
     permission_classes = []
 
     # Read actions that look the offering up as retrieve does; they show only
@@ -8588,7 +8594,10 @@ def _emit_resource_failure_event(order, resource):
     ),
 )
 class OrderViewSet(
-    ConnectedResourceDetailsMixin, ConnectedOfferingDetailsMixin, BaseMarketplaceView
+    FacetsMixin,
+    ConnectedResourceDetailsMixin,
+    ConnectedOfferingDetailsMixin,
+    BaseMarketplaceView,
 ):
     queryset = serializers.OrderDetailsSerializer.eager_load(models.Order.objects.all())
     filter_backends = (DjangoFilterBackend,)
@@ -8597,6 +8606,7 @@ class OrderViewSet(
     update_serializer_class = serializers.OrderUpdateSerializer
     partial_update_serializer_class = serializers.OrderUpdateSerializer
     filterset_class = filters.OrderFilter
+    facet_fields = filters.ORDER_FACETS
     disabled_actions = []
 
     def get_serializer_class(self):
@@ -9605,6 +9615,7 @@ class OfferingAccessSubnetViewSet(core_views.ActionsViewSet):
 
 
 class BaseResourceViewSet(
+    FacetsMixin,
     ConnectedOfferingDetailsMixin,
     core_views.HistoryViewSetMixin,
     core_views.ActionsViewSet,
@@ -9612,6 +9623,7 @@ class BaseResourceViewSet(
     queryset = models.Resource.objects.all()
     filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)
     filterset_class = filters.ResourceFilter
+    facet_fields = filters.RESOURCE_FACETS
     lookup_field = "uuid"
     serializer_class = serializers.ResourceSerializer
     disabled_actions = ["create", "destroy"]
@@ -13086,6 +13098,7 @@ def validate_offering_user_state_transition(valid_states, target_state_name):
     ),
 )
 class OfferingUsersViewSet(
+    FacetsMixin,
     UserChecklistMixin,
     ReviewerChecklistMixin,
     core_views.ActionsViewSet,
@@ -13095,6 +13108,7 @@ class OfferingUsersViewSet(
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingUserFilter
+    facet_fields = filters.OFFERING_USER_FACETS
 
     def perform_update(self, serializer):
         instance: models.OfferingUser = serializer.instance
@@ -20653,7 +20667,7 @@ class SoftwareCatalogViewSet(
     ),
 )
 class SoftwarePackageViewSet(
-    PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
+    FacetsMixin, PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
 ):
     """ViewSet for SoftwarePackage model with standard DRF patterns."""
 
@@ -20664,11 +20678,15 @@ class SoftwarePackageViewSet(
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.SoftwarePackageFilter
+    facet_fields = filters.SOFTWARE_PACKAGE_FACETS
+    # Counts what list shows, to whoever list is open to.
+    public_actions = ("list", "retrieve", "facets")
 
     unsafe_methods_permissions = [structure_permissions.is_staff]
     access_declarations = {
         "list": [PUBLIC_CATALOG_ACCESS],
         "retrieve": [PUBLIC_CATALOG_ACCESS],
+        "facets": [PUBLIC_CATALOG_ACCESS],
     }
 
 

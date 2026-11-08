@@ -48,6 +48,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import ReviewStates as CoreReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.core.facets import FacetsMixin
 from waldur_core.core.models import User
 from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.core.utils import SubqueryCount
@@ -5985,6 +5986,7 @@ CALL_TEAM_VIEW = access.custom(
 
 
 class ProposalViewSet(
+    FacetsMixin,
     UserChecklistMixin,
     ReviewerChecklistMixin,
     UserRoleMixin,
@@ -5994,6 +5996,7 @@ class ProposalViewSet(
     lookup_field = "uuid"
     serializer_class = serializers.ProposalSerializer
     filterset_class = filters.ProposalFilter
+    facet_fields = filters.PROPOSAL_FACETS
     disabled_actions = ["update", "partial_update", "checklist_template"]
     model = models.Proposal
     # The PDF reads in a transaction of its own and renders after it ends.
@@ -10400,10 +10403,11 @@ class ProposalViewSet(
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class ReviewViewSet(ActionsViewSet):
+class ReviewViewSet(FacetsMixin, ActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.ProposalReviewSerializer
     filterset_class = filters.ReviewFilter
+    facet_fields = filters.REVIEW_FACETS
     queryset = models.Review.objects.all()
 
     update_validators = partial_update_validators = [
@@ -10631,7 +10635,7 @@ class ReviewViewSet(ActionsViewSet):
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
+class ProviderRequestedOfferingViewSet(FacetsMixin, ReadOnlyActionsViewSet):
     """Requests to include the provider's offerings in calls.
 
     Scoped to the provider side: staff, the owners of the offering's
@@ -10645,6 +10649,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     )
     serializer_class = serializers.ProviderRequestedOfferingSerializer
     filterset_class = filters.RequestedOfferingFilter
+    facet_fields = filters.REQUESTED_OFFERING_FACETS
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     # Read the requested offering looked up, or the list filtered, as list
     # and retrieve do.

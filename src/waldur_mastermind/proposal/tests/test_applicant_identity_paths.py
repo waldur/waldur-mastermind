@@ -791,3 +791,77 @@ class ProviderApplicantIdentityTest(ApplicantIdentityTestMixin, test.APITestCase
         self.call.add_user(self.provider, CallRole.MANAGER)
         detail = self.get(self.provider, self.detail_url)
         self.assertEqual(detail["applicant_full_name"], self.applicant.full_name)
+
+
+class ProposalFacetsApplicantIdentityTest(ApplicantIdentityTestMixin, test.APITestCase):
+    """The applicant and panel facets name no more than the list would."""
+
+    def setUp(self):
+        super().setUp()
+        self.url = factories.ProposalFactory.get_list_url("facets")
+
+    def _facet(self, user, name):
+        [facet] = self.get(user, self.url, {"facet": name})
+        return {value["value"]: value["label"] for value in facet["values"]}
+
+    def test_reviewer_is_not_told_a_concealed_applicant(self):
+        self.conceal_identity()
+        self.assertNotIn(
+            self.applicant.uuid.hex, self._facet(self.reviewer, "applicant")
+        )
+
+    def test_reviewer_is_told_an_exposed_applicant(self):
+        self.expose_identity()
+        self.assertIn(self.applicant.uuid.hex, self._facet(self.reviewer, "applicant"))
+
+    def test_full_data_viewers_are_told_the_applicant(self):
+        self.conceal_identity()
+        for name, user in self.full_data_viewers().items():
+            with self.subTest(name):
+                labels = self._facet(user, "applicant")
+                self.assertEqual(
+                    labels.get(self.applicant.uuid.hex),
+                    self.applicant.full_name or self.applicant.username,
+                )
+
+    def test_reviewer_is_not_told_a_concealed_full_name(self):
+        # The username alone is shown: the facet would label the applicant
+        # with the full name the proposal payload drops.
+        models.CallApplicantVisibilityConfig.objects.create(
+            call=self.call,
+            expose_full_name=False,
+            expose_username=True,
+            expose_email=False,
+        )
+        self.assertNotIn(
+            self.applicant.uuid.hex, self._facet(self.reviewer, "applicant")
+        )
+
+    def test_applicant_team_is_not_told_its_proposal_panel(self):
+        panel = models.CallPanel.objects.create(
+            call=self.call, key="physics", name="Physics"
+        )
+        models.Proposal.objects.filter(pk=self.proposal.pk).update(panel=panel)
+
+        self.assertEqual(self._facet(self.co_applicant, "panel"), {})
+        self.assertEqual(
+            self._facet(self.call_manager, "panel"), {panel.uuid.hex: "Physics"}
+        )
+
+    def test_evaluator_outside_the_call_team_is_not_told_the_panel(self):
+        panel = models.CallPanel.objects.create(
+            call=self.call, key="physics", name="Physics"
+        )
+        models.Proposal.objects.filter(pk=self.proposal.pk).update(panel=panel)
+
+        self.assertEqual(self._facet(self.reviewer, "panel"), {})
+        rows = self.get(
+            self.reviewer,
+            factories.ProposalFactory.get_list_url(),
+            {"panel_uuid": panel.uuid.hex},
+        )
+        self.assertEqual(rows, [])
+
+    def test_round_is_named_like_the_round(self):
+        labels = self._facet(self.call_manager, "round")
+        self.assertEqual(labels[self.proposal.round.uuid.hex], self.proposal.round.name)

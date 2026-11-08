@@ -842,6 +842,9 @@ class ViewAsTest(DryRunMixin, test.APITestCase):
             response.data["view_as"]["viewer"]["full_name"], "Example applicant"
         )
 
+    # What is compared is each role's preview, not the budget: every actor
+    # replays the walk, which a loaded runner can stretch past it.
+    @mock.patch.object(dry_run, "TIMEOUT_SECONDS", 120)
     def test_every_actor_previews(self):
         call = self.import_template("extreme_scale")
         actions, _ = self.at_response_step(call)
