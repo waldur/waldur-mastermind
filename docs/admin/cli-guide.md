@@ -355,7 +355,7 @@ waldur cleanup_structure --skip-rabbitmq-messages
 ```bash
 
 usage: waldur cleanup_structure [--skip-users] [--skip-roles] [--dry-run]
-                                [--skip-rabbitmq-messages] [--fast]
+                                [--skip-rabbitmq-messages] [--fast] [--strict]
 
 options:
   --skip-users          Skip deleting users.
@@ -366,6 +366,8 @@ options:
                         (recommended for large cleanups).
   --fast                Use fast raw SQL DELETE (bypasses all Django signals,
                         much faster for large datasets).
+  --strict              Fail when anything could not be deleted, instead of
+                        reporting it and carrying on.
 
 ```
 
@@ -880,6 +882,7 @@ waldur import_structure -i structure.json --skip-rabbitmq-messages --skip-roles
 usage: waldur import_structure -i INPUT [--update] [--skip-users]
                                [--skip-roles] [--dry-run]
                                [--skip-rabbitmq-messages] [--skip-user-sync]
+                               [--protect-owned-settings]
 
 options:
   -i, --input INPUT     Path to the input JSON file.
@@ -891,6 +894,10 @@ options:
                         Skip sending RabbitMQ messages during import
                         (recommended for large imports).
   --skip-user-sync      Skip syncing user activation status after import.
+  --protect-owned-settings
+                        Skip settings the deployment owns: locked or
+                        deployment-managed ones, secrets and settings Waldur
+                        changes while it runs.
 
 ```
 

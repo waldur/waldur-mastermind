@@ -151,6 +151,10 @@
 - update_of_credit_by_staff
 - update_of_project_credit_by_staff
 
+## Mcp
+
+- mcp_tool_called
+
 ## Offering_accounting
 
 - marketplace_offering_component_created

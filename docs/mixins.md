@@ -111,6 +111,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SafeAttributesMixin`](#safeattributesmixin) | `waldur_mastermind.marketplace.models` | Mixin for safe attribute handling |
 | [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
 | [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
+| [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_settings` | No description available |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
 | [`OrderResourceVisibilityMixin`](#orderresourcevisibilitymixin) | `waldur_mastermind.marketplace.tests.test_order_resource_visibility` | No description available |
@@ -1581,6 +1582,12 @@ serves both offering users and user role grants. Username, full name and
 email are declared by the serializers themselves.
 
 **Base classes:** `Serializer`
+
+### PresetSettingsTestMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_demo_preset_settings`
+
+**Description:** No description available.
 
 ### DerivedLimitsOrderMixin
 

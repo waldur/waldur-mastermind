@@ -339,6 +339,8 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'COURSE_ACCOUNT_URL': '',
  'COURSE_ACCOUNT_USE_API': False,
  'CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION': False,
+ 'DEMO_PRESETS_ALLOWED': [],
+ 'DEMO_PRESETS_ENABLED': False,
  'EMAIL_CHANGE_MAX_AGE': datetime.timedelta(days=1),
  'ENABLE_ACCOUNTING_START_DATE': False,
  'ENABLE_PROJECT_KIND_COURSE': False,
@@ -416,6 +418,7 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'SUPPORT_PORTAL_URL': '',
  'TOKEN_LIFETIME': datetime.timedelta(seconds=3600),
  'TRANSLATION_DOMAIN': '',
+ 'USER_MANAGEMENT_API_TIMEOUT': 5,
  'USER_MANDATORY_FIELDS': ['first_name', 'last_name', 'email'],
  'USER_REGISTRATION_HIDDEN_FIELDS': ['registration_method',
                                      'job_title',
@@ -486,6 +489,18 @@ Send course account creation and deletion requests to API.
 **Type:** bool
 
 Enables generation of the first project on organization creation.
+
+#### DEMO_PRESETS_ALLOWED
+
+**Type:** List[str]
+
+Names of the demo presets offered when DEMO_PRESETS_ENABLED is on. Empty offers every preset.
+
+#### DEMO_PRESETS_ENABLED
+
+**Type:** bool
+
+Let staff list, preview and load demo presets through the API and the portal. Loading a preset deletes every organization, project, offering, user and token in the database, so enable it only on demo deployments. Set by the deployment only; it is not a Constance setting.
 
 #### EMAIL_CHANGE_MAX_AGE
 
@@ -786,6 +801,12 @@ Defines for how long user token should remain valid if there was no action from 
 **Type:** str
 
 Identifier of translation domain applied to current deployment.
+
+#### USER_MANAGEMENT_API_TIMEOUT
+
+**Type:** ConstrainedFloatValue
+
+Timeout in seconds, at most 30, for each connect, read, write and pool operation of calls to the service account API, the course account API, the invitation webhook and their token endpoints. It bounds each operation, not the whole call. Some of these calls run inside API requests, so a higher value lets a slow backend hold API workers for longer.
 
 #### USER_MANDATORY_FIELDS
 
