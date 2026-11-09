@@ -2001,14 +2001,11 @@ class CreateCourseAccountTaskErrorHandlingTest(test.APITestCase):
     COURSE_ACCOUNT_TOKEN_URL=COURSE_ACCOUNT_TOKEN_URL,
     COURSE_ACCOUNT_TOKEN_CLIENT_ID="test-client-id",
     COURSE_ACCOUNT_TOKEN_SECRET="test-client-secret",
+    # Not the default, so the assertions prove the setting is what is read.
+    USER_MANAGEMENT_API_TIMEOUT=17,
 )
 class AccountApiRequestTimeoutTest(test.APITestCase):
-    """Test that ACCOUNT_API_REQUEST_TIMEOUT actually reaches the httpx calls.
-
-    Nothing previously asserted this: the timeout constant existed and was
-    referenced in a comment, but no test failed if the `timeout=` kwarg was
-    dropped from a call site.
-    """
+    """Test that USER_MANAGEMENT_API_TIMEOUT actually reaches the httpx calls."""
 
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -2044,15 +2041,9 @@ class AccountApiRequestTimeoutTest(test.APITestCase):
 
         utils.close_course_account(self.course_account)
 
-        self.assertEqual(
-            mock_post.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
-        )
-        self.assertEqual(
-            mock_get.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
-        )
-        self.assertEqual(
-            mock_put.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
-        )
+        self.assertEqual(mock_post.call_args.kwargs["timeout"], 17)
+        self.assertEqual(mock_get.call_args.kwargs["timeout"], 17)
+        self.assertEqual(mock_put.call_args.kwargs["timeout"], 17)
 
     @patch("httpx.put")
     @patch("httpx.get")
@@ -2070,12 +2061,8 @@ class AccountApiRequestTimeoutTest(test.APITestCase):
             200, json={}, request=httpx.Request("PUT", COURSE_ACCOUNT_URL)
         )
         utils.close_course_account_by_username(self.user.username, "token")
-        self.assertEqual(
-            mock_get.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
-        )
-        self.assertEqual(
-            mock_put.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
-        )
+        self.assertEqual(mock_get.call_args.kwargs["timeout"], 17)
+        self.assertEqual(mock_put.call_args.kwargs["timeout"], 17)
 
 
 @override_waldur_core_settings(

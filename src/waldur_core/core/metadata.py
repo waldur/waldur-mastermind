@@ -167,6 +167,17 @@ class WaldurCore(BaseModel):
     COURSE_ACCOUNT_TOKEN_SECRET: str = Field(
         "", description="Client secret to get access for course account."
     )
+    USER_MANAGEMENT_API_TIMEOUT: float = Field(
+        5,
+        gt=0,
+        le=30,
+        description="Timeout in seconds, at most 30, for each connect, read, "
+        "write and pool operation of calls to the service account API, the "
+        "course account API, the invitation webhook and their token endpoints. "
+        "It bounds each operation, not the whole call. Some of these calls run "
+        "inside API requests, so a higher value lets a slow backend hold API "
+        "workers for longer.",
+    )
     PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: list[str] = Field(
         [],
         description="List of authentication methods for which a manual update of user details is not allowed.",
