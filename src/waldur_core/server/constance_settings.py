@@ -999,7 +999,7 @@ CONSTANCE_CONFIG = {
     ),
     "CROSSREF_MAILTO": (
         "",
-        "Email address for CrossRef API polite pool. Provides higher rate limits.",
+        "Email address for Crossref API polite pool. Provides higher rate limits.",
         "email_field",
     ),
     # Reviewer profile settings

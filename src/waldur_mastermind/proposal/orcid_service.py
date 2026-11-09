@@ -815,7 +815,7 @@ def import_orcid_keywords(profile) -> dict[str, int]:
 
 def fetch_publication_by_doi(doi: str) -> dict[str, Any] | None:
     """
-    Fetch publication metadata by DOI using CrossRef API.
+    Fetch publication metadata by DOI using the Crossref API.
 
     Args:
         doi: The DOI to look up (e.g., "10.1000/xyz123").
