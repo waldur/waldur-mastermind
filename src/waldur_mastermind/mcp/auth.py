@@ -91,8 +91,7 @@ class ClientIPMiddleware:
 def authorize_mcp_pat(pat: models.PersonalAccessToken, client_ip: str | None) -> None:
     # Tools only receive the user, so a restriction they can't see must be
     # refused here rather than silently widened. The permission allowlist in
-    # pat.scopes is not applied yet: the tool registry adapter filters tools by
-    # it (#804), and the placeholder whoami tool needs no permission.
+    # pat.scopes is applied per tool, in tools.get_visible_definitions.
     if pat.allowed_scopes:
         reason = "mcp_entity_bound"
     elif pat.user.is_staff and PermissionEnum.STAFF_ACCESS.value not in pat.scopes:

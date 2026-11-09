@@ -119,6 +119,13 @@ class UnknownArgumentsTest(TestCase):
                     result["summary"].startswith("Unknown argument: resource_nam.")
                 )
 
+    def test_echo_is_cut(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        result = GetOrderTool().execute(staff, {"x" * 1000: "a", "y": "b"})
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("Unknown argument: " + "x" * 64 + ", y.", result["summary"])
+        self.assertNotIn("x" * 65, result["summary"])
+
 
 class NonStringArgumentsTest(TestCase):
     # Every text argument of the #801 tools, for a validation_error instead
