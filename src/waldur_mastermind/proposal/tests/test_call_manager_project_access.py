@@ -226,19 +226,45 @@ class CallManagerProjectAccessTest(test.APITestCase):
         self.assertNotEqual(self.project.name, "Renamed")
         self.assertFalse(self.project.is_removed)
 
-    def test_call_manager_cannot_list_or_manage_the_project_team(self):
-        user = structure_factories.UserFactory()
+    def test_call_manager_lists_the_project_team(self):
+        # Who the award gave access to is part of what the call allocated.
+        member = structure_factories.UserFactory()
+        self.project.add_user(member, ProjectRole.MEMBER)
         self.client.force_authenticate(self.call_manager)
 
-        listing = self.client.get(self.project_url(action="list_users"))
+        response = self.client.get(self.project_url(action="list_users"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["user_uuid"] for row in response.data], [member.uuid.hex])
+
+    def test_call_manager_cannot_manage_the_project_team(self):
+        user = structure_factories.UserFactory()
+        member = structure_factories.UserFactory()
+        self.project.add_user(member, ProjectRole.MEMBER)
+        self.client.force_authenticate(self.call_manager)
+
         adding = self.client.post(
             self.project_url(action="add_user"),
             {"user": user.uuid.hex, "role": "PROJECT.MEMBER"},
         )
+        updating = self.client.post(
+            self.project_url(action="update_user"),
+            {
+                "user": member.uuid.hex,
+                "role": "PROJECT.MEMBER",
+                "expiration_time": "2099-01-01T00:00:00Z",
+            },
+        )
+        removing = self.client.post(
+            self.project_url(action="delete_user"),
+            {"user": member.uuid.hex, "role": "PROJECT.MEMBER"},
+        )
 
-        self.assertEqual(listing.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(adding.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(updating.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(removing.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(self.project.has_user(user))
+        self.assertTrue(self.project.has_user(member))
 
     def test_call_manager_cannot_act_on_the_resource(self):
         self.client.force_authenticate(self.call_manager)
@@ -308,6 +334,10 @@ class CallManagerProjectAccessTest(test.APITestCase):
         )
         self.assertEqual(
             self.client.get(self.resource_url()).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(
+            self.client.get(self.project_url(action="list_users")).status_code,
             status.HTTP_404_NOT_FOUND,
         )
         self.assertNotIn(self.project.uuid.hex, self.list_project_uuids())
