@@ -3728,3 +3728,107 @@ class CallAndProposalInvitationTemplateTest(test.APITestCase):
             message.subject,
         )
         self.assertIn(invitation.scope.round.call.name, message.body)
+
+
+INVITATION_WEBHOOK_URL = "https://hooks.example.com/invitations"
+INVITATION_WEBHOOK_TOKEN_URL = "https://keycloak.example.com/token"
+
+
+@override_waldur_core_settings(
+    INVITATION_USE_WEBHOOKS=True,
+    INVITATION_WEBHOOK_URL=INVITATION_WEBHOOK_URL,
+    INVITATION_WEBHOOK_TOKEN_URL=INVITATION_WEBHOOK_TOKEN_URL,
+    INVITATION_WEBHOOK_TOKEN_CLIENT_ID="client-id",
+    INVITATION_WEBHOOK_TOKEN_SECRET="client-secret",
+    # Not the default, so the assertions prove the setting is what is read.
+    USER_MANAGEMENT_API_TIMEOUT=17,
+)
+class InvitationWebhookRequestTest(test.APITestCase):
+    """The webhook itself, over HTTP: token request, invitation POST, timeout."""
+
+    def setUp(self):
+        self.sender = structure_factories.UserFactory()
+        self.invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            created_by=self.sender,
+        )
+
+    def send(self):
+        tasks.send_invitation_created(self.invitation.uuid.hex, self.sender.full_name)
+        self.invitation.refresh_from_db()
+
+    def mock_token(self):
+        return respx.post(INVITATION_WEBHOOK_TOKEN_URL).mock(
+            return_value=httpx.Response(200, json={"access_token": "token"})
+        )
+
+    @respx.mock
+    def test_invitation_is_posted_with_token_and_timeout(self):
+        token_route = self.mock_token()
+        hook_route = respx.post(INVITATION_WEBHOOK_URL).mock(
+            return_value=httpx.Response(201, json={})
+        )
+
+        self.send()
+
+        self.assertEqual(
+            self.invitation.execution_state, models.Invitation.ExecutionState.OK
+        )
+        request = hook_route.calls.last.request
+        self.assertEqual(request.headers["Authorization"], "Bearer token")
+        self.assertIn(self.invitation.email, request.content.decode())
+        for route in (token_route, hook_route):
+            self.assertEqual(
+                route.calls.last.request.extensions["timeout"],
+                {"connect": 17, "read": 17, "write": 17, "pool": 17},
+            )
+
+    @respx.mock
+    def test_client_error_is_stored_as_permanent_failure(self):
+        self.mock_token()
+        respx.post(INVITATION_WEBHOOK_URL).mock(
+            return_value=httpx.Response(409, text="User is disabled")
+        )
+
+        self.send()
+
+        self.assertEqual(
+            self.invitation.execution_state, models.Invitation.ExecutionState.ERRED
+        )
+        self.assertEqual(
+            self.invitation.error_message,
+            "Invitation sending has failed: 409, User is disabled",
+        )
+        self.assertTrue(tasks.is_permanent_webhook_error(self.invitation.error_message))
+
+    @respx.mock
+    def test_timeout_marks_invitation_erred_and_retryable(self):
+        self.mock_token()
+        respx.post(INVITATION_WEBHOOK_URL).mock(
+            side_effect=httpx.ReadTimeout("The read operation timed out")
+        )
+
+        self.send()
+
+        self.assertEqual(
+            self.invitation.execution_state, models.Invitation.ExecutionState.ERRED
+        )
+        self.assertIn("timed out", self.invitation.error_message)
+        self.assertFalse(
+            tasks.is_permanent_webhook_error(self.invitation.error_message)
+        )
+
+    @respx.mock
+    def test_token_failure_does_not_post_invitation(self):
+        respx.post(INVITATION_WEBHOOK_TOKEN_URL).mock(
+            return_value=httpx.Response(401, text="invalid_client")
+        )
+        hook_route = respx.post(INVITATION_WEBHOOK_URL)
+
+        self.send()
+
+        self.assertFalse(hook_route.called)
+        self.assertEqual(
+            self.invitation.execution_state, models.Invitation.ExecutionState.ERRED
+        )
+        self.assertIn("Unable to fetch access token", self.invitation.error_message)

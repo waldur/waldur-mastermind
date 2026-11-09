@@ -369,19 +369,20 @@ class ServiceAccountClosingTest(BaseClosingTest):
             200, json={}, request=httpx.Request("PUT", SERVICE_ACCOUNT_URL)
         )
 
-        utils.close_service_account(account)
-        utils.close_service_account_by_username("sa-other")
-        utils.update_service_account(account)
-        utils.rotate_service_account_api_key(account)
+        # A non-default value, so the assertion proves the setting is read
+        # rather than a fixed constant matching it by coincidence.
+        with override_waldur_core_settings(USER_MANAGEMENT_API_TIMEOUT=17):
+            utils.close_service_account(account)
+            utils.close_service_account_by_username("sa-other")
+            utils.update_service_account(account)
+            utils.rotate_service_account_api_key(account)
 
-        for mock_call in mock_post.call_args_list + mock_get.call_args_list:
-            self.assertEqual(
-                mock_call.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
-            )
-        for mock_call in mock_put.call_args_list:
-            self.assertEqual(
-                mock_call.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
-            )
+        calls = (
+            mock_post.call_args_list + mock_get.call_args_list + mock_put.call_args_list
+        )
+        self.assertTrue(calls)
+        for mock_call in calls:
+            self.assertEqual(mock_call.kwargs["timeout"], 17)
 
 
 @override_waldur_core_settings(

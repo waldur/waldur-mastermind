@@ -319,8 +319,13 @@ An account the backend no longer has (404), or reports as `closed`, is closed
 locally without calling close: that is the requested outcome, not an error. An
 account with no username was never created at the backend and is closed
 locally as well.
-Every call to the service account backend has a 5-second timeout
-(`ACCOUNT_API_REQUEST_TIMEOUT`).
+Every call to the service account backend has a timeout of
+`WALDUR_CORE["USER_MANAGEMENT_API_TIMEOUT"]` seconds, 5 by default and at most
+30, on each connect, read, write and pool operation. The container image reads
+it from `WALDUR_USER_MANAGEMENT_API_TIMEOUT` and refuses to start on a value
+outside that range. Creating, updating, closing a service account and rotating
+its key call the backend inside the API request, so a higher timeout lets a
+slow backend hold API workers for longer.
 
 ### Account Limits
 

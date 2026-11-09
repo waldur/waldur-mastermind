@@ -2,7 +2,7 @@ import collections
 import logging
 from typing import Any
 
-import requests
+import httpx
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.signing import BadSignature, TimestampSigner
@@ -642,8 +642,17 @@ def post_invitation_to_url(url: str, context):
         "client_secret": client_secret,
     }
 
-    token_response = requests.post(
-        token_url, data=token_params, headers=token_request_headers
+    # Same per-operation timeout as the service and course account APIs, which
+    # follow the same token-then-POST pattern. requests followed redirects on
+    # POST and httpx does not by default, hence follow_redirects.
+    timeout = settings.WALDUR_CORE["USER_MANAGEMENT_API_TIMEOUT"]
+
+    token_response = httpx.post(
+        token_url,
+        data=token_params,
+        headers=token_request_headers,
+        follow_redirects=True,
+        timeout=timeout,
     )
 
     if token_response.status_code != 200:
@@ -673,8 +682,12 @@ def post_invitation_to_url(url: str, context):
         "invitation_uuid": invitation.uuid.hex,
     }
     invitation_headers = {"Authorization": f"Bearer {access_token}"}
-    invitation_response = requests.post(
-        url, json=invitation_payload, headers=invitation_headers
+    invitation_response = httpx.post(
+        url,
+        json=invitation_payload,
+        headers=invitation_headers,
+        follow_redirects=True,
+        timeout=timeout,
     )
 
     if 200 <= invitation_response.status_code < 300:

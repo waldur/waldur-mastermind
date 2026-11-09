@@ -74,6 +74,11 @@ COURSE_ACCOUNT_URL = ""  # Webhook URL for course account management
 COURSE_ACCOUNT_TOKEN_URL = ""  # OAuth2 token endpoint
 COURSE_ACCOUNT_TOKEN_CLIENT_ID = ""  # OAuth2 client ID
 COURSE_ACCOUNT_TOKEN_SECRET = ""  # OAuth2 client secret
+
+# Seconds per connect/read/write/pool operation, at most 30; shared with
+# service accounts and the invitation webhook.
+# In the container image: WALDUR_USER_MANAGEMENT_API_TIMEOUT.
+USER_MANAGEMENT_API_TIMEOUT = 5
 ```
 
 ### Mock Mode

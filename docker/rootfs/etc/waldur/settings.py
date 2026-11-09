@@ -2,6 +2,8 @@
 import copy
 import os
 
+from django.core.exceptions import ImproperlyConfigured
+
 from waldur_core.server.base_settings import *
 
 BASE_DIR = os.path.abspath(
@@ -116,6 +118,24 @@ WALDUR_CORE.update(
         "WEB_SHELL_URL": env.get("WALDUR_WEB_SHELL_URL", ""),
     }
 )
+
+# Seconds; unset or empty keeps the default from WaldurCore. Capped at 30
+# because some of these calls run inside API requests, under gunicorn's
+# 30-second worker timeout. A bad value stops startup with a clear message
+# rather than surfacing later as failed or unbounded calls.
+user_management_api_timeout = env.get("WALDUR_USER_MANAGEMENT_API_TIMEOUT", "").strip()
+if user_management_api_timeout:
+    try:
+        parsed_timeout = float(user_management_api_timeout)
+    except ValueError:
+        parsed_timeout = None
+    # The chained comparison is False for NaN, so NaN is rejected too.
+    if parsed_timeout is None or not 0 < parsed_timeout <= 30:
+        raise ImproperlyConfigured(
+            "WALDUR_USER_MANAGEMENT_API_TIMEOUT must be a number of seconds "
+            f"greater than 0 and at most 30, got {user_management_api_timeout!r}"
+        )
+    WALDUR_CORE["USER_MANAGEMENT_API_TIMEOUT"] = parsed_timeout
 
 # Sentry integration
 # See also: https://docs.sentry.io/platforms/python/guides/django/

@@ -6416,15 +6416,30 @@ def generate_mock_course_account_creation_response(
     return generate_mock_course_account_response(mock_username)
 
 
-# Explicit stand-in for httpx's implicit default (Timeout(5.0), i.e. 5s on
-# each of connect/read/write/pool) so the ceiling is visible here rather
-# than relying on a library default. NOTE: like that default, this bounds
-# each individual I/O operation, not the call's total duration - a backend
-# that trickles bytes just under this ceiling per chunk can still keep a
-# call "alive" indefinitely. That is NOT what protects gunicorn workers
-# from hanging on this call; moving the call off the request path (see
-# marketplace/tasks.py) is what does that.
-ACCOUNT_API_REQUEST_TIMEOUT = 5
+def user_management_api_timeout() -> float:
+    """Timeout, in seconds, for every call to the account API backends.
+
+    Shared with the invitation webhook (waldur_core.users.utils).
+
+    WALDUR_CORE["USER_MANAGEMENT_API_TIMEOUT"], read per call so an override
+    applies without a restart of anything that imported this module. Its
+    default matches httpx's implicit Timeout(5.0) - 5s on each of
+    connect/read/write/pool - but is passed explicitly so the ceiling is
+    visible here rather than left to a library default.
+
+    Like that default, it bounds each individual I/O operation, not the
+    call's total duration: a backend that trickles bytes just under the
+    ceiling per chunk can still keep a call "alive" indefinitely.
+
+    Only some of these calls run in Celery (bulk course account creation and
+    account closing, see marketplace/tasks.py). Service account create,
+    update, close and key rotation, and single course account creation, run
+    inside the API request, where a token call plus one or two API calls
+    share gunicorn's 30-second worker timeout. That is why the setting is
+    capped at 30 seconds, and why raising it towards the cap trades
+    tolerance of a slow backend for API workers held longer.
+    """
+    return settings.WALDUR_CORE["USER_MANAGEMENT_API_TIMEOUT"]
 
 
 def get_account_api_token(token_url, client_id, client_secret):
@@ -6445,7 +6460,7 @@ def get_account_api_token(token_url, client_id, client_secret):
             data=token_params,
             headers=token_request_headers,
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         token_response.raise_for_status()
         # Extract the token
@@ -6694,7 +6709,7 @@ def get_backend_account(base_url: str, username: str, api_access_token: str):
             account_api_url(base_url, username),
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         return response.json()
@@ -6744,7 +6759,7 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         return response.json()
@@ -6812,7 +6827,7 @@ def post_service_account_to_url(
             json=payload,
             headers=headers,
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         logger.info("Service account has been successfully updated at %s", url)
@@ -6972,7 +6987,7 @@ def close_service_account(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         if response.status_code == 200:
@@ -7041,7 +7056,7 @@ def close_service_account_by_username(
         account_api_url(service_account_url, username, "close"),
         headers={"Authorization": f"Bearer {api_access_token}"},
         follow_redirects=True,
-        timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+        timeout=user_management_api_timeout(),
     )
     response.raise_for_status()
 
@@ -7073,7 +7088,7 @@ def get_service_account(service_account: models.ScopedServiceAccount):
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         return response.json()
@@ -7107,7 +7122,7 @@ def get_course_account(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         return response.json()
@@ -7151,7 +7166,7 @@ def update_service_account(service_account: models.ScopedServiceAccount):
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
             json={
                 "email": service_account.email,
                 "description": service_account.description,
@@ -7809,7 +7824,7 @@ def post_course_account_to_url(
             json=payload,
             headers=headers,
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         logger.info("Course account has been successfully updated at %s", url)
@@ -8040,7 +8055,7 @@ def close_course_account(
             url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
-            timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+            timeout=user_management_api_timeout(),
         )
         response.raise_for_status()
         if response.status_code == 200:
@@ -8119,7 +8134,7 @@ def close_course_account_by_username(
         url,
         headers={"Authorization": f"Bearer {api_access_token}"},
         follow_redirects=True,
-        timeout=ACCOUNT_API_REQUEST_TIMEOUT,
+        timeout=user_management_api_timeout(),
     )
     response.raise_for_status()
 
