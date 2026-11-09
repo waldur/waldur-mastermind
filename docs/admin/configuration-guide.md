@@ -2460,7 +2460,7 @@ Semantic Scholar API Key for publication imports. Optional but recommended for h
 
 **Type:** email_field
 
-Email address for CrossRef API polite pool. Provides higher rate limits.
+Email address for Crossref API polite pool. Provides higher rate limits.
 
 ### Table settings
 
