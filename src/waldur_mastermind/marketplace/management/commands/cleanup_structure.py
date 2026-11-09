@@ -1,6 +1,6 @@
 import time
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django.db.models import signals
 from rest_framework.authtoken.models import Token
@@ -208,6 +208,12 @@ class Command(BaseCommand):
             action="store_true",
             help="Use fast raw SQL DELETE (bypasses all Django signals, much faster for large datasets).",
         )
+        parser.add_argument(
+            "--strict",
+            action="store_true",
+            help="Fail when anything could not be deleted, instead of reporting it "
+            "and carrying on.",
+        )
 
     def handle(self, **options):
         self.dry_run = options["dry_run"]
@@ -215,6 +221,7 @@ class Command(BaseCommand):
         skip_roles = options["skip_roles"]
         skip_side_effects_flag = options["skip_rabbitmq_messages"]
         fast_mode = options["fast"]
+        strict = options["strict"]
 
         if self.dry_run:
             self.stdout.write(
@@ -256,10 +263,16 @@ class Command(BaseCommand):
                 )
             else:
                 self.stdout.write(self.style.ERROR(f"Cleanup failed: {e}"))
+                if strict:
+                    raise CommandError(f"Cleanup failed: {e}") from e
                 return
 
         # Print summary
         self.print_summary()
+
+        failed = sorted(name for name, stats in self.stats.items() if stats["errors"])
+        if strict and failed and not self.dry_run:
+            raise CommandError(f"Cleanup failed to delete {', '.join(failed)}")
 
     def _safe_cleanup(self, cleanup_func):
         """Run a cleanup function within a savepoint.

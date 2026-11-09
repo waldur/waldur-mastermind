@@ -58,6 +58,7 @@ from waldur_mastermind.invoices.models import (
     ProjectCredit,
 )
 from waldur_mastermind.marketplace import posix_ids
+from waldur_mastermind.marketplace.demo_presets import settings_reset
 from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     MissingUsagePolicies,
@@ -817,6 +818,7 @@ class Command(BaseCommand):
         }
         self.dry_run = False
         self.update_existing = False
+        self.protect_owned_settings = False
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -857,6 +859,12 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip syncing user activation status after import.",
         )
+        parser.add_argument(
+            "--protect-owned-settings",
+            action="store_true",
+            help="Skip settings the deployment owns: locked or deployment-managed "
+            "ones, secrets and settings Waldur changes while it runs.",
+        )
 
     def handle(self, **options):
         input_path = options["input"]
@@ -865,6 +873,7 @@ class Command(BaseCommand):
         skip_users = options["skip_users"]
         skip_roles = options["skip_roles"]
         self.skip_user_sync = options["skip_user_sync"]
+        self.protect_owned_settings = options["protect_owned_settings"]
 
         # Validate input file
         if not os.path.exists(input_path):
@@ -8221,6 +8230,16 @@ class Command(BaseCommand):
         normalized_settings = {
             key.upper(): value for key, value in settings_data.items()
         }
+
+        if self.protect_owned_settings:
+            owned = settings_reset.owned_keys()
+            for key in sorted(owned.intersection(normalized_settings)):
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  Skipping {key}: the deployment owns this setting"
+                    )
+                )
+                del normalized_settings[key]
 
         if not normalized_settings:
             self.stdout.write("No constance settings to import after normalization.")
