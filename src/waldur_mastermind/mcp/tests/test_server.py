@@ -36,11 +36,11 @@ INITIALIZE = {
     },
 }
 TOOLS_LIST = {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
-CALL_WHOAMI = {
+CALL_LIST_ORGANIZATIONS = {
     "jsonrpc": "2.0",
     "id": 3,
     "method": "tools/call",
-    "params": {"name": "whoami", "arguments": {}},
+    "params": {"name": "list_organizations", "arguments": {}},
 }
 
 
@@ -133,17 +133,26 @@ class MCPServerTest(test.APITestCase):
         response = self.request_with(pat, TOOLS_LIST)
         self.assertEqual(response.status_code, 200)
         tools = parse_rpc(response)["result"]["tools"]
-        self.assertEqual([tool["name"] for tool in tools], ["whoami"])
+        self.assertIn("list_organizations", [tool["name"] for tool in tools])
 
     def test_tool_acts_as_token_owner(self):
         pat = create_pat(self.user)
 
-        response = self.request_with(pat, CALL_WHOAMI)
+        response = self.request_with(pat, CALL_LIST_ORGANIZATIONS)
 
         result = parse_rpc(response)["result"]["structuredContent"]
         self.assertEqual(
-            result, {"uuid": self.user.uuid.hex, "username": self.user.username}
+            [organization["uuid"] for organization in result["organizations"]],
+            [self.fixture.customer.uuid.hex],
         )
+
+    def test_audit_event_records_the_address_seen_over_http(self):
+        pat = create_pat(self.user)
+
+        self.request_with(pat, CALL_LIST_ORGANIZATIONS)
+
+        event = Event.objects.get(event_type="mcp_tool_called")
+        self.assertEqual(event.context["ip_address"], "203.0.113.5")
 
     def test_valid_pat_records_usage(self):
         pat = create_pat(self.user)

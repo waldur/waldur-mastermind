@@ -115,6 +115,7 @@ EVENT_GROUP_AVAILABILITY: dict[EventGroup, Availability] = {
     EventGroup.CREDITS: ALWAYS,
     EventGroup.CUSTOMERS: ALWAYS,
     EventGroup.INVOICES: ALWAYS,
+    EventGroup.MCP: ConstanceSetting("MCP_ENABLED"),
     EventGroup.OFFERING_ACCOUNTING: ALWAYS,
     EventGroup.ONBOARDING: FeatureFlag("customer.show_onboarding"),
     EventGroup.OPENSTACK_FLOATING_IP: OPENSTACK_OFFERINGS,

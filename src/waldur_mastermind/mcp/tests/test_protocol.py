@@ -10,10 +10,10 @@ from rest_framework import test
 from waldur_core import __version__
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import models
-from waldur_core.structure.tests import factories
+from waldur_core.structure.tests import fixtures
 from waldur_mastermind.mcp import auth, server
 from waldur_mastermind.mcp.tests.test_server import (
-    CALL_WHOAMI,
+    CALL_LIST_ORGANIZATIONS,
     INITIALIZE,
     MCP_HEADERS,
     TOOLS_LIST,
@@ -62,17 +62,24 @@ class MCPProtocolTest(test.APITestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-        self.user = factories.UserFactory(can_use_personal_access_tokens=True)
-        self.pat = create_pat(self.user)
+        self.customer, self.user, self.pat = self.create_owner()
+
+    def create_owner(self):
+        fixture = fixtures.CustomerFixture()
+        user = fixture.owner
+        user.can_use_personal_access_tokens = True
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        return fixture.customer, user, create_pat(user)
 
     def send(self, *requests):
         return async_to_sync(send_concurrently)(requests)
 
-    def assert_is_whoami_result(self, response, user):
+    def assert_lists_only(self, response, customer):
         self.assertEqual(response.status_code, 200)
+        data = parse_rpc(response)["result"]["structuredContent"]
         self.assertEqual(
-            parse_rpc(response)["result"]["structuredContent"],
-            {"uuid": user.uuid.hex, "username": user.username},
+            [organization["uuid"] for organization in data["organizations"]],
+            [customer.uuid.hex],
         )
 
     def test_handshake_clients_can_initialize_list_and_call(self):
@@ -87,38 +94,38 @@ class MCPProtocolTest(test.APITestCase):
                 initialized, listed, called = self.send(
                     post(initialize, headers),
                     post(TOOLS_LIST, headers),
-                    post(CALL_WHOAMI, headers),
+                    post(CALL_LIST_ORGANIZATIONS, headers),
                 )
 
                 self.assertEqual(
                     parse_rpc(initialized)["result"]["protocolVersion"], version
                 )
                 tools = parse_rpc(listed)["result"]["tools"]
-                self.assertEqual([tool["name"] for tool in tools], ["whoami"])
-                self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
-                self.assertIn("outputSchema", tools[0])
-                self.assert_is_whoami_result(called, self.user)
+                tool = next(t for t in tools if t["name"] == "list_organizations")
+                self.assertTrue(tool["annotations"]["readOnlyHint"])
+                self.assertIn("outputSchema", tool)
+                self.assert_lists_only(called, self.customer)
 
     def test_modern_client_can_list_and_call_without_initializing(self):
         headers = {**bearer(self.pat), "MCP-Protocol-Version": MODERN_VERSION}
         tools_list = {**TOOLS_LIST, "params": {"_meta": MODERN_META}}
-        call_whoami = {
-            **CALL_WHOAMI,
-            "params": {**CALL_WHOAMI["params"], "_meta": MODERN_META},
+        call_tool = {
+            **CALL_LIST_ORGANIZATIONS,
+            "params": {**CALL_LIST_ORGANIZATIONS["params"], "_meta": MODERN_META},
         }
 
         listed, called = self.send(
             post(tools_list, headers, {"Mcp-Method": "tools/list"}),
             post(
-                call_whoami,
+                call_tool,
                 headers,
-                {"Mcp-Method": "tools/call", "Mcp-Name": "whoami"},
+                {"Mcp-Method": "tools/call", "Mcp-Name": "list_organizations"},
             ),
         )
 
         tools = parse_rpc(listed)["result"]["tools"]
-        self.assertEqual([tool["name"] for tool in tools], ["whoami"])
-        self.assert_is_whoami_result(called, self.user)
+        self.assertIn("list_organizations", [tool["name"] for tool in tools])
+        self.assert_lists_only(called, self.customer)
 
     def test_modern_request_needs_a_token(self):
         tools_list = {**TOOLS_LIST, "params": {"_meta": MODERN_META}}
@@ -180,20 +187,19 @@ class MCPProtocolTest(test.APITestCase):
         self.assertIsNone(self.pat.last_used_at)
 
     def test_concurrent_callers_keep_their_own_identity(self):
-        other_user = factories.UserFactory(can_use_personal_access_tokens=True)
-        other_pat = create_pat(other_user)
+        other_customer, _, other_pat = self.create_owner()
 
         responses = self.send(
             *[
-                post(CALL_WHOAMI, bearer(pat))
+                post(CALL_LIST_ORGANIZATIONS, bearer(pat))
                 for _ in range(10)
                 for pat in (self.pat, other_pat)
             ]
         )
 
         for index, response in enumerate(responses):
-            expected = self.user if index % 2 == 0 else other_user
-            self.assert_is_whoami_result(response, expected)
+            expected = self.customer if index % 2 == 0 else other_customer
+            self.assert_lists_only(response, expected)
 
 
 class ClientIPMiddlewareTest(SimpleTestCase):

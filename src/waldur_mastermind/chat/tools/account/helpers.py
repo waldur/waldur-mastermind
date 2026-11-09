@@ -57,7 +57,7 @@ def unknown_arguments(arguments: dict, definition) -> str:
     if not unknown:
         return ""
     return (
-        f"Unknown argument: {', '.join(unknown)}. "
+        f"Unknown argument: {', '.join(name[:64] for name in unknown)}. "
         f"Valid arguments: {', '.join(allowed)}."
     )
 

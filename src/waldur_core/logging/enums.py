@@ -519,6 +519,7 @@ class EventType(StrEnum):
     CHAT_INJECTION_DETECTED = "chat_injection_detected"
     CHAT_PII_DETECTED = "chat_pii_detected"
     CHAT_FEEDBACK_SUBMITTED = "chat_feedback_submitted"
+    MCP_TOOL_CALLED = "mcp_tool_called"
     FEEDBACK_SURVEY_ANSWERED = "feedback_survey_answered"
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
@@ -554,6 +555,7 @@ class EventGroup(StrEnum):
     CREDITS = "credits"
     CUSTOMERS = "customers"
     INVOICES = "invoices"
+    MCP = "mcp"
     OFFERING_ACCOUNTING = "offering_accounting"
     ONBOARDING = "onboarding"
     # Per-category OpenStack network event chips. Consumed via the
@@ -1111,6 +1113,7 @@ EVENT_GROUP_MAPPING = {
         EventType.ONBOARDING_VERIFICATION_DELETED,
         EventType.ONBOARDING_VERIFICATION_DELETED_BY_TASK,
     ],
+    EventGroup.MCP: [EventType.MCP_TOOL_CALLED],
     EventGroup.CHAT: [
         EventType.CHAT_SESSION_ACCESSED,
         EventType.CHAT_THREAD_ACCESSED,
