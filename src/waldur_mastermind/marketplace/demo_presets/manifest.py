@@ -7,11 +7,17 @@ from io import StringIO
 from pathlib import Path
 
 from django.core.management import call_command
+from django.db import transaction
 from django.utils import timezone
 
+from waldur_core.core.middleware import skip_side_effects
 from waldur_mastermind.invoices.models import Invoice
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
-from waldur_mastermind.marketplace.demo_presets import order_history, proposal_history
+from waldur_mastermind.marketplace.demo_presets import (
+    order_history,
+    proposal_history,
+    settings_reset,
+)
 from waldur_mastermind.marketplace.demo_presets.credit_history import (
     generate_credit_history,
 )
@@ -149,7 +155,10 @@ class DemoPresetManager:
 
         Args:
             name: Preset name (without .json extension)
-            cleanup_first: Whether to run cleanup_structure before loading
+            cleanup_first: Whether to run cleanup_structure before loading.
+                A cleanup load also returns every setting and feature to its
+                default, except the settings the deployment owns -- see
+                demo_presets/settings_reset.py.
             dry_run: Preview changes without applying
             skip_users: Skip user import/cleanup
             skip_roles: Skip role import/cleanup
@@ -168,47 +177,13 @@ class DemoPresetManager:
         output = StringIO()
 
         try:
-            # Optionally cleanup existing data
-            if cleanup_first:
-                cleanup_args = {
-                    "skip_users": skip_users,
-                    "skip_roles": skip_roles,
-                    "fast": True,  # Use fast raw SQL DELETE for speed
-                    "stdout": output,
-                }
-                if dry_run:
-                    cleanup_args["dry_run"] = True
-
-                call_command("cleanup_structure", **cleanup_args)
-
-            # Ensure system roles exist before importing user_roles
-            # This is normally done by initdb in production
-            if not dry_run and not skip_roles:
-                cls._ensure_system_roles_exist(output)
-
-            # Import the preset data, with its billing history moved onto
-            # the current month -- see demo_presets/time_shift.py.
-            with cls._rebased_preset_file(file_path) as import_path:
-                import_args = {
-                    "input": str(import_path),
-                    "skip_users": skip_users,
-                    "skip_roles": skip_roles,
-                    "skip_rabbitmq_messages": True,
-                    "stdout": output,
-                }
-                if dry_run:
-                    import_args["dry_run"] = True
-
-                call_command("import_structure", **import_args)
-
-            # Generate invoices for imported resources (if not dry run)
-            if not dry_run:
-                # Before billing: a resource is billed from the orders that
-                # made it, as in production.
-                order_history.generate_order_history(output)
-                proposal_history.generate_proposal_history(output)
-                cls._generate_billing_for_resources(output)
-                cls._generate_credit_history(output, file_path)
+            # Nothing in a load may notify anyone, publish to site agents or
+            # queue billing: the generators below save orders, usages and
+            # invoices through the ORM, so their signal handlers would.
+            with skip_side_effects():
+                cls._load(
+                    file_path, output, cleanup_first, dry_run, skip_users, skip_roles
+                )
 
             # Get users with passwords for the response
             users = cls.get_preset_users(name)
@@ -263,6 +238,61 @@ class DemoPresetManager:
                 "output": output.getvalue(),
                 "users": [],
             }
+
+    @classmethod
+    def _load(cls, file_path, output, cleanup_first, dry_run, skip_users, skip_roles):
+        if cleanup_first:
+            # One transaction: the cleanup's TRUNCATE CASCADE empties the
+            # settings table, so the deployment's settings must be back
+            # before anything commits; and a strict failure rolls back every
+            # table already emptied rather than leave a half-cleaned database.
+            with transaction.atomic():
+                owned = [] if dry_run else settings_reset.snapshot()
+                call_command(
+                    "cleanup_structure",
+                    skip_users=skip_users,
+                    skip_roles=skip_roles,
+                    fast=True,  # Use fast raw SQL DELETE for speed
+                    skip_rabbitmq_messages=True,
+                    strict=True,
+                    dry_run=dry_run,
+                    stdout=output,
+                )
+                if not dry_run:
+                    settings_reset.reset(owned)
+                    output.write(
+                        "Settings and features reset to their defaults; kept "
+                        f"{len(owned)} the deployment owns.\n"
+                    )
+
+        # Ensure system roles exist before importing user_roles
+        # This is normally done by initdb in production
+        if not dry_run and not skip_roles:
+            cls._ensure_system_roles_exist(output)
+
+        # Import the preset data, with its billing history moved onto
+        # the current month -- see demo_presets/time_shift.py.
+        with cls._rebased_preset_file(file_path) as import_path:
+            call_command(
+                "import_structure",
+                input=str(import_path),
+                skip_users=skip_users,
+                skip_roles=skip_roles,
+                skip_rabbitmq_messages=True,
+                protect_owned_settings=True,
+                dry_run=dry_run,
+                stdout=output,
+            )
+
+        # Generate invoices for imported resources (if not dry run)
+        if not dry_run:
+            # Before billing: a resource is billed from the orders that
+            # made it, as in production.
+            order_history.generate_order_history(output)
+            proposal_history.generate_proposal_history(output)
+            cls._generate_billing_for_resources(output)
+            cls._generate_credit_history(output, file_path)
+            settings_reset.clear_configuration_cache()
 
     @staticmethod
     @contextlib.contextmanager

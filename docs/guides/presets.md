@@ -73,6 +73,29 @@ waldur demo_presets load minimal_quickstart --no-cleanup
 waldur demo_presets load minimal_quickstart --skip-users
 ```
 
+### Settings and Features
+
+A load with cleanup (the default) returns every setting and every feature
+flag to its default, then applies the preset's `constance_settings` and
+`features`. Loading preset A and then preset B leaves the same settings as
+loading B alone.
+
+Settings the deployment owns survive the load unchanged, and a preset cannot
+set them; the load reports each one it skips. A setting is owned when it is:
+
+- locked, or re-applied on every deploy (`managed_by`)
+- written by the deployment's configuration (`source=deployment`, such as
+  values from `override_constance_settings`)
+- a secret
+- one Waldur changes while it runs, such as `TELEMETRY_DEPLOYMENT_ID`
+
+A load with `--no-cleanup` leaves settings and features as they are and only
+applies what the preset sets.
+
+A load sends no notifications, publishes no messages to site agents and
+queues no billing tasks. It fails if the cleanup cannot delete everything,
+rather than importing over a half-cleaned database.
+
 After loading, the command displays user credentials:
 
 ```text
@@ -153,6 +176,7 @@ Each preset JSON file includes:
 - `component_user_usages` - Per-user usage breakdown
 - `user_roles` - Role assignments
 - `constance_settings` - Site configuration
+- `features` - Feature flags, as `{"key": "<section>.<feature>", "value": true}`
 
 ## Creating Custom Presets
 
