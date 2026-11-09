@@ -360,6 +360,18 @@ class WaldurCore(BaseModel):
         description="Public URL of the page served by `waldur web_shell`, "
         "e.g. http://localhost:18090/webshell/.",
     )
+    DEMO_PRESETS_ENABLED: bool = Field(
+        False,
+        description="Let staff list, preview and load demo presets through the API "
+        "and the portal. Loading a preset deletes every organization, project, "
+        "offering, user and token in the database, so enable it only on demo "
+        "deployments. Set by the deployment only; it is not a Constance setting.",
+    )
+    DEMO_PRESETS_ALLOWED: list[str] = Field(
+        [],
+        description="Names of the demo presets offered when DEMO_PRESETS_ENABLED is "
+        "on. Empty offers every preset.",
+    )
 
     class Meta:
         public_settings: list[str] = [
@@ -387,6 +399,9 @@ class WaldurCore(BaseModel):
             "SERVICE_ACCOUNT_USE_API",
             "COURSE_ACCOUNT_USE_API",
             "ENABLE_PROJECT_KIND_COURSE",
+            # The portal shows the demo preset page and quick logins only
+            # where the deployment enables them.
+            "DEMO_PRESETS_ENABLED",
         ]
 
 

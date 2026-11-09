@@ -10,11 +10,13 @@ from io import StringIO
 from unittest import mock
 
 from ddt import data, ddt
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db.models import Count
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -329,9 +331,20 @@ class DemoPresetCommandTest(TestCase):
         # Output may be empty if help is sent to stderr in some Django versions
 
 
+def demo_presets_settings(enabled=True, allowed=()):
+    return override_settings(
+        WALDUR_CORE={
+            **settings.WALDUR_CORE,
+            "DEMO_PRESETS_ENABLED": enabled,
+            "DEMO_PRESETS_ALLOWED": list(allowed),
+        }
+    )
+
+
 @ddt
+@demo_presets_settings()
 class DemoPresetAPITest(test.APITestCase):
-    """API tests for DemoPresetViewSet."""
+    """API tests for DemoPresetViewSet on a deployment that enables it."""
 
     def setUp(self):
         self.staff_user = structure_factories.UserFactory(is_staff=True)
@@ -448,6 +461,72 @@ class DemoPresetAPITest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["name"], preset_name)
+
+
+@ddt
+class DemoPresetGateTest(test.APITestCase):
+    """Only a deployment that opts in offers demo presets through the API."""
+
+    base_url = "/api/marketplace-demo-presets/"
+
+    def setUp(self):
+        # /api/configuration/ is cached across requests.
+        cache.clear()
+        self.staff_user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(self.staff_user)
+
+    def _request(self, action):
+        if action == "load":
+            return self.client.post(
+                f"{self.base_url}load/minimal_quickstart/", {"dry_run": True}
+            )
+        if action == "info":
+            return self.client.get(f"{self.base_url}info/minimal_quickstart/")
+        return self.client.get(f"{self.base_url}list/")
+
+    @data("list", "info", "load")
+    def test_every_action_is_hidden_by_default(self, action):
+        self.assertEqual(self._request(action).status_code, status.HTTP_404_NOT_FOUND)
+
+    @data("list", "info", "load")
+    @demo_presets_settings(enabled=False)
+    def test_every_action_is_hidden_when_disabled(self, action):
+        self.assertEqual(self._request(action).status_code, status.HTTP_404_NOT_FOUND)
+
+    @demo_presets_settings(enabled=False)
+    def test_anonymous_gets_404_when_disabled(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self._request("list").status_code, status.HTTP_404_NOT_FOUND)
+
+    @demo_presets_settings(allowed=["hpc_ai_platform"])
+    def test_list_offers_only_allowed_presets(self):
+        response = self._request("list")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([p["name"] for p in response.json()], ["hpc_ai_platform"])
+
+    @data("info", "load")
+    @demo_presets_settings(allowed=["hpc_ai_platform"])
+    def test_preset_outside_allowlist_is_not_found(self, action):
+        self.assertEqual(self._request(action).status_code, status.HTTP_404_NOT_FOUND)
+
+    @demo_presets_settings(allowed=["minimal_quickstart"])
+    def test_allowed_preset_is_retrievable(self):
+        response = self._request("info")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["name"], "minimal_quickstart")
+
+    @demo_presets_settings()
+    def test_configuration_reports_enabled(self):
+        response = self.client.get("/api/configuration/")
+
+        self.assertTrue(response.data["WALDUR_CORE"]["DEMO_PRESETS_ENABLED"])
+
+    def test_configuration_reports_disabled_by_default(self):
+        response = self.client.get("/api/configuration/")
+
+        self.assertFalse(response.data["WALDUR_CORE"]["DEMO_PRESETS_ENABLED"])
 
 
 class GenerateBillingTest(test.APITestCase):

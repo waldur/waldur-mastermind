@@ -116,6 +116,14 @@ WALDUR_CORE.update(
         "WEB_SHELL_ENABLED": env.get("WALDUR_WEB_SHELL_ENABLED", "false").lower()
         == "true",
         "WEB_SHELL_URL": env.get("WALDUR_WEB_SHELL_URL", ""),
+        # Demo deployments only: loading a preset wipes the database.
+        "DEMO_PRESETS_ENABLED": env.get("WALDUR_DEMO_PRESETS_ENABLED", "false").lower()
+        == "true",
+        "DEMO_PRESETS_ALLOWED": [
+            name.strip()
+            for name in env.get("WALDUR_DEMO_PRESETS_ALLOWED", "").split(",")
+            if name.strip()
+        ],
     }
 )
 
