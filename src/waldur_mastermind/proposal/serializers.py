@@ -3530,6 +3530,13 @@ class OfferingTeamSlotSerializer(serializers.Serializer):
     requested_offering_uuid = serializers.UUIDField(format="hex")
     step_name = serializers.CharField()
     step_key = serializers.CharField()
+    phase = serializers.ChoiceField(
+        choices=WorkflowPhases.CHOICES,
+        help_text=(
+            "The phase the step runs in: the evaluation before the award, or "
+            "an extension or closing after it."
+        ),
+    )
     status = serializers.ChoiceField(choices=StepContributionStatuses.CHOICES)
     delegate_uuid = serializers.UUIDField(format="hex", allow_null=True)
     delegate_name = serializers.CharField(allow_null=True)
@@ -14314,6 +14321,16 @@ class MyTaskSerializer(serializers.Serializer):
         choices=StepKinds.CHOICES,
         allow_null=True,
         default=None,
+    )
+    phase = serializers.ChoiceField(
+        source="instance.call_step.phase",
+        choices=WorkflowPhases.CHOICES,
+        allow_null=True,
+        default=None,
+        help_text=(
+            "The phase of the task's step: the evaluation before the award, or "
+            "an extension or closing after it; null for a task on no step."
+        ),
     )
     due_at = serializers.DateTimeField(allow_null=True)
     is_overdue = serializers.BooleanField()

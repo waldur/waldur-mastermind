@@ -13,9 +13,11 @@ import datetime
 from unittest import mock
 
 from django.test import override_settings
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import OfferingRole, ProjectRole
 from waldur_core.structure.models import ProjectEndDateChangeRequest
 from waldur_core.structure.tests import factories as structure_factories
@@ -245,6 +247,63 @@ class PostAwardBase(AwardedResourcesBase):
         )
         run.refresh_from_db()
         return run
+
+
+class ProviderViewOfPostAwardWorkTest(PostAwardBase):
+    """What the provider's lists say of the work an award brings: the
+    extension's assessment is told apart from the evaluation's, and the
+    orders that provisioned the award from every other order."""
+
+    TEAM_SLOTS_URL = "http://testserver" + reverse(
+        "proposal-requested-offering-team-slots"
+    )
+    MY_TASKS_URL = "http://testserver" + reverse("proposal-my-task-list")
+    ORDERS_URL = "http://testserver" + reverse("marketplace-order-list")
+
+    def setUp(self):
+        super().setUp()
+        # What permissions.yaml grants the role in a deployment.
+        OfferingRole.MANAGER.add_permission(PermissionEnum.ACCEPT_REQUESTED_OFFERING)
+
+    def _get(self, user, url, params=None):
+        self.client.force_authenticate(user)
+        response = self.client.get(url, params or {})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return response.json()
+
+    def test_the_extension_assessment_is_named_by_its_phase(self):
+        run = self._request_extension()
+        self._complete(
+            self.applicant, self._active(run), WorkflowStepOutcomes.SUBMITTED
+        )
+
+        (slot,) = self._get(self.provider, self.TEAM_SLOTS_URL)
+        self.assertEqual(slot["step_key"], "extension_assessment")
+        self.assertEqual(slot["phase"], WorkflowPhases.EXTENSION)
+
+        (task,) = self._get(self.provider, self.MY_TASKS_URL)
+        self.assertEqual(task["step_name"], self.assessment_step.name)
+        self.assertEqual(task["phase"], WorkflowPhases.EXTENSION)
+
+    def test_award_orders_are_told_apart_from_other_orders(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        awarded = marketplace_models.Order.objects.get(resource=self.resource)
+        other = marketplace_factories.OrderFactory(offering=self.offering)
+        # A later order on the awarded resource is an ordinary one.
+        limit_change = marketplace_factories.OrderFactory(
+            offering=self.offering,
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+        )
+
+        rows = self._get(staff, self.ORDERS_URL, {"from_award": "true"})
+        self.assertEqual([row["uuid"] for row in rows], [awarded.uuid.hex])
+
+        rows = self._get(staff, self.ORDERS_URL, {"from_award": "false"})
+        uuids = {row["uuid"] for row in rows}
+        self.assertIn(other.uuid.hex, uuids)
+        self.assertIn(limit_change.uuid.hex, uuids)
+        self.assertNotIn(awarded.uuid.hex, uuids)
 
 
 class PathTest(PostAwardBase):

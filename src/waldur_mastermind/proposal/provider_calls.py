@@ -246,6 +246,7 @@ def open_team_slots(requested_offering) -> list[dict]:
             "requested_offering_uuid": requested_offering.uuid,
             "step_name": slot.proposal_step.call_step.name,
             "step_key": slot.proposal_step.call_step.key,
+            "phase": slot.proposal_step.call_step.phase,
             "status": slot.status,
             "delegate_uuid": slot.delegate.uuid if slot.delegate_id else None,
             "delegate_name": (

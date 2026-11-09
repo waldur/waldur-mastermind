@@ -15013,6 +15013,24 @@ class RoundMeetingNoteViewSet(UserChecklistMixin, ActionsViewSet):
     reopen_permissions = []
 
 
+# The list's and the summary's scope: the tasks about one offering, or about
+# the offerings of one provider organization.
+MY_TASK_SCOPE_PARAMETERS = [
+    OpenApiParameter(
+        "offering_uuid",
+        OpenApiTypes.UUID,
+        description="Only the tasks about this offering.",
+        extensions={"x-waldur-operation-id": "marketplace_provider_offerings_retrieve"},
+    ),
+    OpenApiParameter(
+        "provider_uuid",
+        OpenApiTypes.UUID,
+        description=("Only the tasks about an offering of this provider organization."),
+        extensions={"x-waldur-operation-id": "customers_retrieve"},
+    ),
+]
+
+
 class MyTaskViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """The open workflow work of the current user, across every call.
 
@@ -15035,22 +15053,7 @@ class MyTaskViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     @extend_schema(
         parameters=[
-            OpenApiParameter(
-                "offering_uuid",
-                OpenApiTypes.UUID,
-                description="Only the tasks about this offering.",
-                extensions={
-                    "x-waldur-operation-id": "marketplace_provider_offerings_retrieve"
-                },
-            ),
-            OpenApiParameter(
-                "provider_uuid",
-                OpenApiTypes.UUID,
-                description=(
-                    "Only the tasks about an offering of this provider organization."
-                ),
-                extensions={"x-waldur-operation-id": "customers_retrieve"},
-            ),
+            *MY_TASK_SCOPE_PARAMETERS,
             OpenApiParameter(
                 "due",
                 OpenApiTypes.STR,
@@ -15093,6 +15096,7 @@ class MyTaskViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             "or due soon: the counts the list's ``due`` filter narrows it to. "
             "Takes the list's offering_uuid and provider_uuid."
         ),
+        parameters=MY_TASK_SCOPE_PARAMETERS,
         responses={200: serializers.MyTaskSummarySerializer},
     )
     @no_count_action
