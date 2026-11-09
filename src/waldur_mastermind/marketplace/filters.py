@@ -1661,6 +1661,10 @@ class OrderFilter(
         method="filter_was_auto_approved",
         label="Auto-approved",
     )
+    from_award = django_filters.BooleanFilter(
+        method="filter_from_award",
+        label="Placed by a proposal's award",
+    )
 
     o = django_filters.OrderingFilter(
         fields=("created", "consumer_reviewed_at", "cost", "state")
@@ -1726,6 +1730,21 @@ class OrderFilter(
         if value:
             return queryset.filter(auto_approved_by_rule__isnull=False)
         return queryset.filter(auto_approved_by_rule__isnull=True)
+
+    def filter_from_award(self, queryset, name, value):
+        """Orders an allocation placed to provision an awarded proposal (or
+        every other order): the create order of a resource an award item
+        points at, as the proposal app tells the award's order apart
+        (``awarded_order_refused``). Later orders on that resource -- a
+        limit change, the termination -- are ordinary orders."""
+        from_award = Q(type=OrderTypes.CREATE) & Q(
+            Exists(
+                proposal_models.AwardedResource.objects.filter(
+                    resource_id=OuterRef("resource_id")
+                )
+            )
+        )
+        return queryset.filter(from_award if value else ~from_award)
 
 
 class ProjectOrderAutoApprovalFilter(django_filters.FilterSet):

@@ -24,6 +24,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalStates,
     RequestedOfferingStates,
     ResponsibleRoles,
+    WorkflowPhases,
 )
 from waldur_mastermind.proposal.tests import factories, fixtures
 from waldur_mastermind.proposal.tests.test_my_tasks import MyTasksBase
@@ -326,6 +327,7 @@ class AssessmentTaskOfferingTest(MyTasksBase):
         self.assertEqual(row["offering_uuid"], offering.uuid.hex)
         self.assertEqual(row["offering_name"], offering.name)
         self.assertEqual(row["provider_uuid"], offering.customer.uuid.hex)
+        self.assertEqual(row["phase"], WorkflowPhases.EVALUATION)
 
     def test_provider_filter_keeps_its_own_slot(self):
         self.client.force_authenticate(self.manager_a)
