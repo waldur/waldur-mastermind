@@ -249,6 +249,7 @@ from . import (
     tasks,
     utils,
 )
+from .demo_presets import gate as demo_presets_gate
 from .demo_presets.manifest import DemoPresetManager
 from .handlers import get_plan_scopes
 
@@ -20787,7 +20788,8 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
     Provides read-only access to demo presets stored in the repository,
     plus a load action to apply presets to the database.
 
-    Staff access only.
+    Staff access only, and only on deployments that enable
+    WALDUR_CORE["DEMO_PRESETS_ENABLED"]; elsewhere every action answers 404.
     """
 
     # Required for OpenAPI schema generation (no model, using ServiceProvider as placeholder)
@@ -20796,15 +20798,37 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
     serializer_class = serializers.DemoPresetSerializer
 
+    def initial(self, request, *args, **kwargs):
+        # Before authentication and permissions, so a deployment without demo
+        # presets does not reveal the endpoint to anyone.
+        if not demo_presets_gate.is_enabled():
+            raise rf_exceptions.NotFound()
+        super().initial(request, *args, **kwargs)
+
+    @staticmethod
+    def _get_allowed_preset_or_404(name):
+        preset = (
+            DemoPresetManager.get_preset_info(name)
+            if demo_presets_gate.is_allowed(name)
+            else None
+        )
+        if not preset:
+            raise rf_exceptions.NotFound(f"Preset '{name}' not found")
+        return preset
+
     @extend_schema(
         summary="List demo presets",
-        description="Returns a list of available demo data presets. Staff access only.",
+        description="Returns the demo data presets this deployment offers. Staff access only; answers 404 unless the deployment enables demo presets.",
         responses={status.HTTP_200_OK: serializers.DemoPresetSerializer(many=True)},
     )
     @action(detail=False, methods=["GET"], url_path="list")
     def list_presets(self, request):
         """List all available demo presets."""
-        presets = DemoPresetManager.list_presets()
+        presets = [
+            preset
+            for preset in DemoPresetManager.list_presets()
+            if demo_presets_gate.is_allowed(preset.name)
+        ]
         serializer = serializers.DemoPresetSerializer(presets, many=True)
         return Response(serializer.data)
 
@@ -20827,11 +20851,7 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
     @action(detail=False, methods=["GET"], url_path=r"info/(?P<name>[\w_-]+)")
     def get_preset(self, request, name=None):
         """Get details of a specific preset."""
-        preset = DemoPresetManager.get_preset_info(name)
-
-        if not preset:
-            raise rf_exceptions.NotFound(f"Preset '{name}' not found")
-
+        preset = self._get_allowed_preset_or_404(name)
         serializer = serializers.DemoPresetSerializer(preset)
         return Response(serializer.data)
 
@@ -20860,10 +20880,7 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
     @action(detail=False, methods=["POST"], url_path=r"load/(?P<name>[\w_-]+)")
     def load_preset(self, request, name=None):
         """Load a preset into the database."""
-        # Verify preset exists
-        preset = DemoPresetManager.get_preset_info(name)
-        if not preset:
-            raise rf_exceptions.NotFound(f"Preset '{name}' not found")
+        self._get_allowed_preset_or_404(name)
 
         serializer = serializers.DemoPresetLoadRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
