@@ -110,6 +110,10 @@ Demo User Credentials
 ============================================================
 ```
 
+Where the deployment sets a staff password (see
+[Deployment Presets](#deployment-presets)), staff users show
+`(the deployment's staff password)` in place of the published one.
+
 ### Export Current State
 
 ```bash
@@ -205,6 +209,50 @@ It answers `404` unless the deployment enables demo presets.
 once the latest load is done. Users with a staff or support role are never
 listed: their passwords would give anyone portal-wide access.
 
+## Deployment Presets
+
+A deployment can add presets of its own, keep what it needs across every
+load, and stop the published staff passwords from working. All three are set
+in the environment only, and apply to the API and the `waldur demo_presets`
+command alike.
+
+| Variable | `WALDUR_CORE` setting | Effect |
+|---|---|---|
+| `WALDUR_DEMO_PRESETS_EXTRA_DIRS` | `DEMO_PRESETS_EXTRA_DIRS` | Comma-separated directories with more preset files |
+| `WALDUR_DEMO_PRESETS_OVERLAY` | `DEMO_PRESETS_OVERLAY` | Preset imported after every load that cleans up first |
+| `WALDUR_DEMO_PRESETS_STAFF_PASSWORD` | `DEMO_PRESETS_STAFF_PASSWORD` | Password the preset's staff users get |
+
+### Extra Directories
+
+Each `*.json` file in an extra directory is a preset named after the file.
+The directories are searched in the order given, before the built-in one, so
+a deployment's preset replaces a built-in preset of the same name. A missing
+directory is logged and skipped.
+
+### Overlay
+
+The overlay holds what the deployment needs whatever the demo: offerings
+backed by its own services, the users and API tokens of its agents, the
+features it turns on. After a load that cleans up first, the overlay is
+imported without cleanup, before orders, billing and credit history are
+generated, so it is billed once with the rest. It is imported last, so its
+settings and features win over the preset's.
+
+- The API never lists, describes or loads the overlay.
+- A load with `--no-cleanup` imports no overlay.
+- If the overlay is set but its file is missing, the load fails before
+  anything is deleted.
+
+To keep an agent's token from expiring, give its user `"token_lifetime": null`;
+without the key, a new user gets the deployment's default lifetime.
+
+### Staff Password
+
+When set, every staff user of the loaded preset and overlay gets this
+password in place of the one in the preset file, which is public. The API
+never shows it, and staff users are never offered for quick login. A load
+with `skip_users` leaves passwords alone.
+
 ## Preset Contents
 
 Each preset JSON file includes:
@@ -225,7 +273,8 @@ Each preset JSON file includes:
 ## Creating Custom Presets
 
 1. Export current state or copy an existing preset
-2. Place JSON file in `src/waldur_mastermind/marketplace/demo_presets/presets/`
+2. Place JSON file in `src/waldur_mastermind/marketplace/demo_presets/presets/`,
+   or in one of the deployment's extra directories
 3. Add `_metadata` section with title, description, version
 4. Ensure all UUIDs are unique 32-character hex strings
 

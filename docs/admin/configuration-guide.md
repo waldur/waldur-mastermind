@@ -341,6 +341,9 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION': False,
  'DEMO_PRESETS_ALLOWED': [],
  'DEMO_PRESETS_ENABLED': False,
+ 'DEMO_PRESETS_EXTRA_DIRS': [],
+ 'DEMO_PRESETS_OVERLAY': '',
+ 'DEMO_PRESETS_STAFF_PASSWORD': '',
  'EMAIL_CHANGE_MAX_AGE': datetime.timedelta(days=1),
  'ENABLE_ACCOUNTING_START_DATE': False,
  'ENABLE_PROJECT_KIND_COURSE': False,
@@ -501,6 +504,24 @@ Names of the demo presets offered when DEMO_PRESETS_ENABLED is on. Empty offers 
 **Type:** bool
 
 Let staff list, preview and load demo presets through the API and the portal. Loading a preset deletes every organization, project, offering, user and token in the database, so enable it only on demo deployments. Set by the deployment only; it is not a Constance setting.
+
+#### DEMO_PRESETS_EXTRA_DIRS
+
+**Type:** List[str]
+
+Directories with the deployment's own demo presets, one JSON file per preset, read by the API and the `waldur demo_presets` command alike. A preset here replaces a built-in one of the same name.
+
+#### DEMO_PRESETS_OVERLAY
+
+**Type:** str
+
+A preset imported, without cleanup, after every load that cleans up first, for what the deployment needs whatever the demo: offerings, agent users and tokens, features. It is never offered as a preset of its own.
+
+#### DEMO_PRESETS_STAFF_PASSWORD
+
+**Type:** str
+
+Password every staff user of a loaded preset gets in place of the one the preset publishes. Never shown by the API.
 
 #### EMAIL_CHANGE_MAX_AGE
 

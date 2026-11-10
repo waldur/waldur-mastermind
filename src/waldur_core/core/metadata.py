@@ -372,6 +372,24 @@ class WaldurCore(BaseModel):
         description="Names of the demo presets offered when DEMO_PRESETS_ENABLED is "
         "on. Empty offers every preset.",
     )
+    DEMO_PRESETS_EXTRA_DIRS: list[str] = Field(
+        [],
+        description="Directories with the deployment's own demo presets, one JSON "
+        "file per preset, read by the API and the `waldur demo_presets` command "
+        "alike. A preset here replaces a built-in one of the same name.",
+    )
+    DEMO_PRESETS_OVERLAY: str = Field(
+        "",
+        description="A preset imported, without cleanup, after every load that "
+        "cleans up first, for what the deployment needs whatever the demo: "
+        "offerings, agent users and tokens, features. It is never offered as a "
+        "preset of its own.",
+    )
+    DEMO_PRESETS_STAFF_PASSWORD: str = Field(
+        "",
+        description="Password every staff user of a loaded preset gets in place of "
+        "the one the preset publishes. Never shown by the API.",
+    )
 
     class Meta:
         public_settings: list[str] = [

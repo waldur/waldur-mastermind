@@ -1,16 +1,19 @@
 import contextlib
 import json
 import logging
+import re
 import tempfile
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
 
+from django.conf import settings
 from django.core.management import call_command
 from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.core.middleware import skip_side_effects
+from waldur_core.core.models import User
 from waldur_mastermind.invoices.models import Invoice
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.demo_presets import (
@@ -20,6 +23,10 @@ from waldur_mastermind.marketplace.demo_presets import (
 )
 from waldur_mastermind.marketplace.demo_presets.credit_history import (
     generate_credit_history,
+)
+from waldur_mastermind.marketplace.demo_presets.gate import (
+    overlay_name,
+    staff_password,
 )
 from waldur_mastermind.marketplace.demo_presets.time_shift import (
     rebase_to_current_month,
@@ -54,17 +61,51 @@ class PresetMetadata:
     scenarios: list = field(default_factory=list)
 
 
+# A preset's name is its file's name: no separators, no leading dot.
+PRESET_NAME = re.compile(r"^[\w-]+$")
+
+
 class DemoPresetManager:
     """Manager for discovering and loading demo presets."""
 
     PRESETS_DIR = Path(__file__).parent / "presets"
 
     @classmethod
+    def preset_dirs(cls) -> list[Path]:
+        """Where presets are found, the first match winning: the deployment's
+        own directories in the order given, then the built-in one."""
+        extra = settings.WALDUR_CORE.get("DEMO_PRESETS_EXTRA_DIRS") or []
+        return [Path(path) for path in extra] + [cls.PRESETS_DIR]
+
+    @classmethod
+    def _preset_files(cls) -> dict[str, Path]:
+        """Every preset by name, the deployment's file replacing a built-in
+        one of the same name."""
+        found = {}
+        for directory in cls.preset_dirs():
+            if not directory.is_dir():
+                logger.warning("Demo preset directory %s does not exist", directory)
+                continue
+            for file_path in sorted(directory.glob("*.json")):
+                name = file_path.stem
+                if not PRESET_NAME.match(name):
+                    continue
+                if name in found:
+                    logger.info(
+                        "Demo preset %s from %s replaces the one in %s",
+                        name,
+                        found[name].parent,
+                        directory,
+                    )
+                    continue
+                found[name] = file_path
+        return found
+
+    @classmethod
     def list_presets(cls) -> list[PresetMetadata]:
         """List all available presets with their metadata."""
         presets = []
-        for file_path in sorted(cls.PRESETS_DIR.glob("*.json")):
-            preset_name = file_path.stem
+        for preset_name in sorted(cls._preset_files()):
             metadata = cls.get_preset_info(preset_name)
             if metadata:
                 presets.append(metadata)
@@ -73,8 +114,8 @@ class DemoPresetManager:
     @classmethod
     def get_preset_info(cls, name: str) -> PresetMetadata | None:
         """Get metadata for a specific preset."""
-        file_path = cls.PRESETS_DIR / f"{name}.json"
-        if not file_path.exists():
+        file_path = cls.get_preset_path(name)
+        if not file_path:
             return None
 
         try:
@@ -108,15 +149,22 @@ class DemoPresetManager:
     @classmethod
     def get_preset_path(cls, name: str) -> Path | None:
         """Get the file path for a preset."""
-        file_path = cls.PRESETS_DIR / f"{name}.json"
-        return file_path if file_path.exists() else None
+        if not name or not PRESET_NAME.match(name):
+            return None
+        for directory in cls.preset_dirs():
+            file_path = directory / f"{name}.json"
+            if file_path.is_file():
+                return file_path
+        return None
 
     @classmethod
     def get_preset_users(cls, name: str) -> list[dict]:
         """
         Get users with their passwords from a preset.
 
-        Returns a list of dicts with username, password, and role info.
+        Returns a list of dicts with username, password, and role info. Where
+        the deployment sets the staff password, a staff user's password is
+        left empty: the deployment's is never shown.
         """
         file_path = cls.get_preset_path(name)
         if not file_path:
@@ -128,11 +176,14 @@ class DemoPresetManager:
         except (json.JSONDecodeError, OSError):
             return []
 
+        hide_staff_passwords = bool(staff_password())
         users = data.get("users", [])
         return [
             {
                 "username": user.get("username", ""),
-                "password": user.get("password", ""),
+                "password": ""
+                if hide_staff_passwords and user.get("is_staff")
+                else user.get("password", ""),
                 "email": user.get("email", ""),
                 "is_staff": user.get("is_staff", False),
                 "is_support": user.get("is_support", False),
@@ -158,7 +209,8 @@ class DemoPresetManager:
             cleanup_first: Whether to run cleanup_structure before loading.
                 A cleanup load also returns every setting and feature to its
                 default, except the settings the deployment owns -- see
-                demo_presets/settings_reset.py.
+                demo_presets/settings_reset.py -- and then imports the
+                deployment's overlay preset, if it sets one.
             dry_run: Preview changes without applying
             skip_users: Skip user import/cleanup
             skip_roles: Skip role import/cleanup
@@ -174,6 +226,18 @@ class DemoPresetManager:
                 "output": "",
             }
 
+        overlay_path = None
+        if cleanup_first and overlay_name() and overlay_name() != name:
+            overlay_path = cls.get_preset_path(overlay_name())
+            # Before anything is deleted: a load without the overlay would
+            # leave the deployment without what it needs.
+            if not overlay_path:
+                return {
+                    "success": False,
+                    "message": f"Overlay preset '{overlay_name()}' not found",
+                    "output": "",
+                }
+
         output = StringIO()
 
         try:
@@ -182,7 +246,13 @@ class DemoPresetManager:
             # invoices through the ORM, so their signal handlers would.
             with skip_side_effects():
                 cls._load(
-                    file_path, output, cleanup_first, dry_run, skip_users, skip_roles
+                    file_path,
+                    output,
+                    cleanup_first,
+                    dry_run,
+                    skip_users,
+                    skip_roles,
+                    overlay_path=overlay_path,
                 )
 
             # Get users with passwords for the response
@@ -203,7 +273,8 @@ class DemoPresetManager:
                         role = " [staff]"
                     elif user.get("is_support"):
                         role = " [support]"
-                    output.write(f"  {user['username']}: {user['password']}{role}\n")
+                    password = user["password"] or "(the deployment's staff password)"
+                    output.write(f"  {user['username']}: {password}{role}\n")
                 output.write(
                     "============================================================\n"
                 )
@@ -240,7 +311,16 @@ class DemoPresetManager:
             }
 
     @classmethod
-    def _load(cls, file_path, output, cleanup_first, dry_run, skip_users, skip_roles):
+    def _load(
+        cls,
+        file_path,
+        output,
+        cleanup_first,
+        dry_run,
+        skip_users,
+        skip_roles,
+        overlay_path=None,
+    ):
         if cleanup_first:
             # One transaction: the cleanup's TRUNCATE CASCADE empties the
             # settings table, so the deployment's settings must be back
@@ -270,8 +350,31 @@ class DemoPresetManager:
         if not dry_run and not skip_roles:
             cls._ensure_system_roles_exist(output)
 
-        # Import the preset data, with its billing history moved onto
-        # the current month -- see demo_presets/time_shift.py.
+        cls._import(file_path, output, dry_run, skip_users, skip_roles)
+        # The overlay goes in before the generators, which work on the whole
+        # database: run after them, it would bill everything a second time.
+        # Imported last, its settings and features win over the preset's.
+        if overlay_path:
+            output.write(f"\nImporting the deployment's overlay {overlay_path.stem}\n")
+            cls._import(overlay_path, output, dry_run, skip_users, skip_roles)
+
+        if not dry_run and not skip_users:
+            cls._set_staff_password(output, file_path, overlay_path)
+
+        # Generate invoices for imported resources (if not dry run)
+        if not dry_run:
+            # Before billing: a resource is billed from the orders that
+            # made it, as in production.
+            order_history.generate_order_history(output)
+            proposal_history.generate_proposal_history(output)
+            cls._generate_billing_for_resources(output)
+            cls._generate_credit_history(output, file_path)
+            settings_reset.clear_configuration_cache()
+
+    @classmethod
+    def _import(cls, file_path, output, dry_run, skip_users, skip_roles):
+        # With its billing history moved onto the current month -- see
+        # demo_presets/time_shift.py.
         with cls._rebased_preset_file(file_path) as import_path:
             call_command(
                 "import_structure",
@@ -284,15 +387,30 @@ class DemoPresetManager:
                 stdout=output,
             )
 
-        # Generate invoices for imported resources (if not dry run)
-        if not dry_run:
-            # Before billing: a resource is billed from the orders that
-            # made it, as in production.
-            order_history.generate_order_history(output)
-            proposal_history.generate_proposal_history(output)
-            cls._generate_billing_for_resources(output)
-            cls._generate_credit_history(output, file_path)
-            settings_reset.clear_configuration_cache()
+    @staticmethod
+    def _set_staff_password(output, *file_paths):
+        """Give the loaded presets' staff users the deployment's password, so
+        the one the preset publishes does not open a staff account."""
+        password = staff_password()
+        if not password:
+            return
+        usernames = set()
+        for file_path in file_paths:
+            if not file_path:
+                continue
+            data = json.loads(file_path.read_text())
+            usernames.update(
+                user["username"]
+                for user in data.get("users", [])
+                if user.get("is_staff") and user.get("username")
+            )
+        users = User.objects.filter(username__in=usernames, is_staff=True)
+        for user in users:
+            user.set_password(password)
+            user.save(update_fields=["password"])
+        output.write(
+            f"Gave {len(users)} staff user(s) the deployment's staff password.\n"
+        )
 
     @staticmethod
     @contextlib.contextmanager

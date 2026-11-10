@@ -124,6 +124,15 @@ WALDUR_CORE.update(
             for name in env.get("WALDUR_DEMO_PRESETS_ALLOWED", "").split(",")
             if name.strip()
         ],
+        "DEMO_PRESETS_EXTRA_DIRS": [
+            path.strip()
+            for path in env.get("WALDUR_DEMO_PRESETS_EXTRA_DIRS", "").split(",")
+            if path.strip()
+        ],
+        "DEMO_PRESETS_OVERLAY": env.get("WALDUR_DEMO_PRESETS_OVERLAY", "").strip(),
+        "DEMO_PRESETS_STAFF_PASSWORD": env.get(
+            "WALDUR_DEMO_PRESETS_STAFF_PASSWORD", ""
+        ),
     }
 )
 
