@@ -952,3 +952,115 @@ def test_e2e_on_a_merge_request_selects_from_the_diff(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["select_tests.py", "--e2e"])
     select_tests.main()
     assert capsys.readouterr().out.strip() == "openstack"
+
+
+# ---------------------------------------------------------------------------
+# features.py: new flags that start off neither fan out nor run E2E
+# ---------------------------------------------------------------------------
+
+from select_tests import FEATURES_FILE, features_change_is_inert  # noqa: E402
+
+BASE_FEATURES = textwrap.dedent("""\
+    class Feature:
+        pass
+
+
+    class UserSection(FeatureSection):
+        class Meta:
+            key = "user"
+            description = "User workspace"
+
+        show_x = Feature("Show x.")
+        show_y = Feature("Show y.", default=True)
+
+
+    def is_enabled(key):
+        return False
+    """)
+
+NEW_FLAG = '    show_z = Feature("Show z.")\n'
+
+
+def _with_new_flag(flag=NEW_FLAG):
+    marker = '    show_y = Feature("Show y.", default=True)\n'
+    return BASE_FEATURES.replace(marker, marker + flag)
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        _with_new_flag(),
+        _with_new_flag('    show_z = Feature("Show z.", default=False)\n'),
+        _with_new_flag('    show_z = Feature("Show z.", False)\n'),
+        BASE_FEATURES.replace('"Show x."', '"Show x on the dashboard."'),
+        BASE_FEATURES,
+    ],
+)
+def test_features_new_flags_off_by_default_are_inert(head):
+    assert features_change_is_inert(BASE_FEATURES, head) is True
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        # a new flag that starts on changes every deployment
+        _with_new_flag('    show_z = Feature("Show z.", default=True)\n'),
+        _with_new_flag('    show_z = Feature("Show z.", default=ON)\n'),
+        # an existing flag's default flips
+        BASE_FEATURES.replace(", default=True)", ")"),
+        BASE_FEATURES.replace('"Show x.")', '"Show x.", default=True)'),
+        # a flag is removed or renamed
+        BASE_FEATURES.replace('    show_x = Feature("Show x.")\n', ""),
+        BASE_FEATURES.replace("show_x =", "show_w ="),
+        # the section's key, or any other code, changes
+        BASE_FEATURES.replace('key = "user"', 'key = "users"'),
+        BASE_FEATURES.replace("return False", "return True"),
+        "class Broken(:\n",
+        None,
+    ],
+)
+def test_features_other_changes_are_not_inert(head):
+    assert features_change_is_inert(BASE_FEATURES, head) is False
+
+
+@pytest.fixture
+def features_diff(monkeypatch):
+    import select_tests
+
+    def use(head):
+        monkeypatch.setattr(
+            select_tests,
+            "_git_show",
+            lambda sha, path: BASE_FEATURES if sha == "BASE" else head,
+        )
+
+    return use
+
+
+def test_new_flag_selects_only_the_registry_app(features_diff):
+    features_diff(_with_new_flag())
+    paths = select_paths([FEATURES_FILE], GRAPH, ("BASE", "HEAD"))
+    assert _apps(paths) == {"waldur_core.core"}
+    assert select_e2e_suites([FEATURES_FILE], ("BASE", "HEAD")) == "none"
+
+
+def test_new_flag_alongside_a_plugin_change_runs_that_plugin(features_diff):
+    features_diff(_with_new_flag())
+    changed = [FEATURES_FILE, "src/waldur_mastermind/proposal/views.py"]
+    assert select_e2e_suites(changed, ("BASE", "HEAD")) == "calls"
+
+
+def test_flag_default_change_still_fans_out_and_runs_every_suite(features_diff):
+    features_diff(BASE_FEATURES.replace(", default=True)", ")"))
+    paths = select_paths([FEATURES_FILE], GRAPH, ("BASE", "HEAD"))
+    assert _apps(paths) == {
+        "waldur_core.core",
+        "waldur_core.structure",
+        "waldur_mastermind.marketplace",
+    }
+    assert select_e2e_suites([FEATURES_FILE], ("BASE", "HEAD")) == "all"
+
+
+def test_features_change_without_endpoints_is_treated_as_shared():
+    assert select_e2e_suites([FEATURES_FILE]) == "all"
+    assert "src/waldur_core/structure" in select_paths([FEATURES_FILE], GRAPH, None)

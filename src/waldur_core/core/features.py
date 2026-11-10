@@ -161,6 +161,11 @@ class UserSection(FeatureSection):
         "Hide remote accounts tab from non-staff and non-support users."
     )
 
+    show_micro_apps = Feature(
+        "List the deployment's micro-apps in the quick shortcuts menu, "
+        "to the users each app is meant for."
+    )
+
 
 class SramSection(FeatureSection):
     class Meta:

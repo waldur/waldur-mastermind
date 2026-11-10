@@ -26,3 +26,13 @@ class FeatureDefaultsTest(TestCase):
         values = get_feature_values()
         self.assertTrue(values["customer"]["show_openportal_remote_projects"])
         self.assertTrue(values["marketplace"]["show_managed_projects"])
+
+    def test_micro_apps_are_listed_only_once_enabled(self):
+        # The portal's quick shortcuts list micro-apps only when staff turn
+        # this on: off in a fresh deployment, on once its row says so.
+        self.assertFalse(get_feature_values()["user"]["show_micro_apps"])
+
+        Feature.objects.create(key="user.show_micro_apps", value=True)
+
+        self.assertTrue(features.is_enabled("user.show_micro_apps"))
+        self.assertTrue(get_feature_values()["user"]["show_micro_apps"])

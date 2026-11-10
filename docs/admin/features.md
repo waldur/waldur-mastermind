@@ -320,6 +320,10 @@ Enable Data Access tab showing who can access user profile data.
 
 Show identity bridge information in user profiles and admin views.
 
+## user.show_micro_apps
+
+List the deployment's micro-apps in the quick shortcuts menu, to the users each app is meant for.
+
 ## user.show_slug
 
 Enable display of slug field in user summary.
