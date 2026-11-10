@@ -4,6 +4,7 @@ from unittest import mock
 
 from rest_framework import test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
 from waldur_openstack.backend import OpenStackBackend
@@ -118,4 +119,38 @@ class BackendEventMessageTest(test.APITestCase):
         self.assertIn(
             f"Port [{port}] has been deleted",
             last_message(EventType.OPENSTACK_PORT_DELETED),
+        )
+
+
+class HandlerEventMessageTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+
+    def test_security_group_cleaned(self):
+        security_group = self.fixture.security_group
+        security_group.name = TEXT
+        security_group.save()
+
+        security_group.delete()
+
+        self.assertEqual(
+            last_message(EventType.OPENSTACK_SECURITY_GROUP_CLEANED),
+            f"Security group {TEXT} has been cleaned from cache.",
+        )
+
+    def test_scheduled_action(self):
+        volume = self.fixture.volume
+        volume.name = TEXT
+        volume.save()
+        volume.schedule_updating()
+        volume.action = "attach"
+        volume.action_details = {"message": f"Attach volume to instance {TEXT}"}
+
+        volume.save()
+
+        self.assertEqual(volume.state, CoreStates.UPDATE_SCHEDULED)
+        self.assertEqual(
+            last_message(EventType.RESOURCE_ATTACH_SCHEDULED),
+            f'Operation "Attach volume to instance {TEXT}" has been scheduled '
+            f'for volume "{TEXT}"',
         )

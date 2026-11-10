@@ -127,7 +127,9 @@ def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwarg
         quota.name, quota.tracker.previous("value")
     )
     event_logger.emit(
-        f"{{quota_name}} quota limit has been changed from {old_value_representation} to {new_value_representation} for tenant {{tenant_name}}.",
+        "{quota_name} quota limit has been changed from "
+        f"{event_logger.literal(old_value_representation)} to "
+        f"{event_logger.literal(new_value_representation)} for tenant {{tenant_name}}.",
         event_type=EventType.OPENSTACK_TENANT_QUOTA_LIMIT_UPDATED,
         event_context={
             "quota_name": quota.name,
@@ -142,7 +144,8 @@ def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwarg
 def log_security_group_cleaned(sender, instance: models.SecurityGroup, **kwargs):
     """Log security group cleanup."""
     event_logger.emit(
-        "Security group %s has been cleaned from cache." % instance.name,
+        "Security group %s has been cleaned from cache."
+        % event_logger.literal(instance.name),
         event_type=EventType.OPENSTACK_SECURITY_GROUP_CLEANED,
         event_context={
             "security_group": instance,
@@ -165,7 +168,7 @@ def log_security_group_rule_cleaned(
 def log_network_cleaned(sender, instance: models.Network, **kwargs):
     """Log network cleanup."""
     event_logger.emit(
-        "Network %s has been cleaned from cache." % instance.name,
+        "Network %s has been cleaned from cache." % event_logger.literal(instance.name),
         event_type=EventType.OPENSTACK_NETWORK_CLEANED,
         event_context={
             "network": instance,
@@ -177,7 +180,7 @@ def log_network_cleaned(sender, instance: models.Network, **kwargs):
 def log_subnet_cleaned(sender, instance: models.SubNet, **kwargs):
     """Log subnet cleanup."""
     event_logger.emit(
-        "SubNet %s has been cleaned." % instance.name,
+        "SubNet %s has been cleaned." % event_logger.literal(instance.name),
         event_type=EventType.OPENSTACK_SUBNET_CLEANED,
         event_context={
             "subnet": instance,
@@ -189,7 +192,8 @@ def log_subnet_cleaned(sender, instance: models.SubNet, **kwargs):
 def log_server_group_cleaned(sender, instance: models.ServerGroup, **kwargs):
     """Log server group cleanup."""
     event_logger.emit(
-        "Server group %s has been cleaned from cache." % instance.name,
+        "Server group %s has been cleaned from cache."
+        % event_logger.literal(instance.name),
         event_type=EventType.OPENSTACK_SERVER_GROUP_CLEANED,
         event_context={
             "server_group": instance,
@@ -204,10 +208,11 @@ def get_resource_scopes(resource):
 
 
 def _log_scheduled_action(resource, action, action_details):
-    class_name = resource.__class__.__name__.lower()
-    message = _get_action_message(action, action_details)
+    class_name = event_logger.literal(resource.__class__.__name__.lower())
+    message = event_logger.literal(_get_action_message(action, action_details))
+    name = event_logger.literal(resource.name)
     event_logger.emit(
-        f'Operation "{message}" has been scheduled for {class_name} "{resource.name}"',
+        f'Operation "{message}" has been scheduled for {class_name} "{name}"',
         event_type=_get_action_event_type(action, "scheduled"),
         event_context={"resource": resource, "action_details": action_details},
         scopes=get_resource_scopes(resource),
@@ -217,10 +222,11 @@ def _log_scheduled_action(resource, action, action_details):
 def _log_succeeded_action(resource, action, action_details):
     if not action:
         return
-    class_name = resource.__class__.__name__.lower()
-    message = _get_action_message(action, action_details)
+    class_name = event_logger.literal(resource.__class__.__name__.lower())
+    message = event_logger.literal(_get_action_message(action, action_details))
+    name = event_logger.literal(resource.name)
     event_logger.emit(
-        f'Successfully executed "{message}" operation for {class_name} "{resource.name}"',
+        f'Successfully executed "{message}" operation for {class_name} "{name}"',
         event_type=_get_action_event_type(action, "succeeded"),
         event_context={"resource": resource, "action_details": action_details},
         scopes=get_resource_scopes(resource),
@@ -228,10 +234,11 @@ def _log_succeeded_action(resource, action, action_details):
 
 
 def _log_failed_action(resource, action, action_details):
-    class_name = resource.__class__.__name__.lower()
-    message = _get_action_message(action, action_details)
+    class_name = event_logger.literal(resource.__class__.__name__.lower())
+    message = event_logger.literal(_get_action_message(action, action_details))
+    name = event_logger.literal(resource.name)
     event_logger.emit(
-        f'Failed to execute "{message}" operation for {class_name} "{resource.name}"',
+        f'Failed to execute "{message}" operation for {class_name} "{name}"',
         event_type=_get_action_event_type(action, "failed"),
         event_context={"resource": resource, "action_details": action_details},
         scopes=get_resource_scopes(resource),

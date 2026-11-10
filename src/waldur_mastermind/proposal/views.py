@@ -250,11 +250,11 @@ def check_reviewer_workload_limit(pool_entry, new_assignments, override, user):
     call = pool_entry.call
     event_logger.emit(
         f"{event_logger.literal(user.full_name or user.username)} assigned "
-        f"{new_assignments} more proposal(s) to reviewer "
+        f"{event_logger.literal(new_assignments)} more proposal(s) to reviewer "
         f"{event_logger.literal(reviewer_name)} in call "
         f"{event_logger.literal(call.name)}, above "
-        f"the limit of {pool_entry.max_assignments} "
-        f"({open_assignments} already open).",
+        f"the limit of {event_logger.literal(pool_entry.max_assignments)} "
+        f"({event_logger.literal(open_assignments)} already open).",
         event_type=EventType.REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN,
         event_context={"call": call},
         scopes=[_get_customer(call)],
@@ -3534,7 +3534,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             if created:
                 instance.documents.add(obj)
                 event_logger.emit(
-                    f"Attachment for call {instance.name} has been added.",
+                    f"Attachment for call {event_logger.literal(instance.name)} has "
+                    "been added.",
                     event_type=EventType.CALL_DOCUMENT_ADDED,
                     event_context={"call": instance},
                     scopes=[_get_customer(instance)],
@@ -3571,7 +3572,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 )
             document.delete()
             event_logger.emit(
-                f"Attachment for call {instance.name} has been removed.",
+                f"Attachment for call {event_logger.literal(instance.name)} has "
+                "been removed.",
                 event_type=EventType.CALL_DOCUMENT_REMOVED,
                 event_context={"call": instance},
                 scopes=[_get_customer(instance)],

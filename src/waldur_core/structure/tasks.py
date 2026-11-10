@@ -251,7 +251,7 @@ def create_customer_permission_reviews():
         )
         event_logger.emit(
             "Customer permission review has been created for organization %s."
-            % customer.name,
+            % event_logger.literal(customer.name),
             event_type=EventType.CUSTOMER_PERMISSION_REVIEW_CREATED,
             event_context={"customer_permission_review": review},
             scopes=[customer],
@@ -280,7 +280,8 @@ def create_project_permission_reviews():
             f"Project permission review has been created for project {project.name} | {project.uuid}."
         )
         event_logger.emit(
-            "Project permission review has been created for project %s." % project.name,
+            "Project permission review has been created for project %s."
+            % event_logger.literal(project.name),
             event_type=EventType.PROJECT_PERMISSION_REVIEW_CREATED,
             event_context={"project_permission_review": review},
             scopes=[project],

@@ -54,6 +54,28 @@ class HandlerMessagesTest(test.APITestCase):
             last_message(EventType.OFFERING_ACCESS_SUBNET_UPDATE_SUCCEEDED),
         )
 
+    def test_offering_user_created(self):
+        factories.OfferingUserFactory(offering=factories.OfferingFactory(name=TEXT))
+
+        self.assertTrue(
+            last_message(EventType.MARKETPLACE_OFFERING_USER_CREATED).endswith(
+                f"in offering {TEXT} has been created."
+            )
+        )
+
+    def test_offering_options_update(self):
+        offering = factories.OfferingFactory(
+            name=TEXT, options={"options": {}, "order": []}
+        )
+        offering.options = {"options": {"size{": {"type": "integer"}}, "order": []}
+        offering.save()
+
+        self.assertEqual(
+            last_message(EventType.MARKETPLACE_OFFERING_OPTIONS_UPDATED),
+            f"Offering {TEXT} order form options have been updated. "
+            "Details: added option keys: size{.",
+        )
+
 
 class ResourceLogMessagesTest(test.APITestCase):
     def setUp(self):

@@ -2407,7 +2407,7 @@ def _emit_usage_limit_event(resource, flag, applied, reached=None):
             "Resource {resource_name} has been "
             + ("paused" if flag == "paused" else "downscaled")
             + " because reported usage reached the "
-            + spending_limits.describe(reached)
+            + event_logger.literal(spending_limits.describe(reached))
             + "."
         )
     elif applied:
@@ -5264,9 +5264,11 @@ def restore_offering_user(offering_user) -> bool:
     # save is what fires the state-change event the directory writers act on.
     offering_user.save()
     event_logger.emit(
-        f"Account for user {offering_user.user.username} in offering "
-        f"{offering.name} has been {what} (was {old_state}, now "
-        f"{offering_user.get_state_display()}) because the user regained project access.",
+        f"Account for user {event_logger.literal(offering_user.user.username)} in "
+        f"offering {event_logger.literal(offering.name)} has been "
+        f"{what} (was {event_logger.literal(old_state)}, now "
+        f"{event_logger.literal(offering_user.get_state_display())}) because the "
+        "user regained project access.",
         event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
         event_context={"offering_user": offering_user},
         scopes=[offering, offering.customer],

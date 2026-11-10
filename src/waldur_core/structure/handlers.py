@@ -144,7 +144,8 @@ def log_customer_save(sender, instance: Customer, created=False, **kwargs):
         for name in sorted(changed_fields.keys()):
             previous_value = event_logger.literal(changed_fields[name])
             current_value = event_logger.literal(getattr(instance, name))
-            message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
+            field = event_logger.literal(name.capitalize())
+            message = f"{message} {field} has been changed from '{previous_value}' to '{current_value}'."
 
         event_logger.emit(
             message,
@@ -194,7 +195,8 @@ def log_project_save(sender, instance: Project, created=False, **kwargs):
         for name in sorted(changed_fields.keys()):
             previous_value = event_logger.literal(changed_fields[name])
             current_value = event_logger.literal(getattr(instance, name))
-            message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
+            field = event_logger.literal(name.capitalize())
+            message = f"{message} {field} has been changed from '{previous_value}' to '{current_value}'."
 
         event_logger.emit(
             message,
@@ -352,12 +354,10 @@ def log_resource_action(sender, instance: BaseResource, name, source, target, **
 def generate_access_subnet_changes(instance: AccessSubnet, created=False):
     """Generate a string describing the changes to an access subnet."""
     changed_dict = instance.tracker.changed()
-    literal = event_logger.literal
-    changes_string = f"Access subnet {literal(instance)} has been updated.\n"
+    changes_string = f"Access subnet {instance} has been updated.\n"
     for key, value in changed_dict.items():
         changes_string += (
-            f"{key} has been changed from '{literal(value)}' "
-            f"to '{literal(getattr(instance, key))}'. "
+            f"{key} has been changed from '{value}' to '{getattr(instance, key)}'. "
         )
     return changes_string
 
@@ -366,7 +366,7 @@ def log_access_subnet_update_succeeded(instance: AccessSubnet):
     """Log successful access subnet updates."""
     changes = generate_access_subnet_changes(instance)
     event_logger.emit(
-        changes,
+        event_logger.literal(changes),
         event_type=EventType.ACCESS_SUBNET_UPDATE_SUCCEEDED,
         event_context={"access_subnet": instance},
         scopes=[instance, instance.customer],

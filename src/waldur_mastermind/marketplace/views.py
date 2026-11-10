@@ -8144,7 +8144,9 @@ class ProviderPlanViewSet(
             f"Plan {instance.name} from {instance.offering.name} deleted by user {user}."
         )
         event_logger.emit(
-            f"Plan {instance.name} from {instance.offering.name} deleted by user {user}.",
+            f"Plan {event_logger.literal(instance.name)} from "
+            f"{event_logger.literal(instance.offering.name)} deleted by user "
+            f"{event_logger.literal(user)}.",
             event_type=EventType.MARKETPLACE_PLAN_DELETED,
             event_context={
                 "plan": instance,
@@ -13585,7 +13587,8 @@ class OfferingUsersViewSet(
         offering_user.is_restricted = serializer.validated_data["is_restricted"]
         offering_user.save(update_fields=["is_restricted"])
         event_logger.emit(
-            f"Restriction status for user {offering_user.user} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted}.",
+            f"Restriction status for user {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} has been set to {event_logger.literal(offering_user.is_restricted)}.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13615,7 +13618,8 @@ class OfferingUsersViewSet(
         offering_user.save(update_fields=["state"])
 
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} creation has begun.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} creation has begun.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13663,7 +13667,8 @@ class OfferingUsersViewSet(
             ]
         )
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} set to pending additional validation.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} set to pending additional validation.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13706,7 +13711,8 @@ class OfferingUsersViewSet(
             ]
         )
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} set to pending account linking.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} set to pending account linking.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13741,7 +13747,8 @@ class OfferingUsersViewSet(
             ]
         )
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} validation completed.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} validation completed.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13773,7 +13780,8 @@ class OfferingUsersViewSet(
         offering_user.save(update_fields=["state"])
 
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} set to OK.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} set to OK.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13809,7 +13817,8 @@ class OfferingUsersViewSet(
         offering_user.save(update_fields=["state"])
 
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} set to error creating state.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} set to error creating state.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13843,7 +13852,8 @@ class OfferingUsersViewSet(
         offering_user.save(update_fields=["state"])
 
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} set to error deleting state.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} set to error deleting state.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13881,7 +13891,8 @@ class OfferingUsersViewSet(
             tasks.request_provider_account_deletion_for_user(offering_user.user)
 
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} marked as deleted.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} marked as deleted.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13925,7 +13936,8 @@ class OfferingUsersViewSet(
             tasks.request_provider_account_deletion_for_user(offering_user.user)
 
         event_logger.emit(
-            f"Deletion requested for user {offering_user.user} in offering {offering_user.offering.name}.",
+            f"Deletion requested for user {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)}.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )
@@ -13961,7 +13973,8 @@ class OfferingUsersViewSet(
         offering_user.save(update_fields=["state"])
 
         event_logger.emit(
-            f"User {offering_user.user} in offering {offering_user.offering.name} deletion process started.",
+            f"User {event_logger.literal(offering_user.user)} in offering "
+            f"{event_logger.literal(offering_user.offering.name)} deletion process started.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
         )

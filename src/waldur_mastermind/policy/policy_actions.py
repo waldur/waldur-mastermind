@@ -677,7 +677,7 @@ def terminate_resources(policy: models.Policy):
 
             event_logger.emit(
                 "Cost policy has been triggered and termination order has been created. Resource: %s."
-                % str(resource),
+                % event_logger.literal(resource),
                 event_type=EventType.TERMINATE_RESOURCES,
                 event_context={
                     "policy_uuid": policy.uuid.hex,

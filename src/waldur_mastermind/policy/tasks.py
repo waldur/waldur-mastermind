@@ -277,8 +277,12 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
         if actions_needed or state_changed:
             event_logger.emit(
                 "SLURM policy evaluation completed for resource %s: "
-                "usage=%.1f%%, actions=%s"
-                % (resource.uuid, usage_percentage, actions_needed),
+                "usage=%s%%, actions=%s"
+                % (
+                    event_logger.literal(resource.uuid),
+                    event_logger.literal(f"{usage_percentage:.1f}"),
+                    event_logger.literal(actions_needed),
+                ),
                 event_type=EventType.SLURM_POLICY_EVALUATION,
             )
         else:
