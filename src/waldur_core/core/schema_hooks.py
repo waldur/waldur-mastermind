@@ -1,4 +1,6 @@
+import builtins
 import copy
+import keyword
 import re
 from typing import Any
 from unittest import mock
@@ -950,6 +952,234 @@ def validate_go_sdk_naming_collisions(result, generator, **kwargs):
     if errors:
         for err in errors:
             error(err)
+
+    return result
+
+
+# The helpers below copy how openapi-python-client (waldur/py-client's
+# generator) names model and enum classes: utils.ClassName, Schema.handle_nullable and the
+# dispatch in parser.properties.property_from_data. Keep them in step with it;
+# the schema job also runs the generator itself
+# (scripts/check_python_sdk_generation.sh), which catches any drift.
+_PYTHON_CLIENT_RESERVED_WORDS = (
+    set(dir(builtins)) | {"self", "true", "false", "datetime"}
+) - {"id"}
+
+
+def _python_client_pascal(value: str) -> str:
+    """Match openapi-python-client's ``pascal_case(sanitize(value))``."""
+    value = re.sub(r"[^\w. _-]+", "", value)
+    if any(character.isupper() for character in value):
+        value = " ".join(re.split(r"([A-Z]?[a-z]+)", value))
+    words = re.findall(r"[^. _-]+", value)
+    return "".join(word.capitalize() if not word.isupper() else word for word in words)
+
+
+def _python_client_class_name(value: str) -> str:
+    """Match openapi-python-client's ``ClassName`` (default ``field_`` prefix)."""
+
+    def fix_reserved(name: str) -> str:
+        if name in _PYTHON_CLIENT_RESERVED_WORDS or keyword.iskeyword(name):
+            return f"{name}_"
+        return name
+
+    name = fix_reserved(_python_client_pascal(value))
+    if not name.isidentifier():
+        name = fix_reserved(_python_client_pascal(f"field_{name}"))
+    return name
+
+
+def _python_client_nullable_as_union(schema: dict) -> dict:
+    """Match ``Schema.handle_nullable``: OpenAPI 3.0 ``nullable`` becomes a union."""
+    if not schema.get("nullable"):
+        return schema
+    schema = {key: value for key, value in schema.items() if key != "nullable"}
+    if isinstance(schema.get("type"), str):
+        schema["type"] = [schema["type"], "null"]
+    elif isinstance(schema.get("type"), list):
+        if "null" not in schema["type"]:
+            schema["type"] = [*schema["type"], "null"]
+    elif schema.get("oneOf"):
+        schema["oneOf"] = [*schema["oneOf"], {"type": "null"}]
+    elif schema.get("anyOf"):
+        schema["anyOf"] = [*schema["anyOf"], {"type": "null"}]
+    elif schema.get("allOf"):
+        schema["oneOf"] = [{"type": "null"}, {"allOf": schema.pop("allOf")}]
+    return schema
+
+
+def _python_client_inline_class_string(schema: dict, name: str, parent: str) -> str:
+    title = str(schema.get("title") or name)
+    if not parent:
+        return title
+    return f"{_python_client_pascal(parent)}{_python_client_pascal(title)}"
+
+
+def _walk_python_client_classes(
+    schema: Any,
+    name: str,
+    parent: str,
+    path: str,
+    is_component: bool,
+    emit,
+) -> None:
+    """Report every model class openapi-python-client generates for ``schema``.
+
+    ``name`` is what the generator calls the schema at this position (the
+    component, property, ``<property>_item`` or ``<property>_type_<i>`` name)
+    and ``parent`` the class it sits in. Calls ``emit(class_name, origin,
+    enum_values)``, where ``enum_values`` is ``None`` for a model.
+    """
+    if not isinstance(schema, dict) or "$ref" in schema:
+        return
+    schema = _python_client_nullable_as_union(schema)
+    compositions = [
+        *(schema.get("allOf") or []),
+        *(schema.get("anyOf") or []),
+        *(schema.get("oneOf") or []),
+    ]
+    # A composition of one reference reuses the referenced class.
+    if (
+        len(compositions) == 1
+        and isinstance(compositions[0], dict)
+        and "$ref" in compositions[0]
+    ):
+        return
+    schema_type = schema.get("type")
+    if schema_type == "boolean":
+        return
+    if schema.get("enum"):
+        values = [value for value in schema["enum"] if value is not None]
+        if not values:
+            return  # An enum of only null is generated as None.
+        if len(values) < len(schema["enum"]):
+            # A null among the values turns the enum into a union of null and
+            # the enum, which the union branch below then names.
+            union = {key: value for key, value in schema.items() if key != "enum"}
+            union["oneOf"] = [{"type": "null"}, {**schema, "enum": values}]
+            _walk_python_client_classes(union, name, parent, path, is_component, emit)
+            return
+        emit(
+            _python_client_class_name(
+                _python_client_inline_class_string(schema, name, parent)
+            ),
+            f"component '{path}'" if is_component else f"inline enum '{path}'",
+            tuple(values),
+        )
+        return
+
+    if schema.get("anyOf") or schema.get("oneOf") or isinstance(schema_type, list):
+        # Union members are named <name>_type_<i>, so a nullable inline object
+        # "limits" on Resource becomes ResourceLimitsType0. Each entry of a
+        # type list is a copy of the whole schema with that one type; a copy
+        # that still has oneOf is a union again.
+        members = [*(schema.get("anyOf") or []), *(schema.get("oneOf") or [])]
+        if isinstance(schema_type, list):
+            members.extend(
+                {**schema, "type": member_type} for member_type in schema_type
+            )
+        for index, member in enumerate(members):
+            _walk_python_client_classes(
+                member, f"{name}_type_{index}", parent, path, False, emit
+            )
+        return
+
+    if schema.get("const") is not None:
+        return
+    if schema_type == "array":
+        _walk_python_client_classes(
+            schema.get("items"), f"{name}_item", parent, f"{path}[]", False, emit
+        )
+        return
+    if not (
+        schema_type == "object"
+        or schema.get("allOf")
+        or (schema_type is None and schema.get("properties"))
+    ):
+        return
+
+    class_name = _python_client_class_name(
+        _python_client_inline_class_string(schema, name, parent)
+    )
+    emit(
+        class_name,
+        f"component '{path}'" if is_component else f"inline schema '{path}'",
+        None,
+    )
+
+    # Inline allOf members are merged into this class; referenced ones reuse
+    # the properties of the class they point at.
+    properties = list((schema.get("properties") or {}).items())
+    for member in schema.get("allOf") or []:
+        if isinstance(member, dict) and "$ref" not in member:
+            properties.extend((member.get("properties") or {}).items())
+    for property_name, property_schema in properties:
+        _walk_python_client_classes(
+            property_schema,
+            property_name,
+            class_name,
+            f"{path}.{property_name}",
+            False,
+            emit,
+        )
+
+    additional = schema.get("additionalProperties")
+    if isinstance(additional, dict) and any(additional.values()):
+        _walk_python_client_classes(
+            additional, "AdditionalProperty", class_name, f"{path}.*", False, emit
+        )
+
+
+def validate_python_sdk_naming_collisions(result, generator, **kwargs):
+    """Detect a class name openapi-python-client would generate twice.
+
+    The Python client names an inline object ``Pascal(parent class) +
+    Pascal(property)``, so ``Resource.spending_limits`` becomes
+    ``ResourceSpendingLimits``; a nullable one gets a ``Type0`` suffix, union
+    members ``Type<i>``, array items ``Item`` and ``additionalProperties``
+    ``AdditionalProperty``. When two schemas produce the same class name, the
+    generator keeps one and removes the component behind the other, and every
+    operation typed as that component comes out as ``Any``. That is how
+    ``Resource`` was dropped when the set_spending_limits body was called
+    ``ResourceSpendingLimits``.
+
+    This covers the model and enum classes generated from
+    ``components/schemas``: a component against an inline object or enum, and
+    two inline schemas against each other. Two enums may share a name when
+    their values match, as the generator reuses the class. Inline schemas
+    under ``paths``, and every other reason the generator drops a schema, are
+    left to scripts/check_python_sdk_generation.sh, which the schema job runs.
+
+    It runs last among the hooks so it sees every component, and
+    ``waldur spectacular --fail-on-warn`` turns its errors into a failed
+    schema job.
+    """
+    schemas = result.get("components", {}).get("schemas", {})
+    if not schemas:
+        return result
+
+    classes: dict[str, list[tuple[str, tuple | None]]] = {}
+
+    def emit(class_name: str, origin: str, enum_values: tuple | None) -> None:
+        classes.setdefault(class_name, []).append((origin, enum_values))
+
+    for name, schema in schemas.items():
+        _walk_python_client_classes(schema, name, "", name, True, emit)
+
+    for class_name, entries in classes.items():
+        if len(entries) < 2:
+            continue
+        # Enums of the same name and values are generated once and shared.
+        values = {enum_values for _, enum_values in entries}
+        if None not in values and len(values) == 1:
+            continue
+        error(
+            f"Python SDK naming collision: openapi-python-client generates the "
+            f"class '{class_name}' for {' and '.join(origin for origin, _ in entries)}. "
+            f"It keeps one and removes the component behind the other, and every "
+            f"response typed as that component becomes Any. Rename the serializer "
+            f"behind one of them."
+        )
 
     return result
 

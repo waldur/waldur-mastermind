@@ -1,3 +1,4 @@
+import re
 import unittest
 from unittest import mock
 
@@ -17,8 +18,10 @@ from waldur_core.core.schema_hooks import (
     remove_waldur_cookie_auth,
     transform_paginated_arrays,
     validate_go_sdk_naming_collisions,
+    validate_python_sdk_naming_collisions,
     validate_waldur_operation_ids,
 )
+from waldur_core.server.openapi_settings import SPECTACULAR_SETTINGS
 
 
 def test_remove_waldur_cookie_auth():
@@ -490,6 +493,164 @@ def test_validate_go_sdk_naming_collisions_multiple_collisions(capsys):
     # Both collisions should be in the error message
     assert "IdentityBridgeResponse" in captured.err
     assert "IdentityBridgeRemoveResponse" in captured.err
+
+
+def _obj(**properties):
+    return {"type": "object", "properties": properties}
+
+
+_A_FIELD = {"a": {"type": "string"}}
+
+# Each case: the components, and the class names the hook must report. Every
+# case was run through openapi-python-client itself: for each reported name it
+# removed a schema ("Unable to process schema"; inside a union it only says
+# "Invalid property in union"), and for the cases with none it removed nothing.
+PYTHON_SDK_NAMING_CASES = [
+    pytest.param(
+        {
+            "Resource": _obj(
+                spending_limits={
+                    "type": "object",
+                    "additionalProperties": {"type": "object"},
+                }
+            ),
+            "ResourceSpendingLimits": _obj(spending_limits={"type": "object"}),
+        },
+        ["ResourceSpendingLimits"],
+        id="inline-object-vs-component",
+    ),
+    pytest.param(
+        {
+            "Resource": _obj(
+                spending_limits={"type": "object"},
+                offering={"$ref": "#/components/schemas/Offering"},
+            ),
+            "Offering": {"type": "object"},
+            "SetResourceSpendingLimits": _obj(spending_limits={"type": "object"}),
+        },
+        [],
+        id="renamed-body-does-not-clash",
+    ),
+    pytest.param(
+        {
+            "Resource": _obj(
+                spending_limits={**_obj(**_A_FIELD), "nullable": True},
+            ),
+            "ResourceSpendingLimitsType0": _obj(**_A_FIELD),
+        },
+        ["ResourceSpendingLimitsType0"],
+        id="nullable-inline-object-is-named-type0",
+    ),
+    pytest.param(
+        {
+            "Resource": _obj(
+                spending_limits={**_obj(**_A_FIELD), "nullable": True},
+            ),
+            "ResourceSpendingLimits": _obj(**_A_FIELD),
+        },
+        [],
+        id="nullable-inline-object-does-not-take-the-plain-name",
+    ),
+    pytest.param(
+        {
+            "Resource": _obj(
+                limits={"oneOf": [_obj(**_A_FIELD), {"type": "string"}]},
+            ),
+            "ResourceLimitsType0": _obj(**_A_FIELD),
+        },
+        ["ResourceLimitsType0"],
+        id="one-of-member",
+    ),
+    pytest.param(
+        {
+            "FooBar": _obj(baz=_obj(**_A_FIELD)),
+            "Foo": _obj(bar_baz=_obj(**_A_FIELD)),
+        },
+        ["FooBarBaz"],
+        id="two-inline-objects",
+    ),
+    pytest.param(
+        {
+            "Resource": _obj(tags={"type": "array", "items": _obj(**_A_FIELD)}),
+            "ResourceTagsItem": _obj(**_A_FIELD),
+        },
+        ["ResourceTagsItem"],
+        id="array-item",
+    ),
+    pytest.param(
+        {
+            "Resource": {"type": "object", "additionalProperties": _obj(**_A_FIELD)},
+            "ResourceAdditionalProperty": _obj(**_A_FIELD),
+        },
+        ["ResourceAdditionalProperty"],
+        id="additional-properties",
+    ),
+    pytest.param(
+        {
+            "Resource": _obj(state={"type": "string", "enum": ["ok", "erred"]}),
+            "ResourceState": _obj(**_A_FIELD),
+        },
+        ["ResourceState"],
+        id="inline-enum-vs-component",
+    ),
+    pytest.param(
+        {
+            "FooBar": _obj(baz={"type": "string", "enum": ["x", "y"]}),
+            "Foo": _obj(bar_baz={"type": "string", "enum": ["x", "y"]}),
+        },
+        [],
+        id="enums-with-equal-values-are-shared",
+    ),
+    pytest.param(
+        {
+            "FooBar": _obj(baz={"type": "string", "enum": ["x", "y"]}),
+            "Foo": _obj(bar_baz={"type": "string", "enum": ["x", "z"]}),
+        },
+        ["FooBarBaz"],
+        id="enums-with-different-values",
+    ),
+]
+
+
+def _python_sdk_collisions(schemas, capsys):
+    reset_generator_stats()
+    schema = {"components": {"schemas": schemas}}
+    assert validate_python_sdk_naming_collisions(schema, None) is schema
+    return [
+        line
+        for line in capsys.readouterr().err.splitlines()
+        if "Python SDK naming collision" in line
+    ]
+
+
+@pytest.mark.parametrize("schemas, clashing_classes", PYTHON_SDK_NAMING_CASES)
+def test_validate_python_sdk_naming_collisions(schemas, clashing_classes, capsys):
+    collisions = _python_sdk_collisions(schemas, capsys)
+    assert [re.search(r"class '(\w+)'", line).group(1) for line in collisions] == (
+        clashing_classes
+    )
+
+
+def test_validate_python_sdk_naming_collisions_names_both_schemas(capsys):
+    """Resource.spending_limits was generated as ResourceSpendingLimits, which was taken."""
+    (collision,) = _python_sdk_collisions(PYTHON_SDK_NAMING_CASES[0].values[0], capsys)
+    assert "inline schema 'Resource.spending_limits'" in collision
+    assert "component 'ResourceSpendingLimits'" in collision
+
+
+def test_validate_python_sdk_naming_collisions_empty_schema(capsys):
+    assert _python_sdk_collisions({}, capsys) == []
+
+
+def test_validate_python_sdk_naming_collisions_runs_after_hooks_that_add_components():
+    hooks = SPECTACULAR_SETTINGS["POSTPROCESSING_HOOKS"]
+    python_hook = hooks.index(
+        "waldur_core.core.schema_hooks.validate_python_sdk_naming_collisions"
+    )
+    assert python_hook == len(hooks) - 1
+    assert python_hook > hooks.index(
+        "waldur_core.core.schema_hooks.extract_query_enums"
+    )
 
 
 class _DummySerializer(serializers.Serializer):

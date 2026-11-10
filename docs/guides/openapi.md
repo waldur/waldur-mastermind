@@ -353,6 +353,7 @@ The process begins in the `waldur-mastermind` pipeline in a job named `Generate 
     1. **On a schedule for the `develop` branch**: This ensures we always have an up-to-date schema reflecting the latest development state.
     2. **When a version tag is pushed** (e.g., `1.2.3`): This generates a stable, versioned schema for a specific release.
 - **Output**: The job produces a versioned `waldur-openapi-schema.yaml` file, which is stored as a CI artifact. This artifact becomes the input for all subsequent steps.
+- **Python client check**: The job also builds the Python client from that schema with the generator `waldur/py-client` uses, and fails if the generator removes a schema or skips an endpoint. The generator itself only warns and exits 0, so a client could ship without `Resource` while every job passed. Run the same check locally with `scripts/check_python_sdk_generation.sh waldur-openapi-schema.yaml` (needs `uvx`). The `validate_python_sdk_naming_collisions` hook catches the most common cause earlier, during `waldur spectacular`: two schemas that the client would give the same class name.
 
 ### 2. Automated SDK and Tooling Generation
 

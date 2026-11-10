@@ -200,13 +200,15 @@ Generate OpenAPI schema:
     # from the Python source, so only these paths can change its output:
     # serializers/views/models under src/, and the drf-spectacular pin.
     # `.gitlab-ci.yml` is included because this job's own script (the dev
-    # version computation below) lives there. See #293.
+    # version computation below) lives there, and the Python client check
+    # because the job runs it. See #293.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - src/**/*
         - pyproject.toml
         - uv.lock
         - .gitlab-ci.yml
+        - scripts/check_python_sdk_generation.sh
   script:
     - export VERSION="${RELEASE_VERSION:-$CI_COMMIT_TAG}"
     - |
@@ -221,6 +223,11 @@ Generate OpenAPI schema:
       fi
     - echo "Generating OpenAPI schema version ${VERSION} ..."
     - uv run waldur spectacular --api-version "$VERSION" --file "$CI_PROJECT_DIR/waldur-openapi-schema.yaml" --fail-on-warn
+    # openapi-python-client exits 0 when it removes a schema it cannot build,
+    # which is how the client lost `Resource` and the provider `import_resource`
+    # endpoint with every job green. Build the client the way waldur/py-client
+    # does and fail on any drop; the nightly only takes a schema whose job passed.
+    - scripts/check_python_sdk_generation.sh "$CI_PROJECT_DIR/waldur-openapi-schema.yaml"
     - SKIP_MAKE_FIELDS_OPTIONAL=true uv run waldur spectacular --api-version "$VERSION" --file "$CI_PROJECT_DIR/waldur-typescript-schema.yaml" --fail-on-warn
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
