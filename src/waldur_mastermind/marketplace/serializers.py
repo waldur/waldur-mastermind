@@ -3392,6 +3392,8 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
                         )
                     }
                 )
+        else:
+            validate_plan_unit_in_use(self.instance, attrs)
         return attrs
 
     def create(self, validated_data):
@@ -6301,6 +6303,29 @@ class PlanUpdateSerializer(BaseProviderPlanSerializer):
         extra_kwargs = {
             "uuid": {"read_only": False},
         }
+
+
+def validate_plan_unit_in_use(plan, attrs):
+    """Refuse a new unit for a plan that resources use.
+
+    Resources on the plan are billed by its unit, so it stays as it is while
+    they exist; validate_plan_billing_mode holds the billing mode the same way.
+    Name, description, article code and max amount do not touch billing. A unit
+    sent with its current value, as the edit dialog does, is no change, and a
+    unit the offering type does not let anyone edit is ignored on update anyway.
+    """
+    if "unit" in plugins.manager.get_plan_fields_that_cannot_be_edited(
+        plan.offering.type
+    ):
+        return
+    if (
+        "unit" in attrs
+        and attrs["unit"] != plan.unit
+        and models.Resource.objects.filter(plan=plan).exists()
+    ):
+        raise rf_exceptions.ValidationError(
+            {"unit": _("Unit cannot be changed while resources use this plan.")}
+        )
 
 
 def update_plan_details(plan, data):

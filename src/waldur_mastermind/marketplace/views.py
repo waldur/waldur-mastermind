@@ -8070,13 +8070,6 @@ def validate_plan_pricing_is_owned(plan):
         )
 
 
-def validate_plan_update(plan):
-    if models.Resource.objects.filter(plan=plan).exists():
-        raise rf_exceptions.ValidationError(
-            _("It is not possible to update plan because it is used by resources.")
-        )
-
-
 def validate_plan_archive(plan):
     if plan.archived:
         raise rf_exceptions.ValidationError(_("Plan is already archived."))
@@ -8099,11 +8092,11 @@ def validate_plan_archive(plan):
     ),
     update=extend_schema(
         summary="Update a provider plan",
-        description="Updates an existing plan. Note: A plan cannot be updated if it is already used by resources.",
+        description="Updates an existing plan. Note: while resources use the plan, its unit and billing mode cannot be changed; prices change through update_prices.",
     ),
     partial_update=extend_schema(
         summary="Partially update a provider plan",
-        description="Partially updates an existing plan. Note: A plan cannot be updated if it is already used by resources.",
+        description="Partially updates an existing plan. Note: while resources use the plan, its unit and billing mode cannot be changed; prices change through update_prices.",
     ),
     destroy=extend_schema(
         summary="Delete a provider plan",
@@ -8122,7 +8115,6 @@ class ProviderPlanViewSet(
     filter_backends = (DjangoFilterBackend, filters.ProviderPlanFilterBackend)
 
     destroy_permissions = [structure_permissions.is_staff]
-    update_validators = partial_update_validators = [validate_plan_update]
 
     access_declarations = {"create": [serializers.PLAN_CREATE_ACCESS]}
 
