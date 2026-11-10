@@ -18,18 +18,27 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.core.utils import get_system_robot
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
-from waldur_core.permissions.fixtures import OfferingRole
+from waldur_core.permissions.fixtures import OfferingRole, ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
+    SCRIPT_OFFERING,
+    SUPPORT_OFFERING,
+    OrderStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.proposal import activity, models, workflow_service
+from waldur_mastermind.proposal import activity, models, tasks, workflow_service
 from waldur_mastermind.proposal.enums import (
     AWARD_RESPONSE_KEY,
+    AutomaticDecisionGuards,
     CallStates,
     ContributionOutcomes,
     ContributorSources,
+    EvaluationStart,
     OnNegativeOutcomes,
     OutcomeSets,
     ProposalStates,
+    RequestedOfferingStates,
     ResponsibleRoles,
     ResultsPublication,
     StepKinds,
@@ -514,6 +523,137 @@ class AutomaticDecisionConfigTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("decides_automatically", response.data)
 
+    def _relying_on_the_provider(self):
+        self._only_decision_left()
+        self.decision.decides_automatically = True
+        self.decision.automatic_decision_guard = (
+            AutomaticDecisionGuards.PROVIDER_FULFILMENT
+        )
+        self.decision.save()
+
+    def _accept_offering(self, offering_type, name, **plugin_options):
+        offering = marketplace_factories.OfferingFactory(
+            type=offering_type, name=name, plugin_options=plugin_options
+        )
+        return factories.RequestedOfferingFactory(call=self.call, offering=offering)
+
+    def test_guard_defaults_to_an_earlier_step_and_is_read_back(self):
+        response = self._patch(self.decision, {"decides_automatically": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            response.data["automatic_decision_guard"],
+            AutomaticDecisionGuards.EARLIER_STEP,
+        )
+        response = self._patch(
+            self.decision,
+            {"automatic_decision_guard": AutomaticDecisionGuards.PROVIDER_FULFILMENT},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            response.data["automatic_decision_guard"],
+            AutomaticDecisionGuards.PROVIDER_FULFILMENT,
+        )
+
+    def test_only_an_automatic_decision_has_a_guard(self):
+        response = self._patch(
+            self.decision,
+            {"automatic_decision_guard": AutomaticDecisionGuards.PROVIDER_FULFILMENT},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("automatic_decision_guard", response.data)
+
+    def test_turning_the_automatic_decision_off_drops_its_guard(self):
+        self._relying_on_the_provider()
+        response = self._patch(self.decision, {"decides_automatically": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.decision.refresh_from_db()
+        self.assertEqual(
+            self.decision.automatic_decision_guard,
+            AutomaticDecisionGuards.EARLIER_STEP,
+        )
+
+    def test_activation_relying_on_the_provider_needs_no_earlier_step(self):
+        # The call's first offering is a helpdesk one; a Basic one joins it.
+        self._accept_offering(BASIC_OFFERING, "Storage")
+        self._relying_on_the_provider()
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_activation_refuses_an_offering_fulfilled_unattended(self):
+        self._accept_offering(SCRIPT_OFFERING, "Self-service VMs")
+        self._relying_on_the_provider()
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        finding = next(
+            f
+            for f in response.data["workflow_check"]
+            if f["code"] == "automatic_decision_unattended"
+        )
+        self.assertEqual(finding["step"], self.decision.key)
+        self.assertEqual(finding["field"], "automatic_decision_guard")
+        self.assertIn("Self-service VMs", finding["message"])
+        self.assertNotIn(
+            "automatic_decision_unguarded",
+            {f["code"] for f in response.data["workflow_check"]},
+        )
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.state, CallStates.DRAFT)
+
+    def test_activation_refuses_a_script_offering_reviewed_by_nobody(self):
+        self._accept_offering(
+            SCRIPT_OFFERING, "Reviewed VMs", auto_approve_marketplace_script=False
+        )
+        self._relying_on_the_provider()
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_active_call_refuses_relying_on_an_unattended_offering(self):
+        self._only_decision_left()
+        self._accept_offering(SCRIPT_OFFERING, "Self-service VMs")
+        self.call.state = CallStates.ACTIVE
+        self.call.save()
+        response = self._patch(
+            self.decision,
+            {
+                "decides_automatically": True,
+                "automatic_decision_guard": AutomaticDecisionGuards.PROVIDER_FULFILMENT,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Self-service VMs", str(response.data["automatic_decision_guard"])
+        )
+
+    def test_active_call_accepts_relying_on_the_provider(self):
+        self._only_decision_left()
+        self.call.state = CallStates.ACTIVE
+        self.call.save()
+        response = self._patch(
+            self.decision,
+            {
+                "decides_automatically": True,
+                "automatic_decision_guard": AutomaticDecisionGuards.PROVIDER_FULFILMENT,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_active_call_refuses_falling_back_to_a_missing_earlier_step(self):
+        self._relying_on_the_provider()
+        self.call.state = CallStates.ACTIVE
+        self.call.save()
+        response = self._patch(
+            self.decision,
+            {"automatic_decision_guard": AutomaticDecisionGuards.EARLIER_STEP},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("decides_automatically", response.data)
+
+    def test_decision_kind_offers_the_guard(self):
+        self.client.force_authenticate(self.user)
+        kinds = self.client.get("/api/proposal-protected-calls/workflow_step_kinds/")
+        decision = next(k for k in kinds.data if k["id"] == StepKinds.DECISION)
+        self.assertIn("automatic_decision_guard", decision["config_fields"])
+
     def test_decision_kind_offers_the_flag(self):
         self.client.force_authenticate(self.user)
         kinds = self.client.get("/api/proposal-protected-calls/workflow_step_kinds/")
@@ -669,4 +809,211 @@ class AutomaticDecisionAfterReopenedAssessmentTest(AutomaticDecisionBase):
         self.assertIn(
             "below the required minimum",
             self._deferred_events().get().context["reason"],
+        )
+
+
+class ProviderFulfilmentBase(AutomaticDecisionBase):
+    """No step before the automatic decision can reject the proposal: it
+    relies on the provider fulfilling each order. The proposal requests a
+    helpdesk offering and a Basic one, and reaches the decision on
+    submission."""
+
+    offering_types = (SUPPORT_OFFERING, BASIC_OFFERING)
+
+    def setUp(self):
+        self._types = list(self.offering_types)
+        with mock.patch(NOTIFY) as self.notify:
+            super().setUp()
+
+    def configure(self):
+        self.assessment.is_enabled = False
+        self.assessment.save()
+        self.decision.automatic_decision_guard = (
+            AutomaticDecisionGuards.PROVIDER_FULFILMENT
+        )
+        self.decision.save()
+
+    def _request_offering(self):
+        manager = structure_factories.UserFactory()
+        offering = marketplace_factories.OfferingFactory(
+            type=self._types.pop(0), name=f"Offering {len(self._types)}"
+        )
+        offering.add_user(manager, OfferingRole.MANAGER)
+        requested = factories.RequestedOfferingFactory(
+            call=self.call, offering=offering, created_by=self.fixture.owner
+        )
+        factories.RequestedResourceFactory(
+            proposal=self.proposal, requested_offering=requested
+        )
+        return manager, requested
+
+
+class ProviderFulfilmentAwardTest(ProviderFulfilmentBase):
+    def test_submission_is_awarded_by_the_system(self):
+        self.proposal.refresh_from_db()
+        robot = get_system_robot()
+        decision = self._decision_instance()
+        self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
+        self.assertEqual(self.proposal.approved_by, robot)
+        self.assertEqual(decision.completed_by, robot)
+        self.assertEqual(decision.outcome, WorkflowStepOutcomes.APPROVED)
+        self.assertFalse(self._deferred_events().exists())
+
+    def test_each_order_waits_for_the_provider_or_its_ticket(self):
+        self.proposal.refresh_from_db()
+        project = self.proposal.project
+        self.assertIsNotNone(project)
+        states = {
+            order.offering.type: order.state
+            for order in project.order_set.select_related("offering")
+        }
+        self.assertEqual(states[BASIC_OFFERING], OrderStates.PENDING_PROVIDER)
+        # The helpdesk ticket opened on processing decides the order.
+        self.assertEqual(states[SUPPORT_OFFERING], OrderStates.EXECUTING)
+
+
+class ProviderFulfilmentUnattendedOfferingTest(ProviderFulfilmentBase):
+    """An offering whose orders nobody at the provider acts on is accepted
+    after the call was activated."""
+
+    offering_types = (SUPPORT_OFFERING, SCRIPT_OFFERING)
+
+    def test_decision_is_left_to_the_call_managers(self):
+        self.notify.assert_not_called()
+        self.proposal.refresh_from_db()
+        decision = self._decision_instance()
+        self.assertEqual(self.proposal.state, ProposalStates.IN_REVIEW)
+        self.assertIsNone(self.proposal.project)
+        self.assertEqual(decision.status, WorkflowStepInstanceStatuses.ACTIVE)
+        self.assertEqual(self.proposal.current_step_id, decision.pk)
+        reason = self._deferred_events().get().context["reason"]
+        self.assertIn(self.requested_b.offering.name, reason)
+        self.assertNotIn(self.requested_a.offering.name, reason)
+
+
+class ProviderFulfilmentWithoutOfferingTest(ProviderFulfilmentBase):
+    """The call's offerings are no longer accepted by the time a proposal
+    reaches the decision: nothing would be fulfilled by anyone."""
+
+    def configure(self):
+        super().configure()
+        self.call.requestedoffering_set.update(state=RequestedOfferingStates.CANCELED)
+
+    def _request_offering(self):
+        manager, requested = super()._request_offering()
+        requested.state = RequestedOfferingStates.CANCELED
+        requested.save()
+        return manager, requested
+
+    def test_decision_is_left_to_the_call_managers(self):
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.IN_REVIEW)
+        self.assertIn(
+            "accepted offering", self._deferred_events().get().context["reason"]
+        )
+
+
+class ProviderFulfilmentGateRefusalTest(ProviderFulfilmentBase):
+    def configure(self):
+        super().configure()
+        self.decision.min_score_threshold = 4
+        self.decision.save()
+
+    def test_a_gate_still_leaves_the_decision_to_the_call_managers(self):
+        self.proposal.refresh_from_db()
+        decision = self._decision_instance()
+        self.assertEqual(self.proposal.state, ProposalStates.IN_REVIEW)
+        self.assertEqual(decision.status, WorkflowStepInstanceStatuses.ACTIVE)
+        self.assertIn(
+            "below the required minimum",
+            self._deferred_events().get().context["reason"],
+        )
+
+
+class ProviderFulfilmentHeldTest(ProviderFulfilmentBase):
+    def configure(self):
+        super().configure()
+        self.call.publish_results = ResultsPublication.WITH_ROUND
+        self.call.save()
+
+    def test_the_decision_is_still_held_for_the_round(self):
+        self.notify.assert_not_called()
+        self.proposal.refresh_from_db()
+        self.assertTrue(self.proposal.decision_held)
+        self.assertEqual(
+            self._decision_instance().outcome, WorkflowStepOutcomes.APPROVED
+        )
+
+
+class ProviderFulfilmentSubmissionTest(test.APITestCase):
+    """With nothing before the automatic decision, submitting the proposal is
+    what decides it: the submission must keep the decision, not file the
+    proposal as merely submitted."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.round = self.fixture.round
+        self.proposal = self.fixture.proposal
+        self.proposal.add_user(self.proposal.created_by, ProposalRole.MANAGER)
+        models.CallWorkflowStep.objects.filter(call=self.call).exclude(
+            key="allocation_decision"
+        ).update(is_enabled=False)
+        decision = models.CallWorkflowStep.objects.get(
+            call=self.call, key="allocation_decision"
+        )
+        decision.decides_automatically = True
+        decision.automatic_decision_guard = AutomaticDecisionGuards.PROVIDER_FULFILMENT
+        decision.save()
+        requested = factories.RequestedOfferingFactory(
+            call=self.call,
+            offering=marketplace_factories.OfferingFactory(type=BASIC_OFFERING),
+        )
+        factories.RequestedResourceFactory(
+            proposal=self.proposal, requested_offering=requested
+        )
+        patcher = mock.patch.object(
+            tasks.notify_user_about_proposal_state_update, "delay"
+        )
+        self.state_mail = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def submit(self):
+        self.client.force_authenticate(self.proposal.created_by)
+        url = factories.ProposalFactory.get_url(self.proposal, action="submit")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.proposal.refresh_from_db()
+
+    def test_submission_is_accepted_and_allocated(self):
+        self.submit()
+
+        self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
+        self.assertIsNotNone(self.proposal.project)
+        self.assertEqual(self.proposal.approved_by, get_system_robot())
+
+    def test_applicant_is_told_the_decision_once(self):
+        self.submit()
+
+        self.state_mail.assert_called_once_with(
+            self.proposal.uuid, ProposalStates.IN_REVIEW, ProposalStates.ACCEPTED
+        )
+
+    def test_at_cutoff_the_decision_is_taken_by_the_cutoff_task(self):
+        self.call.evaluation_start = EvaluationStart.AT_CUTOFF
+        self.call.save(update_fields=["evaluation_start"])
+        self.submit()
+        self.assertEqual(self.proposal.state, ProposalStates.SUBMITTED)
+        self.state_mail.reset_mock()
+
+        self.round.cutoff_time = timezone.now() - timedelta(minutes=1)
+        self.round.save(update_fields=["cutoff_time"])
+        with self.captureOnCommitCallbacks(execute=True):
+            tasks.start_evaluation_for_closed_rounds()
+
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
+        self.state_mail.assert_called_once_with(
+            self.proposal.uuid, ProposalStates.IN_REVIEW, ProposalStates.ACCEPTED
         )

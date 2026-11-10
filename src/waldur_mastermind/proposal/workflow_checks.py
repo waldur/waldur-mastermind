@@ -34,12 +34,14 @@ from waldur_mastermind.proposal import (
     models,
     provider_calls,
     serializers,
+    utils,
     workflow_diff,
     workflow_versions,
 )
 from waldur_mastermind.proposal import workflow_description as wd
 from waldur_mastermind.proposal.enums import (
     AWARD_RESPONSE_KEY,
+    AutomaticDecisionGuards,
     BudgetEnforcement,
     ContributionOutcomes,
     ContributorSources,
@@ -367,6 +369,9 @@ def award_before_decision(context):
 def automatic_decision_unguarded(context):
     for step in context.enabled:
         if step["is_allocation_decision"] and step["decides_automatically"]:
+            if _relies_on_provider_fulfilment(step):
+                # Checked on the call's offerings: automatic_decision_unattended.
+                return []
             return [
                 context.finding(
                     step["key"],
@@ -377,6 +382,48 @@ def automatic_decision_unguarded(context):
             ]
         if context.ends_negatively(step):
             return []
+
+
+def _relies_on_provider_fulfilment(step):
+    return (
+        step["decides_automatically"]
+        and step["automatic_decision_guard"]
+        == AutomaticDecisionGuards.PROVIDER_FULFILMENT
+    )
+
+
+@rule(
+    "automatic_decision_unattended",
+    ERROR,
+    gettext_lazy("Orders fulfilled unattended"),
+    live=True,
+)
+def automatic_decision_unattended(context):
+    """An automatic decision relying on the provider fulfilling each order,
+    on a call with an accepted offering whose orders go through with nobody
+    at the provider acting on them: an award there would be provisioned
+    unchecked."""
+    for step in context.enabled:
+        if not (
+            step["is_allocation_decision"] and _relies_on_provider_fulfilment(step)
+        ):
+            continue
+        unattended = utils.offerings_fulfilled_unattended(context.call)
+        if not unattended:
+            return []
+        return [
+            context.finding(
+                step["key"],
+                "automatic_decision_guard",
+                str(utils.OFFERINGS_FULFILLED_UNATTENDED)
+                % {"offerings": ", ".join(o.name for o in unattended)},
+                [
+                    _ref("step", "automatic_decision_guard", step["key"]),
+                    _ref("call", CALL_OFFERINGS),
+                ],
+            )
+        ]
+    return []
 
 
 @rule(
@@ -1354,6 +1401,9 @@ def automatic_decision_without_inputs(context):
     to the call managers."""
     for step in context.enabled:
         if not (step["is_allocation_decision"] and step["decides_automatically"]):
+            continue
+        if _relies_on_provider_fulfilment(step):
+            # Taken without an earlier step: the provider fulfils each order.
             continue
         gates = [
             s

@@ -1467,6 +1467,7 @@ def start_held_proposals(call_round=None):
     )
 
     started = []
+    decided = []
     for proposal_id in held_ids:
         try:
             with transaction.atomic():
@@ -1478,6 +1479,11 @@ def start_held_proposals(call_round=None):
                 if proposal is None:
                     continue
                 if workflow_service.activate_first_step(proposal) is None:
+                    # An automatic decision in the first stage may have
+                    # settled the proposal as its evaluation started.
+                    proposal.refresh_from_db(fields=["state", "decision_held"])
+                    if utils.decided_on_entry(proposal):
+                        decided.append((proposal.uuid, proposal.state))
                     continue
         except Exception:
             logger.exception(
@@ -1490,6 +1496,8 @@ def start_held_proposals(call_round=None):
         notify_user_about_proposal_state_update.delay(
             proposal_uuid, ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW
         )
+    for proposal_uuid, state in decided:
+        notify_proposal_decision(proposal_uuid, ProposalStates.IN_REVIEW, state)
 
     if started:
         logger.info("Started the evaluation of %d proposal(s)", len(started))

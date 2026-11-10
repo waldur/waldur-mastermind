@@ -1151,7 +1151,14 @@ def automatic_decision_refusal(proposal, instance):
     that step must have been decided: a lapsed one passes nothing. The step
     is checked on the proposal's own path, so a call reconfigured after
     activation cannot let a proposal award itself.
+
+    A decision relying on the provider fulfilment needs no such step: a
+    person at the provider must act on every order the award places, on
+    every offering the call has accepted by now
+    (``utils.provider_fulfilment_refusal``).
     """
+    if instance.call_step.relies_on_provider_fulfilment:
+        return utils.provider_fulfilment_refusal(proposal.round.call)
     gates = [
         earlier
         for earlier in _ordered_instances(proposal).filter(

@@ -213,6 +213,24 @@ class RoleCellsTest(SimpleTestCase):
         self.assertEqual(
             fields(cell(step, "system")["completes"]), {"decides_automatically"}
         )
+        self.assertEqual(step["automatic_decision_guard"], "earlier_step")
+
+    def test_automatic_decision_tells_what_guards_it(self):
+        decide = {
+            "key": "decide",
+            "kind": "decision",
+            "outcome_set": "approval",
+            "completer": "call_manager",
+            "is_allocation_decision": True,
+        }
+        step = step_of(wd.describe(document([decide])), "decide")
+        self.assertIsNone(step["automatic_decision_guard"])
+        decide.update(
+            decides_automatically=True,
+            automatic_decision_guard="provider_fulfilment",
+        )
+        step = step_of(wd.describe(document([decide])), "decide")
+        self.assertEqual(step["automatic_decision_guard"], "provider_fulfilment")
 
     def test_conditions_and_change_requests_are_described(self):
         doc = document(

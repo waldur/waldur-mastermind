@@ -314,6 +314,27 @@ class AllocationTimes:
     )
 
 
+class AutomaticDecisionGuards:
+    """What stops an unsuitable proposal before an automatic allocation
+    decision awards it.
+
+    ``earlier_step``: an enabled step before the decision that can reject the
+    proposal, decided on the proposal's path. ``provider_fulfilment``: a
+    person at the provider acts on every order the award places -- the
+    provider reviews it, or it is fulfilled through a helpdesk ticket -- on
+    every accepted offering of the call
+    (``marketplace.utils.offering_orders_need_provider_action``).
+    """
+
+    EARLIER_STEP = "earlier_step"
+    PROVIDER_FULFILMENT = "provider_fulfilment"
+
+    CHOICES = (
+        (EARLIER_STEP, "An earlier step that can reject the proposal"),
+        (PROVIDER_FULFILMENT, "The provider fulfilling each order"),
+    )
+
+
 class WorkflowStepOutcomes:
     """Allowed outcome values for completed workflow steps.
 
@@ -793,6 +814,7 @@ STEP_KINDS = [
             "min_score_threshold",
             "is_allocation_decision",
             "decides_automatically",
+            "automatic_decision_guard",
             "allocation_time",
             "include_award_response",
             "allows_change_requests",

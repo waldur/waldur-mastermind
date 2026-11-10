@@ -9596,6 +9596,7 @@ class Command(BaseCommand):
             "display_order",
             "include_award_response",
             "decides_automatically",
+            "automatic_decision_guard",
             "allocation_time",
             "release_to_applicant",
             "collects_reviewer_suggestions",

@@ -1520,6 +1520,17 @@ class CallWorkflowStep(
             "when the approval is refused."
         ),
     )
+    automatic_decision_guard = models.CharField(
+        max_length=20,
+        choices=enums.AutomaticDecisionGuards.CHOICES,
+        default=enums.AutomaticDecisionGuards.EARLIER_STEP,
+        help_text=(
+            "Automatic decision: what stops an unsuitable proposal -- an "
+            "enabled earlier step that can reject it (earlier_step), or a "
+            "person at the provider acting on every order the award places, "
+            "on every accepted offering of the call (provider_fulfilment)."
+        ),
+    )
     allocation_time = models.CharField(
         max_length=15,
         choices=enums.AllocationTimes.CHOICES,
@@ -1628,17 +1639,29 @@ class CallWorkflowStep(
             )
         )
 
+    @property
+    def relies_on_provider_fulfilment(self):
+        """Whether the automatic decision is guarded by the provider acting
+        on every order, rather than by an earlier step."""
+        return (
+            self.decides_automatically
+            and self.automatic_decision_guard
+            == enums.AutomaticDecisionGuards.PROVIDER_FULFILMENT
+        )
+
     @classmethod
     def unguarded_automatic_decision(cls, call_id):
-        """The call's enabled automatic allocation decision when no enabled
-        step before it can reject a proposal, else None: every submission
-        would award itself."""
+        """The call's enabled automatic allocation decision guarded by an
+        earlier step when no enabled step before it can reject a proposal,
+        else None: every submission would award itself. One relying on the
+        provider fulfilment is checked on the call's offerings
+        (``utils.provider_fulfilment_refusal``)."""
         steps = list(
             cls.objects.filter(call_id=call_id, is_enabled=True).order_by("order", "id")
         )
         for step in steps:
             if step.is_allocation_decision and step.decides_automatically:
-                return step
+                return None if step.relies_on_provider_fulfilment else step
             if step.can_end_negatively:
                 return None
         return None
@@ -2307,6 +2330,18 @@ class CallWorkflowStep(
                 {
                     "decides_automatically": (
                         "Only the allocation decision decides automatically."
+                    )
+                }
+            )
+        if (
+            self.automatic_decision_guard != enums.AutomaticDecisionGuards.EARLIER_STEP
+            and not self.decides_automatically
+        ):
+            raise DjangoValidationError(
+                {
+                    "automatic_decision_guard": (
+                        "Only an automatic decision relies on what stops an "
+                        "unsuitable proposal."
                     )
                 }
             )

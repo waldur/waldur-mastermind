@@ -6616,18 +6616,27 @@ class ProposalViewSet(
             activity.log_submitted(proposal)
 
             workflow_service.create_step_instances(proposal)
-            started = None
             if proposal.round.call.evaluation_start == EvaluationStart.ON_SUBMISSION:
-                started = workflow_service.activate_first_step(proposal)
-            if started is None:
+                workflow_service.activate_first_step(proposal)
+                # An automatic decision in the first stage may have settled
+                # the proposal already.
+                proposal.refresh_from_db(fields=["state", "decision_held"])
+            if proposal.state == ProposalStates.DRAFT:
                 # Evaluation waits for the round's cut-off, or the call has no
                 # enabled step to start.
                 proposal.state = ProposalStates.SUBMITTED
                 proposal.save()
 
-        tasks.notify_user_about_proposal_state_update.delay(
-            proposal.uuid, previous_state, proposal.state
-        )
+        if utils.decided_on_entry(proposal):
+            # The submission was the decision: the applicant hears it once,
+            # as every decision is told.
+            tasks.notify_proposal_decision(
+                proposal.uuid, ProposalStates.IN_REVIEW, proposal.state
+            )
+        else:
+            tasks.notify_user_about_proposal_state_update.delay(
+                proposal.uuid, previous_state, proposal.state
+            )
         tasks.notify_call_managers_about_new_proposal_submission.delay(proposal.uuid)
         return response.Response(
             "Proposal has been submitted.",
