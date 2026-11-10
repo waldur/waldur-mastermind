@@ -59,7 +59,7 @@ class OAuthTestMixin:
         )
 
     def create_grant(self, application, user, resource=None, scope="mcp:read"):
-        # Stands in for the consent bridge, which creates grants in #806.
+        # Stands in for the consent bridge, to test the token endpoint alone.
         return Grant.objects.create(
             application=application,
             user=user,
@@ -173,12 +173,6 @@ class GatingTest(OAuthTestMixin, test.APITestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertFalse(AccessToken.objects.filter(user=user).exists())
-
-    @override_config(MCP_ENABLED=True, MCP_RESOURCE_URLS=MCP_URL)
-    def test_authorize_is_reserved_for_the_consent_bridge(self):
-        response = self.client.get("/oauth/authorize/")
-
-        self.assertEqual(response.status_code, 503)
 
     @override_config(MCP_ENABLED=True, MCP_RESOURCE_URLS=MCP_URL)
     def test_endpoints_stay_csrf_exempt(self):
@@ -636,6 +630,33 @@ class TokenTest(OAuthTestMixin, test.APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"], "invalid_target")
+
+    def test_unparseable_resource_is_refused(self):
+        grant = self.create_grant(self.application, self.user, resource=[MCP_URL])
+
+        response = self.exchange_code(self.application, grant, resource="http://[foo")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "invalid_target")
+
+    def test_null_byte_in_a_lookup_is_refused(self):
+        form = {
+            "grant_type": "authorization_code",
+            "client_id": self.application.client_id,
+            "code": "abc",
+            "redirect_uri": REDIRECT_URI,
+            "code_verifier": VERIFIER,
+        }
+        cases = [
+            ("/oauth/token/", {**form, "client_id": "a\x00b"}, 401),
+            ("/oauth/token/", {**form, "code": "a\x00b"}, 400),
+            ("/oauth/revoke_token/", {"token": "abc", "client_id": "a\x00b"}, 401),
+        ]
+        for url, data, status_code in cases:
+            with self.subTest(url=url, data=data):
+                response = self.post_form(url, data)
+
+                self.assertEqual(response.status_code, status_code, response.content)
 
     @override_config(MCP_ENABLED=True, MCP_RESOURCE_URLS="")
     def test_no_token_is_issued_while_no_resource_is_configured(self):
