@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from django.utils import timezone
 
 from waldur_core.core.utils import ROBOT_USERNAMES, get_system_robot
+from waldur_core.logging import log
 from waldur_core.logging import middleware as logging_middleware
 
 from .structures import EvaluationTriggers
@@ -25,12 +26,25 @@ def in_evaluation() -> bool:
 
 
 #: The event-context fields that say what started an evaluation and who.
+#: Under impersonation `initiated_by_*` is the account acted as and
+#: `initiated_by_impersonator_*` the staff member behind it. The suffix keeps
+#: the latter to staff and support (`log.is_actor_detail_key`), as for the
+#: event's own `user_impersonator_*`, in the context and in message placeholders.
 EVALUATION_FIELDS = (
     "trigger",
     "trigger_object_uuid",
     "initiated_by_uuid",
     "initiated_by_username",
-    "initiated_as_username",
+    "initiated_by_impersonator_uuid",
+    "initiated_by_impersonator_username",
+)
+
+# The initiator's keys (`current_initiator`) and the fields they are recorded in.
+_INITIATOR_FIELDS = (
+    ("uuid", "initiated_by_uuid"),
+    ("username", "initiated_by_username"),
+    ("impersonator_uuid", "initiated_by_impersonator_uuid"),
+    ("impersonator_username", "initiated_by_impersonator_username"),
 )
 
 
@@ -59,10 +73,13 @@ def _is_person(context) -> bool:
 
 def current_initiator(context=None) -> dict | None:
     """The person whose action is running, as `{"uuid", "username"}` plus
-    `"as_username"` under impersonation, or None.
+    `"impersonator_uuid"` and `"impersonator_username"` under impersonation,
+    or None.
 
-    A person acting now wins. Under impersonation that is the impersonator, as
-    for revisions (`core.handlers`), with the account acted as kept beside it.
+    A person acting now wins. Under impersonation that is the account acted
+    as, with the impersonator beside it: the impersonator is accountable, as
+    for revisions (`core.handlers`), and is recorded where only staff and
+    support read it, as the event user's own impersonator is.
     Otherwise the event user is a robot or absent: inside
     `system_actor_event_context` it is already the system robot, so the
     initiator recorded there is returned, and a nested block or a task
@@ -73,19 +90,16 @@ def current_initiator(context=None) -> dict | None:
     if context is None:
         context = logging_middleware.get_event_context() or {}
     if _is_person(context):
-        if context.get("user_impersonator_uuid"):
-            return {
-                "uuid": context["user_impersonator_uuid"],
-                "username": context.get("user_impersonator_username"),
-                "as_username": context.get("user_username"),
-            }
-        return {"uuid": context["user_uuid"], "username": context.get("user_username")}
-    if context.get("initiated_by_uuid"):
         return {
-            "uuid": context["initiated_by_uuid"],
-            "username": context.get("initiated_by_username"),
-            "as_username": context.get("initiated_as_username"),
+            "uuid": context["user_uuid"],
+            "username": context.get("user_username"),
+            "impersonator_uuid": context.get("user_impersonator_uuid"),
+            "impersonator_username": context.get("user_impersonator_username"),
         }
+    # A context recorded in an earlier shape names the account acted as by
+    # username only (`log.upgrade_initiator_fields`).
+    if context.get("initiated_by_uuid") or context.get("initiated_by_username"):
+        return {key: context.get(field) for key, field in _INITIATOR_FIELDS}
     return None
 
 
@@ -97,6 +111,7 @@ def _with_evaluation_fields(previous, trigger=None, trigger_object_uuid=None):
     its object together: an object left over from an earlier trigger would
     point at something unrelated.
     """
+    previous = log.upgrade_initiator_fields(previous)
     context = {
         key: value for key, value in previous.items() if key not in EVALUATION_FIELDS
     }
@@ -106,16 +121,11 @@ def _with_evaluation_fields(previous, trigger=None, trigger_object_uuid=None):
         fields["trigger"] = trigger
     if trigger_object_uuid:
         fields["trigger_object_uuid"] = trigger_object_uuid
-    initiator = current_initiator(previous)
-    fields.pop("initiated_by_uuid", None)
-    fields.pop("initiated_by_username", None)
-    fields.pop("initiated_as_username", None)
-    if initiator:
-        fields["initiated_by_uuid"] = initiator["uuid"]
-        if initiator.get("username"):
-            fields["initiated_by_username"] = initiator["username"]
-        if initiator.get("as_username"):
-            fields["initiated_as_username"] = initiator["as_username"]
+    initiator = current_initiator(previous) or {}
+    for key, field in _INITIATOR_FIELDS:
+        fields.pop(field, None)
+        if initiator.get(key):
+            fields[field] = initiator[key]
     context.update(fields)
     return context
 
@@ -161,9 +171,10 @@ def system_actor_event_context(trigger=None, trigger_object_uuid=None):
     Every event emitted within the block also carries the `EVALUATION_FIELDS`:
     `trigger` (an `EvaluationTriggers` value), `trigger_object_uuid` when there
     is one, and `initiated_by_uuid` / `initiated_by_username` for the person
-    being replaced (the impersonator under impersonation, with
-    `initiated_as_username` for the account acted as). In a Celery task the request's context, fields included,
-    was carried over by `celeryconf`, so the person is still known there.
+    being replaced (under impersonation the account acted as, with
+    `initiated_by_impersonator_*` for the staff member behind it). In a Celery
+    task the request's context, fields included, was carried over by
+    `celeryconf`, so the person is still known there.
 
     Policy actions can execute inside a user's HTTP request — when a policy is
     (re)saved the serializer evaluates it synchronously and runs the actions

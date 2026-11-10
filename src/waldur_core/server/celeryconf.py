@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db import connections
 from django_structlog.celery.steps import DjangoStructLogInitStep
 
+from waldur_core.logging.log import upgrade_initiator_fields
 from waldur_core.logging.middleware import (
     get_event_context,
     reset_event_context,
@@ -63,7 +64,10 @@ def bind_event_context(sender=None, **kwargs):
     except KeyError:
         return
 
-    set_event_context(event_context)
+    # A task queued by an earlier version may carry its initiator fields in
+    # the old shape, where they named the staff member behind an
+    # impersonation where everyone could read it.
+    set_event_context(upgrade_initiator_fields(event_context))
 
 
 @signals.task_postrun.connect

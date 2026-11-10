@@ -184,10 +184,36 @@ def is_actor_detail_key(key) -> bool:
     )
 
 
+def upgrade_initiator_fields(context):
+    """``context`` with a policy evaluation's initiator in its current shape.
+
+    Under impersonation, earlier versions put the staff member in
+    ``initiated_by_*`` and the account acted as in ``initiated_as_username``.
+    Now ``initiated_by_*`` is the account acted as and the staff member is in
+    ``initiated_by_impersonator_*``, an actor detail. The account's uuid was
+    not recorded then, so there is none. Stored events are read through this,
+    and so are contexts a queued Celery task carries over.
+    """
+    if not isinstance(context, dict) or "initiated_as_username" not in context:
+        return context
+    context = dict(context)
+    acted_as = context.pop("initiated_as_username")
+    impersonator_uuid = context.pop("initiated_by_uuid", None)
+    impersonator_username = context.pop("initiated_by_username", None)
+    if impersonator_uuid:
+        context["initiated_by_impersonator_uuid"] = impersonator_uuid
+    if impersonator_username:
+        context["initiated_by_impersonator_username"] = impersonator_username
+    if acted_as:
+        context["initiated_by_username"] = acted_as
+    return context
+
+
 def strip_actor_details(context):
     """Return ``context`` without the actor's request details."""
     if not isinstance(context, dict):
         return context
+    context = upgrade_initiator_fields(context)
     return {
         key: value for key, value in context.items() if not is_actor_detail_key(key)
     }

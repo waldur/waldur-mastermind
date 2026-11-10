@@ -13,6 +13,7 @@ from django.dispatch import Signal
 
 from waldur_core.configuration import config
 from waldur_core.core.middleware import get_skip_side_effects
+from waldur_core.core.models import User
 from waldur_core.logging import models
 from waldur_core.logging.enums import (
     EVENT_GROUP_MAPPING,
@@ -88,7 +89,13 @@ def literal(value) -> str:
 
     Event messages are templates, so a name, description or reason put into
     one must have its braces doubled or they read as placeholders.
+
+    A user is shown as a user is: an impersonated user's own str() also
+    names the staff member behind it, whom most readers of an event may not
+    learn (``log.strip_actor_details``).
     """
+    if isinstance(value, User):
+        value = User.__str__(value)
     return str(value).replace("{", "{{").replace("}", "}}")
 
 

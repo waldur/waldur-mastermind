@@ -3,6 +3,7 @@
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.core.models import ImpersonatedUser
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
@@ -156,3 +157,18 @@ class PlantedPlaceholderTest(test.APITestCase):
         self.assertNotIn("203.0.113.77", event["message"])
         self.assertNotIn("StaffBrowser", event["message"])
         self.assertNotIn("ip_address", event["context"])
+
+
+class ImpersonatedUserTest(test.APITestCase):
+    def test_a_message_naming_the_user_does_not_name_the_impersonator(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        user = structure_factories.UserFactory()
+        impersonated = ImpersonatedUser.all_objects.get(pk=user.pk)
+        impersonated.impersonator = staff
+        resource = factories.ResourceFactory(end_date=timezone.now().date())
+
+        log.log_resource_end_date_has_been_updated(resource, impersonated)
+
+        message = last_message(EventType.MARKETPLACE_RESOURCE_UPDATE_END_DATE_SUCCEEDED)
+        self.assertIn(user.username, message)
+        self.assertNotIn(staff.username, message)
