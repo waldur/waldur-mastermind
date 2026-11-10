@@ -42,4 +42,5 @@ urlpatterns = [
         name="oauth-server-metadata",
     ),
     path("oauth/", include((oauth_urlpatterns, "oauth2_provider"))),
+    path("api/oauth/consent/", views.ConsentView.as_view(), name="oauth-consent"),
 ]

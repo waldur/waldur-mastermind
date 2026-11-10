@@ -531,6 +531,8 @@ class EventType(StrEnum):
     PAT_ACCESS_DENIED_FROM_IP = "pat_access_denied_from_ip"
     PAT_NETWORK_ACL_UPDATED = "pat_network_acl_updated"
     PAT_AUTHENTICATION_REJECTED = "pat_authentication_rejected"
+    OAUTH_CONSENT_GRANTED = "oauth_consent_granted"
+    OAUTH_CONSENT_DENIED = "oauth_consent_denied"
     OIDC_TOKEN_REVOKED = "oidc_token_revoked"
     OIDC_TOKEN_REFRESH_FAILED = "oidc_token_refresh_failed"
     PASSKEY_REGISTERED = "passkey_registered"
@@ -621,6 +623,8 @@ EVENT_GROUP_MAPPING = {
         EventType.PAT_ACCESS_DENIED_FROM_IP,
         EventType.PAT_NETWORK_ACL_UPDATED,
         EventType.PAT_AUTHENTICATION_REJECTED,
+        EventType.OAUTH_CONSENT_GRANTED,
+        EventType.OAUTH_CONSENT_DENIED,
         EventType.OIDC_TOKEN_REVOKED,
         EventType.OIDC_TOKEN_REFRESH_FAILED,
         EventType.PASSKEY_REGISTERED,
