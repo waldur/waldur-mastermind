@@ -146,6 +146,10 @@ class MatrixRoom(core_models.UuidMixin, TimeStampedModel):
         blank=True,
         related_name="+",
     )
+    # When the bot welcomed the room's members. Members are joined without
+    # being asked, so without a message the new room shows nothing unread and
+    # goes unnoticed; set once, so later syncs do not welcome them again.
+    announced_at = models.DateTimeField(null=True, blank=True)
 
     # Generic relation to scope (Project, Customer, etc.)
     content_type = models.ForeignKey(

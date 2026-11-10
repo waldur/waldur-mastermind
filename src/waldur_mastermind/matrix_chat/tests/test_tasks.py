@@ -2,6 +2,7 @@ from unittest import mock
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
@@ -14,6 +15,40 @@ from waldur_mastermind.matrix_chat.tests import fixtures
 def _posted():
     """What Waldur queued for the bot to post, oldest first."""
     return list(models.MatrixOutboxMessage.objects.values_list("body", flat=True))
+
+
+def _welcome(starter=None):
+    intro = (
+        f"{starter} started this chat for the project team."
+        if starter
+        else "Here the project team can talk, share files and start calls."
+    )
+    return (
+        "**Welcome to this project's team chat!**\n\n"
+        f"{intro} Type @ and a name to notify someone."
+    )
+
+
+def _is_welcome(body):
+    return body.startswith("**Welcome to this project's team chat!**")
+
+
+class _WelcomeWitness:
+    """Stands in for post_as_bot and notes who had joined when the welcome went out."""
+
+    def __init__(self, room):
+        self.room = room
+        self.joined = None
+        self._post = tasks.post_as_bot
+
+    def __call__(self, room, body, *args, **kwargs):
+        if _is_welcome(body):
+            self.joined = set(
+                models.MatrixRoomMember.objects.filter(
+                    room=self.room, membership_state=models.MembershipStates.JOINED
+                ).values_list("user__username", flat=True)
+            )
+        return self._post(room, body, *args, **kwargs)
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
@@ -165,6 +200,7 @@ class InviteUserTaskTest(TestCase):
             state=models.RoomStates.ACTIVE,
             content_type=ct,
             object_id=project.id,
+            announced_at=timezone.now(),
         )
 
         tasks.invite_user_to_room(str(room.uuid), str(user.uuid))
@@ -197,6 +233,7 @@ class InviteUserTaskTest(TestCase):
             state=models.RoomStates.ACTIVE,
             content_type=ct,
             object_id=project.id,
+            announced_at=timezone.now(),
         )
 
         tasks.invite_user_to_room(str(room.uuid), str(user.uuid))
@@ -221,6 +258,7 @@ class InviteUserTaskTest(TestCase):
             state=models.RoomStates.ACTIVE,
             content_type=ct,
             object_id=project.id,
+            announced_at=timezone.now(),
         )
 
         tasks.invite_user_to_room(str(room.uuid), str(user.uuid))
@@ -243,6 +281,7 @@ class InviteUserTaskTest(TestCase):
             state=models.RoomStates.ACTIVE,
             content_type=ContentType.objects.get_for_model(project),
             object_id=project.id,
+            announced_at=timezone.now(),
         )
         models.MatrixRoomMember.objects.create(
             room=room,
@@ -274,6 +313,7 @@ class InviteUserTaskTest(TestCase):
             state=models.RoomStates.ACTIVE,
             content_type=ContentType.objects.get_for_model(project),
             object_id=project.id,
+            announced_at=timezone.now(),
         )
 
         tasks.invite_user_to_room(str(room.uuid), str(user.uuid))
@@ -293,6 +333,7 @@ class InviteUserTaskTest(TestCase):
             state=models.RoomStates.ACTIVE,
             content_type=ContentType.objects.get_for_model(project),
             object_id=project.id,
+            announced_at=timezone.now(),
         )
         models.MatrixRoomMember.objects.create(
             room=room,
@@ -310,6 +351,116 @@ class InviteUserTaskTest(TestCase):
             "@staff:matrix.example.com",
             tasks.STAFF_POWER_LEVEL,
         )
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class RoleNoticeTest(TestCase):
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.user = structure_factories.UserFactory(
+            username="alice", full_name="Alice Smith"
+        )
+        self.room = models.MatrixRoom.objects.create(
+            room_id="!test:matrix.example.com",
+            room_name="Test Room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(self.project),
+            object_id=self.project.id,
+            announced_at=timezone.now(),
+        )
+
+    def _invite(self, mock_client, role_name=None):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@alice:matrix.example.com"
+        mock_client.get_power_level_for_scope.return_value = 0
+        tasks.invite_user_to_room(
+            str(self.room.uuid), str(self.user.uuid), role_name=role_name
+        )
+
+    def test_notice_posted_after_join_mentions_member(self, mock_client):
+        self._invite(mock_client, role_name="Project Admin")
+
+        notice = models.MatrixOutboxMessage.objects.get(room=self.room)
+        self.assertEqual(
+            notice.body, "Alice Smith has been granted the Project Admin role."
+        )
+        # The marker plus the mention tell homeport to toast the new member
+        # that they are in this chat now; nobody else gets that toast.
+        self.assertEqual(
+            notice.extra_content,
+            {
+                "m.mentions": {"user_ids": ["@alice:matrix.example.com"]},
+                "com.waldur.welcome": True,
+            },
+        )
+
+    def test_role_grant_welcomes_only_once_the_team_is_in(self, mock_client):
+        # The room's first sync may still be joining the team when a role is
+        # granted; anyone joined after the welcome sees it as history only.
+        self.room.announced_at = None
+        self.room.save(update_fields=["announced_at"])
+        self.project.add_user(self.user, ProjectRole.ADMIN)
+        self.project.add_user(
+            structure_factories.UserFactory(username="bob"), ProjectRole.MEMBER
+        )
+        mock_client.ensure_user_exists.side_effect = (
+            lambda user: f"@{user.username}:matrix.example.com"
+        )
+        witness = _WelcomeWitness(self.room)
+
+        with mock.patch.object(tasks, "post_as_bot", side_effect=witness):
+            self._invite(mock_client, role_name="Project Admin")
+
+        self.assertEqual(witness.joined, {"alice", "bob"})
+
+    def test_notice_for_a_member_already_in_the_room_is_no_welcome(self, mock_client):
+        # A new role for someone already in the chat is news, but not that
+        # they were added to it.
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=self.user,
+            matrix_user_id="@alice:matrix.example.com",
+            membership_state=models.MembershipStates.JOINED,
+        )
+
+        self._invite(mock_client, role_name="Project Manager")
+
+        notice = models.MatrixOutboxMessage.objects.get(room=self.room)
+        self.assertEqual(
+            notice.extra_content,
+            {"m.mentions": {"user_ids": ["@alice:matrix.example.com"]}},
+        )
+
+    def test_no_notice_when_join_fails(self, mock_client):
+        mock_client.join_room_as_user.side_effect = RuntimeError("join refused")
+
+        self._invite(mock_client, role_name="Project Admin")
+
+        self.assertEqual(_posted(), [])
+
+    def test_no_notice_without_role_name(self, mock_client):
+        # A customer role invites the user to every room of the organization.
+        self._invite(mock_client)
+
+        self.assertEqual(_posted(), [])
+
+    def test_role_grant_join_welcomes_an_unannounced_room(self, mock_client):
+        # A first sync that joined nobody leaves the room unwelcomed, and the
+        # next member in may come by a role grant.
+        self.room.announced_at = None
+        self.room.save(update_fields=["announced_at"])
+        self.project.add_user(self.user, ProjectRole.ADMIN)
+        welcome = _welcome()
+        notice = "Alice Smith has been granted the Project Admin role."
+
+        self._invite(mock_client, role_name="Project Admin")
+
+        self.assertEqual(_posted(), [welcome, notice])
+
+        # Announced now, so the next grant posts its notice only.
+        self._invite(mock_client, role_name="Project Admin")
+
+        self.assertEqual(_posted(), [welcome, notice, notice])
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
@@ -574,6 +725,7 @@ class StaffJoinRoomTaskTest(TestCase):
             state=models.RoomStates.ACTIVE,
             content_type=ct,
             object_id=project.id,
+            announced_at=timezone.now(),
         )
 
     def test_join_sets_moderator_badge_and_announces(self, mock_client):
@@ -612,6 +764,58 @@ class StaffJoinRoomTaskTest(TestCase):
 
         member = models.MatrixRoomMember.objects.get(room=room, user=user)
         self.assertEqual(member.membership_state, models.MembershipStates.INVITED)
+
+    def test_join_welcomes_a_room_nobody_had_joined(self, mock_client):
+        # A staff member opening a project's chat can be the first one in it.
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@staff:matrix.example.com"
+        room = self._make_room()
+        room.announced_at = None
+        room.save(update_fields=["announced_at"])
+        user = structure_factories.UserFactory(
+            username="staff", is_staff=True, full_name="Staff Member"
+        )
+
+        tasks.staff_join_room(str(room.uuid), str(user.uuid))
+
+        self.assertEqual(_posted(), [_welcome(), "Staff Member joined the room."])
+
+    def test_join_welcomes_only_once_the_team_is_in(self, mock_client):
+        # The room's first sync may still be joining the team when a staff
+        # member opens it; anyone joined after the welcome sees it as history.
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.side_effect = (
+            lambda user: f"@{user.username}:matrix.example.com"
+        )
+        mock_client.get_power_level_for_scope.return_value = 0
+        room = self._make_room()
+        room.announced_at = None
+        room.save(update_fields=["announced_at"])
+        room.scope.add_user(
+            structure_factories.UserFactory(username="bob"), ProjectRole.MEMBER
+        )
+        staff = structure_factories.UserFactory(username="staff", is_staff=True)
+        witness = _WelcomeWitness(room)
+
+        with mock.patch.object(tasks, "post_as_bot", side_effect=witness):
+            tasks.staff_join_room(str(room.uuid), str(staff.uuid))
+
+        self.assertEqual(witness.joined, {"bob", "staff"})
+
+    def test_failed_join_leaves_the_room_unwelcomed(self, mock_client):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@staff:matrix.example.com"
+        mock_client.join_room_as_user.side_effect = RuntimeError("join refused")
+        room = self._make_room()
+        room.announced_at = None
+        room.save(update_fields=["announced_at"])
+        user = structure_factories.UserFactory(username="staff", is_staff=True)
+
+        tasks.staff_join_room(str(room.uuid), str(user.uuid))
+
+        self.assertFalse(any(_is_welcome(body) for body in _posted()))
+        room.refresh_from_db()
+        self.assertIsNone(room.announced_at)
 
     def test_join_skips_inactive_room(self, mock_client):
         mock_client.is_enabled.return_value = True
@@ -693,6 +897,167 @@ class SyncProjectMembersJoinTest(TestCase):
         )
         member = models.MatrixRoomMember.objects.get(room=room, user=admin)
         self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class ProjectChatWelcomeTest(TestCase):
+    def setUp(self):
+        self.fixture = fixtures.MatrixChatFixture()
+        self.room = self.fixture.matrix_room
+
+    def _enable(self, mock_client):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.side_effect = (
+            lambda user: f"@{user.username}:matrix.example.com"
+        )
+        mock_client.get_power_level_for_scope.return_value = 0
+
+    def _sync(self, mock_client):
+        self._enable(mock_client)
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+    def _welcomes(self):
+        return models.MatrixOutboxMessage.objects.filter(room=self.room)
+
+    def test_first_sync_posts_one_welcome(self, mock_client):
+        self._sync(mock_client)
+
+        welcome = self._welcomes().get()
+        self.assertEqual(
+            welcome.body,
+            _welcome(self.fixture.owner.full_name),
+        )
+        # Homeport toasts a welcome by this marker; the room's bot is the only
+        # sender it trusts it from.
+        self.assertEqual(
+            welcome.extra_content, {"m.mentions": {}, "com.waldur.welcome": True}
+        )
+        self.room.refresh_from_db()
+        self.assertIsNotNone(self.room.announced_at)
+
+    def test_second_sync_does_not_post_again(self, mock_client):
+        self._sync(mock_client)
+        self._sync(mock_client)
+
+        self.assertEqual(self._welcomes().count(), 1)
+
+    def test_does_not_welcome_a_room_that_was_already_announced(self, mock_client):
+        self.room.announced_at = timezone.now()
+        self.room.save(update_fields=["announced_at"])
+
+        self._sync(mock_client)
+
+        self.assertFalse(self._welcomes().exists())
+
+    def test_welcome_without_creator(self, mock_client):
+        self.room.created_by = None
+        self.room.save(update_fields=["created_by"])
+
+        self._sync(mock_client)
+
+        self.assertEqual(self._welcomes().get().body, _welcome())
+
+    def test_inactive_room_gets_no_welcome(self, mock_client):
+        self.room.state = models.RoomStates.CREATING
+        self.room.save(update_fields=["state"])
+
+        self._sync(mock_client)
+
+        self.assertFalse(self._welcomes().exists())
+        self.room.refresh_from_db()
+        self.assertIsNone(self.room.announced_at)
+
+    def test_failed_welcome_insert_leaves_room_unannounced(self, mock_client):
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.bot_state.enqueue",
+            side_effect=RuntimeError("outbox unavailable"),
+        ):
+            self._sync(mock_client)
+
+        self.room.refresh_from_db()
+        self.assertIsNone(self.room.announced_at)
+
+        self._sync(mock_client)
+
+        self.assertEqual(self._welcomes().count(), 1)
+
+    def test_no_welcome_when_first_sync_joins_nobody(self, mock_client):
+        self._enable(mock_client)
+        mock_client.ensure_user_exists.side_effect = RuntimeError("homeserver down")
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        self.assertFalse(self._welcomes().exists())
+        self.room.refresh_from_db()
+        self.assertIsNone(self.room.announced_at)
+
+        self._sync(mock_client)
+
+        self.assertEqual(self._welcomes().count(), 1)
+
+    def test_concurrent_first_sync_does_not_welcome_again(self, mock_client):
+        # The other first sync claims the welcome after this one has loaded
+        # the room, while it is still joining members.
+        def other_sync_claims_welcome(room_id, matrix_user_id):
+            models.MatrixRoom.objects.filter(pk=self.room.pk).update(
+                announced_at=timezone.now()
+            )
+
+        self._enable(mock_client)
+        mock_client.join_room_as_user.side_effect = other_sync_claims_welcome
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        # Someone joined, so only the claim can have held the welcome back.
+        self.assertTrue(
+            models.MatrixRoomMember.objects.filter(
+                room=self.room, membership_state=models.MembershipStates.JOINED
+            ).exists()
+        )
+        self.assertFalse(self._welcomes().exists())
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class SyncKeepsMembersGrantedMidSyncTest(TestCase):
+    def test_does_not_kick_a_member_granted_a_role_during_the_sync(self, mock_client):
+        # The sync reads the roles before its loop. A role granted meanwhile
+        # comes with its own invite, which can join the user while the loop runs.
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.side_effect = (
+            lambda user: f"@{user.username}:matrix.example.com"
+        )
+        mock_client.get_power_level_for_scope.return_value = 0
+        project = structure_factories.ProjectFactory()
+        room = models.MatrixRoom.objects.create(
+            room_id="!late:matrix.example.com",
+            room_name="Late Room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+            announced_at=timezone.now(),
+        )
+        project.add_user(
+            structure_factories.UserFactory(username="alice"), ProjectRole.MEMBER
+        )
+        bob = structure_factories.UserFactory(username="bob")
+
+        def bob_granted_and_joined_meanwhile(room_id, matrix_user_id):
+            if matrix_user_id.startswith("@alice"):
+                project.add_user(bob, ProjectRole.MEMBER)
+                models.MatrixRoomMember.objects.create(
+                    room=room,
+                    user=bob,
+                    matrix_user_id="@bob:matrix.example.com",
+                    membership_state=models.MembershipStates.JOINED,
+                )
+
+        mock_client.join_room_as_user.side_effect = bob_granted_and_joined_meanwhile
+
+        tasks.sync_project_members_to_room(str(room.uuid))
+
+        mock_client.kick_user.assert_not_called()
+        self.assertEqual(
+            models.MatrixRoomMember.objects.get(room=room, user=bob).membership_state,
+            models.MembershipStates.JOINED,
+        )
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")

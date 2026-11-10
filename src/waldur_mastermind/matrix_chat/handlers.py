@@ -98,20 +98,17 @@ def on_role_granted(sender, instance: UserRole, **kwargs):
     if not room:
         return
 
-    user = instance.user
     role_name = _format_role_name(instance.role)
     room_uuid = str(room.uuid)
-    user_uuid = str(user.uuid)
-    full_name = formatting.escape_markdown(user.full_name or user.username)
+    user_uuid = str(instance.user.uuid)
 
-    def _on_commit():
-        tasks.invite_user_to_room.delay(room_uuid, user_uuid)
-        tasks.send_room_notification.delay(
-            room_uuid,
-            f"{full_name} has been granted the {role_name} role.",
+    # The invite posts the notice once the user has joined: rooms are
+    # encrypted, and a notice sent earlier would be unreadable to them.
+    transaction.on_commit(
+        lambda: tasks.invite_user_to_room.delay(
+            room_uuid, user_uuid, role_name=role_name
         )
-
-    transaction.on_commit(_on_commit)
+    )
 
 
 def on_role_revoked(sender, instance: UserRole, **kwargs):

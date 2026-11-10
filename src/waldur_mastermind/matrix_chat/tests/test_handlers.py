@@ -261,26 +261,19 @@ class OnProjectPreDeleteTest(TestCase):
 @mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
 @mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
 class OnRoleGrantedNotificationTest(TestCase):
-    def test_sends_notification_on_role_granted(self, mock_client, mock_tasks):
+    def test_role_grant_passes_role_name_to_invite(self, mock_client, mock_tasks):
         mock_client.is_enabled.return_value = True
         project = structure_factories.ProjectFactory()
-        _create_room_for_project(project)
-
-        user = structure_factories.UserFactory(
-            username="alice", first_name="Alice", last_name="Smith"
-        )
-        project.add_user(user, ProjectRole.ADMIN)
-        role_instance = UserRole.objects.filter(user=user, scope=project).first()
+        room = _create_room_for_project(project)
+        user = structure_factories.UserFactory()
 
         with self.captureOnCommitCallbacks(execute=True):
-            handlers.on_role_granted(sender=UserRole, instance=role_instance)
+            project.add_user(user, ProjectRole.ADMIN)
 
-        calls = mock_tasks.send_room_notification.delay.call_args_list
-        notification_calls = [c for c in calls if "granted" in str(c)]
-        self.assertTrue(
-            len(notification_calls) > 0,
-            f"Expected notification with 'granted', got calls: {calls}",
+        mock_tasks.invite_user_to_room.delay.assert_called_once_with(
+            str(room.uuid), str(user.uuid), role_name="Project Admin"
         )
+        mock_tasks.send_room_notification.delay.assert_not_called()
 
 
 @mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
