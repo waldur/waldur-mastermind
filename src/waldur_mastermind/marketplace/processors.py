@@ -9,6 +9,7 @@ from rest_framework.reverse import reverse
 
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.callbacks import (
     apply_new_options,
     resource_creation_succeeded,
@@ -368,6 +369,9 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
                     resource.attributes["renewal_history"] = history
 
                 resource.save()
+
+                if is_renewal:
+                    MarketplaceBillingService.handle_renewal(resource, self.order)
 
             signals.resource_limit_update_succeeded.send(
                 sender=self.order.resource.__class__,

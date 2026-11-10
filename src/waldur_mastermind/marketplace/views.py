@@ -8859,7 +8859,9 @@ class OrderViewSet(
         serializer.is_valid(raise_exception=True)
         attributes = serializer.validated_data.get("attributes")
         if attributes:
-            order.attributes.update(attributes)
+            order.attributes.update(
+                utils.keep_renewal_order_attributes(order, attributes)
+            )
             update_fields = ["attributes"]
             if order.type == OrderTypes.CREATE:
                 # The provider may have changed an input that limits are
@@ -11266,6 +11268,13 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             else None,
             "new_end_date": new_end_date.isoformat(),
             "extension_months": extension_months,
+            # The prices the quote used, so the invoice matches it even if the
+            # plan price changes before the renewal is approved.
+            "unit_prices": {
+                c.component.type: str(c.price) for c in resource.plan.components.all()
+            }
+            if resource.plan
+            else {},
         }
 
         # The renewal cost is passed as 'switch_price' to the order,
