@@ -211,6 +211,40 @@ class Tenant(
             return limit
 
     @property
+    def shared_network_ids(self):
+        """The networks of other tenants this tenant may put ports on: those
+        shared with it as ``access_as_shared``.
+
+        A network shared only as ``access_as_external`` is for router gateways
+        and floating IPs; Neutron does not let the tenant put ports on it. Waldur
+        creates ports and router interfaces with the cloud's admin session,
+        which Neutron does not hold to that, so it is applied here.
+        ``available_subnets`` and the other ``available_*`` keep both kinds:
+        pulls map whatever Neutron reports.
+        """
+        return NetworkRBACPolicy.objects.filter(
+            target_tenant=self,
+            policy_type=NetworkRBACPolicy.NetworkShareType.SHARED,
+        ).values_list("network_id", flat=True)
+
+    def may_put_ports_on(self, network_id) -> bool:
+        """Whether this tenant may put a port on the network: its own, or one
+        shared with it as ``access_as_shared`` (`shared_network_ids`)."""
+        return (
+            Network.objects.filter(pk=network_id, tenant=self).exists()
+            or self.shared_network_ids.filter(network_id=network_id).exists()
+        )
+
+    @property
+    def attachable_subnets(self):
+        """The subnets this tenant may put ports on: its own, and those of the
+        networks shared with it as ``access_as_shared``."""
+        return (
+            SubNet.objects.filter(tenant=self)
+            | SubNet.objects.filter(network_id__in=self.shared_network_ids)
+        ).distinct()
+
+    @property
     def available_subnets(self):
         # Subnets directly belonging to the tenant
         tenant_subnets = SubNet.objects.filter(tenant=self)

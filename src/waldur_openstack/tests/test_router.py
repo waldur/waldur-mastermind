@@ -77,6 +77,7 @@ class RouterInterfaceTest(BaseRouterTest):
         )
         self.port = factories.PortFactory(
             tenant=self.fixture.tenant,
+            network=self.fixture.network,
             project=self.fixture.project,
             service_settings=self.fixture.settings,
         )

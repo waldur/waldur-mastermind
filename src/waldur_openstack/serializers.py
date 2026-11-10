@@ -2495,17 +2495,16 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
             )
         if (
             tenant != network.tenant
-            and not models.NetworkRBACPolicy.objects.filter(
-                network=network,
-                target_tenant=tenant,
-                policy_type__in=["access_as_shared", "access_as_external"],
-            ).exists()
+            # A share as external is for router gateways and floating IPs:
+            # Neutron lets no port onto it, see Tenant.shared_network_ids.
+            and not tenant.may_put_ports_on(network.pk)
         ):
             raise serializers.ValidationError(
                 {
                     "target_tenant": _(
                         "Target tenant %(tenant)s does not have access to this network. "
-                        "Network must be shared via RBAC policy."
+                        "Network must be shared with it via an RBAC policy of type "
+                        "access_as_shared."
                     )
                     % {"tenant": tenant.uuid}
                 }
@@ -5157,11 +5156,8 @@ def _validate_instance_ports(ports, tenant, instance=None, user=None):
     # Collecting the owning tenants instead let a single share widen access to
     # every other network belonging to that tenant, so match on the shared
     # network, the way Tenant.available_subnets already does.
-    shared_network_ids = set(
-        models.NetworkRBACPolicy.objects.filter(target_tenant=tenant).values_list(
-            "network_id", flat=True
-        )
-    )
+    # Shared as external, a network takes no ports: see Tenant.shared_network_ids.
+    shared_network_ids = set(tenant.shared_network_ids)
 
     def reachable(network_id, owner_tenant_id):
         return owner_tenant_id == tenant.id or network_id in shared_network_ids
@@ -5169,7 +5165,11 @@ def _validate_instance_ports(ports, tenant, instance=None, user=None):
     for subnet in subnets:
         if not reachable(subnet.network_id, subnet.tenant_id):
             message = (
-                _("Subnet %s does not belong to the same tenant as instance.") % subnet
+                _(
+                    "Subnet %s does not belong to the same tenant as instance, "
+                    "and its network is not shared with it as access_as_shared."
+                )
+                % subnet
             )
             raise serializers.ValidationError({"ports": message})
 
@@ -5181,7 +5181,8 @@ def _validate_instance_ports(ports, tenant, instance=None, user=None):
             raise serializers.ValidationError(
                 {
                     "ports": _(
-                        "Port %s does not belong to the same tenant as instance."
+                        "Port %s does not belong to the same tenant as instance, "
+                        "and its network is not shared with it as access_as_shared."
                     )
                     % port
                 }
@@ -6795,19 +6796,26 @@ class OpenStackRouterInterfaceSerializer(serializers.Serializer):
             view = self.context["view"]
             router: models.Router = view.get_object()
             tenant = router.tenant
+            # Taking an interface off needs only that the tenant sees it: one
+            # left on a network shared only as external, or no longer shared,
+            # must still come off.
+            removing = getattr(view, "action", None) == "remove_router_interface"
             if attrs.get("subnet"):
                 subnet: models.SubNet = attrs["subnet"]
-                # Visibility, not ownership (#394). A network shared over RBAC is
-                # routed by the tenant that consumes it: Neutron accepts the
+                # Visibility, not ownership. A network shared as access_as_shared
+                # is routed by the tenant that consumes it: Neutron accepts the
                 # attachment and puts the interface port in the *router's*
                 # project, which is exactly how a shared network is handed over.
-                # `available_subnets` is the tenant's own subnets plus the ones
-                # reaching it through a NetworkRBACPolicy, so a tenant with no
-                # policy is still refused.
-                if not tenant.available_subnets.filter(pk=subnet.pk).exists():
+                # A share as external is for gateways and floating IPs and takes
+                # no interface (`Tenant.shared_network_ids`); a tenant with no
+                # share is refused too.
+                subnets = (
+                    tenant.available_subnets if removing else tenant.attachable_subnets
+                )
+                if not subnets.filter(pk=subnet.pk).exists():
                     raise serializers.ValidationError(
                         "Subnet must belong to the router's tenant, or be shared "
-                        "with it."
+                        "with it as access_as_shared."
                     )
             if attrs.get("port"):
                 port: models.Port = attrs["port"]
@@ -6815,6 +6823,19 @@ class OpenStackRouterInterfaceSerializer(serializers.Serializer):
                 if port.tenant != tenant:
                     raise serializers.ValidationError(
                         "Port must belong to the same tenant as the router."
+                    )
+                # The port connects the router to its network, so the network
+                # must be one the tenant may put ports on, as for a subnet: a
+                # port left on a network shared only as external, or no longer
+                # shared, must not wire the router into it.
+                if (
+                    not removing
+                    and port.network_id
+                    and not tenant.may_put_ports_on(port.network_id)
+                ):
+                    raise serializers.ValidationError(
+                        "Port must be on a network of the router's tenant, or one "
+                        "shared with it as access_as_shared."
                     )
 
         return attrs
