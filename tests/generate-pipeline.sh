@@ -43,7 +43,7 @@ MAX_PARALLEL_JOBS=15
 # Known heavy apps and their weight multipliers (based on test file counts).
 # Matched against the LAST path component (e.g. "marketplace" from
 # "src/waldur_mastermind/marketplace"). Default weight for unlisted apps is 1.
-HEAVY_APP_WEIGHTS="marketplace:8 openstack:4 structure:4 core:3 proposal:2"
+HEAVY_APP_WEIGHTS="marketplace:8 openstack:4 structure:4 core:3 proposal:5"
 
 # The filename for the generated child pipeline configuration. This artifact is
 # used by the `trigger` keyword in the main CI configuration.

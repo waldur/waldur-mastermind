@@ -5,12 +5,14 @@ real engine makes of it, and every mail it would send. Nothing survives a
 run: no row, no mail, no task, no cache entry, no request out.
 """
 
+import copy
 import json
 import re
 from datetime import timedelta
 from unittest import mock
 
 import psycopg
+import pytest
 from django.core import mail
 from django.core.cache import cache
 from django.db import InternalError, connection, transaction
@@ -85,13 +87,30 @@ def row_counts():
     return {model.__name__: model.objects.count() for model in COUNTED}
 
 
+# The happy paths walked so far, by template, number of offerings and the
+# request's other parameters. Finding a path takes a run per step, each
+# replaying the path from its start; a test that only needs the path's end
+# replays the path once.
+WALKED_PATHS = {}
+
+
 class DryRunMixin:
+    # The dry run's own wall-clock budget, in seconds. These tests check what
+    # a run shows, not how long it takes, and a loaded runner can stretch a
+    # long path past the shipped budget; a test of the budget itself sets
+    # this to None to keep the shipped one.
+    dry_run_budget = 120
+
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.staff = structure_factories.UserFactory(is_staff=True)
         throttle = mock.patch(THROTTLE, return_value=True)
         throttle.start()
         self.addCleanup(throttle.stop)
+        if self.dry_run_budget is not None:
+            budget = mock.patch.object(dry_run, "TIMEOUT_SECONDS", self.dry_run_budget)
+            budget.start()
+            self.addCleanup(budget.stop)
 
     def import_template(self, name, offerings=2):
         self.client.force_authenticate(self.staff)
@@ -119,6 +138,7 @@ class DryRunMixin:
                 offering=offering,
                 created_by=self.fixture.owner,
             )
+        call.walk_key = (name, offerings)
         return call
 
     def scenario_call(self, name, offerings=1):
@@ -152,11 +172,28 @@ class DryRunMixin:
     def walk(self, call, stop=None, **extra):
         """The happy path: every step's first positive outcome, a manual
         advance or a publication when one is due, until the proposal is
-        decided (or ``stop`` says so)."""
+        decided (or ``stop`` says so).
+
+        A path walked to its end before, on a call imported from the same
+        template, is replayed in one run when it still ends there; a test
+        that changed the call so that it no longer does walks it afresh."""
+        key = None
+        if stop is None and hasattr(call, "walk_key"):
+            key = (call.walk_key, json.dumps(extra, sort_keys=True))
+        if key in WALKED_PATHS:
+            actions = copy.deepcopy(WALKED_PATHS[key])
+            response = self.dry(call, actions, **extra)
+            if (
+                response.status_code == status.HTTP_200_OK
+                and response.data["proposal_state"] != ProposalStates.IN_REVIEW
+            ):
+                return actions, response.data
         actions = []
         for _ in range(60):
             data = self.ok(call, actions, **extra)
             if data["proposal_state"] != ProposalStates.IN_REVIEW:
+                if key:
+                    WALKED_PATHS[key] = copy.deepcopy(actions)
                 return actions, data
             if stop and stop(data):
                 return actions, data
@@ -229,6 +266,7 @@ class PermissionTest(DryRunMixin, test.APITestCase):
         )
 
 
+@pytest.mark.nightly
 class TemplatePathTest(DryRunMixin, test.APITestCase):
     def test_every_template_walks_to_an_award(self):
         for name in call_templates.names():
@@ -241,6 +279,8 @@ class TemplatePathTest(DryRunMixin, test.APITestCase):
                 self.assertTrue(data["messages"])
 
     def test_replaying_a_prefix_is_stopping_there(self):
+        """A prefix of a template's path replays as the path's start, and the
+        same request gives the same result."""
         for name in call_templates.names():
             with self.subTest(template=name):
                 call = self.import_template(name)
@@ -603,6 +643,7 @@ class MailTest(DryRunMixin, test.APITestCase):
 
 
 class SideEffectTest(DryRunMixin, test.APITestCase):
+    @pytest.mark.nightly
     def test_nothing_survives_a_run(self):
         call = self.import_template("extreme_scale")
         actions, _ = self.walk(call)
@@ -709,6 +750,7 @@ class ErrorTest(DryRunMixin, test.APITestCase):
         self.assertNotIn("Traceback", response.content.decode())
 
 
+@pytest.mark.nightly
 class ExposureTest(DryRunMixin, test.APITestCase):
     def test_no_real_name_or_address_is_returned(self):
         call = self.import_template("extreme_scale")
@@ -842,9 +884,7 @@ class ViewAsTest(DryRunMixin, test.APITestCase):
             response.data["view_as"]["viewer"]["full_name"], "Example applicant"
         )
 
-    # What is compared is each role's preview, not the budget: every actor
-    # replays the walk, which a loaded runner can stretch past it.
-    @mock.patch.object(dry_run, "TIMEOUT_SECONDS", 120)
+    @pytest.mark.nightly
     def test_every_actor_previews(self):
         call = self.import_template("extreme_scale")
         actions, _ = self.at_response_step(call)
@@ -861,6 +901,7 @@ class ViewAsTest(DryRunMixin, test.APITestCase):
                 self.assertTrue(view["viewer"]["full_name"].startswith("Example"))
                 self.assertIn("workflow_states", view["responses"])
 
+    @pytest.mark.nightly
     def test_reads_each_step_query_of_the_page(self):
         """The proposal page asks per step for the inputs of a started step
         that reads earlier steps or that the applicant responds through,
@@ -918,12 +959,14 @@ class ViewAsTest(DryRunMixin, test.APITestCase):
         self.assertTrue(reviews)
         return {r.get("reviewer_full_name") for r in reviews} - {None, ""}
 
+    @pytest.mark.nightly
     def test_applicant_reads_no_reviewer_name_while_identity_is_hidden(self):
         call = self.import_template("extreme_scale")
         call.reviewer_identity_visible_to_submitters = False
         call.save(update_fields=["reviewer_identity_visible_to_submitters"])
         self.assertEqual(self.reviewer_names_read_by_applicant(call), set())
 
+    @pytest.mark.nightly
     def test_applicant_reads_reviewer_names_once_identity_is_shown(self):
         call = self.import_template("extreme_scale")
         call.reviewer_identity_visible_to_submitters = True
@@ -933,6 +976,7 @@ class ViewAsTest(DryRunMixin, test.APITestCase):
         self.assertTrue(names)
         self.assertTrue(all(name.startswith("Example reviewer") for name in names))
 
+    @pytest.mark.nightly
     def test_hidden_steps_are_internal_checks_for_the_applicant(self):
         call = self.import_template("extreme_scale")
         actions, _ = self.at_response_step(call)
@@ -981,6 +1025,7 @@ class WorkflowServiceHookTest(test.APITestCase):
         allocate.assert_called_once()
 
 
+@pytest.mark.nightly
 class RealCallRowsTest(DryRunMixin, test.APITransactionTestCase):
     """A run neither writes nor locks a row of the real call or its rounds:
     another connection takes them with NOWAIT while it is in progress.
@@ -1008,9 +1053,6 @@ class RealCallRowsTest(DryRunMixin, test.APITransactionTestCase):
                     self.probed.append((model.__name__, rows))
             other.rollback()
 
-    # What is tested is that the real rows stay free, not the budget: the
-    # longest runs of this walk come close to it on a loaded runner.
-    @mock.patch.object(dry_run, "TIMEOUT_SECONDS", 120)
     def test_real_call_and_rounds_stay_free(self):
         self.call = self.import_template("extreme_scale")
         factories.RoundFactory(call=self.call)
@@ -1100,6 +1142,7 @@ def by_step(responses):
     return {step_key(key): value for key, value in responses.items()}
 
 
+@pytest.mark.nightly
 class ViewAsEqualityTest(DryRunMixin, test.APITestCase):
     maxDiff = None
     """What a preview shows is what a real holder of the role reads.
@@ -1134,9 +1177,6 @@ class ViewAsEqualityTest(DryRunMixin, test.APITestCase):
             reads[key] = {"status": response.status_code, "data": data}
         return reads
 
-    # What is compared is what the reads return, over every template and
-    # role: a loaded machine must not turn that into a test of the budget.
-    @mock.patch.object(dry_run, "TIMEOUT_SECONDS", 120)
     def test_previews_equal_real_reads(self):
         for number, name in enumerate(call_templates.names()):
             call = self.import_template(name)
@@ -1183,6 +1223,7 @@ class LaterFeaturesTest(DryRunMixin, test.APITestCase):
     def at_round_step(self, data):
         return any(step["round_step"] for step in data["next"]["steps"])
 
+    @pytest.mark.nightly
     def test_a_round_step_is_one_action_for_the_round(self):
         call = self.import_template("regular_access")
         actions, data = self.walk(call, stop=self.at_round_step)
@@ -1218,6 +1259,7 @@ class LaterFeaturesTest(DryRunMixin, test.APITestCase):
     # The last runs replay the whole path, extension and final report
     # included: a loaded machine must not turn that into a test of the budget.
     @mock.patch.object(dry_run, "TIMEOUT_SECONDS", 120)
+    @pytest.mark.nightly
     def test_extension_and_final_report_after_the_award(self):
         call = self.import_template("extreme_scale")
         actions, data = self.walk(call)

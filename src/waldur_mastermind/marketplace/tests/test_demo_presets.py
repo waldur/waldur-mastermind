@@ -9,6 +9,7 @@ import uuid
 from io import StringIO
 from unittest import mock
 
+import pytest
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -579,6 +580,7 @@ class GenerateBillingTest(test.APITestCase):
 class DemoPresetLoadTest(test.APITestCase):
     """Integration tests for loading demo presets into the database."""
 
+    @pytest.mark.nightly
     def test_call_management_proposals_meet_their_calls_rules(self):
         """Every submitted demo proposal answers its call's required compliance
         questions and asks for its resource templates as they define it: a
@@ -602,15 +604,18 @@ class DemoPresetLoadTest(test.APITestCase):
                 self.assertEqual(proposal.unanswered_compliance_questions(), 0)
                 self.assertIsNone(proposal.resource_template_error())
 
-    @data(
-        "minimal_quickstart",
-        "government_cloud",
-        "research_institution",
-        "hpc_ai_platform",
-        "call_management",
-    )
+    @data("minimal_quickstart", "government_cloud", "research_institution")
     def test_preset_loads_successfully(self, preset_name):
         """Test that preset can be loaded into the database without errors."""
+        self.check_preset_loads(preset_name)
+
+    # The large presets take 25 s or more each to load on CI.
+    @pytest.mark.nightly
+    @data("hpc_ai_platform", "call_management")
+    def test_large_preset_loads_successfully(self, preset_name):
+        self.check_preset_loads(preset_name)
+
+    def check_preset_loads(self, preset_name):
         result = DemoPresetManager.load_preset(
             preset_name,
             cleanup_first=True,
@@ -667,6 +672,7 @@ class DemoPresetLoadTest(test.APITestCase):
                 for order in orders:
                     self.assertTrue(order.slug, "an order without a slug")
 
+    @pytest.mark.nightly
     def test_call_management_preset_loads_call_configurations(self):
         preset = json.loads(
             pathlib.Path(
@@ -706,6 +712,7 @@ class DemoPresetLoadTest(test.APITestCase):
             ):
                 self.assertEqual(getattr(config, field), entry[field], field)
 
+    @pytest.mark.nightly
     def test_call_management_preset_scores_reviews_per_criterion(self):
         preset = json.loads(
             pathlib.Path(
@@ -739,6 +746,7 @@ class DemoPresetLoadTest(test.APITestCase):
                 entry["uuid"],
             )
 
+    @pytest.mark.nightly
     def test_call_management_preset_loads_a_call_from_a_call_template(self):
         preset = json.loads(
             pathlib.Path(
@@ -917,6 +925,7 @@ class DemoPresetLoadTest(test.APITestCase):
                     [w for w in warnings if "was not found on this portal" in w]
                 )
 
+    @pytest.mark.nightly
     def test_call_management_accepted_proposals_are_provisioned_from_their_award(
         self,
     ):
@@ -995,6 +1004,7 @@ class DemoPresetLoadTest(test.APITestCase):
         self.assertEqual(refused.state, OrderStates.REJECTED)
         self.assertTrue(refused.provider_rejection_comment)
 
+    @pytest.mark.nightly
     def test_call_management_shows_a_partition_its_demand(self):
         result = DemoPresetManager.load_preset(
             "call_management",
@@ -1023,6 +1033,7 @@ class DemoPresetLoadTest(test.APITestCase):
         self.assertEqual(gpu["call_pool"]["awarded"], gpu["awarded"])
         self.assertEqual(gpu["round_pool"]["remaining"], 30000)
 
+    @pytest.mark.nightly
     def test_call_management_partition_has_an_evaluator_to_hand_work_to(self):
         result = DemoPresetManager.load_preset(
             "call_management",
@@ -1045,6 +1056,7 @@ class DemoPresetLoadTest(test.APITestCase):
         self.assertEqual(role.description, "Offering evaluator")
         self.assertFalse(role.permissions.exists())
 
+    @pytest.mark.nightly
     def test_call_management_reviewer_pool_and_role_are_one_list(self):
         result = DemoPresetManager.load_preset(
             "call_management",
@@ -1078,6 +1090,7 @@ class DemoPresetLoadTest(test.APITestCase):
                     ),
                 )
 
+    @pytest.mark.nightly
     def test_call_management_reviews_from_assignments_are_linked(self):
         result = DemoPresetManager.load_preset(
             "call_management",

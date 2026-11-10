@@ -7,6 +7,7 @@ nothing.
 
 from unittest import mock
 
+import pytest
 from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
@@ -596,6 +597,7 @@ class PreviewTest(DryRunMixin, test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("subject", response.data)
 
+    @pytest.mark.nightly
     def test_a_preview_sends_and_keeps_nothing_and_names_nobody_real(self):
         Notification.objects.update_or_create(
             key="proposal.workflow_step_event", defaults={"enabled": True}

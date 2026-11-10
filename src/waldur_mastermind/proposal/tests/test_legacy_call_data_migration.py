@@ -15,6 +15,7 @@ again and checks what became of it:
 import logging
 from contextlib import contextmanager
 
+import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -32,6 +33,8 @@ from waldur_mastermind.proposal.enums import (
     WorkflowStepOutcomes,
 )
 from waldur_mastermind.proposal.tests import factories, migration_helpers
+
+pytestmark = pytest.mark.nightly
 
 CATALOGUE = [
     "administrative_check",
@@ -72,7 +75,7 @@ def logged_by(migration):
 
 
 @override_settings(MIGRATION_MODULES={})
-class LegacyCallStepMigrationTest(TestCase):
+class LegacyCallStepMigrationTest(migration_helpers.OneMigrationRun, TestCase):
     """The backfill: shared step forms and calls without step rows."""
 
     @classmethod
@@ -178,7 +181,7 @@ class LegacyCallStepMigrationTest(TestCase):
     def _instance(self, key):
         return self.proposal.workflow_step_instances.get(call_step__key=key)
 
-    def test_every_step_sharing_the_form_has_the_answers(self):
+    def check_every_step_sharing_the_form_has_the_answers(self):
         for key, status in (
             ("administrative_check", StepContributionStatuses.SUBMITTED),
             ("technical_assessment", StepContributionStatuses.PENDING),
@@ -190,7 +193,7 @@ class LegacyCallStepMigrationTest(TestCase):
             answer = contribution.get_checklist_completion(self.form).answers.get()
             self.assertEqual(answer.answer_data, "eligible and feasible", key)
 
-    def test_the_step_in_progress_can_still_be_completed(self):
+    def check_the_step_in_progress_can_still_be_completed(self):
         proposal = models.Proposal.objects.get(pk=self.proposal.pk)
         instance = self._instance("technical_assessment")
         self.assertFalse(contributions.unanswered_required_questions(instance).exists())
@@ -200,7 +203,7 @@ class LegacyCallStepMigrationTest(TestCase):
         proposal.refresh_from_db()
         self.assertEqual(proposal.current_step.call_step.key, "allocation_decision")
 
-    def test_open_calls_without_steps_get_the_call_manager_steps(self):
+    def check_open_calls_without_steps_get_the_call_manager_steps(self):
         for state in (CallStates.ACTIVE, CallStates.DRAFT):
             enabled = set(
                 self.legacy[state]
@@ -211,14 +214,14 @@ class LegacyCallStepMigrationTest(TestCase):
                 enabled, {"administrative_check", "allocation_decision"}, state
             )
 
-    def test_an_archived_call_keeps_its_history(self):
+    def check_an_archived_call_keeps_its_history(self):
         self.assertFalse(
             self.legacy[CallStates.ARCHIVED]
             .workflow_steps.filter(is_enabled=True)
             .exists()
         )
 
-    def test_a_score_threshold_nothing_scores_is_logged_and_kept(self):
+    def check_a_score_threshold_nothing_scores_is_logged_and_kept(self):
         def logged(call):
             return any(
                 message.startswith(f"Call {call.pk}: the allocation_decision step")
@@ -237,7 +240,7 @@ class LegacyCallStepMigrationTest(TestCase):
             self.unscored.workflow_steps.get(key="expert_review").is_enabled
         )
 
-    def test_a_proposal_submitted_to_an_old_call_starts_its_evaluation(self):
+    def check_a_proposal_submitted_to_an_old_call_starts_its_evaluation(self):
         call = self.legacy[CallStates.ACTIVE]
         proposal = factories.ProposalFactory(round=call.round_set.get())
         workflow_service.create_step_instances(proposal)
@@ -248,7 +251,7 @@ class LegacyCallStepMigrationTest(TestCase):
 
 
 @override_settings(MIGRATION_MODULES={})
-class ReviewerSyncMigrationTest(TestCase):
+class ReviewerSyncMigrationTest(migration_helpers.OneMigrationRun, TestCase):
     """The backfill: a call's reviewer role holders join its pool."""
 
     @classmethod
@@ -315,7 +318,7 @@ class ReviewerSyncMigrationTest(TestCase):
     def _entry(self, pk):
         return models.CallReviewerPool.objects.get(pk=pk)
 
-    def test_an_invitation_to_the_address_is_taken_up_not_duplicated(self):
+    def check_an_invitation_to_the_address_is_taken_up_not_duplicated(self):
         entry = self._entry(self.no_profile_entry)
         self.assertEqual(entry.invitation_status, Statuses.ACCEPTED)
         self.assertEqual(entry.invited_user, self.no_profile)
@@ -326,7 +329,7 @@ class ReviewerSyncMigrationTest(TestCase):
             1,
         )
 
-    def test_an_invitation_to_a_profiles_address_is_bound_to_the_profile(self):
+    def check_an_invitation_to_a_profiles_address_is_bound_to_the_profile(self):
         entry = self._entry(self.by_address_entry)
         self.assertEqual(entry.invitation_status, Statuses.ACCEPTED)
         self.assertEqual(entry.reviewer, self.profiles["by_address"])
@@ -337,7 +340,7 @@ class ReviewerSyncMigrationTest(TestCase):
             1,
         )
 
-    def test_a_decline_is_kept_and_so_is_the_role(self):
+    def check_a_decline_is_kept_and_so_is_the_role(self):
         self.assertEqual(
             self._entry(self.declined_entry).invitation_status, Statuses.DECLINED
         )
@@ -345,19 +348,19 @@ class ReviewerSyncMigrationTest(TestCase):
             self.call.has_user(self.profiles["declined"].user, CallRole.REVIEWER)
         )
 
-    def test_an_unanswered_invitation_is_accepted_for_a_role_holder(self):
+    def check_an_unanswered_invitation_is_accepted_for_a_role_holder(self):
         self.assertEqual(
             self._entry(self.pending_entry).invitation_status, Statuses.ACCEPTED
         )
 
-    def test_an_accepted_member_gets_the_role(self):
+    def check_an_accepted_member_gets_the_role(self):
         self.assertTrue(
             self.call.has_user(self.profiles["accepted"].user, CallRole.REVIEWER)
         )
 
 
 @override_settings(MIGRATION_MODULES={})
-class ReviewerStatsDropMigrationTest(TestCase):
+class ReviewerStatsDropMigrationTest(migration_helpers.OneMigrationRun, TestCase):
     """Imported reviewer stats are dropped, and the backfill logs them."""
 
     @classmethod
@@ -373,7 +376,7 @@ class ReviewerStatsDropMigrationTest(TestCase):
         with logged_by("0094_call_workflow_backfill") as cls.log:
             migration_helpers.migrate_forward()
 
-    def test_the_dropped_rows_are_logged(self):
+    def check_the_dropped_rows_are_logged(self):
         self.assertIn(
             "Dropping 1 imported reviewer stats rows (reviewer profiles "
             f"{self.profile.pk}). Reviewer figures are now worked out from "

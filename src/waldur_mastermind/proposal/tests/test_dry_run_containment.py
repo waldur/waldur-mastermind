@@ -117,6 +117,9 @@ class FakeClock:
 
 
 class BudgetTest(DryRunMixin, test.APITestCase):
+    # The shipped budget: these tests are about it.
+    dry_run_budget = None
+
     def review_step(self, call):
         step = (
             models.CallWorkflowStep.objects.filter(

@@ -6,11 +6,43 @@ was written for. These helpers migrate the test database back to that state
 inside the test's transaction, and forward again afterwards. The test class
 needs ``@override_settings(MIGRATION_MODULES={})``, because --no-migrations
 empties the migration loader.
+
+A migration run costs minutes, nearly all of it Django rendering the
+historical model states, so a class migrates once, in ``setUpClass``, and
+checks the result in one test (``OneMigrationRun``). Separate test methods
+would each pay for the run again on CI, where the shards split up a class.
+The classes carry the ``nightly`` marker: merge request pipelines
+leave them out, the nightly sweep runs them.
 """
 
-from django.db import connection
+from contextlib import contextmanager
+
+from django.db import connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.db.migrations.recorder import MigrationRecorder
+
+
+class OneMigrationRun:
+    """Run every ``check_*`` method of the class as a subtest of one test.
+
+    Each check runs in a savepoint that is rolled back, so a check that
+    changes data leaves the next one the migrated data, as separate tests
+    would.
+    """
+
+    def test_the_migrated_data(self):
+        checks = sorted(name for name in dir(self) if name.startswith("check_"))
+        self.assertTrue(checks)
+        for name in checks:
+            with self.subTest(check=name), _rolled_back():
+                getattr(self, name)()
+
+
+@contextmanager
+def _rolled_back():
+    with transaction.atomic():
+        yield
+        transaction.set_rollback(True)
 
 
 def _mark_everything_applied():

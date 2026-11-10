@@ -8,6 +8,7 @@ answering user with the same answers, and the review gate must count the same
 reviews as before.
 """
 
+import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -27,6 +28,8 @@ from waldur_mastermind.proposal.enums import (
 )
 from waldur_mastermind.proposal.tests import factories, migration_helpers
 
+pytestmark = pytest.mark.nightly
+
 BEFORE = [("proposal", "0092_delete_empty_proposal_documents")]
 
 CATALOGUE = [
@@ -44,7 +47,7 @@ PENDING = WorkflowStepInstanceStatuses.PENDING
 
 
 @override_settings(MIGRATION_MODULES={})
-class StepContributionMigrationTest(TestCase):
+class StepContributionMigrationTest(migration_helpers.OneMigrationRun, TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -201,7 +204,7 @@ class StepContributionMigrationTest(TestCase):
     def _instance(self, proposal, key):
         return proposal.workflow_step_instances.get(step=key)
 
-    def test_steps_say_who_contributes(self):
+    def check_steps_say_who_contributes(self):
         steps = {step.key: step for step in self.call.workflow_steps.all()}
         self.assertEqual(
             steps["technical_assessment"].contributor_source,
@@ -217,7 +220,7 @@ class StepContributionMigrationTest(TestCase):
             steps["panel_review"].contributor_source, ContributorSources.NONE
         )
 
-    def test_every_review_has_a_contribution_on_the_review_step(self):
+    def check_every_review_has_a_contribution_on_the_review_step(self):
         instance = self._instance(self.reviewed, "expert_review")
         contributions = {c.review_id: c for c in instance.contributions.all()}
         self.assertEqual(
@@ -232,7 +235,7 @@ class StepContributionMigrationTest(TestCase):
         self.assertEqual(opened.assignment_item_id, self.item_id)
         self.assertEqual(opened.contributor_id, self.open_reviewer_id)
 
-    def test_review_gate_counts_the_same_reviews(self):
+    def check_review_gate_counts_the_same_reviews(self):
         proposal = models.Proposal.objects.get(pk=self.reviewed.pk)
         instance = self._instance(proposal, "expert_review")
         self.assertEqual(proposal.current_step, instance)
@@ -241,7 +244,7 @@ class StepContributionMigrationTest(TestCase):
                 proposal, instance, WorkflowStepOutcomes.REVIEWED, "", None
             )
 
-    def test_answers_become_one_contribution_per_answering_user(self):
+    def check_answers_become_one_contribution_per_answering_user(self):
         instance = self._instance(self.reviewed, "technical_assessment")
         contributions = list(instance.contributions.order_by("contributor_id"))
         self.assertEqual(
@@ -261,15 +264,15 @@ class StepContributionMigrationTest(TestCase):
             )
             self.assertTrue(completion.is_completed)
 
-    def test_the_proposals_completion_of_the_form_is_gone(self):
+    def check_the_proposals_completion_of_the_form_is_gone(self):
         self.assertIsNone(self.reviewed.get_checklist_completion_for(self.form))
         self.assertIsNone(self.assessing.get_checklist_completion_for(self.form))
 
-    def test_compliance_answers_stay_on_the_proposal(self):
+    def check_compliance_answers_stay_on_the_proposal(self):
         completion = self.reviewed.get_checklist_completion_for(self.compliance)
         self.assertEqual(completion.answers.get().answer_data, "compliant")
 
-    def test_answers_of_a_step_in_progress_stay_editable(self):
+    def check_answers_of_a_step_in_progress_stay_editable(self):
         instance = self._instance(self.assessing, "technical_assessment")
         contribution = instance.contributions.get()
         self.assertEqual(contribution.contributor, self.assessors[0])
@@ -278,7 +281,7 @@ class StepContributionMigrationTest(TestCase):
         self.assertEqual(completion.answers.get().answer_data, "draft")
         self.assertFalse(completion.is_completed)
 
-    def test_batches_contribute_to_the_review_step(self):
+    def check_batches_contribute_to_the_review_step(self):
         batch = models.AssignmentBatch.objects.get(pk=self.batch_id)
         self.assertEqual(
             batch.call_step,

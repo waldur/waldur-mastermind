@@ -9,6 +9,7 @@ no mail leaves.
 import copy
 from unittest import mock
 
+import pytest
 from django.core import mail
 from django.urls import reverse
 from rest_framework import status, test
@@ -175,6 +176,7 @@ class TemplateScenariosTest(ScenarioTestBase):
 class ShippedTemplatesTest(DryRunMixin, test.APITestCase):
     """Every shipped template's scenarios pass on a call created from it."""
 
+    @pytest.mark.nightly
     def test_every_template_passes_its_scenarios(self):
         for name in call_templates.names():
             with self.subTest(template=name):
