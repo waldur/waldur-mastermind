@@ -6,7 +6,6 @@ import requests
 from django.conf import settings
 from django.core.management import call_command
 from django.test import override_settings
-from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework.test import APITestCase
 
@@ -61,6 +60,11 @@ def mock_response(content=TEDB_RESPONSE):
     response = mock.Mock(content=content)
     response.raise_for_status.return_value = None
     return response
+
+
+# A fixed date: relative to the real clock, it moves past the end of the
+# frozen month and the rates count as final.
+STALE_FETCHED_AT = datetime.datetime(2026, 9, 20, tzinfo=datetime.UTC)
 
 
 class ParseRatesTest(APITestCase):
@@ -450,14 +454,16 @@ class InvoiceTaxPercentTest(APITestCase):
     @override_config(VAT_TAXATION_ENABLED=True, VAT_OSS_ENABLED=True)
     def test_refresh_failure_does_not_stop_invoicing(self):
         invoice = self.make_invoice()
-        models.VATRate.objects.update(
-            fetched_at=timezone.now() - datetime.timedelta(days=40)
-        )
+        # Fetched while September was still running, so not final for it.
+        models.VATRate.objects.update(fetched_at=STALE_FETCHED_AT)
         with (
             freeze_time("2026-10-01"),
-            mock.patch.object(vat, "refresh_vat_rates", side_effect=RuntimeError),
+            mock.patch.object(
+                vat, "refresh_vat_rates", side_effect=RuntimeError
+            ) as refresh,
         ):
             tasks.create_monthly_invoices()
+        refresh.assert_any_call(2026, 9)
         invoice.refresh_from_db()
         self.assertEqual(invoice.state, models.Invoice.States.CREATED)
         self.assertEqual(invoice.tax_percent, 19)
@@ -467,9 +473,8 @@ class InvoiceTaxPercentTest(APITestCase):
     def test_monthly_invoicing_refreshes_stale_rates(self, post):
         post.return_value = mock_response(tedb_response({"EE": 24, "DE": 21}))
         invoice = self.make_invoice()
-        models.VATRate.objects.update(
-            fetched_at=timezone.now() - datetime.timedelta(days=40)
-        )
+        # Fetched while September was still running, so not final for it.
+        models.VATRate.objects.update(fetched_at=STALE_FETCHED_AT)
         with freeze_time("2026-10-01"):
             tasks.create_monthly_invoices()
 
