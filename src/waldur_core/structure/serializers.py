@@ -2373,11 +2373,11 @@ class ProjectPermissionReviewSerializer(BasePermissionReviewSerializer):
 # Who ProjectEndDateChangeRequestCreateSerializer.validate_project lets
 # request a change. Change the two together.
 REQUESTS_PROJECT_END_DATE_CHANGE = access.custom(
-    "A caller who sees the project the request names through a role (any role "
-    "on the project, PROJECT.LIST on its organization or site-wide, or a role "
-    "on one of its resources) or as global support, and who may not change "
-    "its end date directly: not staff, and without PROJECT.UPDATE on the "
-    "project, its organization or site-wide."
+    "A caller who sees the project the request names through a role and holds "
+    "PROJECT.REQUEST_END_DATE_CHANGE on it or its organization, but not "
+    "PROJECT.SET_END_DATE. Staff are refused. A personal access token needs "
+    "the request permission among its scopes and a binding that reaches the "
+    "project."
 )
 
 
@@ -2433,13 +2433,16 @@ class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
                 )
             )
         # Asking is a permission of its own: an awarded project's end date is
-        # extended through its call, not through this request.
+        # extended through its call, not through this request. Checked on the
+        # request, so a token's scopes and bindings apply.
         if not (
             has_permission(
-                user, PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE, project
+                request, PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE, project
             )
             or has_permission(
-                user, PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE, project.customer
+                request,
+                PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE,
+                project.customer,
             )
         ):
             raise exceptions.PermissionDenied(
