@@ -25,7 +25,7 @@ from waldur_core.checklist.models import (
 )
 from waldur_core.configuration.models import Source
 from waldur_core.core import encryption
-from waldur_core.core.features import FEATURES
+from waldur_core.core.features import all_feature_keys
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import Feature, SshPublicKey, User
 from waldur_core.core.serializers import ConstanceSettingsSerializer
@@ -1785,11 +1785,7 @@ class Command(BaseCommand):
 
         self.stdout.write("Importing features...")
 
-        valid_keys = {
-            f"{section['key']}.{feature['key']}"
-            for section in FEATURES
-            for feature in section["items"]
-        }
+        valid_keys = set(all_feature_keys())
         touched = False
         for entry in features_data:
             key = entry.get("key")

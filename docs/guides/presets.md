@@ -129,12 +129,48 @@ GET /api/marketplace-demo-presets/list/
 Authorization: Token <staff_token>
 ```
 
-### Get Preset Details
+### Preview a Preset
 
 ```http
 GET /api/marketplace-demo-presets/info/{name}/
 Authorization: Token <staff_token>
 ```
+
+Shows what loading the preset would do, before anything is deleted. Besides
+the metadata and entity counts that `list` returns, it carries:
+
+| Field | Content |
+|---|---|
+| `users` | Username, email, name, staff, support and active flags, roles with the name of their scope, and the password for active users who are neither staff nor support |
+| `organizations` | Organizations, their projects, and each project's resources |
+| `offerings` | Offering names grouped by type and category |
+| `settings_changes` | Settings the load changes, and every setting the preset sets |
+| `feature_changes` | Features the load changes, and every feature the preset sets |
+| `overlay`, `overlay_contents` | The deployment's overlay preset imported after this one, if any, and what it adds |
+| `warnings` | What would not work after the load |
+
+Setting and feature changes describe a load with cleanup, the default:
+
+- **Values after the load.** Each change has the current value and the value
+  after the load.
+- **`source`.** Where the new value comes from: `preset`, `overlay`,
+  `default` (the load resets it), or `deployment` (the deployment owns the
+  setting, so the preset's value is skipped and `skipped` is true).
+- **Secrets.** A secret's values are always null.
+
+Warnings name unknown settings or features in the preset, setting values
+the load would reject (those keep their default), and an overlay that is
+missing or cannot be read. They also name features turned on without the
+configuration they need: the AI assistant without `AI_ASSISTANT_API_URL` and
+`AI_ASSISTANT_API_TOKEN`, or Matrix chat without `MATRIX_ENABLED`,
+`MATRIX_HOMESERVER_URL` and `MATRIX_APPSERVICE_AS_TOKEN`. This is checked
+against the values after the load: what the deployment owns, plus what the
+preset and overlay set. Anything else set today is reset by the load and
+does not count.
+
+`overlay_contents` lists the users, organizations and offerings the overlay
+adds, never with passwords. Users marked inactive in a preset are listed with
+`is_active: false` and no password.
 
 ### Load Preset
 

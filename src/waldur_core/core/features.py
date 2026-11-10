@@ -397,6 +397,15 @@ class ResellerSection(FeatureSection):
     )
 
 
+def all_feature_keys() -> list[str]:
+    """The dotted key of every declared feature, as "<section>.<feature>"."""
+    return [
+        f"{section['key']}.{feature['key']}"
+        for section in FEATURES
+        for feature in section["items"]
+    ]
+
+
 def is_enabled(key: str) -> bool:
     """Current value of a feature flag, falling back to its declared default."""
     from waldur_core.core.models import Feature as FeatureModel
