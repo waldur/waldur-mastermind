@@ -224,6 +224,26 @@ class ResourceProjectInviteeRedactionTest(ResourceProjectVisibilityTest):
         self.assertIn("backend_metadata", response.data)
         self.assertNotIn("error_traceback", response.data)
 
+    def _order_period_usage(self, user):
+        offering = self.resource.offering
+        offering.plugin_options = {"show_order_period_totals": True}
+        offering.save(update_fields=["plugin_options"])
+        self.client.force_authenticate(user)
+        return self.client.get(
+            marketplace_factories.ResourceFactory.get_url(
+                self.resource, "order_period_usage"
+            )
+        )
+
+    def test_rp_only_viewer_cannot_read_order_period_usage(self):
+        # retrieve hides limit_usage from them; the lifetime total is no less.
+        response = self._order_period_usage(self.rp_invitee)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_direct_resource_invitee_reads_order_period_usage(self):
+        response = self._order_period_usage(self.r_invitee)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_project_member_does_not_see_error_traceback(self):
         self._populate_sensitive_fields()
         self.client.force_authenticate(self.fixture.admin)

@@ -38,6 +38,8 @@ class LifecyclePluginOptionsPersistenceTest(test.APITestCase):
         ("enable_scim_entitlements", False),
         ("display_prepaid_limits_as_total", True),
         ("display_prepaid_limits_as_total", False),
+        ("show_order_period_totals", True),
+        ("show_order_period_totals", False),
         ("instance_metrics_poll_interval_minutes", 30),
         ("instance_metrics_enabled", True),
         ("instance_metrics", ["vm.cpu.utilization", "vm.network.io"]),

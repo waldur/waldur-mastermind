@@ -84,6 +84,16 @@ class CallManagerProjectAccessTest(test.APITestCase):
 
     # Reading
 
+    def test_call_manager_reads_the_order_period_usage(self):
+        # It sums the usage behind limit_usage, which retrieve shows them too.
+        self.fixture.offering.plugin_options = {"show_order_period_totals": True}
+        self.fixture.offering.save(update_fields=["plugin_options"])
+        self.client.force_authenticate(self.call_manager)
+
+        response = self.client.get(self.resource_url(action="order_period_usage"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_call_manager_retrieves_and_lists_the_project(self):
         self.client.force_authenticate(self.call_manager)
 
