@@ -431,6 +431,12 @@ class Call(
             "Default: {round_slug}-{counter_padded}"
         ),
     )
+    project_name_template = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=enums.PROJECT_NAME_TEMPLATE_HELP,
+    )
 
     panel_chair = models.ForeignKey(
         core_models.User,
@@ -810,9 +816,9 @@ class CallProposalFieldConfig(TimeStampedModel, core_models.UuidMixin):
     an operator raised the installation default, which the locking rule below
     exists to prevent.
 
-    ``name`` is deliberately absent: it names the proposal and forms the last
-    part of the awarded project's name (see ``allocate_proposal``, which
-    prefixes the call and the round's start date). The length of the award is
+    ``name`` is deliberately absent: it names the proposal and goes into the
+    awarded project's name (see ``allocation_names``, which
+    applies the call's ``project_name_template``). The length of the award is
     not a form field either: it is derived at allocation from the requested
     resources' ``attributes.prepaid_duration_months``, else from
     ``call.fixed_duration_in_days`` (see ``utils.project_end_date``).

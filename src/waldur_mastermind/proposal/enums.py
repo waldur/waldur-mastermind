@@ -1730,8 +1730,8 @@ class ProposalFieldUsages:
 
 # Every configurable Project details field, with the consumers traced in
 # waldur/waldur-mastermind#291. `name` is not here: it is always required, and
-# `allocate_proposal` builds the granted project's name from the call, the
-# round's start date and it. The project length is not a form field either: it
+# `allocate_proposal` builds the granted project's name from it, by the call's
+# `project_name_template` (see allocation_names). The project length is not a form field either: it
 # is derived at allocation from the requested resources'
 # `attributes.prepaid_duration_months`, else from `call.fixed_duration_in_days`.
 PROPOSAL_CONFIGURABLE_FIELDS = {
@@ -1759,3 +1759,27 @@ PROPOSAL_CONFIGURABLE_FIELDS = {
         ProposalFieldUsages.REVIEWER_COMMENT,
     ),
 }
+
+
+# Placeholder -> what it stands for, for the API's help text and errors.
+PROJECT_NAME_PLACEHOLDERS = {
+    "proposal_name": "the proposal's name",
+    "proposal_slug": "the proposal's slug",
+    "call_prefix": "the call's reference code, or its slug when it has none",
+    "call_slug": "the call's slug",
+    "call_name": "the call's name",
+    "round_start": "the round's start date, YYYY-MM-DD",
+    "round_slug": "the round's slug",
+    "org_slug": "the slug of the organization managing the call",
+    "year": "the year the proposal is allocated",
+}
+
+DEFAULT_PROJECT_NAME_TEMPLATE = "{call_prefix} - {round_start} - {proposal_name}"
+
+PROJECT_NAME_TEMPLATE_HELP = (
+    "Name given to the project an accepted proposal creates. Placeholders: "
+    + ", ".join("{%s}" % name for name in PROJECT_NAME_PLACEHOLDERS)
+    + ". Empty means "
+    + DEFAULT_PROJECT_NAME_TEMPLATE
+    + "."
+)

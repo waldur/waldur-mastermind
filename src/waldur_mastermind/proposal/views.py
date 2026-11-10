@@ -7044,6 +7044,7 @@ class ProposalViewSet(
                 proposal.project,
                 order_author=utils.resolve_order_author(proposal, proposal.project),
                 consumer_reviewer=request.user,
+                index=utils.award_item_index(item),
             )
         item.refresh_from_db()
         data = serializers.AwardedResourceSerializer(

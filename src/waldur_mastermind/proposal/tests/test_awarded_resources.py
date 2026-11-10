@@ -28,7 +28,7 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.proposal import models, utils, workflow_service
+from waldur_mastermind.proposal import allocation_names, models, utils, workflow_service
 from waldur_mastermind.proposal.enums import (
     ProposalStates,
     RequestedOfferingStates,
@@ -747,7 +747,7 @@ class UneditedAwardProvisionsAsRequestedTest(test.APITestCase):
                     "plan": r.requested_offering.plan_id,
                     "limits": r.limits,
                     "attributes": r.attributes,
-                    "name": utils._allocated_resource_name(
+                    "name": allocation_names.default_resource_name(
                         project.name, offering.name, index
                     ),
                     "end_date": utils._requested_end_date(r, project, today),
