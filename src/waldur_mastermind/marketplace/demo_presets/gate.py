@@ -15,9 +15,22 @@ def is_enabled() -> bool:
     return bool(settings.WALDUR_CORE.get("DEMO_PRESETS_ENABLED"))
 
 
+def overlay_name() -> str:
+    """The preset the deployment imports after every cleanup load, if any."""
+    return settings.WALDUR_CORE.get("DEMO_PRESETS_OVERLAY") or ""
+
+
+def staff_password() -> str:
+    """The password the deployment gives preset staff users, if any."""
+    return settings.WALDUR_CORE.get("DEMO_PRESETS_STAFF_PASSWORD") or ""
+
+
 def is_allowed(name: str) -> bool:
-    """Whether the preset `name` is offered. An empty allowlist offers all."""
-    if not is_enabled():
+    """Whether the preset `name` is offered. An empty allowlist offers all.
+
+    The deployment's overlay never is: it is applied after every load, not
+    loaded in place of a demo."""
+    if not is_enabled() or name == overlay_name():
         return False
     allowed = settings.WALDUR_CORE.get("DEMO_PRESETS_ALLOWED") or []
     return not allowed or name in allowed
