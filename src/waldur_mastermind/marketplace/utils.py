@@ -774,6 +774,35 @@ def copy_order_attributes_to_resource(order):
     resource.save(update_fields=["attributes"])
 
 
+# Written by the renew action; a renewal is dated and invoiced from them.
+RENEWAL_ORDER_ATTRIBUTES = (
+    "action",
+    "old_limits",
+    "old_end_date",
+    "new_end_date",
+    "extension_months",
+    "unit_prices",
+)
+
+
+def keep_renewal_order_attributes(order, attributes):
+    """Return attributes sent for an update order with its renewal keys as stored.
+
+    An edit or a provider's approval can neither change a renewal's terms nor
+    add them to another update order.
+    """
+    if order.type != OrderTypes.UPDATE or not isinstance(attributes, dict):
+        return attributes
+    stored = order.attributes or {}
+    kept = {
+        key: value
+        for key, value in attributes.items()
+        if key not in RENEWAL_ORDER_ATTRIBUTES
+    }
+    kept.update({key: stored[key] for key in RENEWAL_ORDER_ATTRIBUTES if key in stored})
+    return kept
+
+
 def changed_derived_inputs(resource, new_options):
     """Names of the formula inputs that ``new_options`` would change on ``resource``."""
     offering = resource.offering

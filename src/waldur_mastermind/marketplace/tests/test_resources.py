@@ -679,6 +679,17 @@ class ResourceRenewTest(test.APITestCase):
             ).exists()
         )
 
+    def test_renewal_order_records_the_quoted_unit_prices(self):
+        response = self.renew_resource(
+            self.fixture.owner, self.resource, {"extension_months": 12}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(resource=self.resource, type=OrderTypes.UPDATE)
+        self.assertEqual(
+            Decimal(order.attributes["unit_prices"]["storage"]), Decimal("10")
+        )
+
     def test_renewal_fails_for_non_prepaid_resource(self):
         # Arrange
         payload = {"extension_months": 12}

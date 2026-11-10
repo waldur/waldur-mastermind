@@ -7400,6 +7400,10 @@ class OrderUpdateSerializer(BaseOrderSerializer):
                 attrs["attributes"] = strip_non_input_options(
                     options, strip_hidden_options(options, attrs["attributes"])
                 )
+        if "attributes" in attrs:
+            attrs["attributes"] = utils.keep_renewal_order_attributes(
+                self.instance, attrs["attributes"]
+            )
         attributes = attrs.get("attributes", self.instance.attributes) or {}
         if (
             options
@@ -7447,6 +7451,20 @@ class OrderUpdateSerializer(BaseOrderSerializer):
             )
         if options and "attributes" in attrs:
             self._validate_unique_options(attrs["attributes"])
+        # Checked last: limits can also be derived from new_options above.
+        if (
+            (self.instance.attributes or {}).get("action") == "renew"
+            and "limits" in attrs
+            and attrs["limits"] != self.instance.limits
+        ):
+            raise serializers.ValidationError(
+                {
+                    "limits": _(
+                        "A renewal's limits are part of its quote. "
+                        "Place a new renewal to change them."
+                    )
+                }
+            )
         return attrs
 
     def _validate_unique_options(self, attributes):

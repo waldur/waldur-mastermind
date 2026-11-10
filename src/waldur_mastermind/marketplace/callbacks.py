@@ -11,6 +11,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.common.serializers import strip_hidden_options
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 
 from . import billing_mode, log, models, signals, tasks
@@ -321,6 +322,10 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
                 locked_resource.init_cost()
 
         locked_resource.save()
+
+        # Renewals that finish asynchronously are billed here; synchronous ones by the processor.
+        if order and order.attributes.get("action") == "renew":
+            MarketplaceBillingService.handle_renewal(locked_resource, order)
 
         if limits_changed:
             log.log_resource_limit_update_succeeded(locked_resource)

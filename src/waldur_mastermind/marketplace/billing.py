@@ -1,5 +1,6 @@
 import datetime
 import logging
+from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
@@ -124,9 +125,87 @@ class MarketplaceBillingService:
             for c in resolved.components.values()
             if c.billing_type == BillingTypes.ONE_TIME and c.is_prepaid
         }
-        if prepaid_types and resource.end_date:
+        # A renewal moves the end date in the same save as its limits. Its extension
+        # is billed at the new limits by handle_renewal, and the quote the customer
+        # approved covers nothing else, so no supplementary item is added. A limit
+        # change without a new end date (set_limits, a later update order) is not
+        # that renewal.
+        is_renewal_save = (
+            resource.tracker.has_changed("end_date")
+            and last_update_order
+            and last_update_order.attributes.get("action") == "renew"
+            and last_update_order.attributes.get("new_end_date")
+            == str(resource.end_date)
+        )
+        if prepaid_types and resource.end_date and not is_renewal_save:
             cls._handle_prepaid_limits_change(
                 resource, invoice, prepaid_types, old_limits, today
+            )
+
+    @classmethod
+    def handle_renewal(cls, resource: marketplace_models.Resource, order):
+        """Bills a prepaid renewal as quoted by Resource.get_renewal_cost: each prepaid
+        one-time component at its limit for the extension months, at the unit price
+        recorded on the order when it was quoted."""
+        try:
+            months = int(order.attributes.get("extension_months") or 0)
+        except (TypeError, ValueError):
+            months = 0
+        if months <= 0 or not resource.plan or not resource.offering.billable:
+            return
+        if invoice_models.InvoiceItem.objects.filter(
+            resource=resource, details__renewal_order_uuid=order.uuid.hex
+        ).exists():
+            return
+
+        now = timezone.now()
+        invoice, _ = cls.get_or_create_invoice(
+            resource.project.customer, core_utils.month_start(now)
+        )
+        factors = resource.offering.component_factors
+        # Orders created before the prices were recorded fall back to the plan price.
+        quoted_prices = order.attributes.get("unit_prices") or {}
+        for c in billing_mode.resolve_for_resource(resource).components.values():
+            if not (c.billing_type == BillingTypes.ONE_TIME and c.is_prepaid):
+                continue
+            limit = (resource.limits or {}).get(c.type, 0)
+            plan_component = resource.plan.components.filter(
+                component=c.component
+            ).first()
+            if not limit or not plan_component:
+                continue
+            unit_price = (
+                Decimal(str(quoted_prices[c.type]))
+                if c.type in quoted_prices
+                else plan_component.price
+            )
+            details = get_component_details(resource, plan_component)
+            details.update(
+                {
+                    "renewal_order_uuid": order.uuid.hex,
+                    "extension_months": months,
+                    "old_end_date": order.attributes.get("old_end_date"),
+                    "new_end_date": order.attributes.get("new_end_date"),
+                }
+            )
+            invoice_models.InvoiceItem.objects.create(
+                name=f"{get_invoice_item_name(resource)} / {get_component_name(plan_component)} (renewal)",
+                resource=resource,
+                plan_component=plan_component,
+                project=resource.project,
+                unit_price=unit_price,
+                unit=invoice_models.Units.QUANTITY,
+                quantity=Decimal(str(limit))
+                / Decimal(str(factors.get(c.type, 1)))
+                * months,
+                article_code=c.component.article_code or resource.plan.article_code,
+                invoice=invoice,
+                start=now,
+                end=core_utils.month_end(now),
+                details=details,
+                measured_unit=billing_mode.resolve_component(
+                    c.component, plan_component.plan
+                ).measured_unit,
             )
 
     @classmethod
