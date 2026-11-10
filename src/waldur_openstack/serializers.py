@@ -42,6 +42,7 @@ from waldur_core.core.validators import (
     validate_x509_certificate,
 )
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.utils import check_pat_binding_on_path
 from waldur_core.quotas.models import SharedQuotaMixin
 from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
@@ -1838,19 +1839,23 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         return None, None
 
     def _can_set_advanced_gateway_options(
-        self, user, router, network_source, network_obj
+        self, request, router, network_source, network_obj
     ):
-        """Check if user can set enable_snat=False or external_fixed_ips."""
+        """Check if the request can set enable_snat=False or external_fixed_ips."""
+        user = request.user
         if network_source == "global":
             return is_openstack_service_provider(user, router.tenant.service_settings)
 
         if network_source == "rbac":
-            if user.is_staff:
+            if has_staff_access(request):
                 return True
+            # An administrator or manager of the network's project, and a
+            # personal access token only within its bindings, as for ports.
             source_project = network_obj.tenant.project
-            return source_project.has_user(
-                user, ProjectRole.ADMIN
-            ) or source_project.has_user(user, ProjectRole.MANAGER)
+            return (
+                source_project.has_user(user, ProjectRole.ADMIN)
+                or source_project.has_user(user, ProjectRole.MANAGER)
+            ) and check_pat_binding_on_path(request, [source_project])
 
         return False
 
@@ -1885,7 +1890,7 @@ class SetExternalGatewaySerializer(serializers.Serializer):
 
         if needs_advanced:
             if not self._can_set_advanced_gateway_options(
-                user, router, network_source, network_obj
+                request, router, network_source, network_obj
             ):
                 raise serializers.ValidationError(
                     _(
@@ -2485,7 +2490,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                     )
                 }
             )
-        if not can_manage_project(_request_user(self), tenant.project):
+        if not can_manage_project(_request(self), tenant.project):
             raise serializers.ValidationError(
                 {
                     "target_tenant" if target_tenant else "network": _(
@@ -2592,7 +2597,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
             or attrs.get("mac_address")
             or attrs.get("port_security_enabled") is False
         )
-        if chooses and not can_manage_network_project(_request_user(self), network):
+        if chooses and not can_manage_network_project(_request(self), network):
             raise serializers.ValidationError(
                 _(
                     "Network %s belongs to another tenant: only its owner can choose "
@@ -3739,13 +3744,7 @@ class CreateLoadBalancerSerializer(LoadBalancerWritableSerializer):
         )
 
     def validate_tenant(self, tenant):
-        user = self.context["request"].user
-        if not (
-            has_staff_access(self.context["request"])
-            or tenant.project.customer.has_user(user, CustomerRole.OWNER)
-            or tenant.project.has_user(user, ProjectRole.ADMIN)
-            or tenant.project.has_user(user, ProjectRole.MANAGER)
-        ):
+        if not can_manage_project(self.context["request"], tenant.project):
             raise serializers.ValidationError(
                 "You do not have permission to create load balancer for this tenant."
             )
@@ -3850,13 +3849,7 @@ class OpenStackPoolSerializer(structure_serializers.BaseResourceSerializer):
 
 
 def _validate_load_balancer(load_balancer, request):
-    user = request.user
-    if not (
-        has_staff_access(request)
-        or load_balancer.project.customer.has_user(user, CustomerRole.OWNER)
-        or load_balancer.project.has_user(user, ProjectRole.ADMIN)
-        or load_balancer.project.has_user(user, ProjectRole.MANAGER)
-    ):
+    if not can_manage_project(request, load_balancer.project):
         raise serializers.ValidationError(
             "You do not have permission to create pool for this load balancer."
         )
@@ -4166,13 +4159,7 @@ class CreatePoolMemberSerializer(PoolMemberWritingSerializer):
         )
 
     def validate_pool(self, pool):
-        user = self.context["request"].user
-        if not (
-            has_staff_access(self.context["request"])
-            or pool.project.customer.has_user(user, CustomerRole.OWNER)
-            or pool.project.has_user(user, ProjectRole.ADMIN)
-            or pool.project.has_user(user, ProjectRole.MANAGER)
-        ):
+        if not can_manage_project(self.context["request"], pool.project):
             raise serializers.ValidationError(
                 "You do not have permission to create member for this pool."
             )
@@ -4334,13 +4321,7 @@ class CreateHealthMonitorSerializer(HealthMonitorWritableSerializer):
         )
 
     def validate_pool(self, pool):
-        user = self.context["request"].user
-        if not (
-            has_staff_access(self.context["request"])
-            or pool.project.customer.has_user(user, CustomerRole.OWNER)
-            or pool.project.has_user(user, ProjectRole.ADMIN)
-            or pool.project.has_user(user, ProjectRole.MANAGER)
-        ):
+        if not can_manage_project(self.context["request"], pool.project):
             raise serializers.ValidationError(
                 "You do not have permission to create health monitor for this pool."
             )
@@ -4400,13 +4381,7 @@ class CreateRouterSerializer(serializers.HyperlinkedModelSerializer):
         )
 
     def validate_tenant(self, tenant):
-        user = self.context["request"].user
-        if not (
-            has_staff_access(self.context["request"])
-            or tenant.project.customer.has_user(user, CustomerRole.OWNER)
-            or tenant.project.has_user(user, ProjectRole.ADMIN)
-            or tenant.project.has_user(user, ProjectRole.MANAGER)
-        ):
+        if not can_manage_project(self.context["request"], tenant.project):
             raise serializers.ValidationError(
                 "You do not have permission to create router for this tenant."
             )
@@ -5077,13 +5052,18 @@ class OpenStackNestedServerGroupSerializer(
         extra_kwargs = {"url": {"lookup_field": "uuid"}}
 
 
+def _request(serializer):
+    """The request the serializer was built with, if any."""
+    return serializer.context.get("request") if serializer.context else None
+
+
 def _request_user(serializer):
     """The requesting user, when the serializer was built with a request."""
-    request = serializer.context.get("request") if serializer.context else None
+    request = _request(serializer)
     return getattr(request, "user", None) if request else None
 
 
-def _validate_pinned_addresses(ports, tenant, user):
+def _validate_pinned_addresses(ports, tenant, request):
     """Choosing an address on someone else's network requires owning it.
 
     Neutron's ``create_port:fixed_ips:ip_address`` rule is admin-or-network-owner:
@@ -5103,7 +5083,7 @@ def _validate_pinned_addresses(ports, tenant, user):
         if port.subnet.tenant_id == tenant.id:
             continue
         network = port.subnet.network
-        if can_manage_network_project(user, network):
+        if can_manage_network_project(request, network):
             continue
         raise serializers.ValidationError(
             {
@@ -5117,7 +5097,7 @@ def _validate_pinned_addresses(ports, tenant, user):
         )
 
 
-def _validate_port_security_of_shared_ports(ports, tenant, user):
+def _validate_port_security_of_shared_ports(ports, tenant, request):
     """Turning port security off on someone else's network requires owning it.
 
     Neutron's ``create_port:port_security_enabled`` rule is admin-or-network-owner,
@@ -5130,7 +5110,7 @@ def _validate_port_security_of_shared_ports(ports, tenant, user):
         if port.subnet.tenant_id == tenant.id:
             continue
         network = port.subnet.network
-        if can_manage_network_project(user, network):
+        if can_manage_network_project(request, network):
             continue
         raise serializers.ValidationError(
             {
@@ -5144,7 +5124,7 @@ def _validate_port_security_of_shared_ports(ports, tenant, user):
         )
 
 
-def _validate_instance_ports(ports, tenant, instance=None, user=None):
+def _validate_instance_ports(ports, tenant, instance=None, request=None):
     """- make sure that ports belong to specified setting;
     - make sure that ports does not connect to the same subnet twice;
     - make sure that referenced existing ports are attachable to the instance;
@@ -5213,8 +5193,8 @@ def _validate_instance_ports(ports, tenant, instance=None, user=None):
             _("It is impossible to connect to subnet %s twice.") % duplicates[0][0]
         )
 
-    _validate_pinned_addresses(ports, tenant, user)
-    _validate_port_security_of_shared_ports(ports, tenant, user)
+    _validate_pinned_addresses(ports, tenant, request)
+    _validate_port_security_of_shared_ports(ports, tenant, request)
 
 
 def _validate_instance_security_groups(security_groups, tenant):
@@ -5784,7 +5764,7 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
 
         _validate_instance_security_groups(security_groups, tenant)
         _validate_instance_server_group(attrs.get("server_group"), tenant)
-        _validate_instance_ports(ports, tenant, user=_request_user(self))
+        _validate_instance_ports(ports, tenant, request=_request(self))
         subnets = [port.subnet for port in ports]
         floating_ips = cast(FloatingIPSpec, attrs.get("floating_ips", []))
         _validate_instance_floating_ips(floating_ips, tenant, subnets)
@@ -6225,7 +6205,7 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
             ports,
             self.instance.tenant,
             instance=self.instance,
-            user=_request_user(self),
+            request=_request(self),
         )
         return ports
 
@@ -6407,7 +6387,7 @@ class OpenStackBackupRestorationCreateSerializer(OpenStackBackupRestorationSeria
         _validate_instance_security_groups(attrs.get("security_groups", []), tenant)
 
         ports = attrs.get("ports", [])
-        _validate_instance_ports(ports, tenant, user=_request_user(self))
+        _validate_instance_ports(ports, tenant, request=_request(self))
 
         subnets = [port.subnet for port in ports]
         floating_ips = cast(FloatingIPSpec, attrs.get("floating_ips", []))
