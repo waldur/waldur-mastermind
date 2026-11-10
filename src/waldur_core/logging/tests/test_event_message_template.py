@@ -2,6 +2,7 @@ from ddt import data, ddt, unpack
 from django.test import SimpleTestCase
 from rest_framework import test
 
+from waldur_core.core import models as core_models
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.middleware import reset_event_context, set_event_context
@@ -118,3 +119,18 @@ class EmitTest(test.APITestCase):
         )
 
         self.assertEqual(message, "Blocked alice from 203.0.113.7.")
+
+
+class LiteralUserTest(test.APITestCase):
+    def test_an_impersonated_user_is_shown_without_the_impersonator(self):
+        # An impersonated user's own str() names the staff member behind it,
+        # whom readers of most events may not learn.
+        staff = factories.UserFactory(is_staff=True, username="the-staff")
+        user = factories.UserFactory(username="the-user")
+        impersonated = core_models.ImpersonatedUser.all_objects.get(pk=user.pk)
+        impersonated.impersonator = staff
+
+        self.assertIn("the-staff", str(impersonated))
+        self.assertEqual(
+            event_logger.literal(impersonated), core_models.User.__str__(user)
+        )

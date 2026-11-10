@@ -418,10 +418,12 @@ Every event an evaluation's actions emit also records why the evaluation ran. `s
 |-------|---------|
 | `trigger` | What started it (`EvaluationTriggers` in `policy/structures.py`, see below) |
 | `trigger_object_uuid` | The object behind the trigger: the invoice item, credit, component usage, policy or resource; absent for the periodic sweep |
-| `initiated_by_uuid`, `initiated_by_username` | The person whose action started it; absent when nobody did, for example the sweep, a usage report from a site agent outside a request, or a background job that runs as a robot account (`ROBOT_USERNAMES`: `system_robot`, `openportal_robot`), which is never recorded as an initiator. Under impersonation the impersonator is the initiator, as for revisions |
-| `initiated_as_username` | Under impersonation only: the account the initiator was acting as |
+| `initiated_by_uuid`, `initiated_by_username` | The person whose action started it; absent when nobody did, for example the sweep, a usage report from a site agent outside a request, or a background job that runs as a robot account (`ROBOT_USERNAMES`: `system_robot`, `openportal_robot`), which is never recorded as an initiator. Under impersonation, the account acted as |
+| `initiated_by_impersonator_uuid`, `initiated_by_impersonator_username` | Under impersonation only: the staff member acting, who is accountable, as for revisions. Like the event user's own `user_impersonator_*`, only staff and support see them, and they are never filled into a message |
 
 The event's own `user_*` fields stay the system robot whenever a person is replaced, so the robot is still recorded as the actor; the `initiated_by_*` fields keep the person.
+
+Events recorded before the `initiated_by_impersonator_*` fields existed name the impersonator in `initiated_by_*` and the account acted as in `initiated_as_username`. Readers who are not staff or support get them in the current shape, with no `initiated_by_uuid`, as the account's uuid was not recorded; a queued Celery task carrying that shape is converted when it starts (`log.upgrade_initiator_fields`).
 
 A new trigger replaces the old one and its object together, so a context that still carries an earlier trigger's object never lends it to an unrelated evaluation. The initiator is the person acting now when there is one; a recorded initiator only carries over while the events are a robot's.
 

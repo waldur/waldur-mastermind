@@ -428,9 +428,10 @@ class EvaluationTriggerTest(test.APITestCase):
         impersonated.impersonator = impersonator
         return impersonated._get_log_context("user")
 
-    def test_impersonator_is_the_initiator(self):
-        # The impersonator is accountable, not the account being acted as; that
-        # account is kept beside it, as revisions record it in their comment.
+    def test_impersonation_records_the_impersonator_beside_the_account(self):
+        # The impersonator is accountable, and recorded under the keys that
+        # only staff and support read, as for the event's own user; the
+        # account acted as is the initiator everyone else sees.
         self._over_limit()
         policy = self._policy()
         staff, owner = self.fixture.staff, self.fixture.owner
@@ -441,9 +442,11 @@ class EvaluationTriggerTest(test.APITestCase):
         context = self._event("request_downscaling").context
         self.assertEqual(context["user_username"], "system_robot")
         self.assertNotIn("user_impersonator_uuid", context)
-        self.assertEqual(context["initiated_by_uuid"], staff.uuid.hex)
-        self.assertEqual(context["initiated_by_username"], staff.username)
-        self.assertEqual(context["initiated_as_username"], owner.username)
+        self.assertEqual(context["initiated_by_uuid"], owner.uuid.hex)
+        self.assertEqual(context["initiated_by_username"], owner.username)
+        self.assertEqual(context["initiated_by_impersonator_uuid"], staff.uuid.hex)
+        self.assertEqual(context["initiated_by_impersonator_username"], staff.username)
+        self.assertNotIn("initiated_as_username", context)
 
     def test_impersonation_carries_into_a_nested_block(self):
         # A task published from inside an evaluation carries the robot's context
@@ -457,19 +460,19 @@ class EvaluationTriggerTest(test.APITestCase):
             utils.evaluate_policies([policy])
 
         context = self._event("request_downscaling").context
-        self.assertEqual(context["initiated_by_uuid"], staff.uuid.hex)
-        self.assertEqual(context["initiated_as_username"], owner.username)
+        self.assertEqual(context["initiated_by_uuid"], owner.uuid.hex)
+        self.assertEqual(context["initiated_by_impersonator_uuid"], staff.uuid.hex)
 
-    def test_no_account_acted_as_without_impersonation(self):
+    def test_no_impersonator_without_impersonation(self):
         self._over_limit()
         policy = self._policy()
         self._as_request_user(self.fixture.owner)
 
         utils.evaluate_policies([policy], trigger=EvaluationTriggers.CREDIT_CHANGED)
 
-        self.assertNotIn(
-            "initiated_as_username", self._event("request_downscaling").context
-        )
+        context = self._event("request_downscaling").context
+        self.assertEqual(context["initiated_by_uuid"], self.fixture.owner.uuid.hex)
+        self.assertNotIn("initiated_by_impersonator_uuid", context)
 
     # SLURM periodic-usage policies.
 
