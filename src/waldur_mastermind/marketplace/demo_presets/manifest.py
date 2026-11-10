@@ -112,19 +112,27 @@ class DemoPresetManager:
         return presets
 
     @classmethod
-    def get_preset_info(cls, name: str) -> PresetMetadata | None:
-        """Get metadata for a specific preset."""
+    def load_preset_data(cls, name: str) -> dict | None:
+        """The content of the preset ``name``, or None if there is no such
+        preset or its file cannot be read as a JSON object."""
         file_path = cls.get_preset_path(name)
         if not file_path:
             return None
-
         try:
-            with open(file_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError) as e:
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as e:
             logger.warning(f"Failed to load preset {name}: {e}")
             return None
+        return data if isinstance(data, dict) else None
 
+    @classmethod
+    def get_preset_info(cls, name: str) -> PresetMetadata | None:
+        """Get metadata for a specific preset."""
+        data = cls.load_preset_data(name)
+        return None if data is None else cls.metadata_from(name, data)
+
+    @classmethod
+    def metadata_from(cls, name: str, data: dict) -> PresetMetadata:
         metadata = data.get("_metadata", {})
         return PresetMetadata(
             name=name,
@@ -235,6 +243,12 @@ class DemoPresetManager:
                 return {
                     "success": False,
                     "message": f"Overlay preset '{overlay_name()}' not found",
+                    "output": "",
+                }
+            if cls.load_preset_data(overlay_name()) is None:
+                return {
+                    "success": False,
+                    "message": f"Overlay preset '{overlay_name()}' cannot be read",
                     "output": "",
                 }
 

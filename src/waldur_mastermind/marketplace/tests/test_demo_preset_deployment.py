@@ -248,6 +248,16 @@ class OverlayTest(DeploymentPresetsMixin, TransactionTestCase):
         self.assertFalse(Customer.objects.filter(name="Infra Org").exists())
         self.assertFalse(User.objects.filter(username="agent").exists())
 
+    def test_unreadable_overlay_fails_the_load_before_anything_is_deleted(self):
+        (self.extra / "torn.json").write_text('{"users": [')
+        existing = structure_factories.CustomerFactory()
+        with deployment_settings(DEMO_PRESETS_OVERLAY="torn"):
+            result = DemoPresetManager.load_preset("demo")
+
+        self.assertFalse(result["success"])
+        self.assertIn("Overlay preset 'torn' cannot be read", result["message"])
+        self.assertTrue(Customer.objects.filter(pk=existing.pk).exists())
+
     def test_missing_overlay_fails_the_load_before_anything_is_deleted(self):
         existing = structure_factories.CustomerFactory()
         with deployment_settings(DEMO_PRESETS_OVERLAY="gone"):

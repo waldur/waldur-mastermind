@@ -253,6 +253,7 @@ from . import (
 )
 from .demo_presets import gate as demo_presets_gate
 from .demo_presets import jobs as demo_preset_jobs
+from .demo_presets import preview as demo_preset_preview
 from .demo_presets import tasks as demo_preset_tasks
 from .demo_presets.manifest import DemoPresetManager
 from .handlers import get_plan_scopes
@@ -20958,8 +20959,15 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
         return Response(serializer.data)
 
     @extend_schema(
-        summary="Get demo preset details",
-        description="Returns detailed information about a specific demo preset. Staff access only.",
+        summary="Preview a demo preset",
+        description=(
+            "Returns what loading the preset would do: its users, "
+            "organizations, projects, resources and offerings, the settings "
+            "and features a load with cleanup first would change, and "
+            "warnings about what would not work afterwards. Secret values and "
+            "the passwords of staff and support users are never returned. "
+            "Staff access only."
+        ),
         parameters=[
             OpenApiParameter(
                 "name",
@@ -20969,16 +20977,21 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
             ),
         ],
         responses={
-            status.HTTP_200_OK: serializers.DemoPresetSerializer,
+            status.HTTP_200_OK: serializers.DemoPresetPreviewSerializer,
             status.HTTP_404_NOT_FOUND: None,
         },
     )
     @action(detail=False, methods=["GET"], url_path=r"info/(?P<name>[\w_-]+)")
     def get_preset(self, request, name=None):
-        """Get details of a specific preset."""
-        preset = self._get_allowed_preset_or_404(name)
-        serializer = serializers.DemoPresetSerializer(preset)
-        return Response(serializer.data)
+        """Preview a specific preset."""
+        preview = (
+            demo_preset_preview.build_preview(name)
+            if demo_presets_gate.is_allowed(name)
+            else None
+        )
+        if preview is None:
+            raise rf_exceptions.NotFound(f"Preset '{name}' not found")
+        return Response(serializers.DemoPresetPreviewSerializer(preview).data)
 
     @extend_schema(
         summary="Load demo preset",
