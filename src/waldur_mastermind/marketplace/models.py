@@ -6995,3 +6995,47 @@ class OfferingMergeChange(models.Model):
 
     def __str__(self):
         return f"{self.model}#{self.object_id}.{self.field}"
+
+
+class DemoPresetLoad(TimeStampedModel, core_models.UuidMixin):
+    """One load of a demo preset, run in the background.
+
+    A load deletes every user, so this table has no foreign key to one: a
+    cascade from ``core_user`` would empty it mid-load. ``requested_by`` keeps
+    the caller's username instead.
+    """
+
+    class States:
+        PENDING = "pending"
+        RUNNING = "running"
+        DONE = "done"
+        ERRED = "erred"
+
+        ACTIVE = (PENDING, RUNNING)
+        CHOICES = (
+            (PENDING, "Pending"),
+            (RUNNING, "Running"),
+            (DONE, "Done"),
+            (ERRED, "Erred"),
+        )
+
+    preset = models.CharField(max_length=255)
+    state = models.CharField(
+        max_length=20, choices=States.CHOICES, default=States.PENDING
+    )
+    options = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Load options: cleanup_first, skip_users, skip_roles."),
+    )
+    requested_by = models.CharField(max_length=255, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    output = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created", "-id"]
+
+    def __str__(self):
+        return f"{self.preset} ({self.state})"

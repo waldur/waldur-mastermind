@@ -385,4 +385,9 @@ urlpatterns = [
         r"^api/marketplace-global-categories/$",
         views.GlobalCategoriesViewSet.as_view(),
     ),
+    re_path(
+        r"^api/demo-preset-status/$",
+        views.DemoPresetStatusView.as_view(),
+        name="demo-preset-status",
+    ),
 ]

@@ -21,6 +21,9 @@ class MarketplaceConfig(AppConfig):
         from waldur_mastermind.marketplace.billing_usage import (
             schedule_component_usage_billing,
         )
+        from waldur_mastermind.marketplace.demo_presets import (  # noqa: F401 registers the task
+            tasks as demo_preset_tasks,
+        )
         from waldur_mastermind.marketplace.handlers import (
             process_billing_on_resource_save,
         )

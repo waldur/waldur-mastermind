@@ -147,19 +147,63 @@ Content-Type: application/json
 }
 ```
 
-Response includes user credentials:
+A load runs in the background. The request answers `202` with the load, or
+`409` while another load is pending or running:
 
 ```json
 {
-  "success": true,
-  "message": "Preset 'minimal_quickstart' loaded successfully",
-  "output": "...",
+  "uuid": "4f1c...",
+  "preset": "minimal_quickstart",
+  "state": "pending",
+  "created": "2026-11-09T12:00:00Z",
+  "started_at": null,
+  "finished_at": null,
+  "error_message": ""
+}
+```
+
+A dry run is answered directly with `200`, its output and the preset's users.
+
+A load with cleanup first (the default) drops every task queued for the
+workers before it queues itself. Presets reuse fixed UUIDs, so a task queued
+before the reset would otherwise act on the object of the same UUID that the
+load creates. Tasks a worker has already taken still finish. The load's output
+records how many tasks it dropped. If the task queue cannot be reached, the
+request answers `503` (without `demo_reset`) and the load is recorded as
+`erred`.
+
+While a load is pending or running, every other `/api/` request answers `503`
+with `{"demo_reset": true, "preset": "<name>"}` and a `Retry-After` header.
+`/api/demo-preset-status/`, `/api/configuration/` and `/api-auth/` keep
+answering, so a browser can follow the load and log in again. A load deletes
+every user and token, the caller's included.
+
+A load that is still active an hour after it started (the task's time limit)
+was abandoned, typically by a deploy restarting the worker. It is reported as
+`erred` and no longer blocks the API or new loads.
+
+### Load Status
+
+```http
+GET /api/demo-preset-status/
+```
+
+Public, with no authentication, because the load deletes the caller's session.
+It answers `404` unless the deployment enables demo presets.
+
+```json
+{
+  "loading": false,
+  "load": {"uuid": "4f1c...", "preset": "minimal_quickstart", "state": "done", "...": "..."},
   "users": [
-    {"username": "staff", "password": "demo", "is_staff": true, "is_support": false},
-    {"username": "owner", "password": "demo", "is_staff": false, "is_support": false}
+    {"username": "owner", "password": "demo", "email": "owner@example.com", "is_staff": false, "is_support": false}
   ]
 }
 ```
+
+`users` lists the loaded preset's users with their passwords for quick login,
+once the latest load is done. Users with a staff or support role are never
+listed: their passwords would give anyone portal-wide access.
 
 ## Preset Contents
 
