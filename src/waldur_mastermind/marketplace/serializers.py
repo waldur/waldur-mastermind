@@ -18590,6 +18590,38 @@ class DemoPresetLoadResponseSerializer(serializers.Serializer):
     users = DemoPresetUserSerializer(many=True, required=False)
 
 
+class DemoPresetLoadJobSerializer(serializers.ModelSerializer):
+    """A demo preset load running, or run, in the background."""
+
+    class Meta:
+        model = models.DemoPresetLoad
+        fields = (
+            "uuid",
+            "preset",
+            "state",
+            "created",
+            "started_at",
+            "finished_at",
+            "error_message",
+        )
+        read_only_fields = fields
+
+
+class DemoPresetStatusSerializer(serializers.Serializer):
+    """Public status of demo preset loading, for a browser following a reset."""
+
+    loading = serializers.BooleanField(
+        help_text="Whether a load is pending or running; the API answers 503 meanwhile."
+    )
+    load = DemoPresetLoadJobSerializer(
+        allow_null=True, help_text="The latest load, if any."
+    )
+    users = DemoPresetUserSerializer(
+        many=True,
+        help_text="The loaded preset's users without a staff or support role, for quick login, once the latest load is done.",
+    )
+
+
 # Site Agent Configuration Serializers
 
 

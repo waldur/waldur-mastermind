@@ -251,6 +251,8 @@ from . import (
     utils,
 )
 from .demo_presets import gate as demo_presets_gate
+from .demo_presets import jobs as demo_preset_jobs
+from .demo_presets import tasks as demo_preset_tasks
 from .demo_presets.manifest import DemoPresetManager
 from .handlers import get_plan_scopes
 
@@ -20927,9 +20929,13 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
     @extend_schema(
         summary="Load demo preset",
         description=(
-            "Load a demo preset into the database. "
-            "This operation will optionally clean up existing data before loading. "
-            "Staff access only."
+            "Load a demo preset into the database. A load runs in the "
+            "background and answers 202 with the load; follow it with "
+            "/api/demo-preset-status/. While it runs the rest of the API "
+            "answers 503. A load with cleanup first drops every task queued "
+            "for the workers. A dry run is answered directly with its output. "
+            "Answers 409 while another load runs, and 503 if the task queue "
+            "cannot be reached. Staff access only."
         ),
         parameters=[
             OpenApiParameter(
@@ -20942,8 +20948,11 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
         request=serializers.DemoPresetLoadRequestSerializer,
         responses={
             status.HTTP_200_OK: serializers.DemoPresetLoadResponseSerializer,
+            status.HTTP_202_ACCEPTED: serializers.DemoPresetLoadJobSerializer,
             status.HTTP_400_BAD_REQUEST: None,
             status.HTTP_404_NOT_FOUND: None,
+            status.HTTP_409_CONFLICT: None,
+            status.HTTP_503_SERVICE_UNAVAILABLE: None,
         },
     )
     @action(detail=False, methods=["POST"], url_path=r"load/(?P<name>[\w_-]+)")
@@ -20959,10 +20968,35 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
         skip_users = serializer.validated_data.get("skip_users", False)
         skip_roles = serializer.validated_data.get("skip_roles", False)
 
+        if not dry_run:
+            try:
+                job = demo_preset_jobs.start_load(
+                    preset=name,
+                    options={
+                        "cleanup_first": cleanup_first,
+                        "skip_users": skip_users,
+                        "skip_roles": skip_roles,
+                    },
+                    requested_by=request.user.username,
+                )
+            except demo_preset_jobs.LoadInProgress as e:
+                return Response({"detail": str(e)}, status=status.HTTP_409_CONFLICT)
+            try:
+                demo_preset_jobs.dispatch(job, demo_preset_tasks.load_demo_preset.delay)
+            except Exception as e:
+                return Response(
+                    {"detail": f"Could not queue the load: {e}"},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            return Response(
+                serializers.DemoPresetLoadJobSerializer(job).data,
+                status=status.HTTP_202_ACCEPTED,
+            )
+
         result = DemoPresetManager.load_preset(
             name=name,
             cleanup_first=cleanup_first,
-            dry_run=dry_run,
+            dry_run=True,
             skip_users=skip_users,
             skip_roles=skip_roles,
         )
@@ -20972,6 +21006,55 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
 
         response_serializer = serializers.DemoPresetLoadResponseSerializer(result)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+class DemoPresetStatusView(views.APIView):
+    """Whether a demo preset is loading, and who can log in once it is done.
+
+    Public, so a browser whose session the load just deleted can follow it;
+    answers 404 unless the deployment enables demo presets. It never lists
+    staff or support users, whose passwords would give anyone portal-wide
+    access.
+    """
+
+    authentication_classes = []
+    permission_classes = [rf_permissions.AllowAny]
+    access_declarations = {"get": [access.public()]}
+
+    @extend_schema(
+        summary="Demo preset load status",
+        description=(
+            "Reports whether a demo preset is loading and the latest load. Once "
+            "that load is done, lists the preset's users without a staff or "
+            "support role, with their "
+            "passwords for quick login. Public; answers 404 unless the "
+            "deployment enables demo presets."
+        ),
+        responses={
+            status.HTTP_200_OK: serializers.DemoPresetStatusSerializer,
+            status.HTTP_404_NOT_FOUND: None,
+        },
+    )
+    def get(self, request):
+        if not demo_presets_gate.is_enabled():
+            raise rf_exceptions.NotFound()
+        load = demo_preset_jobs.latest_load()
+        loading = bool(load and load.state in models.DemoPresetLoad.States.ACTIVE)
+        users = []
+        if (
+            load
+            and load.state == models.DemoPresetLoad.States.DONE
+            and not load.options.get("skip_users")
+        ):
+            users = [
+                user
+                for user in DemoPresetManager.get_preset_users(load.preset)
+                if not user["is_staff"] and not user["is_support"]
+            ]
+        serializer = serializers.DemoPresetStatusSerializer(
+            {"loading": loading, "load": load, "users": users}
+        )
+        return Response(serializer.data)
 
 
 class ArticleCodeUpdateViewSet(rf_viewsets.GenericViewSet):

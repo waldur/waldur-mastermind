@@ -93,6 +93,7 @@ PUBLIC_CORS_PATH_PREFIXES = (
 MIDDLEWARE = (
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "waldur_core.server.middleware.cors_middleware",
+    "waldur_mastermind.marketplace.demo_presets.middleware.demo_preset_reset_middleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
