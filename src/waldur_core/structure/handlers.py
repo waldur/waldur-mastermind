@@ -142,8 +142,8 @@ def log_customer_save(sender, instance: Customer, created=False, **kwargs):
         message = "Customer {customer_name} has been updated."
 
         for name in sorted(changed_fields.keys()):
-            previous_value = changed_fields[name]
-            current_value = getattr(instance, name)
+            previous_value = event_logger.literal(changed_fields[name])
+            current_value = event_logger.literal(getattr(instance, name))
             message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
 
         event_logger.emit(
@@ -166,11 +166,6 @@ def log_customer_delete(sender, instance: Customer, **kwargs):
         },
         scopes=[instance],
     )
-
-
-def _literal(value) -> str:
-    """Keep a value out of the placeholders of the event message it is added to."""
-    return str(value).replace("{", "{{").replace("}", "}}")
 
 
 def log_project_save(sender, instance: Project, created=False, **kwargs):
@@ -197,8 +192,8 @@ def log_project_save(sender, instance: Project, created=False, **kwargs):
 
         message = "Project {project_name} has been updated."
         for name in sorted(changed_fields.keys()):
-            previous_value = _literal(changed_fields[name])
-            current_value = _literal(getattr(instance, name))
+            previous_value = event_logger.literal(changed_fields[name])
+            current_value = event_logger.literal(getattr(instance, name))
             message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
 
         event_logger.emit(
@@ -357,10 +352,12 @@ def log_resource_action(sender, instance: BaseResource, name, source, target, **
 def generate_access_subnet_changes(instance: AccessSubnet, created=False):
     """Generate a string describing the changes to an access subnet."""
     changed_dict = instance.tracker.changed()
-    changes_string = f"Access subnet {instance} has been updated.\n"
+    literal = event_logger.literal
+    changes_string = f"Access subnet {literal(instance)} has been updated.\n"
     for key, value in changed_dict.items():
         changes_string += (
-            f"{key} has been changed from '{value}' to '{getattr(instance, key)}'. "
+            f"{key} has been changed from '{literal(value)}' "
+            f"to '{literal(getattr(instance, key))}'. "
         )
     return changes_string
 
@@ -379,7 +376,7 @@ def log_access_subnet_update_succeeded(instance: AccessSubnet):
 def log_access_subnet_creation_succeeded(instance: AccessSubnet):
     """Log successful access subnet creation."""
     event_logger.emit(
-        f"Access subnet {instance} has been created.",
+        f"Access subnet {event_logger.literal(instance)} has been created.",
         event_type=EventType.ACCESS_SUBNET_CREATION_SUCCEEDED,
         event_context={"access_subnet": instance},
         scopes=[instance, instance.customer],
@@ -389,7 +386,7 @@ def log_access_subnet_creation_succeeded(instance: AccessSubnet):
 def log_access_subnet_deletion_succeeded(sender, instance: AccessSubnet, **kwargs):
     """Log successful access subnet deletion."""
     event_logger.emit(
-        f"Access subnet {instance} has been deleted.",
+        f"Access subnet {event_logger.literal(instance)} has been deleted.",
         event_type=EventType.ACCESS_SUBNET_DELETION_SUCCEEDED,
         event_context={"access_subnet": instance},
         scopes=[instance, instance.customer],

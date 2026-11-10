@@ -1235,7 +1235,7 @@ def offering_component_has_been_created_or_updated(
     """Log offering component creation and updates."""
     if created:
         event_logger.emit(
-            f"Offering component {instance.name} has been created.",
+            f"Offering component {event_logger.literal(instance.name)} has been created.",
             event_type=EventType.MARKETPLACE_OFFERING_COMPONENT_CREATED,
             event_context={
                 "offering_component": instance,
@@ -1250,9 +1250,9 @@ def offering_component_has_been_created_or_updated(
         if changes:
             # The message is a format template, and a JSON field's value
             # (spending_limit_periods) prints with braces.
-            diff = ", ".join(changes).replace("{", "{{").replace("}", "}}")
+            diff = event_logger.literal(", ".join(changes))
             event_logger.emit(
-                f"Offering component {instance.name} has been updated. Details: {diff}.",
+                f"Offering component {event_logger.literal(instance.name)} has been updated. Details: {diff}.",
                 event_type=EventType.MARKETPLACE_OFFERING_COMPONENT_UPDATED,
                 event_context={
                     "offering_component": instance,
@@ -1264,7 +1264,7 @@ def offering_component_has_been_created_or_updated(
 def offering_component_has_been_deleted(sender, instance: OfferingComponent, **kwargs):
     """Log offering component deletion."""
     event_logger.emit(
-        f"Offering component {instance.name} has been deleted.",
+        f"Offering component {event_logger.literal(instance.name)} has been deleted.",
         event_type=EventType.MARKETPLACE_OFFERING_COMPONENT_DELETED,
         event_context={
             "offering_component": instance,
@@ -1277,7 +1277,7 @@ def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kw
     """Log plan creation, update, and archiving events."""
     if created:
         event_logger.emit(
-            f"Plan {instance.name} has been created.",
+            f"Plan {event_logger.literal(instance.name)} has been created.",
             event_type=EventType.MARKETPLACE_PLAN_CREATED,
             event_context={
                 "plan": instance,
@@ -1287,7 +1287,7 @@ def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kw
     else:
         if instance.tracker.has_changed("archived"):
             event_logger.emit(
-                f"Plan {instance.name} has been archived.",
+                f"Plan {event_logger.literal(instance.name)} has been archived.",
                 event_type=EventType.MARKETPLACE_PLAN_ARCHIVED,
                 event_context={
                     "plan": instance,
@@ -1302,9 +1302,9 @@ def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kw
                 if field not in excluded_fields
             ]
             if changes:
-                diff = ", ".join(changes)
+                diff = event_logger.literal(", ".join(changes))
                 event_logger.emit(
-                    f"Plan {instance.name} has been updated. Details: {diff}.",
+                    f"Plan {event_logger.literal(instance.name)} has been updated. Details: {diff}.",
                     event_type=EventType.MARKETPLACE_PLAN_UPDATED,
                     event_context={
                         "plan": instance,
@@ -1485,10 +1485,7 @@ def resource_has_been_changed(sender, instance: Resource, created=False, **kwarg
     }
 
     event_logger.emit(
-        Template(template)
-        .render(Context(context))
-        .replace("{", "{{")
-        .replace("}", "}}"),
+        event_logger.literal(Template(template).render(Context(context))),
         event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_SUCCEEDED,
         event_context={
             "resource": resource,
@@ -2290,7 +2287,7 @@ def log_maintenance_announcement_events(sender, instance, created=False, **kwarg
     if not changes:
         return
 
-    diff = ", ".join(changes)
+    diff = event_logger.literal(", ".join(changes))
     event_logger.emit(
         f"Maintenance announcement {{maintenance_announcement_name}} has been updated. Details: {diff}.",
         event_type=EventType.MAINTENANCE_ANNOUNCEMENT_UPDATED,
@@ -3831,7 +3828,7 @@ def log_offering_access_subnet_save(sender, instance, created=False, **kwargs):
     """Log offering default access subnet creation and updates."""
     if created:
         event_logger.emit(
-            f"Offering access subnet {instance} has been created.",
+            f"Offering access subnet {event_logger.literal(instance)} has been created.",
             event_type=EventType.OFFERING_ACCESS_SUBNET_CREATION_SUCCEEDED,
             event_context={"offering_access_subnet": instance},
             scopes=[instance, instance.offering, instance.offering.customer],
@@ -3845,7 +3842,8 @@ def log_offering_access_subnet_save(sender, instance, created=False, **kwargs):
     changes_string = "Offering access subnet has been updated.\n"
     for key, (old_value, new_value) in changes.items():
         changes_string += (
-            f"{key} has been changed from '{old_value}' to '{new_value}'. "
+            f"{key} has been changed from '{event_logger.literal(old_value)}' "
+            f"to '{event_logger.literal(new_value)}'. "
         )
     event_logger.emit(
         changes_string,
@@ -3858,7 +3856,7 @@ def log_offering_access_subnet_save(sender, instance, created=False, **kwargs):
 def log_offering_access_subnet_deletion(sender, instance, **kwargs):
     """Log successful offering default access subnet deletion."""
     event_logger.emit(
-        f"Offering access subnet {instance} has been deleted.",
+        f"Offering access subnet {event_logger.literal(instance)} has been deleted.",
         event_type=EventType.OFFERING_ACCESS_SUBNET_DELETION_SUCCEEDED,
         event_context={"offering_access_subnet": instance},
         scopes=[instance.offering, instance.offering.customer],
