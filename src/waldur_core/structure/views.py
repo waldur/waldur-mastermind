@@ -74,7 +74,7 @@ from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
 )
-from waldur_core.permissions.views import UserRoleMixin
+from waldur_core.permissions.views import TEAM_VIEW_ACCESS, UserRoleMixin
 from waldur_core.structure import (
     filters,
     managers,
@@ -981,8 +981,9 @@ class ProjectViewSet(
     # Projects an app grants read-only access to (a call manager reading the
     # projects of the call's accepted proposals) are reachable by these read
     # actions and nowhere else on this viewset: every other action needs a
-    # role on the project.
-    read_only_project_actions = ("list", "retrieve", "stats")
+    # role on the project. list_users lets such a reader see who was given
+    # access (see can_view_scope_team).
+    read_only_project_actions = ("list", "retrieve", "stats", "list_users")
 
     def get_queryset(self):
         user = getattr(self.request, "user", None)
@@ -1121,7 +1122,33 @@ class ProjectViewSet(
                 "both."
             )
         ],
+        "list_users": [
+            access.any_of(
+                TEAM_VIEW_ACCESS,
+                access.custom(
+                    "A caller an app grants read-only access to the project: "
+                    "a call manager of the call whose accepted proposal the "
+                    "project was created for, while the project stays under "
+                    "the call's managing organisation."
+                ),
+            )
+        ],
     }
+
+    def can_view_scope_team(self, user, project) -> bool:
+        """The core team check, or a read-only grant on the project.
+
+        A read-only grant opens the project record to someone holding no role
+        on it -- a call manager following up on what the call allocated -- and
+        who was given access is part of that record. It stays read-only:
+        adding, changing and removing members still need a role here.
+        """
+        if super().can_view_scope_team(user, project):
+            return True
+        read_only_q = managers.get_read_only_project_q(user)
+        return bool(read_only_q) and (
+            models.Project.objects.filter(read_only_q, id=project.id).exists()
+        )
 
     def get_checklist_completion(self, obj):
         """Get checklist completion for project metadata."""
