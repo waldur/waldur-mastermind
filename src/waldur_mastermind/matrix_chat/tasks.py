@@ -43,14 +43,16 @@ BOT_POST_WAIT_SECONDS = 30
 OUTBOX_RETENTION_DAYS = 7
 
 
-def post_as_bot(room, body, reply_to="", wait=False):
+def post_as_bot(room, body, reply_to="", wait=False, extra_content=None):
     """Queue ``body`` for the bot to post, encrypted, in ``room``.
 
     Rooms are encrypted and only the bot process holds the keys to post into
     them, so nothing else posts as the bot: a message waits in the outbox until
     the bot sends it. ``wait`` holds the caller until it has, or gives up quietly.
     """
-    message = bot_state.enqueue(room, body, reply_to=reply_to)
+    message = bot_state.enqueue(
+        room, body, reply_to=reply_to, extra_content=extra_content
+    )
     # Only a running bot is worth waiting for; otherwise the worker would sit
     # out the full wait for every room.
     if (
@@ -222,6 +224,52 @@ def create_room(room_uuid):
         logger.exception("Failed to create Matrix room for %s", room.scope)
 
 
+WELCOME_CONTENT_KEY = "com.waldur.welcome"
+
+
+def welcome_text(room):
+    creator = room.created_by
+    if creator:
+        name = formatting.escape_markdown(creator.full_name or creator.username)
+        intro = f"{name} started this chat for the project team."
+    else:
+        intro = "Here the project team can talk, share files and start calls."
+    return (
+        "**Welcome to this project's team chat!**\n\n"
+        f"{intro} Type @ and a name to notify someone."
+    )
+
+
+def _welcome_members(room):
+    """Post the room's welcome, once, when someone is in the room to get it."""
+    # A first sync that joined nobody (the homeserver was down) would spend the
+    # welcome on an empty room, and members joined later see it as history.
+    if not models.MatrixRoomMember.objects.filter(
+        room=room, membership_state=models.MembershipStates.JOINED
+    ).exists():
+        return
+    # A conditional update, so two first syncs running at once welcome once,
+    # made with the message in one transaction, so a welcome that could not be
+    # queued is left for the next sync.
+    try:
+        with transaction.atomic():
+            claimed = models.MatrixRoom.objects.filter(
+                pk=room.pk, announced_at__isnull=True
+            ).update(announced_at=timezone.now())
+            if claimed:
+                # An empty mention list keeps the creator the text names from
+                # being pinged, while the message still counts as unread. The
+                # marker lets homeport toast the welcome, the one bot message
+                # that tells a member a new chat exists.
+                post_as_bot(
+                    room,
+                    welcome_text(room),
+                    extra_content={"m.mentions": {}, WELCOME_CONTENT_KEY: True},
+                )
+    except Exception:
+        logger.exception("Failed to welcome the members of room %s", room.room_id)
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.sync_project_members_to_room")
 def sync_project_members_to_room(room_uuid):
     """Ensure all project members are provisioned and invited to the room."""
@@ -307,8 +355,13 @@ def sync_project_members_to_room(room_uuid):
         )
         # Staff and support who joined with the Join button hold no role here.
         .exclude(models.STAFF_JOINED)
+        .select_related("user")
     )
     for member in stale_members:
+        # The roles were read before the loop; one granted since then comes
+        # with an invite that may already have joined the user.
+        if models.keeps_room_access(member.user, room):
+            continue
         try:
             matrix_client.kick_user(
                 room.room_id, member.matrix_user_id, reason="Role removed in Waldur"
@@ -326,8 +379,19 @@ def sync_project_members_to_room(room_uuid):
                 room.room_id,
             )
 
+    _welcome_members(room)
+
     room.modified = timezone.now()
     room.save(update_fields=["modified"])
+
+
+def _welcome_after_join(room):
+    """Welcome a room that a single join found unwelcomed, once its team is in."""
+    # The room's first sync may still be joining the team. A sync joins
+    # everyone before it welcomes, so nobody joins after the welcome and finds
+    # it already read as history.
+    if models.MatrixRoom.objects.filter(pk=room.pk, announced_at__isnull=True).exists():
+        sync_project_members_to_room(str(room.uuid))
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.sync_rooms_of_role")
@@ -344,8 +408,8 @@ def sync_rooms_of_role(role_id):
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.invite_user_to_room")
-def invite_user_to_room(room_uuid, user_uuid):
-    """Invite a single user to a Matrix room."""
+def invite_user_to_room(room_uuid, user_uuid, role_name=None):
+    """Invite a single user to a Matrix room, announcing ``role_name`` if given."""
     if not matrix_client.is_enabled():
         return
 
@@ -365,6 +429,12 @@ def invite_user_to_room(room_uuid, user_uuid):
         logger.error("User %s not found", user_uuid)
         return
 
+    # A new role for someone already in the chat goes through the same invite,
+    # which succeeds for them, but it doesn't add them to the chat.
+    was_joined = models.MatrixRoomMember.objects.filter(
+        room=room, user=user, membership_state=models.MembershipStates.JOINED
+    ).exists()
+
     try:
         matrix_user_id = matrix_client.ensure_user_exists(user)
         power_level = _power_level_in_room(user, room)
@@ -383,9 +453,37 @@ def invite_user_to_room(room_uuid, user_uuid):
 
         _save_member(room, user, matrix_user_id, membership_state, power_level)
 
+        # Rooms are encrypted, so a message posted before the user has joined
+        # is encrypted without their devices and they could never read it.
+        if membership_state == models.MembershipStates.JOINED:
+            _welcome_after_join(room)
+            if role_name:
+                _announce_role(
+                    room, user, matrix_user_id, role_name, welcome=not was_joined
+                )
+
         logger.info("Invited user %s to room %s", matrix_user_id, room.room_id)
     except Exception:
         logger.exception("Failed to invite user %s to room %s", user, room.room_id)
+
+
+def _announce_role(room, user, matrix_user_id, role_name, welcome):
+    full_name = formatting.escape_markdown(user.full_name or user.username)
+    # The mention gives the member a badge on the room. For a member this grant
+    # just added, the marker makes it their "you were added" toast in homeport.
+    extra_content = {"m.mentions": {"user_ids": [matrix_user_id]}}
+    if welcome:
+        extra_content[WELCOME_CONTENT_KEY] = True
+    try:
+        post_as_bot(
+            room,
+            f"{full_name} has been granted the {role_name} role.",
+            extra_content=extra_content,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to announce the role of %s in room %s", matrix_user_id, room.room_id
+        )
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.staff_join_room")
@@ -443,6 +541,9 @@ def staff_join_room(room_uuid, user_uuid):
                 "manually_joined": True,
             },
         )
+        # Opening a project's chat can make a staff member its first member.
+        if membership_state == models.MembershipStates.JOINED:
+            _welcome_after_join(room)
 
         full_name = user.full_name or user.username
         try:

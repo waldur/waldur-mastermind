@@ -281,53 +281,11 @@ class MarkdownSafeTextTest(TestCase):
 @mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
 @mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
 class AnnouncementsEscapeNamesTest(TestCase):
-    def test_role_announcement_shows_a_users_name_literally(
+    def test_role_revocation_shows_a_users_name_literally(
         self, mock_client, mock_tasks
     ):
         # Users choose their own names, and the bot posts with power level 100,
         # so a name must not turn into a link in its message.
-        mock_client.is_enabled.return_value = True
-        project = structure_factories.ProjectFactory()
-        models.MatrixRoom.objects.create(
-            room_id="!r:hs",
-            room_name=project.name,
-            state=models.RoomStates.ACTIVE,
-            content_type=ContentType.objects.get_for_model(project),
-            object_id=project.id,
-        )
-        user = structure_factories.UserFactory(first_name=EVIL_NAME, last_name="")
-
-        with self.captureOnCommitCallbacks(execute=True):
-            project.add_user(user, ProjectRole.MEMBER)
-
-        body = mock_tasks.send_room_notification.delay.call_args[0][1]
-        self.assertNotIn("<a", matrix_client.render_markdown(body))
-
-    def test_role_announcement_keeps_a_multiline_name_on_one_line(
-        self, mock_client, mock_tasks
-    ):
-        mock_client.is_enabled.return_value = True
-        project = structure_factories.ProjectFactory()
-        models.MatrixRoom.objects.create(
-            room_id="!r:hs",
-            room_name=project.name,
-            state=models.RoomStates.ACTIVE,
-            content_type=ContentType.objects.get_for_model(project),
-            object_id=project.id,
-        )
-        user = structure_factories.UserFactory(first_name=MULTILINE_NAME, last_name="")
-
-        with self.captureOnCommitCallbacks(execute=True):
-            project.add_user(user, ProjectRole.MEMBER)
-
-        body = mock_tasks.send_room_notification.delay.call_args[0][1]
-        html = matrix_client.render_markdown(body)
-        self.assertNotIn("<a", html)
-        self.assertNotIn("<blockquote", html)
-
-    def test_role_revocation_shows_a_users_name_literally(
-        self, mock_client, mock_tasks
-    ):
         mock_client.is_enabled.return_value = True
         project = structure_factories.ProjectFactory()
         _room_for(project)
@@ -367,6 +325,39 @@ class AnnouncementsEscapeNamesTest(TestCase):
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class RoleAnnouncementsEscapeNamesTest(TestCase):
+    def setUp(self):
+        self.room = _room_for(structure_factories.ProjectFactory())
+
+    def _announce(self, mock_client, name):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@user:hs"
+        mock_client.get_power_level_for_scope.return_value = 0
+        user = structure_factories.UserFactory(first_name=name, last_name="")
+
+        tasks.invite_user_to_room(
+            str(self.room.uuid), str(user.uuid), role_name="Project Member"
+        )
+
+        return models.MatrixOutboxMessage.objects.get(
+            room=self.room, body__contains="has been granted"
+        ).body
+
+    def test_role_announcement_shows_a_users_name_literally(self, mock_client):
+        body = self._announce(mock_client, EVIL_NAME)
+
+        self.assertNotIn("<a", matrix_client.render_markdown(body))
+
+    def test_role_announcement_keeps_a_multiline_name_on_one_line(self, mock_client):
+        html = matrix_client.render_markdown(
+            self._announce(mock_client, MULTILINE_NAME)
+        )
+
+        self.assertNotIn("<a", html)
+        self.assertNotIn("<blockquote", html)
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
 class StaffAnnouncementsEscapeNamesTest(TestCase):
     def setUp(self):
         self.room = _room_for(structure_factories.ProjectFactory())
@@ -380,8 +371,10 @@ class StaffAnnouncementsEscapeNamesTest(TestCase):
 
         tasks.staff_join_room(str(self.room.uuid), str(self.staff.uuid))
 
-        body = models.MatrixOutboxMessage.objects.get(room=self.room).body
-        self.assertIn("joined the room", body)
+        # The staff member is the room's first, so the welcome comes before it.
+        body = models.MatrixOutboxMessage.objects.get(
+            room=self.room, body__endswith="joined the room."
+        ).body
         self.assertNotIn("<a", matrix_client.render_markdown(body))
 
     def test_leave_announcement_shows_the_name_literally(self, mock_client):
@@ -473,3 +466,43 @@ class CommandRepliesEscapeNamesTest(TestCase):
         )
 
         self.assertNotIn("<a", matrix_client.render_markdown(reply))
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class WelcomeEscapesNamesTest(TestCase):
+    def _welcome(self, mock_client, name):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@creator:hs"
+        mock_client.get_power_level_for_scope.return_value = 0
+        project = structure_factories.ProjectFactory(name=name)
+        creator = structure_factories.UserFactory(first_name=name, last_name="")
+        project.add_user(creator, ProjectRole.MEMBER)
+        room = models.MatrixRoom.objects.create(
+            room_id="!r:hs",
+            room_name="room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+            created_by=creator,
+        )
+
+        tasks.sync_project_members_to_room(str(room.uuid))
+
+        body = models.MatrixOutboxMessage.objects.get(room=room).body
+        self.assertIn("started this chat for the project team", body)
+        return body
+
+    def test_welcome_shows_creator_and_project_names_literally(self, mock_client):
+        html = matrix_client.render_markdown(self._welcome(mock_client, EVIL_NAME))
+
+        self.assertNotIn("<a", html)
+        self.assertNotIn("<img", html)
+        # The name stays inside the bold heading and opens no emphasis of its own.
+        self.assertEqual(html.count("<strong>"), 1)
+        self.assertNotIn("<em>", html)
+
+    def test_welcome_keeps_multiline_names_on_one_line(self, mock_client):
+        html = matrix_client.render_markdown(self._welcome(mock_client, MULTILINE_NAME))
+
+        self.assertNotIn("<a", html)
+        self.assertNotIn("<blockquote", html)
