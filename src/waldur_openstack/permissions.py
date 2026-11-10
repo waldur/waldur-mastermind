@@ -7,10 +7,10 @@ from waldur_core.core.permissions import has_staff_access, has_support_access
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
-    ProjectRole,
     ServiceProviderRole,
 )
 from waldur_core.permissions.utils import has_permission
+from waldur_core.structure import permissions as structure_permissions
 
 
 def _check_permissions(permission):
@@ -135,22 +135,27 @@ def can_update_tenant_quotas_as_service_provider(request, view, tenant=None):
     raise exceptions.PermissionDenied()
 
 
-def can_manage_project(user, project):
-    """Whether the user is staff, or an owner, admin or manager of the project."""
-    if user is None or not user.is_authenticated:
+def can_manage_project(request, project):
+    """Whether the request may act for the project: staff, an owner of its
+    organization, or an administrator or manager of it.
+
+    It decides as ``is_administrator`` does, so a personal access token
+    passes only within its bindings: a token bound to one project must not
+    put ports into another project's tenants, or use its networks, with its
+    user's roles. Without a request nobody passes.
+    """
+    if request is None or not request.user.is_authenticated:
         return False
-    if user.is_staff:
-        return True
-    return (
-        project.has_user(user, ProjectRole.ADMIN)
-        or project.has_user(user, ProjectRole.MANAGER)
-        or project.customer.has_user(user, CustomerRole.OWNER)
-    )
+    try:
+        structure_permissions.is_administrator(request, None, project)
+    except exceptions.PermissionDenied:
+        return False
+    return True
 
 
-def can_manage_network_project(user, network):
-    """Whether the user may act as the owner of the network's project."""
-    return can_manage_project(user, network.project)
+def can_manage_network_project(request, network):
+    """Whether the request may act as the owner of the network's project."""
+    return can_manage_project(request, network.project)
 
 
 def owns_network_of_port(request, view, port=None):
@@ -164,7 +169,7 @@ def owns_network_of_port(request, view, port=None):
     """
     if not port or not port.network_id or port.network.tenant_id == port.tenant_id:
         return
-    if not can_manage_network_project(request.user, port.network):
+    if not can_manage_network_project(request, port.network):
         raise exceptions.PermissionDenied(
             _(
                 "Network %s belongs to another tenant: only its owner can change "

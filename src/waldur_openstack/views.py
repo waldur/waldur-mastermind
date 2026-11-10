@@ -29,13 +29,11 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.serializers import DetailSerializer, StatusSerializer
 from waldur_core.core.utils import SubqueryCount
 from waldur_core.logging import event_logger
 from waldur_core.logging.diff import compute_collection_diff
 from waldur_core.logging.enums import EventType
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -2712,18 +2710,14 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
     # RBAC policy create/delete moved to standalone ViewSet: NetworkRBACPolicyViewSet
     # TODO: remove after 1.11.2025
 
-    def _check_rbac_policy_permissions(self, user, network, target_tenant):
-        if has_staff_access(self.request):
-            return
-
-        if (
-            network.project.has_user(user, ProjectRole.ADMIN)
-            or network.project.has_user(user, ProjectRole.MANAGER)
-            or network.project.customer.has_user(user, CustomerRole.OWNER)
-        ) and (
-            target_tenant.project.has_user(user, ProjectRole.ADMIN)
-            or target_tenant.project.has_user(user, ProjectRole.MANAGER)
-            or target_tenant.project.customer.has_user(user, CustomerRole.OWNER)
+    def _check_rbac_policy_permissions(self, network, target_tenant):
+        # Who may act for both sides' projects, as is_administrator decides:
+        # a personal access token only within its bindings, so that a token
+        # bound to one project cannot share another project's network into it.
+        if openstack_permissions.can_manage_project(
+            self.request, network.project
+        ) and openstack_permissions.can_manage_project(
+            self.request, target_tenant.project
         ):
             return
 
@@ -2747,7 +2741,7 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
         target_tenant = serializer.validated_data["target_tenant"]
         policy_type = serializer.validated_data["policy_type"]
 
-        self._check_rbac_policy_permissions(request.user, network, target_tenant)
+        self._check_rbac_policy_permissions(network, target_tenant)
 
         backend = network.tenant.get_backend()
 
@@ -2814,9 +2808,7 @@ class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSe
             raise exceptions.NotFound(
                 _("RBAC policy %s of this network does not exist.") % rbac_policy_uuid
             )
-        self._check_rbac_policy_permissions(
-            request.user, network, rbac_policy.target_tenant
-        )
+        self._check_rbac_policy_permissions(network, rbac_policy.target_tenant)
 
         backend.delete_network_rbac_policy(
             rbac_id=rbac_policy.backend_id,
@@ -4111,18 +4103,14 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
             | Q(target_tenant__project__customer__in=connected_customers)
         ).distinct()
 
-    def _check_rbac_policy_permissions(self, user, network, target_tenant):
-        if has_staff_access(self.request):
-            return
-
-        if (
-            network.project.has_user(user, ProjectRole.ADMIN)
-            or network.project.has_user(user, ProjectRole.MANAGER)
-            or network.project.customer.has_user(user, CustomerRole.OWNER)
-        ) and (
-            target_tenant.project.has_user(user, ProjectRole.ADMIN)
-            or target_tenant.project.has_user(user, ProjectRole.MANAGER)
-            or target_tenant.project.customer.has_user(user, CustomerRole.OWNER)
+    def _check_rbac_policy_permissions(self, network, target_tenant):
+        # Who may act for both sides' projects, as is_administrator decides:
+        # a personal access token only within its bindings, so that a token
+        # bound to one project cannot share another project's network into it.
+        if openstack_permissions.can_manage_project(
+            self.request, network.project
+        ) and openstack_permissions.can_manage_project(
+            self.request, target_tenant.project
         ):
             return
 
@@ -4144,7 +4132,7 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
         target_tenant = serializer.validated_data["target_tenant"]
         policy_type = serializer.validated_data["policy_type"]
 
-        self._check_rbac_policy_permissions(request.user, network, target_tenant)
+        self._check_rbac_policy_permissions(network, target_tenant)
 
         backend = network.tenant.get_backend()
 
@@ -4199,9 +4187,7 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
     def destroy(self, request, *args, **kwargs):
         policy: models.NetworkRBACPolicy = self.get_object()
 
-        self._check_rbac_policy_permissions(
-            request.user, policy.network, policy.target_tenant
-        )
+        self._check_rbac_policy_permissions(policy.network, policy.target_tenant)
 
         if not policy.network.tenant.is_managed:
             # Revoking it would change a project Waldur does not manage, and
