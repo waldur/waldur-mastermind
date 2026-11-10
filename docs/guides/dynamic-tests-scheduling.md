@@ -80,6 +80,7 @@ The system is composed of several key scripts and GitLab CI configuration files.
   - **Purpose:** To determine the list of applications to test for a given change.
   - **How:** It reads the `dependency_graph.yaml`, gets the list of changed files from Git, and identifies the set of directly changed apps. It does **not** perform transitive dependency checks, for a balance of speed and safety.
   - **Special Case:** If a "core" file (like `pyproject.toml` or `.gitlab-ci.yml`) is changed, it outputs the special string `src` to signal a full test run.
+  - **Feature flags:** Every app imports `src/waldur_core/core/features.py`. A change there that only adds flags defaulting to off, or rewords descriptions, runs `waldur_core.core` alone and no E2E suite. Any other change to the file (a removed or renamed flag, a changed default, a new flag that starts on, other code) fans out as usual.
 
 3. **`generate-pipeline.sh`**
   - **Purpose:** The main "brain" of the planning phase. It generates the child pipeline configuration.

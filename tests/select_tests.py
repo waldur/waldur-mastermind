@@ -29,6 +29,7 @@ Output:
 With --e2e it prints the E2E areas instead (see select_e2e_suites).
 """
 
+import ast
 import os
 import re
 import subprocess
@@ -422,6 +423,89 @@ def pyproject_affects_tests(base_text: str | None, head_text: str | None) -> boo
     return base != head
 
 
+# The feature flag registry. Every app imports it, so any change to it fans the
+# unit suite out to every app and runs every E2E suite. A change that only adds
+# flags which start off, or rewords descriptions, changes nothing a running
+# deployment does: no code reads a new flag until some later change does.
+FEATURES_FILE = "src/waldur_core/core/features.py"
+
+
+def _feature_registry(text: str) -> tuple[str, dict[tuple[str, str], object]] | None:
+    """Split features.py into its code and its flags.
+
+    Returns the module with every ``name = Feature(...)`` declaration removed
+    (as an AST dump) and the flags it declared, keyed by (section class, name),
+    mapped to their default. A default that is not a literal is kept as its AST
+    dump. None when the text does not parse.
+    """
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    flags: dict[tuple[str, str], object] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        kept = []
+        for statement in node.body:
+            call = getattr(statement, "value", None)
+            if (
+                isinstance(statement, ast.Assign)
+                and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name)
+                and isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Name)
+                and call.func.id == "Feature"
+            ):
+                default = next(
+                    (kw.value for kw in call.keywords if kw.arg == "default"),
+                    call.args[1] if len(call.args) > 1 else ast.Constant(False),
+                )
+                flags[(node.name, statement.targets[0].id)] = (
+                    default.value
+                    if isinstance(default, ast.Constant)
+                    else ast.dump(default)
+                )
+            else:
+                kept.append(statement)
+        node.body = kept
+    return ast.dump(tree), flags
+
+
+def features_change_is_inert(base_text: str | None, head_text: str | None) -> bool:
+    """True when features.py only gained flags that default to off.
+
+    Descriptions may change too. Removing or renaming a flag, changing a
+    default, adding a flag that starts on, or touching any other code is not
+    inert. Missing or unparsable content is not inert either.
+    """
+    if base_text is None or head_text is None:
+        return False
+    base, head = _feature_registry(base_text), _feature_registry(head_text)
+    if base is None or head is None:
+        return False
+    (base_code, base_flags), (head_code, head_flags) = base, head
+    if base_code != head_code:
+        return False
+    if any(head_flags.get(key, None) != value for key, value in base_flags.items()):
+        return False
+    return all(
+        head_flags[key] is False for key in head_flags.keys() - base_flags.keys()
+    )
+
+
+def features_diff_is_inert(endpoints: tuple[str, str] | None) -> bool:
+    if endpoints is None:
+        return False
+    merge_base_sha, head_sha = endpoints
+    inert = features_change_is_inert(
+        _git_show(merge_base_sha, FEATURES_FILE), _git_show(head_sha, FEATURES_FILE)
+    )
+    if inert:
+        log(f"{FEATURES_FILE} only adds flags that default to off.")
+    return inert
+
+
 def _git_show(sha: str, path: str) -> str | None:
     try:
         return subprocess.check_output(["git", "show", f"{sha}:{path}"], text=True)
@@ -698,6 +782,9 @@ def select_paths(
     if ignored:
         log(f"Ignoring {len(ignored)} file(s) that cannot affect unit tests: {ignored}")
 
+    # New flags that start off reach only the registry's own tests.
+    features_inert = FEATURES_FILE in relevant and features_diff_is_inert(endpoints)
+
     directly_changed_apps: set[str] = set()
     shared_change_apps: set[str] = set()
     for f in relevant:
@@ -705,7 +792,7 @@ def select_paths(
         if not app:
             continue
         directly_changed_apps.add(app)
-        if not is_local_only(f):
+        if not is_local_only(f) and not (f == FEATURES_FILE and features_inert):
             shared_change_apps.add(app)
 
     if not directly_changed_apps:
@@ -721,7 +808,7 @@ def select_paths(
     local_only = directly_changed_apps - shared_change_apps
     if local_only:
         log(
-            "Only tests/templates/static changed in "
+            "Only tests/templates/static or new flags that start off changed in "
             f"{', '.join(sorted(local_only))}; not fanning out to dependents."
         )
 
@@ -747,18 +834,23 @@ def select_paths(
     return extra_paths + test_paths
 
 
-def select_e2e_suites(changed_files: list[str]) -> str:
+def select_e2e_suites(
+    changed_files: list[str], endpoints: tuple[str, str] | None = None
+) -> str:
     """Name the E2E areas a change can affect: "all", "none" or a list.
 
     Anything in src/ outside the plugins in E2E_AREAS and E2E_UNCOVERED — core,
     structure, marketplace, an app added later — can reach every suite, as can
-    the files the image is built from. Tests and translations cannot.
+    the files the image is built from. Tests and translations cannot, nor can
+    new feature flags that start off (features_change_is_inert).
     Migrations, unlike for the unit suite, count: E2E runs them.
     """
     areas = set()
     for path in filter(None, changed_files):
         if path.startswith("src/"):
             if "tests" in Path(path).parts or Path(path).suffix in IRRELEVANT_SUFFIXES:
+                continue
+            if path == FEATURES_FILE and features_diff_is_inert(endpoints):
                 continue
             area = next(
                 (a for a, roots in E2E_AREAS.items() if path.startswith(roots)), None
@@ -786,7 +878,9 @@ def main_e2e():
     if not os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
         print("all")
         return
-    suites = select_e2e_suites(get_changed_files())
+    changed_files = get_changed_files()
+    endpoints = get_diff_endpoints() if FEATURES_FILE in changed_files else None
+    suites = select_e2e_suites(changed_files, endpoints)
     log(f"E2E suites: {suites}")
     print(suites)
 
