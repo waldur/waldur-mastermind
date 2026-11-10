@@ -4977,7 +4977,7 @@ class ProposalRunSerializer(serializers.ModelSerializer):
             data["granted_limits"] = {}
             data["granted_by_name"] = None
         if user is not None:
-            scope = contributions.access_for(request).award_scope(instance.proposal)
+            scope = contributions.access_for(request).run_scope(instance.proposal)
             if scope is not None:
                 self._narrow_to_offerings(data, scope)
         return data

@@ -6908,8 +6908,11 @@ class ProposalViewSet(
         description=(
             "List what the allocation decision awards the proposal. Staff, "
             "support, the call's managers and organizers, and the managers of "
-            "the offerings involved see it at any time; the applicant team once "
-            "the decision is released."
+            "the offerings involved (their own offerings' items) see it at any "
+            "time; the applicant team once the decision is released; a results "
+            "reader of the managing organization (CALL.VIEW_RESULTS) once the "
+            "round's results are published and the decision is released, while "
+            "the proposal is not rejected or canceled."
         ),
         filters=False,
     )

@@ -662,6 +662,14 @@ class Access:
             lambda: proposal_permissions.award_scope(self.user, proposal),
         )
 
+    def run_scope(self, proposal):
+        """The offerings whose part of ``proposal``'s runs the user reads,
+        or None for all of it (``permissions.run_scope``)."""
+        return self._cached(
+            ("run_scope", proposal.pk),
+            lambda: proposal_permissions.run_scope(self.user, proposal),
+        )
+
     def oversees(self, proposal) -> bool:
         """Staff and the call's managers and organisers, who may act on any
         contribution -- never on a proposal whose applicant team they are on

@@ -405,13 +405,13 @@ def offering_scope(user, proposal):
     return frozenset(contributions.offering_ids_with_role_of(user))
 
 
-def award_scope(user, proposal):
-    """The offerings whose part of ``proposal``'s award ``user`` reads, or
-    None when they read all of it.
+def run_scope(user, proposal):
+    """The offerings whose part of ``proposal``'s extension requests and
+    final report ``user`` reads, or None when they read all of it.
 
-    Of those reading the award (``user_can_view_awarded_resources``), staff,
-    support, the call's managers and organisers and the applicant side read
-    all of it; the managers of the offerings involved only their own.
+    Of those reading the runs (``user_can_view_runs``), staff, support, the
+    call's managers and organisers and the applicant side read all of it;
+    the managers of the offerings involved only their own.
     """
     if user.is_staff or user.is_support:
         return None
@@ -420,6 +420,19 @@ def award_scope(user, proposal):
     ):
         return None
     return frozenset(contributions.offering_ids_managed_by(user))
+
+
+def award_scope(user, proposal):
+    """The offerings whose part of ``proposal``'s award ``user`` reads, or
+    None when they read all of it.
+
+    As ``run_scope``, and a results reader reads all of a published award
+    (``_user_reads_published_award``). An offering manager who also reads
+    the round's results keeps to their own offerings until then.
+    """
+    if _user_reads_published_award(user, proposal):
+        return None
+    return run_scope(user, proposal)
 
 
 def can_update_proposal_attachments(request, view, obj=None):
@@ -1889,19 +1902,36 @@ def _user_is_on_the_applicant_team(user, proposal) -> bool:
     return proposal.project_id is not None and has_user(proposal.project, user)
 
 
-def user_can_view_awarded_resources(user, proposal) -> bool:
-    """Who may read a proposal's award, beyond being able to see the proposal.
+def _user_reads_published_results(user, proposal) -> bool:
+    """A results reader of the call's managing organisation (CALL.VIEW_RESULTS
+    on its customer, an organisation reader, say) reading a proposal of a
+    round whose results are out -- the proposals they see through
+    ``Proposal.Permissions`` in the first place."""
+    return (
+        proposal.state != ProposalStates.DRAFT
+        and proposal.round.lifecycle_state in RoundLifecycleStates.PUBLISHED
+        and managers.get_results_readable_calls(user)
+        .filter(id=proposal.round.call_id)
+        .exists()
+    )
 
-    At any time: staff and support, whoever manages the call (its call
-    managers and the organisers of its managing organisation), and the
-    managers of the offerings requested or awarded -- they assess the request
-    technically and provision the award. The applicant team only once the
-    award is released (see ``awarded_resources_released``). Nobody else:
-    reviewers and panel members judge the proposal, not the award.
 
-    A call manager or offering manager who also applied waits for the
-    release like any applicant: they neither draft nor edit their own award.
-    """
+def _user_reads_published_award(user, proposal) -> bool:
+    """A results reader (``_user_reads_published_results``) reading an award
+    that is released and still stands: once the proposal is rejected or
+    canceled, what it was awarded is no longer part of the outcome."""
+    return (
+        proposal.state not in (ProposalStates.REJECTED, ProposalStates.CANCELED)
+        and _user_reads_published_results(user, proposal)
+        and awarded_resources_released(proposal)
+    )
+
+
+def _user_follows_the_award(user, proposal) -> bool:
+    """Those who read a proposal's award and what follows it: staff and
+    support, the call's managers and organisers, the managers of the
+    offerings involved, and the applicant team once the award is released.
+    See ``user_can_view_awarded_resources``."""
     if user.is_staff or user.is_support:
         return True
     if _user_manages_the_call(user, proposal):
@@ -1915,20 +1945,49 @@ def user_can_view_awarded_resources(user, proposal) -> bool:
     return False
 
 
+def user_can_view_awarded_resources(user, proposal) -> bool:
+    """Who may read a proposal's award, beyond being able to see the proposal.
+
+    At any time: staff and support, whoever manages the call (its call
+    managers and the organisers of its managing organisation), and the
+    managers of the offerings requested or awarded -- they assess the request
+    technically and provision the award. The applicant team only once the
+    award is released (see ``awarded_resources_released``). A results reader
+    of the managing organisation once the round's results are published and
+    the award is released, while the proposal is not rejected or canceled:
+    the award is part of the published outcome.
+    Nobody else: reviewers and panel members judge the proposal, not the
+    award.
+
+    A call manager or offering manager who also applied waits for the
+    release like any applicant: they neither draft nor edit their own award.
+    """
+    if _user_follows_the_award(user, proposal):
+        return True
+    return _user_reads_published_award(user, proposal)
+
+
 def can_access_awarded_resources(request, view, obj=None):
     """ActionsPermission check for the awarded resources endpoints.
 
-    Reading follows ``user_can_view_awarded_resources``. Changing the award is
-    the call manager's (or staff's); whether it is still open for changes is a
-    state question the view answers with 409.
+    Reading follows ``user_can_view_awarded_resources``: staff, support, the
+    call's managers and organisers, the managers of the offerings involved,
+    the applicant team once the award is released, and a results reader of
+    the managing organisation once the round's results are published. Changing
+    the award is the call manager's (or staff's); whether it is still open for
+    changes is a state question the view answers with 409.
     """
     if obj is None:
         return
     user = request.user
     if request.method in permissions.SAFE_METHODS:
         if not user_can_view_awarded_resources(user, obj):
+            if _user_is_on_the_applicant_team(user, obj):
+                raise exceptions.PermissionDenied(
+                    "The awarded resources are not visible until the decision is released."
+                )
             raise exceptions.PermissionDenied(
-                "The awarded resources are not visible until the decision is released."
+                "You cannot see this proposal's awarded resources."
             )
         return
     if proposal_roles.is_on_applicant_team(user, obj):
@@ -2026,8 +2085,10 @@ def user_can_view_runs(user, proposal) -> bool:
     whoever reads its award (``user_can_view_awarded_resources``) -- staff,
     support, the call's managers, the managers of the offerings involved and
     the applicant team once the award is released. Reviewers and panel
-    members judged the proposal, not its allocation, and read none of it."""
-    return user_can_view_awarded_resources(user, proposal)
+    members judged the proposal, not its allocation, and read none of it; nor
+    does a results reader, who reads the published outcome, not what the
+    project does with it afterwards."""
+    return _user_follows_the_award(user, proposal)
 
 
 def can_view_runs(request, view, obj=None):
