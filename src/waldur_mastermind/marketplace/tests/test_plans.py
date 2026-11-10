@@ -163,10 +163,69 @@ class PlanUpdateTest(test.APITestCase):
         response = self.update_plan(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_it_should_not_be_possible_to_update_plan_for_an_existing_resources(self):
+    def test_plan_used_by_resources_can_be_renamed_and_described(self):
         factories.ResourceFactory(offering=self.offering, plan=self.plan)
-        response = self.update_plan("owner")
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(
+            self.url,
+            {
+                "name": "Renamed plan",
+                "description": "New description",
+                "article_code": "AC-1",
+                "max_amount": 5,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.name, "Renamed plan")
+        self.assertEqual(self.plan.description, "New description")
+        self.assertEqual(self.plan.article_code, "AC-1")
+        self.assertEqual(self.plan.max_amount, 5)
+
+    def test_plan_used_by_resources_accepts_its_current_unit(self):
+        # The Edit plan dialog sends every field, unchanged ones included.
+        factories.ResourceFactory(offering=self.offering, plan=self.plan)
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(
+            self.url,
+            {
+                "unit": self.plan.unit,
+                "billing_mode": self.plan.billing_mode,
+                "description": "New description",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.description, "New description")
+
+    def test_unit_of_a_plan_used_by_resources_cannot_be_changed(self):
+        factories.ResourceFactory(offering=self.offering, plan=self.plan)
+        unit = (
+            UnitPriceMixin.Units.PER_DAY
+            if self.plan.unit != UnitPriceMixin.Units.PER_DAY
+            else UnitPriceMixin.Units.PER_MONTH
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(
+            self.url, {"unit": unit, "description": "New description"}
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("unit", response.data)
+        self.plan.refresh_from_db()
+        self.assertNotEqual(self.plan.unit, unit)
+        self.assertNotEqual(self.plan.description, "New description")
+
+    def test_unit_of_a_plan_without_resources_can_be_changed(self):
+        unit = (
+            UnitPriceMixin.Units.PER_DAY
+            if self.plan.unit != UnitPriceMixin.Units.PER_DAY
+            else UnitPriceMixin.Units.PER_MONTH
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, {"unit": unit})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.unit, unit)
 
     def update_plan(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
