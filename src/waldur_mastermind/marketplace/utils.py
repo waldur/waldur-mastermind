@@ -2253,6 +2253,46 @@ def get_prepaid_total_usage(resource, usages=None):
     )
 
 
+def shows_order_period_totals(offering) -> bool:
+    """Whether ``offering`` offers its resources' order-period totals."""
+    return bool((offering.plugin_options or {}).get("show_order_period_totals"))
+
+
+# Limit periods the order-period view applies to: a monthly limit, or none set,
+# which is read as monthly (see _query_period_usages).
+ORDER_PERIOD_LIMIT_PERIODS = (None, "", LimitPeriods.MONTH)
+
+
+def get_order_period_usage(resource) -> dict[str, float]:
+    """Usage of each monthly limit component summed since the resource was created.
+
+    An offering with ``show_order_period_totals`` lets the UI set this against
+    the current limit times the months of the order, next to the usual
+    per-period view. Each month counts with its peak, as for a total limit
+    period. Prepaid components are left out: they have their own total view.
+
+    Only components whose limit refills monthly are totalled: the UI multiplies
+    the limit by months, which is wrong for a quarterly or annual limit, and a
+    total limit already covers the whole order.
+    """
+    resolved = billing_mode.resolve_for_resource(resource)
+    limit_types = {
+        effective.type
+        for effective in resolved.components.values()
+        if effective.billing_type == BillingTypes.LIMIT
+        and not effective.is_prepaid
+        and effective.limit_period in ORDER_PERIOD_LIMIT_PERIODS
+    }
+    if not limit_types:
+        return {}
+    return get_current_period_usage(
+        resource,
+        limit_period=LimitPeriods.TOTAL,
+        component_types=limit_types,
+        resolved=resolved,
+    )
+
+
 def _query_period_usages(resource, component, effective_period):
     """The rows of ``component`` in its current period, queried for one resource."""
     usages = models.ComponentUsage.objects.filter(

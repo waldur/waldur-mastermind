@@ -9656,6 +9656,7 @@ class BaseResourceViewSet(
         "details",
         "offering",
         "offering_for_subresources",
+        "order_period_usage",
         "plan_periods",
         "team",
     )
@@ -9735,6 +9736,45 @@ class BaseResourceViewSet(
             instance=resource.scope, context=self.get_serializer_context()
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get usage for the whole order period",
+        description="Returns the usage of each limit-based, non-prepaid component "
+        "with a monthly limit period, summed since the resource was created, "
+        "counting each billing period with its highest reported usage. Available "
+        "when the offering has show_order_period_totals enabled. Not shown to "
+        "users who see the resource only through a ResourceProject role.",
+        filters=False,
+        responses={
+            200: serializers.OrderPeriodUsageSerializer(many=True),
+            400: OpenApiTypes.STR,
+            403: OpenApiTypes.STR,
+        },
+    )
+    @action(detail=True, methods=["get"], pagination_class=None)
+    def order_period_usage(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        # retrieve hides limits and usage from a user who sees the resource
+        # only through a ResourceProject role; the lifetime total is no less.
+        if utils.is_resource_project_only_viewer(request.user, resource):
+            raise PermissionDenied(
+                "Usage of this resource is not shown to ResourceProject-only viewers."
+            )
+        if not utils.shows_order_period_totals(resource.offering):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data="Offering %s doesn't have show_order_period_totals enabled"
+                % resource.offering,
+            )
+        usage = utils.get_order_period_usage(resource)
+        serializer = serializers.OrderPeriodUsageSerializer(
+            [
+                {"type": component_type, "usage": value}
+                for component_type, value in sorted(usage.items())
+            ],
+            many=True,
+        )
+        return Response(serializer.data)
 
     @extend_schema(
         summary="Unlink a resource (staff only)",
@@ -10613,8 +10653,9 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     # following the projects of the call's accepted proposals) are reachable
     # by these actions only; every other action needs a role. ``details`` stays
     # closed: it serialises the backend object in full, which for some plugins
-    # includes credentials meant for project members only.
-    read_only_project_actions = ("list", "retrieve")
+    # includes credentials meant for project members only. ``order_period_usage``
+    # sums the usage behind limit_usage, which retrieve already shows them.
+    read_only_project_actions = ("list", "retrieve", "order_period_usage")
     # The GLauth exports are the provider's: its agent and Homeport read the
     # offering- and provider-level routes, and nothing calls these.
     disabled_actions = BaseResourceViewSet.disabled_actions + [

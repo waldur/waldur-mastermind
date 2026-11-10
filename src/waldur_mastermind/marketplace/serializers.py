@@ -1201,6 +1201,13 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
         "sums its usage over the whole subscription. Ordering and billing do "
         "not change.",
     )
+    show_order_period_totals = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, the UI can show each limit-based component of "
+        "a resource for the whole order period: the usage summed since the "
+        "resource was created against the current limit times the months of "
+        "the order. Ordering, billing and enforcement do not change.",
+    )
 
     def validate_disabled_resource_actions(self, value):
         valid_actions = [choice[0] for choice in ResourceAction.CHOICES]
@@ -16460,6 +16467,15 @@ class CustomerMemberCountSerializer(serializers.Serializer):
     count = serializers.IntegerField(read_only=True, help_text="Number of members")
     has_resources = serializers.BooleanField(
         read_only=True, help_text="Whether the customer has resources"
+    )
+
+
+class OrderPeriodUsageSerializer(serializers.Serializer):
+    type = serializers.CharField(read_only=True, help_text="Component type")
+    usage = serializers.FloatField(
+        read_only=True,
+        help_text="Usage summed since the resource was created, counting each "
+        "billing period with its highest reported usage",
     )
 
 
