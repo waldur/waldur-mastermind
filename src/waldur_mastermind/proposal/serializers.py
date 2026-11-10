@@ -9,6 +9,7 @@ import yaml
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
+from django.template.defaultfilters import filesizeformat
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.drainage import set_override
@@ -6619,9 +6620,30 @@ class ProposalChecklistAnswerSubmitResponseSerializer(serializers.Serializer):
     completion = checklist_serializers.ChecklistCompletionReviewerSerializer()
 
 
+def _file_label(item) -> str | None:
+    """An attached file as its name and size, the way a reader names it."""
+    if not isinstance(item, dict) or not item.get("name"):
+        return None
+    size = item.get("size")
+    if isinstance(size, int) and not isinstance(size, bool):
+        return f"{item['name']} ({filesizeformat(size)})"
+    return str(item["name"])
+
+
+def _scalar_display(value) -> str | None:
+    """A plain answer as text. A structured value has no reading of its own
+    and is left out rather than shown as its Python representation."""
+    if value in (None, "") or isinstance(value, (dict, list)):
+        return None
+    if isinstance(value, bool):
+        return str(_("Yes") if value else _("No"))
+    return str(value)
+
+
 class TechnicalAssessmentAnswerSerializer(serializers.Serializer):
     """One reviewer's answer to a technical-assessment question, with a
-    human-readable ``answer_display`` (option labels for select questions)."""
+    human-readable ``answer_display``: option labels for select questions,
+    file names and sizes for file questions."""
 
     question_uuid = serializers.UUIDField(source="question.uuid")
     question_description = serializers.CharField(source="question.description")
@@ -6643,11 +6665,21 @@ class TechnicalAssessmentAnswerSerializer(serializers.Serializer):
                 .values_list("label", flat=True)
             )
             return ", ".join(labels) if labels else None
+        if question.question_type in (
+            checklist_enums.QuestionTypes.FILE,
+            checklist_enums.QuestionTypes.MULTIPLE_FILES,
+        ):
+            files = value if isinstance(value, list) else [value]
+            labels = [_file_label(item) for item in files]
+            return ", ".join(label for label in labels if label) or None
         if isinstance(value, bool):
             return _("Yes") if value else _("No")
         if value in (None, ""):
             return None
-        return str(value)
+        if isinstance(value, list):
+            items = [_scalar_display(item) for item in value]
+            return ", ".join(item for item in items if item) or None
+        return _scalar_display(value)
 
 
 class ContributionDelegationCandidateSerializer(serializers.Serializer):
