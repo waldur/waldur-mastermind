@@ -6,6 +6,7 @@ import jwt
 import responses
 from django.core.cache import cache
 from django.urls import reverse
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_auth_social import oauth_tokens
@@ -300,6 +301,8 @@ class JobsTest(MonitorOnlyTestBase):
             workspace.get_job("12; rm")
         self.assertEqual(raised.exception.status_code, 404)
 
+    # A few days after the sample job, so it stays inside the window.
+    @freeze_time("2026-11-05")
     @responses.activate
     def test_job_statistics_come_from_the_monitor(self):
         self.monitor_jobs(job_row(11, **accounting()))
