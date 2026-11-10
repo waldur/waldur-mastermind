@@ -10,6 +10,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 from rest_framework import serializers
 
 from waldur_core.configuration import config
@@ -740,6 +741,75 @@ def provision_awarded_item(
             dict(OrderStates.CHOICES).get(order.state, order.state),
         )
     return resource
+
+
+def decided_on_entry(proposal) -> bool:
+    """Whether starting the proposal's evaluation also decided it: an
+    automatic allocation decision in its first stage, with nothing before it
+    that could hold it, accepted or rejected the proposal outright and the
+    decision is not held for the round."""
+    return (
+        proposal.state in (ProposalStates.ACCEPTED, ProposalStates.REJECTED)
+        and not proposal.decision_held
+    )
+
+
+def offerings_fulfilled_unattended(call) -> list[marketplace_models.Offering]:
+    """The call's accepted offerings on which an order placed by an
+    allocation would be fulfilled with no person at the provider acting on
+    it (``marketplace_utils.offering_orders_need_provider_action``).
+
+    An automatic decision's allocation approves its orders on the consumer
+    side as the system robot (``allocate_proposal``), so the orders are
+    routed as the robot's: a staff user, whom a Remote offering's provider
+    review lets through.
+    """
+    robot = get_system_robot()
+    offerings = (
+        marketplace_models.Offering.objects.filter(
+            requestedoffering__call=call,
+            requestedoffering__state=RequestedOfferingStates.ACCEPTED,
+        )
+        .select_related("customer")
+        .distinct()
+        .order_by("name", "id")
+    )
+    return [
+        offering
+        for offering in offerings
+        if not marketplace_utils.offering_orders_need_provider_action(offering, robot)
+    ]
+
+
+# An automatic decision relying on the provider fulfilment, on a call where
+# that does not hold.
+NO_OFFERING_TO_FULFIL = gettext_lazy(
+    "An automatic allocation decision that relies on the provider fulfilling "
+    "each order needs the call to have an accepted offering."
+)
+OFFERINGS_FULFILLED_UNATTENDED = gettext_lazy(
+    "An automatic allocation decision that relies on the provider fulfilling "
+    "each order needs every accepted offering to have its orders reviewed by "
+    "the provider or fulfilled through a helpdesk ticket. Orders on these "
+    "would be fulfilled with nobody at the provider acting on them: "
+    "%(offerings)s."
+)
+
+
+def provider_fulfilment_refusal(call) -> str | None:
+    """Why the provider fulfilment cannot stand in for a step that rejects
+    an unsuitable proposal before an automatic decision on ``call``, or None
+    when a person at the provider acts on every order an award places."""
+    if not call.requestedoffering_set.filter(
+        state=RequestedOfferingStates.ACCEPTED
+    ).exists():
+        return str(NO_OFFERING_TO_FULFIL)
+    unattended = offerings_fulfilled_unattended(call)
+    if unattended:
+        return str(OFFERINGS_FULFILLED_UNATTENDED) % {
+            "offerings": ", ".join(offering.name for offering in unattended)
+        }
+    return None
 
 
 def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):

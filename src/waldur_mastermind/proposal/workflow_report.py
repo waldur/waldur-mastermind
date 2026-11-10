@@ -27,6 +27,7 @@ from waldur_mastermind.proposal import (
     workflow_versions,
 )
 from waldur_mastermind.proposal.enums import (
+    AutomaticDecisionGuards,
     ContributorSources,
     NotificationRuleTriggers,
     ResponsibleRoles,
@@ -74,6 +75,7 @@ FIELD_LABELS = {
     "blind_review": "Blind review",
     "is_allocation_decision": "Allocation decision",
     "decides_automatically": "Decides automatically",
+    "automatic_decision_guard": "What stops an unsuitable proposal",
     "duration_in_days": "Duration",
     "notification_rules": "Notification rules",
     "run_condition": "Run condition",
@@ -147,6 +149,8 @@ def _step_row(step, actors) -> dict:
         notes.append(_("Runs alongside the step before"))
     if step["is_allocation_decision"]:
         notes.append(_("Allocation decision"))
+    if step["automatic_decision_guard"] == AutomaticDecisionGuards.PROVIDER_FULFILMENT:
+        notes.append(_("Relies on the provider fulfilling each order"))
     if step["transition_mode"] == TransitionModes.MANUAL:
         notes.append(_("Held for a manual advance"))
     if step["applicant"]["visible"]:

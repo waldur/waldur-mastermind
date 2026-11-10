@@ -268,6 +268,7 @@ with `on_negative=cancel`, and passing the last step allocates it.
 | `applicant_visible` | Whether the applicant sees the step |
 | `transition_mode` | `automatic_on_completion` advances to the next step when this one is completed; `manual` waits for a separate advance |
 | `include_award_response`, `allocation_time` | On the allocation decision only: whether the applicant must accept the award (an `award_response` step right after it), and whether allocation happens `on_decision` or on the round's `allocation_date` (`fixed_date`) |
+| `decides_automatically`, `automatic_decision_guard` | On the allocation decision only: approve as the system, with the award as requested, when a proposal reaches the step; a refused approval (score threshold, budget, missing amounts, nothing guarding it) is left to the call managers. The guard says what stops an unsuitable proposal: `earlier_step` (default) needs an enabled earlier step that can reject it, decided on the proposal's path; `provider_fulfilment` needs a person at the provider to act on every order the award places on each accepted offering — the provider reviews it (Basic, site agent, Script with `auto_approve_marketplace_script` off) or a helpdesk ticket fulfils it (Support). Remote offerings never qualify: the system robot approving the orders is let through the provider review |
 
 A new call is seeded with the steps that were once a fixed catalogue, in order:
 `administrative_check`, `technical_assessment`, `expert_review`,
@@ -541,13 +542,14 @@ for the call) and the `field` that fixes it, so the UI can open that setting.
 
 - **Errors** mean the call cannot run as configured: no round, no enabled step,
   no or several allocation decisions, an award response before the decision,
-  an unguarded automatic decision, an applicant step without a form, no
-  accepted offering or an offering without a plan (the checks activation always
-  made, with the same messages), and a completer, contributor or delegation
-  target nobody can hold, a run condition naming a missing or later step or an
-  outcome that ends the proposal first, an input read from the same or a later
-  stage, a decision or applicant step inside a parallel stage, and a
-  notification rule that can never reach anyone.
+  an unguarded automatic decision (or, relying on the provider fulfilment, an
+  accepted offering whose orders nobody at the provider acts on), an applicant
+  step without a form, no accepted offering or an offering without a plan (the
+  checks activation always made, with the same messages), and a completer,
+  contributor or delegation target nobody can hold, a run condition naming a
+  missing or later step or an outcome that ends the proposal first, an input
+  read from the same or a later stage, a decision or applicant step inside a
+  parallel stage, and a notification rule that can never reach anyone.
 - **Warnings** never block: durations up to the decision longer than the
   round's time to decision (allocation date minus cut-off, else the call's
   `target_decision_days`, else the review duration), steps without a duration,

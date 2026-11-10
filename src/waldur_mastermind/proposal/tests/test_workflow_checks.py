@@ -190,6 +190,17 @@ class ActivationRulesTest(SimpleTestCase):
         )
         self.assertFalse(found(data, "automatic_decision_unguarded"))
 
+    def test_automatic_decision_relying_on_the_provider_needs_no_earlier_step(self):
+        data = document(
+            [
+                decision(
+                    decides_automatically=True,
+                    automatic_decision_guard="provider_fulfilment",
+                )
+            ]
+        )
+        self.assertFalse(found(data, "automatic_decision_unguarded"))
+
     def test_applicant_step_without_form(self):
         data = base()
         data["workflow_steps"].insert(

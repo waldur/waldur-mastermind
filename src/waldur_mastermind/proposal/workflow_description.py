@@ -43,6 +43,7 @@ from waldur_mastermind.proposal import (
 from waldur_mastermind.proposal.enums import (
     SCORE_SPREAD_ABOVE,
     STEP_KINDS_MAP,
+    AutomaticDecisionGuards,
     BudgetEnforcement,
     ContributorSources,
     DelegationTargets,
@@ -919,6 +920,12 @@ class _Describer:
             "decides_automatically": bool(
                 step.get("is_allocation_decision") and step.get("decides_automatically")
             ),
+            "automatic_decision_guard": (
+                step.get("automatic_decision_guard")
+                or AutomaticDecisionGuards.EARLIER_STEP
+            )
+            if step.get("is_allocation_decision") and step.get("decides_automatically")
+            else None,
             "allocation_time": step.get("allocation_time")
             if step.get("is_allocation_decision")
             else None,

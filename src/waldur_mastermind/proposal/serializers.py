@@ -11219,6 +11219,7 @@ class CallWorkflowStepSerializer(
             "status_labels",
             "include_award_response",
             "decides_automatically",
+            "automatic_decision_guard",
             "allocation_time",
             "display_order",
             "criteria",
@@ -11486,6 +11487,14 @@ class CallWorkflowStepSerializer(
         ):
             attrs["release_to_applicant"] = True
 
+        if (
+            attrs.get("decides_automatically") is False
+            and "automatic_decision_guard" not in attrs
+        ):
+            # Turning the automatic decision off drops what guarded it.
+            attrs["automatic_decision_guard"] = (
+                enums.AutomaticDecisionGuards.EARLIER_STEP
+            )
         candidate = models.CallWorkflowStep(
             pk=getattr(self.instance, "pk", None),
             call=call,
@@ -11512,6 +11521,11 @@ class CallWorkflowStepSerializer(
             key=self._current(attrs, "key", ""),
             run_condition=self._current(attrs, "run_condition", {}),
             decides_automatically=self._current(attrs, "decides_automatically", False),
+            automatic_decision_guard=self._current(
+                attrs,
+                "automatic_decision_guard",
+                enums.AutomaticDecisionGuards.EARLIER_STEP,
+            ),
             transition_mode=self._current(
                 attrs, "transition_mode", enums.TransitionModes.AUTOMATIC_ON_COMPLETION
             ),
@@ -11605,13 +11619,19 @@ class CallWorkflowStepSerializer(
         if "status_labels" in attrs:
             attrs["status_labels"] = candidate.status_labels
 
+        guard_changed = "automatic_decision_guard" in attrs and (
+            self.instance is None
+            or attrs["automatic_decision_guard"]
+            != self.instance.automatic_decision_guard
+        )
         if (
-            attrs.get("decides_automatically")
+            (attrs.get("decides_automatically") or guard_changed)
+            and candidate.decides_automatically
             and candidate.is_enabled
             and isinstance(call, models.Call)
             and call.state == CallStates.ACTIVE
         ):
-            self._refuse_unguarded_automatic_decision(call, attrs)
+            self._refuse_unguarded_automatic_decision(call, attrs, candidate)
 
         # Checked on the changes that move steps, so a call already out of
         # order can still be edited into order.
@@ -11667,10 +11687,17 @@ class CallWorkflowStepSerializer(
                 }
             )
 
-    def _refuse_unguarded_automatic_decision(self, call, attrs):
-        """On an active call, refuse an automatic decision no earlier step
-        can stop: every proposal would award itself. A call in draft is
-        checked when it is activated."""
+    def _refuse_unguarded_automatic_decision(self, call, attrs, candidate):
+        """On an active call, refuse an automatic decision nothing can stop:
+        no earlier step can reject a proposal or, relying on the provider
+        fulfilment, an accepted offering's orders would be fulfilled with
+        nobody at the provider acting on them. Every proposal would award
+        itself. A call in draft is checked when it is activated."""
+        if candidate.relies_on_provider_fulfilment:
+            refusal = utils.provider_fulfilment_refusal(call)
+            if refusal:
+                raise serializers.ValidationError({"automatic_decision_guard": refusal})
+            return
         order = self._current(attrs, "order")
         earlier = models.CallWorkflowStep.objects.filter(call=call, is_enabled=True)
         if self.instance is not None:
@@ -14641,6 +14668,14 @@ class WorkflowDescriptionStepSerializer(serializers.Serializer):
     input_steps = serializers.ListField(child=serializers.CharField())
     is_allocation_decision = serializers.BooleanField()
     decides_automatically = serializers.BooleanField()
+    automatic_decision_guard = serializers.ChoiceField(
+        choices=enums.AutomaticDecisionGuards.CHOICES,
+        allow_null=True,
+        help_text=(
+            "What stops an unsuitable proposal before the automatic decision "
+            "awards it; null unless the step decides automatically."
+        ),
+    )
     allocation_time = serializers.CharField(allow_null=True)
     include_award_response = serializers.BooleanField()
     allows_change_requests = serializers.BooleanField()

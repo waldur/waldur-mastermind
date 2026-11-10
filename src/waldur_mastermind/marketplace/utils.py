@@ -95,6 +95,7 @@ from waldur_mastermind.marketplace import (
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
+    SUPPORT_OFFERING,
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
@@ -5614,9 +5615,15 @@ def get_order_processing_user(order: models.Order, system_robot=None):
 
 
 def order_should_not_be_reviewed_by_provider(order: models.Order):
-    offering = order.offering
-    user = order.consumer_reviewed_by or order.created_by
+    return offering_skips_provider_review(
+        order.offering, order.consumer_reviewed_by or order.created_by
+    )
 
+
+def offering_skips_provider_review(offering: models.Offering, user):
+    """Whether an order on ``offering`` approved on the consumer side by
+    ``user`` goes on without the provider reviewing it: the routing of
+    ``order_should_not_be_reviewed_by_provider``."""
     if offering.type == SITE_AGENT_PLUGIN_NAME:
         return False
 
@@ -5653,6 +5660,25 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
         return offering.plugin_options.get("auto_approve_marketplace_script", True)
 
     return True
+
+
+def offering_orders_need_provider_action(offering: models.Offering, user) -> bool:
+    """Whether a person at the provider acts on every order on ``offering``
+    approved on the consumer side by ``user`` before its resource is
+    provided: the provider reviews the order (``offering_skips_provider_review``
+    -- site agent and Basic offerings; Remote ones without
+    ``auto_approve_remote_orders`` unless ``user`` is the provider's owner or
+    service manager, which any staff user, the system robot among them, is;
+    Script ones with ``auto_approve_marketplace_script`` off), or the order is
+    fulfilled through a helpdesk ticket whose resolution decides it (Support
+    offerings).
+
+    An automatic allocation decision guarded by the provider fulfilment relies
+    on this for each accepted offering of its call.
+    """
+    if offering.type == SUPPORT_OFFERING:
+        return True
+    return not offering_skips_provider_review(offering, user)
 
 
 def get_consumer_approvers(order):
