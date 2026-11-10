@@ -2314,7 +2314,7 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
 
         event_logger.emit(
             "Password has been changed for user {affected_user_username} by %s."
-            % self.request.user,
+            % event_logger.literal(self.request.user),
             event_type=EventType.USER_PASSWORD_UPDATED_BY_STAFF,
             event_context={"affected_user": user},
             scopes=[user],
@@ -2342,7 +2342,7 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
 
         event_logger.emit(
             "Password has been removed for user {affected_user_username} by %s."
-            % self.request.user,
+            % event_logger.literal(self.request.user),
             event_type=EventType.USER_PASSWORD_REMOVED_BY_STAFF,
             event_context={"affected_user": user},
             scopes=[user],

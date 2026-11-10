@@ -178,7 +178,7 @@ def can_view_actor_details(user) -> bool:
     return bool(user and (user.is_staff or user.is_support))
 
 
-def _is_actor_detail_key(key) -> bool:
+def is_actor_detail_key(key) -> bool:
     return key in ACTOR_DETAIL_KEYS or (
         isinstance(key, str) and key.endswith(_ACTOR_DETAIL_SUFFIXES)
     )
@@ -189,7 +189,7 @@ def strip_actor_details(context):
     if not isinstance(context, dict):
         return context
     return {
-        key: value for key, value in context.items() if not _is_actor_detail_key(key)
+        key: value for key, value in context.items() if not is_actor_detail_key(key)
     }
 
 

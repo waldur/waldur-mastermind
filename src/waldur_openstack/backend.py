@@ -3402,7 +3402,8 @@ class OpenStackBackend(ServiceBackend):
             network, {"name": network.name, "description": network.description}
         )
         event_logger.emit(
-            f"Network name {network.name} and description {network.description} have been updated.",
+            f"Network name {event_logger.literal(network.name)} and description "
+            f"{event_logger.literal(network.description)} have been updated.",
             event_type=EventType.OPENSTACK_NETWORK_UPDATED,
             event_context={"network": network},
             scopes=[network, network.tenant],
@@ -3864,7 +3865,8 @@ class OpenStackBackend(ServiceBackend):
             floating_ip.save(update_fields=["runtime_state", "description"])
 
             event_logger.emit(
-                f"The description of the floating IP [{floating_ip}] has been changed to [{description}].",
+                f"The description of the floating IP [{event_logger.literal(floating_ip)}] "
+                f"has been changed to [{event_logger.literal(description)}].",
                 event_type=EventType.OPENSTACK_FLOATING_IP_DESCRIPTION_UPDATED,
                 event_context={
                     "floating_ip": floating_ip,
@@ -4435,7 +4437,8 @@ class OpenStackBackend(ServiceBackend):
             port.save()
 
             event_logger.emit(
-                f"Port [{port}] has been created in the backend for network [{network}].",
+                f"Port [{event_logger.literal(port)}] has been created in the backend "
+                f"for network [{event_logger.literal(network)}].",
                 event_type=EventType.OPENSTACK_PORT_CREATED,
                 event_context={"port": port},
                 scopes=[
@@ -4461,7 +4464,8 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
         else:
             event_logger.emit(
-                f"Port [{port}] has been deleted from network [{port.network}].",
+                f"Port [{event_logger.literal(port)}] has been deleted from network "
+                f"[{event_logger.literal(port.network)}].",
                 event_type=EventType.OPENSTACK_PORT_DELETED,
                 event_context={"port": port},
                 scopes=[
@@ -4496,7 +4500,8 @@ class OpenStackBackend(ServiceBackend):
             floating_ip.save(update_fields=["address", "runtime_state", "port"])
 
             event_logger.emit(
-                f"Floating IP [{floating_ip}] has been attached to port [{port}].",
+                f"Floating IP [{event_logger.literal(floating_ip)}] has been attached to port "
+                f"[{event_logger.literal(port)}].",
                 event_type=EventType.OPENSTACK_FLOATING_IP_ATTACHED,
                 event_context={
                     "floating_ip": floating_ip,
@@ -4529,7 +4534,8 @@ class OpenStackBackend(ServiceBackend):
             floating_ip.save(update_fields=["address", "runtime_state", "port"])
 
             event_logger.emit(
-                f"Floating IP {floating_ip} has been detached from port {port}.",
+                f"Floating IP {event_logger.literal(floating_ip)} has been detached from port "
+                f"{event_logger.literal(port)}.",
                 event_type=EventType.OPENSTACK_FLOATING_IP_DETACHED,
                 event_context={
                     "floating_ip": floating_ip,
@@ -5654,7 +5660,8 @@ class OpenStackBackend(ServiceBackend):
                         backend_network_id=backend_floating_ip["floating_network_id"],
                     )
                     event_logger.emit(
-                        f"Floating IP {floating_ip.address} has been disconnected from instance {instance.name}.",
+                        f"Floating IP {floating_ip.address} has been disconnected from instance "
+                        f"{event_logger.literal(instance.name)}.",
                         event_type=EventType.OPENSTACK_FLOATING_IP_DISCONNECTED,
                         event_context={
                             "floating_ip": floating_ip,
@@ -5702,7 +5709,8 @@ class OpenStackBackend(ServiceBackend):
                     raise OpenStackBackendError(e)
                 else:
                     event_logger.emit(
-                        f"Floating IP {floating_ip.address} has been connected to instance {instance.name}.",
+                        f"Floating IP {floating_ip.address} has been connected to instance "
+                        f"{event_logger.literal(instance.name)}.",
                         event_type=EventType.OPENSTACK_FLOATING_IP_CONNECTED,
                         event_context={
                             "floating_ip": floating_ip,
@@ -6938,7 +6946,8 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
         else:
             event_logger.emit(
-                f"Port [{port}] name and description have been updated in the backend.",
+                f"Port [{event_logger.literal(port)}] name and description have been updated "
+                "in the backend.",
                 event_type=EventType.OPENSTACK_PORT_UPDATED,
                 event_context={"port": port},
                 scopes=[port, port.network],

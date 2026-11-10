@@ -81,7 +81,7 @@ def resolve_customer(short_name: str) -> Customer:
         Customer.objects.filter(pk=customer.pk).update(backend_id=short_name)
         customer.backend_id = short_name
         # The short name is SRAM data: escape it for the message template.
-        escaped = short_name.replace("{", "{{").replace("}", "}}")
+        escaped = event_logger.literal(short_name)
         event_logger.emit(
             "Customer {customer_name} has been linked to SRAM organisation "
             f"{escaped}: its backend ID is now {escaped}.",

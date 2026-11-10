@@ -7,6 +7,8 @@ for soft-deleted scopes.
 
 from rest_framework import status, test
 
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_core.permissions import utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
@@ -258,3 +260,32 @@ class HistoricalRolesTest(test.APITestCase):
                 self._detail_url(grant, action), {"reason": "x" * 300}
             )
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- reasons in the event log -----------------------------------------
+
+    def test_revoke_reason_shows_in_the_event_as_written(self):
+        self.client.force_authenticate(self.staff)
+        for reason in ("see {ticket", "AA{{BB}}CC {user_agent.__class__}"):
+            grant = utils.add_user(
+                self.project, factories.UserFactory(), ProjectRole.ADMIN
+            )
+            response = self.client.post(
+                self._detail_url(grant, "revoke"), {"reason": reason}
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            event = Event.objects.filter(event_type=EventType.ROLE_REVOKED).latest(
+                "created"
+            )
+            self.assertTrue(event.message.endswith(f"Reason: {reason}"))
+
+    def test_restore_reason_shows_in_the_event_as_written(self):
+        self.client.force_authenticate(self.staff)
+        reason = "AA{{BB}}CC {nosuchkey}"
+        response = self.client.post(
+            self._detail_url(self.revoked_role, "restore"), {"reason": reason}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event = Event.objects.filter(event_type=EventType.ROLE_GRANTED).latest(
+            "created"
+        )
+        self.assertTrue(event.message.endswith(f"Reason: {reason}"))

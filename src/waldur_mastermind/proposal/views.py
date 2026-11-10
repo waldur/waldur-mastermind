@@ -249,8 +249,10 @@ def check_reviewer_workload_limit(pool_entry, new_assignments, override, user):
 
     call = pool_entry.call
     event_logger.emit(
-        f"{user.full_name or user.username} assigned {new_assignments} more "
-        f"proposal(s) to reviewer {reviewer_name} in call {call.name}, above "
+        f"{event_logger.literal(user.full_name or user.username)} assigned "
+        f"{new_assignments} more proposal(s) to reviewer "
+        f"{event_logger.literal(reviewer_name)} in call "
+        f"{event_logger.literal(call.name)}, above "
         f"the limit of {pool_entry.max_assignments} "
         f"({open_assignments} already open).",
         event_type=EventType.REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN,
@@ -12837,10 +12839,12 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
             "%(user)s accepted the reviewer pool invitation of %(reviewer)s on "
             "call %(call)s on their behalf: %(reason)s"
             % {
-                "user": request.user.full_name or request.user.username,
-                "reviewer": invitation.reviewer.user.full_name,
-                "call": invitation.call.name,
-                "reason": invitation.override_reason,
+                "user": event_logger.literal(
+                    request.user.full_name or request.user.username
+                ),
+                "reviewer": event_logger.literal(invitation.reviewer.user.full_name),
+                "call": event_logger.literal(invitation.call.name),
+                "reason": event_logger.literal(invitation.override_reason),
             },
             event_type=EventType.REVIEWER_INVITATION_FORCE_ACCEPTED,
             event_context={
@@ -14382,14 +14386,16 @@ class AssignmentItemViewSet(ActionsViewSet):
             "%(user)s lifted the conflict of interest block on the assignment of "
             "%(proposal)s to %(reviewer)s: %(reason)s"
             % {
-                "user": request.user.full_name or request.user.username,
-                "proposal": item.proposal.name,
-                "reviewer": (
+                "user": event_logger.literal(
+                    request.user.full_name or request.user.username
+                ),
+                "proposal": event_logger.literal(item.proposal.name),
+                "reviewer": event_logger.literal(
                     entry.reviewer.user.full_name
                     if (entry := item.batch.reviewer_pool_entry).reviewer
                     else entry.invited_email
                 ),
-                "reason": item.override_reason,
+                "reason": event_logger.literal(item.override_reason),
             },
             event_type=EventType.REVIEW_ASSIGNMENT_FORCE_UNBLOCKED,
             event_context={

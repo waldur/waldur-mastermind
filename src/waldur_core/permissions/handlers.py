@@ -224,7 +224,8 @@ def reactivate_user_with_logging(user: User, reason: str = "Gained new role") ->
     )
 
     event_logger.emit(
-        f"User {{affected_user_username}} has been reactivated automatically. Reason: {reason}",
+        "User {affected_user_username} has been reactivated automatically. "
+        f"Reason: {event_logger.literal(reason)}",
         event_type=EventType.USER_ACTIVATED,
         event_context={"affected_user": user},
         scopes=[user],
@@ -280,11 +281,11 @@ def log(
         event_context.update(details.context)
         if details.role_label:
             event_context["role_description"] = details.role_label
-            message = message.replace("{role_name}", "{role_description}")
+            message = message.replace("{role_name}", "{role_description}", 1)
         if details.scope_note:
             # The note is fixed text, but the message is formatted against
             # the context, so any braces in it must not act as placeholders.
-            note = details.scope_note.replace("{", "{{").replace("}", "}}")
+            note = event_logger.literal(details.scope_note)
             message = message.replace("{scope_name}", "{scope_name} " + note, 1)
 
     # A scope that guards its event feed keeps its team changes off the
@@ -317,7 +318,7 @@ def log_role_granted(
 
     message = (
         "User {affected_user_full_name} ({affected_user_username}) has gained role of {role_name} in {scope_name}. Initiated by: {initiated_by}. Reason: "
-        + reason
+        + event_logger.literal(reason)
     )
 
     log(
@@ -348,7 +349,7 @@ def log_role_revoked(
 
     message = (
         "User {affected_user_full_name} ({affected_user_username}) has lost role of {role_name} in {scope_name}. Initiated by: {initiated_by}. Reason: "
-        + reason
+        + event_logger.literal(reason)
     )
 
     log(
@@ -376,7 +377,8 @@ def log_role_updated(
     message = (
         "Permission expiration time for user {affected_user_full_name} ({affected_user_username}) "
         "in {scope_name} is updated from "
-        f"{old_time} to {new_time}. Initiated by: {{initiated_by}}. Reason: {reason}"
+        f"{old_time} to {new_time}. Initiated by: {{initiated_by}}. "
+        f"Reason: {event_logger.literal(reason)}"
     )
 
     log(

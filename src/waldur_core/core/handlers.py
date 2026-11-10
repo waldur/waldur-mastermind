@@ -339,14 +339,8 @@ def log_user_save(sender, instance: User, created=False, **kwargs):
         if user_details_changed:
             event_logger.emit(
                 "Details for {{affected_user_username}} have been updated from {} to {}.".format(
-                    str(old_values["details"])
-                    .strip("{}")
-                    .replace("{", "{{")
-                    .replace("}", "}}"),
-                    str(instance.details)
-                    .strip("{}")
-                    .replace("{", "{{")
-                    .replace("}", "}}"),
+                    event_logger.literal(str(old_values["details"]).strip("{}")),
+                    event_logger.literal(str(instance.details).strip("{}")),
                 ),
                 event_type=EventType.USER_DETAILS_UPDATE_SUCCEEDED,
                 event_context={"affected_user": instance},
@@ -364,10 +358,7 @@ def log_user_save(sender, instance: User, created=False, **kwargs):
             change_source = getattr(instance, "_change_source", None)
             source_suffix = f" Source: {change_source}." if change_source else ""
 
-            # Escape braces in diff values to avoid .format() interpretation
-            safe_diff = "\n".join(
-                line.replace("{", "{{").replace("}", "}}") for line in diff
-            )
+            safe_diff = "\n".join(event_logger.literal(line) for line in diff)
 
             event_logger.emit(
                 "User {affected_user_username} has been updated.%s Details:\n%s"

@@ -29,13 +29,13 @@ def log_resource_plan_switched(
     if old_billing == new_billing:
         message = (
             "Plan of resource {resource_name} has been switched "
-            f"from {old_plan.name} to {new_plan.name} ({new_billing} billing)."
+            "from {old_plan_name} to {new_plan_name} ({new_plan_billing} billing)."
         )
     else:
         message = (
             "Plan of resource {resource_name} has been switched "
-            f"from {old_plan.name} ({old_billing} billing) "
-            f"to {new_plan.name} ({new_billing} billing)."
+            "from {old_plan_name} ({old_plan_billing} billing) "
+            "to {new_plan_name} ({new_plan_billing} billing)."
         )
     event_logger.emit(
         message,
@@ -106,9 +106,10 @@ _API_KEY_COMMAND_EVENTS = {
 
 def _api_key_name(api_key: models.ResourceApiKey) -> str:
     # A resource owns many keys — the audit event must identify which one.
+    # The result goes into message templates, so its parts are escaped.
     return (
-        f"API key {api_key.client_id or api_key.uuid.hex} of resource "
-        f"{api_key.resource.name}"
+        f"API key {event_logger.literal(api_key.client_id or api_key.uuid.hex)} "
+        f"of resource {event_logger.literal(api_key.resource.name)}"
     )
 
 
@@ -137,14 +138,14 @@ def log_resource_api_key_command(
         context["old_spending_limits"] = old_limits or {}
         context["new_spending_limits"] = new_limits or {}
     noun, event_type = _API_KEY_COMMAND_EVENTS[action]
-    by = f"by {actor}" if actor else "automatically"
+    by = f"by {event_logger.literal(actor)}" if actor else "automatically"
     if applied:
         done = "deleted" if action == ResourceApiKeyActions.DELETE else "updated"
         message = f"{_api_key_name(api_key)} has been {done} {by}."
     else:
         message = f"{noun} of {_api_key_name(api_key)} has been requested {by}."
     if reason:
-        message = f"{message} {reason}"
+        message = f"{message} {event_logger.literal(reason)}"
     event_logger.emit(
         message,
         event_type=event_type,
@@ -161,7 +162,7 @@ def log_resource_api_key_command_failed(api_key: models.ResourceApiKey):
     ]
     message = f"{noun} of {_api_key_name(api_key)} has failed."
     if api_key.error_message:
-        message = f"{message} {api_key.error_message}"
+        message = f"{message} {event_logger.literal(api_key.error_message)}"
     event_logger.emit(
         message,
         event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_FAILED,
@@ -182,7 +183,8 @@ def log_resource_api_key_revealed(api_key: models.ResourceApiKey, user):
     else:
         revealed_to = str(user)
     event_logger.emit(
-        f"{_api_key_name(api_key)} has been revealed to {revealed_to}.",
+        f"{_api_key_name(api_key)} has been revealed to "
+        f"{event_logger.literal(revealed_to)}.",
         event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED,
         event_context={"resource": resource},
         scopes=get_resource_scopes(resource),
@@ -196,10 +198,11 @@ def log_resource_end_date_has_been_updated(resource, user, template=None):
         " User: %(user)s."
     )
 
+    # The filled template is itself a message template: escape the values.
     context = {
-        "resource_name": resource.name,
+        "resource_name": event_logger.literal(resource.name),
         "end_date": resource.end_date,
-        "user": user,
+        "user": event_logger.literal(user),
     }
 
     event_logger.emit(

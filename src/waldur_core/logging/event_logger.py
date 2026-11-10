@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import logging
+import re
 import time
 from decimal import Decimal
 
@@ -19,7 +20,11 @@ from waldur_core.logging.enums import (
     EventGroup,
     EventType,
 )
-from waldur_core.logging.log import EventLoggerAdapter, scrub_sensitive
+from waldur_core.logging.log import (
+    EventLoggerAdapter,
+    is_actor_detail_key,
+    scrub_sensitive,
+)
 from waldur_core.logging.middleware import get_event_context
 from waldur_core.logging.mixins import LoggableMixin
 
@@ -30,7 +35,8 @@ event_emitted = Signal()
 event_logger = EventLoggerAdapter(logger)
 
 
-def compile_context(**kwargs):
+def _request_context():
+    """What every event inherits from the request that caused it."""
     context = {}
 
     event_context = get_event_context()
@@ -44,6 +50,12 @@ def compile_context(**kwargs):
     if request_id and "request_id" not in context:
         context["request_id"] = str(request_id)
 
+    return context
+
+
+def _entity_context(**kwargs):
+    """The context of the entities an emitter names."""
+    context = {}
     for entity_name, entity in kwargs.items():
         if isinstance(entity, LoggableMixin):
             context.update(entity._get_log_context(entity_name))
@@ -61,6 +73,49 @@ def compile_context(**kwargs):
             )
 
     return context
+
+
+def compile_context(**kwargs):
+    return {**_request_context(), **_entity_context(**kwargs)}
+
+
+# A bare {name}, or a doubled brace. Every other brace is plain text.
+_PLACEHOLDER = re.compile(r"\{\{|\}\}|\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def literal(value) -> str:
+    """``value`` as text that a message template shows exactly as written.
+
+    Event messages are templates, so a name, description or reason put into
+    one must have its braces doubled or they read as placeholders.
+    """
+    return str(value).replace("{", "{{").replace("}", "}}")
+
+
+def render_message(template, context: dict, placeholders) -> str:
+    """Fill the placeholders of an event message from its context.
+
+    Only a bare ``{name}`` that is one of ``placeholders`` is replaced, and
+    ``{{`` and ``}}`` become ``{`` and ``}``. Any other brace stays as written:
+    attribute and index lookups, conversions, format specs, positional and
+    unknown fields, and stray braces. Callers build templates by putting names,
+    descriptions and reasons people write into them, so a template can hold
+    more than the placeholders its author meant. ``str.format()`` would walk
+    the attributes of context values, pad a value to any width, or raise.
+    """
+
+    def fill(match):
+        token = match.group(0)
+        if token == "{{":
+            return "{"
+        if token == "}}":
+            return "}"
+        name = match.group(1)
+        if name in placeholders:
+            return str(context[name])
+        return token
+
+    return _PLACEHOLDER.sub(fill, str(template))
 
 
 def emit(
@@ -81,7 +136,16 @@ def emit(
         event_context = {}
 
     context = compile_context(**event_context)
-    msg = str(message_template).format(**context)
+    # The actor's request details are hidden from most readers of an event
+    # (log.event_context_for). A placeholder naming one, which text from a
+    # name or description can carry into the template, must not put them back
+    # into the message, whether they came with the request or with an entity
+    # such as an impersonated user. An emitter that means to show one passes
+    # that key itself.
+    placeholders = {
+        key for key in context if not is_actor_detail_key(key) or key in event_context
+    }
+    msg = render_message(message_template, context, placeholders)
     log = getattr(event_logger, level)
     log_context = scrub_sensitive(copy.deepcopy(context))
     log(
