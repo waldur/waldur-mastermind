@@ -10,6 +10,7 @@ its address showed on the router while the removal dialog, which lists
 
 from unittest import mock
 
+from django.db import IntegrityError
 from rest_framework import test
 
 from waldur_openstack import models
@@ -100,6 +101,17 @@ class PullTenantRoutersPortsTest(test.APITestCase):
         self.assertEqual(imported.device_owner, "network:router_interface")
         self.assertEqual(imported.subnet.backend_id, "subnet-backend-id")
 
+    def test_port_with_null_fixed_ips_does_not_abort_the_pull(self):
+        port = {
+            **TENANT_INTERFACE_PORT,
+            "tenant_id": self.tenant.backend_id,
+            "fixed_ips": None,
+        }
+        router = self._pull([port])
+
+        self.assertEqual(router.fixed_ips, [])
+        self.assertEqual([p.backend_id for p in router.ports.all()], ["port-interface"])
+
     def test_existing_port_row_is_reused_not_duplicated(self):
         factories.PortFactory(
             tenant=self.tenant,
@@ -171,6 +183,24 @@ class PullTenantRoutersPortsTest(test.APITestCase):
         )
         # The gateway address still reaches the UI through fixed_ips.
         self.assertIn("10.20.35.93", router.fixed_ips)
+
+    def test_integrity_error_is_logged_with_database_error_text(self):
+        error = 'duplicate key value violates unique constraint "openstack_router_x"'
+        with (
+            mock.patch.object(
+                models.Router.objects,
+                "update_or_create",
+                side_effect=IntegrityError(error),
+            ),
+            self.assertLogs("waldur_openstack.backend", "WARNING") as logs,
+            self.assertRaises(models.Router.DoesNotExist),
+        ):
+            self._pull([TENANT_INTERFACE_PORT])
+
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn(error, logs.output[0])
+        self.assertIn(ROUTER_BACKEND_ID, logs.output[0])
+        self.assertNotIn("concurrent update", logs.output[0])
 
 
 class GetRouterSelectionTest(test.APITestCase):
