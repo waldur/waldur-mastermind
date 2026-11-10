@@ -229,6 +229,7 @@ from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
 from . import (
+    api_key_cost,
     api_key_spending_limits,
     filters,
     log,
@@ -17892,6 +17893,7 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     queryset = models.ResourceApiKey.objects.select_related(
         "resource__project__customer",
         "resource__offering__customer",
+        "resource__plan",
         "user",
     ).order_by("created")
     lookup_field = "uuid"
@@ -17938,6 +17940,12 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
                     ),
                 )
             )
+        # What o=estimated_cost sorts on, and what the serializer shows.
+        qs = qs.annotate(
+            current_estimated_cost=api_key_cost.current_estimated_cost(
+                models.ResourceApiKey.current_period()
+            )
+        )
         # A deleted key is kept for the usage it reported, but a listing shows
         # it only when asked for by state.
         if self.action == "list" and models.ResourceApiKey.States.DELETED not in (
@@ -18180,32 +18188,54 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     destroy_permissions = consumer_command_permissions
     partial_update_permissions = consumer_command_permissions
 
+    # The scopes usage_totals sums over; it refuses a request naming none, so
+    # it never sums every key the caller can see.
+    USAGE_TOTALS_SCOPES = ("resource_uuid", "offering_uuid", "provider_uuid")
+
     @extend_schema(
-        summary="Total API key usage of a resource",
-        description="Sums the usage the site agent reported for the resource's "
-        "keys in the current month, per component type. Deleted keys are "
-        "included, so deleting a key leaves the total unchanged.",
+        summary="Total API key usage of a resource, offering or provider",
+        description="Sums the usage the site agent reported in the current month "
+        "for the keys of a resource, an offering or a service provider, per "
+        "component type, and their estimated cost. Deleted keys are included, "
+        "so deleting a key leaves the totals unchanged. One of resource_uuid, "
+        "offering_uuid and provider_uuid is required; the other list filters "
+        "narrow the keys summed. Per-component sums are only comparable within "
+        "one offering; estimated_cost adds up across offerings.",
         parameters=[
             OpenApiParameter(
-                "resource_uuid",
+                scope,
                 OpenApiTypes.UUID,
                 OpenApiParameter.QUERY,
-                required=True,
+                description="One of resource_uuid, offering_uuid and "
+                "provider_uuid is required.",
             )
+            for scope in USAGE_TOTALS_SCOPES
         ],
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyUsageTotalsSerializer},
-        filters=False,
+        # The list filters narrow the keys summed, so the schema lists them.
+        filters=True,
     )
     @action(detail=False, methods=["get"])
     def usage_totals(self, request):
-        if not request.query_params.get("resource_uuid"):
-            raise ValidationError({"resource_uuid": _("This parameter is required.")})
-        queryset = self.filter_queryset(self.get_queryset()).filter(
-            usage_period=models.ResourceApiKey.current_period()
-        )
+        if not any(
+            request.query_params.get(scope) for scope in self.USAGE_TOTALS_SCOPES
+        ):
+            raise ValidationError(
+                {
+                    "resource_uuid": _(
+                        "One of resource_uuid, offering_uuid and provider_uuid is "
+                        "required."
+                    )
+                }
+            )
+        period = models.ResourceApiKey.current_period()
+        queryset = self.filter_queryset(self.get_queryset()).filter(usage_period=period)
         return Response(
             serializers.ResourceApiKeyUsageTotalsSerializer(
-                {"usages": queryset.usage_totals()}
+                {
+                    "usages": queryset.usage_totals(),
+                    "estimated_cost": api_key_cost.total(queryset, period),
+                }
             ).data
         )
 
