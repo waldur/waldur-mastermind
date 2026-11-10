@@ -19,7 +19,7 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CallRole, OfferingRole
+from waldur_core.permissions.fixtures import CallRole, CustomerRole, OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
@@ -1072,6 +1072,156 @@ class HeldDecisionAwardTest(AwardedResourcesBase):
         )
         self.assertEqual(resource.limits, {"cpu": 40})
         self.assertEqual(self._get(self.applicant).status_code, status.HTTP_200_OK)
+
+
+class ResultsReaderAwardTest(AwardedResourcesBase):
+    """A results reader of the managing organisation (an organisation reader
+    holding CALL.VIEW_RESULTS) reads the award as part of the published
+    outcome, and nothing that follows it."""
+
+    def setUp(self):
+        super().setUp()
+        CustomerRole.READER.add_permission(PermissionEnum.VIEW_CALL_RESULTS)
+        self.reader = structure_factories.UserFactory()
+        self.call.manager.customer.add_user(self.reader, CustomerRole.READER)
+        self.round = self.proposal.round
+        # A second provider's request, so that "the whole award" is two items.
+        factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.other_requested_offering,
+            resource=None,
+            limits={"cpu": 50},
+        )
+        self._start_allocation()
+
+    def _publish(self):
+        self.round.lifecycle_state = RoundLifecycleStates.RESULTS_PUBLISHED
+        self.round.save(update_fields=["lifecycle_state"])
+
+    def _get(self, user, action="awarded_resources"):
+        self.client.force_authenticate(user)
+        return self.client.get(
+            factories.ProposalFactory.get_url(self.proposal, action=action)
+        )
+
+    def _offerings(self, response):
+        return {
+            str(row["requested_offering"]["offering_uuid"]).replace("-", "")
+            for row in response.data
+        }
+
+    def test_the_reader_sees_the_whole_award_of_a_published_round(self):
+        self._decide()
+        self._publish()
+
+        response = self._get(self.reader)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self._offerings(response),
+            {self.offering.uuid.hex, self.other_offering.uuid.hex},
+        )
+
+    def test_the_reader_sees_the_awarded_duration_of_a_published_round(self):
+        self.proposal.awarded_duration_months = 6
+        self.proposal.save(update_fields=["awarded_duration_months"])
+        self._decide()
+        self._publish()
+
+        response = self._get(self.reader, action=None)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["awarded_duration_months"], 6)
+
+    def test_the_reader_does_not_see_the_proposal_before_publication(self):
+        self._decide()
+
+        self.assertEqual(self._get(self.reader).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_the_reader_does_not_see_an_award_not_yet_released(self):
+        # Published, but the allocation decision is still being drafted.
+        self._publish()
+
+        response = self._get(self.reader)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_a_provider_reading_the_results_sees_only_its_own_draft_items(self):
+        # An offering manager reads its own part of a draft award; reading
+        # the round's results must not widen that to the other provider's.
+        self.offering.add_user(self.reader, OfferingRole.MANAGER)
+        self._publish()
+
+        response = self._get(self.reader)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self._offerings(response), {self.offering.uuid.hex})
+
+    def test_the_reader_does_not_see_the_award_of_a_withdrawn_proposal(self):
+        # The decision step shown to applicants keeps the award "released"
+        # after the proposal leaves the accepted state.
+        models.CallWorkflowStep.objects.filter(
+            call=self.call, key="allocation_decision"
+        ).update(applicant_visible=True)
+        self._decide()
+        self._publish()
+        for state in (ProposalStates.REJECTED, ProposalStates.CANCELED):
+            with self.subTest(state):
+                models.Proposal.objects.filter(pk=self.proposal.pk).update(state=state)
+
+                response = self._get(self.reader)
+
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_an_organisation_role_without_view_results_sees_nothing(self):
+        self._decide()
+        self._publish()
+        other = structure_factories.UserFactory()
+        self.call.manager.customer.add_user(other, CustomerRole.SUPPORT)
+
+        self.assertEqual(self._get(other).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_the_reader_does_not_see_a_declined_award(self):
+        self._decide(outcome=WorkflowStepOutcomes.DECLINED)
+        self._publish()
+
+        response = self._get(self.reader)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            str(response.data["detail"]),
+            "You cannot see this proposal's awarded resources.",
+        )
+
+    def test_the_reader_may_not_change_the_award(self):
+        self._decide()
+        self._publish()
+        self.client.force_authenticate(self.reader)
+        awarded = self.proposal.awarded_resources.first()
+
+        response = self.client.patch(
+            self._detail_url(awarded), {"limits": {"cpu": 1}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_the_reader_does_not_see_extensions_and_final_report(self):
+        self._decide()
+        self._publish()
+
+        self.assertEqual(
+            self._get(self.reader, action="runs").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_the_applicant_is_told_the_award_is_not_released(self):
+        response = self._get(self.applicant)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            str(response.data["detail"]),
+            "The awarded resources are not visible until the decision is released.",
+        )
 
 
 @pytest.mark.nightly

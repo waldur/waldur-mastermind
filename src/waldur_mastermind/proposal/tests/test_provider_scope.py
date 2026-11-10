@@ -13,7 +13,8 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status, test
 
-from waldur_core.permissions.fixtures import OfferingRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models, tasks, workflow_service
@@ -22,6 +23,7 @@ from waldur_mastermind.proposal.enums import (
     OutcomeSets,
     ProposalRunStates,
     ProposalStates,
+    RoundLifecycleStates,
     WorkflowPhases,
 )
 from waldur_mastermind.proposal.tests import factories, fixtures
@@ -296,6 +298,21 @@ class ExtensionRunTest(TwoProviderProposalBase):
         self.assertEqual(row["granted_limits"], {a: {"cpu": 150}})
         self.assertEqual(len(row["applied_changes"]["orders"]), 1)
         self.assertEqual(row["applied_changes"]["skipped"], [])
+
+    def test_a_provider_reading_the_results_still_reads_only_its_own_limits(self):
+        # Reading the round's published results opens the award, not the
+        # runs: the provider keeps to its own resources there.
+        CustomerRole.READER.add_permission(PermissionEnum.VIEW_CALL_RESULTS)
+        self.call.manager.customer.add_user(self.manager_a, CustomerRole.READER)
+        call_round = self.proposal.round
+        call_round.lifecycle_state = RoundLifecycleStates.RESULTS_PUBLISHED
+        call_round.save(update_fields=["lifecycle_state"])
+
+        (row,) = self._get(self.manager_a, self._url("runs"))
+
+        a = self.provisioned_a.uuid.hex
+        self.assertEqual(row["requested_limits"], {a: {"cpu": 200}})
+        self.assertEqual(row["granted_limits"], {a: {"cpu": 150}})
 
     def test_the_call_manager_reads_every_resources_limits(self):
         (row,) = self._get(self.call_manager, self._url("runs"))
