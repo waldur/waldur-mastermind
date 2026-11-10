@@ -1,4 +1,5 @@
 import textwrap
+from decimal import Decimal
 
 import yaml
 from ddt import data, ddt
@@ -1180,6 +1181,41 @@ class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
                         expected[(type(instance), field.name)],
                     )
 
+    def test_fractional_prices_given_as_numbers_are_imported_exactly(self):
+        # The export writes prices as numbers; 0.05 has no exact binary form.
+        response = self._import(
+            {
+                "offering": {"name": "Fractional Prices"},
+                "components": [{"type": "cpu"}, {"type": "ram"}],
+                "plans": [
+                    {
+                        "name": "Basic",
+                        "unit_price": 1.15,
+                        "components": [
+                            {"component_type": "cpu", "price": 0.05},
+                            {
+                                "component_type": "ram",
+                                "price": 0.1,
+                                "future_price": 1.15,
+                            },
+                        ],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        plan = models.Plan.objects.get(offering__name="Fractional Prices")
+        self.assertEqual(plan.unit_price, Decimal("1.15"))
+        prices = {
+            pc.component.type: (pc.price, pc.future_price)
+            for pc in plan.components.select_related("component")
+        }
+        self.assertEqual(
+            prices,
+            {"cpu": (Decimal("0.05"), None), "ram": (Decimal("0.1"), Decimal("1.15"))},
+        )
+
     @data(
         ({"components": [{"name": "No type"}]}, "components[0].type"),
         ({"components": [{"type": None}]}, "components[0].type"),
@@ -1199,6 +1235,11 @@ class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
         ({"components": ["cpu"]}, "components[0]"),
         ({"plans": [{"description": "No name"}]}, "plans[0].name"),
         ({"plans": [{"name": "Basic", "unit_price": "free"}]}, "plans[0].unit_price"),
+        (
+            # More decimal places than a price holds is still an error.
+            {"plans": [{"name": "Basic", "unit_price": 0.12345678901}]},
+            "plans[0].unit_price",
+        ),
         (
             {
                 "components": [{"type": "cpu"}],
