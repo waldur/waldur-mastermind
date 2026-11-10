@@ -30,6 +30,8 @@
 - event_consumer_registered_with_broad_credential
 - event_consumer_resync_requested
 - event_consumer_webhook_updated
+- oauth_consent_denied
+- oauth_consent_granted
 - oidc_token_refresh_failed
 - oidc_token_revoked
 - passkey_authentication_failed
@@ -620,6 +622,8 @@
 - matrix_password_generated
 - matrix_recovery_key_escrowed
 - matrix_recovery_key_viewed
+- oauth_consent_denied
+- oauth_consent_granted
 - oidc_token_refresh_failed
 - oidc_token_revoked
 - passkey_authentication_failed

@@ -110,6 +110,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ResourceDetailsMixin`](#resourcedetailsmixin) | `waldur_mastermind.marketplace.models` | Mixin combining resource details with cost estimation |
 | [`SafeAttributesMixin`](#safeattributesmixin) | `waldur_mastermind.marketplace.models` | Mixin for safe attribute handling |
 | [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
+| [`ResourceEndDateUpdateMixin`](#resourceenddateupdatemixin) | `waldur_mastermind.marketplace.serializers` | Write the end date and who set it, and nothing else |
 | [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
 | [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_settings` | No description available |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
@@ -131,6 +132,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
 | [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
+| [`ConsentTestMixin`](#consenttestmixin) | `waldur_mastermind.mcp.tests.test_consent` | No description available |
 | [`OAuthTestMixin`](#oauthtestmixin) | `waldur_mastermind.mcp.tests.test_oauth` | No description available |
 | [`EstimatedCostPolicyMixin`](#estimatedcostpolicymixin) | `waldur_mastermind.policy.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
@@ -178,6 +180,8 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`TenantQuotaMixin`](#tenantquotamixin) | `waldur_openstack.models` | It allows to update both service settings and shared tenant quotas |
 | [`LimitedPerTypeThrottleMixin`](#limitedpertypethrottlemixin) | `waldur_openstack.tasks` | No description available |
 | [`TenantMixin`](#tenantmixin) | `waldur_openstack.tests.factories` | No description available |
+| [`ExternalShareMixin`](#externalsharemixin) | `waldur_openstack.tests.test_external_share_ports` | The owner's network, shared with the consumer's tenant in one cloud |
+| [`TwoProjectsMixin`](#twoprojectsmixin) | `waldur_openstack.tests.test_port_token_bindings` | A user who administers projects A and B, each with a tenant |
 | [`SharedSubnetMixin`](#sharedsubnetmixin) | `waldur_openstack.tests.test_rbac_shared_subnet_actions` | No description available |
 | [`UnmanagedOwnerShareMixin`](#unmanagedownersharemixin) | `waldur_openstack.tests.test_unmanaged_owner_share` | No description available |
 | [`LBaaSAuditMixin`](#lbaasauditmixin) | `waldur_openstack.views` | Emit lifecycle audit events for LBaaS resources on create/update/delete |
@@ -1568,6 +1572,18 @@ which is distinct from any real state.
 
 **Base classes:** `Serializer`
 
+### ResourceEndDateUpdateMixin
+
+**Module:** `waldur_mastermind.marketplace.serializers`
+
+**Description:**
+
+Write the end date and who set it, and nothing else.
+
+A full save would write back every field of the resource as the view loaded
+it, undoing whatever a concurrent request, such as the agent reporting the
+resource OK, changed in between.
+
 ### UserProfileAttributeFieldsMixin
 
 **Module:** `waldur_mastermind.marketplace.serializers`
@@ -1753,6 +1769,14 @@ Reads stay open so the rooms list remains viewable, but a write would only
 enqueue a Celery task against a non-existent homeserver: the row is left
 stranded in a transient state (creating/disabling) that never resolves. The
 frontend hides these actions; this is the backstop for direct or stale calls.
+
+### ConsentTestMixin
+
+**Module:** `waldur_mastermind.mcp.tests.test_consent`
+
+**Description:** No description available.
+
+**Base classes:** `OAuthTestMixin`
 
 ### OAuthTestMixin
 
@@ -2245,6 +2269,22 @@ It allows to update both service settings and shared tenant quotas.
 **Module:** `waldur_openstack.tests.factories`
 
 **Description:** No description available.
+
+### ExternalShareMixin
+
+**Module:** `waldur_openstack.tests.test_external_share_ports`
+
+**Description:**
+
+The owner's network, shared with the consumer's tenant in one cloud.
+
+### TwoProjectsMixin
+
+**Module:** `waldur_openstack.tests.test_port_token_bindings`
+
+**Description:**
+
+A user who administers projects A and B, each with a tenant.
 
 ### SharedSubnetMixin
 
