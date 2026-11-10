@@ -365,7 +365,11 @@ def log_role_updated(
     sender, instance, current_user=None, reason: str | None = None, **kwargs
 ):
     """Log the event of a user's role being updated."""
-    old_time = instance.tracker.previous("expiration_time")
+    # The role is saved before the signal is sent, which resets the tracker:
+    # its previous value is already the new one.
+    old_time = kwargs.get(
+        "old_expiration_time", instance.tracker.previous("expiration_time")
+    )
     new_time = instance.expiration_time
 
     if not reason:
@@ -377,7 +381,8 @@ def log_role_updated(
     message = (
         "Permission expiration time for user {affected_user_full_name} ({affected_user_username}) "
         "in {scope_name} is updated from "
-        f"{old_time} to {new_time}. Initiated by: {{initiated_by}}. "
+        f"{event_logger.literal(old_time)} to {event_logger.literal(new_time)}. "
+        "Initiated by: {initiated_by}. "
         f"Reason: {event_logger.literal(reason)}"
     )
 

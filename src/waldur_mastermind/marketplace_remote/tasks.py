@@ -669,9 +669,9 @@ def notify_resource_end_date_pulled_from_remote(
         "updated from %(old_end_date)s to %(new_end_date)s "
         "(synced from remote allocation)."
         % {
-            "resource_name": resource.name,
-            "old_end_date": old_end_date,
-            "new_end_date": new_end_date,
+            "resource_name": event_logger.literal(resource.name),
+            "old_end_date": event_logger.literal(old_end_date),
+            "new_end_date": event_logger.literal(new_end_date),
         },
         event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_END_DATE_SUCCEEDED,
         event_context={"resource": resource},

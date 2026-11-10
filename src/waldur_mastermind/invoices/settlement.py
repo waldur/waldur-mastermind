@@ -399,7 +399,7 @@ def _write(project_credit, customer_credit, payment_plan) -> PaymentPlan:
             )
             # bulk_create sends no post_save, so the handler's event is not sent.
             event_logger.emit(
-                f"Invoice item {item.name} has been created.",
+                f"Invoice item {event_logger.literal(item.name)} has been created.",
                 event_type=EventType.INVOICE_ITEM_CREATED,
                 event_context={"invoice_item": item},
                 scopes=[invoice.customer, invoice],

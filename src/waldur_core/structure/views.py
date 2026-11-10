@@ -2573,7 +2573,8 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     def perform_create(self, serializer):
         user = serializer.save()
         event_logger.emit(
-            "User {affected_user_username} has been created by %s." % self.request.user,
+            "User {affected_user_username} has been created by %s."
+            % event_logger.literal(self.request.user),
             event_type=EventType.USER_HAS_BEEN_CREATED_BY_STAFF,
             event_context={"affected_user": user},
             scopes=[user],
@@ -2616,7 +2617,7 @@ class CustomerPermissionReviewViewSet(
         review.close(request.user)
         event_logger.emit(
             "Customer permission review has been closed for organization %s."
-            % review.customer.name,
+            % event_logger.literal(review.customer.name),
             event_type=EventType.CUSTOMER_PERMISSION_REVIEW_CLOSED,
             event_context={"customer_permission_review": review},
             scopes=[review.customer],
@@ -2660,7 +2661,7 @@ class ProjectPermissionReviewViewSet(
         review.close(request.user)
         event_logger.emit(
             "Project permission review has been closed for project %s."
-            % review.project.name,
+            % event_logger.literal(review.project.name),
             event_type=EventType.PROJECT_PERMISSION_REVIEW_CLOSED,
             event_context={"project_permission_review": review},
             scopes=[review.project],

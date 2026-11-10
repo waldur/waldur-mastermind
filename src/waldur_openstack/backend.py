@@ -1323,7 +1323,8 @@ class OpenStackBackend(ServiceBackend):
         logger.info(f"Removing {stale_groups.count()} sec groups from {tenants}.")
         for security_group in stale_groups:
             event_logger.emit(
-                "Security group %s has been cleaned from cache." % security_group.name,
+                "Security group %s has been cleaned from cache."
+                % event_logger.literal(security_group.name),
                 event_type=EventType.OPENSTACK_SECURITY_GROUP_CLEANED,
                 event_context={
                     "security_group": security_group,
@@ -1378,7 +1379,8 @@ class OpenStackBackend(ServiceBackend):
 
     def _log_security_group_imported(self, security_group: models.SecurityGroup):
         event_logger.emit(
-            "Security group %s has been imported to local cache." % security_group.name,
+            "Security group %s has been imported to local cache."
+            % event_logger.literal(security_group.name),
             event_type=EventType.OPENSTACK_SECURITY_GROUP_IMPORTED,
             event_context={"security_group": security_group},
             scopes=[security_group.tenant, security_group],
@@ -1386,7 +1388,8 @@ class OpenStackBackend(ServiceBackend):
 
     def _log_security_group_pulled(self, security_group: models.SecurityGroup):
         event_logger.emit(
-            "Security group %s has been pulled from backend." % security_group.name,
+            "Security group %s has been pulled from backend."
+            % event_logger.literal(security_group.name),
             event_type=EventType.OPENSTACK_SECURITY_GROUP_PULLED,
             event_context={"security_group": security_group},
             scopes=[security_group.tenant, security_group],
@@ -1984,7 +1987,8 @@ class OpenStackBackend(ServiceBackend):
                     network = imported_network
 
                     event_logger.emit(
-                        "Network %s has been imported to local cache." % network.name,
+                        "Network %s has been imported to local cache."
+                        % event_logger.literal(network.name),
                         event_type=EventType.OPENSTACK_NETWORK_IMPORTED,
                         event_context={"network": network},
                         scopes=[network, network.tenant],
@@ -2002,7 +2006,8 @@ class OpenStackBackend(ServiceBackend):
                     handle_resource_update_success(network)
                     if modified:
                         event_logger.emit(
-                            "Network %s has been pulled from backend." % network.name,
+                            "Network %s has been pulled from backend."
+                            % event_logger.literal(network.name),
                             event_type=EventType.OPENSTACK_NETWORK_PULLED,
                             event_context={"network": network},
                             scopes=[network, network.tenant],
@@ -2019,7 +2024,8 @@ class OpenStackBackend(ServiceBackend):
 
             for network in stale_networks:
                 event_logger.emit(
-                    "Network %s has been cleaned from cache." % network.name,
+                    "Network %s has been cleaned from cache."
+                    % event_logger.literal(network.name),
                     event_type=EventType.OPENSTACK_NETWORK_CLEANED,
                     event_context={"network": network},
                     scopes=[network, network.tenant],
@@ -2142,7 +2148,8 @@ class OpenStackBackend(ServiceBackend):
                     subnet = imported_subnet
 
                     event_logger.emit(
-                        "SubNet %s has been imported to local cache." % subnet.name,
+                        "SubNet %s has been imported to local cache."
+                        % event_logger.literal(subnet.name),
                         event_type=EventType.OPENSTACK_SUBNET_IMPORTED,
                         event_context={
                             "subnet": subnet,
@@ -2157,7 +2164,8 @@ class OpenStackBackend(ServiceBackend):
                     handle_resource_update_success(subnet)
                     if modified:
                         event_logger.emit(
-                            "SubNet %s has been pulled from backend." % subnet.name,
+                            "SubNet %s has been pulled from backend."
+                            % event_logger.literal(subnet.name),
                             event_type=EventType.OPENSTACK_SUBNET_PULLED,
                             event_context={
                                 "subnet": subnet,
@@ -2173,7 +2181,7 @@ class OpenStackBackend(ServiceBackend):
             ).exclude(uuid__in=subnet_uuids)
             for subnet in stale_subnets:
                 event_logger.emit(
-                    "SubNet %s has been cleaned." % subnet.name,
+                    "SubNet %s has been cleaned." % event_logger.literal(subnet.name),
                     event_type=EventType.OPENSTACK_SUBNET_CLEANED,
                     event_context={
                         "subnet": subnet,
@@ -3010,7 +3018,7 @@ class OpenStackBackend(ServiceBackend):
 
             event_logger.emit(
                 'Security group "%s" has been created in the backend.'
-                % security_group.name,
+                % event_logger.literal(security_group.name),
                 event_type=EventType.OPENSTACK_SECURITY_GROUP_CREATED,
                 event_context={
                     "security_group": security_group,
@@ -3029,7 +3037,8 @@ class OpenStackBackend(ServiceBackend):
             neutron.delete_security_group(security_group.backend_id)
 
             event_logger.emit(
-                'Security group "%s" has been deleted' % security_group.name,
+                'Security group "%s" has been deleted'
+                % event_logger.literal(security_group.name),
                 event_type=EventType.OPENSTACK_SECURITY_GROUP_DELETED,
                 event_context={
                     "security_group": security_group,
@@ -3129,7 +3138,8 @@ class OpenStackBackend(ServiceBackend):
             self.push_security_group_rules(security_group)
 
             event_logger.emit(
-                'Security group "%s" has been updated' % security_group.name,
+                'Security group "%s" has been updated'
+                % event_logger.literal(security_group.name),
                 event_type=EventType.OPENSTACK_SECURITY_GROUP_UPDATED,
                 event_context={
                     "security_group": security_group,
@@ -3217,7 +3227,7 @@ class OpenStackBackend(ServiceBackend):
             server_group.save(update_fields=["backend_id"])
             event_logger.emit(
                 'Server group "%s" has been created in the backend.'
-                % server_group.name,
+                % event_logger.literal(server_group.name),
                 event_type=EventType.OPENSTACK_SERVER_GROUP_CREATED,
                 event_context={
                     "server_group": server_group,
@@ -3234,7 +3244,8 @@ class OpenStackBackend(ServiceBackend):
         try:
             nova.server_groups.delete(server_group.backend_id)
             event_logger.emit(
-                'Server group "%s" has been deleted' % server_group.name,
+                'Server group "%s" has been deleted'
+                % event_logger.literal(server_group.name),
                 event_type=EventType.OPENSTACK_SERVER_GROUP_DELETED,
                 event_context={
                     "server_group": server_group,
@@ -3417,7 +3428,8 @@ class OpenStackBackend(ServiceBackend):
             network.tenant.save()
 
             event_logger.emit(
-                "Network %s has been created in the backend." % network.name,
+                "Network %s has been created in the backend."
+                % event_logger.literal(network.name),
                 event_type=EventType.OPENSTACK_NETWORK_CREATED,
                 event_context={
                     "network": network,
@@ -3451,7 +3463,7 @@ class OpenStackBackend(ServiceBackend):
     def set_network_mtu(self, network: models.Network):
         self._update_network(network, {"mtu": network.mtu})
         event_logger.emit(
-            "Network MTU %s has been updated." % network.name,
+            "Network MTU %s has been updated." % event_logger.literal(network.name),
             event_type=EventType.OPENSTACK_NETWORK_UPDATED,
             event_context={"network": network},
             scopes=[network, network.tenant],
@@ -3471,7 +3483,7 @@ class OpenStackBackend(ServiceBackend):
         else:
             network.decrease_backend_quotas_usage()
             event_logger.emit(
-                "Network %s has been deleted" % network.name,
+                "Network %s has been deleted" % event_logger.literal(network.name),
                 event_type=EventType.OPENSTACK_NETWORK_DELETED,
                 event_context={
                     "network": network,
@@ -3510,7 +3522,8 @@ class OpenStackBackend(ServiceBackend):
             )
             if modified:
                 event_logger.emit(
-                    "Network %s has been pulled from backend." % network.name,
+                    "Network %s has been pulled from backend."
+                    % event_logger.literal(network.name),
                     event_type=EventType.OPENSTACK_NETWORK_PULLED,
                     event_context={"network": network},
                     scopes=[network, network.tenant],
@@ -3579,7 +3592,8 @@ class OpenStackBackend(ServiceBackend):
             subnet.save()
 
             event_logger.emit(
-                "SubNet %s has been created in the backend." % subnet.name,
+                "SubNet %s has been created in the backend."
+                % event_logger.literal(subnet.name),
                 event_type=EventType.OPENSTACK_SUBNET_CREATED,
                 event_context={
                     "subnet": subnet,
@@ -3622,7 +3636,7 @@ class OpenStackBackend(ServiceBackend):
 
         neutron.update_subnet(subnet.backend_id, {"subnet": data})
         event_logger.emit(
-            "SubNet %s has been updated" % subnet.name,
+            "SubNet %s has been updated" % event_logger.literal(subnet.name),
             event_type=EventType.OPENSTACK_SUBNET_UPDATED,
             event_context={
                 "subnet": subnet,
@@ -3651,7 +3665,8 @@ class OpenStackBackend(ServiceBackend):
             subnet.save(update_fields=["is_connected"])
 
             event_logger.emit(
-                "SubNet %s has been disconnected from network" % subnet.name,
+                "SubNet %s has been disconnected from network"
+                % event_logger.literal(subnet.name),
                 event_type=EventType.OPENSTACK_SUBNET_UPDATED,
                 event_context={
                     "subnet": subnet,
@@ -3723,7 +3738,8 @@ class OpenStackBackend(ServiceBackend):
         router_backend_id = resolved_backend_id
 
         event_logger.emit(
-            "SubNet %s has been connected to network" % subnet.name,
+            "SubNet %s has been connected to network"
+            % event_logger.literal(subnet.name),
             event_type=EventType.OPENSTACK_SUBNET_UPDATED,
             event_context={
                 "subnet": subnet,
@@ -3776,7 +3792,7 @@ class OpenStackBackend(ServiceBackend):
         else:
             subnet.decrease_backend_quotas_usage()
             event_logger.emit(
-                "SubNet %s has been deleted" % subnet.name,
+                "SubNet %s has been deleted" % event_logger.literal(subnet.name),
                 event_type=EventType.OPENSTACK_SUBNET_DELETED,
                 event_context={
                     "subnet": subnet,
@@ -3829,7 +3845,8 @@ class OpenStackBackend(ServiceBackend):
             )
             if modified:
                 event_logger.emit(
-                    "SubNet %s has been pulled from backend." % subnet.name,
+                    "SubNet %s has been pulled from backend."
+                    % event_logger.literal(subnet.name),
                     event_type=EventType.OPENSTACK_SUBNET_PULLED,
                     event_context={
                         "subnet": subnet,
@@ -4584,7 +4601,8 @@ class OpenStackBackend(ServiceBackend):
 
     def _log_server_group_imported(self, server_group: models.ServerGroup):
         event_logger.emit(
-            "Server group %s has been imported to local cache." % server_group.name,
+            "Server group %s has been imported to local cache."
+            % event_logger.literal(server_group.name),
             event_type=EventType.OPENSTACK_SERVER_GROUP_IMPORTED,
             event_context={"server_group": server_group},
             scopes=[server_group, server_group.tenant],
@@ -4592,7 +4610,8 @@ class OpenStackBackend(ServiceBackend):
 
     def _log_server_group_pulled(self, server_group: models.ServerGroup):
         event_logger.emit(
-            "Server group %s has been pulled from backend." % server_group.name,
+            "Server group %s has been pulled from backend."
+            % event_logger.literal(server_group.name),
             event_type=EventType.OPENSTACK_SERVER_GROUP_PULLED,
             event_context={"server_group": server_group},
             scopes=[server_group, server_group.tenant],
@@ -4600,7 +4619,8 @@ class OpenStackBackend(ServiceBackend):
 
     def _log_server_group_created(self, server_group: models.ServerGroup):
         event_logger.emit(
-            'Server group "%s" has been created in the backend.' % server_group.name,
+            'Server group "%s" has been created in the backend.'
+            % event_logger.literal(server_group.name),
             event_type=EventType.OPENSTACK_SERVER_GROUP_CREATED,
             event_context={"server_group": server_group},
             scopes=[server_group, server_group.tenant],
@@ -4672,7 +4692,8 @@ class OpenStackBackend(ServiceBackend):
         ).exclude(backend_id__in=remote_ids)
         for server_group in stale_groups:
             event_logger.emit(
-                "Server group %s has been cleaned from cache." % server_group.name,
+                "Server group %s has been cleaned from cache."
+                % event_logger.literal(server_group.name),
                 event_type=EventType.OPENSTACK_SERVER_GROUP_CLEANED,
                 event_context={
                     "server_group": server_group,
@@ -5699,7 +5720,7 @@ class OpenStackBackend(ServiceBackend):
                         backend_network_id=backend_floating_ip["floating_network_id"],
                     )
                     event_logger.emit(
-                        f"Floating IP {floating_ip.address} has been disconnected from instance "
+                        f"Floating IP {event_logger.literal(floating_ip.address)} has been disconnected from instance "
                         f"{event_logger.literal(instance.name)}.",
                         event_type=EventType.OPENSTACK_FLOATING_IP_DISCONNECTED,
                         event_context={
@@ -5748,7 +5769,7 @@ class OpenStackBackend(ServiceBackend):
                     raise OpenStackBackendError(e)
                 else:
                     event_logger.emit(
-                        f"Floating IP {floating_ip.address} has been connected to instance "
+                        f"Floating IP {event_logger.literal(floating_ip.address)} has been connected to instance "
                         f"{event_logger.literal(instance.name)}.",
                         event_type=EventType.OPENSTACK_FLOATING_IP_CONNECTED,
                         event_context={
@@ -7108,7 +7129,10 @@ class OpenStackBackend(ServiceBackend):
         for security_group in stale_groups:
             event_logger.emit(
                 "Removed security group %s from instance %s"
-                % (security_group.name, instance.name),
+                % (
+                    event_logger.literal(security_group.name),
+                    event_logger.literal(instance.name),
+                ),
                 EventType.OPENSTACK_SECURITY_GROUP_REMOVED_LOCALLY,
                 {"instance": instance, "security_group": security_group},
                 scopes=[instance],
@@ -7127,7 +7151,10 @@ class OpenStackBackend(ServiceBackend):
                 instance.security_groups.add(security_group)
                 event_logger.emit(
                     "Removed security group %s from instance %s"
-                    % (security_group.name, instance.name),
+                    % (
+                        event_logger.literal(security_group.name),
+                        event_logger.literal(instance.name),
+                    ),
                     EventType.OPENSTACK_SECURITY_GROUP_ADDED_LOCALLY,
                     {"instance": instance, "security_group": security_group},
                     scopes=[instance],
@@ -7197,7 +7224,12 @@ class OpenStackBackend(ServiceBackend):
                 local_group = group_map.get(group_id)
                 event_logger.emit(
                     "Removed security group %s from instance %s"
-                    % (local_group and local_group.name or group_id, instance.name),
+                    % (
+                        event_logger.literal(
+                            local_group and local_group.name or group_id
+                        ),
+                        event_logger.literal(instance.name),
+                    ),
                     EventType.OPENSTACK_SECURITY_GROUP_REMOVED_REMOTELY,
                     {"instance": instance, "security_group": local_group},
                     scopes=[instance],
@@ -7220,7 +7252,12 @@ class OpenStackBackend(ServiceBackend):
                 local_group = group_map.get(group_id)
                 event_logger.emit(
                     "Added security group %s to instance %s"
-                    % (local_group and local_group.name or group_id, instance.name),
+                    % (
+                        event_logger.literal(
+                            local_group and local_group.name or group_id
+                        ),
+                        event_logger.literal(instance.name),
+                    ),
                     EventType.OPENSTACK_SECURITY_GROUP_ADDED_REMOTELY,
                     {"instance": instance, "security_group": local_group},
                     scopes=[instance],
@@ -7798,7 +7835,8 @@ class OpenStackBackend(ServiceBackend):
                 )
                 network.save()
                 event_logger.emit(
-                    "Network %s has been imported to local cache." % network.name,
+                    "Network %s has been imported to local cache."
+                    % event_logger.literal(network.name),
                     event_type=EventType.OPENSTACK_NETWORK_IMPORTED,
                     event_context={"network": network},
                     scopes=[network, network.tenant],
@@ -7957,7 +7995,8 @@ class OpenStackBackend(ServiceBackend):
         )
         if modified:
             event_logger.emit(
-                "Network %s has been pulled from backend." % network.name,
+                "Network %s has been pulled from backend."
+                % event_logger.literal(network.name),
                 event_type=EventType.OPENSTACK_NETWORK_PULLED,
                 event_context={"network": network},
                 scopes=[network, network.tenant],

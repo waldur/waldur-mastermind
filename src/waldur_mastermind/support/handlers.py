@@ -78,7 +78,7 @@ def log_issue_save(sender, instance: models.Issue, created=False, **kwargs):
         if len(updated_fields.keys()) > 0:
             event_logger.emit(
                 "Issue {issue_key} has been updated. Changed fields: %s."
-                % ", ".join(updated_fields.keys()),
+                % event_logger.literal(", ".join(updated_fields.keys())),
                 event_type=EventType.ISSUE_UPDATE_SUCCEEDED,
                 event_context={
                     "issue": instance,

@@ -159,7 +159,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         )
 
         message = _("Droplet {droplet_name} has been scheduled to %s resize.") % (
-            disk and _("permanent") or _("flexible")
+            _("permanent") if disk else _("flexible")
         )
         event_logger.emit(
             message,

@@ -420,7 +420,8 @@ def _log_earlier_invoices_settings(credit: ProjectCredit, created, scopes):
         )
         message = (
             "{project_name} project credit pays earlier invoices"
-            f"{_earlier_invoices_months(credit)}, written on {where}."
+            f"{event_logger.literal(_earlier_invoices_months(credit))}, "
+            f"written on {where}."
         )
     elif not created and credit.tracker.previous("pay_earlier_invoices"):
         message = "{project_name} project credit no longer pays earlier invoices."
@@ -496,7 +497,7 @@ def log_invoice_item_save(
 ):
     if created:
         event_logger.emit(
-            f"Invoice item {instance.name} has been created.",
+            f"Invoice item {event_logger.literal(instance.name)} has been created.",
             event_type=EventType.INVOICE_ITEM_CREATED,
             event_context={
                 "invoice_item": instance,
@@ -546,7 +547,8 @@ def log_invoice_item_save(
         if changes:
             diff = ", ".join(changes)
             event_logger.emit(
-                f"Invoice item {instance.name} has been updated. Details: {diff}.",
+                f"Invoice item {event_logger.literal(instance.name)} has been "
+                f"updated. Details: {event_logger.literal(diff)}.",
                 event_type=EventType.INVOICE_ITEM_UPDATED,
                 event_context={
                     "invoice_item": instance,
@@ -557,7 +559,7 @@ def log_invoice_item_save(
 
 def log_invoice_item_delete(sender, instance: models.InvoiceItem, **kwargs):
     event_logger.emit(
-        f"Invoice item {instance.name} has been deleted.",
+        f"Invoice item {event_logger.literal(instance.name)} has been deleted.",
         event_type=EventType.INVOICE_ITEM_DELETED,
         event_context={
             "invoice_item": instance,

@@ -222,6 +222,8 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
     objects = UserRoleManager()
 
     def set_expiration_time(self, expiration_time, current_user=None, reason=None):
+        # Saving resets the field tracker, so receivers are told the old value.
+        old_expiration_time = self.expiration_time
         self.expiration_time = expiration_time
         self.save(update_fields=["expiration_time"])
         if not reason:
@@ -234,6 +236,7 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
             instance=self,
             current_user=current_user,
             reason=reason,
+            old_expiration_time=old_expiration_time,
         )
 
     def revoke(self, current_user=None, reason=None):

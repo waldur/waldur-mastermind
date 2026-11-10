@@ -1186,7 +1186,8 @@ def plan_component_has_been_updated(
         instance.tracker.previous("price"), instance.price
     ):
         event_logger.emit(
-            f"Current price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
+            f"Current price of component {event_logger.literal(instance.component.type)} "
+            f"in plan {event_logger.literal(instance.plan.name)} has been updated.",
             event_type=EventType.MARKETPLACE_PLAN_COMPONENT_CURRENT_PRICE_UPDATED,
             event_context={
                 "plan_component": instance,
@@ -1201,7 +1202,8 @@ def plan_component_has_been_updated(
         instance.tracker.previous("future_price"), instance.future_price
     ):
         event_logger.emit(
-            f"Future price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
+            f"Future price of component {event_logger.literal(instance.component.type)} "
+            f"in plan {event_logger.literal(instance.plan.name)} has been updated.",
             event_type=EventType.MARKETPLACE_PLAN_COMPONENT_FUTURE_PRICE_UPDATED,
             event_context={
                 "plan_component": instance,
@@ -1216,7 +1218,8 @@ def plan_component_has_been_updated(
         instance.tracker.previous("amount"), instance.amount
     ):
         event_logger.emit(
-            f"Quota of component {instance.component.type} in plan {instance.plan.name} has been updated.",
+            f"Quota of component {event_logger.literal(instance.component.type)} "
+            f"in plan {event_logger.literal(instance.plan.name)} has been updated.",
             event_type=EventType.MARKETPLACE_PLAN_COMPONENT_QUOTA_UPDATED,
             event_context={
                 "plan_component": instance,
@@ -1371,8 +1374,8 @@ def offering_has_been_created_or_updated(
                 instance.tracker.previous("options"), instance.options
             )
             event_logger.emit(
-                f"Offering {instance.name} order form options have been updated. "
-                f"Details: {changes_summary}",
+                f"Offering {event_logger.literal(instance.name)} order form options "
+                f"have been updated. Details: {event_logger.literal(changes_summary)}",
                 event_type=EventType.MARKETPLACE_OFFERING_OPTIONS_UPDATED,
                 event_context={
                     "offering": instance,
@@ -1387,8 +1390,9 @@ def offering_has_been_created_or_updated(
                 instance.resource_options,
             )
             event_logger.emit(
-                f"Offering {instance.name} resource report form options have been "
-                f"updated. Details: {changes_summary}",
+                f"Offering {event_logger.literal(instance.name)} resource report form "
+                "options have been updated. "
+                f"Details: {event_logger.literal(changes_summary)}",
                 event_type=EventType.MARKETPLACE_OFFERING_RESOURCE_OPTIONS_UPDATED,
                 event_context={
                     "offering": instance,
@@ -1563,7 +1567,8 @@ def log_offering_user_created(sender, instance: OfferingUser, created=False, **k
     if not created:
         return
     event_logger.emit(
-        f"Account for user {instance.user.username} in offering {instance.offering.name} has been created.",
+        f"Account for user {event_logger.literal(instance.user.username)} in offering "
+        f"{event_logger.literal(instance.offering.name)} has been created.",
         event_type=EventType.MARKETPLACE_OFFERING_USER_CREATED,
         event_context={"offering_user": instance},
         scopes=[instance.offering, instance.offering.customer],
@@ -1573,7 +1578,8 @@ def log_offering_user_created(sender, instance: OfferingUser, created=False, **k
 def log_offering_user_deleted(sender, instance: OfferingUser, **kwargs):
     """Log offering user deletion."""
     event_logger.emit(
-        f"Account for user {instance.user.username} in offering {instance.offering.name} has been deleted.",
+        f"Account for user {event_logger.literal(instance.user.username)} in offering "
+        f"{event_logger.literal(instance.offering.name)} has been deleted.",
         event_type=EventType.MARKETPLACE_OFFERING_USER_DELETED,
         event_context={"offering_user": instance},
         scopes=[instance.offering, instance.offering.customer],
@@ -1789,7 +1795,7 @@ def log_service_account_created_or_updated(
             instance.tracker.changed(), instance, SERVICE_ACCOUNT_TYPE
         )
         event_logger.emit(
-            changed_string,
+            event_logger.literal(changed_string),
             event_type=EventType.SERVICE_ACCOUNT_UPDATED,
             event_context={"service_account": instance},
             scopes=[instance, instance.scope],
@@ -1822,7 +1828,7 @@ def log_resource_robot_account_created_or_updated(
             instance.tracker.changed(), instance, ROBOT_ACCOUNT_TYPE
         )
         event_logger.emit(
-            changed_string,
+            event_logger.literal(changed_string),
             event_type=EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED,
             event_context={"robot_account": instance},
             scopes=[instance, instance.resource],
@@ -3497,8 +3503,9 @@ def log_resource_end_date_change_request_events(
     }
     if created:
         event_logger.emit(
-            f"{instance.created_by} requested the end date of resource "
-            f"{resource.name} be changed to {instance.requested_end_date}.",
+            f"{event_logger.literal(instance.created_by)} requested the end date of "
+            f"resource {event_logger.literal(resource.name)} be changed to "
+            f"{event_logger.literal(instance.requested_end_date)}.",
             event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CREATED,
             event_context=event_context,
             scopes=[resource],
@@ -3510,16 +3517,18 @@ def log_resource_end_date_change_request_events(
 
     if instance.state == ReviewStates.APPROVED:
         event_logger.emit(
-            f"{instance.reviewed_by} approved changing the end date of resource "
-            f"{resource.name} to {instance.requested_end_date}.",
+            f"{event_logger.literal(instance.reviewed_by)} approved changing the end "
+            f"date of resource {event_logger.literal(resource.name)} to "
+            f"{event_logger.literal(instance.requested_end_date)}.",
             event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_APPROVED,
             event_context=event_context,
             scopes=[resource],
         )
     elif instance.state == ReviewStates.REJECTED:
         event_logger.emit(
-            f"{instance.reviewed_by} rejected changing the end date of resource "
-            f"{resource.name} to {instance.requested_end_date}.",
+            f"{event_logger.literal(instance.reviewed_by)} rejected changing the end "
+            f"date of resource {event_logger.literal(resource.name)} to "
+            f"{event_logger.literal(instance.requested_end_date)}.",
             event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_REJECTED,
             event_context=event_context,
             scopes=[resource],
@@ -3527,8 +3536,9 @@ def log_resource_end_date_change_request_events(
     elif instance.state == ReviewStates.CANCELED:
         # Withdrawn by the requester, so there is no reviewer to name.
         event_logger.emit(
-            f"{instance.created_by} withdrew the request to change the end date "
-            f"of resource {resource.name} to {instance.requested_end_date}.",
+            f"{event_logger.literal(instance.created_by)} withdrew the request to "
+            f"change the end date of resource {event_logger.literal(resource.name)} "
+            f"to {event_logger.literal(instance.requested_end_date)}.",
             event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CANCELED,
             event_context=event_context,
             scopes=[resource],
@@ -3801,8 +3811,8 @@ def log_access_subnet_offering_scope_save(sender, instance, created=False, **kwa
     if not created:
         return
     event_logger.emit(
-        f"Access subnet {instance.access_subnet} now applies to "
-        f"{instance.offering.name}.",
+        f"Access subnet {event_logger.literal(instance.access_subnet)} now applies "
+        f"to {event_logger.literal(instance.offering.name)}.",
         event_type=EventType.ACCESS_SUBNET_UPDATE_SUCCEEDED,
         event_context={"access_subnet": instance.access_subnet},
         scopes=[
@@ -3816,8 +3826,8 @@ def log_access_subnet_offering_scope_save(sender, instance, created=False, **kwa
 def log_access_subnet_offering_scope_deletion(sender, instance, **kwargs):
     """Log an access subnet losing an offering scope."""
     event_logger.emit(
-        f"Access subnet {instance.access_subnet} no longer applies to "
-        f"{instance.offering.name}.",
+        f"Access subnet {event_logger.literal(instance.access_subnet)} no longer "
+        f"applies to {event_logger.literal(instance.offering.name)}.",
         event_type=EventType.ACCESS_SUBNET_UPDATE_SUCCEEDED,
         event_context={"access_subnet": instance.access_subnet},
         scopes=[instance.access_subnet.customer, instance.offering],

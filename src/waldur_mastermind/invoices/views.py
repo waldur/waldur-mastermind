@@ -696,7 +696,8 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         invoice_item.save()
 
         event_logger.emit(
-            f"Invoice item has been migrated from {old_invoice} to {invoice}",
+            f"Invoice item has been migrated from {event_logger.literal(old_invoice)} "
+            f"to {event_logger.literal(invoice)}",
             event_type=EventType.INVOICE_ITEM_UPDATED,
             event_context={
                 "invoice_item": invoice_item,

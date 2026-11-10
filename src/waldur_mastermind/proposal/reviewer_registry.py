@@ -69,11 +69,11 @@ def set_standing(profile, standing, reason, acting_user):
         "Standing of reviewer %(reviewer)s changed from %(previous)s to "
         "%(standing)s by %(user)s%(reason)s"
         % {
-            "reviewer": _name(profile.user),
-            "previous": previous,
-            "standing": standing,
-            "user": _name(acting_user),
-            "reason": f": {reason}" if reason else ".",
+            "reviewer": event_logger.literal(_name(profile.user)),
+            "previous": event_logger.literal(previous),
+            "standing": event_logger.literal(standing),
+            "user": event_logger.literal(_name(acting_user)),
+            "reason": f": {event_logger.literal(reason)}" if reason else ".",
         },
         previous_standing=previous,
         standing=standing,
@@ -102,7 +102,7 @@ def publish(profile, user):
             profile,
             EventType.REVIEWER_PUBLICATION_REQUESTED,
             "Reviewer %(reviewer)s asked to publish their profile."
-            % {"reviewer": _name(profile.user)},
+            % {"reviewer": event_logger.literal(_name(profile.user))},
         )
         return request
     # Approval no longer required: a request left from before is overtaken.
@@ -147,10 +147,10 @@ def decide_publication(profile, approve, acting_user, comment=""):
         event_type,
         "Publication of reviewer %(reviewer)s's profile %(verb)s by %(user)s%(comment)s"
         % {
-            "reviewer": _name(profile.user),
+            "reviewer": event_logger.literal(_name(profile.user)),
             "verb": verb,
-            "user": _name(acting_user),
-            "comment": f": {comment}" if comment else ".",
+            "user": event_logger.literal(_name(acting_user)),
+            "comment": f": {event_logger.literal(comment)}" if comment else ".",
         },
         comment=comment or "",
         acting_user_uuid=acting_user.uuid.hex,

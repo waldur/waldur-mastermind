@@ -260,7 +260,9 @@ def _log_terms_of_service_accepted(instance: User):
     # The request context names who sent it; the source says when a policy
     # rather than the user did, e.g. AUTO_APPROVE_USER_TOS at sign-in.
     change_source = getattr(instance, "_change_source", None)
-    source_suffix = f" Source: {change_source}." if change_source else ""
+    source_suffix = (
+        f" Source: {event_logger.literal(change_source)}." if change_source else ""
+    )
     event_logger.emit(
         "Terms of Service acceptance has been recorded for user {affected_user_username}.%s"
         % source_suffix,
@@ -356,9 +358,13 @@ def log_user_save(sender, instance: User, created=False, **kwargs):
             ]
 
             change_source = getattr(instance, "_change_source", None)
-            source_suffix = f" Source: {change_source}." if change_source else ""
+            source_suffix = (
+                f" Source: {event_logger.literal(change_source)}."
+                if change_source
+                else ""
+            )
 
-            safe_diff = "\n".join(event_logger.literal(line) for line in diff)
+            safe_diff = event_logger.literal("\n".join(diff))
 
             event_logger.emit(
                 "User {affected_user_username} has been updated.%s Details:\n%s"
@@ -471,7 +477,8 @@ def revoke_user_pats_on_deactivation(sender, instance: User, **kwargs):
             from waldur_core.logging.enums import EventType
 
             _event_logger.emit(
-                f"All personal access tokens ({count}) for user {{affected_user_username}} "
+                f"All personal access tokens ({_event_logger.literal(count)}) for user "
+                "{affected_user_username} "
                 "have been revoked due to user deactivation.",
                 event_type=EventType.PAT_REVOKED,
                 event_context={"affected_user": instance},

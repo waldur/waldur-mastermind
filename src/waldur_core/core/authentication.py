@@ -436,7 +436,8 @@ class PATAuthentication(BaseAuthentication):
             EventType.PAT_ACCESS_DENIED_FROM_IP,
             "Personal access token {pat_name} for user "
             "{affected_user_username} was rejected: source address "
-            f"{source_ip or 'unknown'} is outside the token network ACL.",
+            f"{event_logger.literal(source_ip or 'unknown')} is outside the "
+            "token network ACL.",
             source_ip,
             f"pat_acl_denied:{pat.pk}:{source_ip or 'unknown'}",
         )
@@ -449,7 +450,8 @@ class PATAuthentication(BaseAuthentication):
             EventType.PAT_AUTHENTICATION_REJECTED,
             "Personal access token {pat_name} for user "
             "{affected_user_username} was rejected from "
-            f"{source_ip or 'unknown'}: {phrase}.",
+            f"{event_logger.literal(source_ip or 'unknown')}: "
+            f"{event_logger.literal(phrase)}.",
             source_ip,
             f"pat_auth_rejected:{pat.pk}:{reason}:{source_ip or 'unknown'}",
             extra_context={"reason": reason},
@@ -490,7 +492,8 @@ class PATAuthentication(BaseAuthentication):
                 event_logger.emit(
                     "Personal access token {pat_name} for user "
                     "{affected_user_username} used from new IP "
-                    f"{client_ip} (previous: {pat.last_used_ip}).",
+                    f"{event_logger.literal(client_ip)} "
+                    f"(previous: {event_logger.literal(pat.last_used_ip)}).",
                     event_type=EventType.PAT_USED_FROM_NEW_IP,
                     event_context={
                         "affected_user": pat.user,

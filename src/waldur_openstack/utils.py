@@ -288,7 +288,8 @@ def drop_unshared_networks_of_unmanaged_owners(settings_id):
     )
     for network in unshared_networks:
         event_logger.emit(
-            "Network %s has been cleaned from cache." % network.name,
+            "Network %s has been cleaned from cache."
+            % event_logger.literal(network.name),
             event_type=EventType.OPENSTACK_NETWORK_CLEANED,
             event_context={"network": network},
             scopes=[network, network.tenant],

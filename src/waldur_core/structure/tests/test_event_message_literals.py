@@ -80,3 +80,22 @@ class CustomerUpdateTest(test.APITestCase):
         self.assertIn(
             f"to '{email}'", last_message(EventType.CUSTOMER_UPDATE_SUCCEEDED)
         )
+
+
+class PermissionReviewTest(test.APITestCase):
+    def test_project_name_shows_as_written_on_close(self):
+        name = "AA{{BB}}CC {nosuchkey} {"
+        review = factories.ProjectPermissionReviewFactory(
+            project=factories.ProjectFactory(name=name)
+        )
+        self.client.force_authenticate(factories.UserFactory(is_staff=True))
+
+        response = self.client.post(
+            factories.ProjectPermissionReviewFactory.get_url(review, "close")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            last_message(EventType.PROJECT_PERMISSION_REVIEW_CLOSED),
+            f"Project permission review has been closed for project {name}.",
+        )

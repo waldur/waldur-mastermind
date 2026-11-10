@@ -163,8 +163,9 @@ def emit_change_events(changes):
             for row in rows
         )
         event_logger.emit(
-            f"POSIX identifiers of user {offering_user.user} in offering "
-            f"{offering_user.offering.name} have been changed: {moved}.",
+            f"POSIX identifiers of user {event_logger.literal(offering_user.user)} "
+            f"in offering {event_logger.literal(offering_user.offering.name)} have "
+            f"been changed: {event_logger.literal(moved)}.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
             event_context={"offering_user": offering_user},
             scopes=[offering_user.offering, offering_user.offering.customer],

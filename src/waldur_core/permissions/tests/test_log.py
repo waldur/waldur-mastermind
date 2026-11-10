@@ -312,6 +312,22 @@ class RoleLogReasonTest(TestCase):
             f"{self.fixture.owner.full_name} ({self.fixture.owner.username})",
         )
 
+    def test_role_updated_names_the_old_and_the_new_expiration_time(self):
+        old_expiration = timezone.now() + timezone.timedelta(days=10)
+        new_expiration = timezone.now() + timezone.timedelta(days=30)
+        user_role = utils.add_user(
+            self.fixture.customer,
+            self.fixture.user,
+            CustomerRole.SUPPORT,
+            expiration_time=old_expiration,
+        )
+        self.logger_mock.reset_mock()
+
+        user_role.set_expiration_time(new_expiration, current_user=self.fixture.staff)
+
+        message = self.logger_mock.call_args[0][0]
+        self.assertIn(f"updated from {old_expiration} to {new_expiration}.", message)
+
     def test_role_updated_includes_reason_and_initiator(self):
         """Test that role updates include proper reason and initiator."""
         # Create a role first
