@@ -10,6 +10,7 @@ it did.
 
 import logging
 
+import pytest
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -24,6 +25,8 @@ from waldur_mastermind.proposal.enums import (
     WorkflowStepInstanceStatuses,
 )
 from waldur_mastermind.proposal.tests import factories, migration_helpers
+
+pytestmark = pytest.mark.nightly
 
 BEFORE = [("proposal", "0092_delete_empty_proposal_documents")]
 
@@ -43,7 +46,7 @@ SKIPPED = WorkflowStepInstanceStatuses.SKIPPED
 
 
 @override_settings(MIGRATION_MODULES={})
-class CallStepMigrationTest(TestCase):
+class CallStepMigrationTest(migration_helpers.OneMigrationRun, TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -212,7 +215,7 @@ class CallStepMigrationTest(TestCase):
             for instance in proposal.workflow_step_instances.order_by("order")
         ]
 
-    def test_every_proposal_keeps_its_step_and_path(self):
+    def check_every_proposal_keeps_its_step_and_path(self):
         for name, (_, _, statuses, current) in self.scenarios.items():
             proposal = models.Proposal.objects.get(pk=self.proposals[name].pk)
             with self.subTest(proposal=name):
@@ -222,7 +225,7 @@ class CallStepMigrationTest(TestCase):
                     [(key, statuses[key]) for key in CATALOGUE],
                 )
 
-    def test_every_instance_points_at_its_calls_step(self):
+    def check_every_instance_points_at_its_calls_step(self):
         instances = models.ProposalWorkflowStepInstance.objects.filter(
             proposal__in=self.proposals.values()
         ).select_related("call_step", "proposal__round")
@@ -239,7 +242,7 @@ class CallStepMigrationTest(TestCase):
                 instance.step == "allocation_decision",
             )
 
-    def test_order_is_the_catalogue_index_not_the_display_order(self):
+    def check_order_is_the_catalogue_index_not_the_display_order(self):
         for call in (self.call, self.sparse_call):
             with self.subTest(call=call.name):
                 self.assertEqual(
@@ -255,7 +258,7 @@ class CallStepMigrationTest(TestCase):
             self.call.workflow_steps.get(key="award_response").display_order, 0
         )
 
-    def test_missing_catalogue_steps_are_added_disabled(self):
+    def check_missing_catalogue_steps_are_added_disabled(self):
         steps = {
             step.key: step
             for step in self.sparse_call.workflow_steps.filter(key__in=CATALOGUE)
@@ -266,7 +269,7 @@ class CallStepMigrationTest(TestCase):
             {"administrative_check", "allocation_decision"},
         )
 
-    def test_steps_take_the_kind_of_the_catalogue_step(self):
+    def check_steps_take_the_kind_of_the_catalogue_step(self):
         expected = {
             "administrative_check": (StepKinds.DECISION, OutcomeSets.ELIGIBILITY),
             "technical_assessment": (StepKinds.ASSESSMENT, OutcomeSets.FEASIBILITY),
@@ -289,7 +292,7 @@ class CallStepMigrationTest(TestCase):
                     else OnNegativeOutcomes.REJECT,
                 )
 
-    def test_completer_keeps_the_configured_role_or_takes_the_default(self):
+    def check_completer_keeps_the_configured_role_or_takes_the_default(self):
         completers = dict(self.call.workflow_steps.values_list("key", "completer"))
         self.assertEqual(
             completers,
@@ -305,7 +308,7 @@ class CallStepMigrationTest(TestCase):
             },
         )
 
-    def test_engine_continues_on_the_old_path(self):
+    def check_engine_continues_on_the_old_path(self):
         proposal = models.Proposal.objects.get(
             pk=self.proposals["skipped_technical"].pk
         )
@@ -316,13 +319,13 @@ class CallStepMigrationTest(TestCase):
         proposal.refresh_from_db()
         self.assertEqual(proposal.workflow_step, "panel_review")
 
-    def test_parked_proposal_still_awaits_its_manual_advance(self):
+    def check_parked_proposal_still_awaits_its_manual_advance(self):
         proposal = models.Proposal.objects.get(pk=self.proposals["parked"].pk)
         self.assertTrue(workflow_service.is_awaiting_manual_advance(proposal))
         next_instance = workflow_service.advance_step(proposal, self.user)
         self.assertEqual(next_instance.step, "technical_assessment")
 
-    def test_declining_a_migrated_award_still_cancels(self):
+    def check_declining_a_migrated_award_still_cancels(self):
         proposal = models.Proposal.objects.get(
             pk=self.proposals["at_award_response"].pk
         )
@@ -332,12 +335,12 @@ class CallStepMigrationTest(TestCase):
         proposal.refresh_from_db()
         self.assertEqual(proposal.state, ProposalStates.CANCELED)
 
-    def test_allocation_timing_is_read_from_the_migrated_decision(self):
+    def check_allocation_timing_is_read_from_the_migrated_decision(self):
         decision = models.CallWorkflowStep.allocation_decision_for(self.call)
         self.assertEqual(decision.key, "allocation_decision")
         self.assertTrue(decision.include_award_response)
 
-    def test_a_key_the_call_had_no_row_for_gets_a_disabled_one(self):
+    def check_a_key_the_call_had_no_row_for_gets_a_disabled_one(self):
         proposal = models.Proposal.objects.get(pk=self.unknown_key_proposal.pk)
         self.assertEqual(proposal.workflow_step, "legacy_step")
         step = proposal.current_step.call_step
@@ -347,7 +350,7 @@ class CallStepMigrationTest(TestCase):
         )
         self.assertTrue(any("legacy_step" in message for message in self.migration_log))
 
-    def test_a_step_without_an_instance_is_logged(self):
+    def check_a_step_without_an_instance_is_logged(self):
         proposal = models.Proposal.objects.get(pk=self.lost_step_proposal.pk)
         self.assertIsNone(proposal.current_step)
         self.assertTrue(

@@ -13,6 +13,11 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers",
+        "nightly: takes 20 s or more on CI; merge request pipelines deselect "
+        "it, the nightly sweep (FULL_TEST_RUN=true) runs it",
+    )
+    config.addinivalue_line(
+        "markers",
         "lab: requires access to the OpenStack lab (skipped without .secrets/lab-tenant-creds.env)",
     )
     config.addinivalue_line(

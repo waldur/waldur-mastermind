@@ -59,13 +59,20 @@ EOF
 
 # Base command with flags that are always used for unit tests.
 # -m "not slow" excludes load/performance tests that create 10K+ records.
+# "nightly" tests take 20 s or more each: only the nightly sweep
+# (FULL_TEST_RUN=true) runs them.
+MARKERS="not slow and not nightly"
+case "$(echo "${FULL_TEST_RUN:-}" | tr '[:upper:]' '[:lower:]')" in
+  true|yes) MARKERS="not slow" ;;
+esac
+echo "[+] Marker expression: ${MARKERS}"
 PYTEST_BASE_CMD="uv run pytest \
     --reuse-db \
     --junitxml=report.xml \
     --cov=src/ \
     --no-migrations \
     -ra \
-    -m 'not slow' \
+    -m '${MARKERS}' \
     --ds=waldur_mastermind.test_settings"
 
 # This is the core logic for parallelization.

@@ -6,8 +6,10 @@ request stays as it was submitted.
 """
 
 import datetime
+import types
 from importlib import import_module
 
+import pytest
 from dateutil.relativedelta import relativedelta
 from django.core.files.base import ContentFile
 from django.db import connection, transaction
@@ -1072,57 +1074,70 @@ class HeldDecisionAwardTest(AwardedResourcesBase):
         self.assertEqual(self._get(self.applicant).status_code, status.HTTP_200_OK)
 
 
+@pytest.mark.nightly
 @override_settings(MIGRATION_MODULES={})
-class BackfillMigrationTest(AwardedResourcesBase):
-    def _backfill(self):
+class BackfillMigrationTest(migration_helpers.OneMigrationRun, test.APITestCase):
+    """The 0089 backfill prefills the award of proposals at the decision.
+
+    Each case is the proposal of ``AwardedResourcesBase`` moved on to a step;
+    all of them are set up first and the database is migrated once.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.at_decision = cls._case("allocation_decision")
+        cls.at_award_response = cls._case("award_response")
+        cls.allocated = cls._case("award_response", allocated=True)
+        cls.before_decision = cls._case(None)
+
         # Against the schema the migration was written for, where the
         # proposal names its step by key.
         apps = migration_helpers.migrate_back([("proposal", "0089_awardedresource")])
         backfill_migration.prefill_open_allocations(apps, None)
         migration_helpers.migrate_forward()
-        self.proposal.refresh_from_db()
 
-    def _at(self, step, project=None):
-        self.admin_instance.status = WorkflowStepInstanceStatuses.COMPLETED
-        self.admin_instance.save(update_fields=["status"])
-        factories.ensure_default_step(self.call, step)
-        self.proposal.workflow_step_instances.filter(step=step).delete()
-        factories.ProposalWorkflowStepInstanceFactory(
-            proposal=self.proposal,
-            step=step,
-            status=WorkflowStepInstanceStatuses.ACTIVE,
-            started_at=timezone.now(),
+    @staticmethod
+    def _case(step, allocated=False):
+        case = types.SimpleNamespace()
+        AwardedResourcesBase.setUp(case)
+        if step is not None:
+            case.admin_instance.status = WorkflowStepInstanceStatuses.COMPLETED
+            case.admin_instance.save(update_fields=["status"])
+            factories.ensure_default_step(case.call, step)
+            case.proposal.workflow_step_instances.filter(step=step).delete()
+            factories.ProposalWorkflowStepInstanceFactory(
+                proposal=case.proposal,
+                step=step,
+                status=WorkflowStepInstanceStatuses.ACTIVE,
+                started_at=timezone.now(),
+            )
+            case.proposal.project = case.fixture.proposal_project if allocated else None
+            case.proposal.save()
+        return case
+
+    def _proposal(self, case):
+        return models.Proposal.objects.get(pk=case.proposal.pk)
+
+    def check_a_proposal_at_the_allocation_decision_is_prefilled(self):
+        proposal = self._proposal(self.at_decision)
+        awarded = proposal.awarded_resources.get()
+        self.assertEqual(
+            awarded.requested_resource, self.at_decision.requested_resource
         )
-        self.proposal.project = project
-        self.proposal.save()
-
-    def test_a_proposal_at_the_allocation_decision_is_prefilled(self):
-        self._at("allocation_decision")
-
-        self._backfill()
-
-        awarded = self._awarded()
-        self.assertEqual(awarded.requested_resource, self.requested_resource)
         self.assertIsNone(awarded.plan)
-        self.assertEqual(awarded.effective_plan, self.plan)
+        self.assertEqual(awarded.effective_plan, self.at_decision.plan)
         self.assertEqual(awarded.limits, {"cpu": 100})
-        self.assertIsNotNone(self.proposal.awarded_resources_prefilled_at)
+        self.assertIsNotNone(proposal.awarded_resources_prefilled_at)
 
-    def test_a_proposal_waiting_for_the_award_response_is_prefilled(self):
-        self._at("award_response")
+    def check_a_proposal_waiting_for_the_award_response_is_prefilled(self):
+        proposal = self._proposal(self.at_award_response)
+        self.assertEqual(proposal.awarded_resources.count(), 1)
 
-        self._backfill()
+    def check_an_allocated_proposal_is_left_alone(self):
+        proposal = self._proposal(self.allocated)
+        self.assertFalse(proposal.awarded_resources.exists())
 
-        self.assertEqual(self.proposal.awarded_resources.count(), 1)
-
-    def test_an_allocated_proposal_is_left_alone(self):
-        self._at("award_response", project=self.fixture.proposal_project)
-
-        self._backfill()
-
-        self.assertFalse(self.proposal.awarded_resources.exists())
-
-    def test_a_proposal_before_the_decision_is_left_alone(self):
-        self._backfill()
-
-        self.assertFalse(self.proposal.awarded_resources.exists())
+    def check_a_proposal_before_the_decision_is_left_alone(self):
+        proposal = self._proposal(self.before_decision)
+        self.assertFalse(proposal.awarded_resources.exists())
