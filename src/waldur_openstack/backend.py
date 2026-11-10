@@ -1,3 +1,4 @@
+import copy
 import functools
 import ipaddress
 import logging
@@ -116,6 +117,36 @@ HARD_REBOOT_TASK_STATES = (
 
 # The target project of a Neutron RBAC policy that applies to every project.
 WILDCARD_RBAC_TARGET = "*"
+
+# Port's column defaults for the Neutron port attributes that can come back null
+# -- ports created by other services (Octavia, Manila, a Kubernetes cloud
+# provider, DHCP agents) are the usual source -- or be left out.
+NEUTRON_PORT_NULL_DEFAULTS = {
+    "name": "",
+    "description": "",
+    "mac_address": "",
+    "port_security_enabled": True,
+    "fixed_ips": [],
+    "allowed_address_pairs": [],
+    "security_groups": [],
+}
+
+
+def normalize_neutron_port(backend_port: dict) -> dict:
+    """Return a copy of a Neutron port dict with null attributes set to Port's defaults.
+
+    .get(key, default) keeps a present null, which then breaks the NOT NULL
+    columns or the code iterating over the lists; normalise a port before
+    reading it.
+    """
+    return {
+        **backend_port,
+        **{
+            key: copy.deepcopy(default)
+            for key, default in NEUTRON_PORT_NULL_DEFAULTS.items()
+            if backend_port.get(key) is None
+        },
+    }
 
 
 def get_instance_runtime_state(backend_instance) -> str:
@@ -1436,7 +1467,10 @@ class OpenStackBackend(ServiceBackend):
         for backend_router in backend_routers:
             backend_id = backend_router["id"]
             try:
-                ports = neutron.list_ports(device_id=backend_id)["ports"]
+                ports = [
+                    normalize_neutron_port(port)
+                    for port in neutron.list_ports(device_id=backend_id)["ports"]
+                ]
                 fixed_ips = []
                 for port in ports:
                     for fixed_ip in port["fixed_ips"]:
@@ -1559,12 +1593,14 @@ class OpenStackBackend(ServiceBackend):
                         candidates = subnet_routers.setdefault(subnet_backend_id, [])
                         if router_obj not in candidates:
                             candidates.append(router_obj)
-            except IntegrityError:
+            except IntegrityError as e:
                 logger.warning(
-                    "Could not create router with backend ID %s "
-                    "and tenant %s due to concurrent update.",
+                    "Could not create or update router with backend ID %s "
+                    "and tenant %s: %s",
                     backend_id,
                     tenant,
+                    e,
+                    exc_info=True,
                 )
 
         self._sync_subnet_routers(
@@ -1724,6 +1760,7 @@ class OpenStackBackend(ServiceBackend):
     ):
         """Create or update a Waldur Port from a Neutron port dict (same as pull_tenant_ports)."""
         backend_id = backend_port["id"]
+        backend_port = normalize_neutron_port(backend_port)
 
         subnet_id = None
         try:
@@ -1745,13 +1782,13 @@ class OpenStackBackend(ServiceBackend):
             "state": CoreStates.OK,
             "mac_address": backend_port["mac_address"],
             "fixed_ips": backend_port["fixed_ips"],
-            "allowed_address_pairs": backend_port.get("allowed_address_pairs", []),
+            "allowed_address_pairs": backend_port["allowed_address_pairs"],
             "network_id": network_mapping.get(backend_port["network_id"]),
             "device_id": device_id,
             "status": backend_port["status"],
             "admin_state_up": backend_port["admin_state_up"],
             "device_owner": backend_port.get("device_owner"),
-            "port_security_enabled": backend_port.get("port_security_enabled", True),
+            "port_security_enabled": backend_port["port_security_enabled"],
         }
         try:
             port, _ = models.Port.objects.update_or_create(
@@ -1772,12 +1809,13 @@ class OpenStackBackend(ServiceBackend):
             for group in port.security_groups.filter(backend_id__in=stale_groups):
                 port.security_groups.remove(group)
             return port
-        except IntegrityError:
+        except IntegrityError as e:
             logger.warning(
-                "Could not create or update port with backend ID %s "
-                "and tenant %s due to concurrent update.",
+                "Could not create or update port with backend ID %s and tenant %s: %s",
                 backend_id,
                 tenant,
+                e,
+                exc_info=True,
             )
             return None
 
@@ -4681,6 +4719,7 @@ class OpenStackBackend(ServiceBackend):
             self._remove_stale_server_groups([tenant], backend_server_groups)
 
     def parse_backend_port(self, remote_port, **kwargs):
+        remote_port = normalize_neutron_port(remote_port)
         fixed_ips = remote_port["fixed_ips"]
 
         logger.debug(
@@ -4695,7 +4734,7 @@ class OpenStackBackend(ServiceBackend):
             backend_id=remote_port["id"],
             mac_address=remote_port["mac_address"],
             fixed_ips=fixed_ips,
-            allowed_address_pairs=remote_port.get("allowed_address_pairs", []),
+            allowed_address_pairs=remote_port["allowed_address_pairs"],
             admin_state_up=remote_port["admin_state_up"],
             name=remote_port["name"],
             description=remote_port["description"],

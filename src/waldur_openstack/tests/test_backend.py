@@ -816,6 +816,7 @@ class BackendInstanceToInstancePartialCellTest(BaseBackendTest):
         self.assertEqual(instance.directly_connected_ips, "")
 
 
+@ddt
 class PullInstancePortsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
         self.mocked_neutron.list_ports.return_value = {
@@ -837,6 +838,18 @@ class PullInstancePortsTest(BaseBackendTest):
                 }
             ]
         }
+
+    @data("name", "description", "mac_address")
+    def test_port_with_null_field_is_created_with_column_default(self, field):
+        instance = self.fixture.instance
+        subnet = self.fixture.subnet
+        self.setup_neutron("port_id", instance.backend_id, subnet.backend_id)
+        self.mocked_neutron.list_ports.return_value["ports"][0][field] = None
+
+        self.backend.pull_instance_ports(instance)
+
+        port = instance.ports.get(backend_id="port_id")
+        self.assertEqual(getattr(port, field), "")
 
     def test_pending_ports_are_updated_with_backend_id(self):
         # Arrange

@@ -4,6 +4,7 @@ from unittest import TestCase, mock
 
 from cinderclient import exceptions as cinder_exceptions
 from ddt import data, ddt
+from django.db import IntegrityError
 from django.urls import reverse
 from django.utils import timezone
 from glanceclient import exc as glance_exceptions
@@ -869,6 +870,7 @@ class PullImagesTest(BaseBackendTestCase):
         )
 
 
+@ddt
 class PullPortsTest(BaseBackendTestCase):
     def setUp(self):
         super().setUp()
@@ -976,6 +978,49 @@ class PullPortsTest(BaseBackendTestCase):
 
         self.port.refresh_from_db()
         self.assertEqual(0, self.port.security_groups.count())
+
+    @data(
+        ("name", ""),
+        ("description", ""),
+        ("mac_address", ""),
+        ("port_security_enabled", True),
+        ("allowed_address_pairs", []),
+        ("fixed_ips", []),
+        ("security_groups", []),
+    )
+    def test_null_field_is_imported_as_column_default(self, field_and_default):
+        field, default = field_and_default
+        self.setup_client(self._get_valid_new_backend_port(**{field: None}))
+        self.port.delete()
+
+        self.call_backend()
+
+        port = models.Port.objects.get(
+            tenant=self.tenant, backend_id=self.port.backend_id
+        )
+        if field == "security_groups":
+            self.assertEqual(0, port.security_groups.count())
+        else:
+            self.assertEqual(getattr(port, field), default)
+
+    def test_integrity_error_is_logged_with_database_error_text(self):
+        self.setup_client(self._get_valid_new_backend_port())
+        error = 'null value in column "name" violates not-null constraint'
+
+        with (
+            mock.patch.object(
+                models.Port.objects,
+                "update_or_create",
+                side_effect=IntegrityError(error),
+            ),
+            self.assertLogs("waldur_openstack.backend", "WARNING") as logs,
+        ):
+            self.call_backend()
+
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn(error, logs.output[0])
+        self.assertIn(self.port.backend_id, logs.output[0])
+        self.assertNotIn("concurrent update", logs.output[0])
 
 
 @ddt
