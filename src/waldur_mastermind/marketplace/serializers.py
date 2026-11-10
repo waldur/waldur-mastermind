@@ -10521,7 +10521,14 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     )
 
 
-class ResourceSpendingLimitsSerializer(serializers.Serializer):
+class SetResourceSpendingLimitsSerializer(serializers.Serializer):
+    """Body of ``set_spending_limits``.
+
+    The component must not be named ``ResourceSpendingLimits``. The Python
+    client names the inline ``spending_limits`` object on ``Resource`` that,
+    and a clash makes it drop the ``Resource`` model.
+    """
+
     spending_limits = SpendingLimitsField(
         help_text="The resource's spending limits, replacing the current ones: "
         "{component_type: {period: amount}}. A missing or null period clears "
@@ -11647,10 +11654,12 @@ class ImportResourceSerializer(serializers.Serializer):
     )
     # The field contains optional data required for importing resources in different plugins
     # For example, tenant_uuid is expected for successful linking cluster to an OpenStack tenant
+    # A callable default stays out of the schema: the Python client cannot read
+    # `default: {}` on a nullable object and drops ImportResourceRequest.
     additional_details = serializers.JSONField(
         required=False,
         allow_null=True,
-        default={},
+        default=dict,
         write_only=True,
     )
 

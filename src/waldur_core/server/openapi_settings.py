@@ -96,6 +96,8 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.extract_query_enums",
         "waldur_core.core.schema_hooks.sanitize_schema",
         "waldur_core.core.schema_hooks.check_action_responses",
+        # Last, so it checks every component, including those added above.
+        "waldur_core.core.schema_hooks.validate_python_sdk_naming_collisions",
     ],
     "DEFAULT_GENERATOR_CLASS": "waldur_core.core.openapi_generators.WaldurSchemaGenerator",
     "ENUM_GENERATE_CHOICE_DESCRIPTION": False,

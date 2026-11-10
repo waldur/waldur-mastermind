@@ -3832,8 +3832,8 @@ class ProviderOfferingViewSet(
         plan = import_resource_serializer.validated_data.get("plan", None)
         project = import_resource_serializer.validated_data["project"]
         backend_id = import_resource_serializer.validated_data["backend_id"]
-        additional_details = import_resource_serializer.validated_data.get(
-            "additional_details", {}
+        additional_details = (
+            import_resource_serializer.validated_data.get("additional_details") or {}
         )
 
         offering: models.Offering = self.get_object()
@@ -11001,8 +11001,8 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         "components at once, with no order or provider approval. Each value must "
         "be within the provider's maximum. The usage-limit restriction is "
         "re-evaluated immediately.",
-        request=serializers.ResourceSpendingLimitsSerializer,
-        responses=serializers.ResourceSpendingLimitsSerializer,
+        request=serializers.SetResourceSpendingLimitsSerializer,
+        responses=serializers.SetResourceSpendingLimitsSerializer,
         examples=[
             OpenApiExample(
                 "Daily and monthly limits",
@@ -11036,7 +11036,9 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         utils.evaluate_usage_limit_restriction(resource)
         return Response({"spending_limits": limits})
 
-    set_spending_limits_serializer_class = serializers.ResourceSpendingLimitsSerializer
+    set_spending_limits_serializer_class = (
+        serializers.SetResourceSpendingLimitsSerializer
+    )
     set_spending_limits_permissions = [
         permissions.check_tos_consent_permission,
         permission_factory(

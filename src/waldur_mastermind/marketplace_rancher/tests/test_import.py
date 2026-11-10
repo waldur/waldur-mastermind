@@ -107,6 +107,17 @@ class ClusterImportResourceTest(BaseClusterImportTest):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    def test_backend_cluster_is_imported_when_additional_details_is_null(self):
+        # The schema allows null; it used to reach **additional_details as None.
+        payload = {
+            "backend_id": "backend_id",
+            "project": self.fixture.project.uuid.hex,
+            "additional_details": None,
+        }
+
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
     def test_backend_cluster_cannot_be_imported_if_it_is_registered_in_waldur(self):
         cluster = factories.ClusterFactory(
             settings=self.fixture.settings,
