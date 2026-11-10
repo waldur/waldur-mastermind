@@ -1123,7 +1123,6 @@ WALDUR_SLURM = {'ALLOCATION_PREFIX': 'waldur_allocation_',
  'CUSTOMER_PREFIX': 'waldur_customer_',
  'DEFAULT_LIMITS': {'CPU': 16000, 'GPU': 400, 'RAM': 102400000},
  'ENABLED': False,
- 'PRIVATE_KEY_PATH': '/etc/waldur/id_rsa',
  'PROJECT_PREFIX': 'waldur_project_'}
 ```
 
@@ -1150,12 +1149,6 @@ Default limits of account that are set when SLURM account is provisioned.
 **Type:** bool
 
 Enable support for SLURM plugin in a deployment
-
-#### PRIVATE_KEY_PATH
-
-**Type:** str
-
-Path to private key file used as SSH identity file for accessing SLURM master.
 
 #### PROJECT_PREFIX
 
