@@ -681,6 +681,27 @@ class QuestionAdminSerializer(QuestionSerializer):
         }
 
 
+FILE_QUESTION_TYPES = (enums.QuestionTypes.FILE, enums.QuestionTypes.MULTIPLE_FILES)
+
+
+def stored_file_ids(question, answer_data) -> set[str]:
+    """The ids of the already-stored files an answer names, as strings.
+
+    With a question, only a file question's answer is read; without one, the
+    answer is read as either file shape.
+    """
+    if question is not None and question.question_type not in FILE_QUESTION_TYPES:
+        return set()
+    entries = answer_data if isinstance(answer_data, list) else [answer_data]
+    return {
+        str(entry["stored_file_id"])
+        for entry in entries
+        if isinstance(entry, dict)
+        and "stored_file_id" in entry
+        and "content" not in entry
+    }
+
+
 class AnswerSubmitSerializer(serializers.Serializer):
     """Generic serializer for submitting checklist answers."""
 
@@ -716,9 +737,33 @@ class AnswerSubmitSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 f"Answer value '{answer_data}' is not valid for the question '{question}' (type: {question.question_type})."
             )
+        if answer_data is not None:
+            self._refuse_files_from_elsewhere(question, completion, answer_data)
 
         attrs["question"] = question
         return attrs
+
+    def _refuse_files_from_elsewhere(self, question, completion, answer_data):
+        """Refuse an already-stored file that this completion's answers do not hold.
+
+        A file entry without content is kept as it is sent, and whoever wrote
+        an answer naming a file may download it. A file uploaded elsewhere is
+        therefore refused: only one already in this completion may be sent
+        again, which is what a client resaving the answers it loaded does.
+        """
+        sent = stored_file_ids(question, answer_data)
+        if not sent:
+            return
+        held = set()
+        for data in completion.answers.filter(
+            question__question_type__in=FILE_QUESTION_TYPES
+        ).values_list("answer_data", flat=True):
+            held |= stored_file_ids(None, data)
+        if sent - held:
+            raise serializers.ValidationError(
+                f"Answer to the question '{question}' names a stored file that "
+                "was not uploaded to this checklist. Upload the file instead."
+            )
 
 
 class ChecklistCompletionSerializer(serializers.ModelSerializer):
