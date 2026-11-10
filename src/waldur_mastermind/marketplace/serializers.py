@@ -9941,7 +9941,27 @@ class RenewalEstimateResponseSerializer(serializers.Serializer):
     new_end_date = serializers.DateField()
 
 
-class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
+class ResourceEndDateUpdateMixin:
+    """Write the end date and who set it, and nothing else.
+
+    A full save would write back every field of the resource as the view loaded
+    it, undoing whatever a concurrent request, such as the agent reporting the
+    resource OK, changed in between.
+    """
+
+    def update(self, instance, validated_data):
+        update_fields = ["end_date_requested_by"]
+        if "end_date" in validated_data:
+            instance.end_date = validated_data["end_date"]
+            update_fields.append("end_date")
+        instance.end_date_requested_by = self.context["request"].user
+        instance.save(update_fields=update_fields)
+        return instance
+
+
+class ResourceEndDateByProviderSerializer(
+    ResourceEndDateUpdateMixin, serializers.ModelSerializer
+):
     """Deprecated: Use ResourceEndDateSerializer instead."""
 
     class Meta:
@@ -9968,14 +9988,10 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
             )
         return end_date
 
-    def save(self, **kwargs):
-        resource = super().save(**kwargs)
-        user = self.context["request"].user
-        resource.end_date_requested_by = user
-        resource.save(update_fields=["end_date_requested_by"])
 
-
-class ResourceEndDateSerializer(serializers.ModelSerializer):
+class ResourceEndDateSerializer(
+    ResourceEndDateUpdateMixin, serializers.ModelSerializer
+):
     """Direct end-date write for holders of SET_RESOURCE_END_DATE.
 
     A set date uses the same bounds as resource PATCH and end-date change
@@ -9994,12 +10010,6 @@ class ResourceEndDateSerializer(serializers.ModelSerializer):
         if end_date and self.instance:
             utils.validate_end_date_for_resource(self.instance, end_date)
         return attrs
-
-    def save(self, **kwargs):
-        resource = super().save(**kwargs)
-        user = self.context["request"].user
-        resource.end_date_requested_by = user
-        resource.save(update_fields=["end_date_requested_by"])
 
 
 class ResourceBackendMetadataSerializer(serializers.ModelSerializer):

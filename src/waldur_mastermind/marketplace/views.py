@@ -9238,7 +9238,17 @@ class OrderViewSet(
     @action(detail=True, methods=["post"])
     def set_state_done(self, request, uuid=None):
         order: models.Order = self.get_object()
-        callbacks.sync_order_state(order, OrderStates.DONE)
+        # Lock the resource so no concurrent write lands between completing the
+        # order and moving the resource. The block is only a savepoint by
+        # default: ActionsViewSet.dispatch already runs in a transaction while
+        # WALDUR_CORE.USE_ATOMIC_TRANSACTION is True. It keeps the two steps one
+        # commit, and the lock meaningful, when an operator turns that off.
+        with transaction.atomic():
+            if order.resource_id:
+                order.resource = models.Resource.objects.select_for_update().get(
+                    pk=order.resource_id
+                )
+            callbacks.sync_order_state(order, OrderStates.DONE)
         return Response(status=status.HTTP_200_OK)
 
     set_state_erred_validators = [
@@ -9524,7 +9534,7 @@ class OrderViewSet(
         old_backend_id = order.backend_id
         if new_backend_id != old_backend_id:
             order.backend_id = serializer.validated_data["backend_id"]
-            order.save()
+            order.save(update_fields=["backend_id"])
             logger.info(
                 "%s has changed order %s backend_id from %s to %s",
                 request.user.full_name,
@@ -9985,7 +9995,7 @@ class BaseResourceViewSet(
                 )
             resource.slug = new_slug
             with reversion.create_revision():
-                resource.save()
+                resource.save(update_fields=["slug"])
                 reversion.set_user(request.user)
                 reversion.set_comment(f"Slug changed from '{old_slug}' to '{new_slug}'")
         logger.info(
@@ -10026,7 +10036,7 @@ class BaseResourceViewSet(
         if new_downscaled != old_downscaled:
             resource.downscaled = new_downscaled
             with reversion.create_revision():
-                resource.save()
+                resource.save(update_fields=["downscaled"])
                 reversion.set_user(request.user)
                 reversion.set_comment(
                     f"Downscaled changed from {old_downscaled} to {new_downscaled}"
@@ -10079,7 +10089,7 @@ class BaseResourceViewSet(
         resource.paused = new_paused
         resource.paused_by_grace_period = False
         with reversion.create_revision():
-            resource.save()
+            resource.save(update_fields=["paused", "paused_by_grace_period"])
             reversion.set_user(request.user)
             reversion.set_comment(
                 f"Paused changed from {old_paused} to {new_paused}"
@@ -10125,7 +10135,7 @@ class BaseResourceViewSet(
         if new_restrict != old_restrict:
             resource.restrict_member_access = new_restrict
             with reversion.create_revision():
-                resource.save()
+                resource.save(update_fields=["restrict_member_access"])
                 reversion.set_user(request.user)
                 reversion.set_comment(
                     f"Restrict member access changed from {old_restrict} to {new_restrict}"
@@ -11473,7 +11483,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         old_backend_id = resource.backend_id
         if new_backend_id != old_backend_id:
             resource.backend_id = serializer.validated_data["backend_id"]
-            resource.save()
+            resource.save(update_fields=["backend_id"])
             logger.info(
                 "%s has changed backend_id from %s to %s",
                 request.user.full_name,
@@ -11655,7 +11665,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         serializer.is_valid(raise_exception=True)
 
         resource.backend_metadata = serializer.validated_data["backend_metadata"]
-        resource.save()
+        resource.save(update_fields=["backend_metadata"])
 
         return Response(
             {"status": _("The backend metadata is updated")}, status=status.HTTP_200_OK
@@ -11875,18 +11885,26 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        if serializer.validated_data.get("error_message"):
-            resource.error_message = serializer.validated_data["error_message"]
+        with transaction.atomic():
+            # Re-read under a lock: the copy get_object() loaded may already be
+            # stale, and saving all of its fields would undo concurrent changes.
+            resource = models.Resource.objects.select_for_update().get(pk=resource.pk)
+            update_fields = ["state"]
 
-        if serializer.validated_data.get("error_traceback"):
-            resource.error_traceback = serializer.validated_data["error_traceback"]
+            if serializer.validated_data.get("error_message"):
+                resource.error_message = serializer.validated_data["error_message"]
+                update_fields.append("error_message")
 
-        resource.set_state_erred()
-        resource.save()
+            if serializer.validated_data.get("error_traceback"):
+                resource.error_traceback = serializer.validated_data["error_traceback"]
+                update_fields.append("error_traceback")
 
-        if resource.scope and hasattr(resource.scope, "set_erred"):
-            resource.scope.set_erred()
-            resource.scope.save()
+            resource.set_state_erred()
+            resource.save(update_fields=update_fields)
+
+            if resource.scope and hasattr(resource.scope, "set_erred"):
+                resource.scope.set_erred()
+                resource.scope.save()
 
         return Response(status=status.HTTP_200_OK)
 
@@ -11910,13 +11928,25 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def set_as_ok(self, request, uuid=None):
         resource: models.Resource = self.get_object()
 
-        if resource.state == ResourceStates.OK:
-            logger.warning("Resource %s is already in OK state", resource)
-        else:
-            resource.set_state_ok()
+        with transaction.atomic():
+            # Re-read under a lock and decide on the current state, not on the
+            # copy get_object() loaded.
+            resource = models.Resource.objects.select_for_update().get(pk=resource.pk)
+
+            if resource.state == ResourceStates.OK:
+                logger.warning("Resource %s is already in OK state", resource)
+                return Response(status=status.HTTP_200_OK)
+
+            try:
+                resource.set_state_ok()
+            except TransitionNotAllowed:
+                raise ValidationError(
+                    _("Resource in state %s cannot be set to OK.")
+                    % resource.get_state_display()
+                )
             resource.error_message = ""
             resource.error_traceback = ""
-            resource.save()
+            resource.save(update_fields=["state", "error_message", "error_traceback"])
 
             if resource.scope and hasattr(resource.scope, "set_ok"):
                 resource.scope.set_ok()
