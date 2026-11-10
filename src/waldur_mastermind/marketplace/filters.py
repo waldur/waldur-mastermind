@@ -2217,15 +2217,58 @@ class ResourceApiKeyFilter(django_filters.FilterSet):
     modified_before = django_filters.IsoDateTimeFilter(
         field_name="modified", lookup_expr="lte", label="Modified before"
     )
+    # Not a plain field filter: a caller who is also a consumer of the
+    # provider's offerings would otherwise get their own consumer keys back.
+    # It lists the provider's keys as the provider resource view admits them.
+    provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-service-provider-detail",
+        method="filter_provider_uuid",
+        label="Provider UUID",
+        help_text="Keys of resources of the offerings of this service provider "
+        "organization, to callers the provider resource list shows those "
+        "resources to.",
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="resource__project__customer__uuid",
+        label="Consumer organization UUID",
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail",
+        field_name="resource__project__uuid",
+        label="Project UUID",
+    )
+    # A key of an offering that no longer manages keys shows paused_by_limit
+    # as null, so it counts as not paused by a limit here too.
+    paused_by_limit = django_filters.BooleanFilter(
+        method="filter_paused_by_limit",
+        widget=BooleanWidget,
+        label="Paused by a spending limit",
+    )
+    # Each ordering ends on id, so keys that tie (many cost 0) keep their
+    # order from one page to the next.
+    o = core_filters.ExtendedOrderingFilter(
+        fields=(
+            # Annotated by the viewset: zero for a key with no usage this month.
+            (("current_estimated_cost", "id"), "estimated_cost"),
+            (("created", "id"), "created"),
+            (("issued_at", "id"), "issued_at"),
+            (("state", "id"), "state"),
+        ),
+    )
 
     class Meta:
         model = models.ResourceApiKey
         fields = (
             "resource_uuid",
             "offering_uuid",
+            "provider_uuid",
+            "customer_uuid",
+            "project_uuid",
             "state",
             "pending_action",
             "has_pending_action",
+            "paused_by_limit",
             "user_uuid",
             "modified_before",
         )
@@ -2234,6 +2277,25 @@ class ResourceApiKeyFilter(django_filters.FilterSet):
         if value:
             return queryset.exclude(pending_action="")
         return queryset.filter(pending_action="")
+
+    def filter_paused_by_limit(self, queryset, name, value):
+        paused = Q(
+            paused_by_limit=True,
+            resource__offering__plugin_options__enable_api_key_provisioning=True,
+        )
+        if value:
+            return queryset.filter(paused)
+        # Excluded by key: a plain exclude of the JSON test drops the keys of
+        # offerings without the option, where it compares as NULL.
+        return queryset.exclude(
+            pk__in=models.ResourceApiKey.objects.filter(paused).values("pk")
+        )
+
+    def filter_provider_uuid(self, queryset, name, value):
+        resources = models.Resource.objects.filter(
+            offering__customer__uuid=value
+        ).filter_for_service_provider(self.request.user)
+        return queryset.filter(resource__in=resources)
 
 
 class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.FilterSet):

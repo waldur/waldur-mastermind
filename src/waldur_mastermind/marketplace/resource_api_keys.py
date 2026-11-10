@@ -41,6 +41,7 @@ from waldur_core.structure.managers import (
     get_connected_projects,
 )
 from waldur_mastermind.marketplace import (
+    api_key_cost,
     api_key_spending_limits,
     log,
     model_lists,
@@ -684,7 +685,8 @@ def record_usage(
     older than daily usage may be dated in is refused (``_record_month``).
     ``daily_usages`` are amounts per UTC date; a date reported again
     replaces its amount, and the month figure of a component with daily amounts
-    is their sum.
+    is their sum. The key's estimated cost is recomputed from the month figure
+    at the plan's current prices (``api_key_cost``).
 
     Accepted in any state, a deleted key's included: its usage up to the
     deletion still counts. The report leaves ``modified`` alone, which the
@@ -696,10 +698,12 @@ def record_usage(
             _record_month(api_key, usages, period, daily_usages)
         if daily_usages:
             _record_days(api_key, daily_usages)
+        api_key.estimated_cost = api_key_cost.estimate(api_key)
         models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
             current_usages=api_key.current_usages,
             usage_period=api_key.usage_period,
             usage_history=api_key.usage_history,
+            estimated_cost=api_key.estimated_cost,
         )
         reached = api_key_spending_limits.reached_limits(api_key)
         if reached:

@@ -188,6 +188,7 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `current_usages` | per-component usage in `usage_period`, the highest figure the agent reported for the month, which never drops; for a component reported per day, the sum of its days |
 | `usage_period` | the month `current_usages` covers (its first day); usage of an earlier month counts against no month limit |
 | `usage_history` | each earlier month's usage per component, `{"2026-09": {"token_cost": 12.5}}`: kept when the next month's usage comes in, and raised, never lowered, by usage reported late for that month; never pruned, as a total limit counts it. Not in the API |
+| `estimated_cost` | what `current_usages` costs at the unit prices of the resource's plan, without discounts, credits or carried-over usage ([below](#estimated-cost)); recomputed on every usage report |
 | `paused_by_limit` | Waldur paused the key because its usage reached a limit; such a key is resumed automatically once under its limits again |
 | `limit_resumes_at` | when every limit that paused the key resets, so that it resumes without a usage report; empty while a reached total holds the key, which then resumes only when that limit is raised or cleared |
 | `models_outdated` | the resource's model selection changed while the key could not take an `update`; Waldur sends one once the key settles ([below](#resource-selection)) |
@@ -196,11 +197,15 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 
 The key value is deliberately **not** on `Resource`: it never touches the broad
 `ResourceSerializer`, gets its own permission-gated endpoints, and stays out of
-admin and reversion history. `ResourceSerializer` carries only `has_api_keys`, a
+admin and reversion history. Of the keys, `ResourceSerializer` carries only `has_api_keys`, a
 boolean (an `Exists` annotation on the consumer and provider resource viewsets,
 with a per-instance fallback) so the portal can offer key management without
 knowing the backend —
-`offering_type` cannot tell these backends apart, they are all site-agent offerings.
+`offering_type` cannot tell these backends apart, they are all site-agent offerings —
+and `api_key_counts`, the number of keys per state with `Deleted` keys left out
+(`{"OK": 4, "Paused": 1}`; a state with no keys is absent). A list loads the
+counts for the whole page in one grouped query (`ResourceSerializer.load_page`,
+through `ResourceApiKeyQuerySet.state_counts`), and a single resource counts its own.
 
 **`client_id` is the backend's public identifier, and it is not always stable.**
 Envoy uses a slot, `<resource_backend_id>-<n>`, that survives rotation: only the
@@ -576,8 +581,27 @@ All endpoints live under `/api/marketplace-resource-api-keys/`
 (`ResourceApiKeyViewSet`); keys are addressed by their own UUID and filtered per
 resource with `?resource_uuid=`, and further by `state`, `pending_action`,
 `has_pending_action` (`false` for keys with no command in flight), `user_uuid`,
-`offering_uuid` and `modified_before`. A listing leaves out `Deleted` keys
-unless `?state=Deleted` asks for them.
+`offering_uuid`, `provider_uuid`, `customer_uuid` (the consuming organization),
+`project_uuid`, `paused_by_limit` and `modified_before`. A listing leaves out
+`Deleted` keys unless `?state=Deleted` asks for them. `?o=` orders by
+`estimated_cost`, `created`, `issued_at` or `state` (prefix `-` to reverse);
+the default is `created`.
+
+`provider_uuid` (the service provider's organization) is not a plain field
+filter: it lists the keys of that provider's offerings **as the provider
+resource list shows their resources** (`filter_for_service_provider`) — to
+staff, support, a global grant that sees all resources, and a role on the
+provider organization, its service provider or the offering. A consumer of
+those offerings with no provider role gets an empty list, and a provider who
+also consumes other offerings gets none of those keys. It never reveals a
+value: reveal stays consumer-side.
+
+Each key carries the context a list across resources needs: `resource_name`,
+`offering_uuid`, `offering_name`, `customer_uuid` and `customer_name` (the
+consuming organization), `project_uuid` and `project_name`. It also carries
+`resource_plan_uuid` and `resource_spending_limits`, so such a list can show a
+key's usage against its limits as the resource's own *API keys* tab does: the
+plan picks the components, and the resource's limits cap every key of it.
 
 Consumer side. The actions marked *governance* need the offering's
 `enable_api_key_provisioning`; without it they return 400.
@@ -648,8 +672,12 @@ Consumer side. The actions marked *governance* need the offering's
 - `DELETE /{uuid}/` *(governance)* — the `delete` command; `202`, since the key
   is gone only once the agent acknowledges. A requested key with no `client_id`
   yet is `Deleted` at once, with no command (see [States](#states)).
-- `GET /usage_totals/?resource_uuid=` — the resource's reported key usage this
-  month, summed per component, deleted keys included.
+- `GET /usage_totals/?resource_uuid=` (or `offering_uuid=`, or `provider_uuid=`)
+  — the reported key usage this month, summed per component, deleted keys
+  included, and `estimated_cost`, the keys' estimated cost summed. One of the
+  three is required, and the other list filters narrow the keys summed. The
+  per-component sums only compare within one offering; `estimated_cost` adds
+  up across offerings.
 
 Every command is gated on `RESOURCE.MANAGE_CONSUMER_API_KEY` (project or customer
 scope). `permissions.yaml` grants it to the organization owner, the project
@@ -847,3 +875,22 @@ The Envoy AI Gateway tags requests with a per-key `x-client-id`; per-key numbers
 depend on the usage shipper emitting them per `client_id`. croit-s3 meters the S3
 user directly, so keys never enter usage at all — and it does not declare
 `enable_api_key_provisioning`.
+
+### Estimated cost {#estimated-cost}
+
+Offerings meter different components — `token_cost` in USD, input and output
+tokens, storage — so raw usage cannot rank keys of different offerings. A key's
+`estimated_cost` can: the sum over its `current_usages` of the converted
+quantity times the unit price of that component in the resource's plan
+(`marketplace/api_key_cost.py`), the price and `convert_quantity` that
+`billing_usage` uses for invoice items. It ignores discounts, credits and
+carried-over usage, so it is not an invoice amount. A component the plan does
+not price counts as 0 — a LiteLLM cost cap priced at 0 adds nothing.
+
+It is stored on the key, so a list can sort on it, and recomputed whenever a
+usage report writes `current_usages`; a plan price change therefore shows at
+the key's next report, and keys that existed before the field read 0 until
+then. The API reports it for the current month: a key whose last report is for
+an earlier month reads 0, and sorts as 0, until usage for this month comes in.
+On an offering that no longer has `enable_api_key_provisioning` the field is
+null, like the key's usage, and the key sorts and totals as 0.

@@ -6146,6 +6146,16 @@ class ResourceApiKey(
             "month. Never pruned: a total limit counts it."
         ),
     )
+    estimated_cost = models.DecimalField(
+        default=0,
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+        help_text=_(
+            "What current_usages costs at the unit prices of the resource's plan, "
+            "without discounts or credits. Recomputed on every usage report, so a "
+            "plan price change shows at the key's next report."
+        ),
+    )
     paused_by_limit = models.BooleanField(
         default=False,
         help_text=_(

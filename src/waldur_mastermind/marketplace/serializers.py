@@ -8848,6 +8848,7 @@ class ResourcePage:
     usernames: dict | None = None
     requires_reconsent: dict | None = None
     period_usages: dict | None = None
+    api_key_counts: dict | None = None
 
 
 class ResourceListSerializer(serializers.ListSerializer):
@@ -8893,6 +8894,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     has_api_keys = serializers.SerializerMethodField(
         help_text="Whether the resource owns any API keys, so the portal can offer "
         "key management without knowing which backend serves the resource."
+    )
+    api_key_counts = serializers.SerializerMethodField(
+        help_text="How many keys the resource has in each state, deleted ones "
+        "left out, as {state: count}. States with no keys are absent."
     )
     offering_account_settings = serializers.SerializerMethodField()
     # Declared explicitly (rather than auto-derived from the model CharField) so
@@ -8983,12 +8988,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "offering_state",
             "offering_components",
             "has_api_keys",
+            "api_key_counts",
             "offering_account_settings",
             "display_limits",
         )
         read_only_fields = (
             "backend_metadata",
             "has_api_keys",
+            "api_key_counts",
             "scope",
             "current_usages",
             "backend_id",
@@ -9079,6 +9086,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         page = ResourcePage()
         if "limit_usage" in fields:
             page.period_usages = utils.load_current_period_usages(resources)
+        if "api_key_counts" in fields:
+            page.api_key_counts = self._load_api_key_counts(resources)
         for resource in resources:
             resource.serialization_page = page
 
@@ -9116,6 +9125,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
                 user,
                 {resource.offering_id: resource.offering for resource in resources},
             )
+
+    @staticmethod
+    def _load_api_key_counts(resources) -> dict[int, dict[str, int]]:
+        """``get_api_key_counts`` for a page of resources, in one query."""
+        counts = models.ResourceApiKey.objects.filter(
+            resource__in=resources
+        ).state_counts()
+        return {resource.id: counts.get(resource.id, {}) for resource in resources}
 
     @staticmethod
     def _load_requires_reconsent(user, offerings) -> dict:
@@ -9399,6 +9416,13 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     @extend_schema_field(OfferingAccountSettingsSerializer)
     def get_offering_account_settings(self, resource: models.Resource):
         return resource.offering.account_settings
+
+    @extend_schema_field(serializers.DictField(child=serializers.IntegerField()))
+    def get_api_key_counts(self, resource: models.Resource) -> dict[str, int]:
+        page = self._page(resource)
+        if page and page.api_key_counts is not None:
+            return page.api_key_counts.get(resource.id, {})
+        return self._load_api_key_counts([resource])[resource.id]
 
     def get_has_api_keys(self, resource: models.Resource) -> bool:
         # ConsumerResourceViewSet annotates this, so listing resources costs one
@@ -10081,6 +10105,14 @@ class ComponentDailyUsageItemSerializer(serializers.Serializer):
     )
 
 
+def format_estimated_cost(cost: Decimal) -> str:
+    """A key's estimated cost, formatted as the totals' estimated_cost is."""
+    return serializers.DecimalField(
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+    ).to_representation(cost)
+
+
 class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     """Non-secret view of a resource API key — safe for listing/polling."""
 
@@ -10097,11 +10129,39 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
         "effective_models",
         "current_usages",
         "usage_period",
+        "estimated_cost",
         "paused_by_limit",
         "limit_resumes_at",
     )
 
     resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
+    # Context for a list that spans resources, such as a provider's keys
+    # across its offerings.
+    resource_name = serializers.ReadOnlyField(source="resource.name")
+    offering_uuid = serializers.ReadOnlyField(source="resource.offering.uuid")
+    offering_name = serializers.ReadOnlyField(source="resource.offering.name")
+    customer_uuid = serializers.ReadOnlyField(
+        source="resource.project.customer.uuid",
+        help_text="The consuming organization.",
+    )
+    customer_name = serializers.ReadOnlyField(
+        source="resource.project.customer.name",
+        help_text="The consuming organization.",
+    )
+    project_uuid = serializers.ReadOnlyField(source="resource.project.uuid")
+    project_name = serializers.ReadOnlyField(source="resource.project.name")
+    # What a list across resources needs to show a key's usage against its
+    # limits as the resource's own API keys tab does: the plan picks the
+    # components, and the resource's limits cap every key of it.
+    resource_plan_uuid = serializers.ReadOnlyField(
+        source="resource.plan.uuid", allow_null=True
+    )
+    resource_spending_limits = SpendingLimitsField(
+        source="resource.spending_limits",
+        read_only=True,
+        help_text="The resource's spending limits, per component and period, "
+        "which cap every key of the resource.",
+    )
     # The agent's reconciliation pass finds keys by listing, so unlike a command
     # it has nothing carrying the resource's backend id — and it needs one to talk
     # to the backend.
@@ -10143,6 +10203,11 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
         child=LimitValueField(), allow_null=True, read_only=True
     )
     usage_period = serializers.DateField(allow_null=True, read_only=True)
+    estimated_cost = serializers.SerializerMethodField(
+        help_text="What the key's usage this month costs at the unit prices of "
+        "the resource's plan, without discounts or credits. Zero until the "
+        "first usage report of the month; recomputed on every report."
+    )
     paused_by_limit = serializers.BooleanField(
         allow_null=True,
         read_only=True,
@@ -10159,7 +10224,16 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
         fields = (
             "uuid",
             "resource_uuid",
+            "resource_name",
             "resource_backend_id",
+            "offering_uuid",
+            "offering_name",
+            "customer_uuid",
+            "customer_name",
+            "project_uuid",
+            "project_name",
+            "resource_plan_uuid",
+            "resource_spending_limits",
             "client_id",
             "description",
             "state",
@@ -10176,9 +10250,29 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
             "effective_models",
             "current_usages",
             "usage_period",
+            "estimated_cost",
             "paused_by_limit",
             "limit_resumes_at",
         )
+
+    @extend_schema_field(
+        serializers.DecimalField(
+            max_digits=common_mixins.PRICE_MAX_DIGITS,
+            decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+            allow_null=True,
+        )
+    )
+    def get_estimated_cost(self, api_key: models.ResourceApiKey):
+        # The list annotates the figure for the current month; an instance
+        # loaded otherwise (an action's response) works it out the same way.
+        cost = getattr(api_key, "current_estimated_cost", None)
+        if cost is None:
+            cost = (
+                api_key.estimated_cost
+                if api_key.usage_period == models.ResourceApiKey.current_period()
+                else Decimal(0)
+            )
+        return format_estimated_cost(cost)
 
     @extend_schema_field(SpendingLimitUsageSerializer(many=True, allow_null=True))
     def get_spending_limit_status(self, api_key: models.ResourceApiKey):
@@ -10471,7 +10565,13 @@ class ResourceApiKeyUsageTotalsSerializer(serializers.Serializer):
     usages = serializers.DictField(
         child=LimitValueField(),
         help_text="Usage per component type in the current month, summed over "
-        "the resource's keys, deleted ones included.",
+        "the keys, deleted ones included. Only comparable within one offering.",
+    )
+    estimated_cost = serializers.DecimalField(
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+        help_text="The keys' estimated cost this month, summed. Unlike the "
+        "usages it adds up across offerings.",
     )
 
 

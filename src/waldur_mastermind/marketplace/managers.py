@@ -510,6 +510,21 @@ class ResourceApiKeyQuerySet(django_models.QuerySet):
                 totals[component_type] = totals.get(component_type, 0) + value
         return totals
 
+    def state_counts(self) -> dict[int, dict[str, int]]:
+        """How many of these keys each resource has per state, as
+        {resource_id: {state: count}}, deleted keys left out. One grouped query.
+        """
+        counts: dict[int, dict[str, int]] = {}
+        rows = (
+            self.exclude(state=models.ResourceApiKey.States.DELETED)
+            .order_by()
+            .values_list("resource_id", "state")
+            .annotate(count=django_models.Count("id"))
+        )
+        for resource_id, state, count in rows:
+            counts.setdefault(resource_id, {})[state] = count
+        return counts
+
 
 def get_connected_offerings(user, role=None):
     """Ids of the offerings the user acts on as their provider.
