@@ -23,6 +23,7 @@ from django.db.models import (
     Avg,
     CharField,
     Count,
+    DecimalField,
     DurationField,
     Exists,
     ExpressionWrapper,
@@ -2965,6 +2966,11 @@ def _import_value(field, value, path):
     """
     if isinstance(value, dict | list):
         raise _import_error(path, "Expected a single value.")
+    if isinstance(field, DecimalField) and isinstance(value, float):
+        # The export writes decimals as numbers, so 0.05 arrives as a float.
+        # Parsed as a float it would keep its binary digits (0.05000...0277)
+        # and fail the digit checks; its shortest repr is the value meant.
+        value = repr(value)
     try:
         value = field.to_python(value)
         if value not in field.empty_values:
