@@ -558,10 +558,6 @@ class WaldurSlurm(BaseModel):
         "waldur_allocation_",
         description="Prefix for SLURM account name corresponding to Waldur allocation",
     )
-    PRIVATE_KEY_PATH: str = Field(
-        "/etc/waldur/id_rsa",
-        description="Path to private key file used as SSH identity file for accessing SLURM master.",
-    )
     DEFAULT_LIMITS: dict[str, int] = Field(
         {
             "CPU": 16000,  # Measured unit is CPU-minutes
