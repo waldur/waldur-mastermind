@@ -15,7 +15,6 @@ from rest_framework import serializers
 from waldur_core.configuration import config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import StringUUID
-from waldur_core.core.models import NAME_LENGTH
 from waldur_core.core.service_access import names_calls
 from waldur_core.core.utils import get_system_robot
 from waldur_core.logging import event_logger
@@ -33,6 +32,7 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
 from waldur_mastermind.proposal import (
     activity,
+    allocation_names,
     change_requests,
     dry_run_context,
     event_publishing,
@@ -327,19 +327,6 @@ def granted_duration_in_days(
     return days if days > 0 else None
 
 
-def _allocated_resource_name(
-    project_name: str, offering_name: str, index: int | None = None
-) -> str:
-    """Name a granted resource after its project and offering.
-
-    The offering tells apart the resources of one allocation; a request for an
-    offering already requested is numbered. The project part is cut to fit, as
-    a project name may be longer than a resource name.
-    """
-    suffix = f" - {offering_name}" + (f" ({index})" if index else "")
-    return (project_name[: max(0, NAME_LENGTH - len(suffix))] + suffix)[:NAME_LENGTH]
-
-
 def _requested_end_date(
     requested_resource: proposal_models.RequestedResource
     | proposal_models.AwardedResource,
@@ -610,6 +597,26 @@ def provision_problem(awarded: proposal_models.AwardedResource) -> str:
     return ""
 
 
+def award_item_index(awarded: proposal_models.AwardedResource) -> int | None:
+    """The number ``awarded`` carries among the items of its award on the same
+    offering, as allocation numbers them; None when it is the only one.
+
+    Lets an item ordered again outside allocation keep the name allocation
+    would have given it.
+    """
+    siblings = list(
+        awarded.proposal.awarded_resources.filter(
+            requested_offering__state=RequestedOfferingStates.ACCEPTED,
+            requested_offering__offering=awarded.requested_offering.offering,
+        )
+        .order_by("created", "id")
+        .values_list("pk", flat=True)
+    )
+    if len(siblings) < 2 or awarded.pk not in siblings:
+        return None
+    return siblings.index(awarded.pk) + 1
+
+
 def provision_awarded_item(
     awarded: proposal_models.AwardedResource,
     project: structure_models.Project,
@@ -658,7 +665,13 @@ def provision_awarded_item(
         )
         resource = marketplace_models.Resource(
             **attrs,
-            name=_allocated_resource_name(project.name, offering.name, index),
+            name=allocation_names.allocated_resource_name(
+                project,
+                offering,
+                plan=attrs["plan"],
+                attributes=attrs["attributes"],
+                index=index,
+            ),
         )
         # Before init_cost: the prepaid multiplier in Plan.get_estimate and
         # in the invoice item builder both read this field, so setting it
@@ -748,13 +761,6 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     # which provisions exactly what was requested.
     prefill_awarded_resources(proposal)
     proposal_round = proposal.round
-    name = proposal.name
-    start_date = None
-    call_prefix = proposal_round.call.backend_id or proposal_round.call.slug
-    project_name = " - ".join(
-        [call_prefix, proposal_round.start_time.strftime("%Y-%m-%d"), name]
-    )[: structure_models.PROJECT_NAME_LENGTH]
-
     start_date = allocation_start_date(proposal_round)
 
     # The project runs for the call's fixed duration, or, for a call that fixes
@@ -765,6 +771,8 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     # resource in it must be measured from the same day, or a run that crosses
     # midnight leaves a resource outlasting its own project.
     today = datetime.date.today()
+    # The call's project_name_template, or "<call> - <round start> - <name>".
+    project_name = allocation_names.allocated_project_name(proposal, today)
     end_date = project_end_date(proposal, start_date or today)
 
     project = structure_models.Project.objects.create(

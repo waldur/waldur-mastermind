@@ -1019,6 +1019,25 @@ sequenceDiagram
     RA->>Proj: Apply ProposalProjectRoleMapping
 ```
 
+### Names of allocated projects and resources
+
+The project is named by the call's `project_name_template`
+(`proposal/allocation_names.py`). Without one it is
+`<call reference code or slug> - <round start date> - <proposal name>`.
+Placeholders: `{proposal_name}`, `{proposal_slug}`, `{call_prefix}`,
+`{call_slug}`, `{call_name}`, `{round_start}` (YYYY-MM-DD), `{round_slug}`,
+`{org_slug}`, `{year}`. The call serializer refuses any other placeholder,
+positional fields, lookups, conversions and format specs, and holds the
+template's literal text to `PROJECT_NAME_REGEX`. Only the template is
+formatted: a brace in a proposal name stays a brace. The template is public
+on the call, so the applicant's form previews the project name.
+
+A resource is named by its offering's `plugin_options.resource_name_pattern`,
+as an ordinary order is. A pattern without `{counter}` gets `-2`, `-3`, … on
+further items of the award on the same offering. Without a pattern the
+resource is `<project name> - <offering name>`, with `(n)` on repeated
+offerings. Re-ordering an awarded item names it the same way.
+
 ### Awarded resources
 
 `AwardedResource` is what the allocation decision grants, which may differ from

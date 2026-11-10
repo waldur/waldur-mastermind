@@ -70,6 +70,8 @@ from waldur_mastermind.proposal.enums import (
     AWARD_RESPONSE_KEY,
     COMMON_STEP_FIELDS,
     DEFAULT_CALL_STEPS_MAP,
+    PROJECT_NAME_PLACEHOLDERS,
+    PROJECT_NAME_TEMPLATE_HELP,
     PROPOSAL_CONFIGURABLE_FIELDS,
     AllocationTimes,
     AssignmentBatchStatuses,
@@ -108,6 +110,7 @@ from waldur_mastermind.proposal.enums import (
 )
 
 from . import (
+    allocation_names,
     budgets,
     contributions,
     enums,
@@ -2297,6 +2300,13 @@ class PublicCallSerializer(
     # Read-only here, writable on the protected serializer: the applicant's form
     # renders from this, the call manager configures it.
     proposal_field_config = CallProposalFieldConfigSerializer(read_only=True)
+    # Public so the applicant's form can show the project name their proposal
+    # name becomes; the call manager sets it on the protected serializer.
+    project_name_template = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text=PROJECT_NAME_TEMPLATE_HELP,
+    )
     customer_name = serializers.ReadOnlyField(source="manager.customer.name")
     customer_uuid = serializers.UUIDField(
         read_only=True, source="manager.customer.uuid"
@@ -2380,6 +2390,7 @@ class PublicCallSerializer(
             "publish_results",
             # Public so the applicant's form offers one template or several.
             "resource_template_selection_mode",
+            "project_name_template",
         )
         view_name = "proposal-public-call-detail"
         extra_kwargs = {
@@ -3833,6 +3844,13 @@ class ProtectedCallSerializer(PublicCallSerializer):
     compliance_checklist_name = serializers.CharField(
         source="compliance_checklist.name", read_only=True
     )
+    project_name_template = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        max_length=255,
+        help_text=PROJECT_NAME_TEMPLATE_HELP,
+    )
     proposal_slug_template = serializers.CharField(
         required=False,
         allow_null=True,
@@ -4270,6 +4288,26 @@ class ProtectedCallSerializer(PublicCallSerializer):
                 raise serializers.ValidationError(
                     "Cannot change compliance checklist when proposals exist"
                 )
+        return value
+
+    def validate_project_name_template(self, value):
+        """Only the documented placeholders, and a name the deployment's
+        project name rule accepts. Empty means the default name. Not locked
+        once proposals exist: names are given at allocation, so a change
+        applies to the proposals allocated after it."""
+        if not value or not value.strip():
+            return None
+        errors = allocation_names.project_name_template_errors(value)
+        if errors:
+            raise serializers.ValidationError(errors)
+        # The literal text of the template ends up in every project name, so
+        # it has to pass the rule project names are held to.
+        sample = value.format_map(
+            {name: "Example" for name in PROJECT_NAME_PLACEHOLDERS}
+        )
+        error = get_project_name_regex_error(sample)
+        if error:
+            raise serializers.ValidationError(error)
         return value
 
     def validate_proposal_slug_template(self, value):
@@ -5592,7 +5630,7 @@ class ProposalSerializer(
 
     def validate_name(self, value):
         # The proposal name is the applicant-controlled part of the project name
-        # created on approval (call_prefix - date - name), so hold it to the same
+        # created on approval (see allocation_names), so hold it to the same
         # configurable pattern as the main project API. Validated on both create
         # and rename since the field-level check runs regardless of ``validate``.
         error = get_project_name_regex_error(value)
