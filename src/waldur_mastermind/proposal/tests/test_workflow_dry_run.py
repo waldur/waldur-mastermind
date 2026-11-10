@@ -1215,6 +1215,9 @@ class LaterFeaturesTest(DryRunMixin, test.APITestCase):
         notifications = {m["notification"] for m in data["messages"]}
         self.assertIn("proposal.round_report_requested", notifications)
 
+    # The last runs replay the whole path, extension and final report
+    # included: a loaded machine must not turn that into a test of the budget.
+    @mock.patch.object(dry_run, "TIMEOUT_SECONDS", 120)
     def test_extension_and_final_report_after_the_award(self):
         call = self.import_template("extreme_scale")
         actions, data = self.walk(call)
