@@ -7,7 +7,7 @@ in the router's project, not the subnet owner's. Waldur refused it outright --
 -- so the case #388 taught `SubNet.router` to represent could not be reached
 through the API or Homeport at all.
 
-The check is now visibility (`Tenant.available_subnets`), and the port the action
+The check is now visibility (`Tenant.attachable_subnets`), and the port the action
 creates is owned by the tenant whose router holds it, which is where Neutron puts
 it and where its quota and billing belong.
 """
