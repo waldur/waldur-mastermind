@@ -6,7 +6,7 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.permissions.fixtures import OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.proposal import models, permissions
+from waldur_mastermind.proposal import models, permissions, proposal_pdf
 from waldur_mastermind.proposal.enums import (
     ProposalStates,
     RequestedOfferingStates,
@@ -221,6 +221,68 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         self.assertEqual(decision["answer_display"], "Accepted")
         comment = next(a for a in answers if a["question_description"] == "Comment")
         self.assertEqual(comment["answer_display"], "Feasible")
+
+    def _answer_question(self, question_type, answer_data, description="Attachment"):
+        question = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description=description,
+            question_type=question_type,
+            order=2,
+        )
+        checklist_factories.AnswerFactory(
+            completion=self._completion(self.reviewer_a),
+            question=question,
+            user=self.reviewer_a,
+            answer_data=answer_data,
+        )
+        response = self._get(self.fixture.call_manager)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        contribution = response.data[0]
+        answer = next(
+            a
+            for a in contribution["answers"]
+            if a["question_description"] == description
+        )
+        return contribution, answer
+
+    def test_file_answer_display_names_the_file_and_its_size(self):
+        stored = {
+            "name": "final-report.pdf",
+            "size": 193,
+            "mime_type": "application/pdf",
+            "stored_file_id": "eba1815964eb4b31a227440c1ee4619f",
+        }
+        contribution, answer = self._answer_question(
+            checklist_enums.QuestionTypes.FILE, stored
+        )
+        self.assertEqual(answer["answer_display"], "final-report.pdf (193\xa0bytes)")
+        # The raw answer still carries the stored file, which a reader opens
+        # through the media endpoint.
+        self.assertEqual(answer["answer_data"], stored)
+        # The proposal document prints the same reading, not the dict.
+        lines = proposal_pdf._contribution_entry(contribution)["lines"]
+        self.assertIn("Attachment: final-report.pdf (193\xa0bytes)", lines)
+        self.assertFalse(any("stored_file_id" in line for line in lines))
+
+    def test_multiple_files_answer_display_lists_every_file(self):
+        _, answer = self._answer_question(
+            checklist_enums.QuestionTypes.MULTIPLE_FILES,
+            [
+                {"name": "a.pdf", "size": 2048, "stored_file_id": "f1"},
+                {"name": "b.png", "stored_file_id": "f2"},
+            ],
+        )
+        self.assertEqual(answer["answer_display"], "a.pdf (2.0\xa0KB), b.png")
+
+    def test_structured_answer_is_not_shown_as_its_representation(self):
+        _, answer = self._answer_question(
+            checklist_enums.QuestionTypes.TEXT_INPUT, {"unexpected": "shape"}, "Dict"
+        )
+        self.assertIsNone(answer["answer_display"])
+        _, answer = self._answer_question(
+            checklist_enums.QuestionTypes.TEXT_INPUT, ["one", "two"], "List"
+        )
+        self.assertEqual(answer["answer_display"], "one, two")
 
     def test_offering_manager_permission_follows_requested_offerings(self):
         # The permission layer recognises the managers of the offerings the
