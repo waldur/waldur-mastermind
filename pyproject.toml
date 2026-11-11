@@ -88,6 +88,8 @@ dependencies = [
   "mcp==2.3.0",
   "starlette>=1.9",
   "uvicorn>=0.54",
+  # The WSGI server the image runs (docker/rootfs/usr/local/bin/mastermind).
+  "gunicorn==22.0.0",
   # Tight on purpose: waldur_mastermind.mcp.oauth overrides DOT's private
   # _load_application, _validate_resource_uris and
   # _check_and_set_request_resource and uses _parse_and_validate_uri and
