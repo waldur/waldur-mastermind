@@ -7559,9 +7559,14 @@ class ReviewerProfileSerializer(
 
     @extend_schema_field(ReviewerPublicationApprovalSerializer(allow_null=True))
     def get_publication_request(self, obj):
-        latest = obj.publication_requests.exclude(
-            state=CoreReviewStates.CANCELED
-        ).first()
+        # Prefetched by the list, newest first as the model orders them.
+        if hasattr(obj, "active_publication_requests"):
+            requests = obj.active_publication_requests
+            latest = requests[0] if requests else None
+        else:
+            latest = obj.publication_requests.exclude(
+                state=CoreReviewStates.CANCELED
+            ).first()
         if latest is None:
             return None
         return ReviewerPublicationApprovalSerializer(latest).data
@@ -7579,9 +7584,10 @@ class ReviewerProfileSerializer(
         checks = {
             "has_biography": bool(obj.biography),
             "has_orcid": bool(obj.orcid_id),
-            "has_affiliations": obj.affiliations.exists(),
-            "has_expertise": obj.expertise_set.exists(),
-            "has_publications": obj.publications.exists(),
+            # all() reads a prefetched list where the list prefetched one.
+            "has_affiliations": bool(obj.affiliations.all()),
+            "has_expertise": bool(obj.expertise_set.all()),
+            "has_publications": bool(obj.publications.all()),
         }
         completed = sum(checks.values())
         total = len(checks)

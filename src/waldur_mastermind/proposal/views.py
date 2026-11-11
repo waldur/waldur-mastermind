@@ -11571,14 +11571,30 @@ class ReviewerProfileViewSet(ActionsViewSet):
 
     @access.shows(
         "Users with the staff flag see every profile. Others see their own, "
-        "and those of reviewers who accepted a place in the pool of a call they "
-        "hold the call manager role on -- of any call with the support flag or "
-        "a site-wide CALL.LIST grant."
+        "and those of reviewers who accepted a place in the pool of a call "
+        "whose review they manage: PROPOSAL.MANAGE_REVIEW on the call or on its "
+        "managing organisation, as the reviewer pool endpoints require -- of "
+        "any call with the support flag or a site-wide CALL.LIST grant."
     )
     def get_queryset(self):
         # The reviewer's record, worked out from their reviews for the whole
-        # page in one query.
-        return reviewer_stats.annotate(self._visible_profiles())
+        # page in one query, and the nested lists fetched once per page.
+        return reviewer_stats.annotate(
+            self._visible_profiles()
+            .select_related("user")
+            .prefetch_related(
+                "affiliations__organization",
+                "expertise_set__expertise_category",
+                "publications",
+                Prefetch(
+                    "publication_requests",
+                    queryset=models.ReviewerPublicationRequest.objects.exclude(
+                        state=CoreReviewStates.CANCELED
+                    ),
+                    to_attr="active_publication_requests",
+                ),
+            )
+        )
 
     def _visible_profiles(self):
         user = self.request.user
@@ -11596,8 +11612,12 @@ class ReviewerProfileViewSet(ActionsViewSet):
         if user.is_support or sees_every_call(user):
             pooled = accepted
         else:
+            # Whoever may manage a call's reviewer pool may read its members'
+            # profiles -- the same rule the pool endpoints enforce.
             pooled = accepted & Q(
-                pool_memberships__call__in=get_connected_calls(user, CallRole.MANAGER)
+                pool_memberships__call__in=proposal_permissions.review_managing_call_ids(
+                    user
+                )
             )
         return (
             models.ReviewerProfile.objects.filter(

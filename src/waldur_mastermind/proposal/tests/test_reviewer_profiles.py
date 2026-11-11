@@ -1,9 +1,15 @@
 """Tests for reviewer profile functionality."""
 
+from django.contrib.contenttypes.models import ContentType
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status, test
 
-from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CallRole, CustomerRole, ProjectRole
+from waldur_core.permissions.models import Role
+from waldur_core.permissions.tests.factories import RoleFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import (
@@ -453,3 +459,156 @@ class ConflictOfInterestAPITest(test.APITestCase):
         conflict.refresh_from_db()
         self.assertEqual(conflict.status, "waived")
         self.assertIsNotNone(conflict.management_plan)
+
+
+class ReviewerProfileVisibilityTest(test.APITestCase):
+    """Who may read the profiles of a call's reviewer pool: exactly those who
+    may manage that pool."""
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.organisation = factories.CallManagingOrganisationFactory(
+            customer=self.customer
+        )
+        self.call = factories.CallFactory(manager=self.organisation)
+
+        self.organizer_role = Role.objects.get_system_role(
+            "CUSTOMER.CALL_ORGANIZER",
+            content_type=ContentType.objects.get_for_model(
+                models.CallManagingOrganisation
+            ),
+        )
+        for role in (CallRole.MANAGER, self.organizer_role):
+            role.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
+            role.add_permission(PermissionEnum.LIST_CALLS)
+        # Mirrors permissions.yaml: owners and readers see their
+        # organisation's calls but do not manage their review.
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_CALLS)
+        CustomerRole.READER.add_permission(PermissionEnum.LIST_CALLS)
+
+        self.pooled = factories.CallReviewerPoolFactory(call=self.call).reviewer
+        self.pending = factories.CallReviewerPoolFactory(
+            call=self.call,
+            invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+        ).reviewer
+        self.other_call_pooled = factories.CallReviewerPoolFactory().reviewer
+        self.unpooled = factories.ReviewerProfileFactory()
+
+    def visible(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(factories.ReviewerProfileFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {item["uuid"] for item in response.data}
+
+    def manages_pool(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            factories.CallFactory.get_protected_url(self.call, "reviewer-pool")
+        )
+        return response.status_code == status.HTTP_200_OK
+
+    def assert_sees_pool(self, user):
+        self.assertTrue(self.manages_pool(user))
+        self.assertEqual(self.visible(user), {self.pooled.uuid.hex})
+
+    def assert_sees_nothing(self, user):
+        self.assertFalse(self.manages_pool(user))
+        self.assertEqual(self.visible(user), set())
+
+    def test_call_manager_sees_accepted_pool_members(self):
+        user = structure_factories.UserFactory()
+        self.call.add_user(user, CallRole.MANAGER)
+        self.assert_sees_pool(user)
+
+    def test_call_organiser_of_the_managing_organisation_sees_them(self):
+        user = structure_factories.UserFactory()
+        self.organisation.add_user(user, self.organizer_role)
+        self.assert_sees_pool(user)
+
+    def test_owner_who_organises_the_calls_sees_them(self):
+        user = structure_factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.OWNER)
+        self.organisation.add_user(user, self.organizer_role)
+        self.assert_sees_pool(user)
+
+    def test_owner_without_the_organiser_role_does_not(self):
+        # Ownership alone does not let the user manage the pool either.
+        user = structure_factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.OWNER)
+        self.assert_sees_nothing(user)
+
+    def test_call_organiser_of_another_organisation_does_not(self):
+        user = structure_factories.UserFactory()
+        factories.CallManagingOrganisationFactory().add_user(user, self.organizer_role)
+        self.assert_sees_nothing(user)
+
+    def test_organisation_reader_does_not(self):
+        user = structure_factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.READER)
+        self.assert_sees_nothing(user)
+
+    def test_results_reader_does_not(self):
+        results_reader = RoleFactory(
+            content_type=ContentType.objects.get_for_model(models.Call)
+        )
+        results_reader.add_permission(PermissionEnum.VIEW_CALL_RESULTS)
+        results_reader.add_permission(PermissionEnum.LIST_CALLS)
+        user = structure_factories.UserFactory()
+        self.call.add_user(user, results_reader)
+        self.assert_sees_nothing(user)
+
+    def test_project_member_does_not(self):
+        project = structure_factories.ProjectFactory(customer=self.customer)
+        user = structure_factories.UserFactory()
+        project.add_user(user, ProjectRole.ADMIN)
+        self.assert_sees_nothing(user)
+
+    def test_another_reviewer_sees_only_their_own_profile(self):
+        user = structure_factories.UserFactory()
+        self.call.add_user(user, CallRole.REVIEWER)
+        own = factories.CallReviewerPoolFactory(
+            call=self.call, reviewer=factories.ReviewerProfileFactory(user=user)
+        ).reviewer
+        self.assertFalse(self.manages_pool(user))
+        self.assertEqual(self.visible(user), {own.uuid.hex})
+
+    def test_profile_of_a_manager_role_on_another_call_stays_hidden(self):
+        user = structure_factories.UserFactory()
+        other_call = factories.CallFactory(manager=self.organisation)
+        other_call.add_user(user, CallRole.MANAGER)
+        self.assertEqual(self.visible(user), set())
+
+    def test_list_does_not_query_per_profile(self):
+        user = structure_factories.UserFactory()
+        self.organisation.add_user(user, self.organizer_role)
+        self.client.force_authenticate(user)
+        url = factories.ReviewerProfileFactory.get_list_url()
+        category = factories.ExpertiseCategoryFactory()
+
+        def add_pooled_profile():
+            profile = factories.CallReviewerPoolFactory(call=self.call).reviewer
+            factories.ReviewerAffiliationFactory(reviewer_profile=profile)
+            factories.ReviewerExpertiseFactory(
+                reviewer_profile=profile, expertise_category=category
+            )
+            factories.ReviewerPublicationFactory(reviewer_profile=profile)
+            models.ReviewerPublicationRequest.objects.create(
+                profile=profile, created_by=profile.user
+            )
+
+        add_pooled_profile()
+        with CaptureQueriesContext(connection) as two:
+            self.client.get(url)
+        for _ in range(3):
+            add_pooled_profile()
+        with CaptureQueriesContext(connection) as five:
+            response = self.client.get(url)
+
+        self.assertEqual(len(response.data), 5)
+        self.assertEqual(len(five), len(two))
+        filled = [p for p in response.data if p["affiliations"]]
+        self.assertEqual(len(filled), 4)
+        for item in filled:
+            self.assertEqual(len(item["expertise_set"]), 1)
+            self.assertEqual(len(item["publications"]), 1)
+            self.assertIsNotNone(item["publication_request"])

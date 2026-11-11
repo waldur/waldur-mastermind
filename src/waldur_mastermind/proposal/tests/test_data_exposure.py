@@ -15,6 +15,7 @@ from ddt import data, ddt
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -241,7 +242,8 @@ class ReviewerProfileExposureTestCase(APITestCase):
             state=ProposalStates.SUBMITTED,
         )
 
-        # Create call manager
+        # Create call manager; the role carries what permissions.yaml gives it.
+        CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
         self.call_manager = structure_factories.UserFactory()
         UserRole.objects.create(
             user=self.call_manager,
