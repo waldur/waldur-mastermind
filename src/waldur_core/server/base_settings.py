@@ -141,6 +141,9 @@ REST_FRAMEWORK = {
         # Each call sends a Mobile ID signing prompt to a phone. Budgeted for a
         # class signing in behind one NAT, per client address.
         "valimo": "30/min",
+        # Each call may email ONBOARDING_NOTIFICATION_EMAILS. Leaves room for
+        # resubmitting after a failed document upload, per user.
+        "onboarding_justification": "10/hour",
         "matrix_credentials": "1000/hour",
         # Each call replaces the user's Matrix password.
         "matrix_password": "30/hour",

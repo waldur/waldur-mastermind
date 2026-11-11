@@ -1,5 +1,7 @@
+import logging
 from datetime import timedelta
 
+from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -19,6 +21,7 @@ from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.media.validators import parse_email_list
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -42,6 +45,25 @@ from .serializers import (
     PersonIdentifierFieldsResponseSerializer,
 )
 from .validators import onboarding_validator
+
+logger = logging.getLogger(__name__)
+
+
+def queue_notification_after_commit(queue):
+    """Queue an onboarding notification email once the request commits.
+
+    The email is a side effect: if the broker cannot be reached, the
+    justification or organization has been created all the same, so the
+    error is logged instead of failing the request that created it.
+    """
+
+    def run():
+        try:
+            queue()
+        except Exception:
+            logger.exception("Could not queue an onboarding notification email.")
+
+    transaction.on_commit(run)
 
 
 def check_legal_person_identifier_not_exists(justification):
@@ -692,14 +714,27 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
 
         try:
             customer = verification.create_customer_if_verified()
-            serializer = structure_serializers.CustomerSerializer(
-                customer, context=self.get_serializer_context()
-            )
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
         except ValueError as e:
             raise exceptions.ValidationError(str(e))
         except Exception as e:
             raise exceptions.APIException(f"Failed to create customer: {str(e)}")
+
+        # Staff creating it from Administration -> Onboarding have seen it, so
+        # only the applicant's own creation counts as unreviewed.
+        if request.user == verification.user and parse_email_list(
+            config.ONBOARDING_NOTIFICATION_EMAILS
+        ):
+            verification_uuid = verification.uuid.hex
+            queue_notification_after_commit(
+                lambda: tasks.send_customer_created_automatically_notification.delay(
+                    verification_uuid
+                )
+            )
+
+        serializer = structure_serializers.CustomerSerializer(
+            customer, context=self.get_serializer_context()
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_customer_serializer_class = structure_serializers.CustomerSerializer
 
@@ -731,6 +766,16 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
     filterset_class = filters.OnboardingJustificationFilter
+
+    @property
+    def throttle_scope(self):
+        # Each justification may email ONBOARDING_NOTIFICATION_EMAILS, and a
+        # user can delete a pending one and create another.
+        return (
+            "onboarding_justification"
+            if self.action == "create_justification"
+            else None
+        )
 
     # A justification is created with create_justification, which sets its
     # user: the generic create sets none, and failed for every caller.
@@ -781,6 +826,15 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
                 "Justification created for already automatically verified company. Verification set to ESCALATED for manual review."
             )
             verification.save()
+
+        if parse_email_list(config.ONBOARDING_NOTIFICATION_EMAILS):
+            justification_uuid = justification.uuid.hex
+            queue_notification_after_commit(
+                lambda: tasks.send_justification_submitted_notification.apply_async(
+                    args=[justification_uuid],
+                    countdown=tasks.JUSTIFICATION_SUBMITTED_NOTIFICATION_DELAY,
+                )
+            )
 
         response_serializer = OnboardingJustificationSerializer(
             justification, context=self.get_serializer_context()

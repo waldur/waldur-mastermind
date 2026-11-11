@@ -842,6 +842,11 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         validate_access_email_patterns(value)
         return value
 
+    def validate_ONBOARDING_NOTIFICATION_EMAILS(self, value):
+        # A malformed address would only surface as a bounce, while an
+        # application waits unreviewed - reject it on write.
+        return validate_notification_emails(value)
+
     def validate_VERSION_UPDATE_NOTIFICATION_EMAILS(self, value):
         # A malformed address would only surface as a bounce, after the release
         # it was meant to announce - reject it on write.
