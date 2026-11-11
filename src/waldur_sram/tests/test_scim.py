@@ -218,6 +218,36 @@ class UserProvisioningTest(SramScimTest):
         user = User.objects.get(uuid=created["id"])
         self.assertEqual((user.username, user.last_name), ("roger", "Changed"))
 
+    @override_config(
+        SCIM_USER_MATCH_WALDUR_ATTRIBUTE="email",
+        SCIM_USER_MATCH_SCIM_ATTRIBUTE="emails",
+    )
+    def test_an_account_is_not_adopted_by_an_email_its_user_set(self):
+        # Holding a user's API token is enough to set their email.
+        local = structure_factories.UserFactory(
+            username="local", email="roger@example.org"
+        )
+        local.mark_email_set_by_user()
+        local.save()
+
+        response = self.sbs.provision("Users", payloads.sram_user(username="roger"))
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(models.SramUser.objects.exists())
+
+    @override_config(
+        SCIM_USER_MATCH_WALDUR_ATTRIBUTE="email",
+        SCIM_USER_MATCH_SCIM_ATTRIBUTE="emails",
+    )
+    def test_an_account_is_adopted_by_an_email_nobody_changed(self):
+        local = structure_factories.UserFactory(
+            username="local", email="roger@example.org"
+        )
+
+        _, created = self.provision_user(username="roger")
+
+        self.assertEqual(created["id"], local.uuid.hex)
+
     def test_privileged_local_user_is_not_linked(self):
         structure_factories.UserFactory(username="admin", is_staff=True)
         response = self.sbs.provision("Users", payloads.sram_user(username="admin"))

@@ -2001,8 +2001,19 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             raise ValidationError(_("Request has expired."))
 
         with transaction.atomic():
-            change_request.user.email = change_request.email
-            change_request.user.save(update_fields=["email"])
+            # Locked, so that a concurrent save of attribute_sources cannot
+            # write back a copy without the mark.
+            user = core_models.User.all_objects.select_for_update().get(
+                pk=change_request.user_id
+            )
+            # Staff setting the email meanwhile deleted the request; theirs stands.
+            if not core_models.ChangeEmailRequest.objects.filter(
+                pk=change_request.pk
+            ).exists():
+                raise ValidationError(_("The change email request has not been found."))
+            user.email = change_request.email
+            user.mark_email_set_by_user()
+            user.save(update_fields=["email", "attribute_sources"])
             core_models.ChangeEmailRequest.objects.filter(
                 email=change_request.email
             ).delete()

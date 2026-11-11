@@ -3176,6 +3176,10 @@ class UserSerializer(
         )
         instance = super().update(instance, validated_data)
         if email_changed:
+            # Only staff set the email here. An address staff set is one
+            # sign-in may find the account by again (User.find_by_email).
+            instance.record_email_source(core_models.User.STAFF_SET_SOURCE)
+            instance.save(update_fields=["attribute_sources"])
             # A pending self-service change would overwrite this on confirmation.
             core_models.ChangeEmailRequest.objects.filter(user=instance).delete()
             # The viewset select_related it; the response must not show it.

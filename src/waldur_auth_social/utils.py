@@ -429,6 +429,53 @@ def oauth_registration_method(identity_provider: IdentityProvider) -> str:
     return registration_method
 
 
+def _find_by_email(identity_provider, email, is_interactive_login) -> list[User]:
+    """The accounts sign-in may find by ``email`` (``User.find_by_email``).
+
+    When the only accounts with the address are ones whose user set it
+    themselves, a sign-in is refused rather than given a new, empty account:
+    a person who changed their email and now signs in through an identity
+    provider asks support, who set the email for them. Background
+    synchronisation is no sign-in; it creates the account as before.
+    """
+    matches = User.find_by_email(email)
+    self_set = (
+        []
+        if matches
+        else list(
+            User.all_objects.filter(email__iexact=email).values_list("uuid", flat=True)
+        )
+    )
+    if is_interactive_login and self_set:
+        # The failed-login event records only the generic message; this tells
+        # support which accounts to look at.
+        logger.info(
+            "Refused a sign-in through %s by email %s: the accounts with it (%s) "
+            "had it set by their users.",
+            identity_provider.provider,
+            email,
+            ", ".join(str(uuid) for uuid in self_set),
+        )
+        raise OAuthException(
+            identity_provider.provider,
+            "This sign-in cannot be completed for this email address. "
+            "Please contact support.",
+            user_facing=True,
+        )
+    return matches
+
+
+def _get_by_email(identity_provider, email, is_interactive_login) -> User:
+    """The one account sign-in may find by ``email``, as ``QuerySet.get``
+    finds one."""
+    matches = _find_by_email(identity_provider, email, is_interactive_login)
+    if not matches:
+        raise User.DoesNotExist
+    if len(matches) > 1:
+        raise User.MultipleObjectsReturned
+    return matches[0]
+
+
 def create_or_update_oauth_user(
     identity_provider: IdentityProvider,
     backend_user: dict,
@@ -464,11 +511,15 @@ def create_or_update_oauth_user(
     # Primary lookup. Email is compared ignoring case, as SCIM matching and the
     # email failover below do, so a claim in different case than the stored
     # address still finds the account.
-    lookup_query = lookup_params
-    if identity_provider.user_field == "email":
-        lookup_query = {"email__iexact": lookup_params["email"]}
+    # An email the user set themselves is never a way in (User.find_by_email):
+    # holding their API token is enough to set it.
     try:
-        user = cast(User, User.all_objects.get(**lookup_query))
+        if identity_provider.user_field == "email":
+            user = _get_by_email(
+                identity_provider, lookup_params["email"], is_interactive_login
+            )
+        else:
+            user = cast(User, User.all_objects.get(**lookup_params))
     except User.MultipleObjectsReturned:
         # The lookup field need not be unique (email is not).
         field = identity_provider.user_field
@@ -483,8 +534,8 @@ def create_or_update_oauth_user(
         if config.OIDC_MATCHMAKING_BY_EMAIL:
             email = payload.get("email")
             if email and identity_provider.user_field != "email":
-                matches = User.all_objects.filter(email__iexact=email)
-                count = matches.count()
+                matches = _find_by_email(identity_provider, email, is_interactive_login)
+                count = len(matches)
                 if count > 1:
                     logger.warning(
                         "OIDC email matchmaking: %d users with email %s",
@@ -497,7 +548,7 @@ def create_or_update_oauth_user(
                         "Cannot determine which account to use.",
                     )
                 elif count == 1:
-                    user = cast(User, matches.first())
+                    user = matches[0]
                     email_matched = True
 
     if user is not None:
@@ -565,6 +616,11 @@ def create_or_update_oauth_user(
                 for field, value in payload.items()
                 if field not in locked_fields
             }
+
+        # Compare with the email and its source as they are now, as
+        # update_user_attributes_from_source does under its lock: a copy from
+        # the lookup could drop the mark of an email set meanwhile.
+        user.refresh_from_db(fields=["email", "attribute_sources"])
 
         # Prepare for update
         now_iso = timezone.now().isoformat()
@@ -920,8 +976,15 @@ def update_user_attributes_from_source(
     Returns:
         Set of field names that were actually changed.
     """
-    # Lock the user row for concurrent safety
+    # Lock the user row for concurrent safety, and compare and write from the
+    # row as it is now. A copy read before the lock, held across a pull's HTTP
+    # call or a bulk run, would compare the payload with an old email and still
+    # replace its source, dropping the mark of a self-set one
+    # (User.find_by_email) while the address stays.
     User.objects.select_for_update().filter(pk=user.pk).exists()
+    user.refresh_from_db(
+        fields=[*WRITABLE_USER_FIELDS, "attribute_sources", "active_isds"]
+    )
 
     now_iso = timezone.now().isoformat()
     updated_fields = set()
