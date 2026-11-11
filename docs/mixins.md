@@ -112,6 +112,8 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
 | [`ResourceEndDateUpdateMixin`](#resourceenddateupdatemixin) | `waldur_mastermind.marketplace.serializers` | Write the end date and who set it, and nothing else |
 | [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
+| [`DeploymentPresetsMixin`](#deploymentpresetsmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_deployment` | Built-in presets in one temporary directory and the deployment's in another, ... |
+| [`PreviewTestMixin`](#previewtestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_preview` | No description available |
 | [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_settings` | No description available |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
@@ -1598,6 +1600,21 @@ serves both offering users and user role grants. Username, full name and
 email are declared by the serializers themselves.
 
 **Base classes:** `Serializer`
+
+### DeploymentPresetsMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_demo_preset_deployment`
+
+**Description:**
+
+Built-in presets in one temporary directory and the deployment's in
+another, set as its extra directory.
+
+### PreviewTestMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_demo_preset_preview`
+
+**Description:** No description available.
 
 ### PresetSettingsTestMixin
 
