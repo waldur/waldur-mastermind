@@ -365,7 +365,8 @@ class COIDisclosureExposureTestCase(APITestCase):
             state=ProposalStates.SUBMITTED,
         )
 
-        # Create call manager
+        # Create call manager; the role carries what permissions.yaml gives it.
+        CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
         self.call_manager = structure_factories.UserFactory()
         UserRole.objects.create(
             user=self.call_manager,
@@ -485,7 +486,8 @@ class ConflictOfInterestExposureTestCase(APITestCase):
             state=ProposalStates.SUBMITTED,
         )
 
-        # Create call manager
+        # Create call manager; the role carries what permissions.yaml gives it.
+        CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
         self.call_manager = structure_factories.UserFactory()
         UserRole.objects.create(
             user=self.call_manager,
@@ -725,7 +727,8 @@ class ReviewerPoolExposureTestCase(APITestCase):
             state=ProposalStates.SUBMITTED,
         )
 
-        # Create call manager
+        # Create call manager; the role carries what permissions.yaml gives it.
+        CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
         self.call_manager = structure_factories.UserFactory()
         UserRole.objects.create(
             user=self.call_manager,
