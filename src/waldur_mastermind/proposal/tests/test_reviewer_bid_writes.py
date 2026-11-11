@@ -3,8 +3,9 @@
 A bid is the reviewer's own preference. Only that reviewer may change or
 withdraw it, and only while they could place it through ``submit``: as an
 accepted member of the call's reviewer pool, in good standing. Everyone else
-who can see the bid (the call's managers, roles on the managing customer, its
-call organizers, staff) reads it but cannot write it. Bids are placed through
+who can see the bid (those who manage the call's review -- its managers and
+call organizers -- and staff) reads it but cannot write it; other roles on the
+managing customer do not see it. Bids are placed through
 ``submit`` and ``bulk-submit``; the generic create is disabled.
 """
 
@@ -12,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, CustomerRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
@@ -45,27 +47,36 @@ class ReviewerBidWritesTest(test.APITestCase):
         self.url = reverse("reviewer-bid-detail", kwargs={"uuid": self.bid.uuid.hex})
 
     def readers(self):
-        manager = structure_factories.UserFactory()
-        self.call.add_user(manager, CallRole.MANAGER)
-        support = structure_factories.UserFactory()
-        self.call.manager.customer.add_user(support, CustomerRole.SUPPORT)
-        organizer = structure_factories.UserFactory()
-        self.call.manager.add_user(
-            organizer,
-            Role.objects.get_system_role(
-                "CUSTOMER.CALL_ORGANIZER",
-                content_type=ContentType.objects.get_for_model(
-                    models.CallManagingOrganisation
-                ),
+        organizer_role = Role.objects.get_system_role(
+            "CUSTOMER.CALL_ORGANIZER",
+            content_type=ContentType.objects.get_for_model(
+                models.CallManagingOrganisation
             ),
         )
+        # The roles carry what permissions.yaml gives them.
+        for role in (CallRole.MANAGER, organizer_role):
+            role.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
+        manager = structure_factories.UserFactory()
+        self.call.add_user(manager, CallRole.MANAGER)
+        organizer = structure_factories.UserFactory()
+        self.call.manager.add_user(organizer, organizer_role)
         staff = structure_factories.UserFactory(is_staff=True)
         return {
             "call manager": manager,
-            "customer support": support,
             "call organizer": organizer,
             "staff": staff,
         }
+
+    def test_customer_support_role_does_not_see_the_bid(self):
+        support = structure_factories.UserFactory()
+        self.call.manager.customer.add_user(support, CustomerRole.SUPPORT)
+        self.client.force_authenticate(support)
+        self.assertEqual(
+            self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND
+        )
+        response = self.client.patch(self.url, {"bid": "not_willing"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assert_unchanged()
 
     def assert_unchanged(self):
         self.bid.refresh_from_db()

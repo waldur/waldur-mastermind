@@ -12126,9 +12126,9 @@ class ConflictOfInterestViewSet(ActionsViewSet):
     @access.shows(
         "Users with the staff or support flag, and holders of a site-wide "
         "CALL.LIST grant, see every conflict. Others see those about "
-        "themselves as reviewer, and those of calls they hold the call manager "
-        "role on, or any role on the call's managing organisation or on its "
-        "customer, except on proposals they apply with."
+        "themselves as reviewer, and those of calls whose review they manage "
+        "(PROPOSAL.MANAGE_REVIEW on the call or on its managing organisation), "
+        "except on proposals they apply with."
     )
     def get_queryset(self):
         user = self.request.user
@@ -12137,15 +12137,9 @@ class ConflictOfInterestViewSet(ActionsViewSet):
         # Call managers can see COIs for their calls -- not those about a
         # proposal they apply with: who is conflicted with it, and whether
         # that stands, is not the applicant's to read or decide.
-        oversees = (
-            Q(call__in=get_connected_calls(user, CallRole.MANAGER))
-            | Q(call__manager__customer__in=get_connected_customers(user))
-            | Q(
-                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
-                    user
-                )
-            )
-        ) & ~Q(proposal_id__in=proposal_roles.applicant_team_proposal_ids(user))
+        oversees = Q(call__in=proposal_permissions.review_managing_call_ids(user)) & ~Q(
+            proposal_id__in=proposal_roles.applicant_team_proposal_ids(user)
+        )
         return models.ConflictOfInterest.objects.filter(
             oversees | Q(reviewer__user=user)  # Reviewers can see their own COIs
         ).order_by("-detected_at")
@@ -12370,8 +12364,8 @@ class COIDisclosureViewSet(ActionsViewSet):
 
     @access.shows(
         "Users with the staff flag see every disclosure. Others see their own, "
-        "and those of calls they hold the call manager role on, or any role on "
-        "the call's managing organisation or on its customer."
+        "and those of calls whose review they manage (PROPOSAL.MANAGE_REVIEW on "
+        "the call or on its managing organisation)."
     )
     def get_queryset(self):
         user = self.request.user
@@ -12381,13 +12375,7 @@ class COIDisclosureViewSet(ActionsViewSet):
         # Users can see their own disclosures, call managers can see all for their calls
         return models.COIDisclosureForm.objects.filter(
             Q(reviewer__user=user)
-            | Q(call__in=get_connected_calls(user, CallRole.MANAGER))
-            | Q(call__manager__customer__in=get_connected_customers(user))
-            | Q(
-                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
-                    user
-                )
-            )
+            | Q(call__in=proposal_permissions.review_managing_call_ids(user))
         ).order_by("-created")
 
     def perform_create(self, serializer):
@@ -12645,22 +12633,19 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
     @access.shows(
         "Users with the staff or support flag, and holders of a site-wide "
         "CALL.LIST grant, see every entry. Others see the entries addressed to "
-        "them, and those of calls they hold the call manager role on, or any "
-        "role on the call's managing organisation or on its customer."
+        "them, and those of calls whose review they manage: PROPOSAL.MANAGE_REVIEW "
+        "on the call or on its managing organisation, as the pool's management "
+        "endpoints require. Other roles on the managing organisation's customer "
+        "see none."
     )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support or sees_every_call(user):
             qs = models.CallReviewerPool.objects.all()
         else:
+            # Who reviews is confidential to those who run the review.
             qs = models.CallReviewerPool.objects.filter(
-                Q(call__in=get_connected_calls(user, CallRole.MANAGER))
-                | Q(call__manager__customer__in=get_connected_customers(user))
-                | Q(
-                    call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
-                        user
-                    )
-                )
+                Q(call__in=proposal_permissions.review_managing_call_ids(user))
                 | models.CallReviewerPool.addressed_to(user)
             )
         # Add select_related to avoid N+1 on related fields
@@ -12978,36 +12963,18 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
     # Allow destroy action (override ReadOnlyActionsViewSet defaults)
     disabled_actions = ["create", "update", "partial_update"]
 
-    # Checked in the action body, on a suggestion get_object() found.
-    access_declarations = {
-        action: [
-            access.custom(
-                "A request acting as staff, the call's managers, and holders of "
-                "any role on the organization that runs the call's managing "
-                "organisation."
-            )
-        ]
-        for action in ("confirm", "reject")
-    }
-
     @access.shows(
-        "Suggestions for calls the caller manages, calls run by an organization "
-        "they hold any role on, and calls of a call-managing organisation they "
-        "hold a role on; users with the staff or support flag and holders of a "
-        "site-wide CALL.LIST grant see all."
+        "Suggestions for calls whose review the caller manages "
+        "(PROPOSAL.MANAGE_REVIEW on the call or on its managing organisation); "
+        "users with the staff or support flag and holders of a site-wide "
+        "CALL.LIST grant see all."
     )
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.is_support or sees_every_call(user):
             return models.ReviewerSuggestion.objects.all().order_by("-affinity_score")
         return models.ReviewerSuggestion.objects.filter(
-            Q(call__in=get_connected_calls(user, CallRole.MANAGER))
-            | Q(call__manager__customer__in=get_connected_customers(user))
-            | Q(
-                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
-                    user
-                )
-            )
+            call__in=proposal_permissions.review_managing_call_ids(user)
         ).order_by("-affinity_score")
 
     @extend_schema(
@@ -13017,22 +12984,12 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
     def destroy(self, request, uuid=None):
         """Delete a reviewer suggestion."""
         suggestion = self.get_object()
-
-        # Check if user has permission to manage this call
-        user = request.user
-        call = suggestion.call
-        if not has_staff_access(request) and not (
-            call.id in get_connected_calls(user, CallRole.MANAGER)
-            or call.manager.customer_id in get_connected_customers(user)
-        ):
-            raise exceptions.PermissionDenied(
-                _("You do not have permission to delete suggestions for this call.")
-            )
-
         suggestion.delete()
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
-    destroy_permissions = [
+    # Managing a call's suggestions is managing its review, as the pool's
+    # management endpoints are.
+    destroy_permissions = confirm_permissions = reject_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
             ["call", "call.manager"],
@@ -13047,17 +13004,7 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
     def confirm(self, request, uuid=None):
         """Manager confirms a reviewer suggestion."""
         suggestion = self.get_object()
-
-        # Check if user has permission to manage this call
         user = request.user
-        call = suggestion.call
-        if not has_staff_access(request) and not (
-            call.id in get_connected_calls(user, CallRole.MANAGER)
-            or call.manager.customer_id in get_connected_customers(user)
-        ):
-            raise exceptions.PermissionDenied(
-                _("You do not have permission to confirm suggestions for this call.")
-            )
 
         if suggestion.status != ReviewerSuggestionStatuses.PENDING:
             raise exceptions.ValidationError(
@@ -13084,17 +13031,7 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
     def reject(self, request, uuid=None):
         """Manager rejects a reviewer suggestion."""
         suggestion = self.get_object()
-
-        # Check if user has permission to manage this call
         user = request.user
-        call = suggestion.call
-        if not has_staff_access(request) and not (
-            call.id in get_connected_calls(user, CallRole.MANAGER)
-            or call.manager.customer_id in get_connected_customers(user)
-        ):
-            raise exceptions.PermissionDenied(
-                _("You do not have permission to reject suggestions for this call.")
-            )
 
         if suggestion.status != ReviewerSuggestionStatuses.PENDING:
             raise exceptions.ValidationError(
@@ -13375,9 +13312,9 @@ class ReviewerBidViewSet(ActionsViewSet):
     }
 
     @access.shows(
-        "The caller's own bids, and bids on calls they manage, calls run by an "
-        "organization they hold any role on, and calls of a call-managing "
-        "organisation they hold a role on; users with the staff flag see all."
+        "The caller's own bids, and bids on calls whose review they manage "
+        "(PROPOSAL.MANAGE_REVIEW on the call or on its managing organisation); "
+        "users with the staff flag see all."
     )
     def get_queryset(self):
         user = self.request.user
@@ -13387,13 +13324,7 @@ class ReviewerBidViewSet(ActionsViewSet):
         # Reviewers can see their own bids, managers can see all for their calls
         return models.ReviewerBid.objects.filter(
             Q(reviewer__user=user)
-            | Q(call__in=get_connected_calls(user, CallRole.MANAGER))
-            | Q(call__manager__customer__in=get_connected_customers(user))
-            | Q(
-                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
-                    user
-                )
-            )
+            | Q(call__in=proposal_permissions.review_managing_call_ids(user))
         ).order_by("-submitted_at")
 
     @extend_schema(
