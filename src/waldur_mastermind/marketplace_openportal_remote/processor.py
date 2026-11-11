@@ -1,6 +1,5 @@
 import logging
 
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import processors
 from waldur_openportal import models as openportal_models
 from waldur_openportal import views as openportal_views
@@ -24,9 +23,9 @@ class CreateRemoteAllocationProcessor(processors.BaseCreateResourceProcessor):
 
             # use the name of the offering as the default
             try:
-                offering_uuid = request.data.get("offering", "").split("/")[-2]
-                offering = marketplace_models.Offering.objects.get(uuid=offering_uuid)
-                attributes["name"] = offering.name
+                # The order's own offering: an edit of a pending order sends
+                # no offering in the request.
+                attributes["name"] = self.order.offering.name
                 logger.info(
                     f"Setting default name for remote allocation: {attributes['name']}"
                 )
