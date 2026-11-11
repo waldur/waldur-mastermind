@@ -488,11 +488,97 @@ Role granted.
 
 ## waldur_core.onboarding
 
+### customer_created_automatically_message.txt (waldur_core.onboarding)
+
+```txt
+
+Hello,
+
+A new organization has been created on {{ site_name }}. It passed automatic validation, so it was not reviewed by staff.
+
+Validated by: {{ validation_method }}
+Created on: {{ created_at }}
+
+View the organization: {{ organization_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
 ### justification_review_notification_subject.txt (waldur_core.onboarding)
 
 ```txt
 
 Update on your organization onboarding application
+
+```
+
+### justification_submitted_message.html (waldur_core.onboarding)
+
+```html
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Organization Onboarding Application</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <p>Hello,</p>
+
+    <p>A new organization onboarding application has been submitted on {{ site_name }} and awaits manual review.</p>
+
+    <div style="background-color: #f5f5f5; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>Submitted on:</strong> {{ created_at }}</p>
+    </div>
+
+    <p>
+        <a href="{{ review_url }}">Review the application</a>
+    </p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+
+</body>
+</html>
+
+```
+
+### justification_submitted_subject.txt (waldur_core.onboarding)
+
+```txt
+
+New organization onboarding application awaits review
+
+```
+
+### customer_created_automatically_message.html (waldur_core.onboarding)
+
+```html
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Organization Created</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <p>Hello,</p>
+
+    <p>A new organization has been created on {{ site_name }}. It passed automatic validation, so it was not reviewed by staff.</p>
+
+    <div style="background-color: #f5f5f5; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>Validated by:</strong> {{ validation_method }}</p>
+        <p style="margin: 5px 0;"><strong>Created on:</strong> {{ created_at }}</p>
+    </div>
+
+    <p>
+        <a href="{{ organization_url }}">View the organization</a>
+    </p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+
+</body>
+</html>
 
 ```
 
@@ -514,6 +600,14 @@ If the application was not approved, it will remain available in your dashboard 
 View details: {{ link_to_homeport_dashboard }}
 
 This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+### customer_created_automatically_subject.txt (waldur_core.onboarding)
+
+```txt
+
+New organization created through automatic onboarding
 
 ```
 
@@ -551,6 +645,22 @@ This is an automated message from {{ site_name }}. Please do not reply to this e
 
 </body>
 </html>
+
+```
+
+### justification_submitted_message.txt (waldur_core.onboarding)
+
+```txt
+
+Hello,
+
+A new organization onboarding application has been submitted on {{ site_name }} and awaits manual review.
+
+Submitted on: {{ created_at }}
+
+Review the application: {{ review_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
 
 ```
 

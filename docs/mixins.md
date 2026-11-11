@@ -163,6 +163,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ReviewerSuggestionsTestMixin`](#reviewersuggestionstestmixin) | `waldur_mastermind.proposal.tests.test_proposal_reviewer_suggestions` | No description available |
 | [`EvaluatorRoleTestMixin`](#evaluatorroletestmixin) | `waldur_mastermind.proposal.tests.test_proposal_roles` | A call with a rapporteur role, picked from its panel members in an assignment... |
 | [`ProposalTeamMixin`](#proposalteammixin) | `waldur_mastermind.proposal.tests.test_proposal_team` | No description available |
+| [`ReviewRolesMixin`](#reviewrolesmixin) | `waldur_mastermind.proposal.tests.test_reviewer_pool_visibility` | No description available |
 | [`CallSetupMixin`](#callsetupmixin) | `waldur_mastermind.proposal.tests.test_reviewer_registry` | No description available |
 | [`StepInputsTestMixin`](#stepinputstestmixin) | `waldur_mastermind.proposal.tests.test_step_inputs` | No description available |
 | [`DryRunMixin`](#dryrunmixin) | `waldur_mastermind.proposal.tests.test_workflow_dry_run` | No description available |
@@ -2117,6 +2118,12 @@ assignment step right after the administrative check.
 ### ProposalTeamMixin
 
 **Module:** `waldur_mastermind.proposal.tests.test_proposal_team`
+
+**Description:** No description available.
+
+### ReviewRolesMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_reviewer_pool_visibility`
 
 **Description:** No description available.
 
