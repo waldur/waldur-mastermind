@@ -77,6 +77,26 @@ def configurable_call_ids(user):
     ).values_list("pk", flat=True)
 
 
+def review_managing_call_ids(user):
+    """Ids of the calls whose review ``user`` manages: PROPOSAL.MANAGE_REVIEW
+    on the call itself or on its managing organisation, the sources
+    (CALL_PERMISSION_SOURCES) every reviewer pool gate checks. A site-wide
+    grant of the permission covers every call, as it does for those gates.
+    Staff and support are not special-cased here."""
+
+    def scope(model):
+        return get_scope_ids(
+            user,
+            ContentType.objects.get_for_model(model),
+            permission=PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+        )
+
+    return proposal_models.Call.objects.filter(
+        Q(pk__in=scope(proposal_models.Call))
+        | Q(manager_id__in=scope(proposal_models.CallManagingOrganisation))
+    ).values_list("pk", flat=True)
+
+
 # The sources configurable_call_ids reads CALL.UPDATE from.
 _CONFIGURABLE_CALL_SOURCES = ["*", "manager", "manager.customer"]
 
