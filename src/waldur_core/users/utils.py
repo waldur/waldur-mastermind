@@ -180,7 +180,16 @@ def get_or_create_user(invitation):
         if user:
             return user, False
 
-    user = core_models.User.objects.filter(email=invitation.email).first()
+    # Not an account whose user set the address themselves
+    # (User.find_by_email): the invitation would hand it to that address.
+    user = next(
+        (
+            user
+            for user in core_models.User.objects.filter(email=invitation.email)
+            if not user.email_set_by_user
+        ),
+        None,
+    )
     if user:
         return user, False
 

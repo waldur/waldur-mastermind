@@ -146,6 +146,15 @@ def _match_existing_user(body: dict) -> User | None:
             f"User {user_name!r} is already linked to another SRAM identity.",
             scim_type="uniqueness",
         )
+    if matching.waldur_attribute() == "email" and candidate.email_set_by_user:
+        # Holding a user's API token is enough to set their email, so an
+        # identity must not take the account over by it (User.find_by_email).
+        raise ScimError(
+            409,
+            f"User {user_name!r} set this email themselves; SRAM cannot adopt "
+            "the account by it.",
+            scim_type="uniqueness",
+        )
     return candidate
 
 

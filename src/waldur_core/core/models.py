@@ -672,6 +672,52 @@ class User(
         else:
             return filter_visible_users(queryset, user)
 
+    # ``attribute_sources`` sources of an email set through the API: by the
+    # user themselves (``change_email``), or by staff.
+    SELF_SET_SOURCE = "self"
+    STAFF_SET_SOURCE = "staff"
+
+    def record_email_source(self, source):
+        """Record who set the current email, naming the address it is for, so
+        that the record stops applying when anyone else sets another one."""
+        sources = dict(self.attribute_sources or {})
+        sources["email"] = {
+            "source": source,
+            "timestamp": django_timezone.now().isoformat(),
+            "value": self.email,
+        }
+        self.attribute_sources = sources
+
+    def mark_email_set_by_user(self):
+        """Record that the user set the current email themselves.
+
+        Setting it needs only the API token and a mailbox the requester
+        controls, so sign-in must not find the account by it
+        (``find_by_email``). Staff, an identity provider or SCIM setting the
+        email replace the record.
+        """
+        self.record_email_source(self.SELF_SET_SOURCE)
+
+    @property
+    def email_set_by_user(self) -> bool:
+        """Whether the current email is one the user set themselves."""
+        info = (self.attribute_sources or {}).get("email")
+        return (
+            isinstance(info, dict)
+            and info.get("source") == self.SELF_SET_SOURCE
+            and (info.get("value") or "").lower() == (self.email or "").lower()
+        )
+
+    @classmethod
+    def find_by_email(cls, email) -> list["User"]:
+        """The accounts, active or not, that sign-in may find by ``email``,
+        ignoring case: not those whose user set that email themselves."""
+        return [
+            user
+            for user in cls.all_objects.filter(email__iexact=email)
+            if not user.email_set_by_user
+        ]
+
     @transaction.atomic
     def create_request_for_update_email(self, email):
         ChangeEmailRequest.objects.filter(user=self).delete()

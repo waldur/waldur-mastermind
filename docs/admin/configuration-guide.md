@@ -2567,7 +2567,7 @@ The message to show when an existing account is refused at login because its ema
 
 **Type:** bool
 
-If true, when OIDC login fails to find a user by the primary lookup field, attempt a secondary lookup by email before creating a new user. On successful email match, the user's primary lookup field is updated to the OIDC claim value.
+If true, when OIDC login fails to find a user by the primary lookup field, attempt a secondary lookup by email before creating a new user. On successful email match, the user's primary lookup field is updated to the OIDC claim value. An email the user set themselves (a self-service email change) is not matched; a login that finds only such an account is refused, and staff setting the email makes it matchable.
 
 #### OIDC_ACCESS_TOKEN_ENABLED
 

@@ -1426,6 +1426,10 @@ def _search_by_email(requesting_user, email, can_query_all):
         qs = qs.filter(is_active=True)
 
     qs = qs.filter(email__iexact=email)
+    # Callers such as Keycloak decide by this answer whether an identity with
+    # the address may sign in, and as whom. An email its user set themselves
+    # (User.find_by_email) answers only that user.
+    qs = [user for user in qs if not user.email_set_by_user or user == requesting_user]
 
     reason = None
     is_authorised = False
