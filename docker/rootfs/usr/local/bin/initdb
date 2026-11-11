@@ -20,7 +20,10 @@ RABBITMQ_HOST=${RABBITMQ_HOST:-${RABBITMQ_HOSTNAME:-localhost}}
 RABBITMQ_MANAGEMENT_PORT=${RABBITMQ_MANAGEMENT_PORT:-15672}
 
 for i in {1..30}; do
-    if wget --spider --quiet --timeout=5 http://${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}/api/version; then
+    # urlopen raises on a connection error or an HTTP error status, so the exit
+    # code means what `wget --spider` used to: the API answered with 2xx/3xx.
+    if python3 -c 'import sys, urllib.request; urllib.request.urlopen(sys.argv[1], timeout=5)' \
+        "http://${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}/api/version" 2>/dev/null; then
         echo "INFO: RabbitMQ management API is ready at ${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}"
         break
     fi

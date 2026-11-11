@@ -1,24 +1,30 @@
 set -e
 
-# Installing Python package manager
-python3 -m pip install --upgrade pip
-# Install uv first
-python3 -m pip install uv
+# Runs in the builder stage of the Dockerfile. The runtime stage copies in what
+# it produces: the virtualenv in /opt/venv, the source in /usr/src/waldur (with
+# its settings.py), and /usr/share/waldur. Anything else, uv included, stays in
+# the builder.
 
-# Install Python dependencies for Waldur MasterMind using lock file
-# Use UV_PROJECT_ENVIRONMENT to target system Python (no venv)
-export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+# uv is installed by the Dockerfile, in a layer of its own. Nothing here may run
+# python3 before `uv sync` creates /opt/venv: bash would remember
+# /usr/local/bin/python3 for the rest of the script, and under QEMU emulation
+# (the arm64 CI build) the venv's python is then never used, because the
+# emulator hands Python that remembered path as argv[0] instead of "python3".
+
+# Install Python dependencies for Waldur MasterMind using lock file, into the
+# virtualenv the Dockerfile names in UV_PROJECT_ENVIRONMENT (/opt/venv).
 # --frozen installs exactly what uv.lock records and never re-resolves, so the
 # image matches the lockfile the rest of CI tests against. --no-dev keeps the
 # dev group (pytest, pyright, memray, faker, ...) out of a runtime image whose
-# test directories are deleted a step earlier.
+# test directories never enter the build context (.dockerignore).
 # `uv sync` installs the project itself, so no separate `uv pip install -e .`
 # is needed - and adding one would re-resolve against pyproject.toml, outside
-# the lock.
-uv sync --frozen --no-dev
-
-# Install gunicorn separately after uv sync to ensure it's available
-python3 -m pip install gunicorn==22.0.0
+# the lock. gunicorn is a locked dependency like any other.
+# --no-install-package setuptools: setuptools is locked only because pbr (the
+# OpenStack clients) declares it. On Python 3.13 pbr reads versions through
+# importlib.metadata, and the other pkg_resources users (pytz, sentry-sdk,
+# wrapt) only fall back to it, so the runtime image goes without a packaging tool.
+uv sync --frozen --no-dev --no-install-package setuptools
 
 # Download ghostty-web, the browser terminal served by `waldur web_shell`,
 # pinned by URL and sha512 in waldur_core/web_shell/assets.py, so containers

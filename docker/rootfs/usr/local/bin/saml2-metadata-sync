@@ -1,28 +1,54 @@
 #!/bin/bash
 set -e
 
+# fetch URL FILE: download URL to FILE, failing on an HTTP error. Python's
+# urllib rather than wget, so the image needs no download tool. The file is
+# written next to its final path and renamed in, so a failed download never
+# leaves a truncated metadata file behind for sync_saml2_providers to read.
+fetch() {
+  python3 - "$1" "$2" <<'PYTHON'
+import os, shutil, sys, urllib.request
+
+url, path = sys.argv[1], sys.argv[2]
+request = urllib.request.Request(url, headers={"User-Agent": "waldur-saml2-metadata-sync"})
+try:
+    with urllib.request.urlopen(request, timeout=300) as response, open(path + ".part", "wb") as out:
+        shutil.copyfileobj(response, out)
+        # read(n), which copyfileobj uses, returns b"" when the server closes
+        # early instead of raising, so a truncated body is caught here.
+        expected = response.headers.get("Content-Length")
+        if expected is not None and out.tell() != int(expected):
+            raise OSError(f"{url}: got {out.tell()} of {expected} bytes")
+except BaseException:
+    if os.path.exists(path + ".part"):
+        os.unlink(path + ".part")
+    raise
+os.replace(path + ".part", path)
+PYTHON
+}
+
 echo "INFO: Fetching saml2 metadata"
 
 mkdir -p /etc/waldur/saml2/metadata/
 
 if [ -n "$TAAT_METADATA_URL" ]; then
   echo "INFO: Fetching TAAT metadata from $TAAT_METADATA_URL"
-  wget -q -O /etc/waldur/saml2/metadata/taat_metadata.xml $TAAT_METADATA_URL
+  fetch "$TAAT_METADATA_URL" /etc/waldur/saml2/metadata/taat_metadata.xml
 fi
 
 if [ -n "$EDUGAIN_METADATA_URL" ]; then
   echo "INFO: Fetching EDUGAIN metadata from $EDUGAIN_METADATA_URL"
-  wget -q -O /etc/waldur/saml2/metadata/edugain_metadata.xml $EDUGAIN_METADATA_URL
+  fetch "$EDUGAIN_METADATA_URL" /etc/waldur/saml2/metadata/edugain_metadata.xml
 fi
 
 if [ -n "$HAKA_TEST_METADATA_URL" ]; then
   echo "INFO: Fetching Haka Test metadata from $HAKA_TEST_METADATA_URL"
-  wget -q -O /etc/waldur/saml2/metadata/haka_test_metadata.xml $HAKA_TEST_METADATA_URL
+  fetch "$HAKA_TEST_METADATA_URL" /etc/waldur/saml2/metadata/haka_test_metadata.xml
 fi
 
 if [ -n "$HAKA_PROD_METADATA_URL" ]; then
   echo "INFO: Fetching Haka Prod metadata from $HAKA_PROD_METADATA_URL"
-  wget -q -O /etc/waldur/saml2/metadata/haka_prod_metadata.xml $HAKA_PROD_METADATA_URL
+  fetch "$HAKA_PROD_METADATA_URL" /etc/waldur/saml2/metadata/haka_prod_metadata.xml
 fi
 
 echo "INFO: Saml2 providers sync"

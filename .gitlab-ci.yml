@@ -694,6 +694,8 @@ Try building docker image:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - Dockerfile
+        - .dockerignore
+        - docker_build.sh
         - docker/**/*
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
@@ -764,6 +766,8 @@ Build MR image for integration tests:
         - src/**/*
         - docker/**/*
         - Dockerfile
+        - .dockerignore
+        - docker_build.sh
         - pyproject.toml
         - uv.lock
   variables:
@@ -781,6 +785,13 @@ Build MR image for integration tests:
       -t "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e"
       -f "${CI_PROJECT_DIR}/Dockerfile"
       "${CI_PROJECT_DIR}"
+    # The runtime image must carry no build toolchain and no test code: no
+    # compiler, *-dev package, git, ssh, wget, pip or uv, and no tests directory
+    # under /usr/src/waldur in any layer. Checked before the push, so the E2E
+    # suite never runs on an image that fails it. The script reads the layers
+    # with tar and find.
+    - command -v tar >/dev/null && command -v find >/dev/null || dnf install -y tar findutils
+    - sh docker/check-runtime-image.sh "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e"
     - buildah push "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e"
 
 Publish the latest multiarch docker image:
@@ -857,6 +868,8 @@ Test Multi-arch docker image build:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - Dockerfile
+        - .dockerignore
+        - docker_build.sh
         - docker/**/*
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/

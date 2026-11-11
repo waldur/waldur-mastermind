@@ -1,5 +1,6 @@
 .git
 .idea
 docker_push.sh
-tests/
+# Every tests directory, at any depth: test code never enters a layer.
+**/tests
 Dockerfile
