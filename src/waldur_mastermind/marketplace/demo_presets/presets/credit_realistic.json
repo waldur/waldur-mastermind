@@ -15559,7 +15559,32 @@
       "Project with no credit configured",
       "Customer with no customer credit",
       "Fired policy on overdrawn project (paused resources)",
-      "Terminated resource still compensated by customer credit (concealed from end users via filter, visible to staff)"
+      "Terminated resource still compensated by customer credit (concealed from end users via filter, visible to staff)",
+      "Credit burn-down with a projected exhaustion date on the project dashboard (dashboard.spend_forecast)",
+      "Usage per offering, period over period and as a treemap on the dashboards (dashboard.usage_*)",
+      "Estimated cost column in the projects list (project.estimated_cost)"
     ]
-  }
+  },
+  "features": [
+    {
+      "key": "dashboard.spend_forecast",
+      "value": true
+    },
+    {
+      "key": "dashboard.usage_per_offering_bars",
+      "value": true
+    },
+    {
+      "key": "dashboard.usage_period_over_period",
+      "value": true
+    },
+    {
+      "key": "dashboard.usage_treemap",
+      "value": true
+    },
+    {
+      "key": "project.estimated_cost",
+      "value": true
+    }
+  ]
 }

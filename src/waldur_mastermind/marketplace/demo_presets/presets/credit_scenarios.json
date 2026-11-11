@@ -946,7 +946,8 @@
       "11 Organization credit lower than allocation",
       "12 Organization credit exhausted",
       "13 Credit expired unspent",
-      "14 Cost outside the credit"
+      "14 Cost outside the credit",
+      "Credit burn-down with a projected exhaustion date on the project dashboard (dashboard.spend_forecast)"
     ],
     "credit_history": {
       "c3c00000000000000000000000000001": {
@@ -1080,5 +1081,11 @@
         }
       }
     }
-  }
+  },
+  "features": [
+    {
+      "key": "dashboard.spend_forecast",
+      "value": true
+    }
+  ]
 }

@@ -12,7 +12,9 @@
       "SLURM compute offerings with slurm_periodic_policy_enabled",
       "Both 'lean' and 'full' SLURM plugin_options flavors",
       "By-project decomposition (10 projects share one offering) \u2014 supports the by-project chart and 'View all' modal",
-      "Crosses-limit projection \u2014 quarterly compute offering at 87% of limit at end of May with linear forward rate that crosses cap in mid-June"
+      "Crosses-limit projection \u2014 quarterly compute offering at 87% of limit at end of May with linear forward rate that crosses cap in mid-June",
+      "Usage per offering, period over period and as a treemap on the dashboards (dashboard.usage_*)",
+      "Component saturation against its limit over time (dashboard.usage_limit_horizon)"
     ]
   },
   "users": [
@@ -5439,5 +5441,23 @@
   "constance_settings": {
     "SITE_NAME": "Usage Periods Demo",
     "SITE_DESCRIPTION": "Demo preset that exercises every limit_period combination so the per-offering usage endpoint can be verified end-to-end."
-  }
+  },
+  "features": [
+    {
+      "key": "dashboard.usage_per_offering_bars",
+      "value": true
+    },
+    {
+      "key": "dashboard.usage_period_over_period",
+      "value": true
+    },
+    {
+      "key": "dashboard.usage_treemap",
+      "value": true
+    },
+    {
+      "key": "dashboard.usage_limit_horizon",
+      "value": true
+    }
+  ]
 }
