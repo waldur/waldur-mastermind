@@ -19,6 +19,8 @@ from rest_framework import status, test
 from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.enums import ReauthenticationAction
+from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.permissions.enums import TYPE_KEY_BY_CT, PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -387,6 +389,9 @@ class SourcePathApiTest(BindingSetup, test.APITestCase):
                 "allowed_scopes": [{"type": type_key, "uuid": binding.uuid.hex}],
             },
             format="json",
+            **reauthenticated(
+                user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.client.force_authenticate(user=None)

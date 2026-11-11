@@ -10,7 +10,11 @@ distinct way for "passkey required" to be theatre.
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
-from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.enums import ReauthenticationAction
+from waldur_core.core.tests.helpers import (
+    override_waldur_core_settings,
+    reauthenticated,
+)
 from waldur_core.passkeys import services
 from waldur_core.passkeys.enums import CeremonyKind
 from waldur_core.passkeys.models import PasskeyCeremony, PasskeyCredential
@@ -328,7 +332,11 @@ class RegistrationEndpointTest(test.APITestCase):
 
     def test_user_can_enrol_a_credential(self):
         self.client.force_authenticate(self.user)
-        begin = self.client.post(REG_BEGIN, {})
+        begin = self.client.post(
+            REG_BEGIN,
+            {},
+            **reauthenticated(self.user, ReauthenticationAction.REGISTER_PASSKEY),
+        )
         self.assertEqual(begin.status_code, status.HTTP_200_OK)
 
         response = self.client.post(
@@ -349,7 +357,11 @@ class RegistrationEndpointTest(test.APITestCase):
 
     def test_a_ceremony_cannot_be_finished_by_a_different_user(self):
         self.client.force_authenticate(self.user)
-        begin = self.client.post(REG_BEGIN, {})
+        begin = self.client.post(
+            REG_BEGIN,
+            {},
+            **reauthenticated(self.user, ReauthenticationAction.REGISTER_PASSKEY),
+        )
 
         intruder = make_user()
         self.client.force_authenticate(intruder)

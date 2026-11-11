@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 
 import requests
 import reversion
+from axes.handlers.proxy import AxesProxyHandler
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
@@ -52,7 +53,14 @@ from waldur_core.changelog.utils import (
 from waldur_core.configuration import config
 from waldur_core.configuration.models import Setting, Source
 from waldur_core.configuration.secrets import redact_constance_secrets
-from waldur_core.core import WaldurExtension, access, models, pdf, permissions
+from waldur_core.core import (
+    WaldurExtension,
+    access,
+    models,
+    pdf,
+    permissions,
+    reauthentication,
+)
 from waldur_core.core.authentication import (
     OIDC_AUTHENTICATION_METHODS,
     AuthenticationMethod,
@@ -60,6 +68,7 @@ from waldur_core.core.authentication import (
     refresh_token,
     set_authentication_method,
 )
+from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURE_DEFAULTS, FEATURES
 from waldur_core.core.fields import COUNTRIES
@@ -102,6 +111,8 @@ from waldur_core.core.serializers import (
     PersonalAccessTokenNetworkAclSerializer,
     PersonalAccessTokenSerializer,
     QuerySerializer,
+    ReauthenticationGrantSerializer,
+    ReauthenticationPasswordSerializer,
     SettingSourceSerializer,
     TableGrowthStatsResponseSerializer,
     TableGrowthTriggerResponseSerializer,
@@ -184,6 +195,16 @@ def validate_authentication_method(method):
     return wrapper
 
 
+# The password login's lockout. Re-authenticating with a password counts
+# toward it too, so that a token holder cannot guess the password there instead.
+LOGIN_LOCKOUT_MINUTES = 10
+MAX_LOGIN_FAILURES = 4
+
+
+def login_failures_key(username, source_ip):
+    return f"LOGIN_FAILURES_OF_{username}_AT_{source_ip}"
+
+
 class ObtainAuthToken(APIView):
     """
     API view loosely based on DRF's default ObtainAuthToken,
@@ -257,10 +278,10 @@ class ObtainAuthToken(APIView):
         username = serializer.validated_data["username"]
 
         source_ip = request.META.get("REMOTE_ADDR")
-        auth_failure_key = f"LOGIN_FAILURES_OF_{username}_AT_{source_ip}"
+        auth_failure_key = login_failures_key(username, source_ip)
         auth_failures = cache.get(auth_failure_key) or 0
-        lockout_time_in_mins = 10
-        max_auth_failures = 4
+        lockout_time_in_mins = LOGIN_LOCKOUT_MINUTES
+        max_auth_failures = MAX_LOGIN_FAILURES
 
         if auth_failures >= max_auth_failures:
             logger.debug(
@@ -356,6 +377,98 @@ class ObtainAuthToken(APIView):
         )
 
         return Response({"token": token.key})
+
+
+class ReauthenticationPasswordView(
+    reauthentication.ThrottledGrantEndpointMixin, APIView
+):
+    """Confirm the caller's identity with their password, for one change.
+
+    The password check is the sign-in's own: ``auth.authenticate``, so that
+    django-axes counts a wrong password and refuses a locked-out username, and
+    the login view's failure counter, so that a wrong password here locks the
+    password login out as well, and the other way round.
+    """
+
+    permission_classes = (rf_permissions.IsAuthenticated,)
+    access_declarations = {
+        "post": [
+            access.owned(
+                "A re-authentication grant for the caller, who gives their own "
+                "password; not while impersonating or with a personal access "
+                "token or an OIDC access token."
+            )
+        ]
+    }
+
+    @extend_schema(
+        summary="Re-authenticate with a password",
+        description=(
+            "Returns a single-use grant for one change that requires "
+            "re-authentication, to send in the X-Reauthentication-Grant "
+            "header. Wrong passwords count toward the sign-in lockout."
+        ),
+        request=ReauthenticationPasswordSerializer,
+        responses={
+            201: ReauthenticationGrantSerializer,
+            **reauthentication.THROTTLED_RESPONSES,
+        },
+    )
+    def post(self, request):
+        serializer = ReauthenticationPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data["action"]
+        user = request.user
+
+        reauthentication.refuse_delegated(request, action)
+        if not reauthentication.is_method_available(
+            user, ReauthenticationMethod.PASSWORD
+        ):
+            raise ValidationError(
+                {
+                    "password": [
+                        _("Your account cannot confirm its identity with a password.")
+                    ]
+                }
+            )
+
+        source_ip = request.META.get("REMOTE_ADDR")
+        failure_key = login_failures_key(user.username, source_ip)
+        failures = cache.get(failure_key) or 0
+        if failures >= MAX_LOGIN_FAILURES or AxesProxyHandler.is_locked(
+            request, {"username": user.username}
+        ):
+            # At most this long: the counters do not say how much is left.
+            # DRF joins the wait to the message as a plain string.
+            raise reauthentication.ReauthenticationThrottled(
+                LOGIN_LOCKOUT_MINUTES * 60,
+                detail=str(_("Too many failed attempts to confirm your identity.")),
+            )
+
+        authenticated = auth.authenticate(
+            request=request,
+            username=user.username,
+            password=serializer.validated_data["password"],
+        )
+        if authenticated is None or authenticated.pk != user.pk:
+            cache.set(failure_key, failures + 1, LOGIN_LOCKOUT_MINUTES * 60)
+            reauthentication.emit_failed(user, action, ReauthenticationMethod.PASSWORD)
+            if failures + 1 >= MAX_LOGIN_FAILURES:
+                emit_user_blocked_event(
+                    user.username, source_ip, LOGIN_LOCKOUT_MINUTES * 60
+                )
+            raise ValidationError({"password": [_("The password is incorrect.")]})
+        cache.delete(failure_key)
+
+        grant, secret = reauthentication.issue_grant(
+            user, action, ReauthenticationMethod.PASSWORD
+        )
+        return Response(
+            ReauthenticationGrantSerializer(
+                {"grant": secret, "action": action, "expires_at": grant.expires_at}
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 TOKEN_EXCHANGE_TTL = timedelta(seconds=10)
@@ -2583,12 +2696,19 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     @extend_schema(
         summary="Create a personal access token",
         request=PersonalAccessTokenCreateSerializer,
-        responses={201: PersonalAccessTokenCreatedSerializer},
+        responses={
+            201: PersonalAccessTokenCreatedSerializer,
+            **reauthentication.CHALLENGE_RESPONSES,
+        },
+        parameters=[reauthentication.GRANT_PARAMETER],
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        pat = serializer.save()
+        with reauthentication.guarded(
+            request, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+        ):
+            pat = serializer.save()
 
         # pat.name is user-controlled and emit() runs .format() over the
         # template, so it is passed as a context value rather than inlined —
@@ -2643,14 +2763,22 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     @extend_schema(
         summary="Rotate a personal access token",
         request=None,
-        responses={201: PersonalAccessTokenCreatedSerializer},
+        responses={
+            201: PersonalAccessTokenCreatedSerializer,
+            **reauthentication.CHALLENGE_RESPONSES,
+        },
+        parameters=[reauthentication.GRANT_PARAMETER],
     )
     @action(detail=True, methods=["post"])
     def rotate(self, request, uuid=None):
         """Atomically revoke the old token and create a new one with the same scopes and bindings."""
         old_pat = self.get_object()
 
-        with transaction.atomic():
+        # A rotation mints a new token, so it is guarded as a create is.
+        # guarded() runs the body in a transaction that uses up the grant.
+        with reauthentication.guarded(
+            request, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+        ):
             # Lock the row
             locked = models.PersonalAccessToken.objects.select_for_update().get(
                 pk=old_pat.pk

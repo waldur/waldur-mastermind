@@ -27,7 +27,11 @@ from reversion import revisions as reversion
 
 from waldur_core.core import managers as core_managers
 from waldur_core.core.enums import GENDER_CHOICES as _GENDER_CHOICES_RAW
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import (
+    CoreStates,
+    ReauthenticationAction,
+    ReauthenticationMethod,
+)
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
@@ -1890,3 +1894,52 @@ class TokenExchangeCode(UuidMixin, TimeStampedModel):
 
     def resolve_token_key(self):
         return self.token.key if self.token_id else self.external_token
+
+
+class ReauthenticationGrant(models.Model):
+    """Proof that a user has just re-authenticated, for one action.
+
+    The secret goes once to whoever re-authenticated and is stored only as its
+    SHA-256 hash, so neither the API token nor the database gives it away. A
+    grant is single-use, bound to its user and action, and short-lived.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="reauthentication_grants",
+    )
+    action = models.CharField(max_length=64, choices=ReauthenticationAction.choices)
+    method = models.CharField(max_length=32, choices=ReauthenticationMethod.choices)
+    secret_hash = models.CharField(max_length=64, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created", "id"]
+        indexes = [models.Index(fields=["expires_at"])]
+
+    def __str__(self):
+        return f"{self.action} grant for {self.user.username}"
+
+    @staticmethod
+    def hash_secret(secret: str) -> str:
+        return hashlib.sha256(secret.encode()).hexdigest()
+
+    @classmethod
+    def issue(cls, user, action, method, lifetime):
+        """Create a grant and return it with its secret, which is not stored."""
+        now = django_timezone.now()
+        # Expired grants are of no use to anybody; the user's own are cleared
+        # here instead of by a periodic task.
+        cls.objects.filter(user=user, expires_at__lte=now).delete()
+        secret = secrets.token_urlsafe(32)
+        grant = cls.objects.create(
+            user=user,
+            action=action,
+            method=method,
+            secret_hash=cls.hash_secret(secret),
+            expires_at=now + lifetime,
+        )
+        return grant, secret

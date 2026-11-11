@@ -4,7 +4,8 @@ from rest_framework import exceptions, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from waldur_core.core import access
+from waldur_core.core import access, reauthentication
+from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.core.permissions import has_staff_access
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -39,7 +40,12 @@ class PasskeyCredentialViewSet(
     access_declarations = {
         "update": [access.owned("The caller's own passkey.")],
         "partial_update": [access.owned("The caller's own passkey.")],
-        "revoke": [access.owned("The caller's own passkey.")],
+        "revoke": [
+            access.owned(
+                "The caller's own passkey, with a re-authentication grant; not "
+                "while impersonating or with a delegated token."
+            )
+        ],
     }
 
     @access.shows("The caller's own passkeys.")
@@ -65,7 +71,8 @@ class PasskeyCredentialViewSet(
     @extend_schema(
         summary="Revoke a passkey",
         request=PasskeyRevokeSerializer,
-        responses={204: None},
+        responses={204: None, **reauthentication.CHALLENGE_RESPONSES},
+        parameters=[reauthentication.GRANT_PARAMETER],
     )
     @action(detail=True, methods=["post"])
     def revoke(self, request, uuid=None):
@@ -77,7 +84,10 @@ class PasskeyCredentialViewSet(
         serializer.is_valid(raise_exception=True)
         reason = serializer.validated_data.get("reason", "")
 
-        credential.revoke(revoked_by=request.user, reason=reason)
+        # Revoking can take away the second factor, so it needs the same fresh
+        # proof as registering.
+        with reauthentication.guarded(request, ReauthenticationAction.REVOKE_PASSKEY):
+            credential.revoke(revoked_by=request.user, reason=reason)
 
         # The name is user-controlled and emit() runs .format() over the
         # template, so it is passed as a context value rather than inlined.
@@ -131,7 +141,10 @@ class StaffPasskeyViewSet(
         ],
         "revoke": [
             access.staff(),
-            access.custom("Not while impersonating another user."),
+            access.custom(
+                "Not while impersonating another user. With the staff "
+                "member's own re-authentication grant."
+            ),
         ],
     }
 
@@ -168,7 +181,8 @@ class StaffPasskeyViewSet(
     @extend_schema(
         summary="Revoke another user's passkey",
         request=PasskeyStaffRevokeSerializer,
-        responses={204: None},
+        responses={204: None, **reauthentication.CHALLENGE_RESPONSES},
+        parameters=[reauthentication.GRANT_PARAMETER],
     )
     @action(detail=True, methods=["post"])
     def revoke(self, request, uuid=None):
@@ -180,7 +194,9 @@ class StaffPasskeyViewSet(
         serializer.is_valid(raise_exception=True)
         reason = serializer.validated_data["reason"]
 
-        credential.revoke(revoked_by=request.user, reason=reason)
+        # With the staff member's own grant, as for other users' accounts.
+        with reauthentication.guarded(request, ReauthenticationAction.REVOKE_PASSKEY):
+            credential.revoke(revoked_by=request.user, reason=reason)
 
         # affected_user is the credential's owner, not the actor: the person
         # who lost an authenticator is who this event is about, and whose

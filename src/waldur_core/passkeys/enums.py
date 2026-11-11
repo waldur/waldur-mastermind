@@ -13,6 +13,7 @@ class CeremonyKind(models.TextChoices):
     REGISTRATION = "registration", _("Registration")
     SIGNIN = "signin", _("Passwordless sign-in")
     MFA = "mfa", _("Second factor")
+    REAUTHENTICATION = "reauthentication", _("Re-authentication")
 
 
 class AuthenticatorAttachment(models.TextChoices):

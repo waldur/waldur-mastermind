@@ -2734,7 +2734,7 @@ class UserSerializer(
         return utils.get_identity_provider_management_url(user.registration_method)
 
     def get_identity_provider_fields(self, user: core_models.User) -> list[str]:
-        return utils.get_identity_provider_fields(user.registration_method)
+        return utils.get_user_protected_fields(user)
 
     def get_has_active_session(self, user: core_models.User) -> bool:
         return hasattr(user, "auth_token") and user.auth_token is not None
@@ -3105,8 +3105,8 @@ class UserSerializer(
             ) and attrs.get("email", self.instance.email) != self.instance.email:
                 raise serializers.ValidationError(
                     {
-                        "email": _(
-                            "The email is managed by the user's identity provider and cannot be changed."
+                        "email": utils.email_managed_by_identity_provider_message(
+                            self.instance
                         )
                     }
                 )

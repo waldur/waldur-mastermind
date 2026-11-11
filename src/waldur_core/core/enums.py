@@ -32,3 +32,28 @@ class ReviewStates:
         (REJECTED, "rejected"),
         (CANCELED, "canceled"),
     )
+
+
+class ReauthenticationAction(models.TextChoices):
+    """Account changes that need fresh proof of who is making them.
+
+    Holding the API token is not that proof: every sign-in returns the same
+    key, so a stolen copy is indistinguishable from the user's own.
+    """
+
+    TOKEN_LIFETIME = "token_lifetime", "Change the API token lifetime"
+    CHANGE_EMAIL = "change_email", "Change the email address"
+    REGISTER_PASSKEY = "register_passkey", "Register a passkey"
+    REVOKE_PASSKEY = "revoke_passkey", "Revoke a passkey"
+    CREATE_PERSONAL_ACCESS_TOKEN = (
+        "create_personal_access_token",
+        "Create or rotate a personal access token",
+    )
+    CHANGE_PASSWORD = "change_password", "Set a user's password"
+
+
+class ReauthenticationMethod(models.TextChoices):
+    """How a user proves again that they can sign in."""
+
+    PASSWORD = "password", "Password"
+    PASSKEY = "passkey", "Passkey"

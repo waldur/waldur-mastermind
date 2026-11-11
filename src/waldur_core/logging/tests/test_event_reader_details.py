@@ -3,6 +3,8 @@ from unittest import mock
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.core.enums import ReauthenticationAction
+from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.logging import tasks
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -196,6 +198,9 @@ class StaffActionOnOwnFeedTest(test.APITestCase):
             {"new_password": "password"},
             REMOTE_ADDR="203.0.113.9",
             HTTP_USER_AGENT="StaffBrowser/1.0",
+            **reauthenticated(
+                self.fixture.staff, ReauthenticationAction.CHANGE_PASSWORD
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 

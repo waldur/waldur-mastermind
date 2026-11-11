@@ -38,7 +38,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.models import Answer, ChecklistCompletion, Question
 from waldur_core.checklist.utils import latest_answers_by_question
 from waldur_core.configuration import config as constance_config
-from waldur_core.core import access
+from waldur_core.core import access, reauthentication
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -46,7 +46,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.db_template_cache import add_template_to_cache
-from waldur_core.core.enums import CoreStates, ReviewStates
+from waldur_core.core.enums import CoreStates, ReauthenticationAction, ReviewStates
 from waldur_core.core.permissions import (
     PATScopeAwareIsAdminUser,
     has_staff_access,
@@ -1793,6 +1793,14 @@ def _dashboard_feed_sort_key(item):
     )
 
 
+# Changing the email (staff) or the API token lifetime needs a grant.
+_USER_UPDATE_SCHEMA = extend_schema(
+    responses={200: serializers.UserSerializer, **reauthentication.CHALLENGE_RESPONSES},
+    parameters=[reauthentication.GRANT_PARAMETER],
+)
+
+
+@extend_schema_view(update=_USER_UPDATE_SCHEMA, partial_update=_USER_UPDATE_SCHEMA)
 class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     queryset = core_models.User.all_objects.select_related(
         "auth_token", "changeemailrequest"
@@ -1852,6 +1860,31 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             return qs
         return qs.filter(is_active=True)
 
+    def perform_update(self, serializer):
+        user = serializer.instance
+        changes = serializer.validated_data
+        # Edit forms send every field back, so only a new value is a change.
+        actions = [
+            guarded_action
+            for field, guarded_action in (
+                ("token_lifetime", ReauthenticationAction.TOKEN_LIFETIME),
+                ("email", ReauthenticationAction.CHANGE_EMAIL),
+            )
+            if field in changes and changes[field] != getattr(user, field)
+        ]
+        if not actions:
+            return super().perform_update(serializer)
+        if len(actions) > 1:
+            # One request carries one grant, and a grant is for one action.
+            raise ValidationError(
+                _(
+                    "Change the email and the API token lifetime in separate "
+                    "requests: each needs its own confirmation."
+                )
+            )
+        with reauthentication.guarded(self.request, actions[0]):
+            super().perform_update(serializer)
+
     def list(self, request, *args, **kwargs):
         if request.user.is_identity_manager and not (
             request.user.is_staff or request.user.is_support
@@ -1871,24 +1904,24 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     @extend_schema(
         summary="Request email change",
         request=serializers.UserEmailChangeSerializer,
-        responses=None,
-        description="Allows to change email for user.",
+        responses={200: None, **reauthentication.CHALLENGE_RESPONSES},
+        parameters=[reauthentication.GRANT_PARAMETER],
+        description=(
+            "Allows to change email for user. Requires a re-authentication "
+            "grant for change_email, except for a user changing their own "
+            "email who has no method to re-authenticate with. Refused when "
+            "the user's identity provider supplies the email."
+        ),
     )
     @action(detail=True, methods=["post"])
     def change_email(self, request, uuid=None):
         user = self.get_object()
 
-        idp_protected_fields = utils.get_identity_provider_fields(
-            user.registration_method
-        )
-
-        if "email" in idp_protected_fields:
+        # The identity provider would write its address back at the next
+        # sign-in.
+        if "email" in utils.get_user_protected_fields(user):
             raise ValidationError(
-                {
-                    "detail": _(
-                        "The registration method does not allow direct email modification."
-                    )
-                }
+                {"detail": utils.email_managed_by_identity_provider_message(user)}
             )
 
         serializer = self.get_serializer(data=request.data)
@@ -1896,7 +1929,13 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
 
         email = serializer.validated_data["email"]
         try:
-            user.create_request_for_update_email(email)
+            with reauthentication.guarded(
+                request,
+                ReauthenticationAction.CHANGE_EMAIL,
+                # Only one's own, and the new address still confirms it.
+                waive_without_methods=user.pk == request.user.pk,
+            ):
+                user.create_request_for_update_email(email)
         except django_exceptions.ValidationError as error:
             raise ValidationError(error.message_dict)
 
@@ -2339,16 +2378,23 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     @extend_schema(
         summary="Change user password",
         request=serializers.PasswordChangeSerializer,
-        responses=None,
-        description="Allows staff user to change password for any user.",
+        responses={200: None, **reauthentication.CHALLENGE_RESPONSES},
+        parameters=[reauthentication.GRANT_PARAMETER],
+        description=(
+            "Allows staff user to change password for any user. Requires the "
+            "staff user's own re-authentication grant for change_password."
+        ),
     )
     @action(detail=True, methods=["post"])
     def change_password(self, request, uuid=None):
         user = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user.set_password(serializer.validated_data["new_password"])
-        user.save()
+        # It needs no current password, so on the caller's own account it
+        # would turn a staff API token into a password, and that into grants.
+        with reauthentication.guarded(request, ReauthenticationAction.CHANGE_PASSWORD):
+            user.set_password(serializer.validated_data["new_password"])
+            user.save()
 
         event_logger.emit(
             "Password has been changed for user {affected_user_username} by %s."
@@ -2375,8 +2421,11 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     @action(detail=True, methods=["post"])
     def remove_password(self, request, uuid=None):
         user = self.get_object()
-        user.set_unusable_password()
-        user.save(update_fields=["password"])
+        # Taking a credential away is a change to it, too: on the caller's own
+        # account it could leave nothing to re-authenticate with.
+        with reauthentication.guarded(request, ReauthenticationAction.CHANGE_PASSWORD):
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
 
         event_logger.emit(
             "Password has been removed for user {affected_user_username} by %s."

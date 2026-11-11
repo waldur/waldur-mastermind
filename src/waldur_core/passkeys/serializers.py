@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.passkeys.models import PasskeyCredential
 
 
@@ -88,3 +89,19 @@ class PasskeyCeremonyOptionsSerializer(serializers.Serializer):
 
 class PasskeyTokenSerializer(serializers.Serializer):
     token = serializers.CharField()
+
+
+class PasskeyReauthenticationBeginSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(
+        choices=ReauthenticationAction.choices,
+        help_text="The change the grant will be for.",
+    )
+
+
+class PasskeyReauthenticationFinishSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(
+        choices=ReauthenticationAction.choices,
+        help_text="The change the grant is for.",
+    )
+    ceremony = serializers.UUIDField()
+    credential = serializers.JSONField()

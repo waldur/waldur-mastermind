@@ -37,6 +37,7 @@ from waldur_core.configuration.models import (
 )
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
+from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
 from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
 from waldur_core.core.signals import pre_serializer_fields
 from waldur_core.core.validators import (
@@ -263,6 +264,68 @@ class ObtainAuthTokenSerializer(serializers.Serializer):
     )
     password = serializers.CharField(
         max_length=128, help_text="Password for authentication"
+    )
+
+
+class ReauthenticationPasswordSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(
+        choices=ReauthenticationAction.choices,
+        help_text="The change the grant is for.",
+    )
+    password = serializers.CharField(
+        max_length=128,
+        trim_whitespace=False,
+        help_text="The current password of the user making the request.",
+    )
+
+
+class ReauthenticationGrantSerializer(serializers.Serializer):
+    """A grant, returned once, to whoever has just re-authenticated."""
+
+    grant = serializers.CharField(
+        help_text="Send it in the X-Reauthentication-Grant header of the "
+        "change it is for. It is single-use and is not shown again."
+    )
+    action = serializers.ChoiceField(
+        choices=ReauthenticationAction.choices,
+        help_text="The change the grant is for.",
+    )
+    expires_at = serializers.DateTimeField(
+        help_text="When the grant stops being usable."
+    )
+
+
+class ReauthenticationThrottledSerializer(serializers.Serializer):
+    """Body of a 429 from a re-authentication endpoint.
+
+    The wait is also in the Retry-After header, which a browser on another
+    origin than the API cannot read unless the API exposes it.
+    """
+
+    detail = serializers.CharField()
+    retry_after = serializers.IntegerField(
+        help_text="Seconds to wait before trying again."
+    )
+
+
+class ReauthenticationChallengeSerializer(serializers.Serializer):
+    """Body of the 401 a guarded change gets without a valid grant.
+
+    The response also carries
+    ``WWW-Authenticate: Token error="insufficient_user_authentication"``, as in
+    RFC 9470. Nothing has been changed. An empty ``methods`` means the user
+    cannot re-authenticate at all, and has to ask support.
+    """
+
+    detail = serializers.CharField()
+    code = serializers.CharField(help_text="Always reauthentication_required.")
+    action = serializers.ChoiceField(
+        choices=ReauthenticationAction.choices,
+        help_text="The change that needs a grant.",
+    )
+    methods = serializers.ListField(
+        child=serializers.ChoiceField(choices=ReauthenticationMethod.choices),
+        help_text="The methods this user can obtain a grant with.",
     )
 
 

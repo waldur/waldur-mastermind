@@ -314,6 +314,25 @@ class EventScrubberTest(SimpleTestCase):
 
         self.assertEqual(redacted["logentry"]["message"], message)
 
+    def test_reauthentication_grant_header_is_filtered(self):
+        events = _send(
+            lambda scope: scope.capture_event(
+                {
+                    "message": "guarded change failed",
+                    "request": {
+                        "headers": {
+                            "X-Reauthentication-Grant": "grant-secret",
+                            "Accept": "application/json",
+                        }
+                    },
+                }
+            )
+        )
+
+        headers = events[0]["request"]["headers"]
+        self.assertNotIn("grant-secret", str(events[0]))
+        self.assertEqual(headers["Accept"], "application/json")
+
     def test_tokens_in_the_request_query_string_are_filtered(self):
         event = {
             "request": {

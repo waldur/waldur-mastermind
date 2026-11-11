@@ -47,4 +47,14 @@ urlpatterns = [
         ceremony_views.PasskeyMfaFinishView.as_view(),
         name="passkey-mfa-finish",
     ),
+    path(
+        "api/reauthentication/passkey/begin/",
+        ceremony_views.PasskeyReauthenticationBeginView.as_view(),
+        name="reauthentication-passkey-begin",
+    ),
+    path(
+        "api/reauthentication/passkey/finish/",
+        ceremony_views.PasskeyReauthenticationFinishView.as_view(),
+        name="reauthentication-passkey-finish",
+    ),
 ]

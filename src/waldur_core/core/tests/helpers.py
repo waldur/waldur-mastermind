@@ -10,7 +10,12 @@ from django.db import DEFAULT_DB_ALIAS, connections
 from django.test.utils import override_settings
 from django.utils import timezone
 
-from waldur_core.core.models import DESCRIPTION_LENGTH, PersonalAccessToken
+from waldur_core.core.enums import ReauthenticationMethod
+from waldur_core.core.models import (
+    DESCRIPTION_LENGTH,
+    PersonalAccessToken,
+    ReauthenticationGrant,
+)
 
 # 4004 characters containing 154 ampersands: shorter than DESCRIPTION_LENGTH as
 # typed, but HTML sanitisation escapes & -> &amp; and pushes it over the limit.
@@ -33,6 +38,18 @@ def load_json_resource(path, root):
         root = ".".join(parts[1:-1])
     with importlib.resources.files(root).joinpath(path).open() as fp:
         return json.load(fp)
+
+
+def reauthenticated(user, action, method=ReauthenticationMethod.PASSWORD):
+    """Test client keyword arguments that carry a fresh grant for one action.
+
+    For tests of something else that pass through a change requiring
+    re-authentication; how a grant is obtained is tested on its own.
+    """
+    _grant, secret = ReauthenticationGrant.issue(
+        user, action, method, timedelta(minutes=5)
+    )
+    return {"HTTP_X_REAUTHENTICATION_GRANT": secret}
 
 
 def create_pat(user, name="test token", scopes=None, **kwargs):

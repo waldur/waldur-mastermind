@@ -160,6 +160,9 @@ _SECRET_NAMES = [
     "api_secret",
     "auth_token",
     "raw_token",
+    # A re-authentication grant, as a request header and in request.META.
+    "x-reauthentication-grant",
+    "http_x_reauthentication_grant",
     # register_matrix_appservice: a homeserver admin's token, the bootstrap
     # admin's password and open sessions, and the key that creates admins.
     "admin_token",

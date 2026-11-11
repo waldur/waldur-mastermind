@@ -54,4 +54,5 @@ from corsheaders.defaults import default_headers  # noqa
 CORS_ALLOW_HEADERS = (
     *default_headers,
     "X-Impersonated-User-Uuid",
+    "X-Reauthentication-Grant",
 )
