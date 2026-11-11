@@ -5,10 +5,12 @@ from django.db import IntegrityError, transaction
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.utils import stable_topological_sort
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.utils import check_pat_binding_on_path
 from waldur_openstack.models import (
     CustomerOpenStack,
     ExternalNetwork,
@@ -54,22 +56,52 @@ def get_valid_availability_zones(instance):
     )
 
 
-def is_openstack_service_provider(user, service_settings) -> bool:
-    """User is staff or owner of the customer that owns the OpenStack service settings.
+def provider_binding_path(customer) -> list:
+    """The objects a personal access token may be bound to, to act as the
+    provider ``customer``: its service provider, or the organization or a scope
+    above it."""
+    if customer is None:
+        return []
+    return [getattr(customer, "serviceprovider", None), customer]
+
+
+def within_provider_bindings(request, customer, staff, target=None) -> bool:
+    """Whether a personal access token lets the request act as the provider
+    ``customer``.
+
+    A role held on the provider counts only where a binding reaches the
+    provider, so a token bound to a consumer project does not use its user's
+    provider role there. Staff hold their role everywhere, so for them a
+    binding that reaches ``target``, the project acted in, also does.
+    Requests without a token, and tokens without bindings, always pass.
+    """
+    if check_pat_binding_on_path(request, provider_binding_path(customer)):
+        return True
+    return bool(
+        staff and target is not None and check_pat_binding_on_path(request, [target])
+    )
+
+
+def is_openstack_service_provider(request, service_settings, target=None) -> bool:
+    """The request acts as staff or as an owner of the customer that owns the
+    OpenStack service settings.
 
     Provider users can manage provider-internal resources (non-shared externals,
-    advanced gateway options); consumer-side users may not.
+    advanced gateway options); consumer-side users may not. A personal access
+    token acts as the provider only within its bindings
+    (``within_provider_bindings``); ``target`` is the project acted in.
     """
-    if user.is_staff:
-        return True
     customer = service_settings.customer
-    if customer is None:
+    staff = has_staff_access(request)
+    if not staff and not (
+        customer is not None and customer.has_user(request.user, CustomerRole.OWNER)
+    ):
         return False
-    return customer.has_user(user, CustomerRole.OWNER)
+    return within_provider_bindings(request, customer, staff, target)
 
 
-def get_tenant_external_networks(tenant: Tenant, user):
-    """Global ExternalNetwork rows usable as gateway by `user` on routers in `tenant`.
+def get_tenant_external_networks(tenant: Tenant, request):
+    """Global ExternalNetwork rows usable as gateway by `request` on routers in `tenant`.
 
     Non-shared external networks are provider-internal (e.g. management or
     upstream-peering pools) and must not be exposed to consumer-side users, even
@@ -77,7 +109,9 @@ def get_tenant_external_networks(tenant: Tenant, user):
     (staff or service settings customer owners) still see the full set.
     """
     qs = ExternalNetwork.objects.filter(settings=tenant.service_settings)
-    if not is_openstack_service_provider(user, tenant.service_settings):
+    if not is_openstack_service_provider(
+        request, tenant.service_settings, target=tenant.project
+    ):
         qs = qs.filter(is_shared=True)
     return qs
 

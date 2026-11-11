@@ -710,9 +710,8 @@ class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSeri
             # router whose gateway was set before WAL-9987 closed that hole.
             ext_id = router.external_network_id
             if ext_id:
-                user = self.context["request"].user
                 visible_global = (
-                    get_tenant_external_networks(tenant, user)
+                    get_tenant_external_networks(tenant, self.context["request"])
                     .filter(backend_id=ext_id)
                     .exists()
                 )
@@ -1813,7 +1812,7 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         ),
     )
 
-    def _resolve_network_source(self, external_network_id, router, user):
+    def _resolve_network_source(self, external_network_id, router, request):
         """Resolve the external network and determine its source type.
 
         The global path is gated by ``get_tenant_external_networks`` so that
@@ -1821,7 +1820,7 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         (non-shared) external network they don't have RBAC access to.
         """
         ext_net = (
-            get_tenant_external_networks(router.tenant, user)
+            get_tenant_external_networks(router.tenant, request)
             .filter(backend_id=external_network_id)
             .first()
         )
@@ -1844,18 +1843,21 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         """Check if the request can set enable_snat=False or external_fixed_ips."""
         user = request.user
         if network_source == "global":
-            return is_openstack_service_provider(user, router.tenant.service_settings)
+            return is_openstack_service_provider(
+                request, router.tenant.service_settings, target=router.project
+            )
 
         if network_source == "rbac":
-            if has_staff_access(request):
-                return True
-            # An administrator or manager of the network's project, and a
-            # personal access token only within its bindings, as for ports.
+            # Staff, or an administrator or manager of the network's project;
+            # a personal access token only within its bindings, staff's too.
             source_project = network_obj.tenant.project
+            if not check_pat_binding_on_path(request, [source_project]):
+                return False
             return (
-                source_project.has_user(user, ProjectRole.ADMIN)
+                has_staff_access(request)
+                or source_project.has_user(user, ProjectRole.ADMIN)
                 or source_project.has_user(user, ProjectRole.MANAGER)
-            ) and check_pat_binding_on_path(request, [source_project])
+            )
 
         return False
 
@@ -1866,11 +1868,10 @@ class SetExternalGatewaySerializer(serializers.Serializer):
 
         router = view.get_object()
         request = self.context["request"]
-        user = request.user
         external_network_id = attrs["external_network_id"]
 
         network_source, network_obj = self._resolve_network_source(
-            external_network_id, router, user
+            external_network_id, router, request
         )
         if network_source is None:
             raise serializers.ValidationError(
@@ -6789,10 +6790,16 @@ class OpenStackRouterInterfaceSerializer(serializers.Serializer):
                 # A share as external is for gateways and floating IPs and takes
                 # no interface (`Tenant.shared_network_ids`); a tenant with no
                 # share is refused too.
-                subnets = (
-                    tenant.available_subnets if removing else tenant.attachable_subnets
-                )
-                if not subnets.filter(pk=subnet.pk).exists():
+                if removing:
+                    # The router's own interface comes off even after the share
+                    # that let it on is gone.
+                    allowed = (
+                        subnet.router_id == router.id
+                        or tenant.available_subnets.filter(pk=subnet.pk).exists()
+                    )
+                else:
+                    allowed = tenant.attachable_subnets.filter(pk=subnet.pk).exists()
+                if not allowed:
                     raise serializers.ValidationError(
                         "Subnet must belong to the router's tenant, or be shared "
                         "with it as access_as_shared."
@@ -6808,10 +6815,14 @@ class OpenStackRouterInterfaceSerializer(serializers.Serializer):
                 # must be one the tenant may put ports on, as for a subnet: a
                 # port left on a network shared only as external, or no longer
                 # shared, must not wire the router into it.
-                if (
-                    not removing
-                    and port.network_id
-                    and not tenant.may_put_ports_on(port.network_id)
+                # A pull leaves the network empty when Waldur does not mirror
+                # it, as after a share is gone; then the subnet names it, and a
+                # port on a network known by neither is refused.
+                network_id = port.network_id or (
+                    port.subnet.network_id if port.subnet_id else None
+                )
+                if not removing and (
+                    network_id is None or not tenant.may_put_ports_on(network_id)
                 ):
                     raise serializers.ValidationError(
                         "Port must be on a network of the router's tenant, or one "

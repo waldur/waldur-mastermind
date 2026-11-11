@@ -8,9 +8,11 @@ from rest_framework.filters import BaseFilterBackend
 from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import utils as core_utils
+from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.permissions import has_staff_or_support_read_access
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.utils import check_pat_binding_on_path
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
@@ -18,7 +20,7 @@ from waldur_core.structure.managers import (
     get_connected_customers,
 )
 from waldur_mastermind.marketplace.models import Offering
-from waldur_openstack.utils import get_valid_availability_zones
+from waldur_openstack.utils import get_valid_availability_zones, provider_binding_path
 
 from . import models
 
@@ -184,6 +186,22 @@ class ExternalNetworkFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.ExternalNetwork
 
 
+def _owned_customers_within_bindings(request):
+    """Ids of the organizations the request's user owns, as a provider sees
+    its clouds' private rows: with a personal access token, only those its
+    bindings reach, as for acting on them (``utils.is_openstack_service_provider``)."""
+    owned = get_connected_customers(request.user, CustomerRole.OWNER)
+    if not is_pat_auth(getattr(request, "auth", None)):
+        return owned
+    return [
+        customer.id
+        for customer in structure_models.Customer.objects.filter(
+            id__in=owned
+        ).select_related("serviceprovider")
+        if check_pat_binding_on_path(request, provider_binding_path(customer))
+    ]
+
+
 class ExternalNetworkVisibilityFilterBackend(BaseFilterBackend):
     """Staff and support see every external network (with a personal access
     token, only one carrying the staff or support scope). Owners of the
@@ -204,7 +222,7 @@ class ExternalNetworkVisibilityFilterBackend(BaseFilterBackend):
         if sees_all:
             return queryset
         user = request.user
-        owned_customers = get_connected_customers(user, CustomerRole.OWNER)
+        owned_customers = _owned_customers_within_bindings(request)
         visible_settings = filter_queryset_for_user(
             structure_models.ServiceSettings.objects.all(), user, sees_all=sees_all
         )
@@ -234,7 +252,7 @@ class VolumeTypeVisibilityFilterBackend(BaseFilterBackend):
         if sees_all:
             return queryset
         user = request.user
-        owned_customers = get_connected_customers(user, CustomerRole.OWNER)
+        owned_customers = _owned_customers_within_bindings(request)
         visible_tenants = filter_queryset_for_user(
             models.Tenant.objects.all(), user, sees_all=sees_all
         )

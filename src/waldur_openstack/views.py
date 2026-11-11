@@ -1699,7 +1699,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         tenant = router.tenant
         result = []
 
-        for ext_net in utils.get_tenant_external_networks(tenant, request.user):
+        for ext_net in utils.get_tenant_external_networks(tenant, request):
             subnets = [
                 {
                     "backend_id": s.backend_id,
@@ -4066,7 +4066,8 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
     MANAGES_BOTH_SIDES = access.custom(
         "Staff, or who is an owner of the organization or an administrator or "
         "manager of the project on both sides of the share: the network's "
-        "project and the target tenant's project."
+        "project and the target tenant's project. A personal access token "
+        "passes only within its bindings, on both sides."
     )
     access_declarations = {
         "create": [MANAGES_BOTH_SIDES],
