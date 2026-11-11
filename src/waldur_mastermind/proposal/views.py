@@ -403,6 +403,19 @@ def validate_requests_within_budgets(proposal):
         raise exceptions.ValidationError(messages)
 
 
+def validate_requests_orderable(proposal):
+    """Every request carries limits its offering's components accept, so
+    that allocation can order it."""
+    problems = utils.unorderable_requests(proposal)
+    if problems:
+        raise exceptions.ValidationError(
+            _(
+                "The requested amounts do not fit the offerings' components: %(problems)s"
+            )
+            % {"problems": " ".join(problems)}
+        )
+
+
 def validate_required_options_present(proposal):
     """Every required option of a requested offering carries a value.
 
@@ -556,6 +569,7 @@ def validate_submitted_changes(proposal, parts):
         validate_requested_amounts_present(proposal)
         validate_required_options_present(proposal)
         validate_requests_within_budgets(proposal)
+        validate_requests_orderable(proposal)
         validate_resources_requested_for_offering_steps(proposal)
         validate_purchase_orders_present(proposal)
     if ChangeRequestParts.TEAM in parts:
@@ -6703,6 +6717,7 @@ class ProposalViewSet(
         validate_requested_amounts_present,
         validate_required_options_present,
         validate_requests_within_budgets,
+        validate_requests_orderable,
         validate_resources_requested_for_offering_steps,
         validate_purchase_orders_present,
         validate_proposal_manager_present,

@@ -401,11 +401,14 @@ class ChangeRequestEditGatesTest(ChangeRequestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_resources_change_but_offerings_stay_once_assessed(self):
+        factories.add_limit_component(
+            self.fixture.requested_offering_accepted, "storage"
+        )
         self.request_changes(parts=["resources"])
         self.client.force_authenticate(self.applicant)
         url = self.resource_url()
         response = self.client.patch(
-            url, {"limits": {"cpu": 2}, "attributes": {}}, format="json"
+            url, {"limits": {"storage": 2}, "attributes": {}}, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
