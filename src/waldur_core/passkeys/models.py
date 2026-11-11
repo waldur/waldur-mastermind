@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework.authtoken.models import Token
 
+from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.core.models import NameMixin, User, UuidMixin
 from waldur_core.passkeys.enums import AuthenticatorAttachment, CeremonyKind
 
@@ -172,6 +173,11 @@ class PasskeyCeremony(UuidMixin, models.Model):
         blank=True,
         related_name="passkey_ceremonies",
     )
+    # For a re-authentication, the change its grant is for. Fixed when the
+    # ceremony begins, so that finishing it cannot name another change.
+    reauthentication_action = models.CharField(
+        max_length=64, choices=ReauthenticationAction.choices, blank=True
+    )
 
     created = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -190,12 +196,13 @@ class PasskeyCeremony(UuidMixin, models.Model):
         return f"{self.kind} ceremony {self.uuid}"
 
     @classmethod
-    def start(cls, kind, rp_id, user=None):
+    def start(cls, kind, rp_id, user=None, reauthentication_action=""):
         return cls.objects.create(
             kind=kind,
             challenge=generate_challenge(),
             rp_id=rp_id,
             user=user,
+            reauthentication_action=reauthentication_action,
             expires_at=timezone.now() + CEREMONY_LIFETIME,
         )
 

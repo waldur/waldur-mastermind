@@ -1,10 +1,12 @@
-"""The six ceremony endpoints.
+"""The eight ceremony endpoints.
 
-Three pairs, each begin/finish:
+Four pairs, each begin/finish:
 
-* registration — authenticated, enrols a new credential
+* registration — authenticated, enrols a new credential; needs a
+  re-authentication grant
 * sign-in      — anonymous, usernameless, issues a token on success
 * second factor — anonymous but gated on a pending handle from the login view
+* re-authentication — authenticated, issues a re-authentication grant
 
 The security-relevant ordering lives here: **nothing issues a token, touches
 ``last_login`` or emits a login event until an assertion has actually
@@ -23,8 +25,10 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from waldur_core.core import access
+from waldur_core.core import access, reauthentication
 from waldur_core.core.authentication import AuthenticationMethod, refresh_token
+from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
+from waldur_core.core.serializers import ReauthenticationGrantSerializer
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.passkeys import policy, services
@@ -35,6 +39,8 @@ from waldur_core.passkeys.serializers import (
     PasskeyCeremonyOptionsSerializer,
     PasskeyCredentialSerializer,
     PasskeyMfaBeginSerializer,
+    PasskeyReauthenticationBeginSerializer,
+    PasskeyReauthenticationFinishSerializer,
     PasskeyRegistrationFinishSerializer,
     PasskeyTokenSerializer,
 )
@@ -97,15 +103,29 @@ FINISHES_OWN_REGISTRATION = access.owned("A registration the caller began.")
 class PasskeyRegistrationBeginView(BasePasskeyView):
     permission_classes = [IsAuthenticated]
     throttle_scope = "passkey_registration"
-    access_declarations = {"post": [access.owned("A new passkey for the caller.")]}
+    access_declarations = {
+        "post": [
+            access.owned(
+                "A new passkey for the caller, with a re-authentication grant; "
+                "not while impersonating or with a delegated token."
+            )
+        ]
+    }
 
     @extend_schema(
         summary="Begin passkey registration",
         request=None,
-        responses={200: PasskeyCeremonyOptionsSerializer},
+        responses={
+            200: PasskeyCeremonyOptionsSerializer,
+            **reauthentication.CHALLENGE_RESPONSES,
+        },
+        parameters=[reauthentication.GRANT_PARAMETER],
     )
     def post(self, request):
-        ceremony, options = services.start_registration(request.user)
+        # A passkey is a way to sign in, so enrolling one needs the same fresh
+        # proof as the other account changes. Finishing needs this ceremony.
+        with reauthentication.guarded(request, ReauthenticationAction.REGISTER_PASSKEY):
+            ceremony, options = services.start_registration(request.user)
         return Response({"ceremony": ceremony.uuid, "options": options})
 
 
@@ -264,6 +284,104 @@ class PasskeyMfaFinishView(BasePasskeyView):
             )
 
         return Response({"token": issue_token(user, request, verified_credential).key})
+
+
+class PasskeyReauthenticationBeginView(
+    reauthentication.ThrottledGrantEndpointMixin, BasePasskeyView
+):
+    permission_classes = [IsAuthenticated]
+    access_declarations = {
+        "post": [
+            access.owned(
+                "A challenge for the caller's own passkeys; not while "
+                "impersonating or with a delegated token."
+            )
+        ]
+    }
+
+    @extend_schema(
+        summary="Begin re-authentication with a passkey",
+        request=PasskeyReauthenticationBeginSerializer,
+        responses={
+            200: PasskeyCeremonyOptionsSerializer,
+            **reauthentication.THROTTLED_RESPONSES,
+        },
+    )
+    def post(self, request):
+        serializer = PasskeyReauthenticationBeginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data["action"]
+        reauthentication.refuse_delegated(request, action)
+        if not reauthentication.is_method_available(
+            request.user, ReauthenticationMethod.PASSKEY
+        ):
+            self.handle_passkey_error(
+                _("You have no passkey to confirm your identity with.")
+            )
+        ceremony, options = services.start_reauthentication(request.user, action)
+        return Response({"ceremony": ceremony.uuid, "options": options})
+
+
+# Who PasskeyReauthenticationFinishView issues a grant to: the user who began
+# the ceremony, for the change it was begun for, checked in post().
+FINISHES_OWN_REAUTHENTICATION = access.owned(
+    "A re-authentication the caller began, for the change it was begun for, "
+    "with one of their own passkeys; not while impersonating or with a "
+    "delegated token."
+)
+
+
+class PasskeyReauthenticationFinishView(
+    reauthentication.ThrottledGrantEndpointMixin, BasePasskeyView
+):
+    permission_classes = [IsAuthenticated]
+    access_declarations = {"post": [FINISHES_OWN_REAUTHENTICATION]}
+
+    @extend_schema(
+        summary="Finish re-authentication with a passkey",
+        description=(
+            "Returns a single-use grant for one change that requires "
+            "re-authentication, to send in the X-Reauthentication-Grant header."
+        ),
+        request=PasskeyReauthenticationFinishSerializer,
+        responses={
+            201: ReauthenticationGrantSerializer,
+            **reauthentication.THROTTLED_RESPONSES,
+        },
+    )
+    def post(self, request):
+        serializer = PasskeyReauthenticationFinishSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        action = data["action"]
+        user = request.user
+
+        reauthentication.refuse_delegated(request, action)
+        ceremony = self.get_ceremony(data["ceremony"], CeremonyKind.REAUTHENTICATION)
+        # FINISHES_OWN_REAUTHENTICATION describes it. finish_assertion() then
+        # accepts only a credential of the ceremony's user.
+        if ceremony.user_id != user.pk:
+            self.handle_passkey_error(_("This ceremony belongs to another user."))
+        # Checked before the assertion, so that a mismatch costs no attempt.
+        if ceremony.reauthentication_action != action:
+            self.handle_passkey_error(_("This ceremony was begun for another change."))
+        try:
+            services.finish_assertion(
+                ceremony, data["credential"], ip_address=_client_ip(request)
+            )
+        except services.PasskeyError as e:
+            reauthentication.emit_failed(user, action, ReauthenticationMethod.PASSKEY)
+            self.handle_passkey_error(e)
+
+        grant, secret = reauthentication.issue_grant(
+            user, action, ReauthenticationMethod.PASSKEY
+        )
+        return Response(
+            ReauthenticationGrantSerializer(
+                {"grant": secret, "action": action, "expires_at": grant.expires_at}
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 def issue_token(user, request, credential=None):

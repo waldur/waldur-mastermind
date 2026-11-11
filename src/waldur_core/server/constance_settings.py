@@ -2040,6 +2040,14 @@ CONSTANCE_CONFIG = {
         "expire. Staff can choose any lifetime. A lifetime chosen before the "
         "limit was set is kept until the user changes it.",
     ),
+    "REAUTHENTICATION_GRANT_LIFETIME_SECONDS": (
+        300,
+        "How long, in seconds, a re-authentication grant stays usable. Users "
+        "confirm their identity again, with their password or a passkey, "
+        "before changing their email, their API token lifetime, their "
+        "passkeys or their personal access tokens; the grant this returns is "
+        "good for one such change within this time.",
+    ),
     # Personal Access Tokens
     "PAT_ENABLED": (
         False,
@@ -2320,6 +2328,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_ACCESS_TOKEN_ENABLED",
         "REMOTE_EDUTEAMS_REFRESH_TOKEN",
         "API_TOKEN_MAX_LIFETIME_MINUTES",
+        "REAUTHENTICATION_GRANT_LIFETIME_SECONDS",
     ),
     "Invitation settings": (
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",

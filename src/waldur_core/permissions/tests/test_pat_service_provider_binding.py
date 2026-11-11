@@ -16,6 +16,8 @@ from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.enums import ReauthenticationAction
+from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -349,6 +351,9 @@ class PATServiceProviderBindingSiteAgentTest(test.APITestCase):
                 "allowed_scopes": [{"type": binding_type, "uuid": binding.uuid.hex}],
             },
             format="json",
+            **reauthenticated(
+                user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.client.force_authenticate(user=None)

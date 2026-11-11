@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from waldur_core.configuration import config
 from waldur_core.core.models import User
-from waldur_core.structure.utils import get_identity_provider_fields
+from waldur_core.structure.utils import get_user_protected_fields
 
 from . import enums
 from .backends import ValidationRequest, backend_registry
@@ -35,7 +35,7 @@ def is_identity_verified_by_account(user: User, backend, supplied: dict) -> bool
         fields = [spec["field"]]
     else:
         return False
-    locked = set(get_identity_provider_fields(user.registration_method))
+    locked = set(get_user_protected_fields(user))
     locked.add("civil_number")
     for field in fields:
         account_value = getattr(user, field, None)

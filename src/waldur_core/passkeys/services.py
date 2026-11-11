@@ -285,6 +285,32 @@ def build_mfa_options(ceremony):
     return _options_to_dict(options)
 
 
+def start_reauthentication(user, action):
+    """Begin a re-authentication of a user who is already signed in, for one
+    change: the ceremony records it, and its grant is for nothing else.
+
+    The assertion is the whole proof here, not a factor next to a password, so
+    user verification is ``REQUIRED`` as for passwordless sign-in. Only the
+    user's own credentials are offered: a holder of their API token already
+    knows who they are, so naming them leaks nothing.
+    """
+    rp_id = policy.get_rp_id()
+    credentials = PasskeyCredential.objects.filter(user=user, is_active=True)
+    options = generate_authentication_options(
+        rp_id=rp_id,
+        allow_credentials=_descriptors(credentials),
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    ceremony = PasskeyCeremony.start(
+        kind=CeremonyKind.REAUTHENTICATION,
+        rp_id=rp_id,
+        user=user,
+        reauthentication_action=action,
+    )
+    options.challenge = base64url_to_bytes(ceremony.challenge)
+    return ceremony, _options_to_dict(options)
+
+
 def user_requires_mfa(user) -> bool:
     """Whether this user must satisfy a passkey after their password.
 
@@ -304,7 +330,11 @@ def finish_assertion(ceremony, credential, ip_address=None):
     """
     _consume_attempt(ceremony)
 
-    if ceremony.kind not in (CeremonyKind.SIGNIN, CeremonyKind.MFA):
+    if ceremony.kind not in (
+        CeremonyKind.SIGNIN,
+        CeremonyKind.MFA,
+        CeremonyKind.REAUTHENTICATION,
+    ):
         raise PasskeyError("Ceremony is not an authentication ceremony.")
 
     raw_id = credential.get("id") if isinstance(credential, dict) else None
@@ -322,7 +352,8 @@ def finish_assertion(ceremony, credential, ip_address=None):
     if ceremony.user_id is not None and stored.user_id != ceremony.user_id:
         raise PasskeyError("Passkey does not belong to this user.")
 
-    require_uv = ceremony.kind == CeremonyKind.SIGNIN
+    # The second factor follows a password; the other two stand alone.
+    require_uv = ceremony.kind in (CeremonyKind.SIGNIN, CeremonyKind.REAUTHENTICATION)
 
     try:
         verified = verify_authentication_response(

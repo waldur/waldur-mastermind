@@ -2,7 +2,11 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status, test
 
-from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.enums import ReauthenticationAction
+from waldur_core.core.tests.helpers import (
+    override_waldur_core_settings,
+    reauthenticated,
+)
 from waldur_core.passkeys.models import PasskeyCredential
 from waldur_core.passkeys.tests.factories import PasskeyCredentialFactory
 from waldur_core.passkeys.tests.helpers import enable_passkeys
@@ -83,7 +87,9 @@ class PasskeyRevokeTest(test.APITestCase):
 
     def test_revoke_soft_deletes_and_keeps_the_record(self):
         response = self.client.post(
-            f"{detail_url(self.credential)}revoke/", {"reason": "Lost the key"}
+            f"{detail_url(self.credential)}revoke/",
+            {"reason": "Lost the key"},
+            **reauthenticated(self.user, ReauthenticationAction.REVOKE_PASSKEY),
         )
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -98,7 +104,11 @@ class PasskeyRevokeTest(test.APITestCase):
         )
 
     def test_revoking_twice_is_refused(self):
-        self.client.post(f"{detail_url(self.credential)}revoke/", {})
+        self.client.post(
+            f"{detail_url(self.credential)}revoke/",
+            {},
+            **reauthenticated(self.user, ReauthenticationAction.REVOKE_PASSKEY),
+        )
         response = self.client.post(f"{detail_url(self.credential)}revoke/", {})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

@@ -1,5 +1,10 @@
 from waldur_core.checklist import enums as checklist_enums
-from waldur_core.core.enums import GENDER_CHOICES, CoreStates
+from waldur_core.core.enums import (
+    GENDER_CHOICES,
+    CoreStates,
+    ReauthenticationAction,
+    ReauthenticationMethod,
+)
 from waldur_core.logging.enums import ObservableObjectType, QueueKind
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
@@ -136,6 +141,9 @@ SPECTACULAR_SETTINGS = {
         "PlanBillingMode": BillingModes.CHOICES,
         "BillingModeEnum": SwitchBillingModes.CHOICES,
         "CoreStates": CoreStates.labels,
+        # Would otherwise be the generic ActionEnum and MethodsEnum.
+        "ReauthenticationActionEnum": ReauthenticationAction.choices,
+        "ReauthenticationMethodEnum": ReauthenticationMethod.choices,
         "OfferingState": OfferingStates.VALUES,
         "OrderState": OrderStates.VALUES,
         "ResourceState": ResourceStates.VALUES,

@@ -13,6 +13,7 @@ from waldur_auth_social.models import IdentityProvider
 from waldur_core.core import features
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.models import User
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -95,6 +96,61 @@ def get_identity_provider_fields(registration_method):
         "valimo": settings.WALDUR_AUTH_VALIMO["USER_PROTECTED_FIELDS"],
         "default": settings.WALDUR_CORE["LOCAL_IDP_PROTECTED_FIELDS"],
     }.get(registration_method, [])
+
+
+def _provider_supplies_email(provider: IdentityProvider, user: User) -> bool:
+    """Whether the user's current email is one the identity provider gives.
+
+    The provider writes the claims it maps at every sign-in, so an address
+    changed in Waldur would not last. That holds when the provider maps the
+    email, or finds accounts by it, and the current address came from it or
+    has no record. An address the user or staff set in Waldur, because the
+    provider sent none, stays editable.
+    """
+    if not user.email:
+        return False
+    if not (
+        (provider.attribute_mapping or {}).get("email")
+        or provider.user_field == "email"
+    ):
+        return False
+    record = (user.attribute_sources or {}).get("email")
+    set_in_waldur = (
+        isinstance(record, dict)
+        and record.get("source") in (User.SELF_SET_SOURCE, User.STAFF_SET_SOURCE)
+        # A record names the address it is for, and stops applying once
+        # anyone else sets another one.
+        and (record.get("value") or "").lower() == user.email.lower()
+    )
+    return not set_in_waldur
+
+
+def get_user_protected_fields(user: User) -> list[str]:
+    """The profile fields of this user that their identity provider manages.
+
+    The registration method's protected fields and, for an OIDC provider, the
+    email when the provider supplies it. Use this rather than
+    ``get_identity_provider_fields`` wherever a particular user is concerned.
+    """
+    method = user.registration_method
+    if method not in ProviderChoices.CHOICES:
+        return list(get_identity_provider_fields(method))
+    provider = IdentityProvider.objects.filter(provider=method).first()
+    if provider is None:
+        return []
+    fields = list(provider.protected_fields or [])
+    if "email" not in fields and _provider_supplies_email(provider, user):
+        fields.append("email")
+    return fields
+
+
+def email_managed_by_identity_provider_message(user: User) -> str:
+    label = get_identity_provider_label(user.registration_method) or _(
+        "your identity provider"
+    )
+    return _("Your email address comes from %(provider)s; change it there.") % {
+        "provider": label
+    }
 
 
 def update_pulled_fields(instance, imported_instance, fields):

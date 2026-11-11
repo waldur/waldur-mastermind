@@ -10,8 +10,12 @@ from rest_framework import status, test
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.authentication import refresh_token
+from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.core.models import User
-from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.tests.helpers import (
+    override_waldur_core_settings,
+    reauthenticated,
+)
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging import models as logging_models
 from waldur_core.media.utils import dummy_image
@@ -250,7 +254,14 @@ class UserPermissionApiTest(test.APITestCase):
             "token_lifetime": 100,
         }
 
-        self._ensure_user_can_change_field(self.users["owner"], "token_lifetime", data)
+        self._ensure_user_can_change_field(
+            self.users["owner"],
+            "token_lifetime",
+            data,
+            **reauthenticated(
+                self.users["owner"], ReauthenticationAction.TOKEN_LIFETIME
+            ),
+        )
 
     def test_user_cannot_change_other_token_lifetime(self):
         data = {
@@ -267,7 +278,9 @@ class UserPermissionApiTest(test.APITestCase):
         data = self._get_valid_payload()
 
         response = self.client.put(
-            factories.UserFactory.get_url(self.users["staff"]), data
+            factories.UserFactory.get_url(self.users["staff"]),
+            data,
+            **reauthenticated(self.users["staff"], ReauthenticationAction.CHANGE_EMAIL),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -344,10 +357,10 @@ class UserPermissionApiTest(test.APITestCase):
             "is_active": account.is_active,
         }
 
-    def _ensure_user_can_change_field(self, user, field_name, data):
+    def _ensure_user_can_change_field(self, user, field_name, data, **extra):
         self.client.force_authenticate(user)
 
-        response = self.client.put(factories.UserFactory.get_url(user), data)
+        response = self.client.put(factories.UserFactory.get_url(user), data, **extra)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         new_value = getattr(User.objects.get(uuid=user.uuid), field_name)
@@ -821,9 +834,17 @@ class UserConfirmEmailTest(test.APITestCase):
             "email": "updatedmail@example.com",
         }
 
+    def request_change(self, payload, user=None, url=None):
+        user = user or self.user
+        return self.client.post(
+            url or self.url,
+            payload,
+            **reauthenticated(user, ReauthenticationAction.CHANGE_EMAIL),
+        )
+
     def test_change_email_request_is_created_if_it_does_not_exist_yet(self):
         self.assertFalse(getattr(self.user, "changeemailrequest", False))
-        response = self.client.post(self.url, self.valid_payload)
+        response = self.request_change(self.valid_payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.user.refresh_from_db()
@@ -835,18 +856,18 @@ class UserConfirmEmailTest(test.APITestCase):
         valid_payload = {
             "email": other_user.email,
         }
-        response = self.client.post(self.url, valid_payload)
+        response = self.request_change(valid_payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_change_email_request_is_not_created_if_email_is_invalid(self):
         self.valid_payload["email"] = "invalid_email"
-        response = self.client.post(self.url, self.valid_payload)
+        response = self.request_change(self.valid_payload)
         self.assertFalse(hasattr(self.user, "changeemailrequest"))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["email"], ["Enter a valid email address."])
 
     def test_when_change_email_request_is_confirmed_user_email_is_updated(self):
-        self.client.post(self.url, self.valid_payload)
+        self.request_change(self.valid_payload)
         url = factories.UserFactory.get_list_url("confirm_email")
         response = self.client.post(
             url, {"code": self.user.changeemailrequest.uuid.hex}
@@ -859,7 +880,7 @@ class UserConfirmEmailTest(test.APITestCase):
     def test_when_two_users_created_requests_with_equal_emails_then_first_confirmed_request_will_be_executed_second_will_be_deleted(
         self,
     ):
-        self.client.post(self.url, self.valid_payload)
+        self.request_change(self.valid_payload)
         self.assertEqual(
             self.valid_payload["email"], self.user.changeemailrequest.email
         )
@@ -867,7 +888,7 @@ class UserConfirmEmailTest(test.APITestCase):
         other_user = factories.UserFactory()
         self.client.force_authenticate(other_user)
         other_url = factories.UserFactory.get_url(other_user, "change_email")
-        self.client.post(other_url, self.valid_payload)
+        self.request_change(self.valid_payload, other_user, other_url)
         self.assertEqual(
             self.valid_payload["email"], other_user.changeemailrequest.email
         )
@@ -888,7 +909,7 @@ class UserConfirmEmailTest(test.APITestCase):
 
     @freeze_time("2017-01-19")
     def test_validate_email_change_max_age(self):
-        self.client.post(self.url, self.valid_payload)
+        self.request_change(self.valid_payload)
         self.assertEqual(
             self.valid_payload["email"], self.user.changeemailrequest.email
         )
@@ -902,7 +923,7 @@ class UserConfirmEmailTest(test.APITestCase):
             self.assertEqual(response.data[0], "Request has expired.")
 
     def test_anonymous_user_can_confirm_email(self):
-        self.client.post(self.url, self.valid_payload)
+        self.request_change(self.valid_payload)
         self.assertEqual(
             self.valid_payload["email"], self.user.changeemailrequest.email
         )
@@ -923,7 +944,7 @@ class UserConfirmEmailTest(test.APITestCase):
 
     @mock.patch("waldur_core.structure.handlers.tasks")
     def test_send_mail_notification(self, mock_tasks):
-        response = self.client.post(self.url, self.valid_payload)
+        response = self.request_change(self.valid_payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(mock_tasks.send_change_email_notification.delay.call_count, 1)
         self.assertEqual(
@@ -933,7 +954,7 @@ class UserConfirmEmailTest(test.APITestCase):
 
     @mock.patch("waldur_core.structure.handlers.tasks.core_utils.broadcast_mail")
     def test_send_change_email_notification_task(self, mock_mail):
-        self.client.post(self.url, self.valid_payload)
+        self.request_change(self.valid_payload)
         self.assertTrue(self.user.changeemailrequest)
         request_serialized = core_utils.serialize_instance(self.user.changeemailrequest)
         tasks.send_change_email_notification(request_serialized)
@@ -950,7 +971,7 @@ class UserConfirmEmailTest(test.APITestCase):
         )
 
     def test_cancel_change_email(self):
-        self.client.post(self.url, self.valid_payload)
+        self.request_change(self.valid_payload)
         self.user.refresh_from_db()
         self.assertTrue(self.user.changeemailrequest)
 
@@ -971,7 +992,11 @@ class UserEmailUpdateTest(test.APITestCase):
 
     def test_staff_sets_email_directly(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, {"email": "new@example.com"})
+        response = self.client.patch(
+            self.url,
+            {"email": "new@example.com"},
+            **reauthenticated(self.fixture.staff, ReauthenticationAction.CHANGE_EMAIL),
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["email"], "new@example.com")
 
@@ -1079,7 +1104,11 @@ class UserEmailUpdateTest(test.APITestCase):
         self.user.create_request_for_update_email("pending@example.com")
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, {"email": "new@example.com"})
+        response = self.client.patch(
+            self.url,
+            {"email": "new@example.com"},
+            **reauthenticated(self.fixture.staff, ReauthenticationAction.CHANGE_EMAIL),
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(response.data["requested_email"])
 
@@ -1132,6 +1161,7 @@ class ProtectedUserDetailsTest(test.APITestCase):
         response = self.client.patch(
             self.url,
             {"organization": "Edited by staff", "email": "new@example.com"},
+            **reauthenticated(staff, ReauthenticationAction.CHANGE_EMAIL),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -1268,9 +1298,12 @@ class UserTokenLifetimeLimitTest(test.APITestCase):
         self.user.save()
         self.url = factories.UserFactory.get_url(self.user)
 
-    def _set_lifetime(self, token_lifetime, url=None):
+    def _set_lifetime(self, token_lifetime, url=None, user=None):
         return self.client.patch(
-            url or self.url, {"token_lifetime": token_lifetime}, format="json"
+            url or self.url,
+            {"token_lifetime": token_lifetime},
+            format="json",
+            **reauthenticated(user or self.user, ReauthenticationAction.TOKEN_LIFETIME),
         )
 
     @data(1800, 3600)
@@ -1322,23 +1355,28 @@ class UserTokenLifetimeLimitTest(test.APITestCase):
     def test_staff_can_choose_token_that_never_expires(self):
         staff = self.fixture.staff
         self.client.force_authenticate(staff)
-        response = self._set_lifetime(None, url=factories.UserFactory.get_url(staff))
+        response = self._set_lifetime(
+            None, url=factories.UserFactory.get_url(staff), user=staff
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         staff.refresh_from_db()
         self.assertIsNone(staff.token_lifetime)
 
-    def test_impersonating_staff_can_choose_token_that_never_expires(self):
+    def test_impersonating_staff_cannot_change_the_token_lifetime(self):
+        # A change that needs re-authentication is refused under impersonation.
+        self.user.token_lifetime = 600
+        self.user.save()
         staff_token = refresh_token(self.fixture.staff)
         self.client.credentials(
             HTTP_AUTHORIZATION="Token " + staff_token.key,
             HTTP_X_IMPERSONATED_USER_UUID=self.user.uuid.hex,
         )
         response = self._set_lifetime(None)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         self.user.refresh_from_db()
-        self.assertIsNone(self.user.token_lifetime)
+        self.assertEqual(self.user.token_lifetime, 600)
 
     @override_config(API_TOKEN_MAX_LIFETIME_MINUTES=0)
     def test_user_can_choose_token_that_never_expires_without_limit(self):
@@ -1415,7 +1453,11 @@ class UserCreateTest(test.APITestCase):
             new_password="password",
         )
         self.client.force_authenticate(self.staff)
-        response = self.client.post(url, payload)
+        response = self.client.post(
+            url,
+            payload,
+            **reauthenticated(self.staff, ReauthenticationAction.CHANGE_PASSWORD),
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.user.refresh_from_db()
         self.assertNotEqual(old_password, self.fixture.user.password)
@@ -1487,7 +1529,9 @@ class UserPasswordManagementTest(test.APITestCase):
 
         url = factories.UserFactory.get_url(self.fixture.user, "remove_password")
         self.client.force_authenticate(self.staff)
-        response = self.client.post(url)
+        response = self.client.post(
+            url, **reauthenticated(self.staff, ReauthenticationAction.CHANGE_PASSWORD)
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.user.refresh_from_db()
         self.assertFalse(self.fixture.user.has_usable_password())

@@ -25,6 +25,8 @@ from waldur_auth_social.utils import (
 )
 from waldur_auth_social.views import OIDC_STATE_KEY
 from waldur_core.configuration.testing import override_config
+from waldur_core.core import reauthentication
+from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
 from waldur_core.core.models import ChangeEmailRequest, User
 from waldur_core.structure import views
 from waldur_core.structure.tests import factories as structure_factories
@@ -59,6 +61,13 @@ class SelfSetEmailSignInTest(test.APITestCase):
             agreement_date=timezone.now(),
         )
 
+    def change_email_grant(self, user):
+        # A change of email asks the person present to re-authenticate.
+        _, secret = reauthentication.issue_grant(
+            user, ReauthenticationAction.CHANGE_EMAIL, ReauthenticationMethod.PASSWORD
+        )
+        return {"HTTP_X_REAUTHENTICATION_GRANT": secret}
+
     def sign_in(self, email, sub="someone-at-the-provider"):
         mock_token_endpoint(self.provider, lambda: sub)
         responses.add(
@@ -69,7 +78,9 @@ class SelfSetEmailSignInTest(test.APITestCase):
         )
         return self.client.get(self.url, {"state": "state", "code": "code"})
 
-    def set_email_with_the_token_only(self, email):
+    def set_email_as_the_user(self, email):
+        # Through the API, as the user, re-authenticated: the address is
+        # still one its user chose, which must not become a sign-in identifier.
         token, _ = Token.objects.get_or_create(user=self.user)
         api = test.APIClient()
         api.credentials(HTTP_AUTHORIZATION="Token " + token.key)
@@ -77,6 +88,7 @@ class SelfSetEmailSignInTest(test.APITestCase):
             structure_factories.UserFactory.get_url(self.user, "change_email"),
             {"email": email},
             format="json",
+            **self.change_email_grant(self.user),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         code = ChangeEmailRequest.objects.get(user=self.user).uuid.hex
@@ -99,18 +111,20 @@ class SelfSetEmailSignInTest(test.APITestCase):
         self.assertEqual(User.objects.filter(email__iexact=ADDRESS).count(), 1)
 
     def set_email_as_staff(self, email):
+        staff_user = structure_factories.UserFactory(is_staff=True)
         staff = test.APIClient()
-        staff.force_authenticate(structure_factories.UserFactory(is_staff=True))
+        staff.force_authenticate(staff_user)
         response = staff.patch(
             structure_factories.UserFactory.get_url(self.user),
             {"email": email},
             format="json",
+            **self.change_email_grant(staff_user),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     @override_config(OIDC_MATCHMAKING_BY_EMAIL=True)
     def test_matching_by_email_does_not_find_it(self):
-        self.set_email_with_the_token_only(ADDRESS)
+        self.set_email_as_the_user(ADDRESS)
 
         self.assertSignInRefused(self.sign_in(ADDRESS))
 
@@ -118,7 +132,7 @@ class SelfSetEmailSignInTest(test.APITestCase):
         self.provider.user_field = "email"
         self.provider.user_claim = "email"
         self.provider.save()
-        self.set_email_with_the_token_only(ADDRESS)
+        self.set_email_as_the_user(ADDRESS)
 
         self.assertSignInRefused(self.sign_in(ADDRESS))
 
@@ -126,7 +140,7 @@ class SelfSetEmailSignInTest(test.APITestCase):
     def test_an_email_staff_set_is_found_again(self):
         # Support's way out for someone refused above: staff set the address.
         # Away and back: the record names who set it last, not the address.
-        self.set_email_with_the_token_only(ADDRESS)
+        self.set_email_as_the_user(ADDRESS)
         self.set_email_as_staff("interim@example.com")
         self.set_email_as_staff(ADDRESS)
 
@@ -148,7 +162,7 @@ class SelfSetEmailSignInTest(test.APITestCase):
     def test_background_synchronisation_is_not_refused(self):
         # No sign-in: an identity pulled for provisioning gets an account of its
         # own, as before, rather than the self-set one.
-        self.set_email_with_the_token_only(ADDRESS)
+        self.set_email_as_the_user(ADDRESS)
 
         user, _ = create_or_update_oauth_user(
             self.provider,
@@ -164,7 +178,7 @@ class SelfSetEmailSignInTest(test.APITestCase):
         # A sync holding a copy read before the change pushes the email it
         # knows; the address the user set must not become a way in.
         stale = User.objects.get(pk=self.user.pk)
-        self.set_email_with_the_token_only(ADDRESS)
+        self.set_email_as_the_user(ADDRESS)
 
         update_user_attributes_from_source(
             stale, {"email": "holder@example.com"}, source="isd:directory"
@@ -182,6 +196,7 @@ class SelfSetEmailSignInTest(test.APITestCase):
             structure_factories.UserFactory.get_url(self.user, "change_email"),
             {"email": ADDRESS},
             format="json",
+            **self.change_email_grant(self.user),
         )
         code = ChangeEmailRequest.objects.get(user=self.user).uuid.hex
         fetch = views.get_object_or_404

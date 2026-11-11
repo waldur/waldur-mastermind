@@ -541,6 +541,11 @@ class EventType(StrEnum):
     PASSKEY_REVOKED_BY_STAFF = "passkey_revoked_by_staff"
     PASSKEY_AUTHENTICATION_SUCCEEDED = "passkey_authentication_succeeded"
     PASSKEY_AUTHENTICATION_FAILED = "passkey_authentication_failed"
+    REAUTHENTICATION_GRANTED = "reauthentication_granted"
+    REAUTHENTICATION_FAILED = "reauthentication_failed"
+    REAUTHENTICATION_REFUSED = "reauthentication_refused"
+    REAUTHENTICATION_GRANT_USED = "reauthentication_grant_used"
+    REAUTHENTICATION_WAIVED = "reauthentication_waived"
     EVENT_CONSUMER_REGISTERED_WITH_BROAD_CREDENTIAL = (
         "event_consumer_registered_with_broad_credential"
     )
@@ -633,6 +638,11 @@ EVENT_GROUP_MAPPING = {
         EventType.PASSKEY_REVOKED_BY_STAFF,
         EventType.PASSKEY_AUTHENTICATION_SUCCEEDED,
         EventType.PASSKEY_AUTHENTICATION_FAILED,
+        EventType.REAUTHENTICATION_GRANTED,
+        EventType.REAUTHENTICATION_FAILED,
+        EventType.REAUTHENTICATION_REFUSED,
+        EventType.REAUTHENTICATION_GRANT_USED,
+        EventType.REAUTHENTICATION_WAIVED,
         EventType.EVENT_CONSUMER_REGISTERED_WITH_BROAD_CREDENTIAL,
         EventType.EVENT_CONSUMER_WEBHOOK_UPDATED,
         EventType.EVENT_CONSUMER_RESYNC_REQUESTED,

@@ -9,6 +9,8 @@ able to see who took their credential away and why.
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.core.enums import ReauthenticationAction
+from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
 from waldur_core.passkeys.tests.factories import PasskeyCredentialFactory
@@ -22,6 +24,10 @@ def revoke_url(credential):
     return f"{LIST_URL}{credential.uuid.hex}/revoke/"
 
 
+def staff_grant(staff):
+    return reauthenticated(staff, ReauthenticationAction.REVOKE_PASSKEY)
+
+
 @enable_passkeys()
 class StaffPasskeyRevokeTest(test.APITestCase):
     def setUp(self):
@@ -32,7 +38,9 @@ class StaffPasskeyRevokeTest(test.APITestCase):
 
     def test_staff_can_revoke_another_users_passkey(self):
         response = self.client.post(
-            revoke_url(self.credential), {"reason": "Laptop was stolen"}
+            revoke_url(self.credential),
+            {"reason": "Laptop was stolen"},
+            **staff_grant(self.staff),
         )
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -54,7 +62,11 @@ class StaffPasskeyRevokeTest(test.APITestCase):
 
     def test_the_event_names_the_affected_user_not_the_actor(self):
         """The person who lost the authenticator is who this is about."""
-        self.client.post(revoke_url(self.credential), {"reason": "Lost device"})
+        self.client.post(
+            revoke_url(self.credential),
+            {"reason": "Lost device"},
+            **staff_grant(self.staff),
+        )
 
         event = logging_models.Event.objects.filter(
             event_type=EventType.PASSKEY_REVOKED_BY_STAFF
@@ -64,7 +76,11 @@ class StaffPasskeyRevokeTest(test.APITestCase):
         self.assertIn("Lost device", event.message)
 
     def test_the_affected_user_can_see_it_in_their_own_audit_log(self):
-        self.client.post(revoke_url(self.credential), {"reason": "Lost device"})
+        self.client.post(
+            revoke_url(self.credential),
+            {"reason": "Lost device"},
+            **staff_grant(self.staff),
+        )
 
         self.client.force_authenticate(self.owner)
         response = self.client.get(
@@ -103,7 +119,9 @@ class StaffPasskeyRevokeTest(test.APITestCase):
         self.assertNotIn(other.uuid.hex, uuids)
 
     def test_revoking_twice_is_refused(self):
-        self.client.post(revoke_url(self.credential), {"reason": "First"})
+        self.client.post(
+            revoke_url(self.credential), {"reason": "First"}, **staff_grant(self.staff)
+        )
         response = self.client.post(revoke_url(self.credential), {"reason": "Second"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

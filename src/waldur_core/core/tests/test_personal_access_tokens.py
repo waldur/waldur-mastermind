@@ -9,7 +9,9 @@ from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.core.models import PersonalAccessToken, User
+from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import get_global_role_scope
 from waldur_core.structure.tests import fixtures
@@ -63,6 +65,9 @@ class PersonalAccessTokenCRUDTest(test.APITestCase):
                 "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("token", response.data)
@@ -112,7 +117,12 @@ class PersonalAccessTokenCRUDTest(test.APITestCase):
     def test_rotate_revokes_old_creates_new(self):
         pat = _create_pat(self.user)
         old_hash = pat.token_hash
-        response = self.client.post(f"{PAT_URL}{pat.uuid}/rotate/")
+        response = self.client.post(
+            f"{PAT_URL}{pat.uuid}/rotate/",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("token", response.data)
 
@@ -341,6 +351,9 @@ class PersonalAccessTokenSecurityTest(test.APITestCase):
                 "expires_at": (timezone.now() + timedelta(days=365)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -358,6 +371,9 @@ class PersonalAccessTokenSecurityTest(test.APITestCase):
                 "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -371,6 +387,9 @@ class PersonalAccessTokenSecurityTest(test.APITestCase):
                 "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -384,6 +403,9 @@ class PersonalAccessTokenSecurityTest(test.APITestCase):
                 "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -397,6 +419,9 @@ class PersonalAccessTokenSecurityTest(test.APITestCase):
                 "expires_at": (timezone.now() - timedelta(days=1)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -580,6 +605,9 @@ class PersonalAccessTokenStaffScopeEnforcementTest(test.APITestCase):
                 "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.regular_user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -786,6 +814,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 ],
             ),
             format="json",
+            **reauthenticated(
+                self.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
@@ -805,6 +836,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 ],
             ),
             format="json",
+            **reauthenticated(
+                self.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
@@ -823,6 +857,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 ],
             ),
             format="json",
+            **reauthenticated(
+                self.fixture.member, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("allowed_scopes", response.data)
@@ -836,6 +873,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 allowed_scopes=[{"type": "customer", "uuid": str(uuid_mod.uuid4())}],
             ),
             format="json",
+            **reauthenticated(
+                self.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -848,6 +888,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 ],
             ),
             format="json",
+            **reauthenticated(
+                self.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -858,6 +901,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
             PAT_URL,
             self._payload(allowed_scopes=[{"type": "global", "uuid": str(scope.uuid)}]),
             format="json",
+            **reauthenticated(
+                self.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Unknown scope type", str(response.data))
@@ -873,6 +919,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 ],
             ),
             format="json",
+            **reauthenticated(
+                self.fixture.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("allowed_scopes", response.data)
@@ -890,6 +939,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 ],
             ),
             format="json",
+            **reauthenticated(
+                self.fixture.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -898,6 +950,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
             PAT_URL,
             self._payload(allowed_scopes=[]),
             format="json",
+            **reauthenticated(
+                self.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
@@ -912,6 +967,9 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
                 ],
             ),
             format="json",
+            **reauthenticated(
+                self.staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         bindings = response.data["allowed_scopes"]
@@ -1128,7 +1186,12 @@ class PersonalAccessTokenRotatePreservesBindingsTest(test.APITestCase):
         pat.allowed_scopes = [_binding(self.fixture.customer)]
         pat.save(update_fields=["allowed_scopes"])
 
-        response = self.client.post(f"{PAT_URL}{pat.uuid}/rotate/")
+        response = self.client.post(
+            f"{PAT_URL}{pat.uuid}/rotate/",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         new_pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
@@ -1183,7 +1246,14 @@ class PersonalAccessTokenPerUserGateTest(test.APITestCase):
         user = self.fixture.owner
         self.assertFalse(user.can_use_personal_access_tokens)
         self.client.force_authenticate(user=user)
-        response = self.client.post(PAT_URL, self._create_payload(), format="json")
+        response = self.client.post(
+            PAT_URL,
+            self._create_payload(),
+            format="json",
+            **reauthenticated(
+                user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_with_flag_can_create(self):
@@ -1191,14 +1261,28 @@ class PersonalAccessTokenPerUserGateTest(test.APITestCase):
         user.can_use_personal_access_tokens = True
         user.save(update_fields=["can_use_personal_access_tokens"])
         self.client.force_authenticate(user=user)
-        response = self.client.post(PAT_URL, self._create_payload(), format="json")
+        response = self.client.post(
+            PAT_URL,
+            self._create_payload(),
+            format="json",
+            **reauthenticated(
+                user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_staff_cannot_create_without_flag(self):
         staff = self.fixture.staff
         self.assertFalse(staff.can_use_personal_access_tokens)
         self.client.force_authenticate(user=staff)
-        response = self.client.post(PAT_URL, self._create_payload(), format="json")
+        response = self.client.post(
+            PAT_URL,
+            self._create_payload(),
+            format="json",
+            **reauthenticated(
+                staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_revoking_flag_disables_existing_token(self):

@@ -186,6 +186,10 @@ REST_FRAMEWORK = {
         # user out of password auth simply by grinding assertions.
         "passkey_signin": "30/min",
         "passkey_registration": "20/min",
+        # Re-authentication before account changes, per user. Wrong passwords
+        # also count toward the login lockout; this bounds the grants and
+        # ceremonies a token holder can create.
+        "reauthentication": "30/min",
         # Guards the staff-only mail diagnostics: the probe opens a socket to a
         # third-party relay and the test send delivers a real message, so both
         # are cheap to abuse and rare in legitimate use.

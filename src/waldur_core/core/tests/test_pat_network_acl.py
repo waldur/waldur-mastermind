@@ -5,7 +5,9 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.core.models import PersonalAccessToken, User
+from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.tests import fixtures
@@ -421,13 +423,23 @@ class PatNetworkAclApiTest(test.APITestCase):
             PAT_URL,
             self._create_payload(allowed_networks=["203.0.113.5", "198.51.100.0/24"]),
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
         self.assertEqual(pat.allowed_networks, ["203.0.113.5/32", "198.51.100.0/24"])
 
     def test_create_defaults_to_unrestricted(self):
-        response = self.client.post(PAT_URL, self._create_payload(), format="json")
+        response = self.client.post(
+            PAT_URL,
+            self._create_payload(),
+            format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
         self.assertEqual(pat.allowed_networks, [])
 
@@ -436,6 +448,9 @@ class PatNetworkAclApiTest(test.APITestCase):
             PAT_URL,
             self._create_payload(allowed_networks=["203.0.113.5/24"]),
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -447,6 +462,9 @@ class PatNetworkAclApiTest(test.APITestCase):
                 allowed_networks=["10.1.0.0/16", "10.2.0.0/16", "10.3.0.0/16"]
             ),
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -457,7 +475,12 @@ class PatNetworkAclApiTest(test.APITestCase):
         KeyError inside emit — an HTTP 500 after the token already exists.
         """
         response = self.client.post(
-            PAT_URL, self._create_payload(name="evil{oops}name"), format="json"
+            PAT_URL,
+            self._create_payload(name="evil{oops}name"),
+            format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -523,7 +546,12 @@ class PatNetworkAclApiTest(test.APITestCase):
 
     def test_rotate_carries_the_acl_over(self):
         pat = create_pat(self.user, ["203.0.113.0/24"])
-        response = self.client.post(f"{PAT_URL}{pat.uuid}/rotate/")
+        response = self.client.post(
+            f"{PAT_URL}{pat.uuid}/rotate/",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         new_pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
         self.assertEqual(new_pat.allowed_networks, ["203.0.113.0/24"])
@@ -553,7 +581,12 @@ class PatNetworkAclApiTest(test.APITestCase):
             {"allowed_networks": ["198.51.100.0/24"]},
             format="json",
         )
-        response = self.client.post(f"{PAT_URL}{pat.uuid}/rotate/")
+        response = self.client.post(
+            f"{PAT_URL}{pat.uuid}/rotate/",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["allowed_networks"], ["198.51.100.0/24"])
 

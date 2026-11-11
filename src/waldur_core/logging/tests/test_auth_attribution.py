@@ -5,7 +5,9 @@ from django.utils import timezone
 from rest_framework import test
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.core.models import PersonalAccessToken
+from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.logging.middleware import (
     CaptureEventContextMiddleware,
     get_event_context,
@@ -100,6 +102,9 @@ class PatAttributionEndToEndTest(test.APITestCase):
                 "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
             },
             format="json",
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
         )
         event = Event.objects.filter(event_type="pat_created").first()
         self.assertIsNotNone(event)

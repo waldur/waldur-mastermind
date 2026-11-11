@@ -75,7 +75,7 @@ class IdentityVerifiedByAccountTest(TestCase):
         )
 
     @patch(
-        "waldur_core.onboarding.validators.get_identity_provider_fields",
+        "waldur_core.onboarding.validators.get_user_protected_fields",
         return_value=["first_name", "last_name", "birth_date"],
     )
     def test_names_protected_by_the_identity_provider(self, _):
@@ -88,7 +88,7 @@ class IdentityVerifiedByAccountTest(TestCase):
         )
 
     @patch(
-        "waldur_core.onboarding.validators.get_identity_provider_fields",
+        "waldur_core.onboarding.validators.get_user_protected_fields",
         return_value=["first_name", "last_name", "birth_date"],
     )
     def test_typed_birth_date_that_differs_from_the_account(self, _):

@@ -255,6 +255,11 @@ urlpatterns += [
         name="auth-password",
     ),
     re_path(
+        r"^api/reauthentication/password/$",
+        core_views.ReauthenticationPasswordView.as_view(),
+        name="reauthentication-password",
+    ),
+    re_path(
         r"^api-auth/token-exchange/",
         core_views.TokenExchangeView.as_view(),
         name="auth-token-exchange",

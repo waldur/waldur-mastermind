@@ -367,9 +367,16 @@ class PromotedStaffCanStillEnrolTest(test.APITestCase):
             {"username": self.user.username, "password": self.password},
         ).data["token"]
 
+        # Enrolling needs the password again: the token alone is not enough.
+        grant = self.client.post(
+            "/api/reauthentication/password/",
+            {"action": "register_passkey", "password": self.password},
+            HTTP_AUTHORIZATION=f"Token {token}",
+        ).data["grant"]
         begin = self.client.post(
             "/api/passkeys/registration/begin/",
             HTTP_AUTHORIZATION=f"Token {token}",
+            HTTP_X_REAUTHENTICATION_GRANT=grant,
         )
         self.assertEqual(begin.status_code, status.HTTP_200_OK)
 

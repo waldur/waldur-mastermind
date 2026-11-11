@@ -75,9 +75,14 @@ class StaffTokenScopeTest(test.APITestCase):
         self.use_token(NARROW)
         self.assertEqual(self.change_password().status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_token_with_staff_scope_can_change_a_password(self):
+    def test_token_with_staff_scope_cannot_change_a_password(self):
+        # Setting a password needs re-authentication, which a personal access
+        # token can neither do nor use.
         self.use_token(STAFF)
-        self.assertEqual(self.change_password().status_code, status.HTTP_200_OK)
+        old_password = self.user.password
+        self.assertEqual(self.change_password().status_code, status.HTTP_403_FORBIDDEN)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.password, old_password)
 
     def test_token_without_staff_scope_cannot_create_an_organization(self):
         self.use_token(NARROW)
