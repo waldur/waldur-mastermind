@@ -253,6 +253,25 @@ def assessed_offering_ids(run):
     return accepted - rejected
 
 
+# Why a resource that is not ready was left as it was, as the call manager
+# and the applicant read it on the run.
+NOT_READY_REASONS = {
+    marketplace_models.Resource.States.CREATING: (
+        "The resource was still being created."
+    ),
+    marketplace_models.Resource.States.UPDATING: (
+        "The resource was being changed by another order."
+    ),
+    marketplace_models.Resource.States.TERMINATING: (
+        "The resource was being terminated."
+    ),
+    marketplace_models.Resource.States.TERMINATED: "The resource has been terminated.",
+    marketplace_models.Resource.States.ERRED: (
+        "The resource is in an error state; its provider has to resolve it first."
+    ),
+}
+
+
 def apply_extension(proposal, run, decided_by):
     """Carry out a granted extension, inside the decision's transaction.
 
@@ -330,7 +349,7 @@ def apply_extension(proposal, run, decided_by):
             skip("The offering's team did not accept the extension.")
             continue
         if resource.state != marketplace_models.Resource.States.OK:
-            skip("The resource is not in OK state.")
+            skip(NOT_READY_REASONS[resource.state])
             continue
         if wants_end:
             if resource.offering.components.filter(is_prepaid=True).exists():
