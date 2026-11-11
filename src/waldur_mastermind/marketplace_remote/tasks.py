@@ -136,6 +136,13 @@ class OfferingPullTask(BackgroundPullTask):
             self.sync_plans(local_offering, remote_offering.plans)
             self.sync_access_endpoints(local_offering, remote_offering)
             self.sync_terms_of_service(local_offering, remote_offering, client)
+        except TransportError as exc:
+            logger.warning(
+                "Remote Waldur is unreachable while pulling offering %s (%s): %s",
+                local_offering,
+                local_offering.secret_options.get("api_url", ""),
+                exc,
+            )
         except UnexpectedStatus as exc:
             if exc.status_code == status.HTTP_404_NOT_FOUND:
                 if local_offering.state == OfferingStates.ACTIVE:
