@@ -7,7 +7,8 @@
       "Credit allocation and tracking",
       "Cost policy threshold testing",
       "Credit usage history verification",
-      "Budget limit alerting"
+      "Budget limit alerting",
+      "Credit burn-down with a projected exhaustion date on the project dashboard (dashboard.spend_forecast)"
     ]
   },
   "user_agreements": [
@@ -597,5 +598,11 @@
     "SITE_NAME": "Waldur Credit Management Demo",
     "SITE_DESCRIPTION": "A demo environment for testing credit allocation, cost policies, and budget tracking.",
     "CURRENCY_NAME": "CHF"
-  }
+  },
+  "features": [
+    {
+      "key": "dashboard.spend_forecast",
+      "value": true
+    }
+  ]
 }

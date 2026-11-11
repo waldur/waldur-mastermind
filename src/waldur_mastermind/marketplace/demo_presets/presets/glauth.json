@@ -4,7 +4,9 @@
     "description": "Preset exercising every dimension of the glauth_users_config export: varied uid/gid metadata, SSH key counts, offering user states, disabled flag, robot account states, project groups and shared password.",
     "version": "1.0.0",
     "scenarios": [
-      "GLAuth LDAP integration testing"
+      "GLAuth LDAP integration testing",
+      "POSIX ID pool management for the service provider (marketplace.show_posix_id_pools)",
+      "SSH keys in the user workspace, served to LDAP clients (user.ssh_keys)"
     ]
   },
   "users": [
@@ -407,6 +409,16 @@
       "scope_type": "structure.project",
       "scope_uuid": "e2e20000000000000000000000000b01",
       "is_active": true
+    }
+  ],
+  "features": [
+    {
+      "key": "marketplace.show_posix_id_pools",
+      "value": true
+    },
+    {
+      "key": "user.ssh_keys",
+      "value": true
     }
   ]
 }
