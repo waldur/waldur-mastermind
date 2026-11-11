@@ -9,8 +9,9 @@ from waldur_core.permissions.fixtures import (
     CustomerRole,
     ServiceProviderRole,
 )
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import check_pat_binding_on_path, has_permission
 from waldur_core.structure import permissions as structure_permissions
+from waldur_openstack.utils import within_provider_bindings
 
 
 def _check_permissions(permission):
@@ -27,7 +28,11 @@ def _check_permissions(permission):
         if not instance:
             return
 
-        if has_staff_access(request):
+        # Staff act everywhere, but a personal access token only within its
+        # bindings, as for the roles below.
+        if has_staff_access(request) and check_pat_binding_on_path(
+            request, [instance.project]
+        ):
             return
 
         if has_permission(request, permission, instance.project):
@@ -71,7 +76,9 @@ def has_permissions_for_console(request, view, instance=None):
     if not instance:
         return
 
-    if has_staff_access(request):
+    if has_staff_access(request) and check_pat_binding_on_path(
+        request, [instance.project]
+    ):
         return
 
     if settings.WALDUR_OPENSTACK["ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS"]:
@@ -95,43 +102,51 @@ def can_diagnose_openstack_instance(request, view, instance=None):
     """
     if not instance:
         return
-    user = request.user
-    if has_support_access(request):
-        return
     service_settings = getattr(instance.tenant, "service_settings", None)
     customer = getattr(service_settings, "customer", None) if service_settings else None
-    if customer is not None and (
-        customer.has_user(user, CustomerRole.OWNER)
-        or customer.has_user(user, ServiceProviderRole.MANAGER)
+    if _acts_as_provider(
+        request, customer, staff=has_support_access(request), target=instance.project
     ):
         return
     raise exceptions.PermissionDenied()
 
 
+def _acts_as_provider(request, customer, staff, target=None) -> bool:
+    """Whether the request acts for the provider ``customer``: as staff, or as
+    an owner or service provider manager of it. A personal access token acts
+    only within its bindings (``utils.within_provider_bindings``); ``target``
+    is the project acted in."""
+    if not (
+        staff
+        or (
+            customer is not None
+            and (
+                customer.has_user(request.user, CustomerRole.OWNER)
+                or customer.has_user(request.user, ServiceProviderRole.MANAGER)
+            )
+        )
+    ):
+        return False
+    return within_provider_bindings(request, customer, staff, target)
+
+
 @access.describes(
     access.custom(
         "Staff, or an owner or service provider manager of the organization "
-        "that owns the tenant's service settings, that is, the provider."
+        "that owns the tenant's service settings, that is, the provider. A "
+        "personal access token passes only within its bindings."
     ),
     needs_object=True,
 )
 def can_update_tenant_quotas_as_service_provider(request, view, tenant=None):
     if not tenant:
         return
-
-    if has_staff_access(request):
-        return
-
     service_settings = tenant.service_settings
-    if not service_settings or not service_settings.customer:
-        raise exceptions.PermissionDenied()
-
-    customer = service_settings.customer
-    if customer.has_user(request.user, CustomerRole.OWNER) or customer.has_user(
-        request.user, ServiceProviderRole.MANAGER
+    customer = service_settings.customer if service_settings else None
+    if _acts_as_provider(
+        request, customer, staff=has_staff_access(request), target=tenant.project
     ):
         return
-
     raise exceptions.PermissionDenied()
 
 

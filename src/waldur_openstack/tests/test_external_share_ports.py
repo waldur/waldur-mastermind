@@ -190,3 +190,47 @@ class RouterInterfaceTest(ExternalShareMixin, test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
         execute.assert_called_once()
+
+    def test_a_port_whose_network_is_unknown_takes_no_interface(self):
+        # A pull leaves the network empty when Waldur does not mirror it, as
+        # after a share is gone; the port's subnet then names it, or nothing.
+        port = self.left_over_port()
+        port.network = None
+        port.subnet = None
+        port.save()
+
+        response = self.client.post(
+            factories.RouterFactory.get_url(self.router, "add_router_interface"),
+            {"port": factories.PortFactory.get_url(port)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.add_router_interface.assert_not_called()
+
+    def test_a_port_with_only_its_subnet_known_is_checked_by_it(self):
+        port = self.left_over_port()
+        port.network = None
+        port.save()
+
+        response = self.client.post(
+            factories.RouterFactory.get_url(self.router, "add_router_interface"),
+            {"port": factories.PortFactory.get_url(port)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.add_router_interface.assert_not_called()
+
+    @mock.patch("waldur_openstack.executors.RouterInterfaceDeleteExecutor.execute")
+    def test_the_routers_own_interface_comes_off_by_subnet_after_the_share_is_gone(
+        self, execute
+    ):
+        self.subnet.router = self.router
+        self.subnet.save()
+
+        response = self.client.post(
+            factories.RouterFactory.get_url(self.router, "remove_router_interface"),
+            {"subnet": factories.SubNetFactory.get_url(self.subnet)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        execute.assert_called_once()
