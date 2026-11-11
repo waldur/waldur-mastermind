@@ -1,0 +1,23 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Organization Onboarding Application</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <p>Hello,</p>
+
+    <p>A new organization onboarding application has been submitted on {{ site_name }} and awaits manual review.</p>
+
+    <div style="background-color: #f5f5f5; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>Submitted on:</strong> {{ created_at }}</p>
+    </div>
+
+    <p>
+        <a href="{{ review_url }}">Review the application</a>
+    </p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+
+</body>
+</html>

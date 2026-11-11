@@ -1,0 +1,10 @@
+Hello,
+
+A new organization has been created on {{ site_name }}. It passed automatic validation, so it was not reviewed by staff.
+
+Validated by: {{ validation_method }}
+Created on: {{ created_at }}
+
+View the organization: {{ organization_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

@@ -141,6 +141,12 @@ class SettingsForm(forms.Form):
             raise forms.ValidationError(errors)
         return value
 
+    def clean_ONBOARDING_NOTIFICATION_EMAILS(self):
+        # Mirrors ConstanceSettingsSerializer.
+        return validate_notification_emails(
+            self.cleaned_data["ONBOARDING_NOTIFICATION_EMAILS"]
+        )
+
     def clean_VERSION_UPDATE_NOTIFICATION_EMAILS(self):
         # Mirrors ConstanceSettingsSerializer: a malformed address would only
         # surface as a bounce, after the release it was meant to announce.

@@ -6331,6 +6331,68 @@ Sent when a call's workflow notification rule fires: a workflow step started, co
 
 ## WALDUR_CORE.ONBOARDING
 
+### onboarding.customer_created_automatically
+
+Sent to every address in ONBOARDING_NOTIFICATION_EMAILS when an organization is created after passing automatic validation against a business register, with no staff review. Contains only the register's name and a link to the organization, no applicant or organization details.
+
+#### Templates
+
+=== "onboarding/customer_created_automatically_subject.txt"
+
+```txt
+
+    New organization created through automatic onboarding
+
+```
+
+=== "onboarding/customer_created_automatically_message.txt"
+
+```txt
+
+    Hello,
+
+    A new organization has been created on {{ site_name }}. It passed automatic validation, so it was not reviewed by staff.
+
+    Validated by: {{ validation_method }}
+    Created on: {{ created_at }}
+
+    View the organization: {{ organization_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "onboarding/customer_created_automatically_message.html"
+
+```txt
+
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Organization Created</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <p>Hello,</p>
+
+        <p>A new organization has been created on {{ site_name }}. It passed automatic validation, so it was not reviewed by staff.</p>
+
+        <div style="background-color: #f5f5f5; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Validated by:</strong> {{ validation_method }}</p>
+            <p style="margin: 5px 0;"><strong>Created on:</strong> {{ created_at }}</p>
+        </div>
+
+        <p>
+            <a href="{{ organization_url }}">View the organization</a>
+        </p>
+
+        <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+
+    </body>
+    </html>
+
+```
+
 ### onboarding.justification_review_notification
 
 Notifies users when their onboarding justification has been reviewed.
@@ -6394,6 +6456,66 @@ Notifies users when their onboarding justification has been reviewed.
 
         <p>
             <a href="{{ link_to_homeport_dashboard }}">View Details</a>
+        </p>
+
+        <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+
+    </body>
+    </html>
+
+```
+
+### onboarding.justification_submitted
+
+Sent to every address in ONBOARDING_NOTIFICATION_EMAILS when a user submits an onboarding justification for manual review. Contains only a link to the review page, no applicant or organization details.
+
+#### Templates
+
+=== "onboarding/justification_submitted_subject.txt"
+
+```txt
+
+    New organization onboarding application awaits review
+
+```
+
+=== "onboarding/justification_submitted_message.txt"
+
+```txt
+
+    Hello,
+
+    A new organization onboarding application has been submitted on {{ site_name }} and awaits manual review.
+
+    Submitted on: {{ created_at }}
+
+    Review the application: {{ review_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "onboarding/justification_submitted_message.html"
+
+```txt
+
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Organization Onboarding Application</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <p>Hello,</p>
+
+        <p>A new organization onboarding application has been submitted on {{ site_name }} and awaits manual review.</p>
+
+        <div style="background-color: #f5f5f5; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Submitted on:</strong> {{ created_at }}</p>
+        </div>
+
+        <p>
+            <a href="{{ review_url }}">Review the application</a>
         </p>
 
         <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>

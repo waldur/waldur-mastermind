@@ -1388,6 +1388,17 @@ CONSTANCE_CONFIG = {
         48,
         "Number of hours after which onboarding verifications expire.",
     ),
+    "ONBOARDING_NOTIFICATION_EMAILS": (
+        "",
+        "Comma-separated list of email addresses that are told when a user "
+        "submits an onboarding justification for manual review, and when an "
+        "organization is created after passing automatic validation without "
+        "review. The emails link to the relevant page and carry no details of "
+        "the applicant or the organization. Leave empty to send none. The "
+        "onboarding.justification_submitted and "
+        "onboarding.customer_created_automatically notifications must also be "
+        "enabled, as new notifications are disabled by default.",
+    ),
     "ONBOARDING_ARIREGISTER_BASE_URL": (
         "https://demo-ariregxmlv6.rik.ee/",
         "Base URL for Estonian Äriregister API endpoint.",
@@ -2372,6 +2383,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Onboarding settings": (
         "ONBOARDING_VALIDATION_METHODS",
         "ONBOARDING_VERIFICATION_EXPIRY_HOURS",
+        "ONBOARDING_NOTIFICATION_EMAILS",
         "ONBOARDING_ARIREGISTER_BASE_URL",
         "ONBOARDING_ARIREGISTER_USERNAME",
         "ONBOARDING_ARIREGISTER_PASSWORD",

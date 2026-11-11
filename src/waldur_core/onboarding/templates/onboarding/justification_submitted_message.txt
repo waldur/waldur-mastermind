@@ -1,0 +1,9 @@
+Hello,
+
+A new organization onboarding application has been submitted on {{ site_name }} and awaits manual review.
+
+Submitted on: {{ created_at }}
+
+Review the application: {{ review_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

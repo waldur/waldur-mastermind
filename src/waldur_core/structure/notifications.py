@@ -1913,6 +1913,41 @@ class JustificationReviewNotificationContext(BaseModel):
     )
 
 
+class JustificationSubmittedContext(BaseModel):
+    """Context for the email telling reviewers that a justification awaits them.
+
+    Deliberately carries nothing about the applicant or the organization: the
+    addresses are configured by the operator and may be a shared mailbox, so
+    the reviewer reads the details behind the staff-only link instead.
+    """
+
+    created_at: str = Field(
+        description="Date and time when the justification was submitted."
+    )
+    site_name: str = Field(description="Name of the site/platform.")
+    review_url: str = Field(
+        description="URL of the staff review page of the justification."
+    )
+
+
+class CustomerCreatedAutomaticallyContext(BaseModel):
+    """Context for the email telling onboarding staff that an organization was
+    created after automatic validation, with nobody reviewing it.
+
+    Like JustificationSubmittedContext, carries nothing about the applicant or
+    the organization: the details are behind the link.
+    """
+
+    created_at: str = Field(
+        description="Date and time when the organization was created."
+    )
+    validation_method: str = Field(
+        description="Name of the register that validated the organization."
+    )
+    site_name: str = Field(description="Name of the site/platform.")
+    organization_url: str = Field(description="URL of the new organization's page.")
+
+
 class OnboardingSection(NotificationSection):
     """Notifications related to customer onboarding and verification."""
 
@@ -1923,6 +1958,27 @@ class OnboardingSection(NotificationSection):
         key="justification_review_notification",
         description="Notifies users when their onboarding justification has been reviewed.",
         context_model=JustificationReviewNotificationContext,
+    )
+    justification_submitted = Notification(
+        key="justification_submitted",
+        description=(
+            "Sent to every address in ONBOARDING_NOTIFICATION_EMAILS when "
+            "a user submits an onboarding justification for manual review. "
+            "Contains only a link to the review page, no applicant or "
+            "organization details."
+        ),
+        context_model=JustificationSubmittedContext,
+    )
+    customer_created_automatically = Notification(
+        key="customer_created_automatically",
+        description=(
+            "Sent to every address in ONBOARDING_NOTIFICATION_EMAILS when an "
+            "organization is created after passing automatic validation against "
+            "a business register, with no staff review. Contains only the "
+            "register's name and a link to the organization, no applicant or "
+            "organization details."
+        ),
+        context_model=CustomerCreatedAutomaticallyContext,
     )
 
 

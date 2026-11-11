@@ -2929,6 +2929,12 @@ List of automatic validation methods available for this portal.
 
 Number of hours after which onboarding verifications expire.
 
+#### ONBOARDING_NOTIFICATION_EMAILS
+
+**Type:** str
+
+Comma-separated list of email addresses that are told when a user submits an onboarding justification for manual review, and when an organization is created after passing automatic validation without review. The emails link to the relevant page and carry no details of the applicant or the organization. Leave empty to send none. The onboarding.justification_submitted and onboarding.customer_created_automatically notifications must also be enabled, as new notifications are disabled by default.
+
 #### ONBOARDING_ARIREGISTER_BASE_URL
 
 **Type:** url_field
