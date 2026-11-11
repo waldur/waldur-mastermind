@@ -685,6 +685,22 @@ class OfferingDetailsPullTest(test.APITestCase):
         self.assertTrue(tos.requires_reconsent)
 
     @override_settings(task_always_eager=True)
+    def test_pull_handles_remote_unreachable(self):
+        respx.get(
+            f"{self.api_url}/api/marketplace-public-offerings/{self.offering.backend_id}/"
+        ).mock(side_effect=httpx.ConnectError("[Errno 111] Connection refused"))
+        initial_name = self.offering.name
+        with self.assertLogs(
+            "waldur_mastermind.marketplace_remote.tasks", level="WARNING"
+        ) as logs:
+            self.task.pull(self.offering)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.name, initial_name)
+        self.assertTrue(
+            any("unreachable" in message.lower() for message in logs.output)
+        )
+
+    @override_settings(task_always_eager=True)
     def test_sync_terms_of_service_handles_endpoint_error(self):
         """Test that UnexpectedStatus from ToS endpoint is handled gracefully"""
         self.remote_offering["terms_of_service"] = ""
