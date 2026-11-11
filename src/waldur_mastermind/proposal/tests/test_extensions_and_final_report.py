@@ -595,6 +595,51 @@ class ApprovalTest(PostAwardBase):
             run.applied_changes["skipped"][0]["resource_uuid"], self.resource.uuid.hex
         )
 
+    def test_a_resource_still_being_created_is_skipped_with_its_state_in_plain_words(
+        self,
+    ):
+        run = self._request_extension(
+            {
+                "requested_end_date": "2030-12-31",
+                "requested_limits": {self.resource.uuid.hex: {"cpu": 200}},
+            }
+        )
+        self._complete(
+            self.applicant, self._active(run), WorkflowStepOutcomes.SUBMITTED
+        )
+        self._assess(run)
+        marketplace_models.Resource.objects.filter(pk=self.resource.pk).update(
+            state=marketplace_models.Resource.States.CREATING
+        )
+        self._complete(
+            self.call_manager, self._active(run), WorkflowStepOutcomes.APPROVED
+        )
+
+        run.refresh_from_db()
+        self.assertEqual(run.state, ProposalRunStates.APPROVED)
+        self.assertEqual(
+            run.applied_changes["skipped"],
+            [
+                {
+                    "resource_uuid": self.resource.uuid.hex,
+                    "reason": "The resource was still being created.",
+                }
+            ],
+        )
+        self.assertFalse(
+            marketplace_models.Order.objects.filter(
+                resource=self.resource, type=OrderTypes.UPDATE
+            ).exists()
+        )
+
+    def test_every_state_but_ok_has_a_plain_skip_reason(self):
+        not_ok = {
+            state
+            for state, _ in marketplace_models.Resource.States.CHOICES
+            if state != marketplace_models.Resource.States.OK
+        }
+        self.assertEqual(set(runs.NOT_READY_REASONS), not_ok)
+
     def test_the_offerings_change_request_options_are_bypassed_only_after_its_assessment(
         self,
     ):
