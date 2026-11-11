@@ -21,6 +21,18 @@ max_requests = int(os.environ.get("GUNICORN_MAX_REQUESTS") or 1000)
 max_requests_jitter = int(os.environ.get("GUNICORN_MAX_REQUESTS_JITTER") or 50)
 forwarded_allow_ips = "*"
 proxy_allow_ips = "*"
+# With every peer trusted as a forwarder, gunicorn >= 23 would take SCRIPT_NAME
+# from any client's request headers: `GET /api/admin/` with `SCRIPT_NAME: /api`
+# reaches Django as /admin/, past an ingress rule that only matches the /admin/
+# path. No proxy in front of the image sets it, so take no forwarder headers,
+# as gunicorn 22 did by dropping every header with an underscore. A deployment
+# behind a sub-path proxy that does set it can opt back in with
+# GUNICORN_CMD_ARGS="--forwarder-headers SCRIPT_NAME" (helm: gunicorn.extraArgs).
+forwarder_headers = ""
+# gunicorn >= 25.1 opens a runtime control socket (scale or kill workers) under
+# $HOME/.gunicorn by default. Nothing here uses it, and under an arbitrary UID
+# with HOME=/ it logs a Permission denied ERROR on every start.
+control_socket_disable = True
 accesslog = "-"
 access_log_format = (
     '%({X-Forwarded-For}i)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
