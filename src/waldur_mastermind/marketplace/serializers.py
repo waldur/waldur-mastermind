@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 import datetime
 import functools
@@ -7404,6 +7405,8 @@ class OrderUpdateSerializer(BaseOrderSerializer):
             attrs["attributes"] = utils.keep_renewal_order_attributes(
                 self.instance, attrs["attributes"]
             )
+        if self.instance.type == OrderTypes.UPDATE and "attributes" in attrs:
+            attrs["attributes"] = self._clean_option_change(attrs["attributes"])
         attributes = attrs.get("attributes", self.instance.attributes) or {}
         if (
             options
@@ -7452,20 +7455,109 @@ class OrderUpdateSerializer(BaseOrderSerializer):
         if options and "attributes" in attrs:
             self._validate_unique_options(attrs["attributes"])
         # Checked last: limits can also be derived from new_options above.
-        if (
-            (self.instance.attributes or {}).get("action") == "renew"
-            and "limits" in attrs
-            and attrs["limits"] != self.instance.limits
-        ):
-            raise serializers.ValidationError(
-                {
-                    "limits": _(
-                        "A renewal's limits are part of its quote. "
-                        "Place a new renewal to change them."
-                    )
-                }
-            )
+        stored = self.instance.attributes or {}
+        if "limits" in attrs and attrs["limits"] != self.instance.limits:
+            if stored.get("action") == "renew":
+                raise serializers.ValidationError(
+                    {
+                        "limits": _(
+                            "A renewal's limits are part of its quote. "
+                            "Place a new renewal to change them."
+                        )
+                    }
+                )
+            if self.instance.type == OrderTypes.UPDATE and "old_limits" not in stored:
+                # Only a limit change sends its limits to the backend: a plan
+                # switch or an option change would write them to the resource
+                # alone, and changing limits needs rights its editor may not
+                # hold. Edits cannot add old_limits (keep_renewal_order_attributes).
+                raise serializers.ValidationError(
+                    {
+                        "limits": _(
+                            "This order does not change limits. Change them "
+                            "through update_limits."
+                        )
+                    }
+                )
+        self._validate_as_created(attrs)
         return attrs
+
+    def _clean_option_change(self, attributes):
+        """An option change is edited only as update_options would make it
+        (``clean_option_change``), and stays a change from the options it
+        was placed over."""
+        stored = self.instance.attributes or {}
+        attributes = dict(attributes or {})
+        if "old_options" in stored:
+            attributes["old_options"] = stored["old_options"]
+        else:
+            attributes.pop("old_options", None)
+        if "new_options" not in stored:
+            # Even null: an order carrying the key executes as an option change,
+            # without the backend call a plan switch makes, and changing
+            # options needs rights its editor may not hold.
+            if attributes.pop("new_options", None) is not None:
+                raise serializers.ValidationError(
+                    {
+                        "attributes": _(
+                            "This order does not change options. Change them "
+                            "through update_options."
+                        )
+                    }
+                )
+            return attributes
+        new_options = attributes.get("new_options")
+        if new_options is None:
+            attributes["new_options"] = stored["new_options"]
+            return attributes
+        if new_options != stored["new_options"]:
+            attributes["new_options"] = clean_option_change(
+                self.instance, new_options, lock=False
+            )
+            self._validate_derived_inputs(attributes["new_options"])
+        return attributes
+
+    def _validate_derived_inputs(self, new_options):
+        """Keep an option change ordered as update_options orders it.
+
+        A change of a formula input carries the limits derived from it and
+        ``old_limits``; a change of other options carries neither. An edit
+        that moved an order from one kind to the other would apply new limits
+        without the option, or the option without its limits.
+        """
+        resource = self.instance.resource
+        if resource is None:
+            return
+        changed = utils.changed_derived_inputs(resource, new_options)
+        if bool(changed) == ("old_limits" in (self.instance.attributes or {})):
+            return
+        raise serializers.ValidationError(
+            {
+                "attributes": _(
+                    "This edit changes which options set limits. Cancel the "
+                    "order and change the options through update_options."
+                )
+            }
+        )
+
+    def _validate_as_created(self, attrs):
+        """Run the offering's check on the order as edited, with this request.
+
+        It ran at creation against the request that placed the order, which
+        is where a personal access token's bindings and the requester's rights
+        apply. Execution later runs with the user's own API token, so an edit
+        left unchecked would take the order past both.
+        """
+        order = self.instance
+        # A restore order runs through the create processor as well.
+        if order.type not in (OrderTypes.CREATE, OrderTypes.RESTORE):
+            return
+        if "attributes" not in attrs and "limits" not in attrs:
+            return
+        edited = copy.copy(order)
+        edited.attributes = attrs.get("attributes", order.attributes)
+        edited.limits = attrs.get("limits", order.limits)
+        utils.validate_order(edited, self.context["request"])
 
     def _validate_unique_options(self, attributes):
         # An edited create order also sets its resource's options (see
@@ -7482,6 +7574,17 @@ class OrderUpdateSerializer(BaseOrderSerializer):
 
     def update(self, instance, validated_data):
         with transaction.atomic():
+            # As approval does: an edit checked against a pending order must
+            # not write it back once approval has moved it on.
+            locked = models.Order.objects.select_for_update(of=("self",)).get(
+                pk=instance.pk
+            )
+            if locked.state != instance.state or locked.modified != instance.modified:
+                # Saved in full below, a stale order would put back what a
+                # concurrent edit changed, unchecked.
+                raise serializers.ValidationError(
+                    _("The order has changed. Reload it and try again.")
+                )
             if "attributes" in validated_data:
                 # Re-check under the lock, which is held until the order and
                 # its resource's options are written.
@@ -7491,6 +7594,13 @@ class OrderUpdateSerializer(BaseOrderSerializer):
                     (instance.offering.resource_options or {}).get("options"),
                 )
                 self._validate_unique_options(validated_data["attributes"])
+                new_options = validated_data["attributes"].get("new_options")
+                if (
+                    instance.type == OrderTypes.UPDATE
+                    and new_options is not None
+                    and new_options != (instance.attributes or {}).get("new_options")
+                ):
+                    clean_option_change(instance, new_options)
             limits_changed = (
                 "limits" in validated_data
                 and validated_data["limits"] != instance.limits
@@ -7506,6 +7616,53 @@ class OrderUpdateSerializer(BaseOrderSerializer):
             return order
 
 
+def clean_option_change(order, new_options, lock=True):
+    """``new_options`` of an option-change order, checked as update_options
+    checks a change: known options, values offered and not hidden, and unique
+    ones free. Returns them transformed, as stored.
+
+    ``new_options`` carries the resource's full option set, so uniqueness is
+    checked only for what changes: a value the resource already held, even one
+    it shares with another resource from before the option was made unique,
+    must not block an unrelated change. Pending update orders reserve their
+    values, so with ``lock`` the check runs under the offering lock, which the
+    caller's transaction holds until the order is saved.
+    """
+    if not isinstance(new_options, dict):
+        raise serializers.ValidationError(
+            {"new_options": _("Expected an object of option values.")}
+        )
+    resource_options = order.offering.resource_options
+    if not resource_options or not resource_options.get("options"):
+        raise serializers.ValidationError(
+            _("Metadata for resource options is not defined.")
+        )
+    options = resource_options["options"]
+    current_options = (order.resource.options if order.resource else None) or {}
+    hidden = get_hidden_options(options, {**current_options, **new_options})
+    cleaned = validate_options(
+        model_lists.selection_options(order.offering, options),
+        new_options,
+        optional=True,
+        hidden=hidden,
+    )
+    model_lists.validate_selection(order.offering, new_options)
+    if lock:
+        utils.lock_offering_for_unique_options(order.offering, options)
+    utils.validate_unique_options(
+        order.offering,
+        options,
+        {
+            key: value
+            for key, value in cleaned.items()
+            if current_options.get(key) != value
+        },
+        "options",
+        exclude_resource=order.resource,
+    )
+    return cleaned
+
+
 class OrderApproveByProviderSerializer(serializers.Serializer):
     attributes = serializers.JSONField(required=False)
 
@@ -7515,39 +7672,8 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
         order = self.context["view"].get_object()
         new_options = attributes.get("new_options")
         if new_options:
-            resource_options = order.offering.resource_options
-            if not resource_options or not resource_options.get("options"):
-                raise serializers.ValidationError(
-                    _("Metadata for resource options is not defined.")
-                )
-            options = resource_options["options"]
-            current_options = (order.resource.options if order.resource else None) or {}
-            hidden = get_hidden_options(options, {**current_options, **new_options})
-            attributes["new_options"] = validate_options(
-                model_lists.selection_options(order.offering, options),
-                new_options,
-                optional=True,
-                hidden=hidden,
-            )
-            model_lists.validate_selection(order.offering, new_options)
-            # new_options carries the resource's full option set, so check only
-            # what changes: a value the resource already held, even one it
-            # shares with another resource from before the option was made
-            # unique, must not block approving an unrelated change. Pending
-            # update orders reserve their values, so the check runs under the
-            # lock, which the approve view's transaction holds until saved.
-            utils.lock_offering_for_unique_options(order.offering, options)
-            utils.validate_unique_options(
-                order.offering,
-                options,
-                {
-                    key: value
-                    for key, value in attributes["new_options"].items()
-                    if current_options.get(key) != value
-                },
-                "options",
-                exclude_resource=order.resource,
-            )
+            # The approve view's transaction holds the lock until saved.
+            attributes["new_options"] = clean_option_change(order, new_options)
         if order.type == OrderTypes.CREATE:
             options = (order.offering.options or {}).get("options")
             if options:
