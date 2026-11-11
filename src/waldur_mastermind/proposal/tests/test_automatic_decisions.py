@@ -24,6 +24,7 @@ from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SCRIPT_OFFERING,
     SUPPORT_OFFERING,
+    BillingTypes,
     OrderStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -928,6 +929,68 @@ class ProviderFulfilmentGateRefusalTest(ProviderFulfilmentBase):
             "below the required minimum",
             self._deferred_events().get().context["reason"],
         )
+
+
+def _request_on_a_fixed_component(requested_offering, proposal):
+    """Make the proposal's request on ``requested_offering`` ask for an amount
+    of a fixed-price component, which no order can carry: as a draft saved
+    before requests were held to the offering's components could."""
+    component = marketplace_factories.OfferingComponentFactory(
+        offering=requested_offering.offering,
+        type="storage",
+        billing_type=BillingTypes.FIXED,
+    )
+    marketplace_factories.PlanComponentFactory(
+        plan=requested_offering.plan, component=component
+    )
+    proposal.requestedresource_set.filter(requested_offering=requested_offering).update(
+        limits={"storage": 5}
+    )
+
+
+class UnorderableAwardTest(AutomaticDecisionBase):
+    """An item of the award cannot be ordered: the system does not accept a
+    proposal whose allocation would leave it without its resource."""
+
+    def setUp(self):
+        super().setUp()
+        _request_on_a_fixed_component(self.requested_b, self.proposal)
+
+    def test_decision_is_left_to_the_call_managers(self):
+        with mock.patch(NOTIFY) as notify:
+            self._assess_both()
+        notify.assert_not_called()
+        self.proposal.refresh_from_db()
+        decision = self._decision_instance()
+        self.assertEqual(self.proposal.state, ProposalStates.IN_REVIEW)
+        self.assertIsNone(self.proposal.project)
+        self.assertEqual(decision.status, WorkflowStepInstanceStatuses.ACTIVE)
+        reason = self._deferred_events().get().context["reason"]
+        self.assertIn(self.requested_b.offering.name, reason)
+        self.assertIn("storage", reason)
+
+
+class ProviderFulfilmentUnorderableAwardTest(ProviderFulfilmentBase):
+    """Relying on the provider does not stand in for an award the provider
+    could never be sent."""
+
+    def _request_offering(self):
+        manager, requested = super()._request_offering()
+        if not self._types:
+            _request_on_a_fixed_component(requested, self.proposal)
+        return manager, requested
+
+    def test_decision_is_left_to_the_call_managers(self):
+        self.notify.assert_not_called()
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.IN_REVIEW)
+        self.assertIsNone(self.proposal.project)
+        self.assertEqual(
+            self._decision_instance().status, WorkflowStepInstanceStatuses.ACTIVE
+        )
+        reason = self._deferred_events().get().context["reason"]
+        self.assertIn(self.requested_b.offering.name, reason)
+        self.assertNotIn(self.requested_a.offering.name, reason)
 
 
 class ProviderFulfilmentHeldTest(ProviderFulfilmentBase):

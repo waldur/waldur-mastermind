@@ -268,7 +268,7 @@ with `on_negative=cancel`, and passing the last step allocates it.
 | `applicant_visible` | Whether the applicant sees the step |
 | `transition_mode` | `automatic_on_completion` advances to the next step when this one is completed; `manual` waits for a separate advance |
 | `include_award_response`, `allocation_time` | On the allocation decision only: whether the applicant must accept the award (an `award_response` step right after it), and whether allocation happens `on_decision` or on the round's `allocation_date` (`fixed_date`) |
-| `decides_automatically`, `automatic_decision_guard` | On the allocation decision only: approve as the system, with the award as requested, when a proposal reaches the step; a refused approval (score threshold, budget, missing amounts, nothing guarding it) is left to the call managers. The guard says what stops an unsuitable proposal: `earlier_step` (default) needs an enabled earlier step that can reject it, decided on the proposal's path; `provider_fulfilment` needs a person at the provider to act on every order the award places on each accepted offering — the provider reviews it (Basic, site agent, Script with `auto_approve_marketplace_script` off) or a helpdesk ticket fulfils it (Support). Remote offerings never qualify: the system robot approving the orders is let through the provider review |
+| `decides_automatically`, `automatic_decision_guard` | On the allocation decision only: approve as the system, with the award as requested, when a proposal reaches the step; a refused approval (score threshold, budget, missing amounts, award limits the offering cannot order, nothing guarding it) is left to the call managers. The guard says what stops an unsuitable proposal: `earlier_step` (default) needs an enabled earlier step that can reject it, decided on the proposal's path; `provider_fulfilment` needs a person at the provider to act on every order the award places on each accepted offering — the provider reviews it (Basic, site agent, Script with `auto_approve_marketplace_script` off) or a helpdesk ticket fulfils it (Support). Remote offerings never qualify: the system robot approving the orders is let through the provider review |
 
 A new call is seeded with the steps that were once a fixed catalogue, in order:
 `administrative_check`, `technical_assessment`, `expert_review`,
@@ -1121,9 +1121,18 @@ requests, awards, resource templates and extension requests. A component rule
 keeps the limit period it had when the call took it in (`limit_period`), and
 the pools count awards by it.
 
-Allocation still checks each item as the order endpoint would: the offering
-takes orders, its provider is not blocked, the plan is not archived and the
-limits fit the components. An item that fails is not ordered: it records
+A resource request, a resource template and an award item are each held, when
+their limits are written, to what the order will need
+(`utils.validate_orderable_limits`): limits only on the plan's limit
+components, inside their bounds and precision. Submission refuses requests on
+accepted offerings that no longer fit, such as a draft saved before the
+offering changed its components, naming each offering and what is wrong. An
+automatic decision whose award carries limits the offering cannot order is
+left to the call managers; a paused offering or blocked provider does not stop
+it, as either may be back by allocation. Allocation still checks each item as
+the order endpoint would: the offering takes orders, its provider is not
+blocked, the plan is not archived and the limits fit the components. An item
+that fails is not ordered: it records
 `provision_error`, the call's managers are mailed, and once the provider has
 fixed it a call manager orders it again with
 `POST /api/proposal-proposals/{uuid}/provision_awarded_item/`. An item whose

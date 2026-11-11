@@ -1407,8 +1407,8 @@ class CallResourceTemplateSerializer(
         lookup_field="uuid",
     )
     # Copied verbatim into Order.limits when the proposal is allocated, so it
-    # has to accept exactly what the ordering path accepts. Precision is
-    # settled per component by validate_limits on that order.
+    # has to accept exactly what the ordering path accepts: validate() holds
+    # it to the offering's components.
     limits = serializers.DictField(child=LimitValueField(), required=False)
 
     class Meta:
@@ -1497,6 +1497,13 @@ class CallResourceTemplateSerializer(
             conflicts = budgets.template_conflicts(requested_offering, limits)
             if conflicts:
                 raise serializers.ValidationError({"limits": conflicts})
+            # Requests made from the template cannot change its limits, so
+            # an amount the offering cannot order is refused here, where the
+            # call manager can correct it, not at each applicant's submission.
+            if "limits" in attrs or "requested_offering" in attrs:
+                utils.validate_orderable_limits(
+                    limits, requested_offering.offering, requested_offering.plan
+                )
         return attrs
 
     def create(self, validated_data):
@@ -2858,15 +2865,25 @@ class RequestedResourceSerializer(
         )
 
     @staticmethod
-    def _bound_limits(attrs, proposal, requested_offering):
-        """Hold the limits to the offering's component rules; a fixed amount
-        is set, whatever was sent."""
+    def _bound_limits(attrs, proposal, requested_offering, stored=None):
+        """Hold the limits to the call's component rules -- a fixed amount is
+        set, whatever was sent -- and to what the offering's components
+        accept, so that allocation can order what is requested.
+
+        Limits sent back unchanged (``stored``) are not checked against the
+        components again: an edit to something else must not fail on an
+        offering change the applicant did not make. Submission checks them.
+        """
         try:
             attrs["limits"] = budgets.bound_limits(
                 requested_offering, attrs.get("limits")
             )
         except ValueError as exc:
             raise serializers.ValidationError({"limits": str(exc)})
+        if stored is None or attrs["limits"] != stored:
+            utils.validate_orderable_limits(
+                attrs["limits"], requested_offering.offering, requested_offering.plan
+            )
 
     def validate(self, attrs):
         if self.instance:
@@ -2893,7 +2910,10 @@ class RequestedResourceSerializer(
                 )
             if "limits" in attrs:
                 self._bound_limits(
-                    attrs, self.instance.proposal, self.instance.requested_offering
+                    attrs,
+                    self.instance.proposal,
+                    self.instance.requested_offering,
+                    stored=self.instance.limits or {},
                 )
             return attrs
 
@@ -3069,28 +3089,6 @@ class RequestedResourcePurchaseOrderSerializer(serializers.ModelSerializer):
             "attachment": {"required": False, "allow_null": True},
             "purchase_order_reference": {"required": False, "allow_blank": True},
         }
-
-
-def _validate_awarded_limits(limits, offering, plan):
-    """Hold awarded limits to what the offering's components accept.
-
-    The keys must be the limit components of the plan (or of the offering
-    where there is no plan), and each value inside the component's bounds and
-    precision -- the checks every order placing these limits passes. The
-    running total against ``max_available_limit`` is left to the order that
-    allocation places, as it is for a requested amount.
-    """
-    try:
-        for component, value in marketplace_utils.get_components_map(
-            limits, offering, plan
-        ):
-            marketplace_utils.validate_limit_precision(value, component)
-            marketplace_utils.validate_min_max_limit(value, component)
-    except serializers.ValidationError as exc:
-        detail = exc.detail
-        if isinstance(detail, dict) and "limits" in detail:
-            detail = detail["limits"]
-        raise serializers.ValidationError({"limits": detail})
 
 
 class AwardedResourceSerializer(
@@ -3270,7 +3268,7 @@ class AwardedResourceSerializer(
                 {"limits": _("An amount must be awarded for this offering.")}
             )
         if "limits" in attrs or moved or "plan" in attrs:
-            _validate_awarded_limits(limits or {}, offering, effective_plan)
+            utils.validate_orderable_limits(limits, offering, effective_plan)
 
         attributes = (
             attrs["attributes"]

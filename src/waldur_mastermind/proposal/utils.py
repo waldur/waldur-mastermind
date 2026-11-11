@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import logging
 import uuid
 from collections import Counter
@@ -567,6 +568,63 @@ def _error_text(error) -> str:
     return str(detail)
 
 
+def validate_orderable_limits(limits, offering, plan) -> None:
+    """Hold ``limits`` to what the offering's components accept, as the order
+    placing them would.
+
+    The keys must be the limit components of ``plan`` (or of the offering
+    where there is no plan), and each value inside the component's bounds and
+    precision. The running total against ``max_available_limit`` is left to
+    the order that allocation places. Raises a ``ValidationError`` on
+    ``limits``.
+    """
+    try:
+        for component, value in marketplace_utils.get_components_map(
+            limits or {}, offering, plan
+        ):
+            marketplace_utils.validate_limit_precision(value, component)
+            marketplace_utils.validate_min_max_limit(value, component)
+    except serializers.ValidationError as exc:
+        detail = exc.detail
+        if isinstance(detail, dict) and "limits" in detail:
+            detail = detail["limits"]
+        raise serializers.ValidationError({"limits": detail})
+    except (TypeError, ValueError, decimal.InvalidOperation):
+        # A value stored before limits were typed (null, "") is no amount.
+        raise serializers.ValidationError(
+            {"limits": gettext_lazy("Every limit must be a number.")}
+        )
+
+
+def unorderable_requests(proposal) -> list[str]:
+    """What is wrong with each of the proposal's requests no order could
+    carry, one message per request, naming its offering.
+
+    A request is held to the offering's components when it is written; a
+    draft saved before that, or one whose offering changed its components
+    since, is caught on submission. Requests on offerings the provider no
+    longer accepts are left out, as allocation leaves them out.
+    """
+    messages = []
+    for requested in (
+        proposal.requestedresource_set.filter(
+            requested_offering__state=RequestedOfferingStates.ACCEPTED
+        )
+        .select_related("requested_offering__offering", "requested_offering__plan")
+        .order_by("created", "id")
+    ):
+        requested_offering = requested.requested_offering
+        try:
+            validate_orderable_limits(
+                requested.limits,
+                requested_offering.offering,
+                requested_offering.plan,
+            )
+        except serializers.ValidationError as error:
+            messages.append(f"{requested_offering.offering.name}: {_error_text(error)}")
+    return messages
+
+
 def provision_problem(awarded: proposal_models.AwardedResource) -> str:
     """Why the marketplace would refuse the order for an awarded item, or ''.
 
@@ -589,13 +647,44 @@ def provision_problem(awarded: proposal_models.AwardedResource) -> str:
     if plan is not None and plan.archived:
         return f"The plan {plan.name} of {offering.name} is archived."
     try:
-        for component, value in marketplace_utils.get_components_map(
-            awarded.limits or {}, offering, plan
-        ):
-            marketplace_utils.validate_min_max_limit(value, component)
+        validate_orderable_limits(awarded.limits, offering, plan)
     except serializers.ValidationError as error:
         return f"{offering.name} does not accept the limits: {_error_text(error)}"
     return ""
+
+
+def unorderable_award(proposal: proposal_models.Proposal) -> str | None:
+    """Why the limits of an item of the proposal's award could not be
+    ordered, or None.
+
+    Over the items allocation provisions. Only the limits are checked, as
+    they do not change by themselves: a paused offering or a blocked provider
+    may be back by allocation, and allocation reports it if not. An automatic
+    decision leaves such an award to the call managers rather than accept a
+    proposal whose project would be left without the resource.
+
+    Prefills the award when the proposal has none yet, as approving the
+    decision would.
+    """
+    prefill_awarded_resources(proposal)
+    problems = []
+    for awarded in (
+        proposal.awarded_resources.filter(
+            requested_offering__state=RequestedOfferingStates.ACCEPTED
+        )
+        .select_related(
+            "requested_offering__offering", "requested_offering__plan", "plan"
+        )
+        .order_by("created", "id")
+    ):
+        offering = awarded.requested_offering.offering
+        try:
+            validate_orderable_limits(awarded.limits, offering, awarded.effective_plan)
+        except serializers.ValidationError as error:
+            problems.append(
+                f"{offering.name} does not accept the limits: {_error_text(error)}"
+            )
+    return " ".join(problems) or None
 
 
 def award_item_index(awarded: proposal_models.AwardedResource) -> int | None:

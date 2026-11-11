@@ -24,6 +24,7 @@ from waldur_mastermind.proposal.enums import (
     BudgetEnforcement,
     CallStates,
     ProposalStates,
+    RequestedOfferingStates,
     RoundLifecycleStates,
     WorkflowStepInstanceStatuses,
 )
@@ -596,6 +597,132 @@ class RequestBoundsTest(BudgetTestBase):
         )
 
 
+class RequestOrderableTest(BudgetTestBase):
+    """A request is held to what the order allocation places from it will
+    need: limits only on the plan's limit components, inside their bounds."""
+
+    def setUp(self):
+        super().setUp()
+        self.proposal = factories.ProposalFactory(
+            round=self.round, state=ProposalStates.DRAFT
+        )
+        self.proposal.add_user(self.proposal.created_by, ProposalRole.MANAGER)
+        self.fixed = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            billing_type=BillingTypes.FIXED,
+        )
+        marketplace_factories.PlanComponentFactory(
+            plan=self.requested_offering.plan, component=self.fixed
+        )
+
+    def request(self, limits):
+        self.client.force_authenticate(self.proposal.created_by)
+        return self.client.post(
+            factories.RequestedResourceFactory.get_list_url(self.proposal),
+            {
+                "requested_offering_uuid": self.requested_offering.uuid.hex,
+                "limits": limits,
+            },
+            format="json",
+        )
+
+    def test_a_limit_on_a_fixed_component_is_refused(self):
+        response = self.request({"storage": 5})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("storage", str(response.data["limits"]))
+        self.assertFalse(self.proposal.requestedresource_set.exists())
+
+    def test_a_limit_on_an_unknown_component_is_refused(self):
+        response = self.request({"gpu": 5})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("gpu", str(response.data["limits"]))
+
+    def test_a_limit_outside_the_components_bounds_is_refused(self):
+        response = self.request({"cpu": 5000})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("1000", str(response.data["limits"]))
+
+    def test_a_limit_the_order_takes_is_kept(self):
+        response = self.request({"cpu": 500})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_an_update_is_held_to_the_components_too(self):
+        requested = factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.requested_offering,
+            limits={"cpu": 10},
+        )
+        self.client.force_authenticate(self.proposal.created_by)
+        response = self.client.patch(
+            factories.RequestedResourceFactory.get_url(self.proposal, requested),
+            {"limits": {"storage": 5}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        requested.refresh_from_db()
+        self.assertEqual(requested.limits, {"cpu": 10})
+
+    def test_a_draft_saved_before_the_check_cannot_be_submitted(self):
+        factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.requested_offering,
+            limits={"storage": 5},
+        )
+        [message] = utils.unorderable_requests(self.proposal)
+        self.assertIn(self.offering.name, message)
+        self.assertIn("storage", message)
+
+    def test_a_limit_stored_without_a_number_is_refused_not_an_error(self):
+        factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.requested_offering,
+            limits={"cpu": None},
+        )
+        [message] = utils.unorderable_requests(self.proposal)
+        self.assertIn("number", message)
+
+    def test_a_request_on_an_offering_no_longer_accepted_is_left_out(self):
+        factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.requested_offering,
+            limits={"storage": 5},
+        )
+        self.requested_offering.state = RequestedOfferingStates.CANCELED
+        self.requested_offering.save()
+        self.assertEqual(utils.unorderable_requests(self.proposal), [])
+
+    def test_limits_sent_back_unchanged_do_not_block_another_edit(self):
+        requested = factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.requested_offering,
+            limits={"storage": 5},
+        )
+        self.client.force_authenticate(self.proposal.created_by)
+        response = self.client.patch(
+            factories.RequestedResourceFactory.get_url(self.proposal, requested),
+            {"limits": {"storage": 5}, "description": "Changed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_template_with_limits_the_offering_cannot_order_is_refused(self):
+        self.client.force_authenticate(self.call_manager)
+        response = self.client.post(
+            self.url("resource_templates"),
+            {
+                "name": "Fixed storage",
+                "requested_offering": factories.RequestedOfferingFactory.get_url(
+                    self.call, self.requested_offering
+                ),
+                "limits": {"storage": 5},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("storage", str(response.data["limits"]))
+
+
 class DecisionEnforcementTest(BudgetTestBase):
     def test_awarded_amounts_count_not_requested_ones(self):
         pool = self.budget(offered_total=100)
@@ -977,6 +1104,16 @@ class AutomaticDecisionBudgetTest(AutomaticDecisionBase):
     def _exhaust(self, enforcement, call_round=None):
         self.call.budget_enforcement = enforcement
         self.call.save()
+        # Both offerings take the amount, so only the pool stands in the way.
+        for requested in (self.requested_a, self.requested_b):
+            marketplace_factories.PlanComponentFactory(
+                plan=requested.plan,
+                component=marketplace_factories.OfferingComponentFactory(
+                    offering=requested.offering,
+                    type="cpu",
+                    billing_type=BillingTypes.LIMIT,
+                ),
+            )
         self.proposal.requestedresource_set.update(limits={"cpu": 50})
         rule = models.CallOfferingComponent.objects.create(
             requested_offering=self.requested_a, component_type="cpu"

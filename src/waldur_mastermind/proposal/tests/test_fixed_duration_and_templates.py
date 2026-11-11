@@ -29,6 +29,7 @@ class CallResourceTemplateTestCase(APITestCase):
         self.requested_offering = proposal_factories.RequestedOfferingFactory(
             call=self.call, state=RequestedOfferingStates.ACCEPTED
         )
+        proposal_factories.add_limit_component(self.requested_offering, "storage")
 
     def test_create_resource_template(self):
         """Test creating a new resource template for a call."""
@@ -302,6 +303,7 @@ class ResourceTemplateValidationTestCase(APITestCase):
         offering_without_templates = proposal_factories.RequestedOfferingFactory(
             call=call_without_templates, state=RequestedOfferingStates.ACCEPTED
         )
+        proposal_factories.add_limit_component(offering_without_templates, "storage")
 
         proposal = proposal_factories.ProposalFactory(
             round=round_without_templates,

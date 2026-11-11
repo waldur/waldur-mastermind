@@ -29,6 +29,7 @@ class ResourceTemplateEnforcementTestCase(APITestCase):
         self.requested_offering = proposal_factories.RequestedOfferingFactory(
             call=self.call, state=RequestedOfferingStates.ACCEPTED
         )
+        proposal_factories.add_limit_component(self.requested_offering, "cpu")
         self.basic = proposal_factories.CallResourceTemplateFactory(
             call=self.call,
             requested_offering=self.requested_offering,

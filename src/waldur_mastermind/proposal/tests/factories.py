@@ -12,6 +12,7 @@ from waldur_core.checklist.tests import (
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions import fixtures as permissions_fixtures
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import (
@@ -785,6 +786,23 @@ class ProposalWorkflowStepInstanceFactory(
             proposal.current_step = instance
             proposal.save(update_fields=["current_step"])
         return instance
+
+
+def add_limit_component(requested_offering, component_type):
+    """Give the call offering a limit component priced by its plan, so that
+    a request or award may name an amount of it: requests are held to what
+    the offering's components accept."""
+    component = requested_offering.offering.components.filter(
+        type=component_type, billing_type=BillingTypes.LIMIT
+    ).first() or marketplace_factories.OfferingComponentFactory(
+        offering=requested_offering.offering,
+        type=component_type,
+        billing_type=BillingTypes.LIMIT,
+    )
+    plan = requested_offering.plan
+    if plan is not None and not plan.components.filter(component=component).exists():
+        marketplace_factories.PlanComponentFactory(plan=plan, component=component)
+    return component
 
 
 def point_at_step(proposal, key):

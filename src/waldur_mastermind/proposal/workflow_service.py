@@ -1156,9 +1156,22 @@ def automatic_decision_refusal(proposal, instance):
     person at the provider must act on every order the award places, on
     every offering the call has accepted by now
     (``utils.provider_fulfilment_refusal``).
+
+    Either way, the limits of every item of the award must be ones
+    allocation can order (``utils.unorderable_award``, which prefills the
+    award if the proposal has none yet): the system does not accept a
+    proposal whose project would be left without its resource.
     """
     if instance.call_step.relies_on_provider_fulfilment:
-        return utils.provider_fulfilment_refusal(proposal.round.call)
+        reason = utils.provider_fulfilment_refusal(proposal.round.call)
+    else:
+        reason = _earlier_step_refusal(proposal, instance)
+    return reason or utils.unorderable_award(proposal)
+
+
+def _earlier_step_refusal(proposal, instance):
+    """Why no decided step before ``instance`` could have rejected the
+    proposal, or None."""
     gates = [
         earlier
         for earlier in _ordered_instances(proposal).filter(
