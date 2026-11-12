@@ -327,7 +327,18 @@ for ext in WaldurExtension.get_extensions():
 
     ext.update_settings(globals())
 
-AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+# Lock the account, not the address: many users share an address (a campus,
+# a company proxy, the ingress itself), and one user's failures must not lock
+# out the others. Guessing from one address is slowed instead by a limit on
+# failed password attempts per address (PASSWORD_FAILURES_PER_ADDRESS_*).
+AXES_LOCKOUT_PARAMETERS = ["username"]
+# The client address as the trusted proxies report it (TRUSTED_PROXY_COUNT
+# entries from the right of X-Forwarded-For), else the peer. Axes alone would
+# take the peer, which behind the ingress is the ingress for every user.
+AXES_CLIENT_IP_CALLABLE = "waldur_core.core.utils.get_proxied_client_ip"
+# Axes warns when it does not lock addresses. That is deliberate here: an
+# address is rate-limited instead (waldur_core.core.password_attempts).
+SILENCED_SYSTEM_CHECKS = ["axes.W006"]
 AXES_COOLOFF_TIME = timedelta(minutes=10)
 AXES_FAILURE_LIMIT = 5
 # By default django-axes masks username and ip_address in logs, making them useless

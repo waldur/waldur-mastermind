@@ -748,6 +748,39 @@ def get_ip_address(request: HttpRequest) -> str | None:
     )
 
 
+def get_proxied_client_ip(request: HttpRequest) -> str | None:
+    """The client address as the trusted proxies in front of Waldur report it.
+
+    X-Forwarded-For lists the address each proxy saw, and a client can put
+    anything at its start, which proxies that append to the header keep. The
+    entry the outermost trusted proxy added is TRUSTED_PROXY_COUNT places from
+    the right, as for NUM_PROXIES in Django REST framework. Without that many
+    entries, or when the entry is not an address, the connection's own address
+    is used.
+
+    Always a normalised address, or None: the result is stored in inet
+    columns and used in cache keys.
+    """
+    remote_addr = _without_scope(normalize_ip_address(request.META.get("REMOTE_ADDR")))
+    # An override read from the environment arrives as a string.
+    try:
+        count = int(settings.WALDUR_CORE.get("TRUSTED_PROXY_COUNT", 1))
+    except (TypeError, ValueError):
+        count = 1
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if count <= 0 or not forwarded_for:
+        return remote_addr
+    hops = forwarded_for.split(",")
+    if len(hops) < count:
+        return remote_addr
+    return _without_scope(normalize_ip_address(hops[-count].strip())) or remote_addr
+
+
+def _without_scope(address: str | None) -> str | None:
+    # An IPv6 zone ("%eth0") is text the client chose, not part of its address.
+    return address.split("%", 1)[0] if address else address
+
+
 def resolve_client_ip(forwarded_for: str | None, remote_addr: str | None) -> str | None:
     """The first X-Forwarded-For hop when the header is present, else the peer.
 

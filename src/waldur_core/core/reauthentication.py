@@ -35,6 +35,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from waldur_core.configuration import config
 from waldur_core.core.auth_utils import is_delegated
 from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
+from waldur_core.core.exceptions import ThrottledWithRetryAfter
 from waldur_core.core.models import ReauthenticationGrant, User
 from waldur_core.core.serializers import (
     ReauthenticationChallengeSerializer,
@@ -166,16 +167,8 @@ class ReauthenticationRequired(exceptions.APIException):
         )
 
 
-class ReauthenticationThrottled(exceptions.Throttled):
-    """A 429 that says in its body, as well as in Retry-After, when to retry.
-
-    The portal runs on another origin than the API, and a browser hides a
-    response header from it unless the API exposes that header.
-    """
-
-    def __init__(self, wait, detail=None):
-        super().__init__(wait=wait, detail=detail)
-        self.detail = {"detail": self.detail, "retry_after": self.wait}
+class ReauthenticationThrottled(ThrottledWithRetryAfter):
+    """A 429 from an endpoint that issues grants."""
 
 
 class ThrottledGrantEndpointMixin:

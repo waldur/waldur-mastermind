@@ -267,6 +267,17 @@ class WaldurCore(BaseModel):
         [],
         description="The list of protected fields for local IdP.",
     )
+    TRUSTED_PROXY_COUNT: int = Field(
+        1,
+        description="How many proxies in front of Waldur add an entry to "
+        "X-Forwarded-For, such as the ingress, and a load balancer in front of "
+        "it. The client address for the sign-in lockout and the limit on failed "
+        "passwords per address is the entry this many places from the right, "
+        "as for NUM_PROXIES in Django REST framework; with fewer entries, the "
+        "connection's own address. 1 fits an ingress that replaces the header "
+        "or appends to it; a load balancer in front of the ingress makes it 2. "
+        "0 ignores the header.",
+    )
 
     OECD_FOS_2007_CODE_MANDATORY: bool = Field(
         False,

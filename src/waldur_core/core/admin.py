@@ -17,7 +17,7 @@ from django.contrib.auth import forms as auth_forms
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import re_path, reverse
@@ -30,7 +30,7 @@ from reversion.admin import VersionAdmin
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
-from waldur_core.core import models
+from waldur_core.core import models, password_attempts
 from waldur_core.core.admin_widgets import CopyButtonMixin
 from waldur_core.core.authentication import can_access_admin_site
 from waldur_core.core.handlers import emit_admin_action_event
@@ -446,6 +446,14 @@ class CustomAdminAuthenticationForm(admin_forms.AdminAuthenticationForm):
         try:
             return super().clean()
         except ValidationError:
+            # A wrong password, not a correct one refused for another reason
+            # such as a missing staff role.
+            if (
+                self.cleaned_data.get("username")
+                and self.cleaned_data.get("password")
+                and self.user_cache is None
+            ):
+                password_attempts.record_failure(self.request)
             username = self.cleaned_data.get("username", "")
             event_logger.emit_failed_login(
                 "User {username} failed to log in to the admin site.",
@@ -477,6 +485,20 @@ class CustomAdminSite(admin.AdminSite):
         return True
 
     def login(self, request, extra_context=None):
+        if request.method == "POST":
+            wait = password_attempts.retry_after(request)
+            if wait:
+                response = HttpResponse(
+                    _(
+                        "Too many failed sign-ins from your address. "
+                        "Try again in %(seconds)s seconds."
+                    )
+                    % {"seconds": wait},
+                    status=429,
+                    content_type="text/plain; charset=utf-8",
+                )
+                response["Retry-After"] = str(wait)
+                return response
         if (
             request.user.is_authenticated
             and passkey_policy.is_enforced_for(request.user)
