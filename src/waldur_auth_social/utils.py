@@ -876,7 +876,7 @@ def get_remote_eduteams_ssh_keys():
 
 
 def _get_current_refresh_token():
-    """Return the current refresh token, preferring Constance over static settings."""
+    """Return the current refresh token, preferring the runtime setting over Django settings."""
     token = config.REMOTE_EDUTEAMS_REFRESH_TOKEN
     if token:
         return token
@@ -892,7 +892,7 @@ def refresh_remote_eduteams_token(force=False):
     refresh_token = _get_current_refresh_token()
     if not refresh_token:
         logger.error(
-            "No eduTEAMS refresh token available in Constance or Django settings."
+            "No eduTEAMS refresh token available in runtime or Django settings."
         )
         raise RuntimeError("No refresh token available for eduTEAMS.")
 

@@ -49,9 +49,9 @@ def autodiscover() -> None:
     silently stops being served.
 
     Constraints on those modules -- ``MediaConfig.ready()`` runs before
-    ``constance`` and before the plugin apps' own ``ready()``, so a
-    ``media_access`` module must not touch the database or ``constance.config``
-    at import time, and must not import its app's ``views`` or ``serializers``.
+    the plugin apps' own ``ready()``, so a ``media_access`` module must not
+    touch the database or read settings at import time, and must not import
+    its app's ``views`` or ``serializers``.
     Building a closure is fine; evaluating one is not.
     """
     autodiscover_modules("media_access")

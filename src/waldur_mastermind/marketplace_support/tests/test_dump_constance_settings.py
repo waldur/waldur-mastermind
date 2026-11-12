@@ -31,6 +31,19 @@ class DumpConstanceSettingsCommandTest(TestCase):
         for setting, value in self.original_values.items():
             setattr(self.config, setting, value)
 
+    def test_the_former_command_name_still_works(self):
+        setattr(self.config, "SITE_NAME", "Test Site")
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            output_file = f.name
+
+        try:
+            call_command("dump_constance_settings", output_file)
+
+            with open(output_file) as f:
+                self.assertEqual(yaml.safe_load(f)["SITE_NAME"], "Test Site")
+        finally:
+            os.unlink(output_file)
+
     def test_basic_dump_functionality(self):
         """Test basic dump without options"""
         # Set some test values
@@ -41,7 +54,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
             output_file = f.name
 
         try:
-            call_command("dump_constance_settings", output_file)
+            call_command("dump_settings", output_file)
 
             # Verify file exists and contains data
             self.assertTrue(os.path.exists(output_file))
@@ -66,13 +79,13 @@ class DumpConstanceSettingsCommandTest(TestCase):
 
         try:
             # First dump without defaults
-            call_command("dump_constance_settings", output_file)
+            call_command("dump_settings", output_file)
 
             with open(output_file) as f:
                 settings_without_defaults = yaml.safe_load(f)
 
             # Then dump with defaults
-            call_command("dump_constance_settings", output_file, include_defaults=True)
+            call_command("dump_settings", output_file, include_defaults=True)
 
             with open(output_file) as f:
                 settings_with_defaults = yaml.safe_load(f)
@@ -96,7 +109,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
 
         try:
             # First dump without secrets (default behavior)
-            call_command("dump_constance_settings", output_file)
+            call_command("dump_settings", output_file)
 
             with open(output_file) as f:
                 settings_without_secrets = yaml.safe_load(f)
@@ -108,7 +121,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
                 )
 
             # Then dump with secrets
-            call_command("dump_constance_settings", output_file, include_secrets=True)
+            call_command("dump_settings", output_file, include_secrets=True)
 
             with open(output_file) as f:
                 settings_with_secrets = yaml.safe_load(f)
@@ -126,7 +139,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
             setattr(self.config, "ATLASSIAN_TOKEN", "")
 
     @patch(
-        "waldur_mastermind.marketplace_support.management.commands.dump_constance_settings.default_storage"
+        "waldur_mastermind.marketplace_support.management.commands.dump_settings.default_storage"
     )
     def test_media_export_functionality(self, mock_storage):
         """Test --export-media option"""
@@ -146,7 +159,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
 
             try:
                 call_command(
-                    "dump_constance_settings",
+                    "dump_settings",
                     output_file,
                     export_media=media_dir,
                     include_defaults=True,
@@ -181,7 +194,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
             output_file = f.name
 
         try:
-            call_command("dump_constance_settings", output_file, include_defaults=True)
+            call_command("dump_settings", output_file, include_defaults=True)
 
             with open(output_file) as f:
                 settings_data = yaml.safe_load(f)
@@ -205,7 +218,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
             output_file = f.name
 
         try:
-            call_command("dump_constance_settings", output_file, include_defaults=True)
+            call_command("dump_settings", output_file, include_defaults=True)
 
             # Verify YAML is valid
             with open(output_file) as f:
@@ -234,9 +247,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
 
         # The command handles errors gracefully and doesn't raise exceptions
         # Instead it prints error messages and returns
-        call_command(
-            "dump_constance_settings", "/invalid/path/settings.yaml", stdout=stdout
-        )
+        call_command("dump_settings", "/invalid/path/settings.yaml", stdout=stdout)
 
         # Check that an error message was printed
         output = stdout.getvalue()
@@ -269,7 +280,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
             output_file = f.name
 
         try:
-            call_command("dump_constance_settings", output_file, include_defaults=True)
+            call_command("dump_settings", output_file, include_defaults=True)
 
             with open(output_file) as f:
                 settings_data = yaml.safe_load(f)
@@ -306,7 +317,7 @@ class DumpConstanceSettingsCommandTest(TestCase):
             output_file = f.name
 
         try:
-            call_command("dump_constance_settings", output_file)
+            call_command("dump_settings", output_file)
 
             with open(output_file) as f:
                 settings_data = yaml.safe_load(f)

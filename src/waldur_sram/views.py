@@ -66,9 +66,7 @@ GROUP_FILTER_FIELDS: dict[str, FilterField] = {
 
 
 class SramIntegrationEnabled(BasePermission):
-    message = (
-        "SRAM provisioning is disabled (set Constance SRAM_INTEGRATION_ENABLED=True)."
-    )
+    message = "SRAM provisioning is disabled (set SRAM_INTEGRATION_ENABLED=True)."
 
     @classmethod
     def describe_access(cls, view, method, requires_authentication):

@@ -25,7 +25,7 @@ Content-Type: application/json
 
 ## Configuration
 
-### Constance Settings
+### Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|

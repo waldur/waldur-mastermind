@@ -275,7 +275,7 @@ class RegisterCommandTest(TestCase):
 
         self.assertIn("--as-token shows up in process listings", err.getvalue())
         self.assertIn("--hs-token shows up in process listings", err.getvalue())
-        self.assertIn("MATRIX_APPSERVICE_AS_TOKEN in Constance", err.getvalue())
+        self.assertIn("the MATRIX_APPSERVICE_AS_TOKEN setting", err.getvalue())
 
     @respx.mock
     def test_registration_token_given_as_argument_is_warned_about(self):
@@ -298,7 +298,7 @@ class RegisterCommandTest(TestCase):
         self.assertIn(
             "--registration-token shows up in process listings", err.getvalue()
         )
-        self.assertIn("MATRIX_USER_REGISTRATION_SECRET in Constance", err.getvalue())
+        self.assertIn("the MATRIX_USER_REGISTRATION_SECRET setting", err.getvalue())
         self.assertEqual(respx.calls.call_count, 0)
 
     def _whoami(self, request):

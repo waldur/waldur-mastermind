@@ -376,7 +376,7 @@ class WaldurCore(BaseModel):
         description="Let staff list, preview and load demo presets through the API "
         "and the portal. Loading a preset deletes every organization, project, "
         "offering, user and token in the database, so enable it only on demo "
-        "deployments. Set by the deployment only; it is not a Constance setting.",
+        "deployments. Set by the deployment only; it is not a runtime setting.",
     )
     DEMO_PRESETS_ALLOWED: list[str] = Field(
         [],

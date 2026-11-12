@@ -21,13 +21,13 @@ class Command(BaseCommand):
             "--as-token",
             type=str,
             default="",
-            help="Override as_token (default: read from constance).",
+            help="Override as_token (default: read from the settings).",
         )
         parser.add_argument(
             "--hs-token",
             type=str,
             default="",
-            help="Override hs_token (default: read from constance).",
+            help="Override hs_token (default: read from the settings).",
         )
 
     def handle(self, *args, **options):

@@ -302,7 +302,7 @@ acceptance (`InvitationViewSet.accept()`).
 
 #### Layer 2: `INVITATION_DISABLE_MULTIPLE_ROLES` Check
 
-When `INVITATION_DISABLE_MULTIPLE_ROLES=True` (Constance setting), a user cannot hold
+When `INVITATION_DISABLE_MULTIPLE_ROLES=True` (setting), a user cannot hold
 **any** active role in the same scope. This prevents a user from accumulating multiple different
 roles (e.g., both OWNER and SUPPORT) in a single customer or project. Applies to both
 individual and group invitation flows.
@@ -560,7 +560,7 @@ ONLY_STAFF_CAN_INVITE_USERS = False           # Require staff approval
 VALIDATE_INVITATION_EMAIL = False              # Strict email matching
 ```
 
-### Constance Settings
+### Settings
 
 ```python
 # Runtime configuration

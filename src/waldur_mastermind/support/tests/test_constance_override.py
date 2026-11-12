@@ -42,8 +42,8 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         """
         settings_file = self.create_settings_file()
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
-        self.assertIn("Constance settings file is empty", output.getvalue())
+        call_command("override_settings", settings_file, stdout=output)
+        self.assertIn("Settings file is empty", output.getvalue())
 
     def test_empty_image_file(self):
         """
@@ -54,7 +54,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings = {"LOGIN_LOGO": temp_image}
         settings_file = self.create_settings_file(settings)
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "Failed to save setting LOGIN_LOGO due to error: ", output.getvalue()
         )
@@ -71,7 +71,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         for key, value in settings.items():
             self.assertIn(f"{key} has been set to {value}", output.getvalue())
 
@@ -88,7 +88,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
 
         self.assertNotIn("registration-secret-value", output.getvalue())
         self.assertNotIn("livekit-secret-value", output.getvalue())
@@ -113,7 +113,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE has been set to basic",
             output.getvalue(),
@@ -131,7 +131,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
 
         self.assertIn("ZAMMAD_TOKEN has been set to <redacted>", output.getvalue())
         self.assertIn(
@@ -152,7 +152,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn("LOGIN_LOGO has been set to test_logo.png.", output.getvalue())
 
     def test_nonexistent_logo_file(self):
@@ -164,7 +164,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
 
         self.assertIn("SIDEBAR_LOGO file does not exist", output.getvalue())
 
@@ -177,7 +177,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "DOCKER_RUN_OPTIONS has been set to {'cpu_count': 2, 'mem_limit': '512m'}",
             output.getvalue(),
@@ -191,7 +191,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings = {"DOCKER_RUN_OPTIONS": "randomstring"}
         settings_file = self.create_settings_file(settings)
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "Failed to save setting DOCKER_RUN_OPTIONS due to error: ",
             output.getvalue(),
@@ -205,7 +205,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings = {"ZAMMAD_API_URL": "prandomstring"}
         settings_file = self.create_settings_file(settings)
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "Failed to save setting ZAMMAD_API_URL due to error: ", output.getvalue()
         )
@@ -218,7 +218,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings = {"BRAND_COLOR": "randomstring"}
         settings_file = self.create_settings_file(settings)
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "Failed to save setting BRAND_COLOR due to error: ", output.getvalue()
         )
@@ -227,7 +227,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings = {"BRAND_COLOR": "#FF0000"}
         settings_file = self.create_settings_file(settings)
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn("BRAND_COLOR has been set to", output.getvalue())
 
     def test_list_field_validation(self):
@@ -239,7 +239,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "Failed to save setting FREEIPA_BLACKLISTED_USERNAMES due to error: ",
             output.getvalue(),
@@ -249,7 +249,7 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         settings = {"FREEIPA_BLACKLISTED_USERNAMES": ["root", "admin"]}
         settings_file = self.create_settings_file(settings)
         output = StringIO()
-        call_command("override_constance_settings", settings_file, stdout=output)
+        call_command("override_settings", settings_file, stdout=output)
         self.assertIn(
             "FREEIPA_BLACKLISTED_USERNAMES has been set to", output.getvalue()
         )
@@ -265,7 +265,7 @@ class SeedOnlyIfUnsetTest(SettingsFileMixin, TestCase):
     def seed(self, settings):
         output = StringIO()
         call_command(
-            "override_constance_settings",
+            "override_settings",
             self.create_settings_file(settings),
             "--if-unset",
             stdout=output,
@@ -293,7 +293,7 @@ class SeedOnlyIfUnsetTest(SettingsFileMixin, TestCase):
         config.LANGUAGE_CHOICES = "en"
         settings_file = self.create_settings_file({"LANGUAGE_CHOICES": "en,et"})
 
-        call_command("override_constance_settings", settings_file, stdout=StringIO())
+        call_command("override_settings", settings_file, stdout=StringIO())
 
         self.assertEqual(config.LANGUAGE_CHOICES, "en,et")
 
@@ -301,7 +301,7 @@ class SeedOnlyIfUnsetTest(SettingsFileMixin, TestCase):
         Setting.objects.set("SITE_NAME", "Portal", source=Source.MIGRATION)
         settings_file = self.create_settings_file({"SITE_NAME": "Portal"})
 
-        call_command("override_constance_settings", settings_file, stdout=StringIO())
+        call_command("override_settings", settings_file, stdout=StringIO())
 
         row = Setting.objects.get(key="SITE_NAME")
         self.assertEqual(row.value, "Portal")
@@ -328,13 +328,13 @@ class DeploymentLockTest(SettingsFileMixin, TestCase):
         output = StringIO()
         if lock:
             args = (*args, "--lock")
-        call_command("override_constance_settings", path, *args, stdout=output)
+        call_command("override_settings", path, *args, stdout=output)
         return output.getvalue()
 
     def unlock(self, *keys):
         output = StringIO()
         args = [arg for key in keys for arg in ("--unlock", key)]
-        call_command("override_constance_settings", *args, stdout=output)
+        call_command("override_settings", *args, stdout=output)
         return output.getvalue()
 
     def locked(self):
@@ -354,6 +354,21 @@ class DeploymentLockTest(SettingsFileMixin, TestCase):
             self.locked(),
             {"SITE_NAME": "settings.yaml", "BRAND_COLOR": "settings.yaml"},
         )
+
+    def test_the_former_command_name_still_works(self):
+        # Deployments with their own init scripts still call it by this name.
+        path = os.path.join(self.temp_dir, "settings.yaml")
+        with open(path, "w") as f:
+            yaml.dump({"SITE_NAME": "Portal"}, f)
+
+        call_command(
+            "override_constance_settings",
+            constance_settings_file=path,
+            lock=True,
+            stdout=StringIO(),
+        )
+
+        self.assertEqual(self.locked(), {"SITE_NAME": "settings.yaml"})
 
     def test_a_one_off_run_locks_nothing(self):
         # Such as a hotfix file, or input piped through /dev/stdin: nothing
@@ -511,7 +526,7 @@ class DeploymentLockTest(SettingsFileMixin, TestCase):
 
     def test_a_file_or_unlock_is_required(self):
         with self.assertRaises(CommandError):
-            call_command("override_constance_settings")
+            call_command("override_settings")
 
     def test_dump_managed_only_names_each_file(self):
         self.apply({"SITE_NAME": "Portal"}, "whitelabeling.yaml")
@@ -519,9 +534,7 @@ class DeploymentLockTest(SettingsFileMixin, TestCase):
         config.SHORT_PAGE_TITLE = "Not managed"
         path = os.path.join(self.temp_dir, "dump.yaml")
 
-        call_command(
-            "dump_constance_settings", path, "--managed-only", stdout=StringIO()
-        )
+        call_command("dump_settings", path, "--managed-only", stdout=StringIO())
 
         with open(path) as f:
             text = f.read()

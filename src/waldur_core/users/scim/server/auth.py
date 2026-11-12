@@ -60,7 +60,7 @@ class ScimFeatureEnabled(BasePermission):
     distinguishes the cause for operators inspecting the response body.
     """
 
-    message = "SCIM inbound provisioning is disabled (set Constance SCIM_INBOUND_ENABLED=True)."
+    message = "SCIM inbound provisioning is disabled (set SCIM_INBOUND_ENABLED=True)."
 
     @classmethod
     def describe_access(cls, view, method, requires_authentication):

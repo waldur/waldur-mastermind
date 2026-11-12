@@ -583,7 +583,7 @@ class QuotaUsageAPITest(test.APITestCase):
         AI_ASSISTANT_TOKEN_LIMIT_MONTHLY=100000,
     )
     def test_response_includes_system_defaults(self):
-        """Response includes system default limits from constance config."""
+        """Response includes system default limits from the settings."""
         TokenQuota.for_user(self.user)
 
         response = self.client.get(self.usage_url)

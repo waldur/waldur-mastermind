@@ -1314,7 +1314,7 @@ class SystemPromptViewSet(ActionsViewSet):
         summary="Deactivate the active system prompt",
         description=(
             "Deactivate this prompt. The system will fall back to "
-            "Constance overrides or built-in defaults."
+            "the system prompt setting or built-in defaults."
         ),
         responses={200: serializers.SystemPromptSerializer},
     )

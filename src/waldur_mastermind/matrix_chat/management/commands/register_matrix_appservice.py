@@ -59,7 +59,7 @@ class Command(BaseCommand):
                 "Homeserver registration token, which must also be its "
                 "registration_shared_secret: the bootstrap admin is created "
                 "through the shared-secret registration keyed with it (default: "
-                "MATRIX_USER_REGISTRATION_SECRET from Constance). Whoever holds it "
+                "the MATRIX_USER_REGISTRATION_SECRET setting). Whoever holds it "
                 "can create homeserver admins. Prefer setting it there, from the "
                 "environment through the deployment: an argument shows up in "
                 "process listings."
@@ -92,8 +92,8 @@ class Command(BaseCommand):
             type=str,
             default="",
             help=(
-                "Override as_token (default: MATRIX_APPSERVICE_AS_TOKEN from "
-                "Constance). Prefer setting it there, from the environment "
+                "Override as_token (default: the MATRIX_APPSERVICE_AS_TOKEN "
+                "setting). Prefer setting it there, from the environment "
                 "through the deployment: an argument shows up in process listings."
             ),
         )
@@ -102,8 +102,8 @@ class Command(BaseCommand):
             type=str,
             default="",
             help=(
-                "Override hs_token (default: MATRIX_APPSERVICE_HS_TOKEN from "
-                "Constance). Prefer setting it there, from the environment "
+                "Override hs_token (default: the MATRIX_APPSERVICE_HS_TOKEN "
+                "setting). Prefer setting it there, from the environment "
                 "through the deployment: an argument shows up in process listings."
             ),
         )
@@ -126,7 +126,7 @@ class Command(BaseCommand):
                 self.stderr.write(
                     self.style.WARNING(
                         f"--{name.replace('_', '-')} shows up in process listings; "
-                        f"prefer {setting} in Constance."
+                        f"prefer the {setting} setting."
                     )
                 )
 

@@ -3,7 +3,7 @@
 
 Subcommands:
   secrets  generate-or-reuse the appservice/registration tokens as a Secret
-  wire     seed Constance and register the appservice with the homeserver
+  wire     seed Waldur's settings and register the appservice with the homeserver
   livekit  render livekit config.yaml with the discovered LoadBalancer IP
 
 The chart runs it from this image in its two matrix-init Jobs and in the
@@ -14,7 +14,7 @@ Secret name in the environment. The livekit-rtc Service, the livekit config
 paths and its placeholder are fixed here, so a chart that renames one must
 change this script in the same release.
 
-The Waldur half, which Constance keys the tokens map to, is not here: that is
+The Waldur half, which settings the tokens map to, is not here: that is
 `init_matrix_settings`, which waldur-docker-compose calls with the same
 environment variables.
 
@@ -169,9 +169,9 @@ def warn_skipped(lines):
 
 
 def cmd_wire():
-    """Seed Constance from the deployment, then register the appservice.
+    """Seed Waldur's settings from the deployment, then register the appservice.
 
-    The Constance key mapping deliberately does not live here. It lives in
+    The settings key mapping deliberately does not live here. It lives in
     the `init_matrix_settings` command, which reads exactly the environment
     variables the chart's wire Job sets — waldur-docker-compose calls the same
     command with the same variables. A key list restated per packaging repo is
@@ -191,7 +191,7 @@ def cmd_wire():
 
     subprocess.run(["waldur", "init_matrix_settings"], check=True)
     log(
-        "Constance seeded for %s (as_token=%s, hs_token=%s)"
+        "Settings seeded for %s (as_token=%s, hs_token=%s)"
         % (
             os.environ["MATRIX_HOMESERVER_DOMAIN"],
             fingerprint(os.environ["MATRIX_APPSERVICE_AS_TOKEN"]),
@@ -210,7 +210,7 @@ def cmd_wire():
         warn_skipped(
             [
                 "this mastermind image has no `waldur register_matrix_appservice`, "
-                "so the appservice was NOT registered (Constance is seeded).",
+                "so the appservice was NOT registered (the settings are seeded).",
                 "Chat stays down until the homeserver has the registration: "
                 "upgrade waldur.imageTag and sync again, or register by hand.",
                 "Set matrixChat.setup.registerAppservice=false if registering "
@@ -222,8 +222,8 @@ def cmd_wire():
     # --url is the address the *homeserver* calls back on to deliver
     # appservice transactions, so it is the in-cluster API Service, not the
     # public ingress. Everything else the command needs (homeserver URL,
-    # registration token, both appservice tokens) it reads from the Constance
-    # rows seeded immediately above.
+    # registration token, both appservice tokens) it reads from the settings
+    # seeded immediately above.
     wait_for_homeserver()
     log("registering appservice with the homeserver")
     subprocess.run(
@@ -246,7 +246,7 @@ def wait_for_homeserver():
     silently on the first boot of a new version, before it opens its port, and
     the StatefulSet may be restarting on the very upgrade that runs this Job.
     Registering against it then fails with a connection error that reads like
-    a broken homeserver. Runs after Constance is seeded, so a timeout here
+    a broken homeserver. Runs after the settings are seeded, so a timeout here
     still leaves Waldur holding the right tokens for the next sync.
     """
     url = os.environ["MATRIX_HOMESERVER_URL"].rstrip("/") + "/_matrix/client/versions"
@@ -269,7 +269,7 @@ def wait_for_homeserver():
                 "(%s). A Tuwunel version bump migrates the database before the "
                 "port opens; check the matrix-homeserver pod, and raise "
                 "matrixChat.setup.homeserverWaitTimeout if it is still "
-                "migrating. Constance is already seeded; the next sync retries "
+                "migrating. The settings are already seeded; the next sync retries "
                 "the registration." % (url, timeout, why)
             )
         if last_logged is None or now - last_logged >= 30:

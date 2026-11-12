@@ -500,7 +500,7 @@ waldur slurm_policy_status --policy <UUID> --resource <UUID>
 #### cleanup_slurm_logs
 
 ```bash
-# Manually trigger evaluation log cleanup (uses constance retention setting)
+# Manually trigger evaluation log cleanup (uses the retention setting)
 waldur cleanup_slurm_logs
 ```
 
@@ -569,7 +569,7 @@ This is idempotent — safe to re-run and catches up automatically after Celery 
 
 Evaluation logs are automatically cleaned up by a daily Celery beat task (`cleanup-slurm-evaluation-logs`, runs at 03:00). The retention period is configurable via:
 
-- **Constance setting**: `SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS` (default: 90 days)
+- **Setting**: `SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS` (default: 90 days)
 - **HomePort admin**: Administration > Marketplace > SLURM policy
 
 ### Check Resource Usage (Django Shell)

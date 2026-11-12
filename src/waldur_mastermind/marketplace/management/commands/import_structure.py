@@ -8217,10 +8217,10 @@ class Command(BaseCommand):
         validation and type conversion for all supported setting types.
         """
         if not settings_data:
-            self.stdout.write("No constance settings to import.")
+            self.stdout.write("No settings to import.")
             return
 
-        self.stdout.write("Importing constance settings...")
+        self.stdout.write("Importing settings...")
 
         # Normalize keys to uppercase (constance uses uppercase keys)
         normalized_settings = {
@@ -8238,7 +8238,7 @@ class Command(BaseCommand):
                 del normalized_settings[key]
 
         if not normalized_settings:
-            self.stdout.write("No constance settings to import after normalization.")
+            self.stdout.write("No settings to import after normalization.")
             return
 
         try:
@@ -8295,9 +8295,7 @@ class Command(BaseCommand):
                     )
 
         except Exception as e:
-            self.stdout.write(
-                self.style.WARNING(f"Failed to import constance settings: {e}")
-            )
+            self.stdout.write(self.style.WARNING(f"Failed to import settings: {e}"))
             self.stats["constance_settings"]["errors"] += 1
 
         if not self.dry_run:

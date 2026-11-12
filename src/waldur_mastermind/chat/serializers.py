@@ -211,7 +211,7 @@ class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
     """
     Serializer for TokenQuota showing user's all period limits and usage.
     User limits can be:
-    - Null = use system default from constance config
+    - Null = use the system default setting
     - -1 = unlimited (no quota enforcement)
     - Non-negative integer = specific token limit
 
@@ -262,15 +262,15 @@ class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
         return obj.get_remaining("monthly")
 
     def get_daily_system_default(self, obj) -> int:
-        """Get system default daily token limit from constance config."""
+        """Get system default daily token limit setting."""
         return config.AI_ASSISTANT_TOKEN_LIMIT_DAILY
 
     def get_weekly_system_default(self, obj) -> int:
-        """Get system default weekly token limit from constance config."""
+        """Get system default weekly token limit setting."""
         return config.AI_ASSISTANT_TOKEN_LIMIT_WEEKLY
 
     def get_monthly_system_default(self, obj) -> int:
-        """Get system default monthly token limit from constance config."""
+        """Get system default monthly token limit setting."""
         return config.AI_ASSISTANT_TOKEN_LIMIT_MONTHLY
 
     def get_daily_reset_at(self, obj) -> datetime:
@@ -291,7 +291,7 @@ class SetTokenQuotaSerializer(serializers.Serializer):
     Serializer for setting token quota limits for a specific user.
 
     Allows staff/support to configure daily, weekly, and monthly token limits.
-    - Null = use system default from constance config
+    - Null = use the system default setting
     - -1 = unlimited (no quota enforcement)
     - Non-negative integer = specific token limit
     """

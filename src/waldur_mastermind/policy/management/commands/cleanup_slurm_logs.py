@@ -6,7 +6,7 @@ from waldur_mastermind.policy import tasks
 class Command(BaseCommand):
     help = (
         "Manually trigger cleanup of old SLURM policy evaluation logs. "
-        "Uses the SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS constance setting."
+        "Uses the SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS setting."
     )
 
     def handle(self, *args, **options):

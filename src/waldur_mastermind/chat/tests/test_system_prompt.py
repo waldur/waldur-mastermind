@@ -131,7 +131,7 @@ class SystemPromptContextAssemblerTest(TestCase):
         AI_ASSISTANT_NAME="TestBot",
         SITE_NAME="TestOrg",
         AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS=(
-            "Fallback from constance for {organization}."
+            "Fallback from settings for {organization}."
         ),
     )
     def test_constance_fallback_used_when_no_active_prompt(self):
@@ -139,7 +139,7 @@ class SystemPromptContextAssemblerTest(TestCase):
         context = build_context(self.user, "Hello", thread=self.thread)
         system_msg = next(m for m in context if m["role"] == "system")
         self.assertIn("ADDITIONAL INSTRUCTIONS", system_msg["content"])
-        self.assertIn("Fallback from constance for TestOrg.", system_msg["content"])
+        self.assertIn("Fallback from settings for TestOrg.", system_msg["content"])
 
     @override_constance_config(
         AI_ASSISTANT_NAME="TestBot",

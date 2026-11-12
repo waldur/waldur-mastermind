@@ -2974,7 +2974,7 @@ class OfferingUsersViewSetPerformanceTest(APITestCase):
         - DEFAULT_OFFERING_USER_ATTRIBUTES (for attribute filtering fallback)
 
         The key requirement is that query count doesn't scale with the number of items.
-        A small bounded number of queries is acceptable (constance internal operations).
+        A small bounded number of settings queries is acceptable.
         """
         staff_user = UserFactory(is_staff=True)
         self.client.force_authenticate(staff_user)
@@ -2989,23 +2989,23 @@ class OfferingUsersViewSetPerformanceTest(APITestCase):
 
             response = self.client.get(self.list_url)
 
-            # Count SELECT queries to constance_config table (ignore INSERT/UPDATE)
-            constance_select_queries = [
+            # Count SELECT queries to the settings table (ignore INSERT/UPDATE)
+            settings_select_queries = [
                 q["sql"]
                 for q in connection.queries
-                if "constance_config" in q["sql"].lower()
+                if "configuration_setting" in q["sql"].lower()
                 and q["sql"].strip().upper().startswith("SELECT")
             ]
 
             self.assertEqual(response.status_code, status.HTTP_200_OK)
-            # Should have a bounded number of constance queries that doesn't scale with items.
-            # We access 2 different configs, each may have some overhead from constance internals.
+            # Should have a bounded number of settings queries that doesn't scale with items.
+            # We access 2 different configs, each may have some overhead from the settings store.
             # The key is this is O(1), not O(N) where N is number of offering users.
             self.assertLessEqual(
-                len(constance_select_queries),
+                len(settings_select_queries),
                 4,
-                f"Too many constance_config SELECT queries ({len(constance_select_queries)}). "
-                f"Configs should be cached per request. Queries: {constance_select_queries}",
+                f"Too many settings SELECT queries ({len(settings_select_queries)}). "
+                f"Configs should be cached per request. Queries: {settings_select_queries}",
             )
 
 

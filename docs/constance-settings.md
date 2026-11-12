@@ -1,12 +1,14 @@
-# Constance Settings Documentation
+# Dynamic Settings
 
-Waldur uses [django-constance](https://django-constance.readthedocs.io/en/latest/) to manage dynamic configuration via the database. This allows administrators to change settings through the UI without restarting the application.
+Waldur keeps the settings administrators change at runtime in its own settings store, `waldur_core.configuration`: changes made in the UI, the API or the Django admin take effect without restarting the application. A setting that was never changed has no stored row and reads as its default. The store replaced django-constance and keeps its setting definitions, so the names below still carry the `CONSTANCE_` prefix.
+
+Code reads a setting through `from waldur_core.configuration import config` (`config.SITE_NAME`) and tests change one with `waldur_core.configuration.testing.override_config`.
 
 ## Configuration Structure
 
 Settings are defined in `src/waldur_core/server/constance_settings.py` within the `CONSTANCE_CONFIG` dictionary.
 
-Waldur extends the standard Constance configuration using a **3-element tuple** format for basic metadata, and a separate `CONSTANCE_CONFIG_CHOICES` dictionary for enum options:
+Each setting is a **3-element tuple** of basic metadata, and a separate `CONSTANCE_CONFIG_CHOICES` dictionary holds enum options:
 
 ### 1. Basic Configuration (`CONSTANCE_CONFIG`)
 
@@ -126,7 +128,7 @@ Each stored value records who wrote it last, in `Setting.source`, with `updated_
 |---|---|
 | `api` | A person, through `POST /api/override-settings/` or another endpoint that changes settings. `updated_by` holds them. |
 | `admin` | A person, through the Django admin settings page. `updated_by` holds them. |
-| `deployment` | The deployment's configuration: `override_constance_settings` and `init_matrix_settings`, run by the Helm or Compose init job. `source_detail` holds the file or command. See below for what a deploy re-applies. |
+| `deployment` | The deployment's configuration: `override_settings` and `init_matrix_settings`, run by the Helm or Compose init job. `source_detail` holds the file or command. See below for what a deploy re-applies. |
 | `cli` | An operator running a management command, such as `set_constance_image`, `set_login_logo_language` or `import_structure`. |
 | `application` | Waldur itself, with no person acting, such as a refreshed eduTEAMS token or the telemetry deployment ID. |
 | `migration` | A data migration, such as the copy out of django-constance in `configuration.0002`. |
@@ -137,20 +139,22 @@ The admin page and the API write only values that changed, so re-submitting a fo
 
 Besides the last writer, a setting records in `managed_by` what re-applies it on every deploy. A change made anywhere else lasts only until the next deploy.
 
-- `override_constance_settings FILE --lock` is how the image's `init-whitelabeling` applies its files on every start. It records the file in `managed_by` and locks the settings: `POST /api/override-settings/` answers 400 naming the file, and the Django admin shows them read-only. Re-submitting the current value is not an error.
+- `override_settings FILE --lock` is how the image's `init-whitelabeling` applies its files on every start. It records the file in `managed_by` and locks the settings: `POST /api/override-settings/` answers 400 naming the file, and the Django admin shows them read-only. Re-submitting the current value is not an error.
 - `init_matrix_settings` records itself in `managed_by` but does not lock: `MATRIX_TOKENS_MANAGED_BY` hands the Matrix settings between the deployment and the Setup wizard.
 - A file applied without `--lock`, such as a one-off fix or input piped through `/dev/stdin`, writes its values and manages nothing.
 - A file applied with `--if-unset` (`languages.yaml`) only seeds settings without a value; they are the administrators' to change.
 
 A setting is handed back to administrators, keeping its value, when the file or command that manages it runs without it, or when its file is applied with `--if-unset`.
 
-A file is recorded by its name, not its path, so any file of the same name acts for the deployed one: `override_constance_settings /tmp/whitelabeling.yaml --if-unset` hands back everything the deployed `whitelabeling.yaml` manages, and the same file with `--lock` hands back what it does not set. Give one-off files a name of their own.
+A file is recorded by its name, not its path, so any file of the same name acts for the deployed one: `override_settings /tmp/whitelabeling.yaml --if-unset` hands back everything the deployed `whitelabeling.yaml` manages, and the same file with `--lock` hands back what it does not set. Give one-off files a name of their own.
 
-`waldur override_constance_settings --unlock SETTING` only lifts the lock: while the file still holds the setting, the next deploy puts its value back and locks it again.
+`waldur override_settings --unlock SETTING` only lifts the lock: while the file still holds the setting, the next deploy puts its value back and locks it again.
 
 Settings Waldur changes itself while running (`REMOTE_EDUTEAMS_REFRESH_TOKEN`, `TELEMETRY_DEPLOYMENT_ID`) are only given a first value from a file, never re-applied or locked. A key in a file that is not a setting is reported and skipped.
 
-`GET /api/override-settings/sources/` lists the stored values with `source`, `source_detail`, `locked` and `managed_by`, for staff and support. `waldur dump_constance_settings --managed-only out.yaml` dumps the settings a deploy re-applies, each under a comment naming its file or command.
+`GET /api/override-settings/sources/` lists the stored values with `source`, `source_detail`, `locked` and `managed_by`, for staff and support. `waldur dump_settings --managed-only out.yaml` dumps the settings a deploy re-applies, each under a comment naming its file or command.
+
+`override_constance_settings` and `dump_constance_settings` are the former names of `override_settings` and `dump_settings` and still work, for deployments that call them.
 
 ## Frontend Integration
 

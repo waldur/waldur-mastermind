@@ -277,7 +277,7 @@ Administrators can configure certain profile attributes as mandatory, requiring 
 
 ### Configuration
 
-Two Constance settings control mandatory attributes:
+Two settings control mandatory attributes:
 
 | Setting | Type | Description |
 |---------|------|-------------|

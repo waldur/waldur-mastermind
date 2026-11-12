@@ -31,9 +31,9 @@ Enable the Arrow integration in Waldur features:
 FEATURES["reseller.arrow"] = True
 ```
 
-### Constance Settings
+### Runtime settings
 
-All settings are managed via Constance (runtime-configurable):
+All settings are runtime settings, changed without a restart:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -45,7 +45,7 @@ All settings are managed via Constance (runtime-configurable):
 
 ### Arrow Settings Record
 
-Arrow API credentials are stored in the `ArrowSettings` model, not in Constance. Create settings
+Arrow API credentials are stored in the `ArrowSettings` model, not in the runtime settings. Create settings
 via the API or setup wizard (see Setup Workflow below). Key fields:
 
 | Field | Description |
@@ -163,7 +163,7 @@ POST /api/admin/arrow/billing-syncs/trigger_sync/
 
 ### Step 6: Enable Consumption Tracking (Optional)
 
-For real-time consumption tracking, set `ARROW_CONSUMPTION_SYNC_ENABLED` to `True` in Constance.
+For real-time consumption tracking, set `ARROW_CONSUMPTION_SYNC_ENABLED` to `True` in the settings.
 This enables hourly consumption sync from the Arrow Consumption API.
 
 Resources must have their `backend_id` field set to the Arrow license reference (e.g., `XSP12345`).
@@ -401,7 +401,7 @@ setup wizard.
 
 ### Consumption sync not running
 
-- Set `ARROW_CONSUMPTION_SYNC_ENABLED` to `True` in Constance
+- Set `ARROW_CONSUMPTION_SYNC_ENABLED` to `True` in the settings
 - Ensure `ArrowSettings.sync_enabled` is `True`
 - Verify resources have `backend_id` set to Arrow license references
 

@@ -52,7 +52,7 @@ cool-off, whichever account it tries, and is then counted afresh:
 Successful sign-ins do not count, so the users behind a busy address never add
 up to a refusal. Other addresses are not affected.
 
-The limit is set in Constance, under **Authentication settings**:
+The limit is a runtime setting, under **Authentication settings**:
 
 | Setting | Default | Meaning |
 |---|---|---|

@@ -203,7 +203,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
         Returns:
             Dict containing company details including address, or None if fetch fails
         """
-        # Get configuration from Constance
+        # Get configuration from the settings
         base_url = config.ONBOARDING_ARIREGISTER_BASE_URL
         timeout = config.ONBOARDING_ARIREGISTER_TIMEOUT
         username = config.ONBOARDING_ARIREGISTER_USERNAME
@@ -272,7 +272,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
         Uses the API endpoint documented at:
         https://avaandmed.ariregister.rik.ee/en/open-data-api/rights-representation-all-persons-related-company
         """
-        # Get configuration from Constance
+        # Get configuration from the settings
         base_url = config.ONBOARDING_ARIREGISTER_BASE_URL
         timeout = config.ONBOARDING_ARIREGISTER_TIMEOUT
         username = config.ONBOARDING_ARIREGISTER_USERNAME
@@ -281,7 +281,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
         if not username or not password:
             logger.error("Äriregister credentials not configured")
             raise ValueError(
-                "Äriregister API credentials not configured in Constance settings"
+                "Äriregister API credentials not configured in the settings"
             )
 
         # Clean and validate legal_person_identifier

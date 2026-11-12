@@ -239,7 +239,7 @@ def get_enabled_feature_flags():
 
 
 def get_customized_settings():
-    """Return dict of constance settings that differ from their defaults."""
+    """Return dict of runtime settings that differ from their defaults."""
     try:
         constance_config = getattr(settings, "CONSTANCE_CONFIG", {})
         customized = {}
@@ -253,7 +253,7 @@ def get_customized_settings():
                 }
         return customized
     except Exception:
-        logger.warning("Failed to read constance settings for changelog matching")
+        logger.warning("Failed to read settings for changelog matching")
         return {}
 
 
@@ -261,8 +261,7 @@ def _build_relevance_context():
     """Build the deployment context match_relevance() checks entries against.
 
     Each piece can involve real DB queries - feature flags are a query, and
-    Constance settings are read per-key from a DB-backed store with no cache
-    configured, so building this once per batch (see
+    runtime settings are read from the database, so building this once per batch (see
     enrich_entries_with_relevance) instead of once per entry is the
     difference between a handful of queries and thousands.
     """

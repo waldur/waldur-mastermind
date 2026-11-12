@@ -42,7 +42,7 @@ generated for any table exceeding the configured weekly or monthly threshold.
 
 ## Configuration
 
-All settings are managed via Constance (runtime-configurable):
+All settings are runtime settings, changed without a restart:
 
 | Setting | Default | Description |
 |---------|---------|-------------|

@@ -85,7 +85,7 @@ set them; the load reports each one it skips. A setting is owned when it is:
 
 - locked, or re-applied on every deploy (`managed_by`)
 - written by the deployment's configuration (`source=deployment`, such as
-  values from `override_constance_settings`)
+  values from `override_settings`)
 - a secret
 - one Waldur changes while it runs, such as `TELEMETRY_DEPLOYMENT_ID`
 

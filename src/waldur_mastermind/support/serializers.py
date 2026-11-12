@@ -2233,7 +2233,7 @@ class AtlassianSettingsPreviewSerializer(AtlassianCredentialsSerializer):
 
 
 class AtlassianSettingsSaveSerializer(AtlassianSettingsPreviewSerializer):
-    """Request serializer for saving settings to constance."""
+    """Request serializer for saving the selected settings."""
 
     confirm_save = serializers.BooleanField(
         required=True, help_text="Must be True to confirm saving settings"

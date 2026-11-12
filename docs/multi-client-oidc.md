@@ -219,7 +219,7 @@ When both are available, `return_url` takes priority over the HTTP Referer heade
 
 ### Without `allowed_redirects` (Backward Compatibility)
 
-If `allowed_redirects` is empty or not set, the system falls back to the `HOMEPORT_URL` constance setting:
+If `allowed_redirects` is empty or not set, the system falls back to the `HOMEPORT_URL` setting:
 
 ```python
 # settings.py
@@ -380,7 +380,7 @@ curl -X PATCH https://api.waldur.example.com/api/identity-providers/{provider}/ 
 
 **Cause**: Existing deployment not configured with `allowed_redirects`.
 
-**Solution**: The system automatically falls back to `HOMEPORT_URL` constance setting when `allowed_redirects` is empty. No action required unless you want to enable multi-Homeport support.
+**Solution**: The system automatically falls back to the `HOMEPORT_URL` setting when `allowed_redirects` is empty. No action required unless you want to enable multi-Homeport support.
 
 ## Technical Details
 

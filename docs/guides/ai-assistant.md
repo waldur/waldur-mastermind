@@ -357,7 +357,7 @@ against three independent limits:
 
 1. Per-user limit on the row (positive int / `-1` unlimited / `null`
    means "use system default").
-2. System default from Constance
+2. System default setting
    (`AI_ASSISTANT_TOKEN_LIMIT_DAILY` / `_WEEKLY` / `_MONTHLY`).
 3. `TokenLimit.UNLIMITED` (`-1`) if neither is set.
 
@@ -397,7 +397,7 @@ is made.
 - Users can read their own current usage via
   `GET /api/chat-quota/usage/`. Staff/support may pass
   `?user_uuid=...` to read someone else's.
-- Set Constance defaults to `-1` to disable a period entirely.
+- Set the default settings to `-1` to disable a period entirely.
 
 ## System prompts
 
@@ -427,7 +427,7 @@ resolves the instructions string by precedence:
 
 1. Active `SystemPrompt.custom_instructions` (the row with
    `is_active=True`).
-2. Constance fallback `AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS`.
+2. The fallback setting `AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS`.
 3. Empty (no `=== ADDITIONAL INSTRUCTIONS ===` section is emitted).
 
 The text is interpolated with `str.format_map(_SafeFormatDict(...))`
@@ -504,7 +504,7 @@ replaying history into the next LLM call.
 
 ## Configuration reference
 
-*For operators.* All keys are Constance-backed; see the full table in
+*For operators.* All keys are runtime settings; see the full table in
 [`docs/admin/configuration-guide.md`](../admin/configuration-guide.md)
 section "AI assistant settings" (around line 2549). Quick reference:
 

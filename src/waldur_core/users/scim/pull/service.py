@@ -33,7 +33,7 @@ def is_pull_configured() -> bool:
 def build_pull_client() -> ScimPullClient:
     if not is_pull_configured():
         raise ScimPullConfigError(
-            "SCIM_PULL_API_URL and SCIM_PULL_API_KEY must be set in Constance."
+            "SCIM_PULL_API_URL and SCIM_PULL_API_KEY must be set in the settings."
         )
     return ScimPullClient(
         api_url=config.SCIM_PULL_API_URL,
