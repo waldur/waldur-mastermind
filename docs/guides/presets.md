@@ -111,7 +111,7 @@ Demo User Credentials
 ```
 
 Where the deployment sets a staff password (see
-[Deployment Presets](#deployment-presets)), staff users show
+[Deployment Presets](#deployment-presets)), staff and support users show
 `(the deployment's staff password)` in place of the published one.
 
 ### Export Current State
@@ -248,7 +248,7 @@ listed: their passwords would give anyone portal-wide access.
 ## Deployment Presets
 
 A deployment can add presets of its own, keep what it needs across every
-load, and stop the published staff passwords from working. All three are set
+load, and stop the published staff and support passwords from working. All three are set
 in the environment only, and apply to the API and the `waldur demo_presets`
 command alike.
 
@@ -256,7 +256,7 @@ command alike.
 |---|---|---|
 | `WALDUR_DEMO_PRESETS_EXTRA_DIRS` | `DEMO_PRESETS_EXTRA_DIRS` | Comma-separated directories with more preset files |
 | `WALDUR_DEMO_PRESETS_OVERLAY` | `DEMO_PRESETS_OVERLAY` | Preset imported after every load that cleans up first |
-| `WALDUR_DEMO_PRESETS_STAFF_PASSWORD` | `DEMO_PRESETS_STAFF_PASSWORD` | Password the preset's staff users get |
+| `WALDUR_DEMO_PRESETS_STAFF_PASSWORD` | `DEMO_PRESETS_STAFF_PASSWORD` | Password the preset's staff and support users get |
 
 ### Extra Directories
 
@@ -284,9 +284,10 @@ without the key, a new user gets the deployment's default lifetime.
 
 ### Staff Password
 
-When set, every staff user of the loaded preset and overlay gets this
-password in place of the one in the preset file, which is public. The API
-never shows it, and staff users are never offered for quick login. A load
+When set, every staff and support user of the loaded preset and overlay
+gets this password in place of the one in the preset file, which is public:
+support reads every organisation, project, user and ticket. The API never
+shows it, and the status endpoint never lists staff or support users. A load
 with `skip_users` leaves passwords alone.
 
 ## Preset Contents

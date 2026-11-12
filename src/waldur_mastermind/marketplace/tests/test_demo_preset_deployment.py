@@ -60,6 +60,7 @@ BUILT_IN = {
         users=[
             _user("00000000000000000000000000000001", "staff", is_staff=True),
             _user("00000000000000000000000000000002", "owner"),
+            _user("0000000000000000000000000000000a", "support", is_support=True),
         ],
         customers=[_customer("a3000000000000000000000000000001", "Built-in Org")],
     ),
@@ -274,10 +275,10 @@ class StaffPasswordTest(DeploymentPresetsMixin, TransactionTestCase):
         "DEMO_PRESETS_STAFF_PASSWORD": "deployment-secret",
     }
 
-    def test_staff_users_get_the_deployment_password(self):
+    def test_staff_and_support_users_get_the_deployment_password(self):
         result = self.load("demo")
 
-        for username in ("staff", "infra-staff"):
+        for username in ("staff", "infra-staff", "support"):
             with self.subTest(username=username):
                 user = User.objects.get(username=username)
                 self.assertTrue(user.check_password("deployment-secret"))
@@ -286,12 +287,13 @@ class StaffPasswordTest(DeploymentPresetsMixin, TransactionTestCase):
         self.assertNotIn("deployment-secret", result["output"])
         self.assertIn("staff: (the deployment's staff password)", result["output"])
 
-    def test_staff_passwords_are_not_shown(self):
+    def test_staff_and_support_passwords_are_not_shown(self):
         users = {
             user["username"]: user
             for user in DemoPresetManager.get_preset_users("demo")
         }
         self.assertEqual(users["staff"]["password"], "")
+        self.assertEqual(users["support"]["password"], "")
         self.assertEqual(users["owner"]["password"], "demo")
 
     def test_quick_login_never_lists_staff(self):
@@ -322,6 +324,7 @@ class StaffPasswordUnsetTest(DeploymentPresetsMixin, TestCase):
     def test_preset_password_is_kept(self):
         self.load("demo", cleanup_first=False)
         self.assertTrue(User.objects.get(username="staff").check_password("demo"))
+        self.assertTrue(User.objects.get(username="support").check_password("demo"))
 
 
 class TokenLifetimeTest(DeploymentPresetsMixin, TestCase):

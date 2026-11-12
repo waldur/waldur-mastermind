@@ -521,7 +521,7 @@ A preset imported, without cleanup, after every load that cleans up first, for w
 
 **Type:** str
 
-Password every staff user of a loaded preset gets in place of the one the preset publishes. Never shown by the API.
+Password every staff and support user of a loaded preset gets in place of the one the preset publishes. Never shown by the API.
 
 #### EMAIL_CHANGE_MAX_AGE
 
