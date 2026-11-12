@@ -4608,6 +4608,11 @@ class ProjectDigestPreviewResponseSerializer(serializers.Serializer):
     text_body = serializers.CharField()
 
 
+class ProjectDigestSendTestResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    sent = serializers.BooleanField()
+
+
 class SetErredSerializer(serializers.Serializer):
     error_message = serializers.CharField(required=False, allow_blank=True, default="")
     error_traceback = serializers.CharField(

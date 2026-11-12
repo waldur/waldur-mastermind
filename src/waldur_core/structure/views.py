@@ -547,9 +547,12 @@ class CustomerViewSet(
 
     @extend_schema(
         summary="Send a test digest email",
-        description="Send a test digest email to the requesting user.",
+        description=(
+            "Send a test digest email to the requesting user. When nothing is "
+            "sent, `sent` is false and `detail` says why."
+        ),
         request=None,
-        responses={200: None},
+        responses={200: serializers.ProjectDigestSendTestResponseSerializer},
     )
     @action(
         detail=True,
@@ -562,11 +565,17 @@ class CustomerViewSet(
 
         customer = self.get_object()
 
-        send_digest_for_customer_preview(customer, request.user)
-        return Response(
-            {"detail": _("Test digest email has been sent.")},
-            status=status.HTTP_200_OK,
+        not_sent_reason = send_digest_for_customer_preview(customer, request.user)
+        if not_sent_reason:
+            detail = _("No test digest email was sent. %(reason)s") % {
+                "reason": not_sent_reason
+            }
+        else:
+            detail = _("Test digest email has been sent.")
+        response = serializers.ProjectDigestSendTestResponseSerializer(
+            {"detail": detail, "sent": not not_sent_reason}
         )
+        return Response(response.data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary="Preview digest for a project",
