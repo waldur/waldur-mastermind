@@ -3,11 +3,12 @@ from unittest import mock
 from unittest.mock import patch
 
 from dateutil.relativedelta import relativedelta
+from ddt import data, ddt, unpack
 from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
 from freezegun import freeze_time
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.configuration import config
 from waldur_core.configuration.testing import override_config
@@ -15,13 +16,13 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace import models, serializers, tasks, utils
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     BillingTypes,
@@ -518,6 +519,271 @@ class ResourceEndingNotificationGraceTest(test.APITestCase):
             tasks.notification_about_resource_ending()
         self.assertTrue(mail.outbox)
         self.assertIn(self.fixture.resource.name, mail.outbox[0].subject)
+
+
+@ddt
+class ResourceEndingReminderScheduleTest(test.APITestCase):
+    """The reminder email follows the offering's resource_expiration_reminders,
+    as the dashboard does (#1020)."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.resource.end_date = datetime.date(2020, 4, 1)
+        self.fixture.resource.set_state_ok()
+        self.fixture.resource.save()
+        self.fixture.manager
+        structure_factories.NotificationFactory(
+            key="marketplace.notification_about_resource_ending"
+        )
+
+    def _mail_sent_days_before(self, days, plugin_options):
+        self.fixture.offering.plugin_options = plugin_options
+        self.fixture.offering.save()
+        day = datetime.date(2020, 4, 1) - datetime.timedelta(days=days)
+        mail.outbox = []
+        with freeze_time(day):
+            tasks.notification_about_resource_ending()
+        return bool(mail.outbox)
+
+    @data(90, 30, 3, 1)
+    def test_mail_on_each_day_of_the_offering_schedule(self, days):
+        options = {"resource_expiration_reminders": [90, 30, 3, 1]}
+        self.assertTrue(self._mail_sent_days_before(days, options))
+
+    def test_day_past_the_calendar_does_not_stop_the_mail(self):
+        options = {"resource_expiration_reminders": [3000000, 30]}
+        self.assertTrue(self._mail_sent_days_before(30, options))
+
+    @data(30, 7)
+    def test_schedule_with_too_many_days_uses_the_default_days(self, days):
+        # Stored without the API, e.g. pulled from a remote offering.
+        options = {"resource_expiration_reminders": list(range(1, 3651))}
+        self.assertEqual(self._mail_sent_days_before(days, options), days == 7)
+
+    def test_schedule_of_only_oversized_days_uses_the_default_days(self):
+        options = {"resource_expiration_reminders": [3000000]}
+        self.assertTrue(self._mail_sent_days_before(7, options))
+
+    @data(60, 7, 2)
+    def test_no_mail_on_days_outside_the_offering_schedule(self, days):
+        options = {"resource_expiration_reminders": [90, 30, 3, 1]}
+        self.assertFalse(self._mail_sent_days_before(days, options))
+
+    @data((7, True), (1, True), (30, False), (3, False))
+    @unpack
+    def test_offering_without_schedule_keeps_7_and_1(self, days, expected):
+        self.assertEqual(self._mail_sent_days_before(days, {}), expected)
+
+    def _mail_sent_on(self, day):
+        mail.outbox = []
+        with freeze_time(day):
+            tasks.notification_about_resource_ending()
+        return bool(mail.outbox)
+
+    def test_another_offerings_schedule_does_not_pull_in_this_resource(self):
+        # The resource ends on a day another offering's schedule names, while its
+        # project ends inside its grace window. On develop it was never a
+        # candidate; the project-ending notice covers it.
+        factories.OfferingFactory(
+            plugin_options={"resource_expiration_reminders": [30]}
+        )
+        self.fixture.resource.end_date = datetime.date(2020, 1, 31)
+        self.fixture.resource.save()
+        self.fixture.project.end_date = datetime.date(2020, 1, 3)
+        self.fixture.project.grace_period_days = 5
+        self.fixture.project.save()
+        self.assertFalse(self._mail_sent_on("2020-01-01"))
+
+    def test_grace_disabled_project_end_is_still_announced_with_a_schedule(self):
+        # Own end date on the offering's schedule (30 days), project ending
+        # without grace in 7 days: the project-end reminder still goes out.
+        self.fixture.offering.plugin_options = {
+            "disable_grace_period": True,
+            "resource_expiration_reminders": [30, 3],
+        }
+        self.fixture.offering.save()
+        self.fixture.resource.end_date = datetime.date(2020, 1, 31)
+        self.fixture.resource.save()
+        self.fixture.project.end_date = datetime.date(2020, 1, 8)
+        self.fixture.project.grace_period_days = 5
+        self.fixture.project.save()
+        self.assertTrue(self._mail_sent_on("2020-01-01"))
+
+    @data(0, -2)
+    def test_no_mail_on_or_after_the_end_date(self, days):
+        options = {"resource_expiration_reminders": [30, 0, -2]}
+        self.assertFalse(self._mail_sent_days_before(days, options))
+        self.assertTrue(self._mail_sent_days_before(30, options))
+
+    def test_invalid_schedule_falls_back_to_7_and_1(self):
+        options = {"resource_expiration_reminders": ["soon"]}
+        self.assertTrue(self._mail_sent_days_before(7, options))
+        self.assertFalse(self._mail_sent_days_before(30, options))
+
+
+@ddt
+class ResourceExpirationRemindersOptionTest(test.APITestCase):
+    def setUp(self):
+        self.offering = factories.OfferingFactory(state=OfferingStates.DRAFT)
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+
+    def _update(self, reminders):
+        response = self.client.post(
+            factories.OfferingFactory.get_url(self.offering, "update_integration"),
+            {"plugin_options": {"resource_expiration_reminders": reminders}},
+            format="json",
+        )
+        self.offering.refresh_from_db()
+        return response
+
+    def test_schedule_is_saved(self):
+        response = self._update([30, 7])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self.offering.plugin_options["resource_expiration_reminders"], [30, 7]
+        )
+
+    def test_schedule_can_be_cleared(self):
+        self._update([30, 7])
+        response = self._update([])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self.offering.plugin_options["resource_expiration_reminders"], []
+        )
+
+    @data(
+        [30, 0],
+        [30, -2],
+        ["soon"],
+        [utils.MAX_EXPIRATION_REMINDER_DAYS + 1],
+        list(range(utils.MAX_EXPIRATION_REMINDERS + 1, 0, -1)),
+    )
+    def test_invalid_schedule_is_rejected(self, reminders):
+        response = self._update(reminders)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("resource_expiration_reminders", self.offering.plugin_options)
+
+    def test_longest_allowed_schedule_is_saved(self):
+        reminders = list(range(utils.MAX_EXPIRATION_REMINDERS, 0, -1))
+        response = self._update(reminders)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self.offering.plugin_options["resource_expiration_reminders"], reminders
+        )
+
+    def test_longest_allowed_day_is_saved(self):
+        response = self._update([utils.MAX_EXPIRATION_REMINDER_DAYS])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def _store(self, reminders):
+        self.offering.plugin_options = {"resource_expiration_reminders": reminders}
+        self.offering.save()
+
+    @data([30, 0], ["soon"], 30)
+    def test_stored_invalid_schedule_does_not_block_other_options(self, reminders):
+        self._store(reminders)
+        response = self.client.post(
+            factories.OfferingFactory.get_url(self.offering, "update_integration"),
+            {
+                "plugin_options": {
+                    "resource_expiration_reminders": reminders,
+                    "resource_expiration_threshold": 14,
+                }
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.offering.plugin_options["resource_expiration_threshold"], 14
+        )
+
+    def test_stored_invalid_schedule_cannot_be_changed_to_another_invalid_one(self):
+        self._store([30, 0])
+        response = self._update([30, -2])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data([30, 0], ["soon"], 30)
+    def test_stored_invalid_schedule_does_not_break_export(self, reminders):
+        self._store(reminders)
+        exported = serializers.ExportImportOfferingSerializer(self.offering).data
+        self.assertEqual(
+            exported["plugin_options"]["resource_expiration_reminders"], reminders
+        )
+
+
+@ddt
+class ResourceExpirationRemindersStaffOnlyTest(test.APITestCase):
+    """The schedule decides how often users get mail, so only staff may change
+    it. Providers would otherwise be able to mail them daily."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        factories.ServiceProviderFactory(customer=self.fixture.customer)
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+
+    def _update(self, user, plugin_options):
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            factories.OfferingFactory.get_url(self.offering, "update_integration"),
+            {"plugin_options": plugin_options},
+            format="json",
+        )
+        self.offering.refresh_from_db()
+        return response
+
+    def _store(self, reminders):
+        self.offering.plugin_options = {"resource_expiration_reminders": reminders}
+        self.offering.save()
+
+    def test_staff_can_set_schedule(self):
+        response = self._update(
+            self.fixture.staff, {"resource_expiration_reminders": [30, 7]}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self.offering.plugin_options["resource_expiration_reminders"], [30, 7]
+        )
+
+    def test_owner_cannot_set_schedule(self):
+        response = self._update(
+            self.fixture.owner, {"resource_expiration_reminders": [3, 2, 1]}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("resource_expiration_reminders", self.offering.plugin_options)
+
+    def test_owner_cannot_change_schedule(self):
+        self._store([30, 7])
+        response = self._update(
+            self.fixture.owner, {"resource_expiration_reminders": [30, 7, 1]}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            self.offering.plugin_options["resource_expiration_reminders"], [30, 7]
+        )
+
+    @data([30, 7], [30, 0])
+    def test_owner_can_send_the_stored_schedule_with_other_changes(self, reminders):
+        # The frontend sends the stored plugin options back with unrelated edits.
+        self._store(reminders)
+        response = self._update(
+            self.fixture.owner,
+            {
+                "resource_expiration_reminders": reminders,
+                "resource_expiration_threshold": 14,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self.offering.plugin_options["resource_expiration_threshold"], 14
+        )
+
+    def test_owner_can_send_an_empty_schedule_when_none_is_set(self):
+        response = self._update(
+            self.fixture.owner, {"resource_expiration_reminders": []}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @override_config(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)

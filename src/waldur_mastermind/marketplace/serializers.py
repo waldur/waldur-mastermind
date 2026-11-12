@@ -162,6 +162,8 @@ from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
+    MAX_EXPIRATION_REMINDER_DAYS,
+    MAX_EXPIRATION_REMINDERS,
     UsernameGenerationPolicy,
     check_pending_order_exists,
     get_service_provider_resources,
@@ -302,6 +304,21 @@ def validate_disable_grace_period_is_staff_only(request, instance, plugin_option
         )
 
 
+def validate_expiration_reminders_is_staff_only(request, instance, plugin_options):
+    """Reject a request not acting as staff setting or changing
+    resource_expiration_reminders. The schedule decides how often the offering's
+    users get mail, so only staff may set it. Unset and empty both mean the
+    default schedule."""
+    key = "resource_expiration_reminders"
+    if has_staff_access(request) or key not in plugin_options:
+        return
+    old_value = instance.plugin_options.get(key) if instance else None
+    if (old_value or []) != (plugin_options[key] or []):
+        raise rf_exceptions.ValidationError(
+            {"plugin_options": _("Only staff can change the expiration reminders.")}
+        )
+
+
 def validate_role_names(value, scope_models, scopes_label):
     """Reject any name that is not an active role scoped to one of scope_models.
 
@@ -346,6 +363,25 @@ def validate_provider_role_names(value):
     )
 
 
+class ExpirationRemindersField(serializers.ListField):
+    """Validates new schedules only. The frontend sends the stored plugin options
+    back with unrelated changes, and a stored schedule may predate this check."""
+
+    child = serializers.IntegerField(
+        min_value=1, max_value=MAX_EXPIRATION_REMINDER_DAYS
+    )
+
+    def run_validation(self, data=serializers.empty):
+        # Skips the field validators too, which assume a list.
+        stored = getattr(self.root.instance, "plugin_options", None) or {}
+        if data is not serializers.empty and data == stored.get(self.field_name):
+            return data
+        return super().run_validation(data)
+
+    def to_representation(self, value):
+        return value
+
+
 class LifecyclePluginOptionsSerializer(serializers.Serializer):
     auto_approve_remote_orders = serializers.BooleanField(
         required=False,
@@ -356,6 +392,16 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         default=30,
         help_text="Resource expiration threshold in days.",
+    )
+
+    resource_expiration_reminders = ExpirationRemindersField(
+        required=False,
+        max_length=MAX_EXPIRATION_REMINDERS,
+        allow_empty=True,
+        help_text="Days before a resource's end date on which its users are "
+        "reminded, by email and on the dashboard. When empty or unset, the email "
+        "goes out 7 days and 1 day before the end, and the dashboard follows "
+        "USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS. Only staff can change it.",
     )
 
     service_provider_can_create_offering_user = serializers.BooleanField(
@@ -6113,6 +6159,9 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         validate_disable_grace_period_is_staff_only(
             self.context["request"], self.instance, attrs.get("plugin_options", {})
         )
+        validate_expiration_reminders_is_staff_only(
+            self.context["request"], self.instance, attrs.get("plugin_options", {})
+        )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
         validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
 
@@ -6655,6 +6704,9 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             request, self.instance, attrs.get("plugin_options", {})
         )
         validate_disable_grace_period_is_staff_only(
+            request, self.instance, attrs.get("plugin_options", {})
+        )
+        validate_expiration_reminders_is_staff_only(
             request, self.instance, attrs.get("plugin_options", {})
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
