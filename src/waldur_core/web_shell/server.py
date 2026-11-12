@@ -69,6 +69,11 @@ CSP = "; ".join(
         "frame-ancestors 'none'",
     ]
 )
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CSP,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
 
 CLOSE_SHELL_EXITED = 4000
 CLOSE_UNAUTHORIZED = 4401
@@ -258,12 +263,17 @@ def origin_allowed(request: web.Request) -> bool:
 async def guard(request: web.Request, handler):
     if hostname_of(request.host) not in request.app[ALLOWED_HOSTS]:
         return web.Response(status=403, text="Forbidden host\n")
-    response = await handler(request)
-    if not response.prepared:
-        response.headers.setdefault("Content-Security-Policy", CSP)
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("Referrer-Policy", "no-referrer")
-    return response
+    return await handler(request)
+
+
+async def add_security_headers(request: web.Request, response: web.StreamResponse):
+    # Runs as the app prepares each response, so it reaches what a middleware
+    # would miss: raised HTTPExceptions (the 404 for an unknown path,
+    # redirects) and the 500 aiohttp renders for an unhandled error. A
+    # handler's values win. aiohttp's 400 for a request it cannot parse is
+    # written before the app runs and gets none of these.
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
 
 
 async def redirect_to_index(request: web.Request):
@@ -575,6 +585,7 @@ async def close_sessions(app: web.Application):
 
 def build_app() -> web.Application:
     app = web.Application(middlewares=[guard])
+    app.on_response_prepare.append(add_security_headers)
     app[TICKETS] = TicketStore()
     app[SESSIONS] = {}
     app[ALLOWED_HOSTS] = allowed_hosts()

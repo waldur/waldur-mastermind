@@ -3,6 +3,8 @@ import os
 from types import SimpleNamespace
 from unittest import mock
 
+from aiohttp import web
+from aiohttp.test_utils import TestClient, TestServer
 from django.conf import settings
 from django.db import OperationalError
 from django.test import SimpleTestCase, TestCase, override_settings
@@ -163,3 +165,84 @@ class SessionStartTest(SimpleTestCase):
                 asyncio.run(session.run())
 
         close.assert_awaited_once()
+
+
+async def own_policy(request):
+    return web.Response(text="ok", headers={"Content-Security-Policy": "sandbox"})
+
+
+async def broken(request):
+    raise RuntimeError("boom")
+
+
+@override_settings(
+    WALDUR_CORE={
+        **settings.WALDUR_CORE,
+        "WEB_SHELL_URL": "https://shell.example.org/webshell/",
+    }
+)
+class SecurityHeadersTest(SimpleTestCase):
+    """Every response the web shell app prepares carries its policy and headers.
+
+    aiohttp answers a request it cannot parse (a malformed request line, a line
+    or header over its size limit) before the app runs, and that 400 gets none.
+    """
+
+    def get(self, path, **headers):
+        async def fetch():
+            with mock.patch.dict(
+                os.environ, {"WALDUR_WEB_SHELL_ASSETS_DIR": str(server.STATIC_DIR)}
+            ):
+                app = server.build_app()
+            app.router.add_get("/own-policy", own_policy)
+            app.router.add_get("/broken", broken)
+            async with TestClient(TestServer(app)) as client:
+                response = await client.get(
+                    path, headers=headers, allow_redirects=False
+                )
+                return response.status, response.headers
+
+        return asyncio.run(fetch())
+
+    def assertSecurityHeaders(self, headers):
+        for name, value in server.SECURITY_HEADERS.items():
+            self.assertEqual(headers.getall(name), [value], name)
+
+    def test_a_page(self):
+        status, headers = self.get("/webshell/")
+
+        self.assertEqual(status, 200)
+        self.assertSecurityHeaders(headers)
+
+    def test_an_unknown_path(self):
+        status, headers = self.get("/webshell/nothing-here")
+
+        self.assertEqual(status, 404)
+        self.assertSecurityHeaders(headers)
+
+    def test_a_redirect(self):
+        status, headers = self.get("/")
+
+        self.assertEqual(status, 302)
+        self.assertEqual(headers["Location"], "/webshell/")
+        self.assertSecurityHeaders(headers)
+
+    def test_a_forbidden_host(self):
+        status, headers = self.get("/webshell/", Host="rebound.example")
+
+        self.assertEqual(status, 403)
+        self.assertSecurityHeaders(headers)
+
+    def test_an_unhandled_error(self):
+        with self.assertLogs("aiohttp.server", "ERROR"):
+            status, headers = self.get("/broken", Accept="text/html")
+
+        self.assertEqual(status, 500)
+        self.assertSecurityHeaders(headers)
+
+    def test_a_handler_keeps_its_own_policy(self):
+        status, headers = self.get("/own-policy")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.getall("Content-Security-Policy"), ["sandbox"])
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")

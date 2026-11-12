@@ -45,6 +45,54 @@ capture_output = True
 # line is logged without the query string; every other request keeps its own.
 APPSERVICE_PATH_PREFIX = "/_matrix/app/"
 
+# gunicorn answers a request it cannot or will not parse itself, before Django
+# sees it: a request line over limit_request_line, a header over
+# limit_request_field_size, a malformed request line. Its HTML error page passes
+# through every proxy in front, so it carries the policy Django sends on API
+# responses (SECURE_CSP), under which the page can load and run nothing.
+ERROR_PAGE_CSP = (
+    "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+)
+
+
+class ErrorPageSocket:
+    """The client socket, adding the policy header after the status line.
+
+    gunicorn's error writer renders the whole response and sends it in one
+    write, with no way to pass it a header; this leaves the rest to gunicorn.
+    """
+
+    def __init__(self, sock):
+        self._sock = sock
+        self._header_added = False
+
+    def __getattr__(self, name):
+        return getattr(self._sock, name)
+
+    def sendall(self, data, *args):
+        if not self._header_added:
+            self._header_added = True
+            status_line, _, rest = data.partition(b"\r\n")
+            header = b"Content-Security-Policy: " + ERROR_PAGE_CSP.encode("latin-1")
+            data = b"\r\n".join((status_line, header, rest))
+        self._sock.sendall(data, *args)
+
+
+def on_starting(server):
+    # The sync and gthread workers, the only ones the image can run, write
+    # their own error pages through util.write_error. The master wraps it
+    # before any worker forks, so both inherit the wrapper.
+    # test_gunicorn_conf reads the pages from a real gunicorn: an upgrade that
+    # moves the writer fails there instead of dropping the header.
+    from gunicorn import util
+
+    write_error = util.write_error
+
+    def write_error_with_policy(sock, *args, **kwargs):
+        return write_error(ErrorPageSocket(sock), *args, **kwargs)
+
+    util.write_error = write_error_with_policy
+
 
 def logger_class():
     # Gunicorn calls a function given as logger_class and uses the class it

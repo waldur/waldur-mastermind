@@ -7,20 +7,30 @@ gunicorn releases turned on. Nothing in gunicorn's public API promises any of
 that, so these tests load the file the way the container does, with the command
 line from the image's ``mastermind`` script and the flags waldur-helm passes,
 and run its logger and gunicorn's request parsing against that configuration.
-A bump that renames an atom or setting fails here. Whether the arbiter still
-calls the hooks after fork is a container-level check, not covered here.
+A bump that renames an atom or setting fails here. The error pages gunicorn
+writes itself are read from a real gunicorn started with the image's command
+line and conf file, since only the running server shows that the policy reaches
+them. Its arbiter runs the conf's hooks, post_fork included, but the trivial app
+served there never loads Django, so post_fork's closing of the connections a
+preloaded mastermind opens is still a container-level check.
 """
 
 import datetime
+import http.client
 import logging
 import os
 import pathlib
 import shlex
+import socket
+import subprocess
 import sys
+import tempfile
 import types
 from unittest import mock
 
+from django.conf import settings
 from django.test import SimpleTestCase
+from django.utils.csp import build_policy
 from gunicorn.app.wsgiapp import WSGIApplication
 from gunicorn.glogging import Logger
 from gunicorn.http import wsgi
@@ -40,6 +50,18 @@ HELM_CMD_ARGS = (
 
 CLIENT = ("203.0.113.7", 40000)
 SERVER = ("10.0.0.2", 8080)
+
+# Served in place of mastermind, with a policy of its own, so that its
+# responses can be told from the error pages gunicorn writes itself.
+APP_POLICY = "default-src 'self'"
+TRIVIAL_APP = f'''\
+def app(environ, start_response):
+    start_response(
+        "200 OK",
+        [("Content-Type", "text/plain"), ("Content-Security-Policy", "{APP_POLICY}")],
+    )
+    return [b"ok"]
+'''
 
 
 def image_argv():
@@ -162,3 +184,123 @@ class AccessLogTest(SimpleTestCase):
         line = self.access_line("/api/customers/", "page=2")
 
         self.assertIn('"PUT /api/customers/?page=2 HTTP/1.1" 200 2', line)
+
+
+def stop(process):
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+class ErrorPageTests:
+    """gunicorn's own error pages carry the policy Django sends on API responses.
+
+    gunicorn answers these requests before the WSGI app sees them, so they are
+    sent to a real gunicorn started with the image's command line and conf file.
+    """
+
+    worker_class: str
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        app_dir = pathlib.Path(tmp.name)
+        (app_dir / "trivial_app.py").write_text(TRIVIAL_APP, encoding="utf-8")
+        cls.log_path = app_dir / "gunicorn.log"
+        cls.cfg = load_image_config()
+        # gunicorn takes over a socket bound here, so no free port is guessed;
+        # connections wait in its backlog until the worker is up.
+        listener = socket.create_server(("127.0.0.1", 0))
+        cls.address = listener.getsockname()
+        argv = [
+            sys.executable,
+            "-m",
+            "gunicorn",
+            *image_argv()[1:-1],  # without the program and mastermind's app
+            "--bind",
+            f"fd://{listener.fileno()}",
+            "--workers",
+            "1",
+            "--worker-class",
+            cls.worker_class,
+            "--pythonpath",
+            str(app_dir),
+            "trivial_app:app",
+        ]
+        environ = {k: v for k, v in os.environ.items() if not k.startswith("GUNICORN_")}
+        with listener, open(cls.log_path, "wb") as log:
+            cls.process = subprocess.Popen(
+                argv,
+                env=environ,
+                pass_fds=[listener.fileno()],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        cls.addClassCleanup(stop, cls.process)
+
+    def send(self, raw_request):
+        """Send ``raw_request`` as is and parse the response gunicorn writes."""
+        try:
+            with socket.create_connection(self.address, timeout=30) as conn:
+                conn.sendall(raw_request)
+                response = http.client.HTTPResponse(conn)
+                response.begin()
+                response.read()
+        except (http.client.HTTPException, OSError) as e:
+            log = self.log_path.read_text(encoding="utf-8", errors="replace")
+            self.fail(f"no response: {e!r}\ngunicorn log:\n{log}")
+        return response
+
+    def assertErrorPage(self, response, status):
+        self.assertEqual(response.status, status)
+        self.assertEqual(response.getheader("Content-Type"), "text/html")
+        self.assertEqual(
+            response.msg.get_all("Content-Security-Policy"),
+            [build_policy(settings.SECURE_CSP)],
+        )
+
+    def test_a_request_line_over_the_limit(self):
+        path = b"/" + b"a" * self.cfg.limit_request_line
+
+        response = self.send(b"GET %s HTTP/1.1\r\nHost: localhost\r\n\r\n" % path)
+
+        self.assertErrorPage(response, 400)
+
+    def test_a_header_over_the_limit(self):
+        value = b"a" * self.cfg.limit_request_field_size
+
+        response = self.send(
+            b"GET / HTTP/1.1\r\nHost: localhost\r\nX-Big: %s\r\n\r\n" % value
+        )
+
+        self.assertErrorPage(response, 431)
+
+    def test_a_malformed_request_line(self):
+        response = self.send(b"GARBAGE\r\n\r\n")
+
+        self.assertErrorPage(response, 400)
+
+    def test_the_apps_own_response_keeps_its_policy(self):
+        response = self.send(
+            b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        )
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.msg.get_all("Content-Security-Policy"), [APP_POLICY])
+
+
+class SyncWorkerErrorPageTest(ErrorPageTests, SimpleTestCase):
+    worker_class = "sync"
+
+    def test_the_image_runs_this_worker_class(self):
+        self.assertEqual(self.cfg.worker_class_str, self.worker_class)
+
+
+class ThreadWorkerErrorPageTest(ErrorPageTests, SimpleTestCase):
+    # What --threads or --worker-class gthread in gunicorn.extraArgs gives.
+    worker_class = "gthread"
