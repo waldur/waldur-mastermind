@@ -128,7 +128,11 @@ from waldur_core.core.serializers import (
     _serialize_allowed_scopes,
 )
 from waldur_core.core.tasks import sample_table_sizes
-from waldur_core.core.utils import format_homeport_link, get_constance_setting_type
+from waldur_core.core.utils import (
+    format_homeport_link,
+    get_constance_setting_type,
+    network_acl_widens,
+)
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.event_logger import get_event_groups
@@ -2667,7 +2671,13 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
             )
         ],
         "set_network_acl": [
-            access.owned("The caller's own token; not with a personal access token.")
+            access.owned(
+                "The caller's own token; not with a personal access token. "
+                "Narrowing its networks needs nothing more. Widening them, "
+                "clearing the list included, needs a re-authentication grant "
+                "and is refused to impersonating staff and other delegated "
+                "credentials."
+            )
         ],
         "available_scopes": [
             access.owned(
@@ -2855,14 +2865,41 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         response["Cache-Control"] = "no-store"
         return response
 
+    @staticmethod
+    def _lock_for_network_acl(pat):
+        # Same lock rotate takes. Without it a concurrent rotate can copy the
+        # pre-edit ACL onto the new token while the user believes they
+        # tightened it. Serialised, the loser either reads the fresh ACL or
+        # fails cleanly on a token that is no longer active.
+        locked = models.PersonalAccessToken.objects.select_for_update().get(pk=pat.pk)
+        if not locked.is_active:
+            raise ValidationError("Cannot change the network ACL of an inactive token.")
+        return locked
+
+    @staticmethod
+    def _save_network_acl(locked, new_networks):
+        locked.allowed_networks = new_networks
+        locked.save(update_fields=["allowed_networks"])
+
     @extend_schema(
         summary="Replace the network ACL of a personal access token",
         request=PersonalAccessTokenNetworkAclSerializer,
-        responses={200: PersonalAccessTokenSerializer},
+        responses={
+            200: PersonalAccessTokenSerializer,
+            **reauthentication.CHALLENGE_RESPONSES,
+        },
+        parameters=[reauthentication.GRANT_PARAMETER],
     )
     @action(detail=True, methods=["post"])
     def set_network_acl(self, request, uuid=None):
         """Replace the token's source-network allowlist.
+
+        Narrowing the list needs nothing more: every new network lies inside
+        a current one of the same address family, or the token was
+        unrestricted, or the list is unchanged. Anything else lets the token
+        work from an address it could not before, and needs a
+        re-authentication grant, as creating a token does. That includes an
+        empty list, which means from anywhere.
 
         A dedicated action rather than PATCH: update/partial_update stay
         disabled on this viewset, and the change gets its own audit event.
@@ -2872,21 +2909,28 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         new_networks = serializer.validated_data["allowed_networks"]
 
+        # Whether the change widens is decided against the locked row, not the
+        # copy get_object() loaded: the list may have been narrowed since, and
+        # a change that only narrows the old list can widen the current one.
         with transaction.atomic():
-            # Same lock rotate takes. Without it a concurrent rotate can copy
-            # the pre-edit ACL onto the new token while the user believes they
-            # tightened it. Serialised, the loser either reads the fresh ACL or
-            # fails cleanly on a token that is no longer active.
-            locked = models.PersonalAccessToken.objects.select_for_update().get(
-                pk=pat.pk
-            )
-            if not locked.is_active:
-                raise ValidationError(
-                    "Cannot change the network ACL of an inactive token."
-                )
+            locked = self._lock_for_network_acl(pat)
             old_networks = list(locked.allowed_networks or [])
-            locked.allowed_networks = new_networks
-            locked.save(update_fields=["allowed_networks"])
+            widens = network_acl_widens(old_networks, new_networks)
+            if not widens:
+                self._save_network_acl(locked, new_networks)
+
+        if widens:
+            # guarded() must open the outermost transaction: it records a
+            # refusal after leaving its own, and an enclosing one would roll
+            # that record back with the 401. So the row is locked again in it,
+            # and read again for the audit event. With a grant any list may be
+            # set, so what the row holds by then needs no second look.
+            with reauthentication.guarded(
+                request, ReauthenticationAction.WIDEN_PERSONAL_ACCESS_TOKEN_NETWORKS
+            ):
+                locked = self._lock_for_network_acl(pat)
+                old_networks = list(locked.allowed_networks or [])
+                self._save_network_acl(locked, new_networks)
 
         pat = locked
 
