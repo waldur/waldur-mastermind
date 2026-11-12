@@ -298,7 +298,7 @@ provider_helpdesk.settings = {
 }
 ```
 
-Each backend implements `from_settings(settings_dict)` classmethod and `_get_config(key, default)` that falls back to global Constance settings when a per-provider key is missing. This means a provider with no custom settings uses the operator's global backend configuration.
+Each backend implements `from_settings(settings_dict)` classmethod and `_get_config(key, default)` that falls back to the global settings when a per-provider key is missing. This means a provider with no custom settings uses the operator's global backend configuration.
 
 ## API Endpoints
 
@@ -413,7 +413,7 @@ Each backend implements `from_settings(settings_dict)` classmethod and `_get_con
 | `retry_failed_routing` | Retry routing for issues that failed (supports `--dry-run`) |
 | `helpdesk_stats` | Display helpdesk statistics summary |
 
-## Constance Settings
+## Settings
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|

@@ -44,7 +44,7 @@ class TokenQuota(UuidMixin, TimeStampedModel):
         related_name="token_quota",
     )
 
-    # Quota limits (null = use system default from constance)
+    # Quota limits (null = use the system default setting)
     daily_limit = models.IntegerField(
         null=True,
         blank=True,
@@ -165,7 +165,7 @@ class TokenQuota(UuidMixin, TimeStampedModel):
         """
         Get limit for period, falling back to system defaults.
 
-        System defaults are defined in constance settings. -1 means unlimited.
+        System defaults are runtime settings. -1 means unlimited.
         User specific limits override system defaults. None means use system default. -1 means unlimited.
 
         Returns:

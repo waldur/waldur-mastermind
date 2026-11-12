@@ -6,7 +6,7 @@ Examples::
     waldur scim_pull_user --all --rate 5
     waldur scim_pull_user --username alice --source scim:keycloak
 
-Requires Constance settings ``SCIM_PULL_API_URL`` and ``SCIM_PULL_API_KEY``.
+Requires the settings ``SCIM_PULL_API_URL`` and ``SCIM_PULL_API_KEY``.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--source",
             help="Override the source label written to attribute_sources. "
-            "Defaults to the SCIM_PULL_SOURCE_NAME Constance setting.",
+            "Defaults to the SCIM_PULL_SOURCE_NAME setting.",
         )
 
     def handle(self, *args, **options):

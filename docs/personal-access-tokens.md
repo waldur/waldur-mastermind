@@ -174,11 +174,11 @@ The `revoke_user_pats_on_deactivation` signal handler in `waldur_core.core.handl
 
 ### Global Kill Switch
 
-The `PAT_ENABLED` Constance setting (default: `True`) controls whether PAT authentication is active. When `False`, `PATAuthentication.authenticate()` returns `None` for all `w_`-prefixed tokens, effectively disabling all PATs system-wide.
+The `PAT_ENABLED` setting (default: `True`) controls whether PAT authentication is active. When `False`, `PATAuthentication.authenticate()` returns `None` for all `w_`-prefixed tokens, effectively disabling all PATs system-wide.
 
 ## Configuration
 
-### Constance Settings
+### Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -186,7 +186,7 @@ The `PAT_ENABLED` Constance setting (default: `True`) controls whether PAT authe
 | `PAT_MAX_LIFETIME_DAYS` | `365` | Maximum token lifetime in days |
 | `PAT_MAX_TOKENS_PER_USER` | `20` | Maximum active tokens per user |
 
-These settings are in the "Personal Access Tokens" fieldset in the Constance admin panel.
+These settings are in the "Personal Access Tokens" fieldset of the settings page in the Waldur admin (*Configuration → Settings*).
 
 ## Model
 
@@ -265,7 +265,7 @@ curl -X DELETE https://waldur.example.com/api/personal-access-tokens/{uuid}/ \
 
 ## Network ACLs
 
-A token can be restricted to a set of source networks. `allowed_networks` takes a list of CIDR strings; bare addresses are widened to `/32` or `/128`. An empty list (the default) means the token is unrestricted. The number of entries is capped by the `PAT_MAX_ACL_ENTRIES` Constance setting.
+A token can be restricted to a set of source networks. `allowed_networks` takes a list of CIDR strings; bare addresses are widened to `/32` or `/128`. An empty list (the default) means the token is unrestricted. The number of entries is capped by the `PAT_MAX_ACL_ENTRIES` setting.
 
 Set the ACL at creation time:
 

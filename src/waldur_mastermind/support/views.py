@@ -2091,7 +2091,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     Allows staff users to:
     1. Validate Atlassian credentials without saving
     2. Discover available projects, request types, custom fields, priorities
-    3. Preview and save selected configuration to constance
+    3. Preview and save selected configuration to the settings
     """
 
     queryset = models.Issue.objects.none()  # No model, stateless operations
@@ -2385,11 +2385,11 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     @extend_schema(
         request=serializers.AtlassianSettingsSaveSerializer,
         responses={200: None},
-        description="Save selected settings to constance.",
+        description="Save selected settings.",
     )
     @decorators.action(detail=False, methods=["post"])
     def save_settings(self, request):
-        """Save selected settings to constance."""
+        """Save selected settings."""
         serializer = serializers.AtlassianSettingsSaveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -2411,7 +2411,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
         def save_setting(key, value):
             Setting.objects.set(key, value, source=Source.API, user=request.user)
 
-        # Save settings to constance
+        # Save the settings
         try:
             # One transaction, so that a setting the deployment manages
             # leaves none of the others changed.

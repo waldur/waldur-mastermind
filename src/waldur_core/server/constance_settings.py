@@ -186,7 +186,7 @@ OFFERING_TYPE_CHOICES = [
     ("Marketplace.Script", "Script"),
     ("Marketplace.SiteAgent", "Site Agent"),
     # Former name of the site-agent type. Deployment files and API clients may
-    # still send it: dropping it here would make override_constance_settings
+    # still send it: dropping it here would make override_settings
     # discard the whole DISABLED_OFFERING_TYPES value.
     ("Marketplace.Slurm", "Site Agent (legacy name)"),
 ]

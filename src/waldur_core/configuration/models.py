@@ -19,7 +19,7 @@ class Source(models.TextChoices):
     - ``admin``: a person, through the Django admin settings page;
       ``updated_by`` holds them.
     - ``deployment``: the deployment's configuration, applied by
-      ``override_constance_settings`` or ``init_matrix_settings`` on every
+      ``override_settings`` or ``init_matrix_settings`` on every
       deploy (``--if-unset`` files only seed a setting without a value);
       ``source_detail`` holds the file or command.
     - ``cli``: an operator running a management command; ``source_detail``
@@ -32,7 +32,7 @@ class Source(models.TextChoices):
     A source records the last writer only.
 
     Apart from the last writer, a setting records what re-applies it on every
-    deploy, in ``managed_by``: the file ``override_constance_settings --lock``
+    deploy, in ``managed_by``: the file ``override_settings --lock``
     applied it from, or ``init_matrix_settings``. A change made elsewhere does
     not outlast the next deploy. A setting from a ``--lock`` file is also
     locked: people cannot change it through the API or the Django admin.

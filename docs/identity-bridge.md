@@ -146,7 +146,7 @@ The deactivation behavior is configurable via the `FEDERATED_IDENTITY_DEACTIVATI
 
 ## Configuration
 
-### Constance Settings
+### Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -154,7 +154,7 @@ The deactivation behavior is configurable via the `FEDERATED_IDENTITY_DEACTIVATI
 | `FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES` | `["first_name", "last_name", "email", "organization", "affiliations"]` | Attributes settable via the bridge (must be a subset of `WRITABLE_USER_FIELDS`) |
 | `FEDERATED_IDENTITY_DEACTIVATION_POLICY` | `"any_isd_removed"` | When to deactivate a federated user |
 
-Configure via the Django admin Constance panel or API:
+Configure in the Django admin (*Configuration → Settings*) or through the API:
 
 ```http
 PATCH /api/configuration/
@@ -176,9 +176,9 @@ The bridge does not blindly accept all fields. Effective bridge-writable fields 
 
 ```mermaid
 flowchart TD
-    A["FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES\n(Constance — admin configurable)"]
+    A["FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES\n(setting — admin configurable)"]
     B["WRITABLE_USER_FIELDS\n(Code — security whitelist)"]
-    C["ENABLED_USER_PROFILE_ATTRIBUTES\n(Constance — profile visibility)"]
+    C["ENABLED_USER_PROFILE_ATTRIBUTES\n(setting — profile visibility)"]
     D["Effective bridge-writable fields"]
 
     A --> D
@@ -326,7 +326,7 @@ sequenceDiagram
 
 The `active_isds` field can be exposed to service providers via the offering user API. This allows services to know which ISDs a user is connected to without exposing full provenance data.
 
-Enable by adding `active_isds` to `ENABLED_USER_PROFILE_ATTRIBUTES` in Constance, then configure the offering's `OfferingUserAttributeConfig` to include it.
+Enable by adding `active_isds` to the `ENABLED_USER_PROFILE_ATTRIBUTES` setting, then configure the offering's `OfferingUserAttributeConfig` to include it.
 
 ```json
 GET /api/marketplace-offering-users/

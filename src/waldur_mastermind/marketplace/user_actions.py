@@ -219,7 +219,7 @@ class ExpiringResourceProvider(BaseActionProvider):
             except (ValueError, TypeError):
                 pass
 
-        # Fall back to global default from constance
+        # Fall back to the global default setting
         default_reminders = config.USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS
         if default_reminders and isinstance(default_reminders, list):
             try:

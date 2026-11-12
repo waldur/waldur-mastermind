@@ -623,7 +623,7 @@ API.
 
 ### Default Behavior
 
-When no `OfferingUserAttributeConfig` exists for an offering, the system uses the `DEFAULT_OFFERING_USER_ATTRIBUTES` Constance setting, which defaults to:
+When no `OfferingUserAttributeConfig` exists for an offering, the system uses the `DEFAULT_OFFERING_USER_ATTRIBUTES` setting, which defaults to:
 
 ```python
 ["username", "full_name", "email"]

@@ -138,7 +138,7 @@ or `RESOURCE_PROJECT.CREATE_PERMISSION` granted at the resource scope, parent
 project, or customer.
 
 Email-match enforcement on accept is controlled by the
-`ENABLE_STRICT_CHECK_ACCEPTING_INVITATION` Constance setting and is shared
+`ENABLE_STRICT_CHECK_ACCEPTING_INVITATION` setting and is shared
 with the rest of the invitation system.
 
 ### RoleAvailability

@@ -865,7 +865,7 @@ class EstonianAriregisterBackendTest(TestCase):
         with self.assertRaises(ValueError) as context:
             self.backend.validate_company(request)
 
-        self.assertIn("not configured in Constance settings", str(context.exception))
+        self.assertIn("not configured in the settings", str(context.exception))
 
     @override_config(
         ONBOARDING_ARIREGISTER_BASE_URL="https://demo-ariregxmlv6.rik.ee/",
@@ -884,7 +884,7 @@ class EstonianAriregisterBackendTest(TestCase):
         with self.assertRaises(ValueError) as context:
             self.backend.validate_company(request)
 
-        self.assertIn("not configured in Constance settings", str(context.exception))
+        self.assertIn("not configured in the settings", str(context.exception))
 
     @override_config(
         ONBOARDING_ARIREGISTER_BASE_URL="https://demo-ariregxmlv6.rik.ee/",

@@ -94,7 +94,7 @@ Synchronization is automatically triggered when:
 
 ### Required Settings
 
-Configure these settings in the Waldur admin panel (Constance):
+Configure these settings in the Waldur admin (*Configuration → Settings*):
 
 | Setting | Type | Description |
 |---------|------|-------------|
@@ -103,7 +103,7 @@ Configure these settings in the Waldur admin panel (Constance):
 | `SCIM_API_KEY` | Secret | API key for `X-API-Key` header authentication |
 | `SCIM_URN_NAMESPACE` | String | URN namespace for entitlements (e.g., `urn:ietf:dev`) |
 
-The Constance flag is deployment-wide. Each offering must also opt in via `plugin_options.enable_scim_entitlements` and list its login hosts in `plugin_options.scim_login_nodes`. An access endpoint alone does not include the offering in entitlement sync. After enabling the option on an existing offering, trigger a full sync (`POST /api/users/scim_sync_all/`) so current users pick up the change. Changing the login-node list schedules a sync for that offering's users.
+The setting is deployment-wide. Each offering must also opt in via `plugin_options.enable_scim_entitlements` and list its login hosts in `plugin_options.scim_login_nodes`. An access endpoint alone does not include the offering in entitlement sync. After enabling the option on an existing offering, trigger a full sync (`POST /api/users/scim_sync_all/`) so current users pick up the change. Changing the login-node list schedules a sync for that offering's users.
 
 ### Prerequisites
 

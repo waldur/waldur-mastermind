@@ -27,7 +27,7 @@ The Helm chart and docker-compose do all three for you, except the feature flag 
 
 Waldur's calls to the homeserver carry the appservice token, which can act as any user, and the passwords and tokens Waldur sets or mints for users; the homeserver's calls to Waldur carry the `hs_token`. The Helm chart and docker-compose send both over plain HTTP inside the cluster or the Compose network, and Waldur's calls to the bundled LiveKit's room API too. Elsewhere, use HTTPS, or a network only Waldur and the homeserver share.
 
-The Setup appservice wizard collects everything else it needs. If the homeserver URL, homeserver domain, or user registration secret (`MATRIX_HOMESERVER_URL`, `MATRIX_HOMESERVER_DOMAIN`, `MATRIX_USER_REGISTRATION_SECRET`) are still empty in Constance, the wizard shows a prerequisites step that prompts for them and persists them. You can also set them in Constance beforehand to skip that step.
+The Setup appservice wizard collects everything else it needs. If the homeserver URL, homeserver domain, or user registration secret (`MATRIX_HOMESERVER_URL`, `MATRIX_HOMESERVER_DOMAIN`, `MATRIX_USER_REGISTRATION_SECRET`) are still empty in Waldur's settings, the wizard shows a prerequisites step that prompts for them and persists them. You can also set them in the settings beforehand to skip that step.
 
 ## Before enabling in production
 
@@ -83,7 +83,7 @@ The page lives at **Administration → Configuration → Matrix chat** and is sp
 
 ### Registering on Tuwunel from the command line
 
-On Tuwunel, Waldur registers its appservice through the homeserver's admin room; Tuwunel can also read registrations from its config file, which Waldur does not use. `waldur register_matrix_appservice` does steps 5–8 for you: it builds the registration from Constance, sends `!admin appservices register` to the admin room, and reads the admin bot's reply.
+On Tuwunel, Waldur registers its appservice through the homeserver's admin room; Tuwunel can also read registrations from its config file, which Waldur does not use. `waldur register_matrix_appservice` does steps 5–8 for you: it builds the registration from Waldur's settings, sends `!admin appservices register` to the admin room, and reads the admin bot's reply.
 
 That message is the whole registration, both tokens included, sent as a plain message, and nothing removes it afterwards: the tokens stay in the admin room's history, and so in the homeserver's database and its backups. The `show-config` replies that re-runs read carry them too. A rotation stops the old ones from working, but does not end sessions already signed in with them; see [Token rotation](#token-rotation).
 
@@ -96,7 +96,7 @@ waldur register_matrix_appservice --url https://waldur.example.com
 - It signs the bootstrap admin out when it finishes, whether it succeeded or not, so no admin session outlives the run. A token from `MATRIX_ADMIN_TOKEN` is left signed in.
 - It finds the admin room through its `#admins` alias. Pass `--admin-room` only when the alias does not resolve and the admin is in more than one room.
 - Set `MATRIX_BOOTSTRAP_PASSWORD` in the command's environment and keep it. Later runs sign in with it. Without it no bootstrap admin is created, because nobody could sign in as it again, so registering needs `MATRIX_ADMIN_TOKEN`. An empty value counts as unset. With password login off on the homeserver, later runs need `MATRIX_ADMIN_TOKEN` too; see [Token rotation](#token-rotation).
-- `MATRIX_BOOTSTRAP_PASSWORD` is a homeserver admin's permanent password. While password login is on, anyone who holds it can sign in as `@waldur-bootstrap` through the homeserver's public `/login` and administer the whole homeserver. Treat it like the `as_token` and the registration secret (see [Registration secret](#registration-secret)). Keep it only in the deployment's Secret or `secrets.env`, and out of command lines, shell history and logs. The command reads it from the environment only, and never stores it in Constance. Changing it in the deployment alone breaks later runs, because the homeserver still holds the old one: reset the bootstrap admin's password on the homeserver first.
+- `MATRIX_BOOTSTRAP_PASSWORD` is a homeserver admin's permanent password. While password login is on, anyone who holds it can sign in as `@waldur-bootstrap` through the homeserver's public `/login` and administer the whole homeserver. Treat it like the `as_token` and the registration secret (see [Registration secret](#registration-secret)). Keep it only in the deployment's Secret or `secrets.env`, and out of command lines, shell history and logs. The command reads it from the environment only, and never stores it in Waldur's settings. Changing it in the deployment alone breaks later runs, because the homeserver still holds the old one: reset the bootstrap admin's password on the homeserver first.
 - Turning password login off (`login_with_password = false` in `tuwunel.toml`) closes that door. It suits a homeserver where users sign in to Element with single sign-on (`MATRIX_EXTERNAL_LOGIN_METHOD = oidc`) or not at all (`none`). It does not suit `password`, where users sign in to Element with passwords Waldur generates for them. A first install works either way, because creating the bootstrap admin returns a session. Once it is off, a rotation, or a ping Waldur turns away, needs `MATRIX_ADMIN_TOKEN`, and so does anything an admin has to do in a client.
 - If `@waldur-bootstrap` exists but is not a homeserver admin, for example because it was created some other way, the command fails with "is not in the admin room". Make it an admin from `#admins` with `!admin users make-user-admin @waldur-bootstrap:<your domain>`, or set `MATRIX_ADMIN_TOKEN`.
 - It is safe to re-run. When the homeserver already accepts the appservice token, the command signs in without creating anyone, with `MATRIX_ADMIN_TOKEN` or as the bootstrap admin with `MATRIX_BOOTSTRAP_PASSWORD`. It reads the homeserver's copy of the registration with `!admin appservices show-config waldur` and replaces it when the URL, a token or a namespace differs. When it cannot sign in or read the copy, it leaves the registration alone, prints a warning and succeeds.
@@ -107,7 +107,7 @@ waldur register_matrix_appservice --url https://waldur.example.com
 - It makes the bot a homeserver admin through the admin API (`PUT /_synapse/admin/v2/users/@waldur-bot:<your domain>` with `"admin": true`, sent with this run's admin token), unless that API already answers the bot. Waldur calls that API as its bot, and this command is the one place that holds an admin session. Re-runs check it too. When it cannot sign in, or the grant fails, it prints a warning with the command to run by hand and succeeds. The bot then sits in the admin room too. The `as_token` could act as any account of the homeserver, admins included, before that grant (see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin)), so treat it as an admin credential and keep it as secret as `MATRIX_ADMIN_TOKEN`.
 - It ends with a ping. A failed ping is a warning, because on a fresh install the API may still be starting.
 
-Synapse loads appservices from its config file only, so use the YAML from the wizard there. `waldur generate_appservice_registration --url <Waldur URL>` prints the same YAML from the tokens already in Constance, without rotating them.
+Synapse loads appservices from its config file only, so use the YAML from the wizard there. `waldur generate_appservice_registration --url <Waldur URL>` prints the same YAML from the tokens already in Waldur's settings, without rotating them.
 
 ### Via the API
 
@@ -133,7 +133,7 @@ would be reverted while the homeserver kept the old registration. See
 | `user_registration_secret` | string | The homeserver's registration token (write-only). Persisted only when `MATRIX_USER_REGISTRATION_SECRET` is still empty |
 | `homeserver_public_url` | string | Homeserver URL browsers use, when it differs from `homeserver_url`. Persisted only when `MATRIX_HOMESERVER_PUBLIC_URL` is still empty |
 
-The last four fields back the wizard's prerequisites step. Each is written only while its Constance value is empty, so an existing configuration is never overwritten by them. A value that differs from a stored one (a trailing slash aside) is refused with `400` and `Already configured with a different value: <KEY>. Change it in the Settings tab first, then run Setup again.`, and no tokens are rotated. `user_registration_secret` is the exception: a different value is ignored, not refused, since the answer would tell a caller whether they guessed the stored secret. Change it in the Settings tab.
+The last four fields back the wizard's prerequisites step. Each is written only while its setting is empty, so an existing configuration is never overwritten by them. A value that differs from a stored one (a trailing slash aside) is refused with `400` and `Already configured with a different value: <KEY>. Change it in the Settings tab first, then run Setup again.`, and no tokens are rotated. `user_registration_secret` is the exception: a different value is ignored, not refused, since the answer would tell a caller whether they guessed the stored secret. Change it in the Settings tab.
 
 **Example request:**
 
@@ -416,7 +416,7 @@ When a task needs a homeserver admin's access token and none is at hand, create
 a temporary admin through the shared-secret registration API, use its token,
 then have the admin deactivate itself. Run the commands where `waldur` runs, in
 the deployment's own Waldur container if it has one. They read the homeserver
-URL and the registration secret from Constance, and keep the admin's token in a
+URL and the registration secret from Waldur's settings, and keep the admin's token in a
 shell variable, handed on through the environment or standard input, so neither
 secret appears on a command line or in shell history. `MATRIX_HOMESERVER_URL` has to reach the
 homeserver's admin API, as it does for `register_matrix_appservice`.
@@ -490,7 +490,7 @@ fails with "Could not identify the admin user".
 
 waldur-helm and waldur-docker-compose configure Matrix by running
 `waldur init_matrix_settings` on every deploy. The command reads each of these
-Constance settings from the environment variable of the same name, and leaves
+settings from the environment variable of the same name, and leaves
 those that are not in the environment alone:
 
 - `MATRIX_ENABLED`, `MATRIX_AUTO_CREATE_PROJECT_ROOMS`
@@ -535,7 +535,7 @@ environment cannot override it. While it is set, the setup endpoint answers `409
 (see [Token rotation](#token-rotation)). If the deployment stops seeding Matrix,
 clear it under **Administration → Configuration → Matrix chat → Settings**.
 
-If the Setup wizard already put other appservice tokens into Constance, the
+If the Setup wizard already put other appservice tokens into Waldur's settings, the
 command refuses and writes nothing, because the homeserver is registered with the
 wizard's tokens. To hand the tokens to the deployment, clear
 `MATRIX_APPSERVICE_AS_TOKEN` and `MATRIX_APPSERVICE_HS_TOKEN` there and deploy
@@ -1262,9 +1262,9 @@ moment:
 | What | Holds |
 | --- | --- |
 | The homeserver's data (on Tuwunel, its database directory, media included) | Rooms, messages, accounts, devices, the keys users upload (cross-signing, key backups) and the appservice registration |
-| Waldur's database | Rooms and Matrix profiles, the Matrix settings in Constance (tokens and secrets included), users' escrowed recovery keys and the master keys the bot pinned, the bot's identity (`MatrixBotIdentity`: its crypto store's key, its cross-signing seeds and its access token), the bot's crypto store and read position (schema `matrix_bot`), the outbox of messages the bot has yet to post, and history exports: each export's key (`data_key`) and, with Waldur's default storage, its encrypted files |
-| `FIELD_ENCRYPTION_KEY`, or `SECRET_KEY` while it is unset, and `FIELD_ENCRYPTION_KEY_FALLBACKS` while a rotation is in progress | The key to the recovery keys, the bot's crypto-store key, cross-signing seeds and access token, every export's key, and the secret Constance settings (`MATRIX_APPSERVICE_AS_TOKEN`, `MATRIX_APPSERVICE_HS_TOKEN`, `MATRIX_USER_REGISTRATION_SECRET`, `MATRIX_LIVEKIT_SECRET`). With a wrong key, secret settings read as an unguessable value, so the appservice stops working, and the bot refuses to start; see `docs/field-encryption.md` |
-| The appservice tokens, the registration secret, the LiveKit API key and secret, and the bootstrap admin's password, wherever the deployment keeps them | What the deployment seeds into Constance and registers with. Lost, it generates new ones, and replacing the homeserver's registration then takes a homeserver admin's token |
+| Waldur's database | Rooms and Matrix profiles, the Matrix settings (tokens and secrets included), users' escrowed recovery keys and the master keys the bot pinned, the bot's identity (`MatrixBotIdentity`: its crypto store's key, its cross-signing seeds and its access token), the bot's crypto store and read position (schema `matrix_bot`), the outbox of messages the bot has yet to post, and history exports: each export's key (`data_key`) and, with Waldur's default storage, its encrypted files |
+| `FIELD_ENCRYPTION_KEY`, or `SECRET_KEY` while it is unset, and `FIELD_ENCRYPTION_KEY_FALLBACKS` while a rotation is in progress | The key to the recovery keys, the bot's crypto-store key, cross-signing seeds and access token, every export's key, and the secret settings (`MATRIX_APPSERVICE_AS_TOKEN`, `MATRIX_APPSERVICE_HS_TOKEN`, `MATRIX_USER_REGISTRATION_SECRET`, `MATRIX_LIVEKIT_SECRET`). With a wrong key, secret settings read as an unguessable value, so the appservice stops working, and the bot refuses to start; see `docs/field-encryption.md` |
+| The appservice tokens, the registration secret, the LiveKit API key and secret, and the bootstrap admin's password, wherever the deployment keeps them | What the deployment seeds into Waldur's settings and registers with. Lost, it generates new ones, and replacing the homeserver's registration then takes a homeserver admin's token |
 
 The homeserver and Waldur's database each hold half of the same accounts, rooms
 and keys, so a restore that brings them back from different moments leaves each
@@ -1546,12 +1546,12 @@ knows. A user gets a password they can use only by generating one; see
 
 With zero-touch setup it is also the homeserver's `registration_shared_secret`,
 which `register_matrix_appservice` uses to create its bootstrap admin. Whoever holds
-it can create homeserver admins. It sits in Constance, in the homeserver's
+it can create homeserver admins. It sits in Waldur's settings, in the homeserver's
 configuration and in the deployment's Secret or `secrets.env`, so protect it like
 the appservice tokens. Like them, Waldur staff can read it through the settings
 API.
 
-To rotate it, change it in Constance (or the deployment's secret) and in the
+To rotate it, change it in Waldur's settings (or the deployment's secret) and in the
 homeserver's `registration_token` and `registration_shared_secret` together, then
 restart the homeserver, which reads them only at startup. Existing accounts are not
 affected.
@@ -1772,7 +1772,7 @@ member sends it.
 
 ## Configuration Reference
 
-These Constance settings control the integration. Those marked **Wiring** connect
+These settings control the integration. Those marked **Wiring** connect
 Waldur to its homeserver and LiveKit. They are not choices: waldur-helm and
 waldur-docker-compose set them on every deploy with `init_matrix_settings` (see
 [Seeding from the environment](#seeding-from-the-environment)), which also sets

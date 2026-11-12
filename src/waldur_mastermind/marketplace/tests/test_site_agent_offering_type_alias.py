@@ -157,9 +157,7 @@ class DisabledOfferingTypesInputTest(TestCase):
         with tempfile.NamedTemporaryFile("w", suffix=".yaml") as settings_file:
             yaml.safe_dump({"DISABLED_OFFERING_TYPES": value}, settings_file)
             settings_file.flush()
-            call_command(
-                "override_constance_settings", settings_file.name, stdout=StringIO()
-            )
+            call_command("override_settings", settings_file.name, stdout=StringIO())
 
     def test_deployment_file_with_the_legacy_name_is_applied(self):
         self.apply_deployment_file([BASIC_OFFERING, LEGACY_SITE_AGENT_OFFERING])

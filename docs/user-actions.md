@@ -74,9 +74,9 @@ Finds resources with prepaid components expiring within a configurable reminder 
 
 ## Configuration
 
-### Global Settings (Django Constance)
+### Global Settings
 
-Configure via Django admin under Constance settings:
+Configure in the Django admin (*Configuration → Settings*):
 
 | Setting | Default | Description |
 |---------|---------|-------------|

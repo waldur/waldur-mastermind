@@ -115,7 +115,7 @@ class ProjectSection(FeatureSection):
 
     show_matrix_chat = Feature(
         "Render the project Matrix chat UI. Backend access is gated "
-        "separately on the MATRIX_ENABLED Constance setting."
+        "separately on the MATRIX_ENABLED setting."
     )
 
     show_custom_metrics = Feature(
@@ -179,7 +179,7 @@ class SramSection(FeatureSection):
     integration = Feature(
         "Render the SRAM integration administration page and SRAM markers in team "
         "lists. Backend access is gated separately on the SRAM_INTEGRATION_ENABLED "
-        "Constance setting."
+        "setting."
     )
 
 
@@ -397,7 +397,7 @@ class ResellerSection(FeatureSection):
     arrow = Feature("Enable Arrow integration menu in administration.")
     affiliates = Feature(
         "Show affiliate program menus and pages. Backend enforcement is "
-        "controlled separately by the AFFILIATES_ENABLED Constance setting."
+        "controlled separately by the AFFILIATES_ENABLED setting."
     )
 
 

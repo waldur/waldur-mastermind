@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class LLMConfigurationHealthCheck(BaseHealthCheckBackend):
-    """Verify AI Assistant settings are configured in Constance."""
+    """Verify AI Assistant settings are configured."""
 
     critical_service = True
 

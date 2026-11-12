@@ -65,7 +65,7 @@ User attribute writes converge on the same `update_user_attributes_from_source()
     print(token.key)  # paste into the IdP
     ```
 
-4. **Enable the feature** in Constance:
+4. **Enable the feature** in the settings:
     - `SCIM_INBOUND_ENABLED = True`
     - Optionally narrow `SCIM_INBOUND_ALLOWED_ATTRIBUTES` (default `first_name, last_name, email, organization, affiliations`).
     - Optionally rename the source label (`SCIM_INBOUND_SOURCE_NAME`, default `scim:default`) — useful when you have multiple IdPs and want to distinguish them in `attribute_sources`.
@@ -426,7 +426,7 @@ Example: workspaces created by an external system with `backend_id = <co externa
 
 ## Configuration reference
 
-All keys live under the Constance fieldset **SCIM Identity Provider** in the Waldur admin.
+All keys live under the **SCIM Identity Provider** fieldset of the settings page in the Waldur admin (*Configuration → Settings*).
 
 | Key | Default | Purpose |
 |---|---|---|
@@ -476,7 +476,7 @@ sequenceDiagram
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `/scim/v2/...` returns an HTML page, or a 404 from the proxy | The reverse proxy doesn't forward `/scim/` to the API, so the request reaches homeport or no backend. | Upgrade to a Helm chart / docker-compose release that routes `/scim`, or add the route to your proxy (see Setup step 5). |
-| `GET /scim/v2/ServiceProviderConfig` returns 403 with `detail: SCIM_INBOUND_ENABLED` | Feature flag is off. | Set `SCIM_INBOUND_ENABLED=True` in Constance. |
+| `GET /scim/v2/ServiceProviderConfig` returns 403 with `detail: SCIM_INBOUND_ENABLED` | Feature flag is off. | Set `SCIM_INBOUND_ENABLED=True` in the settings. |
 | SCIM requests start returning 401 `Token has expired.` after a quiet period | The service account still has a `token_lifetime`, and the IdP made no request within it. | Clear it: `User.objects.filter(username=...).update(token_lifetime=None)`. The IdP's existing key works again — expired tokens are rejected, not rotated. |
 | All SCIM requests return 401 | Bearer scheme not used, or token doesn't match a `core.AuthToken`. | Verify the IdP sends `Authorization: Bearer <token>` exactly; check `Token.objects.filter(key=...).exists()`. |
 | All SCIM requests return 403 (with token) | Token user is not `is_staff`. | Promote the service account: `User.objects.filter(username=...).update(is_staff=True)`. |

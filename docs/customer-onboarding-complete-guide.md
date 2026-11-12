@@ -1003,7 +1003,7 @@ Response:
 
 ## Configuration
 
-### Settings (constance)
+### Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -1087,7 +1087,7 @@ print(backend_registry.get_available_methods())
 
 **Solution:**
 ```bash
-# Set in constance settings
+# Set in the settings
 ARIREGISTER_USERNAME=your_username
 ARIREGISTER_PASSWORD=your_password
 ```

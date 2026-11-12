@@ -10,6 +10,9 @@ BLACK_LIST = [
     "print_schema",
     "print_events",
     "print_templates",
+    # Former names, documented under override_settings and dump_settings.
+    "override_constance_settings",
+    "dump_constance_settings",
 ]
 
 WHITE_LIST = [

@@ -281,7 +281,7 @@ Entries are matched against the deployment's configuration:
 
 - **Plugins**: `relevant_when.plugins` checked against `INSTALLED_APPS`
 - **Feature flags**: `relevant_when.feature_flags` checked against the features registry
-- **Settings**: `relevant_when.settings` checked for non-default constance values
+- **Settings**: `relevant_when.settings` checked for non-default setting values
 
 Entries with `scope: core` or `scope: infra`, or empty `relevant_when` arrays, are always relevant.
 
@@ -290,7 +290,7 @@ Entries with `scope: core` or `scope: infra`, or empty `relevant_when` arrays, a
 The `compute_changelog_impact` Celery task runs automatically when `/api/version/` detects a new release. It computes:
 
 1. **Affected resource counts** — runs `Model.objects.filter(**filter).count()` for entries with `affected_resources.model`, restricted to the `ALLOWED_IMPACT_MODELS`/`ALLOWED_USER_IMPACT_FIELDS` allowlist (see "Impact and risk" above)
-2. **Settings diffs** — captures current vs default values for referenced constance settings
+2. **Settings diffs** — captures current vs default values for referenced settings
 3. **Plugin state** — records which referenced plugins are installed
 
 Results are stored in the `ChangelogImpactAnalysis` model and refreshed every 24 hours. The `/api/changelog/pending/` endpoint merges these results into the response.

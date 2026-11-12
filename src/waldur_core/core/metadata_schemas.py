@@ -166,6 +166,6 @@ class SettingsSectionSerializer(serializers.Serializer):
 
 
 class SettingsMetadataResponseSerializer(serializers.Serializer):
-    """Settings metadata from Constance configuration"""
+    """Settings metadata from the settings registry"""
 
     settings = SettingsSectionSerializer(many=True)

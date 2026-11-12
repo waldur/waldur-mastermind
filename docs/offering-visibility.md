@@ -4,11 +4,11 @@ This document describes how marketplace offering visibility can be configured to
 
 ## Overview
 
-The `RESTRICTED_OFFERING_VISIBILITY_MODE` Constance setting controls how offerings with restrictions (organization group-limited plans) are displayed to regular users. Staff and support users always see all offerings regardless of this setting.
+The `RESTRICTED_OFFERING_VISIBILITY_MODE` setting controls how offerings with restrictions (organization group-limited plans) are displayed to regular users. Staff and support users always see all offerings regardless of this setting.
 
 ## Configuration
 
-The setting is configured in the backend via Constance (Admin > Config > Marketplace section):
+The setting is configured in the Django admin (*Configuration → Settings*, Marketplace section):
 
 **Setting name:** `RESTRICTED_OFFERING_VISIBILITY_MODE`
 

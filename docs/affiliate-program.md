@@ -45,14 +45,14 @@ flowchart LR
 
 Two independent switches:
 
-- **`AFFILIATES_ENABLED`** (Constance setting, default `False`) — the backend
+- **`AFFILIATES_ENABLED`** (runtime setting, default `False`) — the backend
   switch. It gates **both** the `customer-affiliates` API and fee accrual at
   invoice finalization. While off, the API responds with `404` and no fees are
   accrued, but existing links are preserved and resume once it is turned back on.
 - **`reseller.affiliates`** (core feature flag) — controls **only** Homeport
   (frontend) menu and page visibility. It is *not* consulted by the backend.
 
-Enable the backend in *Admin → Constance → Affiliates → AFFILIATES_ENABLED*, or
+Enable the backend in *Admin → Configuration → Settings → Affiliates → AFFILIATES_ENABLED*, or
 programmatically:
 
 ```python

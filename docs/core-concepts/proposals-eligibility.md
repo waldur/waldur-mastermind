@@ -227,7 +227,7 @@ are accepted on a call for completeness. Consult the model rather than this tabl
 the exhaustive list.
 
 The *model* defaults above only apply to a row written field by field. In practice a call with
-no stored row falls back to the Constance setting `DEFAULT_CALL_USER_ATTRIBUTES`
+no stored row falls back to the setting `DEFAULT_CALL_USER_ATTRIBUTES`
 (`["username", "full_name", "email"]` out of the box) and its serialized config reports
 `"is_default": true`; and the first write to a call seeds every toggle from that same setting
 before applying what was sent, so an unmentioned attribute is not silently exposed by a
@@ -292,7 +292,7 @@ The response carries `applicant_visibility_config`:
 ```
 
 When the call has no stored configuration, `to_representation` serializes an unsaved instance
-from the Constance defaults instead, marked `"is_default": true`.
+from the settings' defaults instead, marked `"is_default": true`.
 
 #### Update
 

@@ -569,7 +569,7 @@ WALDUR_SUPPORT['ISSUE_FEEDBACK_ENABLE'] = True
 WALDUR_SUPPORT['ISSUE_FEEDBACK_TOKEN_PERIOD'] = 7
 ```
 
-### Constance Settings
+### Settings
 
 Dynamic configuration via admin:
 

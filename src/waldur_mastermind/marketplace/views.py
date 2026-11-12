@@ -4314,7 +4314,7 @@ class ProviderOfferingViewSet(
         summary="Upload markdown image",
         description=(
             "Uploads an image for embedding in offering markdown descriptions. "
-            "Requires ENABLE_MARKDOWN_IMAGE_UPLOAD Constance setting."
+            "Requires the ENABLE_MARKDOWN_IMAGE_UPLOAD setting."
         ),
         request=serializers.MarkdownImageUploadSerializer,
         responses={201: serializers.MarkdownImageUploadResponseSerializer},

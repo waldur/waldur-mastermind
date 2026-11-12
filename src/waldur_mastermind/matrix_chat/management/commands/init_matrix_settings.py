@@ -95,7 +95,7 @@ def without_userinfo(value):
 
 class Command(BaseCommand):
     help = (
-        "Seed Matrix Constance settings from the environment. Each seedable "
+        "Seed the Matrix settings from the environment. Each seedable "
         "setting is read from the environment variable of the same name; other "
         "MATRIX_* variables are ignored. Both waldur-helm "
         "and waldur-docker-compose set them. Supplied values are overwritten on "
@@ -103,7 +103,7 @@ class Command(BaseCommand):
         "supplied, is switched on only at the first seeding, when neither the "
         "tokens marker nor an appservice token is stored, so an administrator "
         "who turns chat off keeps it off. "
-        "Appservice tokens already in Constance that the deployment did not "
+        "Appservice tokens already stored that the deployment did not "
         "seed are never replaced."
     )
 
@@ -126,7 +126,7 @@ class Command(BaseCommand):
         ]
         if undecryptable:
             raise CommandError(
-                "Constance holds appservice tokens that were not seeded by the "
+                "The stored appservice tokens were not seeded by the "
                 "deployment and cannot be decrypted with any configured "
                 "FIELD_ENCRYPTION_KEY (%s), so they cannot be compared with the "
                 "supplied ones. Nothing was written. Restore the key they were "
@@ -145,7 +145,7 @@ class Command(BaseCommand):
         ]
         if replaced:
             raise CommandError(
-                "Constance holds appservice tokens that were not seeded by the "
+                "The stored appservice tokens were not seeded by the "
                 "deployment and differ from the supplied ones (%s), so the "
                 "homeserver is registered with tokens the deployment does not "
                 "know. Nothing was written. To hand the tokens to the "

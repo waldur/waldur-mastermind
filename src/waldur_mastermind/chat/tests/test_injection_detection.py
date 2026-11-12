@@ -656,7 +656,7 @@ class RegexDetectorMetadataTest(unittest.TestCase):
 
 
 class RegexDetectorAllowlistTest(unittest.TestCase):
-    """Tests for the allowlist bypass mechanism (reads from constance)."""
+    """Tests for the allowlist bypass mechanism (reads from the settings)."""
 
     def setUp(self):
         self.detector = RegexDetector()

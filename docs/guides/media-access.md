@@ -106,10 +106,9 @@ a prefix. `test_model_names_used_as_prefixes_are_unique` guards against that.
 
 ## Constraints on `media_access` modules
 
-`MediaConfig.ready()` runs before `constance` and before the plugin apps' own
-`ready()`. A `media_access` module therefore must not:
+`MediaConfig.ready()` runs before the plugin apps' own `ready()`. A `media_access` module therefore must not:
 
-- touch the database or `constance.config` at import time;
+- touch the database or read settings (`waldur_core.configuration.config`) at import time;
 - import its own app's `views` or `serializers`.
 
 Building a closure is fine; evaluating one is not. If you need a queryset

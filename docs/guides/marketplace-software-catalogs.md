@@ -115,7 +115,7 @@ Waldur provides automated daily updates for software catalogs through Celery tas
 
 ### Configuration Settings
 
-Configure automated updates through constance settings:
+Configure automated updates through the settings:
 
 #### EESSI Settings
 
