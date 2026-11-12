@@ -1501,7 +1501,7 @@ CONSTANCE_CONFIG = {
         "secret_field",
     ),
     "AI_ASSISTANT_MODEL": (
-        "qwen3.5-122b-nothinking",
+        "",
         "Name of the AI Assistant model to use for inference.",
     ),
     "AI_ASSISTANT_COMPLETION_KWARGS": (
