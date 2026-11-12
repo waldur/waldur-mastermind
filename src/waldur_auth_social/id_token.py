@@ -42,6 +42,34 @@ ALLOWED_ALGORITHMS = [
 # Minimum level of assurance accepted from TARA.
 TARA_ACCEPTED_ACR = ("substantial", "high")
 
+# Claims that describe the ID token itself rather than the user: the standard
+# ones, then Keycloak's (typ, session_state) and Entra ID's (uti, rh, aio,
+# ver). They are not offered to attribute mapping. ``acr`` and ``amr`` are
+# kept: they describe how the user authenticated.
+ID_TOKEN_PROTOCOL_CLAIMS = frozenset(
+    {
+        "iss",
+        "aud",
+        "exp",
+        "iat",
+        "nbf",
+        "nonce",
+        "at_hash",
+        "c_hash",
+        "s_hash",
+        "auth_time",
+        "azp",
+        "sid",
+        "jti",
+        "typ",
+        "session_state",
+        "uti",
+        "rh",
+        "aio",
+        "ver",
+    }
+)
+
 REQUEST_TIMEOUT = 10
 
 
@@ -174,4 +202,26 @@ def validate_id_token(idp, raw_token):
         )
         raise OAuthException(idp.provider, "Insufficient level of assurance.")
 
+    return claims
+
+
+def combine_user_claims(id_token_claims, user_info):
+    """The claims an identity provider's attribute mapping is applied to.
+
+    Some providers put claims only in the ID token: Microsoft Entra ID's
+    UserInfo response is a fixed set (``sub``, names, ``picture``, ``email``),
+    while ``preferred_username`` and optional claims are issued only in tokens.
+    The validated ID token's claims are therefore offered too, with UserInfo
+    taking precedence where both carry a claim and the token's protocol claims
+    (``ID_TOKEN_PROTOCOL_CLAIMS``) left out. A UserInfo claim that is null or
+    empty does not hide a value the token carries.
+    """
+    claims = {
+        name: value
+        for name, value in id_token_claims.items()
+        if name not in ID_TOKEN_PROTOCOL_CLAIMS
+    }
+    claims.update(
+        (name, value) for name, value in user_info.items() if value not in (None, "")
+    )
     return claims
