@@ -4,6 +4,7 @@ from unittest import mock
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory, APITestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.user_actions.providers import (
@@ -131,3 +132,43 @@ class ConfigurableExpiringResourceTest(APITestCase):
         self.assertFalse(
             Order.objects.filter(resource=resource, type=OrderTypes.TERMINATE).exists()
         )
+
+
+class ReminderScheduleParsingTest(APITestCase):
+    def test_dashboard_keeps_the_schedule_as_listed(self):
+        # Urgency is worked out from the schedule's length, so duplicates stay.
+        fixture = MarketplaceFixture()
+        fixture.offering.plugin_options = {
+            "resource_expiration_reminders": [7, 30, 1, 7]
+        }
+        self.assertEqual(
+            ExpiringResourceProvider()._get_reminder_schedule(fixture.offering),
+            [30, 7, 7, 1],
+        )
+
+    @override_config(USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS=[30, 14, 7, 1])
+    def test_dashboard_ignores_a_schedule_with_too_many_days(self):
+        fixture = MarketplaceFixture()
+        fixture.offering.plugin_options = {
+            "resource_expiration_reminders": list(range(1, 3651))
+        }
+        self.assertEqual(
+            ExpiringResourceProvider()._get_reminder_schedule(fixture.offering),
+            [30, 14, 7, 1],
+        )
+
+    def test_day_past_the_calendar_does_not_break_the_dashboard(self):
+        fixture = MarketplaceFixture()
+        fixture.offering_component.is_prepaid = True
+        fixture.offering_component.save()
+        fixture.offering.plugin_options = {"resource_expiration_reminders": [3000000]}
+        fixture.offering.save()
+        resource = fixture.resource
+        resource.end_date = (timezone.now() + timedelta(days=5)).date()
+        resource.state = ResourceStates.OK
+        resource.save()
+        fixture.project.add_user(fixture.user, ProjectRole.ADMIN)
+
+        actions = ExpiringResourceProvider().get_actions_for_user(fixture.user)
+
+        self.assertEqual(len(actions), 1)

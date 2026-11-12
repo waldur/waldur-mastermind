@@ -1303,6 +1303,30 @@ def add_marketplace_offering(sender, fields, **kwargs):
     setattr(sender, "get_is_limit_based", get_is_limit_based)
 
 
+# Ten years. Dates far enough ahead overflow the calendar.
+MAX_EXPIRATION_REMINDER_DAYS = 3650
+# Each day on the schedule sends every project member a mail per resource.
+MAX_EXPIRATION_REMINDERS = 10
+
+
+def get_offering_expiration_reminders(plugin_options) -> list[int]:
+    """Days before a resource's end date on which an offering with these plugin
+    options reminds its users, longest first. Days over the limit are left out.
+    Empty when resource_expiration_reminders is unset, invalid or longer than
+    MAX_EXPIRATION_REMINDERS: the dashboard and the reminder email fall back to
+    their own defaults."""
+    reminders = (plugin_options or {}).get("resource_expiration_reminders")
+    if not reminders or not isinstance(reminders, list):
+        return []
+    if len(reminders) > MAX_EXPIRATION_REMINDERS:
+        return []
+    try:
+        days = [int(r) for r in reminders]
+    except (TypeError, ValueError):
+        return []
+    return sorted((d for d in days if d <= MAX_EXPIRATION_REMINDER_DAYS), reverse=True)
+
+
 def get_offering_costs(invoice_items):
     price = Ceil(F("quantity") * F("unit_price") * 100) / 100
     tax_rate = F("invoice__tax_percent") / 100

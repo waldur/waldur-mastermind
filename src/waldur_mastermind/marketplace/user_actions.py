@@ -32,6 +32,7 @@ from waldur_core.user_actions.providers import (
 from . import models
 from .enums import OrderStates, ResourceStates
 from .permissions import user_can_approve_order_as_consumer
+from .utils import get_offering_expiration_reminders
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -211,13 +212,9 @@ class ExpiringResourceProvider(BaseActionProvider):
 
     def _get_reminder_schedule(self, offering) -> list[int]:
         """Get reminder schedule for offering, falling back to global default."""
-        # Try offering-specific reminders first
-        reminders = offering.plugin_options.get("resource_expiration_reminders")
-        if reminders and isinstance(reminders, list):
-            try:
-                return sorted([int(r) for r in reminders], reverse=True)
-            except (ValueError, TypeError):
-                pass
+        reminders = get_offering_expiration_reminders(offering.plugin_options)
+        if reminders:
+            return reminders
 
         # Fall back to global default from constance
         default_reminders = config.USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS

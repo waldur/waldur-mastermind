@@ -1938,9 +1938,24 @@ def notification_about_project_ending():
     utils.notification_about_project_ending(date_7)
 
 
+# Days before the end that offerings without resource_expiration_reminders use.
+# The grace-disabled project-end rule below keeps its own 7 and 1 days.
+DEFAULT_RESOURCE_ENDING_REMINDERS = (7, 1)
+
+
+def _resource_ending_reminder_days(plugin_options) -> tuple[int, ...]:
+    """The offering's reminder days for the email: only days before the end, so
+    a zero or negative entry never mails on or after it."""
+    days = tuple(
+        n for n in utils.get_offering_expiration_reminders(plugin_options) if n > 0
+    )
+    return days or DEFAULT_RESOURCE_ENDING_REMINDERS
+
+
 @shared_task(name="waldur_mastermind.marketplace.notification_about_resource_ending")
 def notification_about_resource_ending():
-    """Send notifications about resources ending in 1 day and 7 days.
+    """Send notifications about resources ending, on the days the offering's
+    resource_expiration_reminders names (7 and 1 by default).
 
     "Ending" is the resource's effective end date — the earliest of its own end
     date and the project-driven termination date. Resources whose offering
@@ -1954,9 +1969,28 @@ def notification_about_resource_ending():
     date_1 = today + datetime.timedelta(days=1)
     date_7 = today + datetime.timedelta(days=7)
 
+    def dates(days):
+        return [today + datetime.timedelta(days=n) for n in days]
+
+    # A resource's own end date follows its offering's reminder schedule, so a
+    # resource is a candidate only on the days its own offering names.
+    schedules = collections.defaultdict(list)
+    for offering_id, plugin_options in models.Offering.objects.filter(
+        plugin_options__has_key="resource_expiration_reminders"
+    ).values_list("id", "plugin_options"):
+        days = _resource_ending_reminder_days(plugin_options)
+        if days != DEFAULT_RESOURCE_ENDING_REMINDERS:
+            schedules[days].append(offering_id)
+    custom_offering_ids = [i for ids in schedules.values() for i in ids]
+    own_end_query = Q(end_date__in=dates(DEFAULT_RESOURCE_ENDING_REMINDERS)) & ~Q(
+        offering_id__in=custom_offering_ids
+    )
+    for days, offering_ids in schedules.items():
+        own_end_query |= Q(offering_id__in=offering_ids, end_date__in=dates(days))
+
     candidate_resources = (
         models.Resource.objects.filter(
-            Q(end_date__in=(date_1, date_7))
+            own_end_query
             | Q(
                 project__end_date__in=(date_1, date_7),
                 offering__parent=None,
@@ -1969,14 +2003,22 @@ def notification_about_resource_ending():
 
     for resource in candidate_resources:
         effective_end_date = resource.effective_end_date
-        if effective_end_date not in (date_1, date_7):
-            continue
+        own_dates = dates(
+            _resource_ending_reminder_days(resource.offering.plugin_options)
+        )
+        own_ending = resource.end_date in own_dates and effective_end_date in own_dates
         # Resources pulled in only by their project's raw end date are
         # grace-disabled; skip them when the project has no grace window, since
         # then raw == the project's effective end date and the project-ending
         # notice already covers them on the same day.
-        own_ending = resource.end_date in (date_1, date_7)
-        if not own_ending and resource.project.get_grace_period_days() <= 0:
+        project_ending = (
+            resource.offering.parent_id is None
+            and (resource.offering.plugin_options or {}).get("disable_grace_period")
+            and resource.project.end_date in (date_1, date_7)
+            and effective_end_date in (date_1, date_7)
+            and resource.project.get_grace_period_days() > 0
+        )
+        if not (own_ending or project_ending):
             continue
 
         users = (
