@@ -489,8 +489,9 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     )
     enable_resource_end_date_change_requests = serializers.BooleanField(
         required=False,
-        help_text="If set to True, users without RESOURCE.SET_END_DATE can "
-        "request an end date change, and holders of that permission approve or "
+        help_text="If set to True, users with RESOURCE.REQUEST_END_DATE_CHANGE "
+        "and without RESOURCE.SET_END_DATE can request an end date change, and "
+        "holders of RESOURCE.SET_END_DATE approve or "
         "reject. Approval writes the date directly; no order is created. "
         "Requests are published as events so an external approval system can "
         "decide instead. Not applicable to prepaid offerings, which extend "
@@ -498,9 +499,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     )
     enable_resource_limit_change_requests = serializers.BooleanField(
         required=False,
-        help_text="If set to True, users who cannot change resource limits "
-        "directly (RESOURCE.SET_LIMITS together with ORDER.CREATE) can request "
-        "a limit change, and holders of RESOURCE.SET_LIMITS approve or reject. "
+        help_text="If set to True, users with RESOURCE.REQUEST_LIMITS_CHANGE who "
+        "cannot change resource limits directly (RESOURCE.SET_LIMITS together "
+        "with ORDER.CREATE) can request a limit change, and holders of "
+        "RESOURCE.SET_LIMITS approve or reject. "
         "Approval submits an update order for the requested limits.",
     )
     enable_resource_projects = serializers.BooleanField(
@@ -10783,9 +10785,11 @@ class SetResourceSpendingLimitsSerializer(serializers.Serializer):
 # Who ResourceLimitChangeRequestCreateSerializer.validate_resource lets ask.
 # Change the two together.
 REQUESTS_LIMIT_CHANGE = access.custom(
-    "Any signed-in user other than staff and support, for a resource their "
-    "roles reach (and a personal access token's bindings, if they use one). "
-    "Refused with 400 to who may change the limits directly: who holds both "
+    "A caller other than staff and support, for a resource their roles reach, "
+    f"who holds {PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE.value} on its "
+    "project or organization. A personal access token needs that permission "
+    "among its scopes and a binding that reaches the resource. Refused with "
+    "400 to who may change the limits directly: who holds both "
     f"{PermissionEnum.UPDATE_RESOURCE_LIMITS.value} and "
     f"{PermissionEnum.CREATE_ORDER.value} on the resource's project or its "
     "organization."
@@ -10866,25 +10870,18 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
             )
         # Asking is a permission of its own, so a role left without the direct
         # one -- an awarded project's, whose limits the call decides -- is not
-        # handed a second way in.
+        # handed a second way in. Checked on the request, so a token's scopes
+        # and bindings apply.
         if not any(
-            has_permission(user, PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE, scope)
+            has_permission(
+                self.context["request"],
+                PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE,
+                scope,
+            )
             for scope in (resource.project, resource.project.customer)
         ):
             raise PermissionDenied(
                 _("You do not have permission to request a limit change.")
-            )
-        accessible = filter_queryset_for_user(
-            models.Resource.objects.filter(pk=resource.pk),
-            user,
-        )
-        # A personal access token reaches only the resources its bindings do.
-        accessible = PATScopeListFilter().filter_queryset(
-            self.context["request"], accessible, self.context.get("view")
-        )
-        if not accessible.exists():
-            raise serializers.ValidationError(
-                _("You don't have access to this resource.")
             )
         return resource
 
@@ -10919,9 +10916,11 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
 # Who ResourceEndDateChangeRequestCreateSerializer.validate_resource lets ask.
 # Change the two together.
 REQUESTS_END_DATE_CHANGE = access.custom(
-    "Any signed-in user other than staff and support, for a resource their "
-    "roles reach (and a personal access token's bindings, if they use one). "
-    "Refused with 400 to who may set the end date directly: who holds "
+    "A caller other than staff and support, for a resource their roles reach, "
+    f"who holds {PermissionEnum.REQUEST_RESOURCE_END_DATE_CHANGE.value} on its "
+    "project or organization. A personal access token needs that permission "
+    "among its scopes and a binding that reaches the resource. Refused with "
+    "400 to who may set the end date directly: who holds "
     f"{PermissionEnum.SET_RESOURCE_END_DATE.value} on the resource's project or "
     "its organization."
 )
@@ -10982,8 +10981,13 @@ class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
                 )
             )
         # Asking is a permission of its own, as for limit change requests.
+        # Checked on the request, so a token's scopes and bindings apply.
         if not any(
-            has_permission(user, PermissionEnum.REQUEST_RESOURCE_END_DATE_CHANGE, scope)
+            has_permission(
+                self.context["request"],
+                PermissionEnum.REQUEST_RESOURCE_END_DATE_CHANGE,
+                scope,
+            )
             for scope in (resource.project, resource.project.customer)
         ):
             raise PermissionDenied(

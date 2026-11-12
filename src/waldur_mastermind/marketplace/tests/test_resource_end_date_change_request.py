@@ -379,6 +379,7 @@ class EndDateChangeRequestTokenTest(BaseEndDateChangeRequestTest):
             self.client,
             self.fixture.manager,
             PermissionEnum.LIST_PROJECTS.value,
+            PermissionEnum.REQUEST_RESOURCE_END_DATE_CHANGE.value,
             bindings=bindings,
         )
         return self.client.post(self.list_url, self.create_request_payload())
@@ -398,6 +399,16 @@ class EndDateChangeRequestTokenTest(BaseEndDateChangeRequestTest):
     def test_token_bound_to_the_project_files_a_request(self):
         response = self.create(self.fixture.project)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_token_without_the_request_scope_cannot_file_a_request(self):
+        use_pat(
+            self.client,
+            self.fixture.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.fixture.project],
+        )
+        response = self.client.post(self.list_url, self.create_request_payload())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class EndDateChangeRequestFilterTest(BaseEndDateChangeRequestTest):

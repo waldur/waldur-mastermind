@@ -540,13 +540,28 @@ class ProjectEndDateChangeRequestTokenTest(test.APITestCase):
             self.client,
             self.manager,
             PermissionEnum.LIST_PROJECTS.value,
+            PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE.value,
             bindings=[self.project],
         )
         self.assertEqual(self.create_request().status_code, status.HTTP_201_CREATED)
 
     def test_unbound_token_can_create_request(self):
-        use_pat(self.client, self.manager, PermissionEnum.LIST_PROJECTS.value)
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            PermissionEnum.REQUEST_PROJECT_END_DATE_CHANGE.value,
+        )
         self.assertEqual(self.create_request().status_code, status.HTTP_201_CREATED)
+
+    def test_token_without_the_request_scope_cannot_create_request(self):
+        use_pat(
+            self.client,
+            self.manager,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.project],
+        )
+        self.assertEqual(self.create_request().status_code, status.HTTP_403_FORBIDDEN)
 
     def test_support_without_a_role_cannot_create_request(self):
         # Support sees every project, but only to read.

@@ -594,6 +594,7 @@ class ResourceLimitChangeRequestTokenTest(test.APITestCase):
             self.client,
             self.fixture.member,
             PermissionEnum.LIST_PROJECTS.value,
+            PermissionEnum.REQUEST_RESOURCE_LIMITS_CHANGE.value,
             bindings=bindings,
         )
         return self.client.post(
@@ -618,6 +619,20 @@ class ResourceLimitChangeRequestTokenTest(test.APITestCase):
     def test_token_bound_to_the_project_files_a_request(self):
         response = self.create(self.fixture.project)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_token_without_the_request_scope_cannot_file_a_request(self):
+        use_pat(
+            self.client,
+            self.fixture.member,
+            PermissionEnum.LIST_PROJECTS.value,
+            bindings=[self.fixture.project],
+        )
+        response = self.client.post(
+            factories.ResourceLimitChangeRequestFactory.get_list_url(),
+            {"resource": self.resource.uuid.hex, "requested_limits": {"storage": 600}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_token_bound_to_another_organization_cannot_reject(self):
         use_pat(
