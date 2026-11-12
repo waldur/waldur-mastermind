@@ -2587,6 +2587,14 @@ Rotating OAuth2 refresh token for remote eduTEAMS API access. Automatically upda
 
 Maximum API token lifetime, in minutes, that a non-staff user can choose. 0 means no limit, which also allows tokens that never expire. Staff can choose any lifetime. A lifetime chosen before the limit was set is kept until the user changes it.
 
+#### REAUTHENTICATION_GRANT_LIFETIME_SECONDS
+
+**Type:** int
+
+**Default value:** 300
+
+How long, in seconds, a re-authentication grant stays usable. Users confirm their identity again, with their password or a passkey, before changing their email, their API token lifetime, their passkeys or their personal access tokens; the grant this returns is good for one such change within this time.
+
 ### Invitation settings
 
 #### ENABLE_STRICT_CHECK_ACCEPTING_INVITATION

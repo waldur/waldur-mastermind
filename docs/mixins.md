@@ -50,6 +50,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`UuidMixin`](#uuidmixin) | `waldur_core.core.models` | Mixin to identify models by UUID |
 | [`LookupMixin`](#lookupmixin) | `waldur_core.core.nested_routers` | Deprecated |
 | [`NestedMixin`](#nestedmixin) | `waldur_core.core.nested_routers` | Mixin for creating nested routers that handle hierarchical URL structures |
+| [`ThrottledGrantEndpointMixin`](#throttledgrantendpointmixin) | `waldur_core.core.reauthentication` | The per-user rate limit of the endpoints that issue grants |
 | [`AccessSubnetMixin`](#accesssubnetmixin) | `waldur_core.core.serializers` | Shared mask and provenance rules for the access-subnet serializers |
 | [`AugmentedSerializerMixin`](#augmentedserializermixin) | `waldur_core.core.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
 | [`ConditionalUniqueValidatedInSerializerMixin`](#conditionaluniquevalidatedinserializermixin) | `waldur_core.core.serializers` | Leaves conditional UniqueConstraints (such as one active row per customer) to... |
@@ -742,6 +743,14 @@ No method override is needed since Django Rest Framework 2.4.
 **Description:**
 
 Mixin for creating nested routers that handle hierarchical URL structures.
+
+### ThrottledGrantEndpointMixin
+
+**Module:** `waldur_core.core.reauthentication`
+
+**Description:**
+
+The per-user rate limit of the endpoints that issue grants.
 
 ### AccessSubnetMixin
 

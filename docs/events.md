@@ -48,6 +48,11 @@
 - pat_revoked
 - pat_rotated
 - pat_used_from_new_ip
+- reauthentication_failed
+- reauthentication_grant_used
+- reauthentication_granted
+- reauthentication_refused
+- reauthentication_waived
 - token_created
 - token_lifetime_updated
 - token_viewed
@@ -640,6 +645,11 @@
 - pat_revoked
 - pat_rotated
 - pat_used_from_new_ip
+- reauthentication_failed
+- reauthentication_grant_used
+- reauthentication_granted
+- reauthentication_refused
+- reauthentication_waived
 - ssh_key_creation_succeeded
 - ssh_key_deletion_succeeded
 - token_created
