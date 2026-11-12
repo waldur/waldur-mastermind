@@ -193,6 +193,9 @@ class SamlPostBindingPageTest(test.APITestCase):
     ).decode()
 
     def reply(self, url, page=None):
+        return directives(self.header(url, page))
+
+    def header(self, url, page=None):
         page = page or (
             '<html><body onload="document.forms[0].submit()">'
             f'<form method="post" action="{url}"></form></body></html>'
@@ -201,7 +204,7 @@ class SamlPostBindingPageTest(test.APITestCase):
             {"headers": [("Content-type", "text/html")], "data": page, "url": url},
             lambda info: info["url"],
         )
-        return directives(response[HEADER])
+        return response[HEADER]
 
     def test_only_the_submit_handler_may_run(self):
         policy = self.reply("https://idp.example.org/slo")
@@ -238,10 +241,24 @@ class SamlPostBindingPageTest(test.APITestCase):
             "http://idp.test:abc/slo",
             "http://idp;x.test/slo",
             "http://[bad/slo",
+            # The CSP grammar has no IPv6 literal; browsers drop such a source.
+            "http://[::1]:8080/slo",
+            # Python's IPv6Address accepts any characters in a zone ID.
+            "http://[fe80::1%25eth0]/slo",
         ):
             self.assertEqual(self.reply(url)["form-action"], ["https:"], url)
 
-    def test_an_ipv6_identity_provider_is_bracketed(self):
-        policy = self.reply("http://[::1]:8080/slo")
+    def test_a_zone_id_cannot_add_a_directive(self):
+        # The zone ID ends the form-action source list and starts a directive
+        # of its own, which would let the <script> after the target run.
+        url = (
+            "http://[fe80::1%; script-src-elem 'unsafe-inline'; x]/"
+            '"><script>alert(document.domain)</script>'
+        )
 
-        self.assertEqual(policy["form-action"], ["https:", "http://[::1]:8080"])
+        self.assertEqual(
+            self.header(url),
+            "default-src 'none'; "
+            f"script-src 'unsafe-hashes' 'sha256-{self.SUBMIT_HASH}'; "
+            "form-action https:; base-uri 'none'; frame-ancestors 'none'",
+        )
