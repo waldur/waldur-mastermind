@@ -57,6 +57,7 @@ from waldur_core.core import (
     WaldurExtension,
     access,
     models,
+    password_attempts,
     pdf,
     permissions,
     reauthentication,
@@ -69,7 +70,11 @@ from waldur_core.core.authentication import (
     set_authentication_method,
 )
 from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
-from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
+from waldur_core.core.exceptions import (
+    ExtensionDisabled,
+    IncorrectStateException,
+    ThrottledWithRetryAfter,
+)
 from waldur_core.core.features import FEATURE_DEFAULTS, FEATURES
 from waldur_core.core.fields import COUNTRIES
 from waldur_core.core.handlers import emit_user_blocked_event
@@ -116,6 +121,7 @@ from waldur_core.core.serializers import (
     SettingSourceSerializer,
     TableGrowthStatsResponseSerializer,
     TableGrowthTriggerResponseSerializer,
+    ThrottledSerializer,
     TokenExchangeSerializer,
     VersionHistorySerializer,
     VersionSerializer,
@@ -235,6 +241,8 @@ class ObtainAuthToken(APIView):
             # A 401 is either a rejected credential or a correct password that
             # still owes a passkey; the body discriminates.
             401: AuthTokenChallengeSerializer,
+            # Too many failed attempts from the client's address.
+            429: ThrottledSerializer,
         },
         examples=[
             OpenApiExample(
@@ -277,6 +285,13 @@ class ObtainAuthToken(APIView):
 
         username = serializer.validated_data["username"]
 
+        # Failed attempts from this address, for whichever usernames.
+        wait = password_attempts.retry_after(request)
+        if wait:
+            raise ThrottledWithRetryAfter(
+                wait, detail=str(_("Too many failed sign-ins from your address."))
+            )
+
         source_ip = request.META.get("REMOTE_ADDR")
         auth_failure_key = login_failures_key(username, source_ip)
         auth_failures = cache.get(auth_failure_key) or 0
@@ -304,6 +319,7 @@ class ObtainAuthToken(APIView):
         if not user:
             logger.debug("Not returning auth token: user %s does not exist", username)
             cache.set(auth_failure_key, auth_failures + 1, lockout_time_in_mins * 60)
+            password_attempts.record_failure(request)
             event_logger.emit(
                 "User {username} failed to authenticate with username and password.",
                 event_type=EventType.AUTH_LOGIN_FAILED_WITH_USERNAME,
@@ -432,6 +448,12 @@ class ReauthenticationPasswordView(
                 }
             )
 
+        wait = password_attempts.retry_after(request)
+        if wait:
+            raise reauthentication.ReauthenticationThrottled(
+                wait, detail=str(_("Too many failed sign-ins from your address."))
+            )
+
         source_ip = request.META.get("REMOTE_ADDR")
         failure_key = login_failures_key(user.username, source_ip)
         failures = cache.get(failure_key) or 0
@@ -452,6 +474,7 @@ class ReauthenticationPasswordView(
         )
         if authenticated is None or authenticated.pk != user.pk:
             cache.set(failure_key, failures + 1, LOGIN_LOCKOUT_MINUTES * 60)
+            password_attempts.record_failure(request)
             reauthentication.emit_failed(user, action, ReauthenticationMethod.PASSWORD)
             if failures + 1 >= MAX_LOGIN_FAILURES:
                 emit_user_blocked_event(

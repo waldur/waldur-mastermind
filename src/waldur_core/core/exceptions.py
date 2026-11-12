@@ -1,6 +1,18 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, Throttled
+
+
+class ThrottledWithRetryAfter(Throttled):
+    """A 429 that says in its body, as well as in Retry-After, when to retry.
+
+    The portal runs on another origin than the API, and a browser hides a
+    response header from it unless the API exposes that header.
+    """
+
+    def __init__(self, wait, detail=None):
+        super().__init__(wait=wait, detail=detail)
+        self.detail = {"detail": self.detail, "retry_after": self.wait}
 
 
 class IncorrectStateException(APIException):

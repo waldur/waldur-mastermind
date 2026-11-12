@@ -295,8 +295,8 @@ class ReauthenticationGrantSerializer(serializers.Serializer):
     )
 
 
-class ReauthenticationThrottledSerializer(serializers.Serializer):
-    """Body of a 429 from a re-authentication endpoint.
+class ThrottledSerializer(serializers.Serializer):
+    """Body of a 429 that says when to retry.
 
     The wait is also in the Retry-After header, which a browser on another
     origin than the API cannot read unless the API exposes it.
@@ -306,6 +306,10 @@ class ReauthenticationThrottledSerializer(serializers.Serializer):
     retry_after = serializers.IntegerField(
         help_text="Seconds to wait before trying again."
     )
+
+
+class ReauthenticationThrottledSerializer(ThrottledSerializer):
+    """Body of a 429 from a re-authentication endpoint."""
 
 
 class ReauthenticationChallengeSerializer(serializers.Serializer):

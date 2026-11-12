@@ -34,6 +34,11 @@ NON_SECRET_SETTINGS_WITH_CREDENTIAL_NAMES = frozenset(
         "PAT_MAX_TOKENS_PER_USER",
         # Durations.
         "API_TOKEN_MAX_LIFETIME_MINUTES",
+        # Brute-force protection: a count of failed password attempts per
+        # address, and the minutes it is counted over and refused for.
+        "PASSWORD_FAILURES_PER_ADDRESS_LIMIT",
+        "PASSWORD_FAILURES_PER_ADDRESS_WINDOW_MINUTES",
+        "PASSWORD_FAILURES_PER_ADDRESS_COOLOFF_MINUTES",
         # Days after which stored identity provider tokens are revoked.
         "OIDC_TOKEN_MAX_IDLE_DAYS",
         # Token endpoint URLs.

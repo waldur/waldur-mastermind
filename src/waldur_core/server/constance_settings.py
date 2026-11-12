@@ -2040,6 +2040,29 @@ CONSTANCE_CONFIG = {
         "expire. Staff can choose any lifetime. A lifetime chosen before the "
         "limit was set is kept until the user changes it.",
     ),
+    "PASSWORD_FAILURES_PER_ADDRESS_LIMIT": (
+        50,
+        "How many failed password attempts one client address may make, "
+        "across all usernames, within PASSWORD_FAILURES_PER_ADDRESS_WINDOW_MINUTES "
+        "of its first. An address that reaches it gets 429 from password "
+        "sign-in, re-authentication with a password and the admin login for "
+        "PASSWORD_FAILURES_PER_ADDRESS_COOLOFF_MINUTES, and is then counted "
+        "afresh. Successful attempts do not count. IPv6 addresses count per "
+        "/64. 0 turns the limit off. Accounts are locked separately, after 5 "
+        "failures, for 10 minutes.",
+    ),
+    "PASSWORD_FAILURES_PER_ADDRESS_WINDOW_MINUTES": (
+        60,
+        "The window, in minutes from an address's first failed password, over "
+        "which PASSWORD_FAILURES_PER_ADDRESS_LIMIT counts that address's "
+        "failures.",
+    ),
+    "PASSWORD_FAILURES_PER_ADDRESS_COOLOFF_MINUTES": (
+        10,
+        "How long, in minutes, an address that reached "
+        "PASSWORD_FAILURES_PER_ADDRESS_LIMIT is refused password sign-in, "
+        "re-authentication with a password and the admin login.",
+    ),
     "REAUTHENTICATION_GRANT_LIFETIME_SECONDS": (
         300,
         "How long, in seconds, a re-authentication grant stays usable. Users "
@@ -2329,6 +2352,9 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "REMOTE_EDUTEAMS_REFRESH_TOKEN",
         "API_TOKEN_MAX_LIFETIME_MINUTES",
         "REAUTHENTICATION_GRANT_LIFETIME_SECONDS",
+        "PASSWORD_FAILURES_PER_ADDRESS_LIMIT",
+        "PASSWORD_FAILURES_PER_ADDRESS_WINDOW_MINUTES",
+        "PASSWORD_FAILURES_PER_ADDRESS_COOLOFF_MINUTES",
     ),
     "Invitation settings": (
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
