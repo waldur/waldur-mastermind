@@ -30,12 +30,17 @@ key whose effective list it changes. See docs/resource-api-keys.md.
 import datetime
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django_fsm import TransitionNotAllowed
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import UserRole
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
@@ -138,6 +143,43 @@ def is_acting_assignee(api_key: models.ResourceApiKey, user) -> bool:
         resource.project_id in get_connected_projects(user)
         or resource.project.customer_id in get_connected_customers(user)
     ) and not utils.is_resource_project_only_viewer(user, resource)
+
+
+def holds_reveal_permission(user, resource: models.Resource) -> bool:
+    """Whether ``user`` may reveal ``resource``'s unassigned keys.
+
+    They must hold RESOURCE.REVEAL_API_KEY through an active role on the
+    resource's project or its organization. Read from the roles themselves
+    rather than through has_permission, which lets staff through without a
+    role and applies a site-wide grant to every object: a revealed key is a
+    live credential, so staff and support reach one only as a member, or by
+    impersonating one.
+    """
+    if not user.is_active:
+        return False
+    project = resource.project
+    return (
+        UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            role__permissions__permission=PermissionEnum.REVEAL_RESOURCE_API_KEY,
+        )
+        .filter(
+            Q(
+                content_type=ContentType.objects.get_for_model(
+                    structure_models.Project
+                ),
+                object_id=project.id,
+            )
+            | Q(
+                content_type=ContentType.objects.get_for_model(
+                    structure_models.Customer
+                ),
+                object_id=project.customer_id,
+            )
+        )
+        .exists()
+    )
 
 
 def _lock(api_key: models.ResourceApiKey) -> models.ResourceApiKey:
@@ -885,8 +927,8 @@ def revoke_keys_of_deleted_user(user) -> None:
     """Withdraw the keys assigned to a user whose account is being deleted.
 
     Deleting the account clears the keys' assignee, which would turn each
-    personal key into a shared one: any member of the project could reveal
-    it, while the departed person's copy still works. Called before the
+    personal key into a shared one: everyone holding RESOURCE.REVEAL_API_KEY
+    on the project or its organization could reveal it, while the departed person's copy still works. Called before the
     account is deleted, so every such key is withdrawn first:
 
     - where the offering manages keys, the key is deleted, as by its managers;

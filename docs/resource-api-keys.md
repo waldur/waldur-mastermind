@@ -63,8 +63,8 @@ manages keys one by one (`enable_api_key_provisioning`, below) and the agent's
 backend can mint a key on request, the agent provisions none. A key can be
 requested at any time there, so a replacement is created, clients move to it, and
 the old key is deleted. The default pair would only be two shared keys with no
-assignee and no limits, which any member of the resource's project or
-organization can reveal. Its users request their own keys instead. A restored
+assignee and no limits, which everyone holding `RESOURCE.REVEAL_API_KEY` on the
+resource's project or organization can reveal. Its users request their own keys instead. A restored
 resource follows the same rule. Its key rows were deleted when it terminated, so
 it comes back with none. Existing resources keep the keys they have when the option is turned
 on or off. Wherever either condition does not hold, the pair stays, as on a
@@ -613,15 +613,21 @@ Consumer side. The actions marked *governance* need the offering's
   `limits` the month limits alone. Visible to resource project/customer members and the provider
   organization.
 - `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
-  URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access —
-  a member of the resource's project or its customer; a provider-org member
-  (who can reach the write actions) is explicitly excluded, and so are
-  minimal-visibility viewers (as with `backend_metadata`). A key with an
-  assignee is revealed **only to the assignee**. Staff and support are held to
-  the same rules: outside the resource's project and organization they get
-  `403`, and inside it they reveal what any member could. Staff reveal any
-  other key by impersonating its assignee or, for an unassigned key, a member of
-  the project or its organization. Only an `OK` key is revealed — a transitional
+  URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access.
+  A key with an assignee is revealed **only to the assignee**, who needs no
+  permission for it but must still be a member of the resource's project or its
+  customer, and not a minimal-visibility viewer. Any other key is revealed to
+  whoever holds `RESOURCE.REVEAL_API_KEY` through a role on the resource's
+  project or its customer (see [Who reveals a key](#who-reveals-a-key)); a
+  provider-org member, who can reach the write actions, holds no such role. Staff
+  and support are held to the same rules: `is_staff` and a site-wide grant of
+  the permission do not count, only a role on the project or its organization
+  does. Staff reveal any other key by impersonating its assignee or, for an
+  unassigned key, a member who may. A personal access token is refused with
+  `403` whatever its scopes and bindings, the assignee's own included. An OIDC
+  access token is admitted: with `OIDC_ACCESS_TOKEN_ENABLED` it is what HomePort
+  itself signs in with, and Waldur does not yet tell it from a token issued to
+  another client of the identity provider. Only an `OK` key is revealed — a transitional
   or paused key's stored value may not match the gateway. **Audited** — each
   reveal emits the `marketplace_resource_api_key_revealed` event identifying
   the key. Under impersonation it reads "… has been revealed to *user*,
@@ -793,6 +799,34 @@ then refuses. Keys stuck in `Creating` and
 original one is refused by `set_key` and withdrawn by the agent. A sweep written
 before this change must be updated before an offering turns on
 `enable_api_key_provisioning`.
+
+### Who reveals a key {#who-reveals-a-key}
+
+Reading a key's value is its own permission, `RESOURCE.REVEAL_API_KEY`, apart
+from managing keys: a revealed key is a live credential that spends against the
+resource. `permissions.yaml` grants it to the organization owner, the project
+administrator and manager, the project member, the principal investigator and
+the co-investigator. Organization support and organization reader, the project
+collaborator and a custom role without it reveal no unassigned key, though they
+still list the keys and read their details. A deployment withholds it from a
+role with `drop_permissions: [RESOURCE.REVEAL_API_KEY]` in
+`permissions-override.yaml`. That edits the named system role only: an
+organization's clone of it (`PROJECT.<slug>.MEMBER`, …) keeps the copy it has,
+and is edited on its own.
+
+Before this permission, reveal needed any role on the project or organization. A data
+migration grants the permission to the six system roles above and to their
+organization clones (`CUSTOMER.<slug>.OWNER`, …), so nobody holding those loses
+a key they could reveal. Roles in `custom-roles.yaml` get what that file lists.
+
+The permission governs unassigned keys only. An assigned key is its assignee's,
+and assigning it is the grant: a collaborator a manager requested a key for
+reveals it without the permission. A personal access token never reveals a
+key, so the migration adds the permission to no token, and listing it in a
+token's scopes does nothing for reveal.
+
+A token bound to organizations, projects, offerings or resources lists only the
+keys of resources its bindings reach, as it does resources themselves.
 
 ### Upgrading from `RESOURCE.MANAGE_USERS`
 

@@ -200,6 +200,9 @@ class PermissionEnum(StrEnum):
     # rotate, retry and delete them. MANAGE_RESOURCE_API_KEY above is the
     # provider side, the site agent reporting what it did.
     MANAGE_RESOURCE_CONSUMER_API_KEY = "RESOURCE.MANAGE_CONSUMER_API_KEY"
+    # Read the plaintext of a resource's unassigned API keys. An assigned key is
+    # its assignee's alone, and needs no permission.
+    REVEAL_RESOURCE_API_KEY = "RESOURCE.REVEAL_API_KEY"
     SET_RESOURCE_STATE = "RESOURCE.SET_STATE"
     UPDATE_RESOURCE_OPTIONS = "RESOURCE.UPDATE_OPTIONS"
     ACCEPT_BOOKING_REQUEST = "RESOURCE.ACCEPT_BOOKING_REQUEST"
@@ -553,6 +556,9 @@ def get_permission_scope_types(permission: str) -> tuple[str, ...] | None:
 PERMISSION_LABELS = {
     PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY.value: (
         "Manage API keys of resources used by the project or organization"
+    ),
+    PermissionEnum.REVEAL_RESOURCE_API_KEY.value: (
+        "Reveal the shared API keys of resources used by the project or organization"
     ),
 }
 

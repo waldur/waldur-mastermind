@@ -82,6 +82,7 @@ class ApiKeyManagementTestBase(test.APITestCase):
             PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_API_KEY)
+        CustomerRole.OWNER.add_permission(PermissionEnum.REVEAL_RESOURCE_API_KEY)
         self.key = self.make_key("cid-1")
 
     def make_key(self, client_id, state=States.OK, **kwargs):

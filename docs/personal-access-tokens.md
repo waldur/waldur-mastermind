@@ -156,6 +156,14 @@ that decides the role itself and needs only the token's limits on top.
 
 The `create`, `destroy`, and `rotate` actions reject requests authenticated with a PAT. This prevents token escalation -- PATs can only be managed through session or token authentication.
 
+### Resource API keys are never revealed
+
+`GET /api/marketplace-resource-api-keys/{uuid}/reveal/` refuses every PAT,
+whatever its scopes and bindings: a revealed key is a live credential, and a
+script's token is not trusted with one. A PAT also cannot `rotate` or `retry` a
+key as its assignee. A bound PAT lists only the keys of resources its bindings
+reach. See [Resource API keys](resource-api-keys.md).
+
 ### Uniform Error Responses
 
 All authentication failures return the same `"Invalid token."` message regardless of the failure reason (inactive, expired, nonexistent). This prevents information leakage about token state.
