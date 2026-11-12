@@ -7,7 +7,6 @@
 # section of CLAUDE.md.
 import base64
 import hashlib
-import ipaddress
 import logging
 import re
 from urllib.parse import urlsplit
@@ -100,12 +99,11 @@ def _plain_http_origin(url):
     if target.scheme != "http" or not target.hostname:
         return None
     host = target.hostname
-    if ":" in host:
-        try:
-            host = f"[{ipaddress.IPv6Address(host)}]"
-        except ValueError:
-            return None
-    elif not HOST_SOURCE.fullmatch(host):
+    # Only a host name or an IPv4 address can be a source. The CSP grammar has
+    # no IPv6 literal, so browsers drop a source like http://[::1] anyway, and
+    # Python's parser takes any characters in an IPv6 zone ID, ";" included,
+    # which would end this source and start a directive of its own.
+    if not HOST_SOURCE.fullmatch(host):
         return None
     return f"http://{host}:{port}" if port else f"http://{host}"
 
@@ -119,7 +117,8 @@ def post_binding_policy(http_info):
     must stay blocked. The form may post to any https origin, since Chrome
     also applies form-action to the redirects an identity provider answers
     with during a logout, which may lead to other origins. A plain-http
-    target, as test identity providers use, is allowed by its exact origin.
+    target, as test identity providers use, is allowed by its exact origin
+    when its host is a name or an IPv4 address.
     """
     form_action = ["https:"]
     plain_http_origin = _plain_http_origin(http_info.get("url") or "")
