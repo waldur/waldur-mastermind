@@ -31,6 +31,18 @@ def check_file_permissions(file: models.File, user: User, request=None):
         raise Http404
 
 
+# A same-origin file served as script would run under any policy that allows
+# 'self' scripts, such as the admin's: an upload is never served as one.
+SCRIPT_MIME_SUFFIXES = ("javascript", "ecmascript", "jscript")
+
+
+def _served_type(file: models.File) -> str:
+    mime_type = file.mime_type or "application/octet-stream"
+    if mime_type.split(";")[0].strip().lower().endswith(SCRIPT_MIME_SUFFIXES):
+        return "application/octet-stream"
+    return mime_type
+
+
 def _serve_inline(file: models.File) -> bool:
     # SVG is a document format that can carry script, so it is downloaded
     # rather than opened. <img src> ignores Content-Disposition, so SVG logos
@@ -60,7 +72,7 @@ class MediaView(GenericAPIView):
         filename = os.path.split(file.name)[-1]
         response = HttpResponse(file.content)
         response.headers["Content-Length"] = file.size
-        response.headers["Content-Type"] = file.mime_type or "application/octet-stream"
+        response.headers["Content-Type"] = _served_type(file)
         response.headers["Content-Disposition"] = content_disposition_header(
             as_attachment=not _serve_inline(file),
             filename=filename,

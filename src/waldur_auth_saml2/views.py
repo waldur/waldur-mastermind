@@ -6,7 +6,11 @@
 # validator out of startup memory. See the "Lazy imports for heavy optional backends"
 # section of CLAUDE.md.
 import base64
+import hashlib
+import ipaddress
 import logging
+import re
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.contrib import auth
@@ -73,6 +77,59 @@ def metadata(request, config_loader_path=None, valid_for=None):
     return HttpResponse(
         content=text_type(metadata).encode("utf-8"),
         content_type="text/xml; charset=utf8",
+    )
+
+
+HOST_SOURCE = re.compile(r"[A-Za-z0-9.-]+")
+
+# pysaml2 submits its HTTP-POST binding form from <body onload=...>.
+POST_BINDING_SUBMIT = "document.forms[0].submit()"
+POST_BINDING_SUBMIT_HASH = base64.b64encode(
+    hashlib.sha256(POST_BINDING_SUBMIT.encode()).digest()
+).decode()
+
+
+def _plain_http_origin(url):
+    """The origin of a plain-http URL as a CSP source, or None if it is not one
+    that can be written as a source."""
+    try:
+        target = urlsplit(url)
+        port = target.port
+    except ValueError:
+        return None
+    if target.scheme != "http" or not target.hostname:
+        return None
+    host = target.hostname
+    if ":" in host:
+        try:
+            host = f"[{ipaddress.IPv6Address(host)}]"
+        except ValueError:
+            return None
+    elif not HOST_SOURCE.fullmatch(host):
+        return None
+    return f"http://{host}:{port}" if port else f"http://{host}"
+
+
+def post_binding_policy(http_info):
+    """The Content-Security-Policy of a page that posts a SAML message.
+
+    pysaml2 builds the page and submits its form from an inline event handler.
+    Only that handler may run: the form's target comes from the identity
+    provider's metadata and is not escaped, so a handler injected through it
+    must stay blocked. The form may post to any https origin, since Chrome
+    also applies form-action to the redirects an identity provider answers
+    with during a logout, which may lead to other origins. A plain-http
+    target, as test identity providers use, is allowed by its exact origin.
+    """
+    form_action = ["https:"]
+    plain_http_origin = _plain_http_origin(http_info.get("url") or "")
+    if plain_http_origin:
+        form_action.append(plain_http_origin)
+    return (
+        "default-src 'none'; "
+        f"script-src 'unsafe-hashes' 'sha256-{POST_BINDING_SUBMIT_HASH}'; "
+        f"form-action {' '.join(form_action)}; "
+        "base-uri 'none'; frame-ancestors 'none'"
     )
 
 
@@ -492,7 +549,9 @@ class Saml2LogoutCompleteView(BaseSaml2View):
         # a page that posts the response to the identity provider.
         if dict(http_info["headers"]).get("Location"):
             return HttpResponseRedirect(get_location(http_info))
-        return HttpResponse(http_info["data"], content_type="text/html")
+        response = HttpResponse(http_info["data"], content_type="text/html")
+        response["Content-Security-Policy"] = post_binding_policy(http_info)
+        return response
 
     def end_session(self, request, revoke_tokens=False):
         # SAML views authenticate nobody, so request.user is always anonymous;

@@ -1,5 +1,5 @@
 {% extends "rest_framework/base.html" %}
-{% load i18n %}
+{% load i18n rest_framework %}
 
 {% block title %}
     {% trans 'Waldur MasterMind REST API' %}
@@ -9,6 +9,34 @@
     <a class='navbar-brand' rel="nofollow" href='#'>
         {% trans 'Waldur MasterMind REST API' %} <span class="version">{{ version }}</span>
     </a>
+{% endblock %}
+
+
+{# REST framework's own logout link submits its form from an inline onclick, #}
+{# which the page's Content-Security-Policy does not run. #}
+{% block userlinks %}
+    {% if user.is_authenticated %}
+        {% url 'rest_framework:logout' as logout_url %}
+        {% if logout_url %}
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                    {{ user }} <b class="caret"></b>
+                </a>
+                <ul class="dropdown-menu">
+                    <li>
+                        <form method="post" action="{{ logout_url }}?next={{ request.path|urlencode }}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-link">{% trans "Log out" %}</button>
+                        </form>
+                    </li>
+                </ul>
+            </li>
+        {% else %}
+            <li class="navbar-text">{{ user }}</li>
+        {% endif %}
+    {% else %}
+        {% optional_login request %}
+    {% endif %}
 {% endblock %}
 
 

@@ -8,6 +8,8 @@ import locale
 import os
 from datetime import timedelta
 
+from django.utils.csp import CSP
+
 from waldur_core.core import WaldurExtension
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.server.admin.settings import *
@@ -90,7 +92,22 @@ PUBLIC_CORS_PATH_PREFIXES = (
     "/oauth/",
 )
 
+# Sent on every response that sets no policy of its own: API responses load
+# and run nothing, so one a browser renders as a page cannot run script, be
+# framed or post a form. The HTML pages mastermind renders itself get
+# middleware.HTML_PAGE_CSP instead.
+SECURE_CSP = {
+    "default-src": [CSP.NONE],
+    "base-uri": [CSP.NONE],
+    "form-action": [CSP.NONE],
+    "frame-ancestors": [CSP.NONE],
+}
+
 MIDDLEWARE = (
+    # First, so that the responses of the middleware below it carry a policy
+    # too: static files and CORS preflights.
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
+    "waldur_core.server.middleware.html_content_security_policy",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "waldur_core.server.middleware.cors_middleware",
     "waldur_mastermind.marketplace.demo_presets.middleware.demo_preset_reset_middleware",
@@ -251,6 +268,7 @@ CONTEXT_PROCESSORS = (
     "django.template.context_processors.media",
     "django.template.context_processors.static",
     "django.template.context_processors.tz",
+    "django.template.context_processors.csp",
 )
 
 TEMPLATES = [
