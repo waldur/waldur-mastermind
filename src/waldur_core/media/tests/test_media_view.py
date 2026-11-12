@@ -83,3 +83,31 @@ class MediaContentDispositionTest(test.APITestCase):
         response = get_media(self.client, file)
 
         self.assertTrue(response["Content-Disposition"].startswith("attachment"))
+
+
+@ddt
+class MediaScriptTypeTest(test.APITestCase):
+    """An upload is never served as a script, which would run under any policy
+    that allows the origin's own scripts."""
+
+    @data(
+        "text/javascript",
+        "application/javascript",
+        "application/x-javascript",
+        "text/ecmascript",
+        "text/javascript; charset=utf-8",
+    )
+    def test_script_is_served_as_bytes(self, mime_type):
+        file = make_file("call_documents/tool.js", b"alert(1)", mime_type)
+
+        response = get_media(self.client, file)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response["Content-Type"], "application/octet-stream")
+
+    def test_other_types_keep_their_type(self):
+        file = make_file("call_documents/guide.pdf", PDF, "application/pdf")
+
+        response = get_media(self.client, file)
+
+        self.assertEqual(response["Content-Type"], "application/pdf")
