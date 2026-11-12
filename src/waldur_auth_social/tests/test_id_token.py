@@ -4,12 +4,17 @@ import jwt
 import responses
 from cryptography.hazmat.primitives.asymmetric import rsa
 from django.core.cache import cache
+from django.test import SimpleTestCase
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_auth_social import models
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
-from waldur_auth_social.id_token import jwks_cache_key
+from waldur_auth_social.id_token import (
+    ID_TOKEN_PROTOCOL_CLAIMS,
+    combine_user_claims,
+    jwks_cache_key,
+)
 from waldur_auth_social.tests.oidc_helpers import (
     SIGNING_KEY_ID,
     issuer_of,
@@ -19,12 +24,15 @@ from waldur_auth_social.tests.oidc_helpers import (
     public_jwk,
 )
 from waldur_auth_social.views import OIDC_STATE_KEY
+from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 
 OTHER_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
-class IdTokenValidationTest(test.APITestCase):
+class OidcLoginTestCase(test.APITestCase):
+    """A provider, its endpoints mocked, and a login through them."""
+
     provider_type = ProviderChoices.KEYCLOAK
     base_url = "http://keycloak.test"
 
@@ -90,6 +98,8 @@ class IdTokenValidationTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(User.objects.count(), self.users_before)
 
+
+class IdTokenValidationTest(OidcLoginTestCase):
     def test_valid_id_token_logs_user_in(self):
         response, _ = self._login(make_id_token(self.provider, self.sub))
 
@@ -222,3 +232,146 @@ class TaraIdTokenValidationTest(IdTokenValidationTest):
         token = make_id_token(self.provider, self.sub, acr="substantial")
         response, _ = self._login(token)
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+
+class IdTokenClaimMappingTest(OidcLoginTestCase):
+    """Attribute mapping uses the validated ID token's claims as well as UserInfo."""
+
+    def _map(self, **mapping):
+        self.provider.attribute_mapping = {
+            **self.provider.attribute_mapping,
+            **mapping,
+        }
+        self.provider.save()
+
+    def _logged_in_user(self, **id_token_claims):
+        response, _ = self._login(
+            make_id_token(self.provider, self.sub, **id_token_claims)
+        )
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        return User.objects.get(username=self.sub)
+
+    def test_claim_only_in_id_token_is_mapped(self):
+        # Entra ID issues preferred_username in the ID token, not in UserInfo.
+        self._map(email="preferred_username")
+
+        user = self._logged_in_user(preferred_username="alice@sso.example.org")
+
+        self.assertEqual(user.email, "alice@sso.example.org")
+
+    def test_user_info_wins_when_both_carry_a_claim(self):
+        user = self._logged_in_user(given_name="Token", family_name="Name")
+
+        self.assertEqual(user.first_name, "Alice")
+        self.assertEqual(user.last_name, "Doe")
+
+    def test_fallback_list_order_decides_between_sources(self):
+        # The first claim in the list wins, whichever source carries it.
+        self._map(email="email preferred_username")
+
+        user = self._logged_in_user(preferred_username="alice@sso.example.org")
+
+        self.assertEqual(user.email, "alice@example.com")
+
+    def test_null_user_info_claim_does_not_hide_the_id_token_value(self):
+        self.user_info["email"] = None
+
+        user = self._logged_in_user(email="alice@token.example.org")
+
+        self.assertEqual(user.email, "alice@token.example.org")
+
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
+    def test_roles_claim_is_not_read_from_the_id_token(self):
+        # Entra puts app roles in the ID token; they must not reset a staff
+        # flag that was granted by hand.
+        staff = User.objects.create(username=self.sub, is_staff=True)
+
+        user = self._logged_in_user(roles=["User"])
+
+        self.assertEqual(user.pk, staff.pk)
+        self.assertTrue(user.is_staff)
+
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
+    def test_roles_claim_is_still_read_from_user_info(self):
+        User.objects.create(username=self.sub, is_staff=True)
+        self.user_info["roles"] = ["User"]
+
+        user = self._logged_in_user()
+
+        self.assertFalse(user.is_staff)
+
+    def test_extra_fields_are_not_read_from_the_id_token(self):
+        # details drives authorization; a claim the provider withdraws from
+        # UserInfo must disappear even if the token still carries it.
+        self.provider.extra_fields = "eduperson_assurance"
+        self.provider.save()
+
+        user = self._logged_in_user(
+            eduperson_assurance=["https://refeds.org/assurance"]
+        )
+
+        self.assertNotIn("eduperson_assurance", user.details or {})
+
+    def test_fallback_list_falls_back_to_user_info(self):
+        self._map(email="preferred_username email")
+
+        user = self._logged_in_user()
+
+        self.assertEqual(user.email, "alice@example.com")
+
+    def test_protocol_claims_are_not_mapped(self):
+        # iss and aud are in every ID token; they must not reach a user field.
+        self._map(first_name="iss given_name", last_name="aud family_name")
+
+        user = self._logged_in_user()
+
+        self.assertEqual(user.first_name, "Alice")
+        self.assertEqual(user.last_name, "Doe")
+
+    def test_mapping_from_user_info_only_is_unchanged(self):
+        user = self._logged_in_user()
+
+        self.assertEqual(user.email, "alice@example.com")
+        self.assertEqual(user.first_name, "Alice")
+        self.assertEqual(user.last_name, "Doe")
+
+
+class CombineUserClaimsTest(SimpleTestCase):
+    def test_user_info_takes_precedence(self):
+        claims = combine_user_claims(
+            {"sub": "s", "email": "token@example.com", "preferred_username": "p"},
+            {"sub": "s", "email": "info@example.com"},
+        )
+
+        self.assertEqual(
+            claims,
+            {"sub": "s", "email": "info@example.com", "preferred_username": "p"},
+        )
+
+    def test_protocol_claims_are_left_out(self):
+        id_token_claims = {name: "x" for name in ID_TOKEN_PROTOCOL_CLAIMS}
+        id_token_claims.update({"sub": "s", "acr": "high", "amr": ["pwd"]})
+
+        claims = combine_user_claims(id_token_claims, {})
+
+        self.assertEqual(claims, {"sub": "s", "acr": "high", "amr": ["pwd"]})
+
+    def test_null_or_empty_user_info_value_keeps_the_token_value(self):
+        claims = combine_user_claims(
+            {"sub": "s", "email": "token@example.com", "name": "Token Name"},
+            {"sub": "s", "email": None, "name": ""},
+        )
+
+        self.assertEqual(claims["email"], "token@example.com")
+        self.assertEqual(claims["name"], "Token Name")
+
+    def test_inputs_are_not_modified(self):
+        id_token_claims = {"sub": "s", "iss": "https://idp.example.com"}
+        user_info = {"sub": "s"}
+
+        combine_user_claims(id_token_claims, user_info)
+
+        self.assertEqual(
+            id_token_claims, {"sub": "s", "iss": "https://idp.example.com"}
+        )
+        self.assertEqual(user_info, {"sub": "s"})

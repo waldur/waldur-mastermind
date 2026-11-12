@@ -418,7 +418,12 @@ class OAuthViewComplete(BaseOAuthView):
                 self.config.provider, "User info does not match ID token."
             )
 
-        user, created = create_or_update_oauth_user(self.config, user_info)
+        # attribute_mapping also reads the validated ID token, so a claim a
+        # provider issues only there (Entra ID's preferred_username) can be
+        # mapped; UserInfo wins on overlap.
+        user, created = create_or_update_oauth_user(
+            self.config, user_info, id_token_claims=id_token_claims
+        )
 
         if config.AUTO_APPROVE_USER_TOS and user.agreement_date is None:
             user.agreement_date = timezone.now()

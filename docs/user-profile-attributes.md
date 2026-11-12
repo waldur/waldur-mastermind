@@ -128,6 +128,45 @@ EE60001019906
 
 ## OIDC Provider Configuration
 
+### Where Claims Come From
+
+On an OIDC login, `attribute_mapping` is applied to claims from two sources:
+
+- the **UserInfo** response, and
+- the **validated ID token** returned by the token endpoint.
+
+Where both carry a claim, the UserInfo value is used, unless it is null or empty. The ID token's protocol claims (`iss`, `aud`, `exp`, `iat`, `nbf`, `nonce`, `at_hash`, `c_hash`, `s_hash`, `auth_time`, `azp`, `sid`, `jti`, `typ`, `session_state`, `uti`, `rh`, `aio`, `ver`) are never offered for mapping; `acr` and `amr` are.
+
+`user_claim`, `extra_fields` and the roles claim (`WALDUR_AUTH_SOCIAL_ROLE_CLAIM`) are read from UserInfo only. `extra_fields` become the user's `details`, from which authorization is derived, and the roles claim sets `is_staff` and `is_support` on every login: a provider that issues roles only in the ID token, as Entra ID does with app roles, must not reset flags that were granted by hand.
+
+This matters for providers whose UserInfo response is limited. Microsoft Entra ID's UserInfo endpoint returns a fixed set of claims (`sub`, names, `picture`, `email`) that cannot be extended, while `preferred_username` and optional claims are issued only in tokens. To use the Entra sign-in name as the user's email, keeping `sub` as the account identifier:
+
+```python
+{
+    "user_field": "username",
+    "user_claim": "sub",
+    "attribute_mapping": {
+        "email": "preferred_username email",
+        "first_name": "given_name",
+        "last_name": "family_name"
+    }
+}
+```
+
+A list of claims takes the first one present in either source, so `email` falls back to the `email` claim for a user without `preferred_username`.
+
+!!! warning
+    Map a claim to `email` only if the provider guarantees it is the user's address. Entra ID's `preferred_username` "could be an email address, phone number, or a generic username" and can change. The mapped email is trusted at sign-in by:
+
+    - `OIDC_MATCHMAKING_BY_EMAIL`: a sign-in whose email matches an existing account is linked to that account;
+    - `OIDC_ALLOWED_USER_EMAIL_PATTERNS`: the email decides whether the user may sign in at all;
+    - `OIDC_BLOCK_CREATION_OF_UNINVITED_USERS`: a pending invitation to the email lets a new account be created;
+    - autoprovisioning rules that match on email.
+
+    An unverified claim in any of these can give one person another's account, invitation or access. Use a single-tenant Entra application whose tenant sets sign-in names to its users' addresses, or map `email` to a claim the provider verifies.
+
+The eduTEAMS remote user synchronisation has no ID token and maps the UserInfo-style response only.
+
 ### Keycloak Attribute Mapping
 
 ```python

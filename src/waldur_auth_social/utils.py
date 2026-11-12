@@ -23,6 +23,7 @@ from waldur_auth_social.const import (
     ProviderChoices,
 )
 from waldur_auth_social.exceptions import OAuthException
+from waldur_auth_social.id_token import combine_user_claims
 from waldur_auth_social.models import IdentityProvider
 from waldur_autoprovisioning.models import Rule
 from waldur_core.configuration import config
@@ -373,10 +374,25 @@ def parse_schac_personal_unique_id(value: str) -> str:
 
 
 def get_user_payload(
-    identity_provider: IdentityProvider, backend_user: dict[str, str]
+    identity_provider: IdentityProvider,
+    backend_user: dict[str, str],
+    id_token_claims: dict | None = None,
 ) -> dict[str, str]:
+    """The user fields and ``details`` an identity provider's claims set.
+
+    ``attribute_mapping`` is applied to ``backend_user`` (UserInfo) overlaid on
+    the validated ``id_token_claims``, so a claim a provider issues only in the
+    ID token can be mapped (#1183). ``extra_fields`` read ``backend_user`` only:
+    ``details`` drives authorization, and a claim the provider stops releasing
+    there must disappear rather than linger in the token.
+    """
     # Get enabled fields for IdP sync (intersection of WRITABLE_USER_FIELDS and enabled attributes)
     enabled_sync_fields = get_enabled_idp_sync_fields()
+    mapped_claims = (
+        combine_user_claims(id_token_claims, backend_user)
+        if id_token_claims
+        else backend_user
+    )
 
     payload = {}
     for user_field, claims in identity_provider.attribute_mapping.items():
@@ -385,7 +401,7 @@ def get_user_payload(
             for claim in claims.split():
                 claim = claim.strip()
                 value = normalize_mapped_claim_value(
-                    user_field, backend_user.get(claim)
+                    user_field, mapped_claims.get(claim)
                 )
                 if user_field == "civil_number" and value:
                     value = parse_schac_personal_unique_id(value)
@@ -480,6 +496,7 @@ def create_or_update_oauth_user(
     identity_provider: IdentityProvider,
     backend_user: dict,
     is_interactive_login: bool = True,
+    id_token_claims: dict | None = None,
 ):
     """Create or refresh the account behind a set of identity provider claims.
 
@@ -487,8 +504,14 @@ def create_or_update_oauth_user(
     synchronisation: this function is shared with the eduTEAMS pull, which is
     not a login and must keep syncing attributes for accounts the login policy
     would refuse.
+
+    ``id_token_claims`` are the validated ID token's claims of an OIDC login.
+    Only ``attribute_mapping`` reads them (``get_user_payload``); the lookup
+    claim, the roles claim and ``extra_fields`` read ``backend_user`` alone, so
+    a roles claim a provider issues only in the token (Entra app roles) cannot
+    reset ``is_staff`` or ``is_support`` that were granted by hand.
     """
-    payload = get_user_payload(identity_provider, backend_user)
+    payload = get_user_payload(identity_provider, backend_user, id_token_claims)
     lookup_params = get_lookup_params(identity_provider, backend_user)
 
     roles_claim = config.WALDUR_AUTH_SOCIAL_ROLE_CLAIM
