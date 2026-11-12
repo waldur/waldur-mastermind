@@ -238,7 +238,7 @@ Show kind field in project create dialog.
 
 ## project.show_matrix_chat
 
-Render the project Matrix chat UI. Backend access is gated separately on the MATRIX_ENABLED Constance setting.
+Render the project Matrix chat UI. Backend access is gated separately on the MATRIX_ENABLED setting.
 
 ## project.show_permission_reviews
 
@@ -262,7 +262,7 @@ Allow to select mount point for data volume when Rancher cluster is provisioned.
 
 ## reseller.affiliates
 
-Show affiliate program menus and pages. Backend enforcement is controlled separately by the AFFILIATES_ENABLED Constance setting.
+Show affiliate program menus and pages. Backend enforcement is controlled separately by the AFFILIATES_ENABLED setting.
 
 ## reseller.arrow
 
@@ -270,7 +270,7 @@ Enable Arrow integration menu in administration.
 
 ## sram.integration
 
-Render the SRAM integration administration page and SRAM markers in team lists. Backend access is gated separately on the SRAM_INTEGRATION_ENABLED Constance setting.
+Render the SRAM integration administration page and SRAM markers in team lists. Backend access is gated separately on the SRAM_INTEGRATION_ENABLED setting.
 
 ## support.conceal_change_request
 

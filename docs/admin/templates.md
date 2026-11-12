@@ -1308,7 +1308,7 @@ The {{ site_name }} Team
 </div>
 
 {% if has_credential %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   // Vanilla WebAuthn: the admin cannot import the SPA's bundled helper, and
   // pulling one in for two conversions is not worth a build step.

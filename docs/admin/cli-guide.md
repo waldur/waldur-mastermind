@@ -318,7 +318,7 @@ Clean API configuration settings cache.
 
 ## cleanup_slurm_logs
 
-Manually trigger cleanup of old SLURM policy evaluation logs. Uses the SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS constance setting.
+Manually trigger cleanup of old SLURM policy evaluation logs. Uses the SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS setting.
 
 ## cleanup_stale_event_types
 
@@ -506,7 +506,7 @@ options:
 
 Delete permissions from DB which are no longer in code.
 
-## dump_constance_settings
+## dump_settings
 
 Dump all settings that can be changed at runtime to a YAML file.
   This includes all settings, even those with file/image values.
@@ -514,23 +514,22 @@ Dump all settings that can be changed at runtime to a YAML file.
   Usage:
 
 ```yaml
-waldur dump_constance_settings output.yaml
+waldur dump_settings output.yaml
 ```
 
-  The output format is compatible with override_constance_settings command.
+  The output format is compatible with the override_settings command.
 
   For image/file fields, you can optionally export the actual files to a directory
   using --export-media option.
 
 ```bash
 
-usage: waldur dump_constance_settings [--include-secrets] [--include-defaults]
-                                      [--managed-only]
-                                      [--export-media MEDIA_DIR]
-                                      output_file
+usage: waldur dump_settings [--include-secrets] [--include-defaults]
+                            [--managed-only] [--export-media MEDIA_DIR]
+                            output_file
 
 positional arguments:
-  output_file           Output file path for YAML dump of constance settings
+  output_file           Output file path for YAML dump of runtime settings
 
 options:
   --include-secrets     Include sensitive values (passwords, tokens) in the
@@ -704,8 +703,8 @@ usage: waldur generate_appservice_registration [--url URL]
 
 options:
   --url URL            Base URL of the Waldur instance.
-  --as-token AS_TOKEN  Override as_token (default: read from constance).
-  --hs-token HS_TOKEN  Override hs_token (default: read from constance).
+  --as-token AS_TOKEN  Override as_token (default: read from the settings).
+  --hs-token HS_TOKEN  Override hs_token (default: read from the settings).
 
 ```
 
@@ -933,7 +932,7 @@ options:
 
 ## init_matrix_settings
 
-Seed Matrix Constance settings from the environment. Each seedable setting is read from the environment variable of the same name; other MATRIX_* variables are ignored. Both waldur-helm and waldur-docker-compose set them. Supplied values are overwritten on every run, because the deployment owns them. MATRIX_ENABLED, when not supplied, is switched on only at the first seeding, when neither the tokens marker nor an appservice token is stored, so an administrator who turns chat off keeps it off. Appservice tokens already in Constance that the deployment did not seed are never replaced.
+Seed the Matrix settings from the environment. Each seedable setting is read from the environment variable of the same name; other MATRIX_* variables are ignored. Both waldur-helm and waldur-docker-compose set them. Supplied values are overwritten on every run, because the deployment owns them. MATRIX_ENABLED, when not supplied, is switched on only at the first seeding, when neither the tokens marker nor an appservice token is stored, so an administrator who turns chat off keeps it off. Appservice tokens already stored that the deployment did not seed are never replaced.
 
 ## init_service_desk_defaults
 
@@ -1204,50 +1203,6 @@ options:
 
 ```
 
-## override_constance_settings
-
-Override settings stored in django-constance. The example of .yaml file:
-
-  ```yaml
-   - WALDUR_SUPPORT_ENABLED: true # Enables support plugin
-    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE: 'zammad' # Specifies zammad as service desk plugin
-    ZAMMAD_API_URL: "https://zammad.example.com/api/" # Specifies zammad API URL
-    ZAMMAD_TOKEN: "1282361723491" # Specifies zammad token
-    ZAMMAD_GROUP: "default-group" # Specifies zammad group
-    ZAMMAD_ARTICLE_TYPE: "email" # Specifies zammad article type
-    ZAMMAD_COMMENT_COOLDOWN_DURATION: 7 # Specifies zammad comment cooldown duration
-  ```
-
-```bash
-
-usage: waldur override_constance_settings [--if-unset] [--lock]
-                                          [--unlock SETTING]
-                                          [constance_settings_file]
-
-positional arguments:
-  constance_settings_file
-                        Specifies location of file in YAML format containing
-                        new settings
-
-options:
-  --if-unset            Seed rather than override: skip any setting that
-                        already has a stored value, so a change made in the UI
-                        survives the next run. Use this for settings an
-                        administrator is expected to manage.
-  --lock                For a file the deployment applies on every deploy:
-                        record the file as managing its settings and lock
-                        them, so that they cannot be changed in the UI only to
-                        be reverted on the next deploy. Settings the file
-                        managed before but no longer holds are handed back to
-                        administrators.
-  --unlock SETTING      Let administrators change SETTING in the UI again,
-                        keeping its value. Can be repeated, and needs no file.
-                        This lasts until the next deploy: a --lock file that
-                        still holds the setting puts its value back and locks
-                        it again.
-
-```
-
 ## override_roles
 
 Override roles configuration in YAML format. The example of roles-override.yaml:
@@ -1271,6 +1226,46 @@ usage: waldur override_roles roles_file
 
 positional arguments:
   roles_file  Specifies location of roles configuration file.
+
+```
+
+## override_settings
+
+Override runtime settings from a YAML file. The example of .yaml file:
+
+  ```yaml
+   - WALDUR_SUPPORT_ENABLED: true # Enables support plugin
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE: 'zammad' # Specifies zammad as service desk plugin
+    ZAMMAD_API_URL: "https://zammad.example.com/api/" # Specifies zammad API URL
+    ZAMMAD_TOKEN: "1282361723491" # Specifies zammad token
+    ZAMMAD_GROUP: "default-group" # Specifies zammad group
+    ZAMMAD_ARTICLE_TYPE: "email" # Specifies zammad article type
+    ZAMMAD_COMMENT_COOLDOWN_DURATION: 7 # Specifies zammad comment cooldown duration
+  ```
+
+```bash
+
+usage: waldur override_settings [--if-unset] [--lock] [--unlock SETTING]
+                                [settings_file]
+
+positional arguments:
+  settings_file     Specifies location of file in YAML format containing new
+                    settings
+
+options:
+  --if-unset        Seed rather than override: skip any setting that already
+                    has a stored value, so a change made in the UI survives
+                    the next run. Use this for settings an administrator is
+                    expected to manage.
+  --lock            For a file the deployment applies on every deploy: record
+                    the file as managing its settings and lock them, so that
+                    they cannot be changed in the UI only to be reverted on
+                    the next deploy. Settings the file managed before but no
+                    longer holds are handed back to administrators.
+  --unlock SETTING  Let administrators change SETTING in the UI again, keeping
+                    its value. Can be repeated, and needs no file. This lasts
+                    until the next deploy: a --lock file that still holds the
+                    setting puts its value back and locks it again.
 
 ```
 
@@ -1592,8 +1587,8 @@ options:
                         Homeserver registration token, which must also be its
                         registration_shared_secret: the bootstrap admin is
                         created through the shared-secret registration keyed
-                        with it (default: MATRIX_USER_REGISTRATION_SECRET from
-                        Constance). Whoever holds it can create homeserver
+                        with it (default: the MATRIX_USER_REGISTRATION_SECRET
+                        setting). Whoever holds it can create homeserver
                         admins. Prefer setting it there, from the environment
                         through the deployment: an argument shows up in
                         process listings.
@@ -1607,14 +1602,14 @@ options:
                         automatically.
   --bootstrap-localpart BOOTSTRAP_LOCALPART
                         Localpart of the bootstrap admin user to create.
-  --as-token AS_TOKEN   Override as_token (default: MATRIX_APPSERVICE_AS_TOKEN
-                        from Constance). Prefer setting it there, from the
-                        environment through the deployment: an argument shows
-                        up in process listings.
-  --hs-token HS_TOKEN   Override hs_token (default: MATRIX_APPSERVICE_HS_TOKEN
-                        from Constance). Prefer setting it there, from the
-                        environment through the deployment: an argument shows
-                        up in process listings.
+  --as-token AS_TOKEN   Override as_token (default: the
+                        MATRIX_APPSERVICE_AS_TOKEN setting). Prefer setting it
+                        there, from the environment through the deployment: an
+                        argument shows up in process listings.
+  --hs-token HS_TOKEN   Override hs_token (default: the
+                        MATRIX_APPSERVICE_HS_TOKEN setting). Prefer setting it
+                        there, from the environment through the deployment: an
+                        argument shows up in process listings.
 
 ```
 
@@ -1710,8 +1705,7 @@ options:
   --rate RATE          Maximum requests per second when using --all (default:
                        5).
   --source SOURCE      Override the source label written to attribute_sources.
-                       Defaults to the SCIM_PULL_SOURCE_NAME Constance
-                       setting.
+                       Defaults to the SCIM_PULL_SOURCE_NAME setting.
 
 ```
 

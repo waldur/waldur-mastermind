@@ -421,6 +421,7 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'SUPPORT_PORTAL_URL': '',
  'TOKEN_LIFETIME': datetime.timedelta(seconds=3600),
  'TRANSLATION_DOMAIN': '',
+ 'TRUSTED_PROXY_COUNT': 1,
  'USER_MANAGEMENT_API_TIMEOUT': 5,
  'USER_MANDATORY_FIELDS': ['first_name', 'last_name', 'email'],
  'USER_REGISTRATION_HIDDEN_FIELDS': ['registration_method',
@@ -503,7 +504,7 @@ Names of the demo presets offered when DEMO_PRESETS_ENABLED is on. Empty offers 
 
 **Type:** bool
 
-Let staff list, preview and load demo presets through the API and the portal. Loading a preset deletes every organization, project, offering, user and token in the database, so enable it only on demo deployments. Set by the deployment only; it is not a Constance setting.
+Let staff list, preview and load demo presets through the API and the portal. Loading a preset deletes every organization, project, offering, user and token in the database, so enable it only on demo deployments. Set by the deployment only; it is not a runtime setting.
 
 #### DEMO_PRESETS_EXTRA_DIRS
 
@@ -822,6 +823,12 @@ Defines for how long user token should remain valid if there was no action from 
 **Type:** str
 
 Identifier of translation domain applied to current deployment.
+
+#### TRUSTED_PROXY_COUNT
+
+**Type:** int
+
+How many proxies in front of Waldur add an entry to X-Forwarded-For, such as the ingress, and a load balancer in front of it. The client address for the sign-in lockout and the limit on failed passwords per address is the entry this many places from the right, as for NUM_PROXIES in Django REST framework; with fewer entries, the connection's own address. 1 fits an ingress that replaces the header or appends to it; a load balancer in front of the ingress makes it 2. 0 ignores the header.
 
 #### USER_MANAGEMENT_API_TIMEOUT
 
@@ -2595,6 +2602,30 @@ Maximum API token lifetime, in minutes, that a non-staff user can choose. 0 mean
 
 How long, in seconds, a re-authentication grant stays usable. Users confirm their identity again, with their password or a passkey, before changing their email, their API token lifetime, their passkeys or their personal access tokens; the grant this returns is good for one such change within this time.
 
+#### PASSWORD_FAILURES_PER_ADDRESS_LIMIT
+
+**Type:** int
+
+**Default value:** 50
+
+How many failed password attempts one client address may make, across all usernames, within PASSWORD_FAILURES_PER_ADDRESS_WINDOW_MINUTES of its first. An address that reaches it gets 429 from password sign-in, re-authentication with a password and the admin login for PASSWORD_FAILURES_PER_ADDRESS_COOLOFF_MINUTES, and is then counted afresh. Successful attempts do not count. IPv6 addresses count per /64. 0 turns the limit off. Accounts are locked separately, after 5 failures, for 10 minutes.
+
+#### PASSWORD_FAILURES_PER_ADDRESS_WINDOW_MINUTES
+
+**Type:** int
+
+**Default value:** 60
+
+The window, in minutes from an address's first failed password, over which PASSWORD_FAILURES_PER_ADDRESS_LIMIT counts that address's failures.
+
+#### PASSWORD_FAILURES_PER_ADDRESS_COOLOFF_MINUTES
+
+**Type:** int
+
+**Default value:** 10
+
+How long, in minutes, an address that reached PASSWORD_FAILURES_PER_ADDRESS_LIMIT is refused password sign-in, re-authentication with a password and the admin login.
+
 ### Invitation settings
 
 #### ENABLE_STRICT_CHECK_ACCEPTING_INVITATION
@@ -3104,8 +3135,6 @@ API key for authenticating with the AI Assistant service.
 #### AI_ASSISTANT_MODEL
 
 **Type:** str
-
-**Default value:** qwen3.5-122b-nothinking
 
 Name of the AI Assistant model to use for inference.
 
