@@ -802,3 +802,9 @@ class MarketplaceConfig(AppConfig):
         register_cleanup_handler(
             models.Order, models.Offering, models.Resource, models.OfferingUser
         )
+
+        from waldur_core.permissions.pat_filtering import register_pat_filter
+
+        from .managers import pat_filter_resource_api_keys
+
+        register_pat_filter(models.ResourceApiKey)(pat_filter_resource_api_keys)

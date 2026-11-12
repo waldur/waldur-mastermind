@@ -11728,6 +11728,10 @@
     },
     {
       "role_name": "CUSTOMER.OWNER",
+      "permission": "RESOURCE.REVEAL_API_KEY"
+    },
+    {
+      "role_name": "CUSTOMER.OWNER",
       "permission": "RESOURCE.LIST_IMPORTABLE"
     },
     {
@@ -11912,6 +11916,10 @@
     },
     {
       "role_name": "PROJECT.ADMIN",
+      "permission": "RESOURCE.REVEAL_API_KEY"
+    },
+    {
+      "role_name": "PROJECT.ADMIN",
       "permission": "RESOURCE.LIST_IMPORTABLE"
     },
     {
@@ -12000,6 +12008,10 @@
     },
     {
       "role_name": "PROJECT.MANAGER",
+      "permission": "RESOURCE.REVEAL_API_KEY"
+    },
+    {
+      "role_name": "PROJECT.MANAGER",
       "permission": "RESOURCE.LIST_IMPORTABLE"
     },
     {
@@ -12029,6 +12041,10 @@
     {
       "role_name": "PROJECT.MEMBER",
       "permission": "RESOURCE.LIST"
+    },
+    {
+      "role_name": "PROJECT.MEMBER",
+      "permission": "RESOURCE.REVEAL_API_KEY"
     }
   ],
   "constance_settings": {

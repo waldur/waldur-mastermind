@@ -17846,9 +17846,11 @@ check_api_key_assignee.sources = ["*"]
 
 @access.describes(
     access.custom(
-        "Who holds a role in the resource's project or its organization, other "
-        "than a minimal-visibility viewer; for a key with an assignee, the "
-        "assignee alone. Staff and support are no exception."
+        "For a key with an assignee, the assignee alone, who needs no "
+        "permission. For any other key, who holds RESOURCE.REVEAL_API_KEY "
+        "through a role on the resource's project or its organization. Staff, "
+        "support and site-wide grants are no exception. A personal access token "
+        "never reveals a key, whatever its scopes."
     ),
     needs_object=True,
 )
@@ -17856,36 +17858,37 @@ def can_reveal_api_key(request, view, api_key=None):
     if not api_key:
         return
     user = request.user
-    resource = api_key.resource
-    # Reveal exposes a live secret. The shared queryset also admits the
-    # provider org (so the agent can reach the write actions), but a
-    # provider-org member must NOT read a consumer's key — restrict reveal to
-    # consumer-side access (project or its customer). Staff and support are
-    # no exception: staff reveal by impersonating a user who may, which the
-    # audit event records.
-    if not (
-        resource.project_id in get_connected_projects(user)
-        or resource.project.customer_id in get_connected_customers(user)
-    ):
+    # A personal access token is a script's credential, not trusted with a
+    # live secret whatever its scopes. An OIDC access token is admitted: with
+    # OIDC_ACCESS_TOKEN_ENABLED it is what HomePort itself signs in with, and
+    # Waldur cannot yet tell it from a token another client of the identity
+    # provider holds. Staff impersonating a user sign in with their own token,
+    # so they still reveal what that user may, and the audit event names them.
+    if is_pat_auth(request.auth):
         raise PermissionDenied(
-            "Only members of the resource's project or organization can "
-            "reveal its API key."
+            "An API key cannot be revealed with a personal access token."
         )
-    if utils.is_resource_project_only_viewer(user, resource):
+    # An assigned key is personal: its usage is attributed to the assignee,
+    # and assigning it is what entrusts them with its value. Reveal also
+    # exposes nothing to the provider side, which the shared queryset admits
+    # for the write actions: both rules below read consumer-side roles only.
+    if api_key.user_id:
+        if not resource_api_keys.is_acting_assignee(api_key, user):
+            raise PermissionDenied("Only the assignee can reveal this API key.")
+        return
+    if not resource_api_keys.holds_reveal_permission(user, api_key.resource):
         raise PermissionDenied(
-            "Minimal-visibility viewers cannot reveal the resource API key."
+            "You do not have permission to reveal the API keys of this resource."
         )
-    # An assigned key is personal: its usage is attributed to the assignee.
-    if api_key.user_id and api_key.user_id != user.id:
-        raise PermissionDenied("Only the assignee can reveal this API key.")
 
 
 class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     """Manage the API keys a site-agent resource exposes.
 
     A resource owns many keys. The site agent generates each key, applies it to
-    the backend, then reports it here (encrypted). Members reveal keys; managers
-    rotate them and, where the offering supports it, request, edit, pause,
+    the backend, then reports it here (encrypted). Members whose role carries
+    RESOURCE.REVEAL_API_KEY reveal the shared keys and an assignee their own;
+    managers rotate them and, where the offering supports it, request, edit, pause,
     resume and delete them. The assignee of a key can rotate it too. Portal
     actions are commands — the agent does the backend change and reports back
     through the provider actions.
@@ -18047,11 +18050,13 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Reveal an API key",
-        description="Returns the decrypted key value. Available to members of "
-        "the resource's project or organization (except minimal-visibility "
-        "viewers); a key with an assignee only to the assignee. Staff and support "
-        "are no exception: staff reveal a key by impersonating a user who may. "
-        "Audit-logged; under impersonation the event names the impersonator.",
+        description="Returns the decrypted key value. A key with an assignee is "
+        "revealed only to the assignee. Any other key is revealed to whoever "
+        "holds RESOURCE.REVEAL_API_KEY on the resource's project or organization. "
+        "Staff and support are no exception: staff reveal a key by impersonating "
+        "a user who may. Refused with 403 to a personal access token, whatever "
+        "its scopes. Audit-logged; under impersonation the event names the "
+        "impersonator.",
         responses={status.HTTP_200_OK: serializers.ResourceApiKeySerializer},
     )
     @action(detail=True, methods=["get"])

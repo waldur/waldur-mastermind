@@ -95,6 +95,8 @@ class ConsumerApiKeyTest(test.APITestCase):
         CustomerRole.OWNER.add_permission(
             PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY
         )
+        for role in (CustomerRole.OWNER, ProjectRole.ADMIN, ProjectRole.MEMBER):
+            role.add_permission(PermissionEnum.REVEAL_RESOURCE_API_KEY)
         self.key = models.ResourceApiKey.objects.create(
             resource=self.resource,
             client_id="cid-1",
@@ -147,6 +149,10 @@ class ConsumerApiKeyTest(test.APITestCase):
         log_reveal.assert_not_called()
 
     def test_project_only_viewer_cannot_reveal(self):
+        # A role on the project or organization is never a minimal-visibility
+        # view, so this holds the assignee to it.
+        self.key.user = self.fixture.admin
+        self.key.save()
         self.client.force_authenticate(self.fixture.admin)
         with mock.patch(
             "waldur_mastermind.marketplace.views.utils.is_resource_project_only_viewer",
@@ -566,7 +572,14 @@ class ProviderApiKeyScopeTest(test.APITestCase):
 
     def test_no_provider_role_can_reveal(self):
         # Admitting the provider org to the write actions must not let it read a
-        # consumer's live key: reveal stays consumer-side only.
+        # consumer's live key: reveal stays consumer-side only, even for a
+        # provider role that holds the reveal permission.
+        for role in (
+            CustomerRole.OWNER,
+            ServiceProviderRole.MANAGER,
+            OfferingRole.MANAGER,
+        ):
+            role.add_permission(PermissionEnum.REVEAL_RESOURCE_API_KEY)
         key = models.ResourceApiKey.objects.create(
             resource=self.resource,
             client_id="cid-1",

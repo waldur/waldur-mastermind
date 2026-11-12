@@ -448,6 +448,7 @@ can_update_projects = get_connected_projects_by_permission(
 | `RESOURCE.SET_LIMITS` | Update resource limits |
 | `RESOURCE.SET_STATE` | Change resource state |
 | `RESOURCE.MANAGE_CONSUMER_API_KEY` | Request, edit, pause, resume, rotate, retry and delete the resource's API keys |
+| `RESOURCE.REVEAL_API_KEY` | Reveal the resource's unassigned API keys (an assigned key is its assignee's alone) |
 
 ### Order Permissions
 

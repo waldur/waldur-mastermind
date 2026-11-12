@@ -8,6 +8,7 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.pat_filtering import _ids_q, _or
 from waldur_core.permissions.utils import get_scope_ids, global_grant_sees_all
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
@@ -662,3 +663,22 @@ def filter_offering_permissions(user, is_active=True):
         ).distinct()
 
     return queryset
+
+
+def pat_filter_resource_api_keys(ids):
+    """The API keys a personal access token's bindings reach: those of the
+    resources ``pat_filtering``'s rule for Resource reaches, that is, a
+    resource it is bound to, or one in a project, organization, offering or
+    offering's service provider it is bound to. As there, a binding on the
+    organization that owns the offering does not reach a consumer's keys.
+    """
+    return _or(
+        _ids_q("resource_id", ids.get("resource")),
+        _ids_q("resource__offering_id", ids.get("offering")),
+        _ids_q("resource__project_id", ids.get("project")),
+        _ids_q("resource__project__customer_id", ids.get("customer")),
+        _ids_q(
+            "resource__offering__customer__serviceprovider__id",
+            ids.get("service_provider"),
+        ),
+    )
