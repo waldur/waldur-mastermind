@@ -9,7 +9,11 @@ from django.utils import timezone, translation
 from django.utils.translation import gettext as _
 
 from waldur_core.configuration import config as constance_config
-from waldur_core.core.utils import chunked_queryset
+from waldur_core.core.utils import (
+    broadcast_mail,
+    chunked_queryset,
+    notification_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +112,7 @@ def _render_sections_for_language(sections, lang):
 def _render_and_send_digest(
     user, customer, projects_with_sections, period_start, period_end
 ):
-    """Render and send digest email for a single user."""
+    """Render and send digest email for a single user; True if it was sent."""
     lang = getattr(user, "preferred_language", None) or settings.LANGUAGE_CODE
 
     with translation.override(lang):
@@ -135,9 +139,14 @@ def _render_and_send_digest(
         text_body = render_to_string("structure/project_digest_message.txt", context)
         html_body = render_to_string("structure/project_digest_message.html", context)
 
-    from waldur_core.core.utils import send_mail
-
-    send_mail(subject, text_body, [user.email], html_message=html_body)
+    sent = broadcast_mail(
+        "structure",
+        "project_digest",
+        {},
+        [user.email],
+        rendered=(subject, text_body, html_body),
+    )
+    return bool(sent)
 
 
 @shared_task(name="waldur_core.structure.send_project_digest_notifications")
@@ -151,6 +160,13 @@ def send_project_digest_notifications():
 
     if not constance_config.ENABLE_PROJECT_DIGEST:
         logger.info("Project digest notifications are disabled.")
+        return 0
+
+    if not notification_enabled("structure", "project_digest"):
+        logger.info(
+            "Notification 'structure.project_digest' is disabled or not "
+            "registered, so no project digest is sent."
+        )
         return 0
 
     configs = ProjectDigestConfiguration.objects.filter(
@@ -173,6 +189,15 @@ def send_project_digest_notifications():
 def send_digest_for_customer(config_pk):
     from waldur_core.core.models import User
     from waldur_core.structure.models import ProjectDigestConfiguration
+
+    # Checked again here: the notification may be switched off after the
+    # daily task queued this run, and the digest has no use besides the mail.
+    if not notification_enabled("structure", "project_digest"):
+        logger.info(
+            "Notification 'structure.project_digest' is disabled or not "
+            "registered, so no project digest is sent."
+        )
+        return
 
     config = ProjectDigestConfiguration.objects.select_related("customer").get(
         pk=config_pk
@@ -228,9 +253,21 @@ def send_digest_for_customer(config_pk):
 
 
 def send_digest_for_customer_preview(customer, user):
-    """Send a test digest to a specific user (for the send-test action)."""
+    """Send a test digest to a specific user (for the send-test action).
+
+    Returns None when the mail was sent, otherwise the reason it was not.
+    """
     from waldur_core.structure.digest_providers import get_available_providers
     from waldur_core.structure.models import ProjectDigestConfiguration
+
+    if not notification_enabled("structure", "project_digest"):
+        return _(
+            "The project digest notification is disabled. "
+            "Ask your administrator to enable it."
+        )
+
+    if not user.email:
+        return _("Your account has no email address.")
 
     try:
         config = customer.project_digest_config
@@ -241,6 +278,9 @@ def send_digest_for_customer_preview(customer, user):
         providers = _get_enabled_providers(config)
     else:
         providers = get_available_providers()
+
+    if not providers:
+        return _("No digest sections are available for this organization.")
 
     period_start, period_end = _get_period(
         config
@@ -260,8 +300,27 @@ def send_digest_for_customer_preview(customer, user):
         if sections:
             project_data.append({"project": project, "sections": sections})
 
-    if project_data:
-        _render_and_send_digest(user, customer, project_data, period_start, period_end)
+    if not project_data:
+        return _("No project has anything to report for %(period)s.") % {
+            "period": _format_period(period_start, period_end)
+        }
+
+    try:
+        sent = _render_and_send_digest(
+            user, customer, project_data, period_start, period_end
+        )
+    except Exception:
+        # broadcast_mail isolates per-recipient failures but not the SMTP
+        # connection itself, so an unreachable mail server raises here.
+        logger.exception(
+            "Error sending test digest to user %s for customer %s",
+            user.uuid,
+            customer.uuid,
+        )
+        sent = False
+    if not sent:
+        return _("Sending it failed, see the server log.")
+    return None
 
 
 def render_project_preview(project, customer):
