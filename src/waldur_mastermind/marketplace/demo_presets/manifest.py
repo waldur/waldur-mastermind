@@ -18,6 +18,7 @@ from waldur_core.core.models import User
 from waldur_mastermind.invoices.models import Invoice
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.demo_presets import (
+    matrix_links,
     order_history,
     proposal_history,
     settings_reset,
@@ -261,7 +262,7 @@ class DemoPresetManager:
             # queue billing: the generators below save orders, usages and
             # invoices through the ORM, so their signal handlers would.
             with skip_side_effects():
-                cls._load(
+                kept_rooms = cls._load(
                     file_path,
                     output,
                     cleanup_first,
@@ -270,6 +271,9 @@ class DemoPresetManager:
                     skip_roles,
                     overlay_path=overlay_path,
                 )
+            # After the load: its own Matrix rooms invite who the new data
+            # puts in them.
+            matrix_links.queue_member_syncs(kept_rooms)
 
             # Get users with passwords for the response
             users = cls.get_preset_users(name)
@@ -337,6 +341,7 @@ class DemoPresetManager:
         skip_roles,
         overlay_path=None,
     ):
+        matrix = None
         if cleanup_first:
             # One transaction: the cleanup's TRUNCATE CASCADE empties the
             # settings table, so the deployment's settings must be back
@@ -344,6 +349,8 @@ class DemoPresetManager:
             # table already emptied rather than leave a half-cleaned database.
             with transaction.atomic():
                 owned = [] if dry_run else settings_reset.snapshot()
+                # Put back once the users and projects are imported again.
+                matrix = None if dry_run else matrix_links.snapshot()
                 call_command(
                     "cleanup_structure",
                     skip_users=skip_users,
@@ -366,16 +373,28 @@ class DemoPresetManager:
         if not dry_run and not skip_roles:
             cls._ensure_system_roles_exist(output)
 
-        cls._import(file_path, output, dry_run, skip_users, skip_roles)
-        # The overlay goes in before the generators, which work on the whole
-        # database: run after them, it would bill everything a second time.
-        # Imported last, its settings and features win over the preset's.
-        if overlay_path:
-            output.write(f"\nImporting the deployment's overlay {overlay_path.stem}\n")
-            cls._import(overlay_path, output, dry_run, skip_users, skip_roles)
+        try:
+            cls._import(file_path, output, dry_run, skip_users, skip_roles)
+            # The overlay goes in before the generators, which work on the whole
+            # database: run after them, it would bill everything a second time.
+            # Imported last, its settings and features win over the preset's.
+            if overlay_path:
+                output.write(
+                    f"\nImporting the deployment's overlay {overlay_path.stem}\n"
+                )
+                cls._import(overlay_path, output, dry_run, skip_users, skip_roles)
 
-        if not dry_run and not skip_users:
-            cls._set_staff_password(output, file_path, overlay_path)
+            if not dry_run and not skip_users:
+                cls._set_staff_password(output, file_path, overlay_path)
+        except Exception:
+            # The copy exists only in memory: whatever the import did bring
+            # back gets its links before the failure is reported.
+            try:
+                matrix_links.restore(matrix, output)
+            except Exception:
+                logger.exception("Could not restore the Matrix links")
+            raise
+        kept_rooms = matrix_links.restore(matrix, output)
 
         # Generate invoices for imported resources (if not dry run)
         if not dry_run:
@@ -386,6 +405,7 @@ class DemoPresetManager:
             cls._generate_billing_for_resources(output)
             cls._generate_credit_history(output, file_path)
             settings_reset.clear_configuration_cache()
+        return kept_rooms
 
     @classmethod
     def _import(cls, file_path, output, dry_run, skip_users, skip_roles):

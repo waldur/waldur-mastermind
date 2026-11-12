@@ -92,8 +92,30 @@ set them; the load reports each one it skips. A setting is owned when it is:
 A load with `--no-cleanup` leaves settings and features as they are and only
 applies what the preset sets.
 
+### Matrix Accounts and Rooms
+
+A load with cleanup deletes Waldur's records of Matrix accounts, rooms and
+room memberships with the users, while the homeserver keeps the accounts and
+rooms. The load copies those records first and puts them back for what the new
+data has again: a user's account by username, a room by its project's UUID,
+which presets keep fixed. So a user who had chat before the load has it after,
+and a project's room keeps its alias, instead of Waldur refusing the account as
+one it did not create and making a room without an alias. A user of the same
+username in the new preset gets the account, as single sign-on would give it
+to them anyway.
+
+A membership comes back only for a user who still belongs in the room, by the
+rule the member sync uses (an active role on the project, or a customer role
+that may create chat rooms). Once the load is done it queues a member sync for
+each room it kept, which invites whoever the new data adds. A room the import
+has only started to create, with `MATRIX_AUTO_CREATE_PROJECT_ROOMS`, gives way
+to the kept one; a room of the project's own on the homeserver is kept instead.
+Records without a counterpart in the new data are dropped, as before, also by
+a load that keeps the users (`--skip-users`).
+
 A load sends no notifications, publishes no messages to site agents and
-queues no billing tasks. It fails if the cleanup cannot delete everything,
+queues no billing tasks; the only thing it queues, once it is done, is the
+member sync of the Matrix rooms it kept. It fails if the cleanup cannot delete everything,
 rather than importing over a half-cleaned database.
 
 After loading, the command displays user credentials:
