@@ -10,6 +10,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management import call_command
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.core.middleware import skip_side_effects
@@ -184,13 +185,14 @@ class DemoPresetManager:
         except (json.JSONDecodeError, OSError):
             return []
 
-        hide_staff_passwords = bool(staff_password())
+        hide_privileged_passwords = bool(staff_password())
         users = data.get("users", [])
         return [
             {
                 "username": user.get("username", ""),
                 "password": ""
-                if hide_staff_passwords and user.get("is_staff")
+                if hide_privileged_passwords
+                and (user.get("is_staff") or user.get("is_support"))
                 else user.get("password", ""),
                 "email": user.get("email", ""),
                 "is_staff": user.get("is_staff", False),
@@ -403,8 +405,9 @@ class DemoPresetManager:
 
     @staticmethod
     def _set_staff_password(output, *file_paths):
-        """Give the loaded presets' staff users the deployment's password, so
-        the one the preset publishes does not open a staff account."""
+        """Give the loaded presets' staff and support users the deployment's
+        password, so the one the preset publishes opens neither: support reads
+        every organisation, project, user and ticket in the portal."""
         password = staff_password()
         if not password:
             return
@@ -416,14 +419,18 @@ class DemoPresetManager:
             usernames.update(
                 user["username"]
                 for user in data.get("users", [])
-                if user.get("is_staff") and user.get("username")
+                if (user.get("is_staff") or user.get("is_support"))
+                and user.get("username")
             )
-        users = User.objects.filter(username__in=usernames, is_staff=True)
+        users = User.objects.filter(username__in=usernames).filter(
+            Q(is_staff=True) | Q(is_support=True)
+        )
         for user in users:
             user.set_password(password)
             user.save(update_fields=["password"])
         output.write(
-            f"Gave {len(users)} staff user(s) the deployment's staff password.\n"
+            f"Gave {len(users)} staff and support user(s) the deployment's "
+            "staff password.\n"
         )
 
     @staticmethod

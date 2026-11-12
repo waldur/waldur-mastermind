@@ -398,8 +398,8 @@ class WaldurCore(BaseModel):
     )
     DEMO_PRESETS_STAFF_PASSWORD: str = Field(
         "",
-        description="Password every staff user of a loaded preset gets in place of "
-        "the one the preset publishes. Never shown by the API.",
+        description="Password every staff and support user of a loaded preset gets "
+        "in place of the one the preset publishes. Never shown by the API.",
     )
 
     class Meta:
