@@ -50,6 +50,10 @@ class ReauthenticationAction(models.TextChoices):
         "Create or rotate a personal access token",
     )
     CHANGE_PASSWORD = "change_password", "Set a user's password"
+    WIDEN_PERSONAL_ACCESS_TOKEN_NETWORKS = (
+        "widen_personal_access_token_networks",
+        "Widen the networks a personal access token works from",
+    )
 
 
 class ReauthenticationMethod(models.TextChoices):

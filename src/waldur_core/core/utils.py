@@ -859,6 +859,41 @@ def ip_in_networks(address: str | None, networks: list[str]) -> bool:
     return False
 
 
+def network_acl_widens(current: list[str], new: list[str]) -> bool:
+    """Return True when replacing the allowlist ``current`` with ``new`` lets
+    in an address that ``current`` kept out.
+
+    An empty list keeps nothing out, as in ``ip_in_networks``. Otherwise each
+    network of ``new`` must lie inside one network of ``current`` of the same
+    address family: an IPv6 network never counts as inside an IPv4 one, even
+    one that maps IPv4 addresses. Networks that only together cover a new one
+    do not count, so merging two adjacent networks into one widens. An entry
+    of ``current`` that does not parse admits nothing; one of ``new`` that does
+    not parse widens.
+    """
+    if not current:
+        return False
+    if not new:
+        return True
+    allowed = []
+    for entry in current:
+        try:
+            allowed.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            continue
+    for entry in new:
+        try:
+            network = ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            return True
+        if not any(
+            network.version == outer.version and network.subnet_of(outer)
+            for outer in allowed
+        ):
+            return True
+    return False
+
+
 def normalize_ip_address(value: str | None) -> str | None:
     """Canonical string form of an IP address, or None if it does not parse.
 

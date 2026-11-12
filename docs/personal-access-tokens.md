@@ -57,6 +57,8 @@ PUT and PATCH are disabled -- tokens are immutable after creation.
 
 **POST** `/api/personal-access-tokens/`
 
+Needs a re-authentication grant for `create_personal_access_token` in the `X-Reauthentication-Grant` header (see [Re-authentication](#re-authentication)).
+
 Request:
 
 ```json
@@ -84,7 +86,7 @@ Response (201, with `Cache-Control: no-store` header):
 
 **POST** `/api/personal-access-tokens/{uuid}/rotate/`
 
-Atomically revokes the old token and creates a new one with the same name, scopes, and expiration. The operation uses `select_for_update()` to prevent races. Returns the same response format as create.
+Atomically revokes the old token and creates a new one with the same name, scopes, and expiration. The operation uses `select_for_update()` to prevent races. Like create, it needs a re-authentication grant for `create_personal_access_token`. Returns the same response format as create.
 
 ### Revoke Token
 
@@ -154,7 +156,18 @@ that decides the role itself and needs only the token's limits on top.
 
 ### PAT-via-PAT Blocked
 
-The `create`, `destroy`, and `rotate` actions reject requests authenticated with a PAT. This prevents token escalation -- PATs can only be managed through session or token authentication.
+The `create`, `destroy`, `rotate`, and `set_network_acl` actions reject requests authenticated with a PAT. This prevents token escalation -- PATs can only be managed through session or token authentication.
+
+### Re-authentication
+
+Creating a token, rotating one, and widening a token's network ACL (see [Network ACLs](#network-acls)) each need a re-authentication grant: proof that the user has just confirmed who they are, which holding their session or API token alone is not. Without a valid grant the request gets a 401 whose body has `"code": "reauthentication_required"`, the `action` the grant must be for, and the `methods` the user can confirm with.
+
+Get a grant for that action, then send it in the `X-Reauthentication-Grant` header of the request:
+
+- **Password:** `POST /api/reauthentication/password/` with `{"action": "<action>", "password": "<current password>"}`. The 201 response carries the `grant` and its `expires_at`.
+- **Passkey:** `POST /api/reauthentication/passkey/begin/` with `{"action": "<action>"}` returns a WebAuthn challenge; `POST /api/reauthentication/passkey/finish/` with the `action`, the `ceremony` and the signed `credential` returns the grant.
+
+The actions are `create_personal_access_token` (create and rotate) and `widen_personal_access_token_networks`. A grant is single-use, bound to the user and to one action, and expires after `REAUTHENTICATION_GRANT_LIFETIME_SECONDS`. A grant is neither issued nor accepted for a request that is not the user's own sign-in: staff impersonating the user, a personal access token and an OIDC access token get 403.
 
 ### Resource API keys are never revealed
 
@@ -229,11 +242,25 @@ The `cleanup_expired_personal_access_tokens` task runs every 6 hours. It deactiv
 
 ## Examples
 
+### Get a re-authentication grant
+
+Creating and rotating a token each need a fresh grant for `create_personal_access_token`:
+
+```bash
+curl -X POST https://waldur.example.com/api/reauthentication/password/ \
+  -H "Authorization: Token YOUR_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "create_personal_access_token", "password": "YOUR_PASSWORD"}'
+```
+
+The `grant` in the response is used in the examples below as `YOUR_GRANT`. It is single-use: get a new one for each change.
+
 ### Create a PAT
 
 ```bash
 curl -X POST https://waldur.example.com/api/personal-access-tokens/ \
   -H "Authorization: Token YOUR_SESSION_TOKEN" \
+  -H "X-Reauthentication-Grant: YOUR_GRANT" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "CI/CD Pipeline",
@@ -253,7 +280,8 @@ curl https://waldur.example.com/api/resources/ \
 
 ```bash
 curl -X POST https://waldur.example.com/api/personal-access-tokens/{uuid}/rotate/ \
-  -H "Authorization: Token YOUR_SESSION_TOKEN"
+  -H "Authorization: Token YOUR_SESSION_TOKEN" \
+  -H "X-Reauthentication-Grant: YOUR_GRANT"
 ```
 
 ### Revoke a PAT
@@ -288,7 +316,23 @@ To change the ACL of an existing token, use the `set_network_acl` action:
 
 A dedicated action is used rather than PATCH because PUT and PATCH stay disabled on the viewset, and the change is recorded as its own `pat_network_acl_updated` audit event.
 
-The action takes the same row lock as `rotate`, so a concurrent rotation cannot copy a stale ACL onto the new token. Setting the ACL of an inactive token returns 400.
+Narrowing the ACL needs nothing more. A change narrows it when every new network lies inside a current network of the same address family, when it restricts an unrestricted token, or when it leaves the list as it is. An IPv6 network never counts as inside an IPv4 one.
+
+Any other change widens the ACL: adding a network, replacing one with a broader one, or clearing the list, which lets the token work from anywhere. Widening needs a re-authentication grant for `widen_personal_access_token_networks`, sent in the `X-Reauthentication-Grant` header, as creating or rotating a token does. Without one the request gets the 401 `reauthentication_required` challenge and the ACL stays as it was. See [Re-authentication](#re-authentication) for how to get a grant.
+
+Widening is refused (403) to any caller that is not the user's own sign-in: staff impersonating the user, an OIDC access token, or any other delegated credential. A personal access token gets 403 for every change to the ACL, narrowing included, as for the other token management actions.
+
+To widen an ACL, get a grant for `widen_personal_access_token_networks` and send it with the new list:
+
+```bash
+curl -X POST https://waldur.example.com/api/personal-access-tokens/{uuid}/set_network_acl/ \
+  -H "Authorization: Token YOUR_SESSION_TOKEN" \
+  -H "X-Reauthentication-Grant: YOUR_GRANT" \
+  -H "Content-Type: application/json" \
+  -d '{"allowed_networks": ["203.0.113.0/24", "198.51.100.0/24"]}'
+```
+
+The action takes the same row lock as `rotate`, so a concurrent rotation cannot copy a stale ACL onto the new token, and it decides whether a change widens against the locked row. Setting the ACL of an inactive token returns 400.
 
 A request from outside the ACL is rejected with the same generic `Invalid token.` error as any other authentication failure -- the response never confirms that the token itself is valid. The rejection is recorded as a `pat_access_denied_from_ip` audit event with the source address (debounced per token and source IP).
 

@@ -1,15 +1,26 @@
 from datetime import timedelta
+from unittest import mock
 
 from django.core.cache import cache
+from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework import status, test
+from rest_framework.authtoken.models import Token
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core import reauthentication
 from waldur_core.core.enums import ReauthenticationAction
-from waldur_core.core.models import PersonalAccessToken, User
+from waldur_core.core.models import (
+    PersonalAccessToken,
+    ReauthenticationGrant,
+    User,
+)
 from waldur_core.core.tests.helpers import reauthenticated
+from waldur_core.core.utils import network_acl_widens
+from waldur_core.core.views import PersonalAccessTokenViewSet
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 
 # The endpoint the existing PAT auth suite authenticates against — a PAT with
@@ -17,6 +28,7 @@ from waldur_core.structure.tests import fixtures
 # filtering rule pass through unfiltered).
 PROBE_URL = "/api/customers/"
 PAT_URL = "/api/personal-access-tokens/"
+WIDEN = ReauthenticationAction.WIDEN_PERSONAL_ACCESS_TOKEN_NETWORKS
 
 
 def create_pat(user, allowed_networks=None, name="acl-pat"):
@@ -493,16 +505,16 @@ class PatNetworkAclApiTest(test.APITestCase):
         pat = create_pat(self.user, ["203.0.113.0/24"])
         response = self.client.post(
             f"{PAT_URL}{pat.uuid}/set_network_acl/",
-            {"allowed_networks": ["198.51.100.7"]},
+            {"allowed_networks": ["203.0.113.7"]},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         pat.refresh_from_db()
-        self.assertEqual(pat.allowed_networks, ["198.51.100.7/32"])
+        self.assertEqual(pat.allowed_networks, ["203.0.113.7/32"])
         event = Event.objects.filter(event_type="pat_network_acl_updated").first()
         self.assertIsNotNone(event)
         self.assertEqual(event.context["old_allowed_networks"], ["203.0.113.0/24"])
-        self.assertEqual(event.context["new_allowed_networks"], ["198.51.100.7/32"])
+        self.assertEqual(event.context["new_allowed_networks"], ["203.0.113.7/32"])
 
     def test_set_network_acl_can_clear_the_acl(self):
         pat = create_pat(self.user, ["203.0.113.0/24"])
@@ -510,6 +522,7 @@ class PatNetworkAclApiTest(test.APITestCase):
             f"{PAT_URL}{pat.uuid}/set_network_acl/",
             {"allowed_networks": []},
             format="json",
+            **reauthenticated(self.user, WIDEN),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         pat.refresh_from_db()
@@ -539,7 +552,7 @@ class PatNetworkAclApiTest(test.APITestCase):
         pat = create_pat(self.user, ["203.0.113.0/24"], name="evil{oops}name")
         response = self.client.post(
             f"{PAT_URL}{pat.uuid}/set_network_acl/",
-            {"allowed_networks": ["198.51.100.7"]},
+            {"allowed_networks": ["203.0.113.7"]},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -576,11 +589,12 @@ class PatNetworkAclApiTest(test.APITestCase):
 
     def test_rotate_after_set_network_acl_carries_the_new_acl(self):
         pat = create_pat(self.user, ["203.0.113.0/24"])
-        self.client.post(
+        response = self.client.post(
             f"{PAT_URL}{pat.uuid}/set_network_acl/",
-            {"allowed_networks": ["198.51.100.0/24"]},
+            {"allowed_networks": ["203.0.113.128/25"]},
             format="json",
         )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         response = self.client.post(
             f"{PAT_URL}{pat.uuid}/rotate/",
             **reauthenticated(
@@ -588,7 +602,7 @@ class PatNetworkAclApiTest(test.APITestCase):
             ),
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["allowed_networks"], ["198.51.100.0/24"])
+        self.assertEqual(response.data["allowed_networks"], ["203.0.113.128/25"])
 
 
 @override_config(PAT_ENABLED=True)
@@ -611,6 +625,426 @@ class PatViaPatBlockedTest(test.APITestCase):
             REMOTE_ADDR="203.0.113.5",
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class NetworkAclWidensTest(SimpleTestCase):
+    """Whether a new allowlist lets in an address the current one kept out."""
+
+    NARROWING = [
+        ([], []),
+        ([], ["203.0.113.0/24"]),
+        (["203.0.113.0/24"], ["203.0.113.0/24"]),
+        (
+            ["203.0.113.0/24", "2001:db8::/32"],
+            ["2001:db8::/32", "203.0.113.0/24"],
+        ),
+        (["203.0.113.0/24"], ["203.0.113.7/32"]),
+        (["203.0.113.0/24", "198.51.100.0/24"], ["198.51.100.0/24"]),
+        (["10.0.0.0/8", "2001:db8::/32"], ["10.1.0.0/16", "2001:db8:1::/48"]),
+        (["10.0.0.0/8", "not-a-network"], ["10.1.0.0/16"]),
+    ]
+
+    WIDENING = [
+        (["203.0.113.0/24"], []),
+        (["203.0.113.0/24"], ["198.51.100.0/24"]),
+        (["203.0.113.0/24"], ["203.0.113.0/24", "198.51.100.0/24"]),
+        (["203.0.113.0/25"], ["203.0.113.0/24"]),
+        (["203.0.113.0/25", "203.0.113.128/25"], ["203.0.113.0/24"]),
+        # An IPv6 network is never inside an IPv4 one, nor the other way
+        # round, IPv4-mapped addresses included.
+        (["10.0.0.0/8"], ["::ffff:a00:0/104"]),
+        (["::ffff:a00:0/104"], ["10.0.0.0/8"]),
+        (["2001:db8::/32"], ["10.0.0.0/8"]),
+        (["10.0.0.0/8", "2001:db8::/32"], ["10.1.0.0/16", "2001:db9::/32"]),
+        (["not-a-network"], ["203.0.113.0/24"]),
+        (["203.0.113.0/24"], ["not-a-network"]),
+    ]
+
+    def test_narrowing(self):
+        for current, new in self.NARROWING:
+            with self.subTest(current=current, new=new):
+                self.assertFalse(network_acl_widens(current, new))
+
+    def test_widening(self):
+        for current, new in self.WIDENING:
+            with self.subTest(current=current, new=new):
+                self.assertTrue(network_acl_widens(current, new))
+
+
+class NetworkAclChangeTest(test.APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.fixture = fixtures.CustomerFixture()
+        self.user = self.fixture.owner
+        self.user.can_use_personal_access_tokens = True
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
+        self.client.force_authenticate(user=self.user)
+
+    def set_acl(self, pat, networks, **headers):
+        return self.client.post(
+            f"{PAT_URL}{pat.uuid}/set_network_acl/",
+            {"allowed_networks": networks},
+            format="json",
+            **headers,
+        )
+
+    def assert_networks(self, pat, networks):
+        pat.refresh_from_db()
+        self.assertEqual(pat.allowed_networks, networks)
+
+    def assert_challenge(self, response):
+        self.assertEqual(
+            response.status_code, status.HTTP_401_UNAUTHORIZED, response.data
+        )
+        self.assertEqual(response.data["code"], "reauthentication_required")
+        self.assertEqual(response.data["action"], WIDEN.value)
+
+    def events(self, event_type):
+        return Event.objects.filter(event_type=event_type)
+
+
+@override_config(PAT_ENABLED=True)
+class PatNetworkAclNarrowingTest(NetworkAclChangeTest):
+    """Narrowing a token's networks only takes access away, so it needs no
+    re-authentication, as revoking a token needs none."""
+
+    def test_narrowing_to_a_network_inside_a_current_one(self):
+        pat = create_pat(self.user, ["203.0.113.0/24", "198.51.100.0/24"])
+
+        response = self.set_acl(pat, ["203.0.113.7"])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["203.0.113.7/32"])
+
+    def test_first_restriction_of_an_unrestricted_token(self):
+        pat = create_pat(self.user, [])
+
+        response = self.set_acl(pat, ["203.0.113.0/24"])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["203.0.113.0/24"])
+
+    def test_unchanged_list(self):
+        pat = create_pat(self.user, ["203.0.113.0/24", "2001:db8::/32"])
+
+        response = self.set_acl(pat, ["2001:db8::/32", "203.0.113.0/24"])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["2001:db8::/32", "203.0.113.0/24"])
+
+    def test_unrestricted_token_left_unrestricted(self):
+        pat = create_pat(self.user, [])
+
+        response = self.set_acl(pat, [])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, [])
+
+    def test_mixed_families_narrow_each_within_its_own(self):
+        pat = create_pat(self.user, ["10.0.0.0/8", "2001:db8::/32"])
+
+        response = self.set_acl(pat, ["10.1.0.0/16", "2001:db8:1::/48"])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["10.1.0.0/16", "2001:db8:1::/48"])
+
+    def test_narrowing_records_the_acl_change_and_no_reauthentication(self):
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+
+        self.set_acl(pat, ["203.0.113.7"])
+
+        event = self.events("pat_network_acl_updated").get()
+        self.assertEqual(event.context["old_allowed_networks"], ["203.0.113.0/24"])
+        self.assertEqual(event.context["new_allowed_networks"], ["203.0.113.7/32"])
+        self.assertFalse(
+            self.events("reauthentication_refused").exists()
+            or self.events("reauthentication_grant_used").exists()
+        )
+
+
+@override_config(PAT_ENABLED=True)
+class PatNetworkAclWideningTest(NetworkAclChangeTest):
+    """Widening a token's networks lets it work from addresses it could not
+    before, so the user confirms it is them first."""
+
+    def test_without_a_grant_it_is_challenged_and_changes_nothing(self):
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+
+        response = self.set_acl(pat, ["198.51.100.0/24"])
+
+        self.assert_challenge(response)
+        self.assert_networks(pat, ["203.0.113.0/24"])
+        self.assertFalse(self.events("pat_network_acl_updated").exists())
+        # Recorded although the request failed: the refusal is written outside
+        # any transaction the 401 rolls back.
+        refused = self.events("reauthentication_refused").get()
+        self.assertEqual(refused.context["reauthentication_action"], WIDEN.value)
+
+        response = self.set_acl(
+            pat, ["198.51.100.0/24"], **reauthenticated(self.user, WIDEN)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["198.51.100.0/24"])
+
+    def test_adding_a_network_is_widening(self):
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+        networks = ["203.0.113.0/24", "198.51.100.0/24"]
+
+        self.assert_challenge(self.set_acl(pat, networks))
+        self.assert_networks(pat, ["203.0.113.0/24"])
+
+        response = self.set_acl(pat, networks, **reauthenticated(self.user, WIDEN))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, networks)
+
+    def test_a_broader_network_is_widening(self):
+        pat = create_pat(self.user, ["203.0.113.0/25"])
+
+        self.assert_challenge(self.set_acl(pat, ["203.0.113.0/24"]))
+        self.assert_networks(pat, ["203.0.113.0/25"])
+
+        response = self.set_acl(
+            pat, ["203.0.113.0/24"], **reauthenticated(self.user, WIDEN)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["203.0.113.0/24"])
+
+    def test_clearing_the_list_is_widening(self):
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+
+        self.assert_challenge(self.set_acl(pat, []))
+        self.assert_networks(pat, ["203.0.113.0/24"])
+
+        response = self.set_acl(pat, [], **reauthenticated(self.user, WIDEN))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, [])
+
+    def test_an_ipv6_network_is_not_inside_an_ipv4_one(self):
+        pat = create_pat(self.user, ["10.0.0.0/8"])
+
+        self.assert_challenge(self.set_acl(pat, ["::ffff:10.0.0.0/104"]))
+        self.assert_networks(pat, ["10.0.0.0/8"])
+
+        response = self.set_acl(
+            pat, ["::ffff:10.0.0.0/104"], **reauthenticated(self.user, WIDEN)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["::ffff:10.0.0.0/104"])
+
+    def test_an_ipv4_network_is_not_inside_an_ipv6_one(self):
+        pat = create_pat(self.user, ["2001:db8::/32"])
+
+        self.assert_challenge(self.set_acl(pat, ["10.0.0.0/8"]))
+        self.assert_networks(pat, ["2001:db8::/32"])
+
+    def test_the_grant_is_used_up(self):
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+        grant = reauthenticated(self.user, WIDEN)
+
+        response = self.set_acl(pat, ["203.0.113.0/24", "198.51.100.0/24"], **grant)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIsNotNone(
+            ReauthenticationGrant.objects.get(user=self.user, action=WIDEN).used_at
+        )
+
+        response = self.set_acl(
+            pat, ["203.0.113.0/24", "198.51.100.0/24", "192.0.2.0/24"], **grant
+        )
+
+        self.assert_challenge(response)
+        self.assert_networks(pat, ["203.0.113.0/24", "198.51.100.0/24"])
+
+    def test_a_grant_for_another_action_is_refused(self):
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+
+        response = self.set_acl(
+            pat,
+            ["198.51.100.0/24"],
+            **reauthenticated(
+                self.user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+        )
+
+        self.assert_challenge(response)
+        self.assert_networks(pat, ["203.0.113.0/24"])
+        self.assertIsNone(
+            ReauthenticationGrant.objects.get(
+                user=self.user,
+                action=ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN,
+            ).used_at
+        )
+
+        response = self.set_acl(
+            pat, ["198.51.100.0/24"], **reauthenticated(self.user, WIDEN)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, ["198.51.100.0/24"])
+
+    def test_widening_records_the_acl_change_and_the_grant_use(self):
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+
+        self.set_acl(pat, [], **reauthenticated(self.user, WIDEN))
+
+        event = self.events("pat_network_acl_updated").get()
+        self.assertEqual(event.context["old_allowed_networks"], ["203.0.113.0/24"])
+        self.assertEqual(event.context["new_allowed_networks"], [])
+        used = self.events("reauthentication_grant_used").get()
+        self.assertEqual(used.context["reauthentication_action"], WIDEN.value)
+
+    def test_an_inactive_token_is_refused_before_the_grant_is_checked(self):
+        inactive = create_pat(self.user, ["203.0.113.0/24"], name="inactive")
+        inactive.is_active = False
+        inactive.save(update_fields=["is_active"])
+        grant = reauthenticated(self.user, WIDEN)
+
+        with mock.patch.object(
+            reauthentication, "guarded", wraps=reauthentication.guarded
+        ) as guarded:
+            response = self.set_acl(inactive, [], **grant)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        guarded.assert_not_called()
+        self.assertIsNone(ReauthenticationGrant.objects.get(user=self.user).used_at)
+        active = create_pat(self.user, ["203.0.113.0/24"], name="active")
+        response = self.set_acl(active, [], **grant)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_token_revoked_before_the_grant_is_taken_leaves_it_unused(self):
+        """A rotation can revoke the token between the widening decision and
+        the second lock. The grant is taken, then given back when that
+        transaction rolls back, so it can still be used."""
+        pat = create_pat(self.user, ["203.0.113.0/24"])
+        grant = reauthenticated(self.user, WIDEN)
+
+        def widens_then_revoked(current, new):
+            widens = network_acl_widens(current, new)
+            PersonalAccessToken.objects.filter(pk=pat.pk).update(is_active=False)
+            return widens
+
+        with (
+            mock.patch(
+                "waldur_core.core.views.network_acl_widens",
+                side_effect=widens_then_revoked,
+            ),
+            mock.patch.object(
+                reauthentication, "guarded", wraps=reauthentication.guarded
+            ) as guarded,
+        ):
+            response = self.set_acl(pat, [], **grant)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        guarded.assert_called_once()
+        self.assertIsNone(ReauthenticationGrant.objects.get(user=self.user).used_at)
+        self.assert_networks(pat, ["203.0.113.0/24"])
+        self.assertFalse(self.events("reauthentication_grant_used").exists())
+        self.assertFalse(self.events("pat_network_acl_updated").exists())
+
+        # The grant still works.
+        PersonalAccessToken.objects.filter(pk=pat.pk).update(is_active=True)
+        response = self.set_acl(pat, [], **grant)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assert_networks(pat, [])
+
+    def test_it_is_decided_against_the_locked_row(self):
+        """The list as the request loaded it is unrestricted, so restricting it
+        would need no grant. By the time the row is locked it has been
+        narrowed, and the same list now widens it."""
+        pat = create_pat(self.user, [])
+        get_object = PersonalAccessTokenViewSet.get_object
+
+        def narrowed_after_loading(view):
+            loaded = get_object(view)
+            PersonalAccessToken.objects.filter(pk=loaded.pk).update(
+                allowed_networks=["203.0.113.0/24"]
+            )
+            return loaded
+
+        with mock.patch.object(
+            PersonalAccessTokenViewSet,
+            "get_object",
+            autospec=True,
+            side_effect=narrowed_after_loading,
+        ):
+            response = self.set_acl(pat, ["198.51.100.0/24"])
+
+        self.assert_challenge(response)
+        self.assert_networks(pat, ["203.0.113.0/24"])
+
+
+@override_config(PAT_ENABLED=True)
+class PatNetworkAclDelegatedCallerTest(NetworkAclChangeTest):
+    """Only the user's own sign-in may widen a token's networks. Each refusal
+    comes with the same caller narrowing them, to show the request reached
+    the action."""
+
+    def setUp(self):
+        super().setUp()
+        self.pat = create_pat(self.user, ["203.0.113.0/24"])
+
+    def assert_grant_unused(self):
+        self.assertIsNone(ReauthenticationGrant.objects.get(user=self.user).used_at)
+
+    def test_a_personal_access_token_can_neither_widen_nor_narrow(self):
+        caller = create_pat(self.user, name="caller")
+        grant = reauthenticated(self.user, WIDEN)
+        self.client.force_authenticate(user=None)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {caller._plaintext_token}",
+            REMOTE_ADDR="203.0.113.5",
+        )
+
+        response = self.set_acl(self.pat, [], **grant)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.set_acl(self.pat, ["203.0.113.7"])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_networks(self.pat, ["203.0.113.0/24"])
+        self.assert_grant_unused()
+
+        # The same grant from the user's own sign-in.
+        self.client.credentials()
+        self.client.force_authenticate(user=self.user)
+        response = self.set_acl(self.pat, [], **grant)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_impersonating_staff_can_narrow_but_not_widen(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        token, _ = Token.objects.get_or_create(user=staff)
+        self.client.force_authenticate(user=None)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+            HTTP_X_IMPERSONATED_USER_UUID=self.user.uuid.hex,
+        )
+
+        response = self.set_acl(
+            self.pat, ["198.51.100.0/24"], **reauthenticated(self.user, WIDEN)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_networks(self.pat, ["203.0.113.0/24"])
+        self.assert_grant_unused()
+        refused = self.events("reauthentication_refused").get()
+        self.assertIn("impersonat", refused.message)
+
+        response = self.set_acl(self.pat, ["203.0.113.7"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_an_oidc_access_token_can_narrow_but_not_widen(self):
+        self.client.force_authenticate(user=self.user, token={"sub": "someone"})
+
+        response = self.set_acl(
+            self.pat, ["198.51.100.0/24"], **reauthenticated(self.user, WIDEN)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_networks(self.pat, ["203.0.113.0/24"])
+        self.assert_grant_unused()
+        refused = self.events("reauthentication_refused").get()
+        self.assertIn("delegated", refused.message)
+
+        response = self.set_acl(self.pat, ["203.0.113.7"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @override_config(PAT_ENABLED=True, PAT_MAX_AUDIT_EVENTS_PER_HOUR=3)
