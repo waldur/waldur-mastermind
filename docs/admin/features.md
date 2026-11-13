@@ -1,9 +1,5 @@
 # Features
 
-## customer.billing_mode
-
-Show costs and prices with VAT included and present monthly invoices instead of accounting records. When off, costs are shown without VAT.
-
 ## customer.payments_for_staff_only
 
 Make payments menu visible for staff users only.
@@ -15,6 +11,10 @@ Display banking related data under customer profile.
 ## customer.show_domain
 
 Allows to hide domain field in organization detail.
+
+## customer.show_invoices_with_vat
+
+Show costs and prices with VAT included and present monthly invoices instead of accounting records. When off, costs are shown without VAT.
 
 ## customer.show_onboarding
 
