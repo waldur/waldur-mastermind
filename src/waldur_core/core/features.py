@@ -48,7 +48,7 @@ class CustomerSection(FeatureSection):
     payments_for_staff_only = Feature(
         "Make payments menu visible for staff users only."
     )
-    billing_mode = Feature(
+    show_invoices_with_vat = Feature(
         "Show costs and prices with VAT included and present monthly invoices "
         "instead of accounting records. When off, costs are shown without VAT."
     )
