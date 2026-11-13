@@ -1213,6 +1213,8 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
             (WITHDRAWABLE_ADJUSTMENT, "Withdrawable adjustment"),
         )
 
+    Channels = enums.CreditTransactionChannel
+
     credit = models.ForeignKey(
         CustomerCredit,
         on_delete=models.CASCADE,
@@ -1252,6 +1254,13 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
     )
     object_id = models.PositiveIntegerField(null=True, blank=True)
     reference = GenericForeignKey("content_type", "object_id")
+    # Only top-ups set it; other movements keep the default.
+    channel = models.CharField(
+        max_length=10, choices=Channels.CHOICES, default=Channels.MANUAL
+    )
+    # The sender's own identifier for a top-up; a repeat on the same credit is a
+    # retry, not a second payment (see `topups`).
+    external_reference = models.CharField(max_length=255, blank=True, default="")
 
     @property
     def customer(self):
@@ -1279,6 +1288,13 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
 
     class Meta:
         ordering = ["-created", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["credit", "external_reference"],
+                condition=~models.Q(external_reference=""),
+                name="invoices_credit_transaction_unique_external_reference",
+            ),
+        ]
 
     @classmethod
     def get_url_name(cls):

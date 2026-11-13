@@ -16,3 +16,24 @@ class CompensateIn:
         (CURRENT_MONTH, "Current month"),
         (INCURRED_MONTH, "Month the cost was incurred"),
     )
+
+
+class CreditTransactionChannel:
+    """How a top-up reached the credit ledger.
+
+    Here rather than on CreditTransaction so that the OpenAPI settings can name
+    the choice set without importing models.
+    """
+
+    # Typed in by staff, and every movement that is not a top-up.
+    MANUAL = "manual"
+    # Posted by an external system, such as an ERP, with its own reference.
+    API = "api"
+    # Confirmed by a payment gateway.
+    GATEWAY = "gateway"
+
+    CHOICES = (
+        (MANUAL, "Manual"),
+        (API, "API"),
+        (GATEWAY, "Payment gateway"),
+    )

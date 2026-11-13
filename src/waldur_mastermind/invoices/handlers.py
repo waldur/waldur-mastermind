@@ -714,6 +714,8 @@ def record_credit_transaction(sender, instance, created=False, **kwargs):
         reference,
         comment,
         billing_period,
+        channel,
+        external_reference,
     ) = ledger.current_credit_transaction_type()
     row = models.CreditTransaction.objects.create(
         amount=delta,
@@ -721,6 +723,8 @@ def record_credit_transaction(sender, instance, created=False, **kwargs):
         reference=reference,
         comment=comment or "",
         billing_period=billing_period,
+        channel=channel or models.CreditTransaction.Channels.MANUAL,
+        external_reference=external_reference or "",
         **attribution,
     )
     lots.apply_transaction(row)

@@ -1722,7 +1722,17 @@ class CreditTopUpSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
         max_length=255,
-        help_text="Bank transfer or payment identifier, kept in the ledger comment.",
+        help_text="Bank transfer or payment identifier, kept in the ledger "
+        "comment. Not checked for repeats; send external_reference for that.",
+    )
+    external_reference = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=255,
+        help_text="The sender's unique identifier for this top-up, e.g. an ERP "
+        "payment ID. A repeat with the same amount returns the credit "
+        "unchanged; with another amount it is refused. A reversal needs a "
+        "reference of its own.",
     )
 
     def validate_amount(self, value):
@@ -1764,6 +1774,9 @@ class CreditTransactionSerializer(serializers.ModelSerializer):
 
     transaction_type_display = serializers.CharField(
         source="get_transaction_type_display", read_only=True
+    )
+    channel_display = serializers.CharField(
+        source="get_channel_display", read_only=True
     )
     # Resolved through the model, because a row moves either the organization
     # balance or a project allocation, and null once a deleted allocation has
@@ -1832,6 +1845,9 @@ class CreditTransactionSerializer(serializers.ModelSerializer):
             "transaction_type",
             "transaction_type_display",
             "comment",
+            "channel",
+            "channel_display",
+            "external_reference",
             "customer_uuid",
             "customer_name",
             # Denormalised on the row, so a project keeps its drawdown in the

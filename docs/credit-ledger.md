@@ -139,11 +139,23 @@ when its project is removed, but no more than the granted balance: it is an
 the organization.
 
 Staff record a prepayment with `POST /api/customer-credits/{uuid}/top_up/`
-(amount, comment, optional payment reference), reverse one with a negative
-amount, and move granted credit that was really a prepayment with
-`POST /api/customer-credits/{uuid}/reclassify/`. They emit
+(amount, comment, optional payment and external references), reverse one
+with a negative amount, and move granted credit that was really a prepayment
+with `POST /api/customer-credits/{uuid}/reclassify/`. They emit
 `credit_topped_up` and `credit_reclassified_as_paid` events carrying the
 comment and the acting user.
+A top-up sent with an `external_reference`, such as an ERP payment ID, is safe
+to retry: the reference is unique per organization credit, a repeat with the
+same amount returns the credit unchanged, and one with another amount is
+refused. Only the reference and the amount are compared: a repeat's `comment`
+and `payment_reference` are ignored, and the ledger row keeps the first call's
+text. A reversal is a movement of its own and needs its own reference: one
+sent with the reference of the top-up it reverses is refused as another
+amount. The `payment_reference` is only kept in the comment and is never
+checked for repeats. The ledger row records how the top-up arrived in
+`channel`: `api` with a reference, `manual` without. `gateway` is reserved for
+payment gateways, which will call `invoices.topups.top_up` directly (#1152).
+Other movements read `manual`.
 A staff edit of `value` may lower it by no more than the granted balance:
 paid and earned credit leave only through their typed actions. These staff
 actions — and creating, editing or deleting a credit, the compensation actions,
@@ -211,6 +223,8 @@ balance, and project roles see their own project's drawdown.
 | `project_credit_uuid` | Rows on one project allocation |
 | `project_uuid` | A project's rows, including those whose allocation is gone |
 | `transaction_type` | One type |
+| `channel` | One or more channels: `api`, `gateway`, or `manual` (every row that is not an `api` or `gateway` top-up) |
+| `external_reference` | The top-up with that sender reference |
 | `billing_period` | One month |
 | `billing_period_after` / `billing_period_before` | A range of months |
 

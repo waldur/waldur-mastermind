@@ -79,7 +79,12 @@ def current_credit_transaction_parts(instance):
 
 @contextlib.contextmanager
 def credit_transaction_type(
-    transaction_type: str, reference=None, comment="", billing_period=None
+    transaction_type: str,
+    reference=None,
+    comment="",
+    billing_period=None,
+    channel=None,
+    external_reference="",
 ):
     """Type the credit value mutations performed inside the block.
 
@@ -87,9 +92,19 @@ def credit_transaction_type(
     the moment they were made — a roll-back reverses a particular month's
     drawdown, and has to be counted against that month or the month it undoes
     keeps the drawdown it no longer has.
+
+    ``channel`` and ``external_reference`` say how a top-up arrived and how its
+    sender identifies it; see ``topups``.
     """
     previous = getattr(_state, "current", None)
-    _state.current = (transaction_type, reference, comment, billing_period)
+    _state.current = (
+        transaction_type,
+        reference,
+        comment,
+        billing_period,
+        channel,
+        external_reference,
+    )
     try:
         yield
     finally:
@@ -97,7 +112,7 @@ def credit_transaction_type(
 
 
 def current_credit_transaction_type():
-    """Return (transaction_type, reference, comment, billing_period) declared by
-    the innermost ``credit_transaction_type`` block, or (None, None, "", None)
-    outside any block."""
-    return getattr(_state, "current", None) or (None, None, "", None)
+    """Return (transaction_type, reference, comment, billing_period, channel,
+    external_reference) declared by the innermost ``credit_transaction_type``
+    block, or (None, None, "", None, None, "") outside any block."""
+    return getattr(_state, "current", None) or (None, None, "", None, None, "")
