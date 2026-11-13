@@ -45,7 +45,17 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import compensations
 from waldur_mastermind.invoices.models import InvoiceItem
 
-from . import filters, ledger, lots, models, serializers, settlement, tasks, utils
+from . import (
+    filters,
+    ledger,
+    lots,
+    models,
+    serializers,
+    settlement,
+    tasks,
+    topups,
+    utils,
+)
 from .audit import skip_credit_audit
 
 
@@ -1305,7 +1315,10 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         "credit value and writes a top-up ledger entry with the comment. "
         "Unlike granted credit, invoices paid from it count towards the "
         "affiliate fee, and it does not expire. A negative amount reverses a "
-        "top-up, e.g. a bounced payment, and draws on paid credit only.",
+        "top-up, e.g. a bounced payment, and draws on paid credit only. With an "
+        "external_reference the call is safe to retry: a repeat with the same "
+        "reference and amount returns the credit unchanged, and one with "
+        "another amount is refused. A reversal needs a reference of its own.",
         request=serializers.CreditTopUpSerializer,
         responses={status.HTTP_200_OK: serializers.CustomerCreditSerializer},
     )
@@ -1314,44 +1327,21 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         credit = self.get_object()
         input_serializer = serializers.CreditTopUpSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
-        amount = input_serializer.validated_data["amount"]
-        comment = input_serializer.validated_data["comment"]
-        payment_reference = input_serializer.validated_data.get("payment_reference")
+        data = input_serializer.validated_data
+        comment = data["comment"]
+        payment_reference = data.get("payment_reference")
         if payment_reference:
             comment = f"{comment} (payment reference: {payment_reference})"
+        external_reference = data.get("external_reference", "")
+        channels = models.CreditTransaction.Channels
 
-        with transaction.atomic():
-            credit = models.CustomerCredit.objects.select_for_update().get(pk=credit.pk)
-            if amount < 0 and -amount > min(credit.paid_balance, credit.value):
-                raise exceptions.ValidationError(
-                    {"amount": _("Reversal would exceed the paid credit balance.")}
-                )
-            old_value = credit.value
-            with (
-                skip_credit_audit(),
-                ledger.credit_transaction_type(
-                    models.CreditTransaction.Types.TOP_UP, comment=comment
-                ),
-            ):
-                credit.value += amount
-                credit.save(update_fields=["value"])
-            event_logger.emit(
-                "{customer_name} credit has been topped up by {amount} from "
-                "{old_value} to {new_value}: {comment}"
-                if amount > 0
-                else "{customer_name} credit top-up has been reversed by {amount} "
-                "from {old_value} to {new_value}: {comment}",
-                event_type=EventType.CREDIT_TOPPED_UP,
-                event_context={
-                    "customer": credit.customer,
-                    "amount": abs(amount),
-                    "old_value": old_value,
-                    "new_value": credit.value,
-                    "comment": comment,
-                },
-                scopes=[credit.customer],
-            )
-
+        credit = topups.top_up(
+            credit,
+            data["amount"],
+            comment,
+            channel=channels.API if external_reference else channels.MANUAL,
+            external_reference=external_reference,
+        )
         return Response(
             serializers.CustomerCreditSerializer(
                 credit, context=self.get_serializer_context()

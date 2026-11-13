@@ -223,6 +223,10 @@ class CreditTransactionFilter(django_filters.FilterSet):
     # drawdown stays queryable after the allocation is deleted.
     project_uuid = django_filters.CharFilter(field_name="project_uuid")
     transaction_type = django_filters.CharFilter()
+    channel = django_filters.MultipleChoiceFilter(
+        choices=models.CreditTransaction.Channels.CHOICES
+    )
+    external_reference = django_filters.CharFilter()
     billing_period = django_filters.DateFilter()
     billing_period_after = django_filters.DateFilter(
         field_name="billing_period", lookup_expr="gte"
