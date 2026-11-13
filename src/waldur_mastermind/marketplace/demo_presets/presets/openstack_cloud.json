@@ -146,13 +146,15 @@
       "uuid": "e3000000000000000000000000000002",
       "title": "Virtual Machines",
       "description": "OpenStack compute instances",
-      "group_uuid": "a1b2c3d4e5f6789012345678abcdef01"
+      "group_uuid": "a1b2c3d4e5f6789012345678abcdef01",
+      "default_vm_category": true
     },
     {
       "uuid": "e3000000000000000000000000000003",
       "title": "Volumes",
       "description": "OpenStack block storage volumes",
-      "group_uuid": "a1b2c3d4e5f6789012345678abcdef01"
+      "group_uuid": "a1b2c3d4e5f6789012345678abcdef01",
+      "default_volume_category": true
     }
   ],
   "service_providers": [
