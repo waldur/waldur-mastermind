@@ -104,11 +104,11 @@ EMAIL_HOOK_FROM_EMAIL = env.get("GLOBAL_EMAIL_HOOK_FROM_EMAIL", "")
 
 # Session
 # https://docs.djangoproject.com/en/4.2/ref/settings/#sessions
-SESSION_COOKIE_AGE = env.get("AUTH_COOKIE_AGE", 3600)
+SESSION_COOKIE_AGE = int(env.get("AUTH_COOKIE_AGE") or 3600)
 
 # Waldur Core internal configuration
 # See also: http://docs.waldur.com/latest/
-token_lifetime = env.get("AUTH_TOKEN_LIFETIME", 3600)
+token_lifetime = int(env.get("AUTH_TOKEN_LIFETIME") or 3600)
 WALDUR_CORE.update(
     {
         "TOKEN_LIFETIME": timedelta(seconds=token_lifetime),
