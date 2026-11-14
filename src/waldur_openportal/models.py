@@ -2406,6 +2406,9 @@ class ManagedProject(ReviewMixin, models.Model):
         existing_details.project_link = self._get_project_link()
         self.set_details(existing_details)
 
+    # The award's links, owned by the awarding portal. See merge_details.
+    LINK_FIELDS = ("award", "call", "renewal")
+
     def merge_details(
         self, new_details: openportal.AwardDetails
     ) -> openportal.AwardDetails:
@@ -2417,7 +2420,12 @@ class ManagedProject(ReviewMixin, models.Model):
         - membership_control, allowed_domains: the remote portal sets membership
           policy and it must not be softened by a merge with older stored values.
         - award, call, renewal: link fields set by the local portal are the
-          source of truth and must replace whatever was previously stored.
+          source of truth and replace whatever was previously stored - but only
+          when the update carries one. Not every message from the awarding
+          portal includes its links, and treating a missing link as "remove
+          it" wiped them, so an award lost and regained its "Go to award" link
+          depending on which kind of update came last. A link can be changed
+          from the awarding portal, but not removed.
         - members: a None value explicitly means "do not manage membership" and
           must not be overridden by stored members from a previous sync.
 
@@ -2431,9 +2439,13 @@ class ManagedProject(ReviewMixin, models.Model):
         # override the merged result.
         merged.membership_control = new_details.membership_control
         merged.allowed_domains = new_details.allowed_domains
-        merged.award = new_details.award
-        merged.call = new_details.call
-        merged.renewal = new_details.renewal
+        for link in self.LINK_FIELDS:
+            incoming = getattr(new_details, link)
+            setattr(
+                merged,
+                link,
+                incoming if incoming is not None else getattr(existing, link),
+            )
         merged.earliest_approve = new_details.earliest_approve
 
         if new_details.members is None:
