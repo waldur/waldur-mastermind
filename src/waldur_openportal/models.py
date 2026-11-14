@@ -2738,6 +2738,7 @@ class ManagedProjectAuditEntry(models.Model):
         note: str = "",
         previous_details=None,
         new_details=None,
+        skip_repeat: bool = False,
     ) -> "ManagedProjectAuditEntry | None":
         """
         Create and save an audit entry for the given ManagedProject.
@@ -2749,7 +2750,39 @@ class ManagedProjectAuditEntry(models.Model):
         is identical to the most recent entry for this project, preventing
         duplicate records when the remote portal repeatedly sends the same
         unchanged request.
+
+        skip_repeat=True is for system notes written on every resend, e.g.
+        "not applied: project is in its grace period": such a note-only entry
+        is skipped if the most recent entry for this project is the same
+        system event with the same note. It never applies to an entry made by
+        a user (performed_by set) - a user repeating an action, such as adding
+        the same note or re-attaching the same project, is a new event.
         """
+        if (
+            skip_repeat
+            and performed_by is None
+            and note
+            and new_details is None
+            and previous_details is None
+        ):
+            last = (
+                cls.objects.filter(
+                    identifier=managed_project.identifier,
+                    destination=managed_project.destination,
+                )
+                .order_by("-timestamp", "-id")
+                .first()
+            )
+            if (
+                last is not None
+                and last.event_type == event_type
+                and last.note == note
+                and last.new_details is None
+                and last.previous_details is None
+                and last.performed_by_id is None
+            ):
+                return None
+
         if new_details is not None and event_type in (
             ManagedProjectAuditEventType.CREATED,
             ManagedProjectAuditEventType.DETAILS_UPDATED,

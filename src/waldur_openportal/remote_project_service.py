@@ -105,7 +105,11 @@ def _get_or_create_audit_entry(
 
     Content identity is defined by new_details, previous_details, note, and
     remote_response.  allocation_entry and performed_by are metadata links and
-    are not compared.
+    are not compared.  When new_details is set it is the event (what was
+    sent or confirmed) and previous_details only context - e.g. the last
+    confirmed details at the time of a send - so a resend of the same details
+    is not a new event just because that context moved.  A new allocation
+    ledger entry always gets its own audit entry.
     """
     last = (
         models.RemoteProjectAuditEntry.objects.filter(
@@ -119,9 +123,12 @@ def _get_or_create_audit_entry(
     if (
         last is not None
         and last.new_details == new_details
-        and last.previous_details == previous_details
+        and (new_details is not None or last.previous_details == previous_details)
         and last.note == note
         and last.remote_response == remote_response
+        and (
+            allocation_entry is None or last.allocation_entry_id == allocation_entry.pk
+        )
     ):
         return last
 
