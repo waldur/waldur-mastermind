@@ -292,14 +292,12 @@ def get_user_shortname(user):
 
     user = user_info.user
 
-    # if this is not set, then copy it in from the user.unix_username
-    # property (which may disappear in the future)
-    if user_info.shortname is None and hasattr(user, "unix_username"):
-        if user.unix_username is not None:
-            logger.debug(f"Copying shortname from the user's unix_username for {user}")
-            user_info.set_shortname(user.unix_username)
-            user_info.save()
-
+    # There used to be a fallback here copying core.User.unix_username in
+    # when the shortname was unset. That field is gone ("which may disappear
+    # in the future" - it did), and UserInfo.shortname is now the only place a
+    # user's local username lives. So an unset shortname is simply unset: the
+    # user has not chosen one yet, through
+    # PUT /api/openportal-userinfo/<user>/set_shortname/.
     if user_info.shortname is None:
         logger.error(f"Empty shortname for user: {user}")
 

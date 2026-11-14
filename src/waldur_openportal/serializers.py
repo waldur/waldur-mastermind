@@ -399,6 +399,25 @@ class UserInfoSerializer(rf_serializers.HyperlinkedModelSerializer):
         }
 
 
+class SetUserShortnameSerializer(rf_serializers.ModelSerializer):
+    """
+    Validates the shortname on its way in.
+
+    A ModelSerializer carries over the validators declared on
+    UserInfo.shortname - the character rules, the length limits, the ban on
+    'admin' and 'root' and uniqueness - which a plain read of request.data
+    does not, and turns a violation into a 400 naming the rule rather than an
+    empty body.
+    """
+
+    class Meta:
+        model = models.UserInfo
+        fields = ("shortname",)
+        extra_kwargs = {
+            "shortname": {"required": True, "allow_null": False},
+        }
+
+
 class ProjectInfoSerializer(rf_serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.ProjectInfo

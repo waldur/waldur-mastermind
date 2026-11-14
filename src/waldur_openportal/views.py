@@ -1,5 +1,7 @@
 import logging
+from uuid import UUID
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
@@ -282,6 +284,29 @@ class RemoteAssociationViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.RemoteAssociationFilter
 
 
+class IsShortnameOwnerOrStaff(BasePermission):
+    """
+    The user whose shortname is being set (the ``user`` in the URL), or staff.
+    """
+
+    def has_permission(self, request, view):
+        if has_staff_access(request):
+            return True
+        try:
+            return UUID(str(view.kwargs.get("user"))) == UUID(str(request.user.uuid))
+        except (TypeError, ValueError, AttributeError):
+            return False
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        return [
+            access.any_of(
+                access.staff(),
+                access.owned("The user account the shortname is for."),
+            )
+        ]
+
+
 class UserInfoViewSet(core_views.ActionsViewSet):
     queryset = models.UserInfo.objects.all().order_by("shortname")
     lookup_field = "user"
@@ -346,29 +371,26 @@ class UserInfoViewSet(core_views.ActionsViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    set_shortname_serializer_class = serializers.SetUserShortnameSerializer
+
     @extend_schema(
+        request=serializers.SetUserShortnameSerializer,
         responses={status.HTTP_200_OK: serializers.UserInfoSerializer},
         description="Set shortname for user",
     )
-    @action(detail=True, methods=["PUT"])
+    # The viewset is staff-write, but a shortname is the user's own local
+    # username to choose, once: the user it is for may set it, as may staff.
+    @action(
+        detail=True,
+        methods=["PUT"],
+        permission_classes=[permissions.IsAuthenticated, IsShortnameOwnerOrStaff],
+    )
     def set_shortname(self, request, user=None):
-        try:
-            shortname = str(request.data["shortname"])
-        except Exception as e:
-            logger.error(f"You must provide the 'shortname' field: {e}")
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-
         try:
             user = self._visible_user(user)
         except Exception as e:
             logger.error(f"Error retrieving user {user}: {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-        if request.user != user and not has_staff_access(request):
-            logger.error(
-                f"User {request.user} is not allowed to set shortname for user {user}"
-            )
-            return Response(status=status.HTTP_403_FORBIDDEN)
 
         try:
             userinfo = self._get(user)
@@ -376,12 +398,21 @@ class UserInfoViewSet(core_views.ActionsViewSet):
             logger.error(f"Error retrieving user {user}: {e}")
             return Response(status=status.HTTP_404_NOT_FOUND)
 
+        serializer = serializers.SetUserShortnameSerializer(
+            instance=userinfo, data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
         try:
-            userinfo.set_shortname(shortname)
-            userinfo.save()
-        except Exception as e:
+            userinfo.set_shortname(serializer.validated_data["shortname"])
+        except DjangoValidationError as e:
             logger.error(f"Error setting shortname for user {user}: {e}")
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"shortname": e.messages}, status=status.HTTP_400_BAD_REQUEST
+            )
+        except ValueError as e:
+            logger.error(f"Error setting shortname for user {user}: {e}")
+            return Response({"shortname": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = serializers.UserInfoSerializer(
             instance=userinfo, context={"request": request}
