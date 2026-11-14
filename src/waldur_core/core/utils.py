@@ -196,9 +196,25 @@ def camel_case_to_underscore(name):
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
+# A line holding only spaces or tabs, and a run of more than one blank line.
+_WHITESPACE_ONLY_LINE = re.compile(r"^[ \t]+$", re.MULTILINE)
+_BLANK_LINE_RUN = re.compile(r"\n{3,}")
+
+
 def format_text(template_name, context):
+    """Render a plain-text template (a subject or a message.txt body).
+
+    Template tags on lines of their own, {% if %} and {% for %} above all,
+    leave empty or whitespace-only lines behind, so a rendered message could
+    carry runs of six or eight blank lines. Whitespace-only lines are emptied
+    and a run of blank lines collapsed to one; content lines are kept as they
+    are. HTML bodies are rendered separately and are not affected.
+    """
     template = get_template(template_name).template
-    return template.render(Context(context, autoescape=False)).strip()
+    text = template.render(Context(context, autoescape=False))
+    text = _WHITESPACE_ONLY_LINE.sub("", text)
+    text = _BLANK_LINE_RUN.sub("\n\n", text)
+    return text.strip()
 
 
 def find_template_from_registry(app, event_type, template_suffix, variant=None):

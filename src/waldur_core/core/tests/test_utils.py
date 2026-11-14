@@ -4,7 +4,8 @@ from unittest import mock
 
 import requests
 from django.http import HttpRequest
-from django.test import TestCase
+from django.template import Template
+from django.test import SimpleTestCase, TestCase
 from urllib3.exceptions import InsecureRequestWarning
 
 from waldur_core.configuration.testing import override_config
@@ -13,11 +14,56 @@ from waldur_core.core.utils import (
     QuietSession,
     chunked_queryset,
     format_homeport_link,
+    format_text,
     get_ip_address,
     ip_in_networks,
     merge_access_subnets,
     normalize_ip_address,
 )
+
+
+class FormatTextTest(SimpleTestCase):
+    """Tags on lines of their own must not leave runs of blank lines behind."""
+
+    TEMPLATE = (
+        "Hello {{ name }},\n"
+        "{% if a %}\n"
+        "A line\n"
+        "{% endif %}\n"
+        "{% if b %}\n"
+        "B line\n"
+        "{% endif %}\n"
+        "   \n"
+        "\n"
+        "Details:\n"
+        "{% for item in items %}\n"
+        "  - {{ item }}\n"
+        "{% endfor %}\n"
+        "\n"
+        "\n"
+        "Bye\n"
+    )
+
+    def render(self, **context):
+        with mock.patch(
+            "waldur_core.core.utils.get_template",
+            return_value=mock.Mock(template=Template(self.TEMPLATE)),
+        ):
+            return format_text("x.txt", context)
+
+    def test_collapses_blank_line_runs(self):
+        text = self.render(name="N", a=False, b=False, items=["one", "two"])
+
+        self.assertEqual(
+            text,
+            "Hello N,\n\nDetails:\n\n  - one\n\n  - two\n\nBye",
+        )
+
+    def test_keeps_content_lines_and_single_blank_lines(self):
+        text = self.render(name="N", a=True, b=True, items=[])
+
+        self.assertNotIn("\n\n\n", text)
+        self.assertEqual(text, "Hello N,\n\nA line\n\nB line\n\nDetails:\n\nBye")
 
 
 class FormatHomeportLinkTest(TestCase):
