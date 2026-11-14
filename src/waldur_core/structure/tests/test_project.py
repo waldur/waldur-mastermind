@@ -293,6 +293,136 @@ class ProjectCreateTest(test.APITestCase):
                 ).exists()
             )
 
+    def test_validate_end_date_on_creation_has_no_grace_period(self):
+        """A project being created has no grace period yet, so a past end date
+        is rejected even when the organization has one."""
+        self.client.force_authenticate(self.fixture.staff)
+        today = datetime.date(2021, 7, 1)
+        self.fixture.customer.grace_period_days = 30
+        self.fixture.customer.save(update_fields=["grace_period_days"])
+
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["end_date"] = (today - timedelta(days=1)).isoformat()
+
+        with freeze_time(today.isoformat()):
+            response = self.client.post(
+                factories.ProjectFactory.get_list_url(), payload
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Cannot be earlier than the current date", str(response.data))
+        self.assertFalse(Project.objects.filter(name=payload["name"]).exists())
+
+    def test_validate_end_date_uses_project_grace_period(self):
+        """Setting an end date inside the project's own grace period is allowed:
+        it moves the grace period rather than being rejected as a past date."""
+        self.client.force_authenticate(self.fixture.staff)
+        today = datetime.date(2021, 7, 1)
+        grace_days = 30
+
+        project = self.fixture.project
+        project.grace_period_days = grace_days
+        project.save(update_fields=["grace_period_days"])
+        url = factories.ProjectFactory.get_url(project)
+
+        # Inside the grace period: accepted.
+        within_grace = today - timedelta(days=grace_days)
+        with freeze_time(today.isoformat()):
+            response = self.client.patch(url, {"end_date": within_grace.isoformat()})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        project.refresh_from_db()
+        self.assertEqual(project.end_date, within_grace)
+
+        # Beyond the grace period: rejected.
+        too_old = today - timedelta(days=grace_days + 1)
+        with freeze_time(today.isoformat()):
+            response = self.client.patch(url, {"end_date": too_old.isoformat()})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Cannot be earlier than the current date", str(response.data))
+        project.refresh_from_db()
+        self.assertEqual(project.end_date, within_grace)
+
+    def test_validate_end_date_falls_back_to_customer_grace_period(self):
+        """With no project-level grace period, the organization's setting applies."""
+        self.client.force_authenticate(self.fixture.staff)
+        today = datetime.date(2021, 7, 1)
+        grace_days = 15
+
+        customer = self.fixture.customer
+        customer.grace_period_days = grace_days
+        customer.save(update_fields=["grace_period_days"])
+
+        project = self.fixture.project
+        project.grace_period_days = None
+        project.save(update_fields=["grace_period_days"])
+        url = factories.ProjectFactory.get_url(project)
+
+        within_grace = today - timedelta(days=grace_days)
+        with freeze_time(today.isoformat()):
+            response = self.client.patch(url, {"end_date": within_grace.isoformat()})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        project.refresh_from_db()
+        self.assertEqual(project.end_date, within_grace)
+
+        too_old = today - timedelta(days=grace_days + 1)
+        with freeze_time(today.isoformat()):
+            response = self.client.patch(url, {"end_date": too_old.isoformat()})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unchanged_past_end_date_does_not_block_other_edits(self):
+        """A project without a grace period that ended yesterday: an edit of
+        another field that re-sends the unchanged end date is accepted."""
+        self.client.force_authenticate(self.fixture.staff)
+        today = datetime.date(2021, 7, 10)
+        project = self.fixture.project
+        project.grace_period_days = 0
+        project.end_date = today - timedelta(days=1)
+        project.save()
+        url = factories.ProjectFactory.get_url(project)
+
+        with freeze_time(today.isoformat()):
+            response = self.client.patch(
+                url,
+                {"description": "edited", "end_date": project.end_date.isoformat()},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        project.refresh_from_db()
+        self.assertEqual(project.description, "edited")
+        self.assertEqual(project.end_date, today - timedelta(days=1))
+
+    def test_project_in_grace_period_can_be_edited_and_extended(self):
+        """A project that ended 5 days ago with a 30-day grace period: an edit
+        that re-sends the unchanged end date, and moving the end date a few
+        days later (still in the past), are both accepted."""
+        self.client.force_authenticate(self.fixture.staff)
+        today = datetime.date(2021, 7, 10)
+        project = self.fixture.project
+        project.grace_period_days = 30
+        project.end_date = today - timedelta(days=5)
+        project.save()
+        url = factories.ProjectFactory.get_url(project)
+
+        with freeze_time(today.isoformat()):
+            self.assertTrue(project.is_in_grace_period)
+            response = self.client.patch(
+                url,
+                {"description": "edited", "end_date": project.end_date.isoformat()},
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+            extended = today - timedelta(days=3)
+            response = self.client.patch(url, {"end_date": extended.isoformat()})
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        project.refresh_from_db()
+        self.assertEqual(project.end_date, extended)
+        self.assertEqual(project.description, "edited")
+
     @data("staff", "owner")
     def test_user_can_set_end_date(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))

@@ -960,10 +960,35 @@ class ProjectSerializer(
         if end_date is None:
             return end_date
 
-        # Only validate non-None values
-        if end_date < timezone.datetime.today().date():
+        # Re-sending the current end date unchanged never blocks an edit of
+        # other fields, even when that date is already past.
+        if (
+            isinstance(self.instance, models.Project)
+            and end_date == self.instance.end_date
+        ):
+            return end_date
+
+        # A project in its grace period has an end date in the past. Moving it
+        # (or re-sending it unchanged) is allowed as long as the effective end
+        # date, end_date plus the project's grace period, is not before today,
+        # the same rule as is_in_grace_period. A project being created has no
+        # grace period yet, so a past end date is rejected outright.
+        today = timezone.localdate()
+        grace_period_days = (
+            self.instance.get_grace_period_days()
+            if isinstance(self.instance, models.Project)
+            else 0
+        )
+        if end_date + timezone.timedelta(days=grace_period_days) < today:
             raise serializers.ValidationError(
-                {"end_date": _("Cannot be earlier than the current date.")}
+                {
+                    "end_date": _("Cannot be earlier than the current date.")
+                    if not grace_period_days
+                    else _(
+                        "Cannot be earlier than the current date, "
+                        "outside of the grace period."
+                    )
+                }
             )
         return end_date
 
