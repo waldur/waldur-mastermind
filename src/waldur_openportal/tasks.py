@@ -2330,15 +2330,22 @@ def sync_board():
 
     for job in jobs:
         try:
-            if job.state != openportal.Status.PENDING:
+            if job.state != openportal.Status.pending():
                 logger.debug(f"Job {job.id} is not pending - skipping")
                 continue
 
             logger.info(f"Processing job {_trim_job(job)} from OpenPortal board")
-            j = models.Job.objects.create(
-                id=str(job.id),
-                data=job.to_json(),
+            j, created = models.Job.objects.get_or_create(
+                job_id=str(job.id),
+                defaults={
+                    "job_data": job.to_json(),
+                    "state": models.Job.State.PENDING,
+                },
             )
+
+            if not created and j.state != models.Job.State.PENDING:
+                logger.debug(f"Job {job.id} is already {j.state} - skipping")
+                continue
 
             run_job.delay(core_utils.serialize_instance(j))
 
