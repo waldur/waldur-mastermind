@@ -3131,9 +3131,34 @@ class RemoteProject(core_models.UuidMixin, models.Model):
             # precedence; notes and breakdown are unioned.
             result = confirmed.merge(sent)
 
-            # Explicitly enforce local membership and membership_control —
-            # merge() may blend these, but last_sent is always authoritative.
-            result.members = sent.members
+            # Explicitly enforce local membership — last_sent is always
+            # authoritative and is never augmented from last_confirmed.
+            #
+            # Deliberately NOT `result.members = sent.members`.  The attribute
+            # setter is the one place in this library that re-validates member
+            # emails against allowed_domains, and it validates against the
+            # *snapshot's* domains, before the local allowed_domains below has
+            # been applied.  from_json() and merge() both accept such members
+            # without complaint, so the stored data is not invalid — a member
+            # added legitimately before the domain list was tightened would
+            # nonetheless make this read path raise
+            #
+            #   OSError: Parse("Email '...' is not in the allowed domains
+            #                   for this project")
+            #
+            # and take down the entire remote-projects list, not merely its own
+            # row.  Same shape as the allowed_domains note below: assignment
+            # and merge do not mean the same thing in this library.
+            #
+            # merge() already replaces members wholesale when sent has them, so
+            # only the "sent has none" case needs anything doing — but clear
+            # and re-merge explicitly rather than relying on that, so a change
+            # in merge()'s precedence cannot silently reinstate stale members.
+            result.members = None  # clearing never validates
+            if sent.members is not None:
+                result = result.merge(
+                    openportal.AwardDetails(json.dumps({"members": sent.members}))
+                )
 
         # Layer in current extras — these may be newer than the last send.
         # Notes are unioned (merge deduplicates); other fields overwrite.
