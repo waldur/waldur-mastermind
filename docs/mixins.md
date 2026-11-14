@@ -176,6 +176,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SettingsFileMixin`](#settingsfilemixin) | `waldur_mastermind.support.tests.test_constance_override` | No description available |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_mastermind.support.views` | Raise exception if extension is disabled |
 | [`UsageMixin`](#usagemixin) | `waldur_openportal.models` | Make subclasses preserve the alters_data attribute on overridden methods |
+| [`AwardMixin`](#awardmixin) | `waldur_openportal.tests.test_award_attachments` | No description available |
 | [`TemplateVisibilityMixin`](#templatevisibilitymixin) | `waldur_openportal.tests.test_template_visibility` | No description available |
 | [`InfoVisibilityMixin`](#infovisibilitymixin) | `waldur_openportal.tests.test_userinfo_visibility` | No description available |
 | [`ActionDetailsMixin`](#actiondetailsmixin) | `waldur_openstack.admin` | Encapsulate all admin options and functionality for a given model |
@@ -2238,6 +2239,12 @@ Raise exception if extension is disabled
 Make subclasses preserve the alters_data attribute on overridden methods.
 
 **Base classes:** `Model`
+
+### AwardMixin
+
+**Module:** `waldur_openportal.tests.test_award_attachments`
+
+**Description:** No description available.
 
 ### TemplateVisibilityMixin
 

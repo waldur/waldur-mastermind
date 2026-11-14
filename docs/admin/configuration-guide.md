@@ -738,7 +738,7 @@ Require staff and support accounts to hold a passkey and to have satisfied it fo
 
 **Type:** str
 
-WebAuthn Relying Party ID: the bare registrable domain that passkeys are bound to, without scheme or port, e.g. 'waldur.example.com'. Has no default and cannot be derived from the request, because no deployment sets SECURE_PROXY_SSL_HEADER. Changing it orphans every credential already registered.
+WebAuthn Relying Party ID: the bare registrable domain that passkeys are bound to, without scheme or port, e.g. 'waldur.example.com'. Has no default and is not derived from the request host. Changing it orphans every credential already registered.
 
 #### PASSKEY_RP_NAME
 
