@@ -560,6 +560,7 @@ td:nth-child(4) {
 | `evaluate_usage_limit_on_daily_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentDailyUsage` | Re-evaluate a resource with spending limits when a day's usage changes. |
 | `evaluate_usage_limit_on_resource_limit_change` | `Django Signal (post_save)` | `marketplace.Resource` | Re-evaluate a resource's usage-limit restriction when its limits change. |
 | `evaluate_usage_limit_on_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Pause or downscale a resource when reported usage reaches a component limit. |
+| `forget_ended_connection` | `Django Signal (pre_save)` | `oauth2_provider.Grant` | Before a new code, drop the record of the client's connection if it has |
 | `forward_attachment_to_children` | `Django Signal (post_save)` | `support.Attachment` | Forward new attachments from parent issues to child issues. |
 | `forward_comment_to_children` | `Django Signal (post_save)` | `support.Comment` | Forward new public comments from parent issues to child issues. |
 | `grant_role_on_acceptance` | `Django Signal (post_save)` | `proposal.CallReviewerPool` | An accepted pool entry gives its reviewer the call's reviewer role. |
@@ -657,6 +658,8 @@ td:nth-child(4) {
 | `purge_offering_role_groups_on_scope_delete` | `Django Signal (post_delete)` | `marketplace.ResourceProject` | Drop OfferingRoleGroup rows that pointed at a now-deleted scope. |
 | `reconcile_offering_profile_on_offering_changed` | `Django Signal (post_save)` | `marketplace.Offering` | When an Offering is saved, schedule a reconciliation task. Cheap |
 | `reconcile_offering_profile_on_roles_changed` | `Django Signal (m2m_changed)` | `OfferingProfile_roles` | When OfferingProfile.roles M2M changes, schedule reconciliation |
+| `record_connected_app` | `Django Signal (post_save)` | `oauth2_provider.Grant` | Remember when the user first authorised the client, which DOT doesn't. |
+| `record_connected_app` | `Django Signal (post_save)` | `oauth2_provider.AccessToken` | Remember when the user first authorised the client, which DOT doesn't. |
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.CustomerCredit` | Write ledger rows for every credit value change, organization or project. |
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.ProjectCredit` | Write ledger rows for every credit value change, organization or project. |
 | `refresh_vat_rates_when_enabled` | `Custom Signal (setting_updated)` | `—` | Without rates, pending invoices cannot get VAT until the next month. |
@@ -874,7 +877,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 790
+Total unique handlers found: 793
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -882,7 +885,7 @@ Total unique handlers found: 790
 - **waldur_core**: 348 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 378 handlers
+- **waldur_mastermind**: 381 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
