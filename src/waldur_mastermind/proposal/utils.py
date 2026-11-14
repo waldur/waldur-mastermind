@@ -762,6 +762,13 @@ def provision_awarded_item(
                 attributes=attrs["attributes"],
                 index=index,
             ),
+            # The offering's resource options take their values from the
+            # award, as an order placed through the marketplace sets them: a
+            # provider that reads an awarded amount from Resource.options
+            # would otherwise never see it.
+            options=marketplace_utils.resource_options_from_attributes(
+                offering, attrs["attributes"]
+            ),
         )
         # Before init_cost: the prepaid multiplier in Plan.get_estimate and
         # in the invoice item builder both read this field, so setting it
