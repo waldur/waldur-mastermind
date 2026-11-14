@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, models, transaction
 from django.db.models import F, Q
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
@@ -2576,6 +2577,7 @@ class ManagedProject(ReviewMixin, models.Model):
         if project is None:
             self.project = None
             self.save(update_fields=["project"])
+            self.sync_attachment()
             existing_details = self.get_details()
             existing_details.project_link = None
             self.set_details(existing_details)
@@ -2596,6 +2598,7 @@ class ManagedProject(ReviewMixin, models.Model):
         self.local_identifier = local_identifier
         self.project = project
         self.save(update_fields=["project", "local_identifier"])
+        self.sync_attachment()
         existing_details = self.get_details()
         existing_details.project_link = self._get_project_link()
         self.set_details(existing_details)
@@ -2669,6 +2672,44 @@ class ManagedProject(ReviewMixin, models.Model):
 
     # The award's links, owned by the awarding portal. See merge_details.
     LINK_FIELDS = ("award", "call", "renewal")
+
+    def sync_attachment(self):
+        """
+        Make the attachment history match self.project: close any open
+        attachment to another project (or to any project, when there is none
+        now), and open one for the current project unless it is already open.
+
+        Called wherever self.project changes, so the history says which
+        project held this award and when. A project's credit is this award's
+        allocation less the spend made while the award was attached to it -
+        not the spend under an award the project held before.
+
+        The stored project is re-read under a row lock, so concurrent calls
+        are serialised and the history follows what was saved last rather
+        than whichever instance happened to sync last. At most one attachment
+        per award is open (enforced by a constraint).
+        """
+        with transaction.atomic():
+            project_id = (
+                ManagedProject.objects.select_for_update()
+                .filter(pk=self.pk)
+                .values_list("project_id", flat=True)
+                .first()
+            )
+
+            open_attachments = ManagedProjectAttachment.objects.filter(
+                managed_project=self, detached_at__isnull=True
+            )
+            if project_id is not None:
+                open_attachments = open_attachments.exclude(project_id=project_id)
+            open_attachments.update(detached_at=timezone.now())
+
+            if project_id is not None:
+                ManagedProjectAttachment.objects.get_or_create(
+                    managed_project=self,
+                    project_id=project_id,
+                    detached_at__isnull=True,
+                )
 
     def merge_details(
         self, new_details: openportal.AwardDetails
@@ -3070,6 +3111,69 @@ class ManagedProjectAuditEntry(models.Model):
             previous_details=previous_details,
             new_details=new_details,
         )
+
+
+class ManagedProjectAttachment(models.Model):
+    """
+    Records each period during which a local Waldur Project held the award
+    represented by a ManagedProject. Mirrors RemoteProjectAttachment on the
+    awarding side.
+
+    Written by ManagedProject.sync_attachment(), so the open attachment
+    (detached_at=None) matches ManagedProject.project.
+
+    attached_at has a plain default rather than auto_now_add so that rows
+    reconstructed for awards that predate this history can be backdated.
+    """
+
+    managed_project = models.ForeignKey(
+        to=ManagedProject,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+        verbose_name=_("managed project"),
+    )
+
+    project = models.ForeignKey(
+        to=structure_models.Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="managed_project_attachments",
+        verbose_name=_("project"),
+    )
+
+    attached_at = models.DateTimeField(
+        default=timezone.now,
+        verbose_name=_("attached at"),
+    )
+
+    detached_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("detached at"),
+        help_text=_("Null while this is the current attachment."),
+    )
+
+    note = models.TextField(
+        blank=True,
+        verbose_name=_("note"),
+        help_text=_("Optional comment, e.g. that the row was reconstructed."),
+    )
+
+    class Meta:
+        ordering = ["-attached_at", "id"]
+        verbose_name = _("Managed Project Attachment")
+        verbose_name_plural = _("Managed Project Attachments")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["managed_project"],
+                condition=Q(detached_at__isnull=True),
+                name="openportal_one_open_attachment_per_managed_project",
+            )
+        ]
+
+    def __str__(self) -> str:
+        status = "current" if self.detached_at is None else f"until {self.detached_at}"
+        return f"{self.managed_project} → {self.project} ({status})"
 
 
 class RemoteProject(core_models.UuidMixin, models.Model):

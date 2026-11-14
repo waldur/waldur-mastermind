@@ -202,6 +202,7 @@ def delete_project(sender, instance, **kwargs):
             )
             managed_project.project = None
             managed_project.save(update_fields=["project"])
+            managed_project.sync_attachment()
             logger.debug(
                 f"ManagedProject {managed_project.identifier}"
                 f" marked as needing approval: project {project} deleted"

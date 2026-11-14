@@ -1887,35 +1887,16 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
     @action(detail=True, methods=["get"], url_path="total-usage")
     def total_usage(self, request, uuid=None):
         """
-        Return the total usage hours for this remote project, summed
-        across all cached monthly usage reports.
+        Return the total usage hours for this award, across every project
+        it has been attached to, each counted only for the days the award
+        was attached there.
 
-        Returns 0.0 if the project has no remote identifier yet or no
-        usage reports have been cached.
+        Returns 0.0 if no usage reports have been cached.
         """
         remote_project = self.get_object()
-        if not remote_project.current_project or not remote_project.destination:
-            return Response({"total_hours": 0.0})
-
-        # we need to build the local identifier for the project from
-        # its shortname and the portal
-        try:
-            project_identifier = utils.get_local_project_identifier(
-                remote_project.current_project
-            )
-        except Exception as e:
-            logger.warning(
-                f"total_usage: could not get local identifier for project "
-                f"{remote_project.current_project!r}: {e}"
-            )
-            return Response({"total_hours": 0.0})
-
-        reports = models.CachedProjectUsageReport.objects.filter(
-            project_identifier=project_identifier,
-            resource=remote_project.destination,
+        return Response(
+            {"total_hours": utils.get_remote_project_total_hours(remote_project)}
         )
-        total_hours = sum(float(r.get_report().total_usage.hours) for r in reports)
-        return Response({"total_hours": total_hours})
 
 
 class RemoteProjectAuditEntryViewSet(core_views.ActionsViewSet):

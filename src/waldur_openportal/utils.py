@@ -504,7 +504,7 @@ def infer_allocation_from_accounting(
 
     # get the current spend information
     (allocation_credits, total_spend) = get_project_spend_info(
-        project, silent=silent, include_current_month=False
+        project, silent=silent, include_current_month=False, award_only=True
     )
 
     # now get the project's starting month balance
@@ -551,10 +551,111 @@ def infer_allocation_from_accounting(
     return implied_size
 
 
+def get_award_windows(
+    project,
+) -> list[tuple[datetime.date, datetime.date | None]] | None:
+    """
+    Return the (start, end) dates of every period the project's current
+    award (ManagedProject) has been attached to it, oldest first. end is None
+    for the open period. Returns None if the project has no award, or the
+    award has no recorded attachment to this project.
+
+    The earliest period starts at the award's own start_date when that is
+    earlier than the attachment: an award (a renewal, say) can be attached
+    some days after it starts, and the spend of those days is its own. That
+    extension never reaches back past the day another award last left this
+    project, whose spend it would otherwise take on, and is not made for an
+    award that was on a different project before this one: it started there,
+    not here.
+    """
+    windows = []
+    for managed_project in models.ManagedProject.objects.filter(project=project):
+        attachments = list(
+            managed_project.attachments.filter(project=project).order_by(
+                "attached_at", "id"
+            )
+        )
+        if not attachments:
+            continue
+        award_windows = [
+            (
+                attachment.attached_at.date(),
+                attachment.detached_at.date() if attachment.detached_at else None,
+            )
+            for attachment in attachments
+        ]
+
+        award_start = _get_award_start_date(managed_project)
+        first_start, first_end = award_windows[0]
+        if award_start is not None and award_start < first_start:
+            moved_here = (
+                managed_project.attachments.exclude(project=project)
+                .filter(attached_at__lt=attachments[0].attached_at)
+                .exists()
+            )
+            if not moved_here:
+                floor = _end_of_other_awards_on_project(
+                    managed_project, project, attachments[0].attached_at
+                )
+                if floor is not None:
+                    award_start = max(award_start, floor + datetime.timedelta(days=1))
+                award_windows[0] = (min(first_start, award_start), first_end)
+
+        windows.extend(award_windows)
+
+    if not windows:
+        return None
+
+    return sorted(windows, key=lambda window: window[0])
+
+
+def _get_award_start_date(managed_project) -> datetime.date | None:
+    try:
+        award_start = managed_project.get_details().start_date
+    except Exception:
+        return None
+    if isinstance(award_start, datetime.datetime):
+        return award_start.date()
+    if isinstance(award_start, datetime.date):
+        return award_start
+    return None
+
+
+def _end_of_other_awards_on_project(
+    managed_project, project, before
+) -> datetime.date | None:
+    """
+    The last day another award held the project before the passed moment, or
+    None if no other award held it. An attachment of another award that is
+    still open (it should not be, but history can be imperfect) counts as
+    holding the project up to the moment itself.
+    """
+    others = models.ManagedProjectAttachment.objects.filter(
+        project=project, attached_at__lt=before
+    ).exclude(managed_project=managed_project)
+    ends = [
+        (attachment.detached_at or before).date()
+        for attachment in others.only("detached_at")
+    ]
+    return max(ends) if ends else None
+
+
+def _overlaps_windows(
+    start: datetime.date,
+    end: datetime.date,
+    windows: list[tuple[datetime.date, datetime.date | None]],
+) -> bool:
+    return any(
+        start <= (window_end or datetime.date.max) and end >= window_start
+        for window_start, window_end in windows
+    )
+
+
 def get_project_spend_info(
     project,
     include_current_month: bool = True,
     silent: bool = False,
+    award_only: bool = False,
 ) -> tuple[decimal.Decimal, decimal.Decimal]:
     """
     Return a tuple of the total credits and total spend for the passed project
@@ -563,9 +664,21 @@ def get_project_spend_info(
         project: The project to get spend info for
         include_current_month: If False, exclude current month's invoice items from spend calculation
         silent: If True, suppress logging
+        award_only: If True, count only the invoice items whose billing
+            period overlaps a period the project's current award has been
+            attached to it (see get_award_windows). A project can hold one
+            award after another, and spend under an earlier award is not the
+            current award's: counting it took the new award's credit to zero.
+            An item that straddles the day the award arrived counts in full,
+            charging the award with the earlier award's share of that month.
+            Spend an award made on a project it has since left is not counted
+            on its new project; only this project's invoices are read.
+            Without an award or its attachment history, everything counts.
     """
     if not isinstance(project, structure_models.Project):
         raise TypeError("project must be an instance of Project")
+
+    award_windows = get_award_windows(project) if award_only else None
 
     total_credits = decimal.Decimal(0.0)
     total_spend = decimal.Decimal(0.0)
@@ -595,6 +708,11 @@ def get_project_spend_info(
         invoice_items = []
 
     for invoice_item in invoice_items:
+        if award_windows is not None and not _overlaps_windows(
+            invoice_item.start.date(), invoice_item.end.date(), award_windows
+        ):
+            continue
+
         usage = decimal.Decimal(invoice_item.price)
 
         if usage < 0:
@@ -624,7 +742,7 @@ def get_project_credits(project, silent: bool = False) -> decimal.Decimal:
         raise TypeError("project must be an instance of Project")
 
     (total_credits, total_spend) = get_project_spend_info(
-        project, include_current_month=False, silent=silent
+        project, include_current_month=False, silent=silent, award_only=True
     )
 
     return total_credits + total_spend
@@ -656,9 +774,10 @@ def set_project_credits(
     if credits < decimal.Decimal(0.0):
         credits = decimal.Decimal(0.0)
 
-    # Get spend info excluding current month (we want start-of-month balance)
+    # Get spend info excluding current month (we want start-of-month balance).
+    # Only the current award's spend: the credit is that award's allocation.
     (_, total_spend) = get_project_spend_info(
-        project, include_current_month=False, silent=silent
+        project, include_current_month=False, silent=silent, award_only=True
     )
 
     # Calculate what the credit balance should be: allocation - historical_spend
@@ -1012,6 +1131,108 @@ def get_local_project_identifier(project):
         )
 
     return openportal.ProjectIdentifier(f"{shortname}.{openportal.get_portal()}")
+
+
+def get_remote_project_windows(remote_project) -> list[tuple]:
+    """
+    Return (project, start, end) for each period the award represented by
+    remote_project was attached to a local project, oldest first. Dates are
+    inclusive; end is None while the award is still attached.
+
+    On the day an award moves, the project it moved to claims the whole day:
+    an attachment stops the day before the next one starts, and one wholly
+    claimed by a later attachment is dropped. The windows are therefore
+    disjoint, so no day's usage is counted twice.
+
+    An award created before attachments were tracked had its first
+    attachment stamped when tracking began, not when it arrived. The first
+    window therefore starts at the creation of the award's allocation on that
+    project, when that is earlier.
+    """
+    attachments = list(
+        remote_project.attachments.select_related("project").order_by(
+            "attached_at", "id"
+        )
+    )
+    if not attachments:
+        # No history recorded: all we know is the project holding it now.
+        if remote_project.current_project is None:
+            return []
+        return [(remote_project.current_project, datetime.date.min, None)]
+
+    windows = []
+    for index, attachment in enumerate(attachments):
+        start = attachment.attached_at.date()
+        if index == 0:
+            allocation = remote_project.remote_allocation
+            if (
+                allocation is not None
+                and allocation.project_id == attachment.project_id
+                and allocation.created.date() < start
+            ):
+                start = allocation.created.date()
+        end = attachment.detached_at.date() if attachment.detached_at else None
+        if index + 1 < len(attachments):
+            cutoff = attachments[index + 1].attached_at.date() - datetime.timedelta(
+                days=1
+            )
+            if end is None or end > cutoff:
+                end = cutoff
+        if end is not None and end < start:
+            continue
+        windows.append((attachment.project, start, end))
+    return windows
+
+
+def get_remote_project_total_hours(remote_project) -> float:
+    """
+    Return the hours of usage the award represented by remote_project has
+    had, across every project it has been attached to.
+
+    Usage is cached under the identifier of the local project that held the
+    award ("{shortname}.{portal}"), so each attachment's usage is read from
+    its own project's key, for the award's destination, and only for the
+    days the award was attached there. Reading the current project's key
+    alone loses the usage on earlier projects, and summing it without dates
+    counts the usage of any award the project held before on the same
+    destination.
+    """
+    import openportal
+
+    if not remote_project.destination:
+        return 0.0
+
+    total_hours = 0.0
+    for project, start, end in get_remote_project_windows(remote_project):
+        if project is None:
+            # Hard-deleted project: nothing left to find its usage under.
+            continue
+        try:
+            project_identifier = str(get_local_project_identifier(project))
+        except Exception as e:
+            logger.warning(
+                f"Could not get local identifier for project {project!r} "
+                f"of {remote_project}: {e}"
+            )
+            continue
+
+        end = end or timezone.now().date()
+        cached_reports = models.CachedProjectUsageReport.objects.filter(
+            project_identifier=project_identifier,
+            resource=remote_project.destination,
+        )
+        for cached_report in cached_reports:
+            month_start = datetime.date(cached_report.year, cached_report.month, 1)
+            overlap_start = max(start, month_start)
+            overlap_end = min(end, get_last_day_of_month(month_start))
+            if overlap_start > overlap_end:
+                continue
+            report = cached_report.get_report().filter(
+                openportal.DateRange(overlap_start, overlap_end)
+            )
+            total_hours += float(report.total_usage.hours)
+
+    return total_hours
 
 
 def refresh_remote_project(remote_project):
