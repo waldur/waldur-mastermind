@@ -2025,6 +2025,40 @@ class ManagedProjectRejectedContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
 
 
+class ProjectUsageUpdateContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    project_name: str = Field(description="Name of the project.")
+    project_url: str = Field(description="Link to the project in HomePort.")
+    today: Any = Field(description="Date the update was generated.")
+    total_spend: str = Field(
+        description="Node hours used so far this month across the project's "
+        "OpenPortal allocations, formatted with two decimals."
+    )
+    remaining: str = Field(
+        description="Project credit left after that usage, formatted with two "
+        "decimals; never negative."
+    )
+    end_date: Any = Field(description="The project's end date, or None.")
+    days_until_end: int | None = Field(
+        description="Days from today to the end date; None without an end date."
+    )
+    grace_period_days: int = Field(
+        description="Days after the end date before the project's resources are "
+        "terminated and its data deleted (project or organization setting)."
+    )
+    deletion_date: Any = Field(
+        description="The project's effective end date: the end date plus the "
+        "grace period, when remaining data is deleted. None without an end date."
+    )
+    update_frequency: str = Field(
+        description='How often the update is sent, in words, e.g. "fortnight".'
+    )
+    docs_url: str = Field(description="DOCS_URL from settings; may be empty.")
+    support_url: str = Field(
+        description="SUPPORT_PORTAL_URL from settings; may be empty."
+    )
+
+
 class OpenPortalSection(NotificationSection):
     class Meta:
         key = "openportal"
@@ -2033,6 +2067,15 @@ class OpenPortalSection(NotificationSection):
         key="managed_project_rejected",
         description="Sent to Project admins and Project managers when their resource allocation request is rejected.",
         context_model=ManagedProjectRejectedContext,
+    )
+
+    project_usage_update = Notification(
+        key="project_usage_update",
+        description="A regular update sent to every member of a project with a "
+        "project credit and active OpenPortal allocations: the node hours used and "
+        "remaining, when the project ends and when its data is deleted after any "
+        "grace period. How often is set per project (every 14 days by default).",
+        context_model=ProjectUsageUpdateContext,
     )
 
 
