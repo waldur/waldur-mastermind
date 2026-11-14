@@ -8,11 +8,16 @@ import re
 from django.utils import timezone
 
 from waldur_core.configuration import config as constance_config
+from waldur_core.core import features
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.models import Role
+from waldur_core.permissions.utils import (
+    RoleChange,
+    get_permissions,
+    validate_role_grant,
+)
 from waldur_core.permissions.utils import add_user as grant_role
-from waldur_core.permissions.utils import get_permissions, validate_role_grant
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     get_connected_customers,
@@ -142,6 +147,66 @@ def assert_email_allowed_for_project(scope, email: str) -> None:
         )
 
 
+ENFORCE_AWARD_RULES_FEATURE = "project.enforce_allowed_domains"
+
+OPENPORTAL_ROBOT_USERNAME = "openportal_robot"
+
+
+def is_openportal_robot(user) -> bool:
+    """Whether ``user`` is OpenPortal's robot account: a staff user with the
+    robot's username.
+
+    The username alone is not enough: an identity provider could hand it to
+    an ordinary, non-staff account. (Comparing with get_openportal_robot()
+    would add nothing - it looks the robot up by this same username.)
+    """
+    if user is None or not user.is_staff:
+        return False
+    return user.username == OPENPORTAL_ROBOT_USERNAME
+
+
+def guard_award_membership_rules(
+    scope, role, acting_user, change, user=None, email=None
+):
+    """Role change guard: a local team change on a project holding an award
+    must be one the award permits.
+
+    The award's membership_control can lock who is on the team and what roles
+    they hold, and its allowed_domains can limit whose email may join. The
+    award sync already applies both, but a local add, re-role, removal or
+    invitation was never checked, so it went through and was then reverted
+    by the next sync. Enforced while the project.enforce_allowed_domains
+    feature is on.
+
+    A change made on OpenPortal's own authority (the robot, which is also the
+    inviter when an invitation sent by the award sync is accepted) carries out
+    the award, so the membership and role lock does not apply to it. The
+    allowed domains still do: whoever accepts the invitation must be allowed
+    to join.
+    """
+    if not isinstance(scope, structure_models.Project):
+        return
+    if not features.is_enabled(ENFORCE_AWARD_RULES_FEATURE):
+        return
+
+    if not is_openportal_robot(acting_user):
+        if change == RoleChange.UPDATE:
+            check_managed_project_membership_control(scope, "roles")
+            return
+        check_managed_project_membership_control(scope, "membership")
+
+    if change != RoleChange.GRANT:
+        return
+    if user is not None:
+        # An account without an email address is not allowed by a domain
+        # restriction either.
+        assert_email_allowed_for_project(scope, user.email or "")
+    elif email:
+        # An invitation not yet accepted; the accepting user is checked again
+        # on acceptance.
+        assert_email_allowed_for_project(scope, email)
+
+
 def get_openportal_robot():
     """
     Return the OpenPortal robot user.
@@ -150,7 +215,7 @@ def get_openportal_robot():
     from waldur_core.core import models
 
     robot_user, created = models.User.objects.get_or_create(
-        username="openportal_robot",
+        username=OPENPORTAL_ROBOT_USERNAME,
         defaults={
             "is_staff": True,
             "is_active": True,

@@ -11,6 +11,7 @@ class OpenPortalConfig(AppConfig):
         # These need to be imported here to avoid circular imports
         from waldur_core.core import models as core_models
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.permissions.utils import register_role_change_guard
         from waldur_core.quotas.fields import CounterQuotaField, QuotaField
         from waldur_core.structure import models as structure_models
         from waldur_core.structure.registry import SupportedServices
@@ -66,6 +67,8 @@ class OpenPortalConfig(AppConfig):
             handlers.role_revoked,
             dispatch_uid="waldur_openportal.handlers.role_revoked",
         )
+
+        register_role_change_guard(utils.guard_award_membership_rules)
 
         for quota in utils.QUOTA_NAMES:
             structure_models.Customer.add_quota_field(

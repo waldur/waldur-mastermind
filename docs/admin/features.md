@@ -192,6 +192,10 @@ Allow to hide OpenStack volume type selector when instance or volume is provisio
 
 Show OpenStack tenant migrations action and tab
 
+## project.enforce_allowed_domains
+
+Enforce the rules of an OpenPortal award on local team changes. Despite its name, this flag gates both the award's membership and role lock and its allowed email domains: adding, removing or re-roling members and inviting users is refused if the award does not permit it.
+
 ## project.estimated_cost
 
 Render estimated cost column in projects list.

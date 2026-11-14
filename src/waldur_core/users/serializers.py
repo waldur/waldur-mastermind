@@ -177,7 +177,11 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
         _enforce_role_available_for_scope(scope, role)
         validate_only_one_project_manager(scope, role)
         validate_role_change(
-            scope, role, self.context["request"].user, RoleChange.GRANT
+            scope,
+            role,
+            self.context["request"].user,
+            RoleChange.GRANT,
+            email=attrs.get("email"),
         )
         return attrs
 
@@ -658,13 +662,18 @@ class InvitationUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Only pending invitations can be edited.")
 
         user = self.context["request"].user
+        email = attrs.get("email", invitation.email)
         # Editing an invitation is checked like withdrawing its role and
         # offering the new one.
-        validate_role_change(invitation.scope, invitation.role, user, RoleChange.GRANT)
+        validate_role_change(
+            invitation.scope, invitation.role, user, RoleChange.GRANT, email=email
+        )
         new_role = attrs.get("role")
         if new_role:
             validate_only_one_project_manager(invitation.scope, new_role)
-            validate_role_change(invitation.scope, new_role, user, RoleChange.GRANT)
+            validate_role_change(
+                invitation.scope, new_role, user, RoleChange.GRANT, email=email
+            )
             _enforce_role_available_for_scope(invitation.scope, new_role)
 
         return attrs

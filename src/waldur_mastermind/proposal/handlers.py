@@ -60,7 +60,7 @@ TEAM_ROLES_MANAGED_BY_MANAGERS = frozenset(
 )
 
 
-def guard_call_reviewer_grant(scope, role, acting_user, change, user=None):
+def guard_call_reviewer_grant(scope, role, acting_user, change, user=None, email=None):
     """Granting the call's reviewer role takes on review work: refused to a
     reviewer the operator has suspended or blocked, or outside the call's
     reviewer eligibility. Revoking it is always possible, and an invitation
@@ -160,7 +160,7 @@ def _evaluates_proposal(user, proposal) -> bool:
     )
 
 
-def guard_proposal_team_change(scope, role, acting_user, change, user=None):
+def guard_proposal_team_change(scope, role, acting_user, change, user=None, email=None):
     """Who may change a proposal's team, and when.
 
     - Nobody changes their own proposal role, staff included.
