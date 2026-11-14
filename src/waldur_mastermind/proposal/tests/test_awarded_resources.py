@@ -610,6 +610,54 @@ class AllocateFromAwardTest(AwardedResourcesBase):
         offerings = [r.offering for r in self._provisioned()]
         self.assertEqual(offerings, [self.offering, self.other_offering])
 
+    def _with_allocation_option(self):
+        # An awarded amount the provider reads as a resource option, not a limit.
+        self.offering.resource_options = {
+            "order": ["allocation"],
+            "options": {
+                "allocation": {"type": "integer", "label": "Allocation"},
+            },
+        }
+        self.offering.save(update_fields=["resource_options"])
+
+    def test_the_awarded_resource_option_reaches_the_resource_options(self):
+        self._with_allocation_option()
+        self.awarded.attributes = {"allocation": 10000, "name": "requested"}
+        self.awarded.save()
+
+        self._decide()
+
+        resource = self._provisioned().get()
+        # Only the offering's resource options, as an order sets them: the
+        # provider reads the awarded amount from here.
+        self.assertEqual(resource.options, {"allocation": 10000})
+        self.assertEqual(resource.attributes["allocation"], 10000)
+
+    def test_a_hidden_resource_option_is_not_copied(self):
+        self.offering.resource_options = {
+            "order": ["gpu", "allocation"],
+            "options": {
+                "gpu": {"type": "boolean", "label": "GPU"},
+                "allocation": {
+                    "type": "integer",
+                    "label": "Allocation",
+                    "visible_if": {"field": "gpu", "values": [True]},
+                },
+            },
+        }
+        self.offering.save(update_fields=["resource_options"])
+        self.awarded.attributes = {"gpu": False, "allocation": 10000}
+        self.awarded.save()
+
+        self._decide()
+
+        self.assertEqual(self._provisioned().get().options, {"gpu": False})
+
+    def test_an_offering_without_resource_options_gets_empty_options(self):
+        self._decide()
+
+        self.assertEqual(self._provisioned().get().options, {})
+
     def test_an_award_on_an_offering_no_longer_accepted_is_skipped(self):
         # As with the request: an offering the provider withdrew is not
         # provisioned.

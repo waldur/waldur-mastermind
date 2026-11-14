@@ -736,6 +736,21 @@ def derived_limit_inputs(resource, new_options=None):
     return inputs
 
 
+def resource_options_from_attributes(offering, attributes):
+    """A new resource's options: the values of the offering's resource options
+    found in the ordered attributes, on every model unless it chose one, and
+    without the values of options those attributes hide."""
+    resource_options = (offering.resource_options or {}).get("options") or {}
+    attributes = attributes or {}
+    return strip_hidden_options(
+        resource_options,
+        model_lists.with_default_selection(
+            offering,
+            {key: attributes[key] for key in resource_options if key in attributes},
+        ),
+    )
+
+
 def copy_order_options_to_resource(order):
     """Set a created resource's options from its order's current values.
 
@@ -744,16 +759,10 @@ def copy_order_options_to_resource(order):
     resource with the value it was first ordered with.
     """
     resource = order.resource
-    resource_options = (order.offering.resource_options or {}).get("options")
-    if not resource or not resource_options:
+    if not resource or not (order.offering.resource_options or {}).get("options"):
         return
-    attributes = order.attributes or {}
-    resource.options = strip_hidden_options(
-        resource_options,
-        model_lists.with_default_selection(
-            order.offering,
-            {key: attributes[key] for key in resource_options if key in attributes},
-        ),
+    resource.options = resource_options_from_attributes(
+        order.offering, order.attributes
     )
     resource.save(update_fields=["options"])
 
