@@ -504,7 +504,7 @@ def infer_allocation_from_accounting(
 
     # get the current spend information
     (allocation_credits, total_spend) = get_project_spend_info(
-        project, silent=silent, include_current_month=False
+        project, silent=silent, include_current_month=False, award_only=True
     )
 
     # now get the project's starting month balance
@@ -551,10 +551,68 @@ def infer_allocation_from_accounting(
     return implied_size
 
 
+def get_award_windows(
+    project,
+) -> list[tuple[datetime.date, datetime.date | None]] | None:
+    """
+    Return the (start, end) dates of every period the project's current
+    award (ManagedProject) has been attached to it, oldest first. end is None
+    for the open period. Returns None if the project has no award, or the
+    award has no recorded attachment to this project.
+
+    The earliest period starts at the award's own start_date when that is
+    earlier than the attachment: an award (a renewal, say) can be attached
+    some days after it starts, and the spend of those days is its own.
+    """
+    windows = []
+    for managed_project in models.ManagedProject.objects.filter(project=project):
+        attachments = managed_project.attachments.filter(project=project).order_by(
+            "attached_at", "id"
+        )
+        award_windows = [
+            (
+                attachment.attached_at.date(),
+                attachment.detached_at.date() if attachment.detached_at else None,
+            )
+            for attachment in attachments
+        ]
+        if not award_windows:
+            continue
+
+        try:
+            award_start = managed_project.get_details().start_date
+        except Exception:
+            award_start = None
+        if isinstance(award_start, datetime.datetime):
+            award_start = award_start.date()
+        if isinstance(award_start, datetime.date):
+            first_start, first_end = award_windows[0]
+            award_windows[0] = (min(first_start, award_start), first_end)
+
+        windows.extend(award_windows)
+
+    if not windows:
+        return None
+
+    return sorted(windows, key=lambda window: window[0])
+
+
+def _overlaps_windows(
+    start: datetime.date,
+    end: datetime.date,
+    windows: list[tuple[datetime.date, datetime.date | None]],
+) -> bool:
+    return any(
+        start <= (window_end or datetime.date.max) and end >= window_start
+        for window_start, window_end in windows
+    )
+
+
 def get_project_spend_info(
     project,
     include_current_month: bool = True,
     silent: bool = False,
+    award_only: bool = False,
 ) -> tuple[decimal.Decimal, decimal.Decimal]:
     """
     Return a tuple of the total credits and total spend for the passed project
@@ -563,9 +621,19 @@ def get_project_spend_info(
         project: The project to get spend info for
         include_current_month: If False, exclude current month's invoice items from spend calculation
         silent: If True, suppress logging
+        award_only: If True, count only the invoice items whose billing
+            period overlaps a period the project's current award has been
+            attached to it (see get_award_windows). A project can hold one
+            award after another, and spend under an earlier award is not the
+            current award's: counting it took the new award's credit to zero.
+            An item that straddles the day the award arrived counts in full,
+            so any error is towards less credit, never more. Without an award
+            or its attachment history, everything counts.
     """
     if not isinstance(project, structure_models.Project):
         raise TypeError("project must be an instance of Project")
+
+    award_windows = get_award_windows(project) if award_only else None
 
     total_credits = decimal.Decimal(0.0)
     total_spend = decimal.Decimal(0.0)
@@ -595,6 +663,11 @@ def get_project_spend_info(
         invoice_items = []
 
     for invoice_item in invoice_items:
+        if award_windows is not None and not _overlaps_windows(
+            invoice_item.start.date(), invoice_item.end.date(), award_windows
+        ):
+            continue
+
         usage = decimal.Decimal(invoice_item.price)
 
         if usage < 0:
@@ -624,7 +697,7 @@ def get_project_credits(project, silent: bool = False) -> decimal.Decimal:
         raise TypeError("project must be an instance of Project")
 
     (total_credits, total_spend) = get_project_spend_info(
-        project, include_current_month=False, silent=silent
+        project, include_current_month=False, silent=silent, award_only=True
     )
 
     return total_credits + total_spend
@@ -656,9 +729,10 @@ def set_project_credits(
     if credits < decimal.Decimal(0.0):
         credits = decimal.Decimal(0.0)
 
-    # Get spend info excluding current month (we want start-of-month balance)
+    # Get spend info excluding current month (we want start-of-month balance).
+    # Only the current award's spend: the credit is that award's allocation.
     (_, total_spend) = get_project_spend_info(
-        project, include_current_month=False, silent=silent
+        project, include_current_month=False, silent=silent, award_only=True
     )
 
     # Calculate what the credit balance should be: allocation - historical_spend
