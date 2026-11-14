@@ -23,6 +23,7 @@ from waldur_core.users import models as user_models
 from waldur_core.users import tasks as user_tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.utils import get_invitation_duplicates
+from waldur_mastermind.invoices import ledger as invoice_ledger
 from waldur_mastermind.invoices import models as invoice_models
 
 from . import exceptions, models, utils
@@ -438,7 +439,31 @@ def fix_total_allocation(project):
 
     allocation = project_template.convert_to_credits(details.allocation)
 
-    set_project_credits(project, allocation, silent=True)
+    # Declare what this movement IS before writing it. Every change to
+    # ProjectCredit.value is recorded in the credit ledger by a signal handler,
+    # and an untyped one is filed as STAFF_GRANT - so without this block a
+    # nightly reconciliation reads, in the ledger, as a person handing out
+    # credit. ADJUSTMENT is the existing type for an automated correction
+    # (invoices/handlers.py uses it the same way).
+    #
+    # billing_period is the current month because that is what this corrects:
+    # set_project_credits derives the START-OF-MONTH balance, from the award
+    # total minus spend excluding the current month. Leaving it open would drop
+    # the correction out of any per-month total.
+    #
+    # The block also types the organization credit top-up set_project_credits
+    # makes when the organization has too little credit for a raise: that
+    # top-up is part of the same correction, so it is an adjustment too.
+    today = timezone.now().date()
+    with invoice_ledger.credit_transaction_type(
+        invoice_models.CreditTransaction.Types.ADJUSTMENT,
+        comment=(
+            "OpenPortal reconciliation: project credit recomputed from the "
+            "award total and lifetime consumption."
+        ),
+        billing_period=today.replace(day=1),
+    ):
+        set_project_credits(project, allocation, silent=True)
 
 
 def infer_allocation_from_accounting(
@@ -634,7 +659,7 @@ def set_project_credits(
         credits = decimal.Decimal(0.0)
 
     # Get spend info excluding current month (we want start-of-month balance)
-    (total_credits, total_spend) = get_project_spend_info(
+    (_, total_spend) = get_project_spend_info(
         project, include_current_month=False, silent=silent
     )
 
@@ -650,13 +675,31 @@ def set_project_credits(
         )
         desired_credit_balance = decimal.Decimal(0)
 
-    change_in_credits = desired_credit_balance - total_credits
+    # The change that matters is to the stored value. get_project_spend_info's
+    # total credits also count credit already drawn down by invoices, so
+    # measured against it the change was never zero for a project its
+    # invoices had drawn on - every run
+    # rewrote the credit and logged a credit change - and the customer-credit
+    # top-up below came out smaller than the real increase, so the save could
+    # fail validation. Rounded to the field's own precision: the balance is
+    # computed to many more places than are stored.
+    places = invoice_models.ProjectCredit._meta.get_field("value").decimal_places
+    desired_credit_balance = desired_credit_balance.quantize(
+        decimal.Decimal(1).scaleb(-places)
+    )
+    stored_value = (
+        invoice_models.ProjectCredit.objects.filter(project=project)
+        .values_list("value", flat=True)
+        .first()
+    ) or decimal.Decimal(0)
+
+    change_in_credits = desired_credit_balance - stored_value
 
     if abs(change_in_credits) < decimal.Decimal(0.01):
         # no change in credits, so nothing to do
         if not silent:
             logger.debug(
-                f"No change in credits for project {project}: {total_credits} -> {desired_credit_balance} "
+                f"No change in credits for project {project}: {stored_value} -> {desired_credit_balance} "
                 f"(allocation: {credits}, spend: {total_spend})"
             )
         return
@@ -705,7 +748,7 @@ def set_project_credits(
             project_credit.save(update_fields=["value"])
             if not silent:
                 logger.info(
-                    f"Project credits for project {project} set to {project_credit.value} (was {total_credits}, "
+                    f"Project credits for project {project} set to {project_credit.value} (was {stored_value}, "
                     f"allocation: {credits}, spend: {total_spend}, change: {change_in_credits})"
                 )
             return
