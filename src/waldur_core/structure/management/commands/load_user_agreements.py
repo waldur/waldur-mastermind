@@ -7,35 +7,42 @@ class Command(BaseCommand):
     help = "Imports privacy policy and terms of service into DB"
 
     def create_user_agreement(self, filepath, agreement_type, language="", force=False):
-        try:
-            user_agreement_count = UserAgreement.objects.filter(
-                agreement_type=agreement_type, language=language
-            ).count()
-            if not force and user_agreement_count > 0:
-                lang_info = f" ({language})" if language else " (default)"
-                self.stdout.write(
-                    self.style.NOTICE(
-                        f"The {agreement_type}{lang_info} agreement already exists, skipping loading"
-                    )
+        lang_info = f" ({language})" if language else " (default)"
+        user_agreement_count = UserAgreement.objects.filter(
+            agreement_type=agreement_type, language=language
+        ).count()
+        if not force and user_agreement_count > 0:
+            self.stdout.write(
+                self.style.NOTICE(
+                    f"The {agreement_type}{lang_info} agreement already exists, skipping loading"
                 )
-                return
+            )
+            return
 
+        # A missing file is not an error: deployments without site-specific
+        # texts mount nothing, and initdb must still complete.
+        try:
             with open(filepath) as agreement_file:
                 content = agreement_file.read()
-
-            UserAgreement.objects.update_or_create(
-                agreement_type=agreement_type,
-                language=language,
-                defaults={"content": content},
-            )
-            lang_info = f" ({language})" if language else " (default)"
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Successfully loaded {agreement_type}{lang_info} agreement"
+        except OSError as e:
+            self.stderr.write(
+                self.style.WARNING(
+                    f"Skipping the {agreement_type}{lang_info} agreement: "
+                    f"cannot read {filepath}: {e.strerror or e}"
                 )
             )
-        except Exception as e:
-            return e
+            return
+
+        UserAgreement.objects.update_or_create(
+            agreement_type=agreement_type,
+            language=language,
+            defaults={"content": content},
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Successfully loaded {agreement_type}{lang_info} agreement"
+            )
+        )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -83,20 +90,13 @@ class Command(BaseCommand):
             )
             return
 
-        if tos_path:
+        for path, agreement_type, label in (
+            (tos_path, UserAgreement.UserAgreements.TOS, "Terms of Service"),
+            (pp_path, UserAgreement.UserAgreements.PP, "Privacy policy"),
+        ):
+            if not path:
+                continue
             try:
-                self.create_user_agreement(
-                    tos_path, UserAgreement.UserAgreements.TOS, language, force
-                )
-            except Exception:
-                self.stdout.write(self.style.ERROR("Couldn't create Terms of Service"))
-                return
-
-        if pp_path:
-            try:
-                self.create_user_agreement(
-                    pp_path, UserAgreement.UserAgreements.PP, language, force
-                )
-            except Exception:
-                self.stdout.write(self.style.ERROR("Couldn't create Privacy policy"))
-                return
+                self.create_user_agreement(path, agreement_type, language, force)
+            except Exception as e:
+                self.stderr.write(self.style.ERROR(f"Couldn't create {label}: {e}"))
