@@ -7,6 +7,7 @@ from drf_spectacular.drainage import reset_generator_stats
 from drf_spectacular.generators import SchemaGenerator
 from rest_framework import serializers, viewsets
 
+from waldur_core.core import filters as core_filters
 from waldur_core.core.schema_hooks import (
     _to_pascal_case,
     add_polymorphic_attributes_schema,
@@ -403,6 +404,67 @@ def test_inject_waldur_operation_ids():
 
     param = result["paths"]["/api/test/"]["get"]["parameters"][0]
     assert param["x-waldur-operation-id"] == "customers_list"
+
+
+def test_inject_waldur_operation_ids_leaves_path_parameters_alone():
+    """A path parameter is not the filter that shares its name.
+
+    A viewset whose lookup_field is also one of its filter names (e.g.
+    openportal-userinfo, looked up by "user") carries that name in the path as
+    well as in the query string. Only the query parameter describes the filter.
+    """
+    mock_view = mock.Mock()
+    mock_filter = mock.Mock(spec=core_filters.URLFilter)
+    mock_filter.view_name = "users-detail"
+    mock_view.cls.filterset_class.base_filters = {"user": mock_filter}
+
+    generator = mock.Mock()
+    mock_view_no_cls = mock.Mock()
+    mock_view_no_cls.cls = None
+    generator.endpoints = [
+        ("/api/users/", None, "GET", mock_view_no_cls),
+        ("/api/test/{user}/", None, "GET", mock_view),
+    ]
+
+    result = {
+        "paths": {
+            "/api/users/": {"get": {"operationId": "users_list"}},
+            "/api/test/{user}/": {
+                "get": {
+                    "operationId": "test_retrieve",
+                    "parameters": [
+                        {
+                            "name": "user",
+                            "in": "path",
+                            "schema": {"type": "string", "format": "uuid"},
+                        },
+                        {"name": "user", "in": "query"},
+                    ],
+                }
+            },
+        }
+    }
+
+    with mock.patch("waldur_core.core.schema_hooks.resolve") as mock_resolve:
+
+        def side_effect(path):
+            m = mock.Mock()
+            m.view_name = "users-list" if "users" in path else "test-list"
+            return m
+
+        mock_resolve.side_effect = side_effect
+
+        inject_waldur_operation_ids(result, generator)
+
+    path_param, query_param = result["paths"]["/api/test/{user}/"]["get"]["parameters"]
+
+    assert path_param == {
+        "name": "user",
+        "in": "path",
+        "schema": {"type": "string", "format": "uuid"},
+    }
+    assert query_param["x-waldur-operation-id"] == "users_list"
+    assert query_param["schema"]["format"] == "uri"
 
 
 def test_to_pascal_case():

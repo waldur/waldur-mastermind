@@ -307,6 +307,27 @@ class IsShortnameOwnerOrStaff(BasePermission):
         ]
 
 
+# The lookup is the user's UUID (lookup_field = "user", resolved with
+# User.objects.get(uuid=...)), but drf-spectacular types the path parameter
+# from the model field the name resolves to - the user FK - and calls it an
+# integer, which no caller of the generated client can satisfy. Say what it is.
+USER_UUID_PATH_PARAMETER = OpenApiParameter(
+    name="user",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.PATH,
+    description="UUID of the user",
+)
+
+_USER_UUID_PATH = extend_schema(parameters=[USER_UUID_PATH_PARAMETER])
+
+
+@extend_schema_view(
+    retrieve=_USER_UUID_PATH,
+    update=_USER_UUID_PATH,
+    partial_update=_USER_UUID_PATH,
+    destroy=_USER_UUID_PATH,
+    set_shortname=_USER_UUID_PATH,
+)
 class UserInfoViewSet(core_views.ActionsViewSet):
     queryset = models.UserInfo.objects.all().order_by("shortname")
     lookup_field = "user"
@@ -421,6 +442,25 @@ class UserInfoViewSet(core_views.ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+# As for USER_UUID_PATH_PARAMETER: the lookup is the project's UUID.
+PROJECT_UUID_PATH_PARAMETER = OpenApiParameter(
+    name="project",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.PATH,
+    description="UUID of the project",
+)
+
+_PROJECT_UUID_PATH = extend_schema(parameters=[PROJECT_UUID_PATH_PARAMETER])
+
+
+@extend_schema_view(
+    retrieve=_PROJECT_UUID_PATH,
+    update=_PROJECT_UUID_PATH,
+    partial_update=_PROJECT_UUID_PATH,
+    destroy=_PROJECT_UUID_PATH,
+    set_shortname=_PROJECT_UUID_PATH,
+    set_allowed_destinations=_PROJECT_UUID_PATH,
+)
 class ProjectInfoViewSet(core_views.ActionsViewSet):
     queryset = models.ProjectInfo.objects.all().order_by("shortname")
     lookup_field = "project"

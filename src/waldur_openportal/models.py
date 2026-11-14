@@ -1243,9 +1243,6 @@ class UserInfo(models.Model):
             )
 
     def save(self, *args, **kwargs):
-        if "update_fields" in kwargs and "query_field" not in kwargs["update_fields"]:
-            kwargs["update_fields"] = set(kwargs["update_fields"]).add("query_field")
-
         # The shortname cannot be changed after creation as external systems may already depend on it.
         prev = self.tracker.previous("shortname")
         if self.tracker.has_changed("shortname") and prev:
@@ -1640,9 +1637,6 @@ class ProjectInfo(models.Model):
             self.allowed_destinations = str(destinations)
 
     def save(self, *args, force_accept_changed_shortname: bool = False, **kwargs):
-        if "update_fields" in kwargs and "query_field" not in kwargs["update_fields"]:
-            kwargs["update_fields"] = set(kwargs["update_fields"]).add("query_field")
-
         # The shortname cannot be changed after creation as external systems may already depend on it.
         if not force_accept_changed_shortname:
             prev = self.tracker.previous("shortname")

@@ -808,10 +808,9 @@ def inject_waldur_operation_ids(result, generator, **kwargs):
                         params = result["paths"][path][method.lower()].get(
                             "parameters", []
                         )
-                        for p in params:
-                            if p.get("name") == field_name:
-                                schema = p.setdefault("schema", {})
-                                schema["format"] = "uri"
+                        for p in _query_parameters_named(params, field_name):
+                            schema = p.setdefault("schema", {})
+                            schema["format"] = "uri"
                     except KeyError:
                         pass
 
@@ -821,13 +820,31 @@ def inject_waldur_operation_ids(result, generator, **kwargs):
                         params = result["paths"][path][method.lower()].get(
                             "parameters", []
                         )
-                        for p in params:
-                            if p.get("name") == field_name:
-                                p["x-waldur-operation-id"] = target_op_id
+                        for p in _query_parameters_named(params, field_name):
+                            p["x-waldur-operation-id"] = target_op_id
                     except KeyError:
                         continue
 
     return result
+
+
+def _query_parameters_named(parameters, name):
+    """
+    The query parameters of one operation that a filter of this name describes.
+
+    Matching on the name alone is not enough: a viewset whose lookup_field is
+    also the name of one of its filters puts that name in the path as well -
+    ``{user}`` on openportal-userinfo, ``{project}`` on
+    openportal-projectinfo - and a path parameter is not the filter. Typing it
+    from the filter described the wrong thing (a URL where the URL carries a
+    UUID) and pointed its autocomplete at a list endpoint that cannot serve
+    a path segment.
+    """
+    return [
+        parameter
+        for parameter in parameters
+        if parameter.get("name") == name and parameter.get("in") == "query"
+    ]
 
 
 def validate_waldur_operation_ids(result, generator, **kwargs):
