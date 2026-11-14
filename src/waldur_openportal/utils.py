@@ -562,13 +562,21 @@ def get_award_windows(
 
     The earliest period starts at the award's own start_date when that is
     earlier than the attachment: an award (a renewal, say) can be attached
-    some days after it starts, and the spend of those days is its own.
+    some days after it starts, and the spend of those days is its own. That
+    extension never reaches back past the day another award last left this
+    project, whose spend it would otherwise take on, and is not made for an
+    award that was on a different project before this one: it started there,
+    not here.
     """
     windows = []
     for managed_project in models.ManagedProject.objects.filter(project=project):
-        attachments = managed_project.attachments.filter(project=project).order_by(
-            "attached_at", "id"
+        attachments = list(
+            managed_project.attachments.filter(project=project).order_by(
+                "attached_at", "id"
+            )
         )
+        if not attachments:
+            continue
         award_windows = [
             (
                 attachment.attached_at.date(),
@@ -576,18 +584,22 @@ def get_award_windows(
             )
             for attachment in attachments
         ]
-        if not award_windows:
-            continue
 
-        try:
-            award_start = managed_project.get_details().start_date
-        except Exception:
-            award_start = None
-        if isinstance(award_start, datetime.datetime):
-            award_start = award_start.date()
-        if isinstance(award_start, datetime.date):
-            first_start, first_end = award_windows[0]
-            award_windows[0] = (min(first_start, award_start), first_end)
+        award_start = _get_award_start_date(managed_project)
+        first_start, first_end = award_windows[0]
+        if award_start is not None and award_start < first_start:
+            moved_here = (
+                managed_project.attachments.exclude(project=project)
+                .filter(attached_at__lt=attachments[0].attached_at)
+                .exists()
+            )
+            if not moved_here:
+                floor = _end_of_other_awards_on_project(
+                    managed_project, project, attachments[0].attached_at
+                )
+                if floor is not None:
+                    award_start = max(award_start, floor + datetime.timedelta(days=1))
+                award_windows[0] = (min(first_start, award_start), first_end)
 
         windows.extend(award_windows)
 
@@ -595,6 +607,37 @@ def get_award_windows(
         return None
 
     return sorted(windows, key=lambda window: window[0])
+
+
+def _get_award_start_date(managed_project) -> datetime.date | None:
+    try:
+        award_start = managed_project.get_details().start_date
+    except Exception:
+        return None
+    if isinstance(award_start, datetime.datetime):
+        return award_start.date()
+    if isinstance(award_start, datetime.date):
+        return award_start
+    return None
+
+
+def _end_of_other_awards_on_project(
+    managed_project, project, before
+) -> datetime.date | None:
+    """
+    The last day another award held the project before the passed moment, or
+    None if no other award held it. An attachment of another award that is
+    still open (it should not be, but history can be imperfect) counts as
+    holding the project up to the moment itself.
+    """
+    others = models.ManagedProjectAttachment.objects.filter(
+        project=project, attached_at__lt=before
+    ).exclude(managed_project=managed_project)
+    ends = [
+        (attachment.detached_at or before).date()
+        for attachment in others.only("detached_at")
+    ]
+    return max(ends) if ends else None
 
 
 def _overlaps_windows(
@@ -627,8 +670,10 @@ def get_project_spend_info(
             award after another, and spend under an earlier award is not the
             current award's: counting it took the new award's credit to zero.
             An item that straddles the day the award arrived counts in full,
-            so any error is towards less credit, never more. Without an award
-            or its attachment history, everything counts.
+            charging the award with the earlier award's share of that month.
+            Spend an award made on a project it has since left is not counted
+            on its new project; only this project's invoices are read.
+            Without an award or its attachment history, everything counts.
     """
     if not isinstance(project, structure_models.Project):
         raise TypeError("project must be an instance of Project")
@@ -1109,6 +1154,12 @@ def get_remote_project_windows(remote_project) -> list[tuple]:
             "attached_at", "id"
         )
     )
+    if not attachments:
+        # No history recorded: all we know is the project holding it now.
+        if remote_project.current_project is None:
+            return []
+        return [(remote_project.current_project, datetime.date.min, None)]
+
     windows = []
     for index, attachment in enumerate(attachments):
         start = attachment.attached_at.date()

@@ -39,7 +39,8 @@ def backfill_attachments(apps, schema_editor):
         project__isnull=False, attachments__isnull=True
     ).select_related("project")
 
-    for managed_project in managed_projects:
+    batch = []
+    for managed_project in managed_projects.iterator(chunk_size=500):
         project = managed_project.project
         project_uuid = uuid.UUID(str(project.uuid))
 
@@ -60,12 +61,20 @@ def backfill_attachments(apps, schema_editor):
         else:
             attached_at, note = project.created, CREATED_NOTE
 
-        ManagedProjectAttachment.objects.create(
-            managed_project=managed_project,
-            project=project,
-            attached_at=attached_at,
-            note=note,
+        batch.append(
+            ManagedProjectAttachment(
+                managed_project=managed_project,
+                project=project,
+                attached_at=attached_at,
+                note=note,
+            )
         )
+        if len(batch) >= 500:
+            ManagedProjectAttachment.objects.bulk_create(batch)
+            batch = []
+
+    if batch:
+        ManagedProjectAttachment.objects.bulk_create(batch)
 
 
 class Migration(migrations.Migration):

@@ -14,6 +14,7 @@ from unittest import mock
 
 import openportal
 from django.apps import apps
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -73,6 +74,26 @@ class ManagedProjectAttachmentTest(AwardMixin, TestCase):
         attachment = self.award.attachments.get()
         self.assertEqual(attachment.project, self.project)
         self.assertIsNone(attachment.detached_at)
+
+    def test_an_award_has_at_most_one_open_attachment(self):
+        self.set_project(self.award, self.project)
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            models.ManagedProjectAttachment.objects.create(
+                managed_project=self.award, project=self.other_project
+            )
+
+    def test_attachments_follow_the_stored_project(self):
+        # A stale instance must not reopen an attachment the stored row no
+        # longer has: the history follows ManagedProject.project as saved.
+        self.set_project(self.award, self.project)
+        stale = models.ManagedProject.objects.get(pk=self.award.pk)
+        self.set_project(self.award, self.other_project)
+
+        stale.sync_attachment()
+
+        open_attachment = self.award.attachments.get(detached_at=None)
+        self.assertEqual(open_attachment.project, self.other_project)
 
     def test_attaching_the_same_project_again_changes_nothing(self):
         self.set_project(self.award, self.project)
@@ -166,11 +187,18 @@ class AwardCreditCountsOnlyItsOwnSpendTest(AwardMixin, TestCase):
 
         self.assertEqual(self.set_credits(500), decimal.Decimal(380))
 
-    def test_spend_from_the_award_start_date_counts(self):
-        # Award 2 started on 20 September, before it was attached.
+    def test_an_early_start_date_does_not_reach_back_into_the_earlier_award(self):
+        # Award 2 says it started on 20 September, while award 1 still held
+        # the project: September's spend is award 1's all the same.
         self.assertEqual(
             self.set_credits(1000, start_date=datetime.date(2025, 9, 20)),
-            decimal.Decimal(200),
+            decimal.Decimal(1000),
+        )
+
+    def test_a_much_earlier_start_date_does_not_either(self):
+        self.assertEqual(
+            self.set_credits(500, start_date=datetime.date(2025, 1, 1)),
+            decimal.Decimal(500),
         )
 
     def test_project_credits_are_this_awards(self):
@@ -185,6 +213,65 @@ class AwardCreditCountsOnlyItsOwnSpendTest(AwardMixin, TestCase):
         models.ManagedProjectAttachment.objects.all().delete()
 
         self.assertEqual(self.set_credits(1000), decimal.Decimal(200))
+
+
+@freeze_time("2025-11-15")
+class AwardStartDateTest(AwardMixin, TestCase):
+    """
+    The project spent 800 in September. Its award started on 20 September
+    but was attached on 10 October.
+    """
+
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.other_project = structure_factories.ProjectFactory(
+            customer=self.project.customer
+        )
+        invoice_models.CustomerCredit.objects.create(
+            customer=self.project.customer, value=decimal.Decimal(100000)
+        )
+        invoice = invoice_factories.InvoiceFactory(
+            customer=self.project.customer, year=2025, month=9
+        )
+        invoice_factories.InvoiceItemFactory(
+            invoice=invoice,
+            project=self.project,
+            unit_price=decimal.Decimal(800),
+            quantity=1,
+            start=aware(2025, 9, 1),
+            end=aware(2025, 9, 30, 23),
+        )
+        self.award = self.make_award("award.portal")
+
+    def set_credits(self, allocation, start_date):
+        with mock.patch.object(
+            models.ManagedProject, "get_details", return_value=details(start_date)
+        ):
+            utils.set_project_credits(self.project, decimal.Decimal(allocation))
+        credit = invoice_models.ProjectCredit.objects.filter(
+            project=self.project
+        ).first()
+        return credit.value if credit else decimal.Decimal(0)
+
+    def test_spend_from_the_award_start_date_counts(self):
+        with freeze_time("2025-10-10"):
+            self.set_project(self.award, self.project)
+
+        self.assertEqual(
+            self.set_credits(1000, datetime.date(2025, 9, 20)), decimal.Decimal(200)
+        )
+
+    def test_a_moved_award_does_not_reach_back_on_its_new_project(self):
+        # The award was on another project from its start; the September
+        # spend here was not made under it.
+        with freeze_time("2025-09-20"):
+            self.set_project(self.award, self.other_project)
+        with freeze_time("2025-10-10"):
+            self.set_project(self.award, self.project)
+
+        self.assertEqual(
+            self.set_credits(1000, datetime.date(2025, 9, 20)), decimal.Decimal(1000)
+        )
 
 
 class BackfillAttachmentsMigrationTest(AwardMixin, TestCase):
@@ -316,6 +403,16 @@ class RemoteProjectTotalUsageTest(test.APITestCase):
         self.cache_usage("projy.here", datetime.date(2026, 10, 3), 2.0)
 
         self.assertEqual(self.total_usage(), 7.0)
+
+    @freeze_time("2026-11-14")
+    def test_an_award_without_attachments_counts_its_current_project(self):
+        models.RemoteProjectAttachment.objects.filter(
+            remote_project=self.award
+        ).delete()
+
+        # Everything under the current project's key: R0's 40 h included,
+        # as before attachments were tracked.
+        self.assertEqual(self.total_usage(), 40.0)
 
     @freeze_time("2026-11-14")
     def test_on_the_move_day_the_new_project_claims_the_day(self):

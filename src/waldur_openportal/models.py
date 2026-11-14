@@ -2683,20 +2683,33 @@ class ManagedProject(ReviewMixin, models.Model):
         project held this award and when. A project's credit is this award's
         allocation less the spend made while the award was attached to it -
         not the spend under an award the project held before.
-        """
-        open_attachments = ManagedProjectAttachment.objects.filter(
-            managed_project=self, detached_at__isnull=True
-        )
-        if self.project is not None:
-            open_attachments = open_attachments.exclude(project=self.project)
-        open_attachments.update(detached_at=timezone.now())
 
-        if self.project is not None:
-            ManagedProjectAttachment.objects.get_or_create(
-                managed_project=self,
-                project=self.project,
-                detached_at__isnull=True,
+        The stored project is re-read under a row lock, so concurrent calls
+        are serialised and the history follows what was saved last rather
+        than whichever instance happened to sync last. At most one attachment
+        per award is open (enforced by a constraint).
+        """
+        with transaction.atomic():
+            project_id = (
+                ManagedProject.objects.select_for_update()
+                .filter(pk=self.pk)
+                .values_list("project_id", flat=True)
+                .first()
             )
+
+            open_attachments = ManagedProjectAttachment.objects.filter(
+                managed_project=self, detached_at__isnull=True
+            )
+            if project_id is not None:
+                open_attachments = open_attachments.exclude(project_id=project_id)
+            open_attachments.update(detached_at=timezone.now())
+
+            if project_id is not None:
+                ManagedProjectAttachment.objects.get_or_create(
+                    managed_project=self,
+                    project_id=project_id,
+                    detached_at__isnull=True,
+                )
 
     def merge_details(
         self, new_details: openportal.AwardDetails
@@ -3150,6 +3163,13 @@ class ManagedProjectAttachment(models.Model):
         ordering = ["-attached_at", "id"]
         verbose_name = _("Managed Project Attachment")
         verbose_name_plural = _("Managed Project Attachments")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["managed_project"],
+                condition=Q(detached_at__isnull=True),
+                name="openportal_one_open_attachment_per_managed_project",
+            )
+        ]
 
     def __str__(self) -> str:
         status = "current" if self.detached_at is None else f"until {self.detached_at}"

@@ -71,6 +71,13 @@ class Migration(migrations.Migration):
                 "verbose_name": "Managed Project Attachment",
                 "verbose_name_plural": "Managed Project Attachments",
                 "ordering": ["-attached_at", "id"],
+                "constraints": [
+                    models.UniqueConstraint(
+                        condition=models.Q(("detached_at__isnull", True)),
+                        fields=("managed_project",),
+                        name="openportal_one_open_attachment_per_managed_project",
+                    )
+                ],
             },
         ),
     ]
