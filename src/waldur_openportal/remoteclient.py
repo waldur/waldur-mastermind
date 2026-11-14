@@ -46,6 +46,18 @@ class RemoteOpenPortalClient:
 
         return project
 
+    def _to_user_identifier(self, user) -> openportal.UserIdentifier:
+        """
+        Convert the passed (any) object into a UserIdentifier
+        """
+        if not isinstance(user, openportal.UserIdentifier):
+            try:
+                user = openportal.UserIdentifier(user)
+            except Exception:
+                user = openportal.UserIdentifier(f"{user}.{self.portal()}")
+
+        return user
+
     def _to_project_details(self, details) -> openportal.AwardDetails:
         """
         Convert the passed (any) object into a AwardDetails object

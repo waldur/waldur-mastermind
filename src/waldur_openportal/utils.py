@@ -7,7 +7,7 @@ import re
 
 from django.utils import timezone
 
-from waldur_core.configuration import config
+from waldur_core.configuration import config as constance_config
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.models import Role
@@ -26,7 +26,7 @@ from waldur_core.users.utils import get_invitation_duplicates
 from waldur_mastermind.invoices import ledger as invoice_ledger
 from waldur_mastermind.invoices import models as invoice_models
 
-from . import exceptions, models, utils
+from . import config, exceptions, models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +159,7 @@ def get_openportal_robot():
             ),
             "first_name": "OpenPortal",
             "last_name": "Robot",
-            "email": config.SITE_EMAIL,
+            "email": constance_config.SITE_EMAIL,
         },
     )
     if created:
@@ -1013,8 +1013,6 @@ def get_local_project_identifier(project):
             "OpenPortal is not configured; cannot get project identifier."
         )
 
-    config.ensure_config_loaded()
-
     return openportal.ProjectIdentifier(f"{shortname}.{openportal.get_portal()}")
 
 
@@ -1041,8 +1039,6 @@ def refresh_remote_project(remote_project):
     if not config.ensure_config_loaded():
         logger.warning("refresh_remote_project: OpenPortal is not configured.")
         return None
-
-    config.ensure_config_loaded()
 
     destination = openportal.Destination(str(remote_project.destination))
 
