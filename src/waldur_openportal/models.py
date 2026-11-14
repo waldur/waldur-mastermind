@@ -23,7 +23,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.managers import (
     get_user_managed_service_provider_customer_ids,
 )
-from waldur_openportal import utils
+from waldur_openportal import exceptions, utils
 
 from . import config
 
@@ -662,14 +662,81 @@ class RemoteAllocation(
             )
 
         remote_identifier = openportal.ProjectIdentifier(mapping.local_group)
+        old_identifier = self.get_remote_project_identifier()
 
-        if remote_identifier != self.get_remote_project_identifier():
-            logger.warning(
-                f"Changing remote project identifier from {self.get_remote_project_identifier()} to {remote_identifier} for {self}"
+        if remote_identifier != old_identifier:
+            self._change_remote_project_identifier(old_identifier, remote_identifier)
+
+    def _change_remote_project_identifier(
+        self,
+        old_identifier: openportal.ProjectIdentifier,
+        new_identifier: openportal.ProjectIdentifier,
+    ):
+        """
+        Follow the receiving portal to a corrected identifier for its project.
+
+        This used to call set_remote_project_identifier, which refuses any
+        change once one is set - so the change it logged never happened, and
+        every update for the award failed at this last step and left it
+        "Pending" - which is what a receiving portal correcting identifiers it
+        had minted with the awarding portal's name does to every such award.
+
+        The identifier is also the key of the award record
+        (RemoteProject.identifier, looked up with destination). Moving only the
+        allocation would have the next sync miss the record and create a
+        duplicate award without its history, so both move together - and not
+        at all if another award record already holds the new identifier.
+        """
+        remote_project = getattr(self, "remote_project", None)
+
+        if remote_project is not None and remote_project.destination:
+            # The identifier is the receiving portal's name for its project,
+            # so it must name a portal on this award's route. Which hop is the
+            # receiving portal is not recorded (compare
+            # "awarding.receiving.cluster" with "portal.bridge.offering"), so
+            # this checks the route, not one position in it.
+            route = [
+                str(agent)
+                for agent in openportal.Destination(remote_project.destination).agents
+            ]
+            if str(new_identifier.portal) not in route:
+                raise exceptions.RemoteIdentifierConflictError(
+                    f"Cannot change remote project identifier of {self} from "
+                    f"{old_identifier} to {new_identifier}: portal "
+                    f"{new_identifier.portal} is not on the route "
+                    f"{remote_project.destination}"
+                )
+
+        if remote_project is not None and remote_project.identifier is not None:
+            clash = (
+                RemoteProject.objects.filter(
+                    destination=remote_project.destination,
+                    identifier=str(new_identifier),
+                )
+                .exclude(pk=remote_project.pk)
+                .exists()
             )
+            if clash:
+                raise exceptions.RemoteIdentifierConflictError(
+                    f"Cannot change remote project identifier of {self} from "
+                    f"{old_identifier} to {new_identifier}: another award to "
+                    f"{remote_project.destination} already has it"
+                )
 
-            self.set_remote_project_identifier(remote_identifier)
-            self.save()
+        logger.warning(
+            f"Changing remote project identifier from {old_identifier} to {new_identifier} for {self}"
+        )
+
+        with transaction.atomic():
+            self.remote_project_identifier = str(new_identifier)
+            self.save(update_fields=["remote_project_identifier"])
+            if remote_project is not None and remote_project.identifier == str(
+                old_identifier
+            ):
+                RemoteProject.objects.filter(pk=remote_project.pk).update(
+                    identifier=str(new_identifier)
+                )
+                remote_project.identifier = str(new_identifier)
 
     @classmethod
     def get_backend_fields(cls):
@@ -2522,11 +2589,83 @@ class ManagedProject(ReviewMixin, models.Model):
                 f"Project for managed project {self} is being changed from {self.project} to {project}."
             )
 
+        # Before self.project changes: it decides whether the old identifier
+        # still names this project.
+        local_identifier = self._local_identifier_for(project)
+        self._check_local_identifier_is_free(local_identifier)
+        self.local_identifier = local_identifier
         self.project = project
-        self.save(update_fields=["project"])
+        self.save(update_fields=["project", "local_identifier"])
         existing_details = self.get_details()
         existing_details.project_link = self._get_project_link()
         self.set_details(existing_details)
+
+    def _check_local_identifier_is_free(self, local_identifier: str | None):
+        """
+        Refuse an identifier another award over the same destination holds.
+
+        The awarding portal keys its record of each award by (destination,
+        project identifier), so two awards cannot name one project there. An
+        award detached from a project keeps its identifier - the awarding
+        portal's record of it still holds that name - so a second award
+        attached to the same project could never be adopted there and would
+        sit "pending" for ever. Refusing it here makes the clash visible.
+        """
+        if not local_identifier or local_identifier == self.local_identifier:
+            return
+        holder = (
+            ManagedProject.objects.filter(
+                destination=self.destination, local_identifier=local_identifier
+            )
+            .exclude(pk=self.pk)
+            .first()
+        )
+        if holder is not None:
+            raise exceptions.LocalIdentifierInUseError(
+                f"Project identifier {local_identifier} is still used by award "
+                f"{holder.identifier} from {holder.destination}; it cannot also "
+                f"be used by award {self.identifier}."
+            )
+
+    def _local_identifier_for(self, project: structure_models.Project) -> str | None:
+        """
+        The local_identifier this award should have while attached to project:
+        that project's own identifier, "{ProjectInfo shortname}.{this portal}".
+
+        It used to be minted once, for the project an award was first accepted
+        onto, and never touched again. An award accepted onto a new project
+        and then moved to the right one kept naming the first - often since
+        deleted - so anything keyed on it looked at the wrong project.
+
+        When it cannot be worked out here - the project has no shortname yet,
+        or the OpenPortal config is not loaded - this returns the current value
+        if the project is unchanged, and None if it has changed: an identifier
+        naming a project the award has left is worse than none, and the board
+        mints a missing one from the project when it next needs it
+        (OpenPortalBoard._get_local_identifier).
+        """
+        info = ProjectInfo.objects.filter(project=project).first()
+        if info is not None and info.has_shortname():
+            if config.ensure_config_loaded():
+                try:
+                    return str(
+                        openportal.ProjectIdentifier(
+                            f"{info.get_shortname()}.{openportal.get_portal()}"
+                        )
+                    )
+                except (ValueError, OSError) as e:
+                    logger.warning(
+                        f"Cannot work out the local identifier of {project} for "
+                        f"managed project {self}: {e}"
+                    )
+            else:
+                logger.warning(
+                    f"OpenPortal is not configured; cannot work out the local "
+                    f"identifier of {project} for managed project {self}."
+                )
+        if self.local_identifier and self.project_id == project.id:
+            return self.local_identifier
+        return None
 
     # The award's links, owned by the awarding portal. See merge_details.
     LINK_FIELDS = ("award", "call", "renewal")
@@ -2946,8 +3085,10 @@ class RemoteProject(core_models.UuidMixin, models.Model):
       destination — routing path, e.g. "airr.brics.isambard-ai"
       identifier  — stable remote project ID, e.g. "u6ac.brics"
 
-    These are set on creation and never change.  If the routing address changes
-    that is considered a new RemoteProject.
+    These are set on creation and never change, with one exception: when the
+    receiving portal corrects the identifier it reported, the award follows it
+    (RemoteAllocation.update_mapping).  If the routing address changes that is
+    considered a new RemoteProject.
     """
 
     # ------------------------------------------------------------------
