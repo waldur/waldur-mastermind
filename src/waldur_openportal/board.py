@@ -997,7 +997,7 @@ class OpenPortalBoard:
                 logger.debug(
                     f"Updating project start date from {project.start_date} to {details.start_date}"
                 )
-                project.start_date = new_details.start_date
+                project.start_date = details.start_date
                 update_fields.append("start_date")
 
         if details.end_date is not None:
