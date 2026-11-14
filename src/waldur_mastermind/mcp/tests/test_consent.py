@@ -346,6 +346,20 @@ class ConsentDetailsTest(ConsentTestMixin, test.APITestCase):
         self.assertEqual(response.data["client_host"], "client.example.com")
         self.assertEqual(response.data["registration_source"], "cimd")
 
+    def test_cimd_client_host_is_shown_as_the_browser_looks_it_up(self):
+        # claude.ai spelled with a Cyrillic "c" is another domain.
+        client_id = "https://\u0441laude.ai/oauth/metadata.json"
+        self.login()
+
+        with mock.patch(
+            "oauth2_provider.cimd.SafeMetadataFetcher.fetch",
+            return_value=({**CIMD_DOCUMENT, "client_id": client_id}, 300),
+        ):
+            response = self.get_consent(client_id=client_id)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["client_host"], "xn--laude-0ye.ai")
+
     def test_elevated_access_names_the_role(self):
         cases = [
             ({"is_staff": True}, "staff"),

@@ -21,6 +21,7 @@ from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories
 from waldur_mastermind.mcp import tasks
 from waldur_mastermind.mcp.apps import configure_django_cors_headers
+from waldur_mastermind.mcp.oauth import MCPOAuth2Validator
 
 Application = get_application_model()
 AccessToken = get_access_token_model()
@@ -369,24 +370,78 @@ class DynamicClientRegistrationTest(OAuthTestMixin, test.APITestCase):
 
         self.assertEqual(response.status_code, 401)
 
-    def test_registration_update_keeps_working_for_allowed_grants(self):
-        data = self.register().json()
-
-        response = self.client.put(
+    def update_registration(self, data, **metadata):
+        return self.client.put(
             data["registration_client_uri"],
             {
-                "client_name": "Renamed",
+                "client_name": "Claude",
                 "redirect_uris": [REDIRECT_URI],
                 "token_endpoint_auth_method": "none",
+                **metadata,
             },
             format="json",
             HTTP_AUTHORIZATION=f"Bearer {data['registration_access_token']}",
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            Application.objects.get(client_id=data["client_id"]).name, "Renamed"
+    def test_registration_update_keeps_working_for_allowed_grants(self):
+        data = self.register().json()
+
+        response = self.update_registration(
+            data, grant_types=["authorization_code", "refresh_token"]
         )
+
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_registration_update_cannot_rename_the_client(self):
+        # Users approved it under its name, which the connected apps list shows.
+        data = self.register().json()
+
+        response = self.update_registration(data, client_name="Other")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "invalid_client_metadata")
+        application = Application.objects.get(client_id=data["client_id"])
+        self.assertEqual(application.name, "Claude")
+
+    def test_client_name_must_be_a_string(self):
+        # DOT stores it as it comes, so a null would fail in the database.
+        data = self.register(client_name="").json()
+
+        for name in (None, 42, ["Claude"]):
+            with self.subTest(client_name=name):
+                register_response = self.register(client_name=name)
+                update_response = self.update_registration(data, client_name=name)
+
+                for response in (register_response, update_response):
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(
+                        response.json()["error_description"],
+                        "client_name must be a string.",
+                    )
+        self.assertEqual(Application.objects.count(), 1)
+
+    def test_registration_update_cannot_change_the_redirect_uris(self):
+        other_uri = "https://evil.example/callback"
+        data = self.register(redirect_uris=[REDIRECT_URI, other_uri]).json()
+
+        for redirect_uris in ([REDIRECT_URI], [REDIRECT_URI, other_uri, "https://x/"]):
+            with self.subTest(redirect_uris=redirect_uris):
+                response = self.update_registration(data, redirect_uris=redirect_uris)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["error"], "invalid_client_metadata")
+        application = Application.objects.get(client_id=data["client_id"])
+        self.assertEqual(application.redirect_uris, f"{REDIRECT_URI} {other_uri}")
+
+    def test_registration_update_may_list_the_redirect_uris_in_another_order(self):
+        other_uri = "https://claude.ai/other"
+        data = self.register(redirect_uris=[REDIRECT_URI, other_uri]).json()
+
+        response = self.update_registration(
+            data, redirect_uris=[other_uri, REDIRECT_URI]
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
 
     def test_registration_token_expires_and_is_cleared(self):
         data = self.register().json()
@@ -703,6 +758,33 @@ class TokenTest(OAuthTestMixin, test.APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"], "invalid_grant")
+
+    def test_a_code_deleted_during_the_exchange_is_an_invalid_grant(self):
+        # E.g. by a revoke or a second exchange, after one of DOT's checks.
+        steps = [
+            "validate_code",
+            "get_code_challenge",
+            "get_code_challenge_method",
+            "confirm_redirect_uri",
+        ]
+        for step in steps:
+            with self.subTest(step=step):
+                application = self.create_public_client()
+                grant = self.create_grant(application, self.user)
+
+                def check_then_delete(
+                    validator, *args, check=getattr(MCPOAuth2Validator, step), **kw
+                ):
+                    result = check(validator, *args, **kw)
+                    Grant.objects.filter(user=self.user).delete()
+                    return result
+
+                with mock.patch.object(MCPOAuth2Validator, step, check_then_delete):
+                    response = self.exchange_code(application, grant)
+
+                self.assertEqual(response.status_code, 400, response.content)
+                self.assertEqual(response.json()["error"], "invalid_grant")
+                self.assertFalse(AccessToken.objects.filter(user=self.user).exists())
 
     def test_tokens_are_not_stored_in_plaintext(self):
         grant = self.create_grant(self.application, self.user)
