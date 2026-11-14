@@ -1088,6 +1088,9 @@ class OpenPortalBoard:
                             f"Allocation change to {details.allocation} was not "
                             f"applied: project is in its grace period."
                         ),
+                        # Credits stay unchanged in grace, so every resend
+                        # lands here again: one note until something changes.
+                        skip_repeat=True,
                     )
                 else:
                     try:
