@@ -211,6 +211,26 @@ class UpdateAllocatedProjectTest(RemoteBackendFixture):
         super().setUp()
         self.client.get_award.return_value = award_details(project_id=PROJECT)
 
+    def test_an_identifier_it_cannot_adopt_errs_the_award_instead_of_pending(self):
+        """
+        The remote portal accepted the update but reports an identifier this
+        portal cannot adopt (another award holds it, or it names a portal off
+        the route). Retrying cannot fix that, so the allocation and the award
+        record go to an error state with the reason, not "still pending".
+        """
+        allocation = self.make_allocation()
+        allocation.update_mapping.side_effect = (
+            exceptions.RemoteIdentifierConflictError("another award has it")
+        )
+
+        self.backend.update_allocated_project(allocation)
+
+        allocation.set_erred.assert_called_once()
+        self.assertEqual(allocation.error_message, "another award has it")
+        self.assertEqual(self.remote_project.state, models.RemoteProjectState.ERROR)
+        self.assertEqual(self.remote_project.error_message, "another award has it")
+        self.remote_project.save.assert_called()
+
     def test_an_allocation_in_a_terminal_state_is_refused(self):
         allocation = self.make_allocation(state=CoreStates.ERRED)
 

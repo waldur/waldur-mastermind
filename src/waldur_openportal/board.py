@@ -60,17 +60,49 @@ class OpenPortalBoard:
 
         return project
 
-    def _to_user_identifier(self, user) -> openportal.UserIdentifier:
+    def _to_local_project_identifier(self, project) -> openportal.ProjectIdentifier:
         """
-        Convert the passed (any) object into a UserIdentifier
-        """
-        if not isinstance(user, openportal.UserIdentifier):
-            try:
-                user = openportal.UserIdentifier(user)
-            except Exception:
-                user = openportal.UserIdentifier(f"{user}.{self.portal()}")
+        Convert the passed (any) object into a ProjectIdentifier belonging to
+        THIS portal.
 
-        return user
+        Not the same as _to_project_identifier, which qualifies a bare name
+        with self.portal() - the portal at the head of this board's
+        destination, i.e. the REMOTE portal that raised the award. That is
+        right for an identifier that belongs to the remote portal and wrong
+        for one that belongs to us: an award raised by portal "awarding"
+        has the destination "awarding.receiving.cluster", so a local project
+        named through _to_project_identifier came out as "proj.awarding" rather
+        than "proj.receiving", and nothing that looks a local identifier up would
+        ever find it (see filters._identifiers_for_project_uuid, which builds
+        the same string from get_portal(), and tasks.refresh_remote_award,
+        which discards identifiers whose portal is not this one).
+
+        openportal.get_portal() is the local portal, and is what every other
+        caller in this app already uses for this.
+
+        Raises exceptions.OpenPortalError if handed an identifier that is
+        already qualified with some other portal.
+        """
+        local_portal = openportal.get_portal()
+
+        if not isinstance(project, openportal.ProjectIdentifier):
+            try:
+                project = openportal.ProjectIdentifier(project)
+            except Exception:
+                return openportal.ProjectIdentifier(f"{project}.{local_portal}")
+
+        # An identifier that arrived already qualified must be qualified with
+        # OUR portal - it is about to be stored or looked up as a local one.
+        # Anything else is a bug in the caller, and a silent one: it would be
+        # written to ManagedProject.local_identifier and simply never match.
+        if str(project.portal) != str(local_portal):
+            raise exceptions.OpenPortalError(
+                f"Project identifier {project} is for portal {project.portal}, "
+                f"not the local portal {local_portal} - refusing to use it as a "
+                "local identifier."
+            )
+
+        return project
 
     def portal(self) -> openportal.PortalIdentifier:
         """
@@ -435,7 +467,9 @@ class OpenPortalBoard:
 
             shortname = project_info.generate_shortname(generator)
 
-        managed_project.local_identifier = str(self._to_project_identifier(shortname))
+        managed_project.local_identifier = str(
+            self._to_local_project_identifier(shortname)
+        )
         managed_project.save()
 
     def _link_existing_project(self, managed_project: models.ManagedProject):

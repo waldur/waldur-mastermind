@@ -2,7 +2,8 @@ from unittest import mock
 
 from django.test import TestCase, override_settings
 
-from waldur_openportal import exceptions
+from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_openportal import exceptions, models
 from waldur_openportal.board import OpenPortalBoard
 from waldur_openportal.client import OpenPortalRunner
 
@@ -29,6 +30,92 @@ class OpenPortalRunnerTest(TestCase):
 
         self.assertIsInstance(runner, OpenPortalRunner)
         mock_config.assert_called_once()
+
+    @mock.patch("waldur_openportal.config.ensure_config_loaded", return_value=True)
+    def test_local_identifier_uses_the_local_portal(self, mock_config):
+        """
+        A bare shortname must be qualified with THIS portal, not with the
+        portal at the head of the board's destination.
+
+        An award raised by portal "awarding" has the destination
+        "awarding.receiving.cluster", so board.portal() is "awarding" - the remote
+        portal that raised the award. Qualifying a local project with that
+        produced "proj.awarding" instead of "proj.receiving", which no lookup of a
+        local identifier can find.
+        """
+        board = OpenPortalBoard("awarding.receiving.cluster")
+
+        self.assertEqual(str(board.portal()), "awarding")
+
+        with mock.patch("openportal.get_portal", return_value="receiving"):
+            local = board._to_local_project_identifier("proj")
+
+        self.assertEqual(str(local), "proj.receiving")
+
+    @mock.patch("waldur_openportal.config.ensure_config_loaded", return_value=True)
+    def test_minted_local_identifier_names_the_local_portal(self, mock_config):
+        """
+        The identifier the board mints for an accepted award's project is
+        qualified with this portal, not the awarding portal.
+        """
+        project = structure_fixtures.ProjectFixture().project
+        models.ProjectInfo.objects.create(project=project, shortname="proj")
+        managed_project = models.ManagedProject.objects.create(
+            destination="awarding.receiving.cluster",
+            identifier="award.awarding",
+            project=project,
+        )
+        board = OpenPortalBoard("awarding.receiving.cluster")
+
+        with (
+            mock.patch("openportal.get_portal", return_value="receiving"),
+            # The project already has a shortname, so no template is needed.
+            mock.patch.object(
+                models.ManagedProject, "get_project_template", return_value=None
+            ),
+        ):
+            board._get_local_identifier(managed_project)
+
+        managed_project.refresh_from_db()
+        self.assertEqual(managed_project.local_identifier, "proj.receiving")
+
+    @mock.patch("waldur_openportal.config.ensure_config_loaded", return_value=True)
+    def test_local_identifier_leaves_a_qualified_local_name_alone(self, mock_config):
+        board = OpenPortalBoard("awarding.receiving.cluster")
+
+        with mock.patch("openportal.get_portal", return_value="receiving"):
+            local = board._to_local_project_identifier("proj.receiving")
+
+        self.assertEqual(str(local), "proj.receiving")
+
+    @mock.patch("waldur_openportal.config.ensure_config_loaded", return_value=True)
+    def test_local_identifier_rejects_another_portals_identifier(self, mock_config):
+        """
+        Being handed an already-qualified identifier for a different portal is
+        a caller bug, and a silent one if allowed through: it would be stored
+        as local_identifier and never match anything.
+        """
+        board = OpenPortalBoard("awarding.receiving.cluster")
+
+        with mock.patch("openportal.get_portal", return_value="receiving"):
+            with self.assertRaises(exceptions.OpenPortalError) as cm:
+                board._to_local_project_identifier("proj.awarding")
+
+        self.assertIn("proj.awarding", str(cm.exception))
+        self.assertIn("awarding", str(cm.exception))
+        self.assertIn("receiving", str(cm.exception))
+
+    @mock.patch("waldur_openportal.config.ensure_config_loaded", return_value=True)
+    def test_remote_identifier_still_uses_the_board_portal(self, mock_config):
+        """
+        _to_project_identifier is unchanged: it names things belonging to the
+        portal this board talks to, which is the point of it.
+        """
+        board = OpenPortalBoard("awarding.receiving.cluster")
+
+        remote = board._to_project_identifier("someproj")
+
+        self.assertEqual(str(remote), "someproj.awarding")
 
     @mock.patch("waldur_openportal.config.is_config_available")
     def test_health_raises_error_when_config_unavailable(self, mock_config_available):

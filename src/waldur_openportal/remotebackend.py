@@ -633,6 +633,24 @@ class RemoteOpenPortalBackend(ServiceBackend):
                 allocation.error_message = str(e)
                 allocation.set_erred()
                 allocation.save()
+        except exceptions.RemoteIdentifierConflictError as e:
+            # The remote portal accepted the update, but names its project
+            # with an identifier this portal cannot adopt. Retrying will not
+            # change that, so stop and say why rather than leaving the award
+            # "pending" for ever.
+            logger.error(
+                f"OpenPortal project {project_identifier} reports an identifier "
+                f"that cannot be adopted: {e}"
+            )
+            allocation.error_message = str(e)
+            allocation.set_erred()
+            allocation.save()
+            if _remote_project is not None:
+                _remote_project.state = models.RemoteProjectState.ERROR
+                _remote_project.error_message = str(e)
+                _remote_project.save(
+                    update_fields=["state", "error_message", "modified"]
+                )
         except Exception as e:
             logger.warning(
                 f"Unable to update OpenPortal project {project_identifier}: {e}."

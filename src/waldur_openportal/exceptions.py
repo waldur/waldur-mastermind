@@ -125,3 +125,38 @@ def convert_to_openportal_error(error_message: str) -> OpenPortalError:
         return ManagedProjectPendingError(error_message[28:])
     else:
         return OpenPortalOtherError(error_message)
+
+
+class RemoteIdentifierConflictError(OpenPortalError):
+    """
+    The receiving portal reported a project identifier the awarding portal
+    cannot adopt: another award over the same destination already holds it,
+    or it names a portal that is not on the award's route.
+    """
+
+    def __init__(self, message):
+        super().__init__(message)
+        self._message = message
+
+    def __str__(self):
+        return self._message
+
+    def message(self):
+        return self._message
+
+
+class LocalIdentifierInUseError(OpenPortalError):
+    """
+    The identifier an award would take from a project is still held by
+    another award over the same destination.
+    """
+
+    def __init__(self, message):
+        super().__init__(message)
+        self._message = message
+
+    def __str__(self):
+        return self._message
+
+    def message(self):
+        return self._message

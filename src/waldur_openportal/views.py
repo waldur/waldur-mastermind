@@ -38,7 +38,7 @@ from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import IsAdminOrOwner, _has_owner_access
 
-from . import config, executors, filters, models, serializers, tasks, utils
+from . import config, exceptions, executors, filters, models, serializers, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -1239,7 +1239,10 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            managed_project.set_project(project)
+            try:
+                managed_project.set_project(project)
+            except exceptions.LocalIdentifierInUseError as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             managed_project.notify_changed()
 
             logger.info(
