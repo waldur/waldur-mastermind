@@ -435,6 +435,32 @@ def hide_award_key(details, request, template):
     return details
 
 
+class ProjectTemplateOfferingSerializer(
+    marketplace_serializers.ResourceOfferingSerializer
+):
+    """
+    A template's default offering as offerings_data shows it: name and uuid,
+    plus the url that the writable offerings field takes.
+
+    HomePort's template editor fills its offerings from offerings_data and
+    sends back each one's url. ResourceOfferingSerializer has no url, so every
+    offering already on a template went back as null and saving any edit
+    failed: "offerings: Incorrect type. Expected URL string, received
+    NoneType." The url is built from the same view as the offerings field, so
+    what is shown is exactly what can be sent back.
+    """
+
+    url = rf_serializers.HyperlinkedIdentityField(
+        view_name="marketplace-provider-offering-detail", lookup_field="uuid"
+    )
+
+    class Meta(marketplace_serializers.ResourceOfferingSerializer.Meta):
+        fields = (
+            *marketplace_serializers.ResourceOfferingSerializer.Meta.fields,
+            "url",
+        )
+
+
 class ProjectTemplateSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     rf_serializers.ModelSerializer,
@@ -524,7 +550,7 @@ class ProjectTemplateSerializer(
         lookup_field="uuid",
     )
 
-    offerings_data = marketplace_serializers.ResourceOfferingSerializer(
+    offerings_data = ProjectTemplateOfferingSerializer(
         source="offerings", many=True, read_only=True
     )
 
