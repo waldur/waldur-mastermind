@@ -123,6 +123,13 @@ class ProjectSection(FeatureSection):
         "a provider adopts."
     )
 
+    enforce_allowed_domains = Feature(
+        "Enforce the rules of an OpenPortal award on local team changes. Despite "
+        "its name, this flag gates both the award's membership and role lock and "
+        "its allowed email domains: adding, removing or re-roling members and "
+        "inviting users is refused if the award does not permit it."
+    )
+
 
 class UserSection(FeatureSection):
     class Meta:

@@ -868,10 +868,11 @@ class RoleChange:
 
 # Guards consulted before a role is granted, updated or revoked through the
 # API, or offered and granted through an invitation or a permission request.
-# Each is ``guard(scope, role, acting_user, change, user)`` and raises
-# ``ValidationError`` to refuse; apps register theirs in ``AppConfig.ready``.
-# ``user`` is the user whose role changes, or None for an invitation not yet
-# accepted.
+# Each is ``guard(scope, role, acting_user, change, user, email=None)`` and
+# raises ``ValidationError`` (or ``PermissionDenied``) to refuse; apps register
+# theirs in ``AppConfig.ready``. ``user`` is the user whose role changes, or
+# None for an invitation not yet accepted, in which case ``email`` is the
+# address invited, when there is one.
 _role_change_guards: list = []
 
 
@@ -879,13 +880,15 @@ def register_role_change_guard(guard) -> None:
     _role_change_guards.append(guard)
 
 
-def validate_role_change(scope, role, acting_user, change, user=None):
+def validate_role_change(scope, role, acting_user, change, user=None, email=None):
     """Run the registered role change guards."""
     for guard in _role_change_guards:
-        guard(scope, role, acting_user, change, user)
+        guard(scope, role, acting_user, change, user, email=email)
 
 
-def guard_project_role_escalation(scope, role, acting_user, change, user=None):
+def guard_project_role_escalation(
+    scope, role, acting_user, change, user=None, email=None
+):
     """On a project, whoever manages the team through a role on the project
     itself hands out no role that lets its holder do more than they can.
 
