@@ -27,7 +27,8 @@ from waldur_auth_social.views import (
 )
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
 from waldur_core.configuration.testing import override_config
-from waldur_core.core.models import User
+from waldur_core.core.authentication import AUTHENTICATION_METHOD_KEY
+from waldur_core.core.models import TokenExchangeCode, User
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
 from waldur_core.permissions.fixtures import ProjectRole
@@ -587,19 +588,31 @@ class OAuthViewCompleteTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("User is deactivated", str(response.content))
 
-    def test_invalid_state(self):
-        response = self.client.get(
-            self.url, {"state": "invalid_state", "code": self.code}
-        )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn("Invalid auth state", str(response.content))
+    def _assert_refused_state(self, response):
+        """The browser lands on the login-failed page, and nobody is signed in."""
+        assert_login_failed_redirect(self, response, views.INVALID_STATE_MESSAGE)
+        self.assertNotIn(AUTHENTICATION_METHOD_KEY, self.client.session)
+        self.assertFalse(TokenExchangeCode.objects.exists())
+        self.assertFalse(Token.objects.exists())
+        self.assertFalse(models.OAuthToken.objects.exists())
+
+    def test_mismatched_state_redirects_to_login_failed(self):
+        self._mock_token_request()
+        with self.assertLogs("waldur_auth_social.views", level="WARNING") as logs:
+            response = self.client.get(
+                self.url, {"state": "invalid_state", "code": self.code}
+            )
+        self._assert_refused_state(response)
+        self.assertIn("Invalid auth state", logs.output[0])
+        # Refused before the code exchange: the IdP is never asked for a token.
+        self.assertEqual(len(responses.calls), 0)
 
     def test_failed_login_is_logged(self):
         cache.clear()
         self.client.get(self.url, {"state": "invalid_state", "code": self.code})
         event = Event.objects.get(event_type=EventType.AUTH_LOGIN_FAILED_WITH_OAUTH)
         self.assertEqual(event.context["provider"], self.provider.provider)
-        self.assertEqual(event.context["reason"], "Invalid auth state.")
+        self.assertEqual(event.context["reason"], views.INVALID_STATE_MESSAGE)
 
     def test_login_rejected_by_identity_provider_is_logged(self):
         cache.clear()
@@ -648,13 +661,41 @@ class OAuthViewCompleteTest(test.APITestCase):
         event = Event.objects.get(event_type=EventType.AUTH_LOGIN_FAILED_WITH_OAUTH)
         self.assertEqual(len(event.context["reason"]), views.MAX_FAILURE_REASON_LENGTH)
 
-    def test_missing_state_in_session(self):
+    def test_missing_state_in_session_redirects_to_login_failed(self):
         session = self.client.session
         del session[OIDC_STATE_KEY]
         session.save()
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn("Invalid auth state", str(response.content))
+        self._assert_refused_state(response)
+
+    def test_no_session_redirects_to_login_failed(self):
+        # The browser dropped the session cookie (expired, or never sent).
+        self.client.cookies.clear()
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+        self._assert_refused_state(response)
+
+    def test_reused_state_redirects_to_login_failed(self):
+        self._mock_token_request()
+        self._mock_userinfo_request({"sub": "reuse_sub", "email": "r@example.com"})
+        first = self.client.get(self.url, {"state": self.state, "code": self.code})
+        self.assertTrue(
+            first.url.startswith("https://example.com/oauth_login_completed/")
+        )
+        self.assertNotIn(OIDC_STATE_KEY, self.client.session)
+
+        # Back to the IdP page, or a replayed callback URL: same state again.
+        # Start from a clean slate so the assertions see only the second call.
+        TokenExchangeCode.objects.all().delete()
+        Token.objects.all().delete()
+        models.OAuthToken.objects.all().delete()
+        session = self.client.session
+        del session[AUTHENTICATION_METHOD_KEY]
+        session.save()
+        token_calls = len(responses.calls)
+
+        second = self.client.get(self.url, {"state": self.state, "code": self.code})
+        self._assert_refused_state(second)
+        self.assertEqual(len(responses.calls), token_calls)
 
     def test_token_request_fails(self):
         responses.add(

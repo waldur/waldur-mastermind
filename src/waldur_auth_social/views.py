@@ -69,6 +69,10 @@ logger = logging.getLogger(__name__)
 
 OIDC_STATE_KEY = "oidc_state"
 
+INVALID_STATE_MESSAGE = (
+    "This sign-in has expired or was already used. Please sign in again."
+)
+
 MAX_FAILURE_REASON_LENGTH = 200
 
 OIDC_CODE_VERIFIER_KEY = "oidc_code_verifier"
@@ -347,7 +351,16 @@ class OAuthViewComplete(BaseOAuthView):
                 returned_state,
                 request.session.session_key,
             )
-            raise OAuthException(self.config.provider, "Invalid auth state.")
+            # A used, expired or lost state is reached in ordinary ways (Back
+            # to the IdP page, a bookmarked IdP URL, a stale tab), so the
+            # browser lands on the login-failed page rather than a bare 401.
+            raise OAuthException(
+                self.config.provider, INVALID_STATE_MESSAGE, user_facing=True
+            )
+        # A state is good for one callback. The session survives sign-in
+        # (set_authentication_method only cycles its key), so without this a
+        # replayed callback URL would pass the check again.
+        del self.request.session[OIDC_STATE_KEY]
         redirect_uri = reverse(f"auth_{provider}_complete", request=request)
         serializer = AuthSerializer(
             data={
