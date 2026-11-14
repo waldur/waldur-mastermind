@@ -1,0 +1,1 @@
+{{ site_name }} project status update - {{ today|date:"j F Y" }}

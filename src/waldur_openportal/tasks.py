@@ -7,6 +7,7 @@ import time
 
 import openportal
 from celery import shared_task
+from django.utils import timezone
 
 from waldur_core.configuration import config as constance_config
 from waldur_core.core import utils as core_utils
@@ -1226,24 +1227,32 @@ def sync_project(serialized_project):
                 break
 
 
+PROJECT_UPDATE_EVENT = "project_usage_update"
+
+
 @shared_task(name="waldur_openportal.send_notifications")
 def send_notifications():
     """
-    This task is called to send notifications to all users associated
-    with any OpenPortal allocations.
+    This task is called to send the regular project usage update
+    (the openportal.project_usage_update notification) to all users
+    associated with any OpenPortal allocations.
     """
     logger.info("OpenPortal task.send_notifications")
+    send_project_updates(timezone.localtime())
 
+
+def send_project_updates(now):
+    """
+    Send the project usage update to every project that is due one, as of
+    the passed (local) time. Returns the number of emails sent.
+    """
     # make sure that we only run during "office hours"
     # (10am to 3pm) - this is a bit of a hack, but it will do for now
-    now = datetime.datetime.now()
-
     if now.hour < 10 or now.hour > 15:
         logger.debug("Not sending notifications - outside office hours")
-        return
+        return 0
 
-    # Get today's date
-    today = datetime.date.today()
+    today = now.date()
 
     num_emails_sent = 0
 
@@ -1252,7 +1261,7 @@ def send_notifications():
     for project_credit in invoice_models.ProjectCredit.objects.all():
         if num_emails_sent > 500:
             logger.warning("Sent over 500 emails already - stopping")
-            return
+            break
 
         project = project_credit.project
 
@@ -1268,9 +1277,8 @@ def send_notifications():
         # get the end date for this project
         end_date = project.end_date
 
-        # Double-check that the project is not expired
+        # Do not send usage updates once the project has ended
         if end_date is not None and end_date < today:
-            # project is expired - no need to send notifications
             continue
 
         # Check to see if this project should be notified
@@ -1297,12 +1305,10 @@ def send_notifications():
             continue
 
         # Check to see if this project has any credits available
-        credits_available = float(project_credit.value)
+        credits_available = float(project_credit.value or 0)
 
-        if credits_available is None or credits_available <= 0:
+        if credits_available <= 0:
             credits_available = 0
-        else:
-            credits_available = float(credits_available)
 
         # find any openportal allocations associated with the project
         # (note we don't do this for RemoteAllocations, as the remote
@@ -1320,113 +1326,72 @@ def send_notifications():
         for allocation in allocations:
             total_spend += float(allocation.node_usage)
 
-        notification_subject = _notification_subject(project, today)
+        emails = sorted({user.email for user in project.get_users() if user.email})
+        if not emails:
+            continue
 
-        notification_body = _notification_body(
+        context = _project_update_context(
             project,
             today,
             credits_available,
             total_spend,
-            end_date,
             notification.frequency,
         )
 
-        # Send the notification to each user - wait 50ms between each
-        # notification to avoid overwhelming the mail server
-        for user in project.get_users():
-            try:
-                logger.debug(f"Sending notification to {user} in {project}")
-                logger.debug(f"Notification subject: {notification_subject}")
-                logger.debug(f"Notification body: {notification_body}")
+        # broadcast_mail sends nothing when the notification is disabled, and
+        # returns who it was sent to: only a sent update starts a new period,
+        # so switching the notification on does not hold projects back.
+        sent = core_utils.broadcast_mail(
+            "openportal", PROJECT_UPDATE_EVENT, context, emails
+        )
+        if not sent:
+            continue
 
-                core_utils.send_mail(
-                    subject=notification_subject,
-                    body=notification_body,
-                    to=[user.email],
-                )
-                num_emails_sent += 1
-                time.sleep(0.05)
-            except Exception as e:
-                logger.error(f"Failed to send notification to {user.email}: {e}")
+        num_emails_sent += len(sent)
 
         # Update the last notification date
         notification.last_notification = today
-        notification.save()
+        notification.save(update_fields=["last_notification"])
+
+    return num_emails_sent
 
 
-def _notification_subject(project, today):
-    """
-    This function returns the subject for the notification email
-    for the passed project generated on the passed date
-    """
-    return f"Isambard Project Status Update - {today.strftime('%d %B %Y')}"
+def _update_frequency_in_words(update_frequency):
+    update_frequency = max(update_frequency, 1)
+    return {1: "day", 7: "week", 14: "fortnight"}.get(
+        update_frequency, f"{update_frequency} days"
+    )
 
 
-def _notification_body(
-    project, today, credits_available, total_spend, end_date, update_frequency
+def _project_update_context(
+    project, today, credits_available, total_spend, update_frequency
 ):
     """
-    This function returns the body for the notification email
-    for the passed project generated on the passed date. This
-    communicates the number of credits available, the total spend
-    on the project, and when the project will end.
+    The context of the openportal.project_usage_update notification for the
+    passed project generated on the passed date. This communicates the
+    number of credits available, the total spend on the project, when the
+    project will end, and, after any grace period, when its remaining data
+    will be deleted.
     """
+    end_date = project.end_date
 
-    remaining = credits_available - total_spend
-    if remaining < 0:
-        remaining = 0
-
-    if end_date is None:
-        date_info = ""
-    else:
-        date = end_date.strftime("%d %B %Y")
-
-        days_remaining = (end_date - today).days
-
-        if days_remaining < 0:
-            days_remaining = "today"
-        elif days_remaining == 1:
-            days_remaining = "tomorrow"
-        else:
-            days_remaining = f"in {days_remaining} days time"
-
-        date_info = f"""
-
-All node hours must be consumed before the {date}, which is {days_remaining}.
-
-You must copy back all data before this date. You won't be able to login after your project ends and all remaining data will be deleted."""
-
-    if update_frequency < 1:
-        update_frequency = 1
-
-    if update_frequency == 1:
-        update_frequency = "day"
-    elif update_frequency == 7:
-        update_frequency = "week"
-    elif update_frequency == 14:
-        update_frequency = "fortnight"
-    else:
-        update_frequency = f"{update_frequency} days"
-
-    # This would eventually be better templated ;-)
-    body = f"""
-Here is your regular update for your Isambard project “{project.name}”
-
-To date, {total_spend:.2f} node hours have been used, leaving {remaining:.2f} remaining to consume before the end of your project.{date_info}
-
-For more detail, view your project at https://portal.isambard.ac.uk.
-
-To learn more about project accounting, read the documentation at https://docs.isambard.ac.uk/user-documentation/guides/accounting.
-
-If you have any queries, please raise a ticket at https://support.isambard.ac.uk.
-
-We will send you an update every {update_frequency}.
-
-If you want to change the frequency of these updates, please ask the project PI to raise a request at https://support.isambard.ac.uk.
-
-"""
-
-    return body
+    return {
+        "site_name": constance_config.SITE_NAME,
+        "project_name": project.name,
+        "project_url": core_utils.format_homeport_link(
+            "/projects/{uuid}/", uuid=project.uuid.hex
+        ),
+        "today": today,
+        "total_spend": f"{total_spend:.2f}",
+        "remaining": f"{max(credits_available - total_spend, 0):.2f}",
+        "end_date": end_date,
+        "days_until_end": (end_date - today).days if end_date else None,
+        "grace_period_days": project.get_grace_period_days(),
+        "deletion_date": project.get_effective_end_date(),
+        "update_frequency": _update_frequency_in_words(update_frequency),
+        "docs_url": constance_config.DOCS_URL or "",
+        "support_url": constance_config.SUPPORT_PORTAL_URL or "",
+    }
 
 
 @shared_task(name="waldur_openportal.update_remote_project")

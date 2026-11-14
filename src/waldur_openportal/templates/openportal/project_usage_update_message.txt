@@ -1,0 +1,17 @@
+Here is your regular update for your {{ site_name }} project "{{ project_name }}".
+
+To date, {{ total_spend }} node hours have been used, leaving {{ remaining }} remaining to consume before the end of your project.
+{% if end_date %}
+All node hours must be consumed before {{ end_date|date:"j F Y" }}, which is {% if days_until_end <= 0 %}today{% elif days_until_end == 1 %}tomorrow{% else %}in {{ days_until_end }} days time{% endif %}.
+{% if grace_period_days %}
+After your project ends there is a grace period of {{ grace_period_days }} days to copy back your data. All remaining data will be deleted on {{ deletion_date|date:"j F Y" }}, so you must copy back all data before then.
+{% else %}
+You must copy back all data before this date. You won't be able to log in after your project ends and all remaining data will be deleted.
+{% endif %}{% endif %}
+For more detail, view your project at {{ project_url }}
+{% if docs_url %}
+For more information, read the documentation at {{ docs_url }}
+{% endif %}{% if support_url %}
+If you have any queries, please raise a ticket at {{ support_url }}
+{% endif %}
+We will send you an update every {{ update_frequency }}. If you want to change the frequency of these updates, please ask the project PI to raise a request{% if support_url %} at {{ support_url }}{% endif %}.

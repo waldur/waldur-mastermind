@@ -6628,6 +6628,70 @@ Sent to Project admins and Project managers when their resource allocation reque
 
 ```
 
+### openportal.project_usage_update
+
+A regular update sent to every member of a project with a project credit and active OpenPortal allocations: the node hours used and remaining, when the project ends and when its data is deleted after any grace period. How often is set per project (every 14 days by default).
+
+#### Templates
+
+=== "openportal/project_usage_update_subject.txt"
+
+```txt
+
+    {{ site_name }} project status update - {{ today|date:"j F Y" }}
+
+```
+
+=== "openportal/project_usage_update_message.txt"
+
+```txt
+
+    Here is your regular update for your {{ site_name }} project "{{ project_name }}".
+
+    To date, {{ total_spend }} node hours have been used, leaving {{ remaining }} remaining to consume before the end of your project.
+    {% if end_date %}
+    All node hours must be consumed before {{ end_date|date:"j F Y" }}, which is {% if days_until_end <= 0 %}today{% elif days_until_end == 1 %}tomorrow{% else %}in {{ days_until_end }} days time{% endif %}.
+    {% if grace_period_days %}
+    After your project ends there is a grace period of {{ grace_period_days }} days to copy back your data. All remaining data will be deleted on {{ deletion_date|date:"j F Y" }}, so you must copy back all data before then.
+    {% else %}
+    You must copy back all data before this date. You won't be able to log in after your project ends and all remaining data will be deleted.
+    {% endif %}{% endif %}
+    For more detail, view your project at {{ project_url }}
+    {% if docs_url %}
+    For more information, read the documentation at {{ docs_url }}
+    {% endif %}{% if support_url %}
+    If you have any queries, please raise a ticket at {{ support_url }}
+    {% endif %}
+    We will send you an update every {{ update_frequency }}. If you want to change the frequency of these updates, please ask the project PI to raise a request{% if support_url %} at {{ support_url }}{% endif %}.
+
+```
+
+=== "openportal/project_usage_update_message.html"
+
+```txt
+
+    <html lang="en">
+    <head><meta charset="UTF-8"><title>{{ site_name }} project status update</title></head>
+    <body>
+    <p>Here is your regular update for your <strong>{{ site_name }}</strong> project <strong>{{ project_name }}</strong>.</p>
+    <p>To date, <strong>{{ total_spend }}</strong> node hours have been used, leaving <strong>{{ remaining }}</strong> remaining to consume before the end of your project.</p>
+    {% if end_date %}
+    <p>All node hours must be consumed before <strong>{{ end_date|date:"j F Y" }}</strong>, which is {% if days_until_end <= 0 %}today{% elif days_until_end == 1 %}tomorrow{% else %}in {{ days_until_end }} days time{% endif %}.</p>
+    {% if grace_period_days %}
+    <p>After your project ends there is a grace period of {{ grace_period_days }} days to copy back your data. <strong>All remaining data will be deleted on {{ deletion_date|date:"j F Y" }}</strong>, so you must copy back all data before then.</p>
+    {% else %}
+    <p>You must copy back all data before this date. You won't be able to log in after your project ends and <strong>all remaining data will be deleted</strong>.</p>
+    {% endif %}
+    {% endif %}
+    <p>For more detail, <a href="{{ project_url }}">view your project</a>.</p>
+    {% if docs_url %}<p>For more information, read the <a href="{{ docs_url }}">documentation</a>.</p>{% endif %}
+    {% if support_url %}<p>If you have any queries, please <a href="{{ support_url }}">raise a ticket</a>.</p>{% endif %}
+    <p>We will send you an update every {{ update_frequency }}. If you want to change the frequency of these updates, please ask the project PI to raise a request{% if support_url %} at <a href="{{ support_url }}">{{ support_url }}</a>{% endif %}.</p>
+    </body>
+    </html>
+
+```
+
 ## WALDUR_CORE.CORE
 
 ### core.version_update_available
