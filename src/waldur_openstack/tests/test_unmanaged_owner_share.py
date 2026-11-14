@@ -870,6 +870,15 @@ class CloudRefreshTest(UnmanagedOwnerShareMixin, TestCase):
         self.consumer.refresh_from_db()
         self.assertEqual(self.consumer.state, CoreStates.OK)
 
+    def test_it_is_not_refreshed_for_inactive_settings(self):
+        structure_models.ServiceSettings.objects.filter(
+            id=self.owner().service_settings_id
+        ).update(is_active=False)
+
+        tasks.pull_networks_of_unmanaged_owners()
+
+        self.neutron.show_network.assert_not_called()
+
     def test_owner_marked_missing_before_recovers(self):
         owner = self.owner()
         handle_resource_not_found(owner)

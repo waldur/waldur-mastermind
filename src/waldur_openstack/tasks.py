@@ -2,6 +2,7 @@ import logging
 
 from celery import shared_task
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
 
@@ -140,6 +141,21 @@ class TenantCreateSuccessTask(core_tasks.StateTransitionTask):
         return super().execute(tenant)
 
 
+def exclude_terminated_tenants(queryset):
+    """Drop tenants whose marketplace resource is terminated.
+
+    A failed forced termination leaves the resource TERMINATED while the
+    tenant stays in the database; its backend is usually gone for good.
+    """
+    terminated = marketplace_models.Resource.objects.filter(
+        content_type=ContentType.objects.get_for_model(models.Tenant),
+        state=marketplace_models.Resource.States.TERMINATED,
+        # A NULL in the subquery would make NOT IN drop every tenant.
+        object_id__isnull=False,
+    ).values("object_id")
+    return queryset.exclude(id__in=terminated)
+
+
 class TenantPullQuotas(core_tasks.BackgroundTask):
     """Pull quota limits and usage information for all OpenStack tenants."""
 
@@ -148,9 +164,16 @@ class TenantPullQuotas(core_tasks.BackgroundTask):
     def run(self):
         from . import executors
 
-        for tenant in models.Tenant.objects.filter(
-            state=CoreStates.OK, is_managed=True
-        ):
+        tenants = (
+            models.Tenant.objects.filter(
+                state=CoreStates.OK,
+                is_managed=True,
+                service_settings__is_active=True,
+            )
+            .exclude(backend_id__isnull=True)
+            .exclude(backend_id="")
+        )
+        for tenant in exclude_terminated_tenants(tenants):
             executors.TenantPullQuotasExecutor.execute(tenant)
 
 
@@ -404,12 +427,13 @@ class ManagedTenantListPullTask(structure_tasks.BackgroundListPullTask):
     """Pulls only the tenants Waldur manages: an unmanaged one has no
     credentials, and its shared networks are pulled through their shares.
     A tenant without a backend ID (NULL) was never provisioned, so there is
-    no project to open a session for."""
+    no project to open a session for. A tenant whose marketplace resource is
+    terminated is not pulled either."""
 
     model = models.Tenant
 
     def get_pulled_objects(self):
-        return (
+        return exclude_terminated_tenants(
             super()
             .get_pulled_objects()
             .filter(is_managed=True)
@@ -489,9 +513,10 @@ def pull_networks_of_unmanaged_owners():
     tenants are still pulled and still see these networks.
     """
     for service_settings in structure_models.ServiceSettings.objects.filter(
+        is_active=True,
         id__in=models.Network.objects.filter(tenant__is_managed=False).values(
             "service_settings_id"
-        )
+        ),
     ):
         OpenStackBackend(service_settings).pull_networks_of_unmanaged_owners()
 

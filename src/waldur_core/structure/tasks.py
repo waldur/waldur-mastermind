@@ -3,6 +3,7 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
+from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Q
 from django.db.utils import DatabaseError
 from django.utils import timezone
@@ -38,6 +39,29 @@ def reraise_exceptions(func):
     return wrapped
 
 
+def _service_settings_lookup(model):
+    """Lookup of the is_active flag of the ServiceSettings the model belongs to,
+    or None if the model is not bound to ServiceSettings."""
+    if issubclass(model, structure_models.ServiceSettings):
+        return "is_active"
+    try:
+        field = model._meta.get_field("service_settings")
+    except FieldDoesNotExist:
+        return None
+    # Customer has a reverse relation with the same name.
+    if not field.many_to_one:
+        return None
+    return "service_settings__is_active"
+
+
+def is_service_settings_active(instance):
+    if isinstance(instance, structure_models.ServiceSettings):
+        return instance.is_active
+    if _service_settings_lookup(type(instance)) is None:
+        return True
+    return instance.service_settings.is_active
+
+
 class BackgroundPullTask(core_tasks.BackgroundTask):
     """Pull information about object from backend. Method "pull" should be implemented.
 
@@ -46,6 +70,15 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
 
     def run(self, serialized_instance):
         instance = core_utils.deserialize_instance(serialized_instance)
+        # The settings may have been deactivated after the task was queued.
+        if not is_service_settings_active(instance):
+            logger.debug(
+                "Skipping pull of %s %s (PK: %s): its service settings are inactive.",
+                instance.__class__.__name__,
+                instance,
+                instance.pk,
+            )
+            return
         try:
             self.pull(instance)
         except ServiceBackendError as e:
@@ -104,10 +137,23 @@ class BackgroundListPullTask(core_tasks.BackgroundTask):
         ).exclude(backend_id="")
 
     def run(self):
+        pulled = self.get_pulled_objects()
+        # The filter is applied here rather than in get_pulled_objects()
+        # because subclasses override that method wholesale.
+        lookup = _service_settings_lookup(pulled.model)
+        if lookup is not None:
+            skipped = pulled.filter(**{lookup: False}).count()
+            if skipped:
+                logger.info(
+                    "%s: %d objects skipped (inactive service settings)",
+                    self.__class__.__name__,
+                    skipped,
+                )
+            pulled = pulled.filter(**{lookup: True})
         # Client-side chunked iteration: avoids server-side cursors which
         # break with PgBouncer transaction pooling / load-balanced PG.
         for instance in core_utils.chunked_queryset(
-            self.get_pulled_objects(), chunk_size=50, max_records=50_000
+            pulled, chunk_size=50, max_records=50_000
         ):
             serialized = core_utils.serialize_instance(instance)
             self.pull_task().apply_async(args=(serialized,), kwargs={})

@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest import mock
 
-from ddt import data, ddt
+from ddt import data, ddt, unpack
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
@@ -184,3 +184,123 @@ class BackgroundListPullTaskTest(TestCase):
         self.assertIn(instance1, pulled_objects)
         self.assertIn(instance2, pulled_objects)
         self.assertEqual(len(pulled_objects), 2)
+
+
+@ddt
+class BackgroundListPullTaskInactiveServiceSettingsTest(TestCase):
+    def run_task(self, model, get_pulled_objects=None):
+        pull_task = mock.Mock()
+
+        class TestTask(tasks.BackgroundListPullTask):
+            autoregister = False
+
+        TestTask.model = model
+        TestTask.pull_task = pull_task
+        if get_pulled_objects:
+            TestTask.get_pulled_objects = get_pulled_objects
+        TestTask().run()
+        return [
+            call.kwargs["args"][0] for call in pull_task().apply_async.call_args_list
+        ]
+
+    def test_resource_of_inactive_settings_is_not_pulled(self):
+        active = factories.TestNewInstanceFactory(
+            state=CoreStates.ERRED, backend_id="id1"
+        )
+        inactive = factories.TestNewInstanceFactory(
+            state=CoreStates.ERRED,
+            backend_id="id2",
+            service_settings=factories.ServiceSettingsFactory(is_active=False),
+        )
+
+        pulled = self.run_task(test_models.TestNewInstance)
+
+        self.assertIn(utils.serialize_instance(active), pulled)
+        self.assertNotIn(utils.serialize_instance(inactive), pulled)
+
+    def test_filter_survives_overridden_get_pulled_objects(self):
+        inactive = factories.TestNewInstanceFactory(
+            state=CoreStates.OK,
+            backend_id="id1",
+            service_settings=factories.ServiceSettingsFactory(is_active=False),
+        )
+
+        pulled = self.run_task(
+            test_models.TestNewInstance,
+            lambda self: self.model.objects.all(),
+        )
+
+        self.assertNotIn(utils.serialize_instance(inactive), pulled)
+
+    @data(
+        (models.ServiceSettings, False),
+        (models.SharedServiceSettings, True),
+        (models.PrivateServiceSettings, False),
+    )
+    @unpack
+    def test_inactive_service_settings_are_not_pulled(self, model, shared):
+        active = factories.ServiceSettingsFactory(shared=shared)
+        inactive = factories.ServiceSettingsFactory(shared=shared, is_active=False)
+
+        pulled = self.run_task(model, lambda self: self.model.objects.all())
+
+        self.assertIn(utils.serialize_instance(model.objects.get(pk=active.pk)), pulled)
+        self.assertNotIn(
+            utils.serialize_instance(model.objects.get(pk=inactive.pk)), pulled
+        )
+
+    def test_model_without_service_settings_is_pulled_as_is(self):
+        customer = factories.CustomerFactory()
+
+        pulled = self.run_task(models.Customer, lambda self: self.model.objects.all())
+
+        self.assertIn(utils.serialize_instance(customer), pulled)
+
+
+class BackgroundPullTaskInactiveServiceSettingsTest(TestCase):
+    def run_task(self, instance):
+        pull = mock.Mock()
+
+        class TestTask(tasks.BackgroundPullTask):
+            autoregister = False
+
+        TestTask.pull = pull
+        TestTask().run(utils.serialize_instance(instance))
+        return pull
+
+    def test_pull_is_skipped_if_settings_were_deactivated_after_queuing(self):
+        instance = factories.TestNewInstanceFactory(
+            state=CoreStates.ERRED, backend_id="id1"
+        )
+        models.ServiceSettings.objects.filter(pk=instance.service_settings_id).update(
+            is_active=False
+        )
+
+        pull = self.run_task(instance)
+
+        pull.assert_not_called()
+        instance.refresh_from_db()
+        self.assertEqual(instance.state, CoreStates.ERRED)
+
+    def test_pull_runs_if_settings_are_active(self):
+        instance = factories.TestNewInstanceFactory(
+            state=CoreStates.OK, backend_id="id1"
+        )
+
+        pull = self.run_task(instance)
+
+        pull.assert_called_once()
+
+    def test_inactive_service_settings_are_not_pulled(self):
+        settings = factories.ServiceSettingsFactory(is_active=False)
+
+        pull = self.run_task(settings)
+
+        pull.assert_not_called()
+
+    def test_model_without_service_settings_is_pulled(self):
+        customer = factories.CustomerFactory()
+
+        pull = self.run_task(customer)
+
+        pull.assert_called_once()
