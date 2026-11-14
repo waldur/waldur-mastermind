@@ -1088,6 +1088,102 @@ def get_local_project_identifier(project):
     return openportal.ProjectIdentifier(f"{shortname}.{openportal.get_portal()}")
 
 
+def get_remote_project_windows(remote_project) -> list[tuple]:
+    """
+    Return (project, start, end) for each period the award represented by
+    remote_project was attached to a local project, oldest first. Dates are
+    inclusive; end is None while the award is still attached.
+
+    On the day an award moves, the project it moved to claims the whole day:
+    an attachment stops the day before the next one starts, and one wholly
+    claimed by a later attachment is dropped. The windows are therefore
+    disjoint, so no day's usage is counted twice.
+
+    An award created before attachments were tracked had its first
+    attachment stamped when tracking began, not when it arrived. The first
+    window therefore starts at the creation of the award's allocation on that
+    project, when that is earlier.
+    """
+    attachments = list(
+        remote_project.attachments.select_related("project").order_by(
+            "attached_at", "id"
+        )
+    )
+    windows = []
+    for index, attachment in enumerate(attachments):
+        start = attachment.attached_at.date()
+        if index == 0:
+            allocation = remote_project.remote_allocation
+            if (
+                allocation is not None
+                and allocation.project_id == attachment.project_id
+                and allocation.created.date() < start
+            ):
+                start = allocation.created.date()
+        end = attachment.detached_at.date() if attachment.detached_at else None
+        if index + 1 < len(attachments):
+            cutoff = attachments[index + 1].attached_at.date() - datetime.timedelta(
+                days=1
+            )
+            if end is None or end > cutoff:
+                end = cutoff
+        if end is not None and end < start:
+            continue
+        windows.append((attachment.project, start, end))
+    return windows
+
+
+def get_remote_project_total_hours(remote_project) -> float:
+    """
+    Return the hours of usage the award represented by remote_project has
+    had, across every project it has been attached to.
+
+    Usage is cached under the identifier of the local project that held the
+    award ("{shortname}.{portal}"), so each attachment's usage is read from
+    its own project's key, for the award's destination, and only for the
+    days the award was attached there. Reading the current project's key
+    alone loses the usage on earlier projects, and summing it without dates
+    counts the usage of any award the project held before on the same
+    destination.
+    """
+    import openportal
+
+    if not remote_project.destination:
+        return 0.0
+
+    total_hours = 0.0
+    for project, start, end in get_remote_project_windows(remote_project):
+        if project is None:
+            # Hard-deleted project: nothing left to find its usage under.
+            continue
+        try:
+            project_identifier = str(get_local_project_identifier(project))
+        except Exception as e:
+            logger.warning(
+                f"Could not get local identifier for project {project!r} "
+                f"of {remote_project}: {e}"
+            )
+            continue
+
+        end = end or timezone.now().date()
+        cached_reports = models.CachedProjectUsageReport.objects.filter(
+            project_identifier=project_identifier,
+            resource=remote_project.destination,
+        )
+        for cached_report in cached_reports:
+            month_start = datetime.date(cached_report.year, cached_report.month, 1)
+            overlap_start = max(start, month_start)
+            overlap_end = min(end, get_last_day_of_month(month_start))
+            if overlap_start > overlap_end:
+                continue
+            report = cached_report.get_report().filter(
+                openportal.DateRange(overlap_start, overlap_end)
+            )
+            total_hours += float(report.total_usage.hours)
+
+    return total_hours
+
+
 def refresh_remote_project(remote_project):
     """
     Fetch the current AwardDetails for *remote_project* from the remote portal,

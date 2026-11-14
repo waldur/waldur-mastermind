@@ -9,15 +9,20 @@ award used.
 import datetime
 import decimal
 import importlib
+import json
 from unittest import mock
 
+import openportal
 from django.apps import apps
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
+from rest_framework import test
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_openportal import handlers, models, utils
@@ -226,3 +231,95 @@ class BackfillAttachmentsMigrationTest(AwardMixin, TestCase):
 
         self.assertEqual(models.ManagedProjectAttachment.objects.count(), 1)
         self.assertEqual(award.attachments.count(), 1)
+
+
+class RemoteProjectTotalUsageTest(test.APITestCase):
+    """
+    Award R was on project X (5 h in September), then moved to project Y on
+    1 October. Y had earlier held award R0 on the same destination (40 h in
+    August).
+    """
+
+    destination = "remote.portal.offering"
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        customer = self.fixture.customer
+        self.x = structure_factories.ProjectFactory(customer=customer)
+        self.y = structure_factories.ProjectFactory(customer=customer)
+        self.keys = {self.x.id: "projx.here", self.y.id: "projy.here"}
+
+        r0 = models.RemoteProject.objects.create(
+            destination=self.destination, identifier="r0.there"
+        )
+        models.RemoteProjectAttachment.objects.create(remote_project=r0, project=self.y)
+        models.RemoteProjectAttachment.objects.filter(remote_project=r0).update(
+            attached_at=aware(2026, 7, 1), detached_at=aware(2026, 8, 31)
+        )
+
+        self.award = models.RemoteProject.objects.create(
+            destination=self.destination, identifier="r.there", current_project=self.y
+        )
+        on_x = models.RemoteProjectAttachment.objects.create(
+            remote_project=self.award, project=self.x
+        )
+        on_y = models.RemoteProjectAttachment.objects.create(
+            remote_project=self.award, project=self.y
+        )
+        models.RemoteProjectAttachment.objects.filter(pk=on_x.pk).update(
+            attached_at=aware(2026, 9, 1), detached_at=aware(2026, 10, 1)
+        )
+        models.RemoteProjectAttachment.objects.filter(pk=on_y.pk).update(
+            attached_at=aware(2026, 10, 1)
+        )
+
+        self.cache_usage("projy.here", datetime.date(2026, 8, 10), 40.0)
+        self.cache_usage("projx.here", datetime.date(2026, 9, 20), 5.0)
+
+    def cache_usage(self, key, day, hours):
+        report = openportal.ProjectUsageReport(openportal.ProjectIdentifier(key))
+        daily = openportal.DailyProjectUsageReport()
+        daily.add_unattributed_usage(openportal.Usage.from_hours(hours))
+        report.set_report(day, daily)
+        models.CachedProjectUsageReport.objects.update_or_create(
+            year=day.year,
+            month=day.month,
+            project_identifier=key,
+            resource=self.destination,
+            defaults={"is_complete": True, "report": json.loads(report.to_json())},
+        )
+
+    def total_usage(self):
+        self.client.force_authenticate(self.fixture.staff)
+        with mock.patch.object(
+            utils,
+            "get_local_project_identifier",
+            side_effect=lambda project: openportal.ProjectIdentifier(
+                self.keys[project.id]
+            ),
+        ):
+            response = self.client.get(
+                reverse(
+                    "openportal-remote-project-total-usage",
+                    kwargs={"uuid": self.award.uuid.hex},
+                )
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data["total_hours"]
+
+    @freeze_time("2026-11-14")
+    def test_counts_the_awards_usage_on_every_project_it_held(self):
+        self.assertEqual(self.total_usage(), 5.0)
+
+    @freeze_time("2026-11-14")
+    def test_counts_usage_on_the_current_project_since_the_move(self):
+        self.cache_usage("projy.here", datetime.date(2026, 10, 3), 2.0)
+
+        self.assertEqual(self.total_usage(), 7.0)
+
+    @freeze_time("2026-11-14")
+    def test_on_the_move_day_the_new_project_claims_the_day(self):
+        # Usage on X on 1 October is no longer the award's.
+        self.cache_usage("projx.here", datetime.date(2026, 10, 1), 3.0)
+
+        self.assertEqual(self.total_usage(), 5.0)
