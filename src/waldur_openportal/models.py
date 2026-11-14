@@ -1,11 +1,13 @@
 import json
 import logging
+import re
 
 import openportal
 from django.conf import settings
 from django.core import validators
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.db.models import F, Q
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
@@ -37,6 +39,85 @@ MAX_PORTALIDENTIFIER_LENGTH = 32
 MAX_PROJECTCLASS_LENGTH = 128
 MAX_ALLOWED_DESTINATIONS_LENGTH = 1024
 MAX_DESTINATION_LENGTH = 256
+
+# Names of system and service accounts commonly found on the hosts a user
+# shortname becomes a local account on. A shortname equal to one of these is
+# refused (exact match). Names shorter than the minimum shortname length are
+# listed too, so the list reads as the policy rather than as what the length
+# rule happens not to catch. "admin" and "root" are refused separately,
+# anywhere in the shortname.
+RESERVED_USER_SHORTNAMES = frozenset(
+    {
+        "adm",
+        "apache",
+        "avahi",
+        "backup",
+        "bin",
+        "chrony",
+        "daemon",
+        "dbus",
+        "docker",
+        "dovecot",
+        "ftp",
+        "games",
+        "gnats",
+        "guest",
+        "halt",
+        "httpd",
+        "irc",
+        "keycloak",
+        "ldap",
+        "list",
+        "lp",
+        "mail",
+        "man",
+        "mariadb",
+        "messagebus",
+        "munge",
+        "mysql",
+        "news",
+        "nfsnobody",
+        "nginx",
+        "nobody",
+        "nscd",
+        "ntp",
+        "openldap",
+        "operator",
+        "polkitd",
+        "postfix",
+        "postgres",
+        "proxy",
+        "rabbitmq",
+        "redis",
+        "rpc",
+        "rpcuser",
+        "shutdown",
+        "slurm",
+        "sshd",
+        "sssd",
+        "sudo",
+        "sync",
+        "sys",
+        "syslog",
+        "systemd",
+        "tcpdump",
+        "tss",
+        "uucp",
+        "uuidd",
+        "wheel",
+    }
+)
+
+
+def validate_user_shortname_not_reserved(value):
+    if value in RESERVED_USER_SHORTNAMES:
+        raise ValidationError(
+            _("'%(value)s' is reserved for a system account."),
+            code="reserved",
+            params={"value": value},
+        )
+
+
 MAX_OFFERING_LENGTH = 256
 MAX_KEY_LENGTH = 256
 
@@ -978,12 +1059,23 @@ class UserInfo(models.Model):
         validators=[
             validators.RegexValidator(
                 regex=r"^[a-z][a-z0-9]+$",
-                message="Must start with a letter and only contain numbers and letters.",
+                message=_(
+                    "Must start with a letter and only contain numbers and letters."
+                ),
             ),
+            # RegexValidator searches rather than matches, so this rejects
+            # "admin" and "root" anywhere in the shortname, not only at the
+            # end: the shortname becomes a local account name, and a
+            # privileged-looking one is worth refusing wherever it appears.
+            # IGNORECASE is belt and braces - the rule above already limits
+            # the shortname to lower case.
             validators.RegexValidator(
-                regex=r"(admin)|(root)$",
+                regex=r"admin|root",
+                flags=re.IGNORECASE,
                 inverse_match=True,
+                message=_("Cannot contain 'admin' or 'root'."),
             ),
+            validate_user_shortname_not_reserved,
             validators.MinLengthValidator(4),
             validators.MaxLengthValidator(MAX_USER_SHORTNAME_LENGTH),
         ],
@@ -999,59 +1091,89 @@ class UserInfo(models.Model):
 
     def sanitise(self):
         """
-        Double check that our shortname matches the user unix_username
-        if this field exists
+        Nothing to reconcile: the shortname is this model's own field, and
+        set_shortname() copies it to User.slug as it writes.
+
+        It used to mirror core.User.unix_username, which no longer exists -
+        UserInfo.shortname IS that field now, and User.slug the copy of it.
+        Kept as a no-op because two backends, the API and both viewsets call
+        it, and ProjectInfo.sanitise() still does real work.
         """
-        if hasattr(self.user, "unix_username"):
-            if (
-                self.shortname != self.user.unix_username
-                and self.user.unix_username is not None
-            ):
-                self.set_shortname(self.user.unix_username)
-                self.save()
 
     def set_shortname(self, shortname: str):
         """
-        Set the shortname, checking whether or not this has not already
-        been set, and making sure it lines up with the unix_username if
-        that field is present in the user
+        Set the shortname, refusing to change one that is already set:
+        external systems form local usernames from it and cannot follow a
+        rename. Copies it to User.slug as it goes.
+
+        This is the only writer of the field, so it is where the rules
+        declared on it are enforced - full_clean() runs the validators
+        (save() does not) and the uniqueness check. Everything is checked
+        before anything is written, and the write of the shortname and the
+        write of its copy on User.slug share a transaction: a rejected
+        shortname must not leave a slug behind, or the copy everyone reads
+        drifts away from the value it copies.
         """
         if not shortname:
             raise ValueError("Shortname cannot be empty.")
 
-        if hasattr(self.user, "unix_username"):
-            if (
-                shortname != self.user.unix_username
-                and self.user.unix_username is not None
-            ):
-                # Set flag to prevent circular updates when saving unix_username
-                self.user._syncing_to_userinfo = True
-                try:
-                    self.user.unix_username = self.shortname
-                    self.user.save(update_fields=["unix_username"])
-                finally:
-                    self.user._syncing_to_userinfo = False
+        shortname = shortname.strip()
 
-            self.shortname = self.user.unix_username
-
-        # make sure to copy the shortname to the slug
-        # Set flag to prevent circular updates
-        self.user._syncing_to_userinfo = True
-        try:
-            self.user.slug = shortname
-            self.user.save(update_fields=["slug"])
-        finally:
-            self.user._syncing_to_userinfo = False
-
-        if self.shortname and self.shortname != shortname:
-            logger.error(
-                f"Cannot change shortname of user {self.user} from {self.shortname} to {shortname}"
-            )
-            raise ValueError(
-                f"Cannot change shortname of user {self.user} from {self.shortname} to {shortname}"
-            )
+        self._refuse_rename(self.shortname, shortname)
 
         self.shortname = shortname
+        self.full_clean()
+
+        # The shortname is copied to User.slug, so it must not duplicate
+        # another user's slug either - the check the staff slug editor makes.
+        if (
+            core_models.User.all_objects.filter(slug=shortname)
+            .exclude(pk=self.user_id)
+            .exists()
+        ):
+            raise ValidationError(
+                {"shortname": [_("Another user already uses this name.")]}
+            )
+
+        try:
+            with transaction.atomic():
+                # Two requests for the same user can both load an unset
+                # shortname and both pass the check above: re-read the row
+                # under a lock and check again before writing.
+                if self.pk is not None:
+                    current = (
+                        UserInfo.objects.select_for_update()
+                        .values_list("shortname", flat=True)
+                        .get(pk=self.pk)
+                    )
+                    self._refuse_rename(current, shortname)
+
+                self.save()
+
+                # make sure to copy the shortname to the slug
+                # Set flag to prevent circular updates
+                self.user._syncing_to_userinfo = True
+                try:
+                    self.user.slug = shortname
+                    self.user.save(update_fields=["slug"])
+                finally:
+                    self.user._syncing_to_userinfo = False
+        except IntegrityError:
+            # Another user claimed the same name between the uniqueness check
+            # and the save. The savepoint is rolled back, so the caller's
+            # transaction stays usable.
+            raise ValidationError(
+                {"shortname": [_("This shortname is already taken.")]}
+            )
+
+    def _refuse_rename(self, current, shortname):
+        if current and current != shortname:
+            logger.error(
+                f"Cannot change shortname of user {self.user} from {current} to {shortname}"
+            )
+            raise ValueError(
+                f"Cannot change shortname of user {self.user} from {current} to {shortname}"
+            )
 
     def save(self, *args, **kwargs):
         if "update_fields" in kwargs and "query_field" not in kwargs["update_fields"]:
