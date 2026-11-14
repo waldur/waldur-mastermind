@@ -1101,18 +1101,51 @@ class RemoteProjectSerializer(rf_serializers.ModelSerializer):
     def get_pending_details(self, obj):
         return obj.pending_details if self._is_privileged(obj) else None
 
+    def _safe_award_details(self, obj):
+        """``obj.award_details()``, or None if it cannot be derived.
+
+        These two fields are computed per row inside a list serializer, and
+        ``award_details()`` runs the openportal library over data stored
+        possibly years ago. If that raises, DRF has already started building
+        the response, so the failure is not one bad row -- it is a 500 for the
+        whole page, and every other project on it becomes unreachable too.
+
+        A remote project whose details will not derive is worth knowing about,
+        so it is logged with its uuid rather than swallowed; but it is not
+        worth taking the organisation's project list down for. Only the
+        library's own error type is caught, so a bug in our code still
+        surfaces as a bug. The library's message is not logged: it can name a
+        member's email address.
+
+        Both fields need the details, so they are derived once per row.
+        """
+        cache = self.__dict__.setdefault("_award_details_by_pk", {})
+        if obj.pk in cache:
+            return cache[obj.pk]
+        try:
+            details = obj.award_details()
+        except OSError as exc:
+            logger.warning(
+                "Cannot derive award details for remote project %s (%s)",
+                obj.uuid.hex,
+                type(exc).__name__,
+            )
+            details = None
+        cache[obj.pk] = details
+        return details
+
     @extend_schema_field(AwardDetailsSerializer(allow_null=True))
     def get_award_details(self, obj):
         if not self._is_privileged(obj):
             return None
-        details = obj.award_details()
+        details = self._safe_award_details(obj)
         if details is None:
             return None
         return json.loads(details.to_json())
 
     @extend_schema_field(rf_serializers.CharField(allow_null=True))
     def get_allocation_string(self, obj):
-        details = obj.award_details()
+        details = self._safe_award_details(obj)
         if details is None:
             return None
         return json.loads(details.to_json()).get("allocation")
