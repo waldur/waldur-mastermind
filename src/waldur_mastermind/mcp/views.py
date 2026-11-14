@@ -16,20 +16,25 @@ from oauth2_provider.models import get_application_model, get_grant_model
 from oauth2_provider.scopes import get_scopes_backend
 from oauth2_provider.settings import oauth2_settings
 from oauthlib.oauth2.rfc6749 import errors as oauth_errors
-from rest_framework import exceptions, permissions, views
+from rest_framework import exceptions, permissions, status, views
 from rest_framework.response import Response
 
+from waldur_core.core import access
 from waldur_core.core.auth_utils import is_delegated
 from waldur_core.core.utils import format_homeport_link
+from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.server.middleware import add_public_cors_headers
-from waldur_mastermind.mcp import serializers
+from waldur_mastermind.mcp import models, serializers
 from waldur_mastermind.mcp.oauth import (
     ALLOWED_GRANT_TYPES,
     AuthorizationRequest,
     ClientRegistrationThrottle,
     add_issuer,
+    get_client_host,
+    get_client_name,
+    get_redirect_hosts,
     validate_authorization_request,
 )
 from waldur_mastermind.mcp.utils import is_mcp_enabled
@@ -79,6 +84,56 @@ def disallowed_grant_types_response(request):
     return None
 
 
+def invalid_client_name_response(request):
+    """Refuses a client_name that isn't a string.
+
+    DOT stores it as it comes, so a null would be a 500 from the database.
+    """
+    try:
+        metadata = json.loads(request.body)
+        name = metadata.get("client_name", "")
+    except (ValueError, AttributeError):
+        return None
+    if isinstance(name, str):
+        return None
+    return JsonResponse(
+        {
+            "error": "invalid_client_metadata",
+            "error_description": "client_name must be a string.",
+        },
+        status=400,
+    )
+
+
+def identity_change_response(request, client):
+    """Refuses an update to the name or redirect URIs the client's users approved.
+
+    The consent page and the connected apps list show them, so a client renamed
+    after consent could pass there for another one.
+    """
+    try:
+        metadata = json.loads(request.body)
+        name = metadata.get("client_name", "")
+        redirect_uris = metadata.get("redirect_uris", [])
+    except (ValueError, AttributeError):
+        return None
+    # Malformed lists fall through to DOT, which answers invalid_client_metadata.
+    if not isinstance(redirect_uris, list) or not all(
+        isinstance(uri, str) for uri in redirect_uris
+    ):
+        return None
+    if name == client.name and set(redirect_uris) == set(client.redirect_uris.split()):
+        return None
+    return JsonResponse(
+        {
+            "error": "invalid_client_metadata",
+            "error_description": "The client_name and redirect_uris can't be "
+            "changed. Register a new client instead.",
+        },
+        status=400,
+    )
+
+
 class TokenView(oauth2_views.TokenView):
     def post(self, request, *args, **kwargs):
         # DOT reads device_code unguarded for this grant, so a request without
@@ -119,15 +174,18 @@ class DynamicClientRegistrationView(oauth2_views.DynamicClientRegistrationView):
                 status=429,
                 headers={"Retry-After": str(math.ceil(throttle.wait()))},
             )
-        return disallowed_grant_types_response(request) or super().post(
-            request, *args, **kwargs
+        return (
+            disallowed_grant_types_response(request)
+            or invalid_client_name_response(request)
+            or super().post(request, *args, **kwargs)
         )
 
 
 class DynamicClientRegistrationManagementView(
     oauth2_views.DynamicClientRegistrationManagementView
 ):
-    """RFC 7592 updates, held to the same grant types as registration."""
+    """RFC 7592 updates, held to the same grant types as registration and to
+    the client's name and redirect URIs."""
 
     def put(self, request, client_id, *args, **kwargs):
         # Authenticate first, so a caller without the registration token still
@@ -135,8 +193,11 @@ class DynamicClientRegistrationManagementView(
         auth = self._authenticate_registration_request(request, client_id)
         if isinstance(auth, HttpResponse):
             return auth
-        return disallowed_grant_types_response(request) or super().put(
-            request, client_id, *args, **kwargs
+        return (
+            disallowed_grant_types_response(request)
+            or invalid_client_name_response(request)
+            or identity_change_response(request, auth.application)
+            or super().put(request, client_id, *args, **kwargs)
         )
 
 
@@ -286,11 +347,9 @@ class ConsentView(views.APIView):
 
         client = authorization.client
         all_scopes = get_scopes_backend().get_all_scopes()
-        is_cimd = client.registration_source == client.RegistrationSource.CIMD
         details = {
             "client_name": authorization.client_name,
-            # Only a CIMD client_id is a URL. DOT doesn't keep a DCR client's URI.
-            "client_host": urlparse(client.client_id).hostname if is_cimd else None,
+            "client_host": get_client_host(client),
             "redirect_host": authorization.redirect_host,
             "registration_source": client.registration_source,
             "scopes": [
@@ -363,3 +422,70 @@ class ConsentView(views.APIView):
             serializers.ConsentResultSerializer({"redirect_url": redirect_url}).data,
             headers={"Cache-Control": "no-store"},
         )
+
+
+class IsOwnSignInForConnectedApps(IsOwnSignIn):
+    """The user's own sign-in: not a PAT, an OIDC token or impersonation.
+
+    An allowlist, as for consent: an MCP client signed in with its own OAuth
+    token mustn't see or revoke the user's other clients.
+    """
+
+    message = "Connected apps can only be managed from your own sign-in."
+
+
+class ConnectedAppViewSet(ActionsViewSet):
+    """The OAuth clients, such as MCP clients, that the user has authorised."""
+
+    queryset = models.ConnectedApp.objects.all()
+    serializer_class = serializers.ConnectedAppSerializer
+    lookup_field = "uuid"
+    disabled_actions = ["create", "update", "partial_update"]
+    permission_classes = (
+        *ActionsViewSet.permission_classes,
+        IsOwnSignInForConnectedApps,
+    )
+    access_declarations = {
+        "destroy": [access.owned("The caller's own connected app.")],
+    }
+
+    @access.shows(
+        "The caller's own connected apps that still hold a pending code or a "
+        "token that works."
+    )
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return models.ConnectedApp.objects.none()
+        return (
+            models.ConnectedApp.objects.filter(user=self.request.user)
+            .live()
+            .select_related("application")
+        )
+
+    @extend_schema(summary="Revoke a connected app", responses={204: None})
+    def destroy(self, request, *args, **kwargs):
+        """Revoke the client's access and refresh tokens and pending codes."""
+        connected_app = self.get_object()
+        client = connected_app.application
+        # So there is no revocation without its audit event.
+        with transaction.atomic():
+            if not connected_app.revoke():
+                raise Http404
+            # The client's name is user-controlled, so it goes through a placeholder.
+            event_logger.emit(
+                "User {affected_user_username} has revoked the access of OAuth "
+                "client {client_name} to Waldur.",
+                event_type=EventType.OAUTH_CONNECTED_APP_REVOKED,
+                event_context={
+                    "affected_user": request.user,
+                    "client_name": get_client_name(client),
+                    "client_id": client.client_id,
+                    # In place of the consent event's redirect_host, which DOT
+                    # deleted with the code once the client exchanged it.
+                    "redirect_hosts": get_redirect_hosts(client),
+                    # The annotations of live(), which revoke() leaves in place.
+                    "scope": " ".join(connected_app.granted_scopes()),
+                },
+                scopes=[request.user],
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)

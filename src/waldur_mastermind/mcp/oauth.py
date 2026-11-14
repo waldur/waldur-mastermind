@@ -1,12 +1,18 @@
 """The OAuth authorization server for MCP clients, built on django-oauth-toolkit."""
 
+import functools
 import unicodedata
 from dataclasses import dataclass
 from types import SimpleNamespace
 from urllib.parse import urlencode, urlparse
 
 from django.conf import settings
-from oauth2_provider.models import AbstractApplication
+from oauth2_provider.models import (
+    AbstractApplication,
+    get_access_token_model,
+    get_grant_model,
+    get_refresh_token_model,
+)
 from oauth2_provider.oauth2_backends import (
     OAuthLibCore,
     _add_iss_to_redirect,
@@ -92,7 +98,29 @@ class ThrottledCIMDPermission:
         return ClientRegistrationThrottle().allow_request(client, None)
 
 
+def code_gone_is_invalid_grant(check):
+    """For DOT's checks that read the code again after validate_code, and let a
+    code deleted meanwhile, e.g. by a revoke or a second exchange, out as a 500."""
+
+    @functools.wraps(check)
+    def wrapper(*args, **kwargs):
+        try:
+            return check(*args, **kwargs)
+        except get_grant_model().DoesNotExist:
+            raise errors.InvalidGrantError()
+
+    return wrapper
+
+
 class MCPOAuth2Validator(OAuth2Validator):
+    get_code_challenge = code_gone_is_invalid_grant(OAuth2Validator.get_code_challenge)
+    get_code_challenge_method = code_gone_is_invalid_grant(
+        OAuth2Validator.get_code_challenge_method
+    )
+    confirm_redirect_uri = code_gone_is_invalid_grant(
+        OAuth2Validator.confirm_redirect_uri
+    )
+
     def validate_redirect_uri(self, client_id, redirect_uri, request, *args, **kwargs):
         # DOT reads the URI's port, which raises for one such as :99999.
         try:
@@ -130,6 +158,31 @@ class MCPOAuth2Validator(OAuth2Validator):
             refresh_token, client, request, *args, **kwargs
         )
         return valid and request.user is not None and request.user.is_active
+
+    def save_bearer_token(self, token, request, *args, **kwargs):
+        try:
+            return super().save_bearer_token(token, request, *args, **kwargs)
+        except (
+            get_refresh_token_model().DoesNotExist,
+            get_access_token_model().DoesNotExist,
+        ):
+            # Deleted after it was checked, e.g. by a revoke; DOT doesn't catch it.
+            # Without rotation, DOT reuses the refresh token's access token, so
+            # that is the one found missing.
+            raise errors.InvalidGrantError(request=request)
+
+    def _save_bearer_token(self, token, request, *args, **kwargs):
+        # DOT checks the code without a lock and deletes it only after saving
+        # the tokens. Locked, a revoke, which deletes codes first, either waits
+        # and then deletes these tokens too, or has deleted the code already.
+        if request.grant_type == "authorization_code" and not (
+            get_grant_model()
+            .objects.select_for_update()
+            .filter(code=request.code, application=request.client)
+            .exists()
+        ):
+            raise errors.InvalidGrantError(request=request)
+        return super()._save_bearer_token(token, request, *args, **kwargs)
 
     def _validate_resource_uris(self, request, resources):
         # Also runs on resources inherited from the grant or refresh token, so a
@@ -212,6 +265,62 @@ def displayable(text: str) -> str:
         if char.isspace() or not unicodedata.category(char).startswith("C")
     )
     return " ".join(kept.split())
+
+
+# Characters Python's IDNA 2003 codec maps away, but browsers (UTS 46) keep or
+# refuse, so the codec would name another host than the browser looks up.
+IDNA_DEVIATIONS = frozenset("\u00df\u03c2\u200c\u200d")
+
+
+def displayable_host(host: str | None) -> str | None:
+    """The host in ASCII, as a browser looks it up, so a lookalike such as
+    claude.ai spelled with a Cyrillic "c" shows as xn--laude-0ye.ai.
+    """
+    if not host:
+        return host
+    if not host.isascii() and not IDNA_DEVIATIONS.intersection(host):
+        try:
+            return host.encode("idna").decode()
+        except UnicodeError:
+            pass
+    # Escaped rather than tidied, so it can't pass for another host either.
+    return host.encode("unicode_escape").decode()
+
+
+def get_hostname(uri: str) -> str | None:
+    # Registration checks the URIs with urlparse too, but a newer Python may
+    # refuse one a stored client has, and one client mustn't break the list.
+    try:
+        return urlparse(uri).hostname
+    except ValueError:
+        return None
+
+
+def get_client_host(client: AbstractApplication) -> str | None:
+    # Only a CIMD client_id is a URL. DOT doesn't keep a DCR client's URI.
+    if client.registration_source == client.RegistrationSource.CIMD:
+        return displayable_host(get_hostname(client.client_id))
+    return None
+
+
+def get_redirect_hosts(client: AbstractApplication) -> list[str]:
+    """The hosts of all the client's redirect URIs, in registration order.
+
+    All of them, as DOT deletes the code, and with it the URI it went to, once
+    the code is exchanged.
+    """
+    hosts = (get_hostname(uri) for uri in client.redirect_uris.split())
+    return list(dict.fromkeys(displayable_host(host) for host in hosts if host))
+
+
+def get_client_name(client: AbstractApplication) -> str:
+    """The name to show for a client outside an authorization request."""
+    return (
+        displayable(client.name)
+        or get_client_host(client)
+        or next(iter(get_redirect_hosts(client)), None)
+        or client.client_id
+    )
 
 
 def validate_authorization_request(request, params) -> AuthorizationRequest:

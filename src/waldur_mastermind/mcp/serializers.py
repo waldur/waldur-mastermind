@@ -1,5 +1,15 @@
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from oauth2_provider.models import get_application_model
+from oauth2_provider.scopes import get_scopes_backend
 from rest_framework import serializers
+
+from waldur_mastermind.mcp import models
+from waldur_mastermind.mcp.oauth import (
+    get_client_host,
+    get_client_name,
+    get_redirect_hosts,
+)
 
 
 def describe_invalid_params(errors) -> str:
@@ -56,3 +66,57 @@ class ConsentResultSerializer(serializers.Serializer):
 class ConsentErrorSerializer(serializers.Serializer):
     error = serializers.CharField()
     error_description = serializers.CharField()
+
+
+class ConnectedAppSerializer(serializers.ModelSerializer):
+    """Reads a connection from ConnectedApp.objects.live(), which adds its scopes."""
+
+    client_name = serializers.SerializerMethodField()
+    client_host = serializers.SerializerMethodField()
+    redirect_hosts = serializers.SerializerMethodField()
+    registration_source = serializers.ChoiceField(
+        source="application.registration_source",
+        choices=get_application_model().RegistrationSource.choices,
+        read_only=True,
+    )
+    scopes = serializers.SerializerMethodField()
+    authorized_at = serializers.DateTimeField(source="created", read_only=True)
+
+    class Meta:
+        model = models.ConnectedApp
+        fields = (
+            "uuid",
+            "client_name",
+            "client_host",
+            "redirect_hosts",
+            "registration_source",
+            "scopes",
+            "authorized_at",
+            "last_used_at",
+        )
+        read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_client_name(self, connected_app):
+        return get_client_name(connected_app.application)
+
+    @extend_schema_field({"type": "string", "nullable": True})
+    def get_client_host(self, connected_app):
+        return get_client_host(connected_app.application)
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_redirect_hosts(self, connected_app):
+        # Shows apart two clients with the same name, as the consent page does.
+        return get_redirect_hosts(connected_app.application)
+
+    @extend_schema_field(ConsentScopeSerializer(many=True))
+    def get_scopes(self, connected_app):
+        all_scopes = get_scopes_backend().get_all_scopes()
+        return ConsentScopeSerializer(
+            [
+                # A scope since dropped from the settings keeps its name.
+                {"name": scope, "description": all_scopes.get(scope, scope)}
+                for scope in connected_app.granted_scopes()
+            ],
+            many=True,
+        ).data

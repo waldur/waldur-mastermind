@@ -32,6 +32,8 @@ class MCPConfig(AppConfig):
     verbose_name = "MCP server"
 
     def ready(self):
+        from oauth2_provider.models import get_access_token_model, get_grant_model
+
         from waldur_core.core.models import User
         from waldur_mastermind.mcp import handlers
 
@@ -41,6 +43,24 @@ class MCPConfig(AppConfig):
             handlers.revoke_oauth_tokens_on_deactivation,
             sender=User,
             dispatch_uid="waldur_mastermind.mcp.handlers.revoke_oauth_tokens_on_deactivation",
+        )
+        # Every connection starts with a code, issued when the user approves.
+        # pre_save, so the new code doesn't yet count as live.
+        signals.pre_save.connect(
+            handlers.forget_ended_connection,
+            sender=get_grant_model(),
+            dispatch_uid="waldur_mastermind.mcp.handlers.forget_ended_connection",
+        )
+        signals.post_save.connect(
+            handlers.record_connected_app,
+            sender=get_grant_model(),
+            dispatch_uid="waldur_mastermind.mcp.handlers.record_connected_app",
+        )
+
+        signals.post_save.connect(
+            handlers.record_connected_app,
+            sender=get_access_token_model(),
+            dispatch_uid="waldur_mastermind.mcp.handlers.record_connected_app_on_token",
         )
 
         if "corsheaders" in settings.INSTALLED_APPS:

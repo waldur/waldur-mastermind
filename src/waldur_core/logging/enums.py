@@ -533,6 +533,7 @@ class EventType(StrEnum):
     PAT_AUTHENTICATION_REJECTED = "pat_authentication_rejected"
     OAUTH_CONSENT_GRANTED = "oauth_consent_granted"
     OAUTH_CONSENT_DENIED = "oauth_consent_denied"
+    OAUTH_CONNECTED_APP_REVOKED = "oauth_connected_app_revoked"
     OIDC_TOKEN_REVOKED = "oidc_token_revoked"
     OIDC_TOKEN_REFRESH_FAILED = "oidc_token_refresh_failed"
     PASSKEY_REGISTERED = "passkey_registered"
@@ -630,6 +631,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PAT_AUTHENTICATION_REJECTED,
         EventType.OAUTH_CONSENT_GRANTED,
         EventType.OAUTH_CONSENT_DENIED,
+        EventType.OAUTH_CONNECTED_APP_REVOKED,
         EventType.OIDC_TOKEN_REVOKED,
         EventType.OIDC_TOKEN_REFRESH_FAILED,
         EventType.PASSKEY_REGISTERED,
