@@ -38,7 +38,7 @@ def _join_phrases(phrases: list[str]) -> str:
     return f"{', '.join(phrases[:-1])}, and {phrases[-1]}"
 
 
-def _enabled_categories(user) -> set[ToolCategory]:
+def _enabled_categories(user, delegated=False) -> set[ToolCategory]:
     """Collect tool categories from the user's actually-permitted tool set.
 
     ``get_tool_set_for_user`` always returns a non-empty list — None and
@@ -47,20 +47,20 @@ def _enabled_categories(user) -> set[ToolCategory]:
     for unauthenticated callers.
     """
     categories: set[ToolCategory] = set()
-    for tool_name in get_tool_set_for_user(user):
+    for tool_name in get_tool_set_for_user(user, delegated):
         tool = tool_registry.get(tool_name)
         if tool is not None and tool.definition.category is not None:
             categories.add(tool.definition.category)
     return categories
 
 
-def build_canned_rejection(user, organization: str) -> str:
+def build_canned_rejection(user, organization: str, delegated=False) -> str:
     """Compose the static rejection sent when no thread history exists.
 
     Capability examples are derived from the user's actually-enabled tools
     so the message cannot drift from ``tool_sets.py``.
     """
-    enabled = _enabled_categories(user)
+    enabled = _enabled_categories(user, delegated)
     phrases = [CATEGORY_PHRASES[c] for c in CATEGORY_PHRASES if c in enabled]
     if not phrases:
         return f"{_CANNED_REJECTION_BASE} {_CANNED_REJECTION_TRY_AGAIN}"

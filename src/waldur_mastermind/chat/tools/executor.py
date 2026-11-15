@@ -9,8 +9,9 @@ from waldur_mastermind.chat.input_guards import (
     SeverityLevel,
     get_detection_service,
 )
+from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.chat.tools.tool_sets import is_tool_permitted
+from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,9 @@ class ToolExecutor:
         self.user = user
         # The caller is not the user's own sign-in (see is_delegated).
         self.delegated = delegated
+        # Computed once, so the check here and what search_tools offers the
+        # model cannot disagree.
+        self.permitted = frozenset(get_tool_set_for_user(user, delegated))
 
     @property
     def _is_anonymous(self) -> bool:
@@ -68,13 +72,16 @@ class ToolExecutor:
 
             # Before the guards, so a forbidden call is a plain denial, not
             # an injection block with an audit event.
-            if not is_tool_permitted(self.user, tool_name, self.delegated):
+            if ToolName.parse(tool_name) not in self.permitted:
                 raise PermissionDenied
 
             injection_block = self._check_injection(tool_name, arguments)
             if injection_block:
                 return injection_block
 
+            if tool.name is ToolName.SEARCH_TOOLS:
+                # The one tool whose answer is the caller's tool set.
+                return tool.execute(self.user, arguments, permitted=self.permitted)
             return tool.execute(self.user, arguments)
 
         except PermissionDenied:

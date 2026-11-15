@@ -231,7 +231,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         thread = models.ThreadSession.objects.create(chat_session=session)
         return thread, True
 
-    def _build_llm_prompt(self, user, thread, raw_message, detection_result):
+    def _build_llm_prompt(self, user, thread, raw_message, detection_result, delegated):
         """Prepare the LLM prompt, canned response, and PII warning."""
         canned_response = None
         pii_warning = None
@@ -242,7 +242,9 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 llm_prompt = rejection_prompt
             else:
                 llm_prompt = []
-                canned_response = build_canned_rejection(user, config.SITE_NAME)
+                canned_response = build_canned_rejection(
+                    user, config.SITE_NAME, delegated
+                )
             # Send PII-specific warning to frontend if the block involves PII
             if detection_result.pii.pii_detections:
                 pii_warning = detection_result.pii.user_message
@@ -255,6 +257,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 user=user,
                 user_input=user_input,
                 thread=thread,
+                delegated=delegated,
             )
             if is_redacted or detection_result.action == DetectionAction.WARN:
                 pii_warning = detection_result.pii.user_message
@@ -417,6 +420,9 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
+        # Once per request: the prompt catalog, the canned rejection and the
+        # executor must all see the same tool set.
+        delegated = is_delegated(request)
         self._validate_quota(user)
         # Site-wide gate covering auth + anon traffic (per-minute burst,
         # daily/weekly/monthly token caps). Raises CapacityException
@@ -435,7 +441,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         )
 
         llm_prompt, canned_response, pii_warning = self._build_llm_prompt(
-            user, thread, raw_message, detection_result
+            user, thread, raw_message, detection_result, delegated
         )
 
         stored_content = detection_result.pii.redacted_text or raw_message
@@ -457,7 +463,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             canned_response=canned_response,
             pii_warning=pii_warning,
             worker_timeout=config.AI_ASSISTANT_STREAM_TIMEOUT_SECONDS,
-            delegated=is_delegated(request),
+            delegated=delegated,
         )
 
         return StreamingHttpResponse(
