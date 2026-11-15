@@ -159,8 +159,9 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     # The HPC tools act as the user's own sign-in, and need an endpoint.
     if delegated or not workspace.is_configured():
         tools = [tool for tool in tools if tool not in _OWN_SIGN_IN_TOOLS]
-    # The image was built without a documentation corpus.
-    if not docs_corpus.is_available():
+    # The image was built without a documentation corpus, or staff turned the
+    # bundled documentation off (DOCS_SEARCH_ENABLED).
+    if not docs_corpus.search_enabled():
         tools = [tool for tool in tools if tool not in _DOCS_TOOLS]
     return tools
 

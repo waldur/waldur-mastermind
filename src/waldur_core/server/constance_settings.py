@@ -574,6 +574,13 @@ CONSTANCE_CONFIG = {
         "choice_field",
     ),
     "DOCS_URL": ("", "Renders link to docs in header", "url_field"),
+    "DOCS_SEARCH_ENABLED": (
+        True,
+        "Let users search the bundled Waldur documentation: the AI assistant's "
+        "and MCP's search_docs tool, and the /api/docs-search/ endpoint. Turn it "
+        "off to keep the Waldur documentation out of answers, for example when "
+        "this portal provides its own documentation to end users.",
+    ),
     "SHORT_PAGE_TITLE": ("Waldur", "It is used as prefix for page title."),
     "FULL_PAGE_TITLE": (
         "Waldur | Cloud Service Management",
@@ -2440,6 +2447,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "AI_ASSISTANT_NAME",
         "AI_ASSISTANT_ENABLED",
         "AI_ASSISTANT_ENABLED_ROLES",
+        "DOCS_SEARCH_ENABLED",
         "AI_ASSISTANT_BACKEND_TYPE",
         "AI_ASSISTANT_API_URL",
         "AI_ASSISTANT_API_TOKEN",
@@ -2601,6 +2609,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "RESTRICTED_OFFERING_VISIBILITY_MODE",
     "SERVICE_ACCESS_MODE",
     "DOCS_URL",
+    "DOCS_SEARCH_ENABLED",
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",
     "BRAND_COLOR",

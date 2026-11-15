@@ -21,6 +21,7 @@ from pathlib import Path
 
 from django.db import transaction
 
+from waldur_core.configuration import config
 from waldur_mastermind.chat.docs.models import DocAudience, DocSection
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,12 @@ def corpus_path() -> Path:
 def is_available() -> bool:
     """Whether this image carries a documentation corpus."""
     return corpus_path().is_file()
+
+
+def search_enabled() -> bool:
+    """Whether documentation search is offered: the image carries a corpus and
+    DOCS_SEARCH_ENABLED is on."""
+    return bool(config.DOCS_SEARCH_ENABLED) and is_available()
 
 
 class CorpusError(ValueError):

@@ -283,6 +283,11 @@ class DocsSearchApiTest(DocsTestMixin, test.APITestCase):
         response = self.get(self.fixture.user, query="project")
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
 
+    @override_config(DOCS_SEARCH_ENABLED=False)
+    def test_turned_off_answers_424(self, _):
+        response = self.get(self.fixture.staff, query="project")
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
+
     @override_config(PAT_ENABLED=True)
     def test_token_without_staff_scope_cannot_read_as_staff(self, _):
         staff = self.fixture.staff
@@ -349,6 +354,20 @@ class ToolSetTest(TestCase):
                 get_tool_set_for_user(self.fixture.user, delegated=True),
             )
             self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(None))
+
+    @override_config(DOCS_SEARCH_ENABLED=False)
+    def test_turned_off_no_tool_set_has_search_docs(self):
+        with self.corpus_env(write_corpus(self.tmp.name, CORPUS)):
+            for user in (
+                self.fixture.user,
+                self.fixture.global_support,
+                self.fixture.staff,
+            ):
+                self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(user))
+            self.assertNotIn(
+                ToolName.SEARCH_DOCS,
+                get_tool_set_for_user(self.fixture.staff, delegated=True),
+            )
 
     def test_executor_refuses_without_corpus(self):
         with self.corpus_env(Path(self.tmp.name) / "missing.jsonl.gz"):

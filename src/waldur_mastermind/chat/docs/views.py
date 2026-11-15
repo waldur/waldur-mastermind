@@ -2,7 +2,9 @@
 
 The same search the assistant's ``search_docs`` tool runs, filtered the same
 way by role and site configuration. It needs no LLM, so it does not depend on
-AI_ASSISTANT_ENABLED; it needs only the corpus shipped in the image.
+AI_ASSISTANT_ENABLED; it needs only the corpus shipped in the image, and
+DOCS_SEARCH_ENABLED, which staff turn off to keep the bundled documentation
+out of the portal.
 """
 
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -14,10 +16,14 @@ from rest_framework.views import APIView
 
 from waldur_core.core import access as core_access
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core.views import ConstanceCheckExtensionMixin
 from waldur_mastermind.chat.docs import corpus, search, serializers
 
 
-class DocsSearchView(APIView):
+class DocsSearchView(ConstanceCheckExtensionMixin, APIView):
+    # 424 while DOCS_SEARCH_ENABLED is off.
+    extension_name = "DOCS_SEARCH"
+
     # A token with fewer scopes than its user's role would otherwise see the
     # staff and support sections the user's role admits.
     permission_classes = [IsAuthenticated, core_permissions.TokenCarriesUserRole]
@@ -34,6 +40,10 @@ class DocsSearchView(APIView):
         parameters=[serializers.DocsSearchRequestSerializer],
         responses={
             status.HTTP_200_OK: serializers.DocsSearchResponseSerializer,
+            status.HTTP_424_FAILED_DEPENDENCY: inline_serializer(
+                "DocsSearchDisabled",
+                fields={"detail": rf_serializers.CharField()},
+            ),
             status.HTTP_503_SERVICE_UNAVAILABLE: inline_serializer(
                 "DocsSearchUnavailable",
                 fields={"detail": rf_serializers.CharField()},
@@ -45,8 +55,9 @@ class DocsSearchView(APIView):
 
         End users get only the sections for their role whose features are
         switched on here. Staff and support also get sections for switched-off
-        features, marked ``enabled_here: false``. Answers 503 when the image
-        carries no documentation corpus.
+        features, marked ``enabled_here: false``. Answers 424 while
+        DOCS_SEARCH_ENABLED is off and 503 when the image carries no
+        documentation corpus.
         """
         params = serializers.DocsSearchRequestSerializer(data=request.query_params)
         params.is_valid(raise_exception=True)

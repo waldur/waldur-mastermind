@@ -319,6 +319,11 @@ memory.
   `AI_ASSISTANT_ENABLED` is on, and answers 503 when the image has no
   corpus. With `MCP_ENABLED`, MCP clients also get `search_docs`
   regardless of the assistant switch.
+- **Turning it off.** `DOCS_SEARCH_ENABLED` (on by default, public) removes
+  the bundled documentation everywhere: no role is offered `search_docs`,
+  in the assistant or over MCP, and the endpoint answers 424. Staff turn it
+  off when the portal provides its own documentation to end users and the
+  Waldur guides would contradict it.
 
 ## Security guards
 
