@@ -3162,8 +3162,6 @@ Seconds a streaming request may go without receiving anything from the LLM or se
 
 **Type:** bool
 
-**Default value:** False
-
 Stream and store a thinking model's reasoning for logged-in users, and show what the model says before a tool call as narration. Anonymous users get neither.
 
 #### AI_ASSISTANT_TOKEN_LIMIT_DAILY
