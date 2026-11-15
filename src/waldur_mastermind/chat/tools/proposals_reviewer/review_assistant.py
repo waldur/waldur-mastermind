@@ -7,7 +7,9 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.proposal_helpers import applicant_details
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal.applicant_visibility import ApplicantVisibility
 from waldur_mastermind.proposal.managers import (
     get_assigned_proposals,
     holds_live_review,
@@ -229,12 +231,11 @@ class ReviewAssistantTool(BaseTool):
                 "slug": proposal.slug,
                 "name": proposal.name,
                 "state": proposal.state,
-                "created_by": proposal.created_by.full_name
-                if proposal.created_by
-                else "",
-                "organization": proposal.created_by.organization
-                if proposal.created_by
-                else "",
+                **applicant_details(
+                    proposal,
+                    ApplicantVisibility(user),
+                    {"created_by": "full_name", "organization": "organization"},
+                ),
                 "project_summary": proposal.project_summary[:1000]
                 if proposal.project_summary
                 else "",
