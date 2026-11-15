@@ -93,13 +93,26 @@ class ScoringTest(SimpleTestCase):
 
 
 class UnsourcedTermsTest(SimpleTestCase):
-    def test_bold_terms_missing_from_the_sections_are_reported(self):
-        answer = "Open **Credentials** and click **Create token**, then **Save**."
-        sources = "The Credentials tab lists your keys. Click Save to keep them."
-        self.assertEqual(evaluation.unsourced_terms(answer, sources), ["Create token"])
+    SOURCES = "Open Profile > Credentials > Personal access tokens. Click Save."
 
-    def test_nothing_to_report_without_bold_terms(self):
-        self.assertEqual(evaluation.unsourced_terms("Plain answer.", ""), [])
+    def test_ui_names_missing_from_the_sections_are_reported(self):
+        answer = 'Open **Credentials**, click "Create token", then click **Save**.'
+        self.assertEqual(
+            evaluation.unsourced_terms(answer, self.SOURCES), ["Create token"]
+        )
+
+    def test_menu_path_counts_step_by_step_whatever_the_arrow(self):
+        answer = "Go to **Profile → Credentials → Personal access tokens**."
+        self.assertEqual(evaluation.unsourced_terms(answer, self.SOURCES), [])
+        answer = "Go to **Profile → Settings → Tokens**."
+        self.assertEqual(
+            evaluation.unsourced_terms(answer, self.SOURCES),
+            ["Profile → Settings → Tokens"],
+        )
+
+    def test_bold_headings_are_not_ui_names(self):
+        answer = "**Start the proposal** — then **Steps:** follow the guide."
+        self.assertEqual(evaluation.unsourced_terms(answer, ""), [])
 
 
 class VerdictTest(SimpleTestCase):

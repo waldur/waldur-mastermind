@@ -63,9 +63,14 @@ TOP_K = 5
 JUDGE_SECTION_CHARS = 1500
 JUDGE_MAX_SECTIONS = 10
 _LINK = re.compile(r"\]\((https?://[^)\s]+)\)")
-# Answers mark UI names in bold (**Credentials**); one that is in none of the
-# returned sections came from somewhere else, usually the model's memory.
-_BOLD = re.compile(r"\*\*([^*\n]{2,60})\*\*")
+# A UI name the answer tells the user to act on: bold or quoted, right after a
+# verb such as "click" or "go to". Bold alone marks headings as often as UI
+# names, so it is not enough. One that is in none of the returned sections
+# came from somewhere else, usually the model's memory.
+_UI_NAME = re.compile(
+    r"(?i)\b(?:click|press|select|choose|open|go to|navigate to|switch to)"
+    r"(?: on| the)?\s+(?:\*\*([^*\n]{2,80})\*\*|\"([^\"\n]{2,80})\"|`([^`\n]{2,80})`)"
+)
 _UNAVAILABLE = re.compile(
     r"(?i)(not|isn't|is not|aren't|are not) (currently |yet )?"
     r"(enabled|available|turned on|switched on|offered|supported)"
@@ -260,11 +265,31 @@ def score_search(question: Question, role: str, query: str, hits: list[dict]) ->
     }
 
 
+# Menu paths are written with any of these between the steps.
+_PATH_SEPARATOR = re.compile(r"\s*(?:→|->|>|›|/)\s*")
+# Longer bold runs are emphasis ("Chat is off here."), not a UI name.
+_MAX_NAME_WORDS = 5
+
+
 def unsourced_terms(answer: str, source_text: str) -> list[str]:
-    """Bold terms of ``answer`` that ``source_text`` does not contain."""
+    """UI names ``answer`` tells the user to act on that ``source_text`` lacks.
+
+    A menu path counts step by step, whatever arrow joins the steps.
+    """
     haystack = " ".join(source_text.split()).lower()
-    terms = dict.fromkeys(" ".join(t.split()) for t in _BOLD.findall(answer))
-    return [term for term in terms if term.lower() not in haystack]
+    missing = []
+    found = (next(g for g in m.groups() if g) for m in _UI_NAME.finditer(answer))
+    for term in dict.fromkeys(" ".join(t.split()) for t in found):
+        names = [
+            name.strip(" \"'`.,")
+            for name in _PATH_SEPARATOR.split(term)
+            if name.strip(" \"'`.,")
+        ]
+        if not names or any(len(name.split()) > _MAX_NAME_WORDS for name in names):
+            continue
+        if any(name.lower() not in haystack for name in names):
+            missing.append(term)
+    return missing
 
 
 def score_answer(
