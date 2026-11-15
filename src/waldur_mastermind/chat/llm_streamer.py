@@ -162,6 +162,54 @@ def _delta_reasoning(delta) -> str:
     return ""
 
 
+_THINK_OPEN = "<think>"
+_THINK_CLOSE = "</think>"
+
+
+def _partial_tag_length(text: str, tag: str) -> int:
+    """How much of the end of text could be the start of tag."""
+    for length in range(min(len(tag) - 1, len(text)), 0, -1):
+        if text.endswith(tag[:length]):
+            return length
+    return 0
+
+
+class _ThinkTagFilter:
+    """Split streamed text into the answer and the <think>…</think> reasoning
+    a server without a reasoning parser leaves in it. A tag can arrive split
+    across chunks, so text that could be the start of one is held back."""
+
+    def __init__(self):
+        self.thinking = False
+        self._pending = ""
+
+    def feed(self, text: str) -> tuple[str, str]:
+        """Return the (answer, reasoning) parts of a fragment."""
+        text = self._pending + text
+        self._pending = ""
+        answer, reasoning = [], []
+        while text:
+            tag = _THINK_CLOSE if self.thinking else _THINK_OPEN
+            part = reasoning if self.thinking else answer
+            index = text.find(tag)
+            if index >= 0:
+                part.append(text[:index])
+                text = text[index + len(tag) :]
+                self.thinking = not self.thinking
+                continue
+            held = _partial_tag_length(text, tag)
+            part.append(text[: len(text) - held])
+            self._pending = text[len(text) - held :]
+            break
+        return "".join(answer), "".join(reasoning)
+
+    def flush(self) -> str:
+        """End of the call: answer text held back as a possible tag."""
+        text, self._pending = self._pending, ""
+        thinking, self.thinking = self.thinking, False
+        return "" if thinking else text
+
+
 def _is_finishing(chunk) -> bool:
     """Whether a chunk closes a call that is complete, whatever the time."""
     return bool(chunk.usage or (chunk.choices and chunk.choices[0].finish_reason))
@@ -355,6 +403,9 @@ class LLMStreamer:
         )
         self._reasoning_buffer = ""
         self._reasoning_stored_chars = 0
+        # A server without a reasoning parser streams the thinking inside the
+        # answer as <think>…</think>; anonymous visitors must not get it.
+        self._think_filter: _ThinkTagFilter | None = None
         self._held_text = ""
         self._holding_text = False
         self._tools_sent = False
@@ -1188,6 +1239,7 @@ class LLMStreamer:
     def _stream_and_collect(self, messages, include_tools=True, round_num: int = 0):
         """Stream one LLM completion, accumulating content and tool calls."""
         self._held_text = ""
+        self._think_filter = _ThinkTagFilter() if self.user is None else None
         with self._stream_completion(
             messages, include_tools=include_tools, round_num=round_num
         ) as stream:
@@ -1242,16 +1294,21 @@ class LLMStreamer:
                         self._persist_on_cancel()
                     continue
 
+                content = delta.content
+                if content and self._think_filter:
+                    content, thought = self._think_filter.feed(content)
+                    reasoning += thought
+
                 if reasoning:
                     self._add_reasoning(reasoning)
 
                 # No marker ends the thinking; the answer starting does.
-                if delta.content or delta.tool_calls:
+                if content or delta.tool_calls:
                     self._end_reasoning()
 
-                if delta.content:
+                if content:
                     if self._holding_text:
-                        self._held_text += delta.content
+                        self._held_text += content
                         # A code fence means content to show, not narration.
                         if (
                             len(self._held_text) >= _NARRATION_MAX_CHARS
@@ -1259,13 +1316,15 @@ class LLMStreamer:
                         ):
                             self._release_held_text()
                     else:
-                        self._send_text(delta.content)
+                        self._send_text(content)
 
                 if delta.tool_calls:
                     self._send_narration()
                     for tc in delta.tool_calls:
                         self._accumulate_tool_call_delta(tc)
 
+        if self._think_filter and (rest := self._think_filter.flush()):
+            self._send_text(rest)
         self._flush_parser()
 
     def _estimate_usage(self, messages, received_chars: int) -> None:
