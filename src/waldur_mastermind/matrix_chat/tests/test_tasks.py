@@ -1,7 +1,9 @@
+import threading
 from unittest import mock
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.db import connection
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -49,6 +51,50 @@ class _WelcomeWitness:
                 ).values_list("user__username", flat=True)
             )
         return self._post(room, body, *args, **kwargs)
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class ConcurrentCreateRoomTest(TransactionTestCase):
+    """Two create_room tasks for one room at once -- ensure_room queued it
+    again while the first waited behind a busy queue, say -- create one
+    homeserver room."""
+
+    def test_a_second_task_leaves_a_room_another_is_creating(self, mock_client):
+        mock_client.is_enabled.return_value = True
+        project = structure_factories.ProjectFactory()
+        room = models.MatrixRoom.objects.create(
+            room_name="Test Project",
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+        )
+
+        def other_worker():
+            try:
+                tasks.create_room(str(room.uuid))
+            finally:
+                connection.close()
+
+        def create_on_homeserver(**kwargs):
+            # While this task is at the homeserver, another worker runs the
+            # same task on its own connection.
+            if mock_client.create_room.call_count == 1:
+                worker = threading.Thread(target=other_worker)
+                worker.start()
+                worker.join(timeout=30)
+                self.assertFalse(worker.is_alive())
+            return ("!room:matrix.example.com", False)
+
+        mock_client.create_room.side_effect = create_on_homeserver
+        with mock.patch.object(tasks.sync_room_members, "delay") as sync:
+            tasks.create_room(str(room.uuid))
+            # A late one finds it created and leaves it too.
+            tasks.create_room(str(room.uuid))
+
+        self.assertEqual(mock_client.create_room.call_count, 1)
+        room.refresh_from_db()
+        self.assertEqual(room.state, models.RoomStates.ACTIVE)
+        self.assertEqual(room.room_id, "!room:matrix.example.com")
+        sync.assert_called_once_with(str(room.uuid))
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")

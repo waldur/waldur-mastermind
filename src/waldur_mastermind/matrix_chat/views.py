@@ -352,14 +352,6 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
                     },
                     status=status.HTTP_409_CONFLICT,
                 )
-            if room.state == models.RoomStates.ERROR:
-                try:
-                    room.retry_creating()
-                except TransitionNotAllowed:
-                    raise ValidationError(
-                        f"Cannot retry room in state {room.get_state_display()}."
-                    )
-                room.save(update_fields=["state", "error_message", "closing_export"])
             if room.state == models.RoomStates.DISABLING:
                 # The original delete_history choice isn't persisted on the row,
                 # so retry defaults to False (non-destructive).
@@ -370,7 +362,14 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
                     )
                 )
             else:
-                transaction.on_commit(lambda: tasks.create_room.delay(room_uuid))
+                # Shared with room_provisioning.ensure_room, which recovers a
+                # registered scope's room the same way.
+                try:
+                    room_provisioning.restart_creation(room)
+                except TransitionNotAllowed:
+                    raise ValidationError(
+                        f"Cannot retry room in state {room.get_state_display()}."
+                    )
         output_serializer = serializers.MatrixRoomSerializer(
             room, context=self.get_serializer_context()
         )

@@ -310,8 +310,10 @@ class MatrixRoomActionsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         mock_tasks.export_room_history.delay.assert_not_called()
 
+    # Creation is queued by room_provisioning.restart_creation.
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
-    def test_staff_can_retry_creating_room(self, mock_tasks):
+    def test_staff_can_retry_creating_room(self, mock_tasks, mock_provisioning_tasks):
         self.room.state = models.RoomStates.CREATING
         self.room.save(update_fields=["state"])
 
@@ -320,11 +322,15 @@ class MatrixRoomActionsTest(test.APITestCase):
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mock_tasks.create_room.delay.assert_called_once_with(self.room.uuid.hex)
+        mock_provisioning_tasks.create_room.delay.assert_called_once_with(
+            self.room.uuid.hex
+        )
         mock_tasks.disable_room.delay.assert_not_called()
 
+    # Creation is queued by room_provisioning.restart_creation.
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
-    def test_staff_can_retry_erred_room(self, mock_tasks):
+    def test_staff_can_retry_erred_room(self, mock_tasks, mock_provisioning_tasks):
         self.room.state = models.RoomStates.ERROR
         self.room.error_message = "boom"
         self.room.save(update_fields=["state", "error_message"])
@@ -339,7 +345,9 @@ class MatrixRoomActionsTest(test.APITestCase):
         # before the create task is re-dispatched.
         self.assertEqual(self.room.state, models.RoomStates.CREATING)
         self.assertEqual(self.room.error_message, "")
-        mock_tasks.create_room.delay.assert_called_once_with(self.room.uuid.hex)
+        mock_provisioning_tasks.create_room.delay.assert_called_once_with(
+            self.room.uuid.hex
+        )
         mock_tasks.disable_room.delay.assert_not_called()
 
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
