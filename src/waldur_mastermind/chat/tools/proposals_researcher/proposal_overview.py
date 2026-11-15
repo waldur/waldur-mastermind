@@ -7,8 +7,12 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
-from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
+from waldur_mastermind.chat.tools.proposal_helpers import (
+    applicant_details,
+    call_detail_url,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal.applicant_visibility import ApplicantVisibility
 from waldur_mastermind.proposal.models import Proposal, RequestedResource, Review
 from waldur_mastermind.proposal.permissions import offering_scope
 from waldur_mastermind.proposal.utils import get_proposal_duration_months
@@ -186,10 +190,11 @@ class ProposalOverviewTool(BaseTool):
             "slug": proposal.slug,
             "name": proposal.name,
             "state": proposal.state,
-            "created_by": proposal.created_by.full_name if proposal.created_by else "",
-            "created_by_org": proposal.created_by.organization
-            if proposal.created_by
-            else "",
+            **applicant_details(
+                proposal,
+                ApplicantVisibility(user),
+                {"created_by": "full_name", "created_by_org": "organization"},
+            ),
             "call_name": call.name if call else "",
             "round_name": round_obj.slug if round_obj else "",
             "project_summary": proposal.project_summary[:500]
