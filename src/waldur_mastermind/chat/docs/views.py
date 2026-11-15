@@ -69,6 +69,12 @@ class DocsSearchView(ConstanceCheckExtensionMixin, APIView):
         query = params.validated_data["query"]
         hits = search.search(request.user, query, params.validated_data["limit"])
         response = serializers.DocsSearchResponseSerializer(
-            {"query": query, "sections": [hit.as_dict() for hit in hits]}
+            {
+                "query": query,
+                "sections": [hit.as_dict() for hit in hits],
+                "switched_off_here": search.switched_off_here(
+                    request.user, query, hits
+                ),
+            }
         )
         return Response(response.data)

@@ -156,6 +156,46 @@ class SiteConfigurationTest(DocsTestMixin, TestCase):
                 self.assertFalse(hits[FUTURE["title"]]["enabled_here"])
 
 
+@override_config(PAT_ENABLED=False)
+class SwitchedOffHereTest(DocsTestMixin, TestCase):
+    PAT_OFF = [{"name": "Personal access tokens", "term": "setting:PAT_ENABLED"}]
+
+    def result(self, user, query):
+        return self.tool.execute(user, {"query": query})
+
+    def test_end_user_is_told_the_feature_is_off_not_shown_its_section(self):
+        result = self.result(self.fixture.user, "personal access token")
+        self.assertEqual(result["data"]["switched_off_here"], self.PAT_OFF)
+        self.assertEqual(result["data"]["sections"], [])
+        self.assertIn("switched off on this portal", result["summary"])
+        self.assertNotIn(PAT["text"], json.dumps(result))
+
+    def test_staff_get_the_section_and_the_name(self):
+        result = self.result(self.fixture.staff, "personal access token")
+        self.assertEqual(result["data"]["switched_off_here"], self.PAT_OFF)
+        self.assertIn(PAT["title"], {s["title"] for s in result["data"]["sections"]})
+
+    @override_config(PAT_ENABLED=True)
+    def test_nothing_is_named_when_the_feature_is_on(self):
+        result = self.result(self.fixture.user, "personal access token")
+        self.assertEqual(result["data"]["switched_off_here"], [])
+
+    def test_a_query_about_something_else_names_nothing(self):
+        result = self.result(self.fixture.user, "add a project")
+        self.assertEqual(result["data"]["switched_off_here"], [])
+
+    def test_a_term_that_may_be_on_is_not_named(self):
+        # The corpus knows a setting this code does not: it may be on.
+        result = self.result(self.fixture.user, "teleport")
+        self.assertEqual(result["data"]["switched_off_here"], [])
+
+    def test_unnamed_term_falls_back_to_its_description(self):
+        self.assertEqual(
+            deployment_profile.term_name("feature:customer.show_project_digest"),
+            "Enable display of project digest configuration in organization settings",
+        )
+
+
 class AudienceTest(DocsTestMixin, TestCase):
     def test_end_user_gets_only_sections_for_all(self):
         hits = self.titles(self.fixture.user, "project")
@@ -317,8 +357,9 @@ class DocsSearchApiTest(DocsTestMixin, test.APITestCase):
 
 
 # Cold caches: corpus terms, settings, feature flags, offering types, the HPC
-# capability, then the search and DOCS_URL. None of these grows with the data.
-COLD_QUERIES = 9
+# capability, then the search, DOCS_URL and the hidden sections that name what
+# is switched off. None of these grows with the data.
+COLD_QUERIES = 10
 
 
 @pytest.mark.django_db
@@ -332,8 +373,9 @@ def test_search_runs_a_bounded_number_of_queries(django_assert_max_num_queries):
     marketplace_factories.OfferingFactory.create_batch(3)
     tool = SearchDocsTool()
     tool.execute(user, {"query": "project"})  # warms the caches
-    # The search and DOCS_URL.
-    with django_assert_max_num_queries(2):
+    # The search, DOCS_URL and the hidden sections that name what is switched
+    # off (the corpus has a term that is off here).
+    with django_assert_max_num_queries(3):
         tool.execute(user, {"query": "project"})
     cache.clear()
     with django_assert_max_num_queries(COLD_QUERIES):
