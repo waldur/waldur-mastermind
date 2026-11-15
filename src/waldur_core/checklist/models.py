@@ -1,6 +1,7 @@
 import base64
 import datetime
 import uuid
+from typing import NamedTuple
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -14,6 +15,16 @@ from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
 
 from . import enums, utils
+
+
+class CompletionProgress(NamedTuple):
+    """How far a set of answers is through a checklist, counting only the
+    questions shown for those answers."""
+
+    visible_question_ids: set[int]
+    unanswered_required_question_ids: set[int]
+    percentage: float
+
 
 # Storage prefix for answer attachments. Shared with checklist.media_access so
 # the access rule cannot drift from where the files are actually written.
@@ -57,20 +68,51 @@ class Checklist(
             "question_options", "dependencies__depends_on_question"
         )
 
-    def get_visible_questions(self, completion, answers=None) -> list["Question"]:
+    def get_visibility_questions(self):
+        """Questions in display order with only what visibility reads prefetched."""
+        return self.questions.order_by("order").prefetch_related("dependencies")
+
+    def get_visible_questions(
+        self, completion, answers=None, questions=None
+    ) -> list["Question"]:
         """Get list of questions that should be visible given current answers in completion context.
 
         ``answers`` maps question id to the answer that stands for it. It defaults to
         the latest answer per question; multi-writer callers pass one user's answers.
+        ``questions`` are the checklist's questions from ``get_questions()``, for
+        callers that check many completions of one checklist.
         """
         if answers is None:
             answers = completion.get_latest_answers() if completion.pk else {}
+        if questions is None:
+            questions = self.get_questions()
 
-        return [
-            question
-            for question in self.get_questions()
-            if question.is_visible_for_completion(completion, answers)
-        ]
+        visible_ids = utils.visible_question_ids(questions, answers)
+        return [question for question in questions if question.id in visible_ids]
+
+    def get_progress(self, answers, questions=None) -> CompletionProgress:
+        """Progress of ``answers`` (question id to answer) through the checklist.
+
+        A question hidden by its dependencies cannot be answered, so it is neither
+        required nor counted in the percentage. Pass ``{}`` for no answers yet,
+        and ``questions`` from ``get_visibility_questions()`` when checking many
+        sets of answers to one checklist.
+        """
+        if questions is None:
+            questions = self.get_visibility_questions()
+        visible_ids = utils.visible_question_ids(questions, answers)
+        visible = [question for question in questions if question.id in visible_ids]
+        unanswered = {
+            question.id
+            for question in visible
+            if question.required and question.id not in answers
+        }
+        if visible:
+            answered = sum(1 for question in visible if question.id in answers)
+            percentage = round((answered / len(visible)) * 100, 1)
+        else:
+            percentage = 100
+        return CompletionProgress(visible_ids, unanswered, percentage)
 
     def __str__(self):
         return f"{self.name} ({self.get_checklist_type_display()})"
@@ -264,7 +306,11 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         ordering = ["checklist", "order", "id"]
 
     def is_visible_for_completion(self, completion, answers=None):
-        """Check if question is visible in the given completion context"""
+        """Whether the question's own dependency conditions are met.
+
+        It does not look at whether the questions it depends on are shown;
+        ``Checklist.get_visible_questions`` does.
+        """
         # all() rather than exists(): it is served from a prefetch.
         dependencies = self.dependencies.all()
         if not dependencies:
@@ -746,41 +792,49 @@ class ChecklistCompletion(
             answers = answers.filter(user=user)
         return utils.latest_answers_by_question(answers)
 
+    def get_completion_status(self, questions=None) -> tuple[bool, bool]:
+        """``(is_completed, requires_review)`` from the latest answer per question."""
+        latest_answers = self.get_latest_answers()
+        progress = self.get_progress(latest_answers, questions)
+        # A superseded answer, or one to a question no longer shown, no longer
+        # triggers review
+        requires_review = any(
+            answer.requires_review
+            for question_id, answer in latest_answers.items()
+            if question_id in progress.visible_question_ids
+        )
+        return not progress.unanswered_required_question_ids, requires_review
+
     def update_completion_status(self):
         """Update completion and review status from the latest answer per question."""
-        latest_answers = self.get_latest_answers().values()
-
-        # Check if all required questions are answered
-        answered_question_ids = {answer.question_id for answer in latest_answers}
-        required_question_ids = self.checklist.questions.filter(
-            required=True
-        ).values_list("id", flat=True)
-        self.is_completed = all(
-            question_id in answered_question_ids
-            for question_id in required_question_ids
-        )
-
-        # A superseded answer no longer triggers review
-        self.requires_review = any(answer.requires_review for answer in latest_answers)
-
+        self.is_completed, self.requires_review = self.get_completion_status()
         self.save()
 
-    def get_completion_percentage(self):
-        """Calculate completion percentage."""
-        total_questions = self.checklist.questions.count()
-        if total_questions == 0:
-            return 100
+    def get_progress(self, answers=None, questions=None) -> CompletionProgress:
+        """Progress of the completion; see ``Checklist.get_progress``.
 
-        # Answered questions, not per-user answer rows
-        answered_questions = self.answers.values("question_id").distinct().count()
-        return round((answered_questions / total_questions) * 100, 1)
+        ``answers`` defaults to the latest answer per question.
+        """
+        if answers is None:
+            answers = self.get_latest_answers() if self.pk else {}
+        return self.checklist.get_progress(answers, questions)
+
+    def get_unanswered_required_question_ids(self, answers=None, questions=None):
+        """Ids of the required questions shown to the user that have no answer."""
+        return self.get_progress(answers, questions).unanswered_required_question_ids
+
+    def get_completion_percentage(self, answers=None, questions=None):
+        """Percentage of the questions shown to the user that have an answer."""
+        return self.get_progress(answers, questions).percentage
 
     def _latest_review_answers(self):
+        latest_answers = self.get_latest_answers()
+        visible_ids = self.get_progress(latest_answers).visible_question_ids
         return sorted(
             (
                 answer
-                for answer in self.get_latest_answers().values()
-                if answer.requires_review
+                for question_id, answer in latest_answers.items()
+                if answer.requires_review and question_id in visible_ids
             ),
             key=lambda answer: (answer.question.order, answer.question_id),
         )
@@ -798,11 +852,9 @@ class ChecklistCompletion(
         ]
 
     def get_unanswered_required_questions(self):
-        """Get list of required questions that haven't been answered yet."""
-        answered_question_ids = self.answers.values_list("question_id", flat=True)
-
-        return self.checklist.questions.filter(required=True).exclude(
-            id__in=answered_question_ids
+        """Required questions shown to the user that haven't been answered yet."""
+        return self.checklist.questions.filter(
+            id__in=self.get_unanswered_required_question_ids()
         )
 
     def get_questions_requiring_review(self):

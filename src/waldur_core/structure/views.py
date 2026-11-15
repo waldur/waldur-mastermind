@@ -3779,9 +3779,10 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
         checklist = customer.project_metadata_checklist
 
         # Get all questions with prefetched options for efficiency
-        questions = list(
-            checklist.questions.prefetch_related("question_options").order_by("order")
-        )
+        questions = list(checklist.get_questions())
+        unanswered_without_completion = checklist.get_progress(
+            {}, questions
+        ).unanswered_required_question_ids
 
         # Build question options map for all questions upfront
         question_options_map = {}
@@ -3829,20 +3830,19 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
             completion = getattr(project, "_completion_cache", None)
 
             if completion:
-                completion_percentage = completion.get_completion_percentage()
+                # Answers are per-user rows; list each question once, by its latest.
+                latest_answers = latest_answers_by_question(completion.answers.all())
+                progress = completion.get_progress(latest_answers, questions)
+                completion_percentage = progress.percentage
+                unanswered_ids = progress.unanswered_required_question_ids
                 is_completed = completion.is_completed
                 requires_review = completion.requires_review
                 completion_uuid = completion.uuid.hex
 
                 # Build answers with pre-computed data
                 answers = []
-                answered_question_ids = set()
-
-                # Answers are per-user rows; list each question once, by its latest.
-                latest_answers = latest_answers_by_question(completion.answers.all())
                 for answer in latest_answers.values():
                     question_id = answer.question_id
-                    answered_question_ids.add(question_id)
 
                     # Get pre-computed question data
                     question_data = question_data_map[question_id]
@@ -3886,8 +3886,7 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                         "max_value": question_data["max_value"],
                     }
                     for question_id, question_data in question_data_map.items()
-                    if question_data["required"]
-                    and question_id not in answered_question_ids
+                    if question_id in unanswered_ids
                 ]
             else:
                 completion_percentage = 0.0
@@ -3895,7 +3894,6 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                 requires_review = False
                 completion_uuid = None
                 answers = []
-                # All required questions are unanswered if no completion
                 unanswered_required = [
                     {
                         "uuid": question_data["uuid"],
@@ -3904,8 +3902,8 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                         "min_value": question_data["min_value"],
                         "max_value": question_data["max_value"],
                     }
-                    for question_data in question_data_map.values()
-                    if question_data["required"]
+                    for question_id, question_data in question_data_map.items()
+                    if question_id in unanswered_without_completion
                 ]
 
             project_details.append(

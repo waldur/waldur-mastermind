@@ -255,6 +255,23 @@ def is_valid_answer(
     return _is_valid_trigger_value(answer_data, question_type)
 
 
+def _answers_equal(user_answer, required_value) -> bool:
+    """Multi-select answers are lists whose order means nothing."""
+    if isinstance(user_answer, list) and isinstance(required_value, list):
+        try:
+            return set(user_answer) == set(required_value)
+        except TypeError:  # unhashable items, e.g. uploaded files
+            pass
+    return user_answer == required_value
+
+
+def _answer_items(user_answer):
+    """Values of an answer: a multi-select answer is a list, any other one value.
+
+    A string is one value, not its characters."""
+    return user_answer if isinstance(user_answer, list) else [user_answer]
+
+
 def apply_operator(user_answer: any, required_value: any, operator: str) -> bool:
     """Core comparison engine that applies operators between user answers and required values for dependency evaluation and review triggering."""
     if user_answer is None:
@@ -273,21 +290,63 @@ def apply_operator(user_answer: any, required_value: any, operator: str) -> bool
             return False
 
     if operator == "equals":
-        return user_answer == required_value
+        return _answers_equal(user_answer, required_value)
     elif operator == "not_equals":
-        return user_answer != required_value
+        return not _answers_equal(user_answer, required_value)
     elif operator == "contains":
         return any(substr in user_answer for substr in required_value)
     elif operator == "in":
         if isinstance(required_value, list):
-            return any([a in required_value for a in user_answer])
+            return any(a in required_value for a in _answer_items(user_answer))
         return user_answer == required_value
     elif operator == "not_in":
         if isinstance(required_value, list):
-            return not any([a in required_value for a in user_answer])
+            return not any(a in required_value for a in _answer_items(user_answer))
         return user_answer != required_value
 
     return False
+
+
+def visible_question_ids(questions, answers) -> set:
+    """Ids of the ``questions`` shown for ``answers`` (question id to answer).
+
+    A dependency is met when its answer satisfies the condition and the
+    question it depends on is itself shown, so hiding a question also hides
+    those that depend on it, whatever answer it kept. Each question's
+    ``dependencies`` should be prefetched.
+    """
+    by_id = {question.id: question for question in questions}
+    visible = {}
+
+    def dependency_met(dependency):
+        answer = answers.get(dependency.depends_on_question_id)
+        parent = by_id.get(dependency.depends_on_question_id)
+        return (
+            answer is not None
+            and parent is not None
+            and apply_operator(
+                answer.answer_data,
+                dependency.required_answer_value,
+                dependency.operator,
+            )
+            and is_visible(parent)
+        )
+
+    def is_visible(question):
+        if question.id not in visible:
+            visible[question.id] = False  # a dependency cycle hides its questions
+            dependencies = question.dependencies.all()
+            if not dependencies:
+                visible[question.id] = True
+            elif (
+                question.dependency_logic_operator == enums.DependencyLogicOperators.OR
+            ):
+                visible[question.id] = any(map(dependency_met, dependencies))
+            else:
+                visible[question.id] = all(map(dependency_met, dependencies))
+        return visible[question.id]
+
+    return {question.id for question in questions if is_visible(question)}
 
 
 def latest_answers_by_question(answers) -> dict:

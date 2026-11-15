@@ -5694,17 +5694,18 @@ class ProposalSerializer(
                 "completion_percentage": 0,
             }
 
+        progress = completion.get_progress()
         return {
             "has_checklist": True,
             "is_completed": completion.is_completed,
             "requires_review": completion.requires_review,
-            "completion_percentage": completion.get_completion_percentage(),
+            "completion_percentage": progress.percentage,
             "reviewed_by": completion.reviewed_by.full_name
             if completion.reviewed_by
             else None,
             "reviewed_at": completion.reviewed_at,
             "checklist_name": completion.checklist.name,
-            "unanswered_required_count": completion.get_unanswered_required_questions().count(),
+            "unanswered_required_count": len(progress.unanswered_required_question_ids),
         }
 
     @extend_schema_field(ProposalCanSubmitResponseSerializer)
@@ -7040,6 +7041,11 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
     def get_proposals(self, call):
         """Get proposal compliance status."""
         proposals_data = []
+        questions = (
+            list(call.compliance_checklist.get_visibility_questions())
+            if call.compliance_checklist
+            else None
+        )
 
         for proposal in models.Proposal.objects.filter(round__call=call):
             proposal_data = {
@@ -7059,16 +7065,19 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
             if hasattr(proposal, "checklist_completion"):
                 completion = proposal.checklist_completion
                 if completion:
+                    progress = completion.get_progress(questions=questions)
                     proposal_data["compliance"] = {
                         "is_completed": completion.is_completed,
                         "requires_review": completion.requires_review,
-                        "completion_percentage": completion.get_completion_percentage(),
+                        "completion_percentage": progress.percentage,
                         "reviewed_by": completion.reviewed_by.full_name
                         if completion.reviewed_by
                         else None,
                         "reviewed_at": completion.reviewed_at,
                         "review_triggers": completion.get_review_trigger_summary(),
-                        "unanswered_required_count": completion.get_unanswered_required_questions().count(),
+                        "unanswered_required_count": len(
+                            progress.unanswered_required_question_ids
+                        ),
                     }
 
             proposals_data.append(proposal_data)

@@ -22,7 +22,10 @@ from rest_framework.authtoken import models as authtoken_models
 
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.models import Checklist, ChecklistCompletion
-from waldur_core.checklist.utils import serialize_completion_answers
+from waldur_core.checklist.utils import (
+    latest_answers_by_question,
+    serialize_completion_answers,
+)
 from waldur_core.configuration import config
 from waldur_core.core import access, template_utils
 from waldur_core.core import fields as core_fields
@@ -4305,10 +4308,32 @@ class ProjectAnswerSerializer(serializers.ModelSerializer):
         completion = self._get_completion_data(project)
         return completion.uuid.hex if completion else None
 
+    def _get_progress(self, project):
+        """The project's progress through the checklist, worked out once.
+
+        The checklist's questions are loaded once for all projects on the page.
+        """
+        if not hasattr(self, "_progress_cache"):
+            self._progress_cache = {}
+            self._questions = list(self.context["checklist"].get_visibility_questions())
+        if project.id not in self._progress_cache:
+            completion = self._get_completion_data(project)
+            answers = (
+                latest_answers_by_question(completion.answers.all())
+                if completion
+                else {}
+            )
+            self._progress_cache[project.id] = self.context["checklist"].get_progress(
+                answers, self._questions
+            )
+        return self._progress_cache[project.id]
+
     def get_completion_percentage(self, project) -> float:
         """Get completion percentage."""
         completion = self._get_completion_data(project)
-        return completion.get_completion_percentage() if completion else 0.0
+        if not completion:
+            return 0.0
+        return self._get_progress(project).percentage
 
     def get_is_completed(self, project) -> bool:
         """Get completion status."""
@@ -4329,24 +4354,12 @@ class ProjectAnswerSerializer(serializers.ModelSerializer):
         return 0
 
     def get_unanswered_required_count(self, project) -> int:
-        """Get count of unanswered required questions."""
+        """Get count of unanswered required questions shown to the user."""
         checklist = self.context.get("checklist")
         if not checklist:
             return 0
 
-        completion = self._get_completion_data(project)
-        total_required = checklist.questions.filter(required=True).count()
-
-        if completion:
-            answered_required = (
-                completion.answers.filter(question__required=True)
-                .values("question_id")
-                .distinct()
-                .count()
-            )
-            return max(0, total_required - answered_required)
-        else:
-            return total_required
+        return len(self._get_progress(project).unanswered_required_question_ids)
 
 
 class ProjectAnswerDetailSerializer(serializers.Serializer):

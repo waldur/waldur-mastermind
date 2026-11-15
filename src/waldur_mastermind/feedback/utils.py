@@ -107,16 +107,10 @@ def get_or_create_request(survey, user, customers):
 
 
 def is_answered(completion) -> bool:
-    """Whether every required question the respondent can see has an answer.
-
-    completion.is_completed also counts required questions hidden by their
-    dependencies, which a respondent cannot answer.
-    """
-    answered_ids = set(completion.answers.values_list("question_id", flat=True))
-    return bool(answered_ids) and all(
-        question.id in answered_ids
-        for question in completion.checklist.get_visible_questions(completion)
-        if question.required
+    """Whether the respondent answered something and every required question they can see."""
+    return (
+        completion.answers.exists()
+        and not completion.get_unanswered_required_question_ids()
     )
 
 
