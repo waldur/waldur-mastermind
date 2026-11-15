@@ -30,6 +30,22 @@ class DocsSearchHitSerializer(serializers.Serializer):
     )
 
 
+class DocsSearchSwitchedOffSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text="What a user would call the feature.")
+    term = serializers.CharField(
+        help_text="The setting, feature flag or offering type that switches it, "
+        "e.g. setting:PAT_ENABLED."
+    )
+
+
 class DocsSearchResponseSerializer(serializers.Serializer):
     query = serializers.CharField()
     sections = DocsSearchHitSerializer(many=True)
+    switched_off_here = DocsSearchSwitchedOffSerializer(
+        many=True,
+        help_text=(
+            "Features the query is about that are switched off on this portal. "
+            "Their sections are not returned to users without staff or support "
+            "rights; only the feature is named."
+        ),
+    )

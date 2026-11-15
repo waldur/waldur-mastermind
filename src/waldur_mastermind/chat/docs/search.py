@@ -9,7 +9,7 @@ older than the release) cannot be confirmed, so it counts as not enabled.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.core.cache import cache
@@ -26,6 +26,9 @@ MAX_RESULTS = 5
 # The most a caller of the REST endpoint may ask for in one page.
 MAX_PAGE_RESULTS = 20
 MAX_QUERY_LENGTH = 300
+# How many hidden sections are looked at to name the switched-off features a
+# query is about.
+HIDDEN_MATCHES = 3
 EXCERPT_LENGTH = 800
 
 TERMS_CACHE_KEY = "waldur_mastermind.chat.docs.requires_terms"
@@ -39,6 +42,8 @@ class DocHit:
     excerpt: str
     url: str
     enabled_here: bool
+    # Kept for switched_off_here(); not part of what callers are given.
+    requires: tuple[str, ...] = field(default=(), repr=False)
 
     def as_dict(self) -> dict:
         return {
@@ -172,6 +177,39 @@ def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
             excerpt=excerpt(section.text, query),
             url=section_url(section.path, section.anchor, base),
             enabled_here=not (off | unknown).intersection(section.requires),
+            requires=tuple(section.requires),
         )
         for section in hits
     ]
+
+
+def switched_off_here(user, query: str, hits: list[DocHit]) -> list[dict]:
+    """Features switched off on this portal that the query is about.
+
+    End users get no section of a switched-off feature, which left the
+    assistant unable to tell "not enabled here" from "the portal cannot do
+    that"; it told users Waldur has no chat. So the query is also matched,
+    every word, against the sections hidden from the caller, and the features
+    that hid them are named, never their content. For staff and support the
+    features come from the returned sections marked ``enabled_here: False``.
+    Only terms known to be off are named: an unknown term may well be on.
+    """
+    states = deployment_profile.get_term_states(_requires_terms())
+    off = {term for term, state in states.items() if state == TermState.OFF}
+    if not off:
+        return []
+    found = set()
+    for hit in hits:
+        if not hit.enabled_here:
+            found |= off.intersection(hit.requires)
+    if not (user.is_staff or user.is_support):
+        hidden = DocSection.objects.filter(
+            audience__in=audiences_for(user), requires__overlap=sorted(off)
+        )
+        every_word = SearchQuery(query, search_type="websearch", config="english")
+        for section in _ranked(hidden, every_word)[:HIDDEN_MATCHES]:
+            found |= off.intersection(section.requires)
+    names: dict[str, str] = {}
+    for term in sorted(found):
+        names.setdefault(deployment_profile.term_name(term), term)
+    return [{"name": name, "term": term} for name, term in sorted(names.items())]

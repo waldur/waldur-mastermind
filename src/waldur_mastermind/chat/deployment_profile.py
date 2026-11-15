@@ -52,6 +52,63 @@ CAPABILITIES: dict[str, Callable[[], bool]] = {
 }
 
 
+# What a user would call the feature a term switches, for telling them it is
+# switched off here. Terms not listed fall back to their setting or feature
+# description, which is written for administrators.
+TERM_NAMES: dict[str, str] = {
+    "setting:PAT_ENABLED": "Personal access tokens",
+    "setting:MATRIX_ENABLED": "Project chat",
+    "feature:project.show_matrix_chat": "Project chat",
+    "setting:AI_ASSISTANT_ENABLED": "AI assistant",
+    "feature:support.enable_llm_assistant": "AI assistant",
+    "setting:AFFILIATES_ENABLED": "Affiliate program",
+    "feature:reseller.affiliates": "Affiliate program",
+    "setting:WALDUR_SUPPORT_ENABLED": "Support requests",
+    "feature:marketplace.show_call_management_functionality": (
+        "Call management (creating and running calls for proposals)"
+    ),
+    "!feature:marketplace.call_only": "Proposals and reviews for calls",
+    "!feature:marketplace.catalogue_only": "Ordering from the marketplace",
+    "setting:COI_DETECTION_ENABLED": "Automated conflict-of-interest detection",
+    "setting:AUTOMATED_MATCHING_ENABLED": "Automated reviewer matching",
+    "setting:REVIEWER_PROFILES_ENABLED": "Reviewer profiles",
+    "feature:customer.show_onboarding": "Organization onboarding",
+    "feature:customer.show_organisation_reporting": "Organization reports",
+    "feature:invitations.show_course_accounts": "Course accounts",
+    "feature:marketplace.show_posix_id_pools": "POSIX ID pools",
+    "feature:marketplace.show_provider_accounts": "Provider accounts",
+    "feature:marketplace.display_software_catalog": "Software catalogs",
+    "feature:project.show_custom_metrics": "Custom metrics",
+    "feature:project.science_domain": "Science domains for projects",
+    "feature:dashboard.usage_include_terminated": "Usage of terminated resources",
+    "offering_type:VMware.VirtualMachine": "VMware virtual machines",
+    "offering_type:OpenStack.Tenant": "OpenStack private clouds",
+    "offering_type:OpenStack.Instance": "OpenStack virtual machines",
+    "offering_type:OpenStack.Volume": "OpenStack volumes",
+    "capability:hpc": "HPC workspace",
+}
+
+
+def term_name(term: str) -> str:
+    """A readable name for the feature ``term`` switches."""
+    if term in TERM_NAMES:
+        return TERM_NAMES[term]
+    kind, _, key = term.lstrip("!").partition(":")
+    description = ""
+    if kind == "setting":
+        definition = settings_registry.definitions().get(key)
+        description = definition[1] if definition else ""
+    elif kind == "feature":
+        section_key, _, feature_key = key.partition(".")
+        for section in features.FEATURES:
+            if section["key"] == section_key:
+                for item in section["items"]:
+                    if item["key"] == feature_key:
+                        description = item["description"]
+    first_sentence = description.split(". ")[0].strip().rstrip(".")
+    return first_sentence or key
+
+
 class TermState(enum.Enum):
     ON = "on"
     OFF = "off"

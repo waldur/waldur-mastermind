@@ -22,6 +22,7 @@ OUTPUT_SCHEMA = obj(
                 }
             )
         ),
+        "switched_off_here": array(obj({"name": STRING, "term": STRING})),
     }
 )
 
@@ -75,6 +76,11 @@ class SearchDocsTool(BaseTool):
                 "cannot confirm is switched on. Open the answer by saying it "
                 "is not enabled here, or may not be, and do not give its steps "
                 "as instructions.\n"
+                "- `switched_off_here` names features of this portal that the "
+                "query is about but that are switched off here. When the "
+                "question is about one of them, say it is not enabled on this "
+                "portal and that an administrator can turn it on; give no steps "
+                "for it, and never say the portal lacks the feature.\n"
                 "- The documentation names the product; refer to the portal "
                 "by its own name instead."
             ),
@@ -102,8 +108,21 @@ class SearchDocsTool(BaseTool):
         query = query[:MAX_QUERY_LENGTH]
 
         hits = search.search(user, query)
-        data = {"query": query, "sections": [hit.as_dict() for hit in hits]}
-        if not hits:
+        switched_off = search.switched_off_here(user, query, hits)
+        data = {
+            "query": query,
+            "sections": [hit.as_dict() for hit in hits],
+            "switched_off_here": switched_off,
+        }
+        names = ", ".join(item["name"] for item in switched_off)
+        if not hits and switched_off:
+            summary = (
+                f"No documentation section is available here for {query!r}: "
+                f"it is about {names}, which is switched off on this portal. "
+                "Tell the user it is not enabled here and that an "
+                "administrator can turn it on."
+            )
+        elif not hits:
             summary = (
                 f"No documentation section matches {query!r}. Tell the user "
                 "the documentation does not cover it; do not answer from memory."
@@ -115,6 +134,10 @@ class SearchDocsTool(BaseTool):
                 summary += (
                     f" {disabled} describe(s) a feature that is not enabled, or "
                     "not known to be enabled, on this portal."
+                )
+            if switched_off:
+                summary += (
+                    f" Switched off on this portal and matching the query: {names}."
                 )
         return {"type": "success", "summary": summary, "data": data}
 
