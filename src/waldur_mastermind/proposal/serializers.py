@@ -1155,7 +1155,9 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
     def get_reviews(self, obj) -> list:
         """
         Return serialized reviews based on user permissions and visibility settings.
-        - Staff, call managers, and reviewers see all reviews.
+        - Staff and call managers see all reviews.
+        - Reviewers see their own reviews only, as on /api/proposal-reviews/
+          (filter_reviews_for_user): reviewers judge independently.
         - Submitters see submitted reviews if visibility is enabled.
         """
         request = self.context.get("request")
@@ -1167,17 +1169,20 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
         reviews_qs = obj.review_set.all()
         on_team = proposal_roles.is_on_applicant_team(user, obj)
 
-        if (
-            user.is_staff
-            or (
-                not on_team
-                and proposal_permissions.manages_call_workflow(user, obj.round.call)
-            )
-            or (not on_team and reviews_qs.filter(reviewer=user).exists())
+        if user.is_staff or (
+            not on_team
+            and proposal_permissions.manages_call_workflow(user, obj.round.call)
         ):
             return ProposalReviewSerializer(
                 reviews_qs, many=True, context=self.context
             ).data
+
+        if not on_team:
+            own_reviews = reviews_qs.filter(reviewer=user)
+            if own_reviews.exists():
+                return ProposalReviewSerializer(
+                    own_reviews, many=True, context=self.context
+                ).data
 
         # The applicant team's view
         if (
@@ -12166,7 +12171,8 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
         help_text=(
             "For whoever may complete the active step: every contribution "
             "is in and its completion gates are met, so it waits only for "
-            "them. False for everyone else."
+            "them. The minimum score threshold counts only for those who "
+            "read score_gate. False for everyone else."
         )
     )
     decided_automatically = serializers.SerializerMethodField(
@@ -12180,7 +12186,8 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             "The active step's score against its minimum score threshold, "
             "before anyone decides: below it, only declining is possible. "
             "Null without a threshold, once the step is no longer active, "
-            "and for readers outside the call team."
+            "and for readers outside the call team, the step's own "
+            "evaluators included."
         )
     )
     stage = serializers.SerializerMethodField(
@@ -12754,11 +12761,13 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(StepScoreGateSerializer(allow_null=True))
     def get_score_gate(self, obj):
-        # The score sums up the evaluators' grading: the call team's side.
+        # The score sums up the evaluators' grading: the call team's side,
+        # not that of an evaluator taking part in the step, who would read
+        # their peers' scores off it.
         if (
             obj.status != WorkflowStepInstanceStatuses.ACTIVE
             or obj.call_step.min_score_threshold is None
-            or not self._context_flag("can_view_internal_notes", obj)
+            or not self._context_flag("can_view_step_scores", obj)
         ):
             return None
         gate = workflow_service.score_gate(obj)
@@ -12862,7 +12871,11 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             or not obj.call_step.collects_contributions
         ):
             return False
-        return workflow_service.is_ready_to_complete(request.user, obj)
+        return workflow_service.is_ready_to_complete(
+            request.user,
+            obj,
+            reads_score=self._context_flag("can_view_step_scores", obj),
+        )
 
     @extend_schema_field(serializers.ListField(child=serializers.UUIDField()))
     def get_input_step_uuids(self, obj):

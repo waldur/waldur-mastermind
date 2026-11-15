@@ -956,6 +956,59 @@ def user_can_view_internal_notes(
     return contributions.takes_part_in_step(user, instance, access)
 
 
+def user_can_view_step_scores(user, proposal, staff=None) -> bool:
+    """Whether ``user`` reads the score a step's minimum score threshold is
+    checked against, and the score details of a completion it refuses.
+
+    The call team: staff and support, a call-wide role holder on the call,
+    whoever oversees the call or drives its workflow -- never anyone on the
+    proposal's applicant team. Not a call reviewer or panel member by
+    taking part in a step (``user_can_view_internal_notes`` with an
+    instance): the score averages the evaluators' grading, so one of them
+    reading it next to their own score would learn their peers'.
+    """
+    if _acts_as_staff(user, staff):
+        return True
+    if proposal_roles.is_on_applicant_team(user, proposal):
+        return False
+    if user.is_support:
+        return True
+    if user.is_staff:
+        # Not acting as staff (a token without the staff scope): the
+        # oversight checks below would pass on the user's flag, so only a
+        # call-wide role held on the call counts.
+        return user_can_view_internal_notes(user, proposal, staff=False)
+    return (
+        user_can_view_internal_notes(user, proposal, staff=staff)
+        or oversees_proposal_call(user, proposal)
+        or manages_proposal_workflow(user, proposal)
+    )
+
+
+def user_can_view_review_scores(user, proposal, staff=None) -> bool:
+    """Whether ``user`` reads the scores of ``proposal``'s submitted reviews
+    taken together, as an average, say.
+
+    Those who read a step's score (``user_can_view_step_scores``) do, and so
+    does anyone who may read every one of the submitted reviews anyway
+    (``managers.filter_reviews_for_user``), such as the applicant team once
+    the proposal is decided on a call that shows reviews to submitters.
+    Anyone else -- a reviewer reading their own review, the applicant team
+    while the proposal is under review -- does not: one reviewer's own
+    score next to the average gives the others'.
+    """
+    if user_can_view_step_scores(user, proposal, staff=staff):
+        return True
+    if user.is_staff:
+        # Not acting as staff: filter_reviews_for_user reads the user's flag.
+        return False
+    submitted = proposal_models.Review.objects.filter(
+        proposal=proposal, state=proposal_models.Review.States.SUBMITTED
+    )
+    readable = managers.filter_reviews_for_user(user).values("pk")
+    return not submitted.exclude(pk__in=readable).exists()
+
+
 def reads_as_reviewer_only(user, proposal) -> bool:
     """Whether ``user`` reads ``proposal`` solely as one of its reviewers.
 
