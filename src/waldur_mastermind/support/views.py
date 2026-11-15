@@ -12,7 +12,7 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import (
     decorators,
     generics,
@@ -1830,6 +1830,7 @@ class FeedbackReportViewSet(generics.GenericAPIView):
     serializer_class = EmptySerializer
     pagination_class = None
 
+    @extend_schema(responses={200: serializers.FEEDBACK_REPORT_SCHEMA})
     def get(self, request, format=None):
         result = {
             str(count["evaluation"]): count["id__count"]
@@ -1846,6 +1847,15 @@ class FeedbackAverageReportViewSet(generics.GenericAPIView):
     serializer_class = EmptySerializer
     pagination_class = None
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(
+                response={"type": "number", "format": "double", "nullable": True},
+                description="Average evaluation, rounded to two decimals; "
+                "null when there is no feedback.",
+            )
+        }
+    )
     def get(self, request, format=None):
         avg = models.Feedback.objects.aggregate(Avg("evaluation"))["evaluation__avg"]
 
@@ -1853,7 +1863,9 @@ class FeedbackAverageReportViewSet(generics.GenericAPIView):
             result = round(avg, 2)
         else:
             result = None
-        return response.Response(result, status=status.HTTP_200_OK)
+        # DRF renders a None body as an empty response, which no JSON client
+        # can decode; send an explicit null instead.
+        return JsonResponse(result, safe=False, status=status.HTTP_200_OK)
 
 
 class ZammadWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
@@ -2524,7 +2536,7 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     save_settings_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
-        responses={200: None},
+        responses={200: serializers.AtlassianCurrentSettingsSerializer},
         description="Get current Atlassian settings (masked secrets).",
     )
     @decorators.action(detail=False, methods=["get"])

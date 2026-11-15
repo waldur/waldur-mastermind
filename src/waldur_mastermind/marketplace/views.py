@@ -14103,7 +14103,7 @@ class OfferingUsersViewSet(
             "service provider for the associated offerings."
         ),
         request=None,
-        responses={200: serializers.ProfileFieldWarningsSerializer},
+        responses={200: serializers.PROFILE_FIELD_WARNINGS_SCHEMA},
     )
     @action(detail=False, methods=["get"])
     def profile_field_warnings(self, request):
