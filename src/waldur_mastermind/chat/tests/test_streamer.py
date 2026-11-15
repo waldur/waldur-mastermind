@@ -2,6 +2,7 @@ import datetime
 import json
 import queue
 import threading
+import time
 import unittest
 from contextlib import contextmanager
 from decimal import Decimal
@@ -16,6 +17,7 @@ from waldur_mastermind.chat.llm_streamer import (
     _CANCEL_CHECK_INTERVAL,
     _MAX_TOOL_ROUNDS,
     LLMStreamer,
+    _delta_chars,
 )
 from waldur_mastermind.chat.models import (
     ChatSession,
@@ -76,6 +78,7 @@ class _LLMStreamerTestBase:
             AI_ASSISTANT_ENABLED_ROLES="all",
             AI_ASSISTANT_BACKEND_TYPE="generic",
             AI_ASSISTANT_COMPLETION_KWARGS={},
+            AI_ASSISTANT_SHOW_REASONING=False,
         )
         self.mock_config = config_patcher.start()
         self.addCleanup(config_patcher.stop)
@@ -1116,6 +1119,23 @@ class LLMStreamerErrorMessagesTest(_LLMStreamerTestBase, unittest.TestCase):
         msg = self._get_error_message(self._make_error_streamer(error))
         self.assertIn("interrupted", msg.lower())
 
+    def test_api_error_is_sent_when_the_flush_before_it_fails(self):
+        error = openai.APIConnectionError(request=MagicMock())
+        streamer = self._make_error_streamer(error)
+        flush = streamer._flush_parser
+        calls = []
+
+        def failing_once():
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("flush failed")
+            flush()
+
+        streamer._flush_parser = failing_once
+        msg = self._get_error_message(streamer)
+        self.assertIn("connect", msg.lower())
+        self.assertTrue(streamer.error)
+
 
 class LLMStreamerCompletionKwargsTest(unittest.TestCase):
     """Test the layered kwargs system in _stream_completion."""
@@ -1692,6 +1712,8 @@ class BlockAccumulatorTest(unittest.TestCase):
         self.assertEqual(blk["tool"]["name"], "list_vm_projects")
         self.assertEqual(blk["result"]["key"], "vm_order")
         self.assertEqual(blk["result"]["projects"], [{"name": "proj-a"}])
+        self.assertEqual(blk["result"]["status"], "complete")
+        self.assertEqual(blk["result"]["order_status"], "project_form")
 
     def test_interleaved_text_and_tool_preserves_order(self):
         s = self._new_streamer()
@@ -2460,3 +2482,627 @@ class LLMStreamerToolResultEncodingTest(unittest.TestCase):
         content = json.loads(followup[-1]["content"])
         self.assertEqual(content["usage"], "42.00")
         self.assertEqual(content["period"], "2026-09-01")
+
+
+class LLMStreamerReasoningTest(_LLMStreamerTestBase, unittest.TestCase):
+    """A thinking model sends its reasoning in a separate delta field.
+    Logged-in users get it streamed and stored; anonymous users never do."""
+
+    def setUp(self):
+        super().setUp()
+        self.mock_config.AI_ASSISTANT_SHOW_REASONING = True
+        self.user = Mock(id=1, username="testuser")
+
+    def _run(self, rounds, user=None, enabled_tools=()):
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", user=user
+        )
+        streamer.client = _mock_openai_client_multi(rounds)
+        streamer._enabled_tool_names.update(enabled_tools)
+        return streamer, [json.loads(line) for line in streamer]
+
+    def _reasoning_blocks(self, streamer):
+        return [b for b in streamer.accumulated_blocks if b["key"] == "reasoning"]
+
+    def test_logged_in_user_gets_reasoning_before_the_answer(self):
+        streamer, output = self._run(
+            [
+                [
+                    _make_chunk(reasoning="The user wants "),
+                    _make_chunk(reasoning="a greeting."),
+                    _make_chunk(content="Hello"),
+                ]
+            ],
+            user=self.user,
+        )
+
+        kinds = [e.get("k") for e in output if "k" in e]
+        self.assertEqual(kinds[0], "reasoning")
+        self.assertLess(kinds.index("reasoning"), kinds.index("markdown"))
+        self.assertEqual(
+            "".join(e["c"] for e in output if e.get("k") == "reasoning"),
+            "The user wants a greeting.",
+        )
+        # The thinking-done frame comes right before the answer.
+        end = output[kinds.index("markdown") - 1]
+        self.assertEqual(end["c"], "")
+        self.assertIsInstance(end["d"], int)
+
+        reasoning, answer = streamer.accumulated_blocks
+        self.assertEqual(reasoning["key"], "reasoning")
+        self.assertEqual(reasoning["content"], "The user wants a greeting.")
+        self.assertEqual(reasoning["status"], "complete")
+        self.assertIsInstance(reasoning["duration_ms"], int)
+        self.assertEqual(answer["content"], "Hello")
+
+    def test_reasoning_content_field_is_read_too(self):
+        streamer, _ = self._run(
+            [[_make_chunk(reasoning_content="Thinking"), _make_chunk(content="Hi")]],
+            user=self.user,
+        )
+
+        self.assertEqual(self._reasoning_blocks(streamer)[0]["content"], "Thinking")
+
+    def test_fragments_are_grouped_into_frames(self):
+        fragments = [_make_chunk(reasoning="x" * 10) for _ in range(10)]
+        _, output = self._run([[*fragments, _make_chunk(content="Hi")]], user=self.user)
+
+        frames = [e["c"] for e in output if e.get("k") == "reasoning" and e["c"]]
+        # 80 characters fill the first frame; the rest is sent before the answer.
+        self.assertEqual([len(f) for f in frames], [80, 20])
+
+    def test_each_model_call_gets_its_own_block(self):
+        tool_call = _make_tool_call_delta(
+            0, name="search_tools", arguments="{}", call_id="call_1"
+        )
+        rounds = [
+            [_make_chunk(reasoning="Need tools."), _make_chunk(tool_calls=[tool_call])],
+            [_make_chunk(reasoning="Now answer."), _make_chunk(content="Done.")],
+        ]
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value={"type": "success", "summary": "ok", "data": {}},
+        ):
+            streamer, _ = self._run(rounds, user=self.user)
+
+        self.assertEqual(
+            [b["key"] for b in streamer.accumulated_blocks],
+            ["reasoning", "tool", "reasoning", "markdown"],
+        )
+        self.assertEqual(
+            [b["content"] for b in self._reasoning_blocks(streamer)],
+            ["Need tools.", "Now answer."],
+        )
+        # Reasoning is never replayed to the model.
+        followup = streamer.client.chat.completions.create.call_args_list[1]
+        self.assertNotIn("Need tools.", json.dumps(followup.kwargs["messages"]))
+
+    def test_stored_reasoning_is_capped(self):
+        long_text = "y" * 25_000
+        streamer, output = self._run(
+            [[_make_chunk(reasoning=long_text), _make_chunk(content="Hi")]],
+            user=self.user,
+        )
+
+        self.assertEqual(len(self._reasoning_blocks(streamer)[0]["content"]), 20_000)
+        streamed = "".join(e["c"] for e in output if e.get("k") == "reasoning")
+        self.assertEqual(streamed, long_text)
+
+    @patch("waldur_mastermind.chat.llm_streamer._REASONING_MAX_STORED_CHARS", 10)
+    def test_storage_cap_covers_all_model_calls_of_a_reply(self):
+        tool_call = _make_tool_call_delta(
+            0, name="search_tools", arguments="{}", call_id="call_1"
+        )
+        rounds = [
+            [_make_chunk(reasoning="1234567"), _make_chunk(tool_calls=[tool_call])],
+            [_make_chunk(reasoning="abcdefg"), _make_chunk(content="Done.")],
+        ]
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value={"type": "success", "summary": "ok", "data": {}},
+        ):
+            streamer, _ = self._run(rounds, user=self.user)
+
+        self.assertEqual(
+            [b["content"] for b in self._reasoning_blocks(streamer)],
+            ["1234567", "abc"],
+        )
+
+    def _run_with_text_before_a_tool(self, user, enabled_tools=()):
+        tool_call = _make_tool_call_delta(
+            0, name="search_tools", arguments="{}", call_id="call_1"
+        )
+        rounds = [
+            [
+                _make_chunk(content="Let me check that."),
+                _make_chunk(tool_calls=[tool_call]),
+            ],
+            [_make_chunk(content="Done.")],
+        ]
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value={"type": "success", "summary": "ok", "data": {}},
+        ):
+            _, output = self._run(rounds, user=user, enabled_tools=enabled_tools)
+        return output
+
+    def test_short_text_before_a_tool_call_is_narration(self):
+        output = self._run_with_text_before_a_tool(self.user)
+
+        self.assertIn({"k": "narration", "c": "Let me check that."}, output)
+        self.assertNotIn({"k": "markdown", "c": "Let me check that."}, output)
+
+    def test_setting_off_keeps_text_before_a_tool_call_in_the_answer(self):
+        self.mock_config.AI_ASSISTANT_SHOW_REASONING = False
+        output = self._run_with_text_before_a_tool(self.user)
+
+        self.assertNotIn("narration", [e.get("k") for e in output])
+        self.assertIn({"k": "markdown", "c": "Let me check that."}, output)
+
+    def test_anonymous_text_before_a_tool_call_stays_in_the_answer(self):
+        output = self._run_with_text_before_a_tool(None)
+
+        self.assertNotIn("narration", [e.get("k") for e in output])
+        self.assertIn({"k": "markdown", "c": "Let me check that."}, output)
+
+    def test_setting_off_streams_text_without_holding_it_back(self):
+        self.mock_config.AI_ASSISTANT_SHOW_REASONING = False
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", user=self.user
+        )
+        tool_call = _make_tool_call_delta(
+            0, name="search_tools", arguments="{}", call_id="call_1"
+        )
+        streamer.client = _mock_openai_client_multi(
+            [
+                [
+                    _make_chunk(content="Hel"),
+                    _make_chunk(content="lo"),
+                    _make_chunk(tool_calls=[tool_call]),
+                ],
+                [_make_chunk(content="Done.")],
+            ]
+        )
+        with (
+            patch(
+                "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+                return_value={"type": "success", "summary": "ok", "data": {}},
+            ),
+            patch.object(streamer, "_send_text", wraps=streamer._send_text) as send,
+        ):
+            list(streamer)
+
+        self.assertEqual(
+            [call.args[0] for call in send.call_args_list], ["Hel", "lo", "Done."]
+        )
+
+    def test_a_running_tool_is_announced_to_the_client(self):
+        output = self._run_with_text_before_a_tool(
+            None, enabled_tools=("search_tools",)
+        )
+
+        self.assertIn({"k": "load", "t": "tool"}, output)
+
+    def test_tools_without_a_result_frame_announce_one_load(self):
+        # A client removes a tool's loading block when the next frame arrives.
+        # Two load frames in a row would leave the first one spinning.
+        calls = [
+            _make_tool_call_delta(
+                i, name="search_tools", arguments="{}", call_id=f"call_{i}"
+            )
+            for i in range(2)
+        ]
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value={"type": "success", "summary": "ok", "data": {}},
+        ):
+            _, output = self._run(
+                [[_make_chunk(tool_calls=calls)], [_make_chunk(content="Done.")]],
+                user=self.user,
+                enabled_tools=("search_tools",),
+            )
+
+        self.assertEqual(output.count({"k": "load", "t": "tool"}), 1)
+
+    def test_usage_estimate_counts_the_tool_definitions(self):
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        streamer._estimate_usage(_messages(), 0)
+        without_tools = streamer.input_tokens
+
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        streamer._sent_tools = [{"type": "function", "function": {"name": "x" * 400}}]
+        streamer._estimate_usage(_messages(), 0)
+
+        self.assertGreaterEqual(streamer.input_tokens, without_tools + 100)
+
+    def test_tool_call_markup_stays_out_of_narration(self):
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        streamer._show_reasoning = True
+        streamer._held_text = "Let me check.<tool_call>{}</tool_call>"
+        streamer._send_narration()
+
+        self.assertEqual(
+            json.loads(streamer._queue.get_nowait()),
+            {"k": "narration", "c": "Let me check."},
+        )
+
+    def test_narration_of_only_tool_call_markup_sends_nothing(self):
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        streamer._held_text = "<tool_call>{}</tool_call>"
+        streamer._send_narration()
+
+        self.assertTrue(streamer._queue.empty())
+
+    def test_long_text_before_a_tool_call_streams_as_answer(self):
+        tool_call = _make_tool_call_delta(
+            0, name="search_tools", arguments="{}", call_id="call_1"
+        )
+        long_text = "word " * 80
+        rounds = [
+            [_make_chunk(content=long_text), _make_chunk(tool_calls=[tool_call])],
+            [_make_chunk(content="Done.")],
+        ]
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value={"type": "success", "summary": "ok", "data": {}},
+        ):
+            _, output = self._run(rounds, user=self.user)
+
+        self.assertNotIn("narration", [e.get("k") for e in output])
+        streamed = "".join(e["c"] for e in output if e.get("k") == "markdown")
+        self.assertIn(long_text.strip(), streamed)
+
+    def test_no_hold_back_when_no_tools_were_sent(self):
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", user=self.user
+        )
+        held_after_first_chunk = []
+
+        def chunks():
+            yield _make_chunk(content="Hel")
+            held_after_first_chunk.append(streamer._held_text)
+            yield _make_chunk(content="lo")
+
+        streamer.client = _mock_openai_client(chunks())
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.get_tool_set_for_user",
+            return_value=[],
+        ):
+            output = [json.loads(line) for line in streamer]
+
+        self.assertNotIn(
+            "tools", streamer.client.chat.completions.create.call_args.kwargs
+        )
+        # Nothing to wait for: the text goes straight to the parser.
+        self.assertEqual(held_after_first_chunk, [""])
+        self.assertEqual(
+            "".join(e["c"] for e in output if e.get("k") == "markdown"), "Hello"
+        )
+
+    def test_held_text_is_sent_before_an_error(self):
+        def failing():
+            yield _make_chunk(content="Partial answer")
+            raise openai.APIConnectionError(request=Mock())
+
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", user=self.user
+        )
+        streamer.client = _mock_openai_client(failing())
+        output = [json.loads(line) for line in streamer]
+
+        kinds = ["e" if "e" in e else e.get("k") for e in output]
+        self.assertLess(kinds.index("markdown"), kinds.index("e"))
+
+    def test_held_text_is_sent_before_an_internal_error(self):
+        def failing():
+            yield _make_chunk(content="Partial answer")
+            raise RuntimeError("bug")
+
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", user=self.user
+        )
+        streamer.client = _mock_openai_client(failing())
+        output = [json.loads(line) for line in streamer]
+
+        kinds = ["e" if "e" in e else e.get("k") for e in output]
+        self.assertLess(kinds.index("markdown"), kinds.index("e"))
+
+    def test_short_final_answer_is_sent_when_the_call_ends(self):
+        _, output = self._run([[_make_chunk(content="Hi there.")]], user=self.user)
+
+        self.assertEqual(output, [{"k": "markdown", "c": "Hi there."}])
+
+    def test_flush_mid_thought_keeps_the_text_and_duration(self):
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", user=self.user
+        )
+        streamer._add_reasoning("Half a thought")
+        streamer._flush_parser()
+
+        (block,) = streamer.accumulated_blocks
+        self.assertEqual(block["content"], "Half a thought")
+        self.assertIn("duration_ms", block)
+
+    def test_anonymous_user_gets_no_reasoning(self):
+        streamer, output = self._run(
+            [[_make_chunk(reasoning="secret plan"), _make_chunk(content="Hello")]],
+        )
+
+        self.assertNotIn("secret plan", json.dumps(output))
+        self.assertEqual(self._reasoning_blocks(streamer), [])
+
+    def test_setting_off_gives_logged_in_users_the_anonymous_behaviour(self):
+        self.mock_config.AI_ASSISTANT_SHOW_REASONING = False
+        streamer, output = self._run(
+            [[_make_chunk(reasoning="secret plan"), _make_chunk(content="Hello")]],
+            user=self.user,
+        )
+
+        self.assertNotIn("secret plan", json.dumps(output))
+        self.assertEqual(self._reasoning_blocks(streamer), [])
+
+    @patch("waldur_mastermind.chat.llm_streamer._THINKING_KEEPALIVE_SECONDS", 0)
+    def test_hidden_reasoning_sends_a_keepalive(self):
+        streamer, output = self._run(
+            [[_make_chunk(reasoning="hmm"), _make_chunk(content="Hello")]],
+        )
+
+        self.assertIn({"m": {"status": "thinking"}}, output)
+        self.assertEqual([b["key"] for b in streamer.accumulated_blocks], ["markdown"])
+
+    def test_no_keepalive_while_the_client_recently_got_a_frame(self):
+        _, output = self._run(
+            [[_make_chunk(reasoning="hmm"), _make_chunk(content="Hello")]],
+        )
+
+        self.assertNotIn({"m": {"status": "thinking"}}, output)
+
+    def test_non_thinking_model_streams_as_before(self):
+        streamer, output = self._run([[_make_chunk(content="Hello")]], user=self.user)
+
+        self.assertEqual(output, [{"k": "markdown", "c": "Hello"}])
+        self.assertEqual([b["key"] for b in streamer.accumulated_blocks], ["markdown"])
+
+    @patch("waldur_mastermind.chat.llm_streamer._MAX_REQUEST_TIMEOUTS", 0.0017)
+    def test_endless_thinking_is_stopped_by_the_request_limit(self):
+        def endless_reasoning():
+            while True:
+                time.sleep(0.1)
+                yield _make_chunk(reasoning="again ")
+
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        streamer.client = _mock_openai_client(endless_reasoning())
+        output = [json.loads(line) for line in streamer]
+
+        self.assertIn({"e": "Request timed out. Please try again."}, output)
+        # No usage chunk arrives, so the tokens are estimated.
+        self.assertGreater(streamer.input_tokens, 0)
+        self.assertGreater(streamer.output_tokens, 0)
+
+    @patch("waldur_mastermind.chat.llm_streamer._MAX_REQUEST_TIMEOUTS", 0.0017)
+    def test_request_limit_after_stop_ends_without_an_error(self):
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+
+        def reasoning_after_stop():
+            yield _make_chunk(reasoning="hmm ")
+            streamer._cancel_requested.set()
+            while True:
+                time.sleep(0.1)
+                yield _make_chunk(reasoning="again ")
+
+        streamer.client = _mock_openai_client(reasoning_after_stop())
+        output = [json.loads(line) for line in streamer]
+
+        self.assertNotIn("e", {key for e in output for key in e})
+        self.assertIsNone(streamer.error)
+        self.assertGreater(streamer.output_tokens, 0)
+
+    @patch("waldur_mastermind.chat.llm_streamer._MAX_REQUEST_TIMEOUTS", 0.0017)
+    def test_usage_estimate_counts_what_is_generated_after_stop(self):
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+
+        def reasoning_after_stop():
+            streamer._cancel_requested.set()
+            while True:
+                time.sleep(0.05)
+                yield _make_chunk(reasoning="x" * 400)
+
+        streamer.client = _mock_openai_client(reasoning_after_stop())
+        list(streamer)
+
+        # Each chunk is 100 tokens, and the first ones came after the Stop.
+        self.assertGreaterEqual(streamer.output_tokens, 300)
+
+    def test_usage_estimate_counts_tool_call_arguments(self):
+        delta = (
+            _make_chunk(
+                content="ab",
+                tool_calls=[_make_tool_call_delta(0, "tool", '{"a": 1}')],
+            )
+            .choices[0]
+            .delta
+        )
+
+        self.assertEqual(_delta_chars(delta, "cd"), 12)
+
+    def test_request_limit_follows_the_stream_timeout(self):
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", worker_timeout=300
+        )
+
+        self.assertGreater(streamer._deadline, time.monotonic() + 1490)
+
+    @patch("waldur_mastermind.chat.llm_streamer._MAX_REQUEST_TIMEOUTS", 0.0005)
+    def test_request_limit_keeps_a_call_that_is_finishing(self):
+        def finished_late():
+            yield _make_chunk(content="Answer")
+            time.sleep(0.3)
+            last = _make_chunk(content=None)
+            last.choices[0].finish_reason = "stop"
+            yield last
+            yield _make_chunk(
+                usage={"prompt_tokens": 11, "completion_tokens": 7},
+            )
+
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        streamer.client = _mock_openai_client(finished_late())
+        output = [json.loads(line) for line in streamer]
+
+        self.assertNotIn("e", {key for e in output for key in e})
+        self.assertEqual((streamer.input_tokens, streamer.output_tokens), (11, 7))
+
+    def test_request_limit_ends_an_endless_title_call(self):
+        def endless_title():
+            while True:
+                time.sleep(0.1)
+                yield _make_chunk(reasoning="again ")
+
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        streamer.is_new_thread = True
+        streamer.thread = MagicMock()
+        streamer._deadline = time.monotonic() + 0.3
+        streamer.client = _mock_openai_client(endless_title())
+        with patch.object(streamer, "_title_source_text", return_value="Hi"):
+            streamer._generate_thread_name()
+
+        self.assertGreater(time.monotonic(), streamer._deadline)
+
+    def test_long_thinking_does_not_time_out_while_the_llm_streams(self):
+        def slow_reasoning():
+            # 2.4 s of thinking with nothing sent to the (anonymous) client.
+            for _ in range(8):
+                time.sleep(0.3)
+                yield _make_chunk(reasoning="...")
+            yield _make_chunk(content="Answer")
+
+        streamer = LLMStreamer(
+            _messages(), "https://example.com/v1", "dummy-token", worker_timeout=1
+        )
+        streamer.client = _mock_openai_client(slow_reasoning())
+        output = [json.loads(line) for line in streamer]
+
+        self.assertNotIn("e", {key for e in output for key in e})
+        self.assertIn({"k": "markdown", "c": "Answer"}, output)
+
+
+class LLMStreamerReasoningPersistenceTest(_LLMStreamerTestBase, drf_test.APITestCase):
+    def test_reasoning_is_saved_with_its_duration_but_not_searchable(self):
+        self.mock_config.AI_ASSISTANT_SHOW_REASONING = True
+        user = structure_factories.UserFactory()
+        session = ChatSession.objects.create(user=user)
+        thread = ThreadSession.objects.create(chat_session=session, name="test")
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=user,
+            thread=thread,
+            original_input="hi",
+        )
+        # _persist_messages is called directly: the worker thread has its own
+        # connection and can't see this test's rows.
+        streamer._add_reasoning("secret plan")
+        streamer._end_reasoning()
+        streamer._absorb_block({"k": "markdown", "c": "Hello"})
+        streamer._persist_messages()
+
+        assistant = thread.messages.get(role=Message.Role.ASSISTANT)
+        reasoning, answer = assistant.blocks
+        self.assertEqual(reasoning["key"], "reasoning")
+        self.assertEqual(reasoning["content"], "secret plan")
+        self.assertIn("duration_ms", reasoning)
+        self.assertEqual(assistant.search_text, "Hello")
+
+    def test_error_after_reasoning_only_drops_the_placeholder(self):
+        self.mock_config.AI_ASSISTANT_SHOW_REASONING = True
+        user = structure_factories.UserFactory()
+        session = ChatSession.objects.create(user=user)
+        thread = ThreadSession.objects.create(chat_session=session, name="test")
+        user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("hi"),
+            sequence_index=1,
+        )
+        placeholder = Message.objects.create(
+            thread=thread, role=Message.Role.ASSISTANT, blocks=[], sequence_index=2
+        )
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=user,
+            thread=thread,
+            user_msg=user_msg,
+            assistant_msg=placeholder,
+        )
+        streamer._add_reasoning("Thinking about it")
+        streamer.error = "upstream failed"
+        streamer._persist_messages()
+
+        self.assertFalse(Message.objects.filter(pk=placeholder.pk).exists())
+
+    def test_error_after_a_tool_keeps_the_reply(self):
+        self.mock_config.AI_ASSISTANT_SHOW_REASONING = True
+        user = structure_factories.UserFactory()
+        session = ChatSession.objects.create(user=user)
+        thread = ThreadSession.objects.create(chat_session=session, name="test")
+        user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("hi"),
+            sequence_index=1,
+        )
+        placeholder = Message.objects.create(
+            thread=thread, role=Message.Role.ASSISTANT, blocks=[], sequence_index=2
+        )
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=user,
+            thread=thread,
+            user_msg=user_msg,
+            assistant_msg=placeholder,
+        )
+        streamer._absorb_block({"k": "narration", "c": "Let me check."})
+        streamer.pending_tool_calls = {"call_1": {"name": "search_tools"}}
+        streamer._absorb_block({"k": "load", "t": "tool", "call_id": "call_1"})
+        streamer._absorb_block({"k": "markdown", "c": "", "call_id": "call_1"})
+        streamer.error = "upstream failed"
+        streamer._persist_messages()
+
+        placeholder.refresh_from_db()
+        self.assertEqual(
+            [block["key"] for block in placeholder.blocks], ["narration", "tool"]
+        )
+
+    def test_error_after_tool_call_markup_only_drops_the_placeholder(self):
+        user = structure_factories.UserFactory()
+        session = ChatSession.objects.create(user=user)
+        thread = ThreadSession.objects.create(chat_session=session, name="test")
+        user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("hi"),
+            sequence_index=1,
+        )
+        placeholder = Message.objects.create(
+            thread=thread, role=Message.Role.ASSISTANT, blocks=[], sequence_index=2
+        )
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=user,
+            thread=thread,
+            user_msg=user_msg,
+            assistant_msg=placeholder,
+        )
+        streamer._absorb_block(
+            {"k": "markdown", "c": '<tool_call>{"name": "x"}</tool_call>'}
+        )
+        streamer.error = "upstream failed"
+        streamer._persist_messages()
+
+        self.assertFalse(Message.objects.filter(pk=placeholder.pk).exists())

@@ -1,7 +1,11 @@
 import pytest
 from rest_framework.exceptions import ValidationError
 
-from waldur_mastermind.chat.block_schemas import BlockSerializer
+from waldur_mastermind.chat.block_schemas import (
+    BlockSerializer,
+    blocks_to_text,
+    clean_answer_blocks,
+)
 
 
 def _validate(block):
@@ -173,3 +177,80 @@ def test_tool_block_with_invalid_result_rejected():
                 "result": {"key": "garbage"},
             }
         )
+
+
+def test_reasoning_block_round_trips():
+    block = {
+        "id": "blk_0",
+        "key": "reasoning",
+        "status": "complete",
+        "content": "The user wants a greeting.",
+        "duration_ms": 6200,
+    }
+    assert _validate(block) == block
+
+
+def test_reasoning_block_requires_duration():
+    with pytest.raises(ValidationError):
+        _validate(
+            {"id": "blk_0", "key": "reasoning", "status": "complete", "content": "x"}
+        )
+
+
+def test_reasoning_is_left_out_of_the_answer_text():
+    blocks = [
+        {
+            "id": "blk_0",
+            "key": "reasoning",
+            "status": "complete",
+            "content": "secret plan",
+            "duration_ms": 10,
+        },
+        {"id": "blk_1", "key": "markdown", "status": "complete", "content": "Hi"},
+    ]
+    # blocks_to_text feeds Message.search_text and the evaluators' response_text.
+    assert blocks_to_text(blocks) == "Hi"
+    assert clean_answer_blocks(blocks) == blocks
+
+
+def test_narration_is_its_own_sentence_in_the_answer_text():
+    blocks = [
+        {
+            "id": "b0",
+            "key": "narration",
+            "status": "complete",
+            "content": "Let me check.",
+        },
+        {
+            "id": "b1",
+            "key": "markdown",
+            "status": "complete",
+            "content": "Here you go.",
+        },
+    ]
+    assert blocks_to_text(blocks) == "Let me check.\n\nHere you go."
+
+
+def test_narration_after_other_text_starts_a_new_paragraph():
+    blocks = [
+        {"id": "b0", "key": "code", "status": "complete", "content": "x = 1"},
+        {
+            "id": "b1",
+            "key": "narration",
+            "status": "complete",
+            "content": "Let me check.",
+        },
+    ]
+    assert blocks_to_text(blocks) == "```\nx = 1\n```\n\nLet me check."
+
+
+def test_tool_call_markup_is_stripped_from_narration():
+    blocks = [
+        {
+            "id": "b0",
+            "key": "narration",
+            "status": "complete",
+            "content": 'Checking <tool_call>{"name": "x"}</tool_call>',
+        }
+    ]
+    assert clean_answer_blocks(blocks)[0]["content"] == "Checking"

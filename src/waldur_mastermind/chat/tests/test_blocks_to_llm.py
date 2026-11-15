@@ -252,3 +252,21 @@ def test_tool_block_without_preceding_text_sets_content_none():
         ],
     }
     assert result[1] == {"role": "tool", "tool_call_id": "c1", "content": "done"}
+
+
+def test_reasoning_is_not_replayed_to_the_model():
+    result = blocks_to_llm_messages(
+        _mk(
+            [
+                {
+                    "id": "b0",
+                    "key": "reasoning",
+                    "status": "complete",
+                    "content": "secret plan",
+                    "duration_ms": 10,
+                },
+                {"id": "b1", "key": "markdown", "status": "complete", "content": "hi"},
+            ]
+        )
+    )
+    assert result == [{"role": "assistant", "content": "hi"}]
