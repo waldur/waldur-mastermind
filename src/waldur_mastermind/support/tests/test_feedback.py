@@ -141,7 +141,18 @@ class FeedbackReportTest(base.BaseTest):
             url_average = reverse("support-feedback-average-report")
             response = self.client.get(url_average)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertTrue(response.data, self.avg)
+            self.assertEqual(response.json(), self.avg)
+
+    def test_average_report_is_json_null_without_feedback(self):
+        models.Feedback.objects.all().delete()
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(reverse("support-feedback-average-report"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # A JSON null, not an empty body that clients cannot decode.
+        self.assertEqual(response.content, b"null")
+        self.assertEqual(response["Content-Type"], "application/json")
 
     @data(
         "owner",

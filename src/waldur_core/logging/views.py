@@ -9,6 +9,7 @@ from django.db.models import Count, Max
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import (
     OpenApiExample,
+    PolymorphicProxySerializer,
     extend_schema,
     extend_schema_view,
     inline_serializer,
@@ -229,6 +230,20 @@ class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     def get_queryset(self):
         return models.BaseHook.objects.select_related("webhook", "emailhook")
+
+    @extend_schema(
+        responses=PolymorphicProxySerializer(
+            component_name="Hook",
+            serializers={
+                "webhook": serializers.WebHookSerializer,
+                "email": serializers.EmailHookSerializer,
+            },
+            resource_type_field_name="hook_type",
+            many=True,
+        )
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
 
 class EventsStatsViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):

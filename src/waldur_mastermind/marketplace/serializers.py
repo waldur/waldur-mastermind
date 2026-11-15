@@ -13930,21 +13930,23 @@ class OfferingUserServiceProviderCommentSerializer(serializers.ModelSerializer):
         fields = ("service_provider_comment", "service_provider_comment_url")
 
 
-class ProfileFieldWarningOfferingSerializer(serializers.Serializer):
-    offering_uuid = serializers.UUIDField()
-    offering_name = serializers.CharField()
-
-
-class ProfileFieldWarningsSerializer(serializers.Serializer):
-    """Response serializer for profile_field_warnings endpoint.
-
-    Returns a mapping of user field names to lists of offerings
-    that expose those fields via OfferingUserAttributeConfig.
-    """
-
-    # The actual response is a dict with dynamic keys (field names),
-    # each mapping to a list of {offering_uuid, offering_name}.
-    # DRF's Serializer is used here for OpenAPI schema documentation.
+# Response of the profile_field_warnings endpoint: user profile field names
+# mapped to the offerings that expose them via OfferingUserAttributeConfig.
+# A raw schema, because the keys are dynamic.
+PROFILE_FIELD_WARNINGS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "offering_uuid": {"type": "string", "format": "uuid"},
+                "offering_name": {"type": "string"},
+            },
+            "required": ["offering_uuid", "offering_name"],
+        },
+    },
+}
 
 
 class UserChecklistCompletionListSerializer(serializers.ListSerializer):
