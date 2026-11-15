@@ -570,7 +570,11 @@ Server setup:
 
 - vLLM fills the reasoning field only when started with
   `--reasoning-parser qwen3`. Without it, thinking arrives inside the
-  answer as `<think>…</think>` and is shown to the user.
+  answer as `<think>…</think>` and is shown to logged-in users as part of
+  the answer. For anonymous visitors the streamer strips the tags and
+  their content. A chat template that opens the `<think>` tag in the
+  prompt leaves only `</think>` in the output, which the streamer cannot
+  recognise, so that setup needs the parser.
 - Set the effort through `reasoning_effort` or
   `extra_body.chat_template_kwargs` in `AI_ASSISTANT_COMPLETION_KWARGS`.
   Qwen3.8 defaults to `xhigh`.

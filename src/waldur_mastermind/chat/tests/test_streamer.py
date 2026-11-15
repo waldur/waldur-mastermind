@@ -2831,6 +2831,50 @@ class LLMStreamerReasoningTest(_LLMStreamerTestBase, unittest.TestCase):
         self.assertNotIn("secret plan", json.dumps(output))
         self.assertEqual(self._reasoning_blocks(streamer), [])
 
+    def test_anonymous_user_gets_no_think_tags_split_across_chunks(self):
+        streamer, output = self._run(
+            [
+                [
+                    _make_chunk(content="<thi"),
+                    _make_chunk(content="nk>secret "),
+                    _make_chunk(content="plan</th"),
+                    _make_chunk(content="ink>\n\nHello <b>"),
+                ]
+            ],
+        )
+
+        self.assertNotIn("secret", json.dumps(output))
+        self.assertNotIn("think", json.dumps(output))
+        text = "".join(b["content"] for b in streamer.accumulated_blocks)
+        self.assertEqual(text.strip(), "Hello <b>")
+        self.assertEqual(self._reasoning_blocks(streamer), [])
+
+    def test_anonymous_unclosed_think_tag_is_dropped(self):
+        streamer, output = self._run(
+            [[_make_chunk(content="Hi <think>secret plan")]],
+        )
+
+        self.assertNotIn("secret", json.dumps(output))
+        text = "".join(b["content"] for b in streamer.accumulated_blocks)
+        self.assertEqual(text.strip(), "Hi")
+
+    @patch("waldur_mastermind.chat.llm_streamer._THINKING_KEEPALIVE_SECONDS", 0)
+    def test_anonymous_think_tags_send_a_keepalive(self):
+        _, output = self._run(
+            [[_make_chunk(content="<think>hmm</think>"), _make_chunk(content="Hi")]],
+        )
+
+        self.assertIn({"m": {"status": "thinking"}}, output)
+
+    def test_logged_in_user_keeps_think_tags_in_the_answer(self):
+        streamer, _ = self._run(
+            [[_make_chunk(content="<think>plan</think>Hello")]],
+            user=self.user,
+        )
+
+        text = "".join(b["content"] for b in streamer.accumulated_blocks)
+        self.assertIn("plan", text)
+
     def test_setting_off_gives_logged_in_users_the_anonymous_behaviour(self):
         self.mock_config.AI_ASSISTANT_SHOW_REASONING = False
         streamer, output = self._run(
