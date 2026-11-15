@@ -20,6 +20,7 @@ from waldur_mastermind.chat.context_assembler import (
     resolve_prompt_role,
 )
 from waldur_mastermind.chat.deployment_profile import get_term_states
+from waldur_mastermind.chat.docs import corpus as docs_corpus
 from waldur_mastermind.chat.docs import evaluation as docs_evaluation
 from waldur_mastermind.chat.docs.models import DocSection
 from waldur_mastermind.chat.health_checks import (
@@ -815,7 +816,19 @@ class Command(BaseCommand):
                 f"connected to '{database}'. Nothing was changed."
             )
         if options["corpus"]:
-            call_command("load_docs_corpus", str(options["corpus"]), stdout=self.stdout)
+            # load_docs_corpus skips a missing or unreadable file, as a deploy
+            # must; here that would measure whatever corpus was loaded before.
+            if not Path(options["corpus"]).is_file():
+                raise CommandError(f"No docs corpus at {options['corpus']}.")
+            try:
+                result = docs_corpus.load_corpus(Path(options["corpus"]))
+            except docs_corpus.CorpusError as exc:
+                raise CommandError(f"Docs corpus {options['corpus']}: {exc}") from exc
+            self.stdout.write(
+                f"Docs corpus loaded: {result.created} created, {result.updated} "
+                f"updated, {result.deleted} deleted, {result.unchanged} unchanged, "
+                f"{result.skipped} invalid lines skipped."
+            )
         if not DocSection.objects.exists():
             raise CommandError("No docs corpus is loaded; pass --corpus.")
 
@@ -858,7 +871,10 @@ class Command(BaseCommand):
         # report is what matters here.
         logging.disable(logging.WARNING)
         try:
-            users = docs_evaluation.ensure_users()
+            try:
+                users = docs_evaluation.ensure_users()
+            except ValueError as exc:
+                raise CommandError(str(exc)) from exc
             rows = docs_evaluation.run(
                 questions,
                 users,

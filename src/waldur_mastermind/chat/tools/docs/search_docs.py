@@ -43,9 +43,14 @@ class SearchDocsTool(BaseTool):
                     "query": {
                         "type": "string",
                         "description": (
-                            "Keywords for the feature or task, e.g. "
-                            "'personal access token' or 'add user to project'. "
-                            "Leave out filler such as 'how do I'."
+                            "English keywords for the feature or task, e.g. "
+                            "'personal access token' or 'add user to project', "
+                            "whatever language the user writes in: the "
+                            "documentation is in English. Leave out filler "
+                            "such as 'how do I', but when the user asks what "
+                            "something is, what happens, or how two things "
+                            "differ, keep those words: 'what is an offering', "
+                            "'organization project difference'."
                         ),
                         "maxLength": MAX_QUERY_LENGTH,
                     },
@@ -60,6 +65,8 @@ class SearchDocsTool(BaseTool):
                 "how a portal feature works. Not for the user's own data (use "
                 "the account and marketplace tools) and not for general IT "
                 "questions unrelated to the portal.\n"
+                "- Search in English, the language of the documentation, "
+                "and answer in the language the user wrote in.\n"
                 "- Answer from the returned excerpts only, and cite each "
                 "section you used as a markdown link to its `url`.\n"
                 "- Give steps only from a section that describes those steps. "

@@ -55,9 +55,12 @@ COPY docker/rootfs /
 # offered.
 ARG DOCS_CORPUS_VERSION=latest
 ARG DOCS_CORPUS_URL=""
+# Set by release builds: wait for the tag's corpus, and fail without it.
+ARG DOCS_CORPUS_REQUIRED=""
 
 RUN --mount=type=secret,id=docs_corpus_token \
-    DOCS_CORPUS_VERSION="${DOCS_CORPUS_VERSION}" DOCS_CORPUS_URL="${DOCS_CORPUS_URL}" bash docker_build.sh
+    DOCS_CORPUS_VERSION="${DOCS_CORPUS_VERSION}" DOCS_CORPUS_URL="${DOCS_CORPUS_URL}" \
+    DOCS_CORPUS_REQUIRED="${DOCS_CORPUS_REQUIRED}" bash docker_build.sh
 
 # The runtime stage copies the source with --chown, and COPY keeps the mode
 # bits, so the group-writable modes OpenShift's arbitrary UIDs need are set

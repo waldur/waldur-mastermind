@@ -846,7 +846,9 @@ Publish multiarch docker image with specific version:
     # publishes the corpus under its tag, and the release tags both repos with
     # the same version. The registry is private, so the job token goes in as a
     # build secret, which leaves no trace in the image.
-    EXTRA_BUILD_ARGS: "--build-arg DOCS_CORPUS_VERSION=${CI_COMMIT_TAG} --secret id=docs_corpus_token,env=CI_JOB_TOKEN"
+    # DOCS_CORPUS_REQUIRED: wait for that corpus, and fail rather than ship
+    # a release without documentation search.
+    EXTRA_BUILD_ARGS: "--build-arg DOCS_CORPUS_VERSION=${CI_COMMIT_TAG} --build-arg DOCS_CORPUS_REQUIRED=1 --secret id=docs_corpus_token,env=CI_JOB_TOKEN"
   services:
     - name: registry.hpc.ut.ee/mirror/library/docker:27-dind
       command: ["--mtu=1400"]

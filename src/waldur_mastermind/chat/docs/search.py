@@ -13,13 +13,18 @@ from dataclasses import dataclass, field
 
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.core.cache import cache
-from django.db.models import F, Func
+from django.db.models import Case, F, FloatField, Func, Value, When
 
 from waldur_core.configuration import config
 from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat.deployment_profile import TermState
 from waldur_mastermind.chat.docs import corpus
-from waldur_mastermind.chat.docs.models import DocAudience, DocSection
+from waldur_mastermind.chat.docs.models import (
+    DocAudience,
+    DocKind,
+    DocSection,
+    written_vector,
+)
 
 DEFAULT_DOCS_URL = "https://docs.waldur.com"
 MAX_RESULTS = 5
@@ -110,13 +115,16 @@ def excerpt(text: str, query: str, length: int = EXCERPT_LENGTH) -> str:
     text = " ".join(text.split())
     if len(text) <= length:
         return text
-    lowered = text.lower()
+    # The word or a short inflection of it ("adds", "adding"), not a longer
+    # word it starts: "add" must not start the excerpt inside "address".
     positions = [
-        lowered.find(word)
-        for word in (w.lower() for w in _WORD.findall(query))
+        match.start()
+        for word in _WORD.findall(query)
         if len(word) > 2
+        and (
+            match := re.search(rf"\b{re.escape(word)}\w{{0,3}}\b", text, re.IGNORECASE)
+        )
     ]
-    positions = [p for p in positions if p >= 0]
     start = max(0, min(positions) - length // 4) if positions else 0
     if start:
         # Start on a word boundary.
@@ -131,43 +139,75 @@ def excerpt(text: str, query: str, length: int = EXCERPT_LENGTH) -> str:
     return f"{prefix}{text[start:end]}{suffix}"
 
 
-def _ranked(sections, search_query):
+# A query that asks what something is, or how two things differ, wants the
+# section that explains it; one that asks how to do something does not. A
+# blanket weight on concept pages pulled them into how-to answers, so the
+# weight applies only to queries worded as a concept question. Both the
+# user's question and the keywords a model searches with keep these words
+# ("organization project difference"). "Why" is left out: "why can't I sign
+# in" wants a how-to or troubleshooting section, not a concept page.
+_CONCEPT_QUERY = re.compile(
+    # "How X works" and "how does X work", but not "how do I work with X".
+    r"\b(what\s+(is|are|does|happens)|what's|how\s+(\w+\s+){1,3}works|"
+    r"how\s+(does|do)\s+(?!I\b|we\b|you\b)(\w+\s+){1,3}work|"
+    r"difference|differences|differ|differs|"
+    r"vs|versus|compared? (to|with)|comparison|meaning|means?|explain|explained|"
+    r"concepts?)\b",
+    re.IGNORECASE,
+)
+# Chosen on the validation questions (evaluation_questions_validation.yaml,
+# waldur/waldur-docs#37): 2.0 brings the concept page up without costing
+# how-to questions; 1.5 did not help, 3.0 cost staff questions.
+CONCEPT_BOOST = 2.0
+
+
+def is_concept_query(query: str) -> bool:
+    return bool(_CONCEPT_QUERY.search(query))
+
+
+def _ranked(sections, search_query, concept=False):
+    weight = F("boost")
+    if concept and CONCEPT_BOOST != 1.0:
+        weight = F("boost") * Case(
+            When(kind=DocKind.CONCEPT, then=Value(CONCEPT_BOOST)),
+            default=Value(1.0),
+            output_field=FloatField(),
+        )
     return (
         sections.filter(search_vector=search_query)
-        .annotate(rank=SearchRank(F("search_vector"), search_query) * F("boost"))
+        .annotate(rank=SearchRank(F("search_vector"), search_query) * weight)
         .order_by("-rank", "id")
         .only("path", "anchor", "title", "breadcrumb", "text", "requires")
     )
 
 
 def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
-    terms = _requires_terms()
-    states = deployment_profile.get_term_states(terms)
-    off = {term for term, state in states.items() if state == TermState.OFF}
-    unknown = {term for term, state in states.items() if state == TermState.UNKNOWN}
+    states = deployment_profile.get_term_states(_requires_terms())
+    on = {term for term, state in states.items() if state == TermState.ON}
 
     privileged = user.is_staff or user.is_support
-    # Unknown terms come from a corpus newer or older than this code. Staff can
-    # judge such a section; an end user would be told about a menu that may
-    # not exist.
-    excluded = set() if privileged else off | unknown
-
     sections = DocSection.objects.filter(audience__in=audiences_for(user))
-    if excluded:
-        sections = sections.exclude(requires__overlap=sorted(excluded))
+    if not privileged:
+        # An end user gets a section only if every term it requires is known
+        # to be on. Unknown terms come from a corpus newer or older than this
+        # code, and a term missing from the cached list (a corpus loaded since)
+        # is not known either: both hide the section rather than describe a
+        # menu that may not exist. Staff get them, marked enabled_here: false.
+        sections = sections.filter(requires__contained_by=sorted(on))
 
     # Every word first. A how-to rarely uses the guide's own words ("new
     # project" against "Project creation"), so when that finds too little the
     # rest is filled with sections that match any of the words, the ones
     # matching more of them ranking higher.
+    concept = is_concept_query(query)
     every_word = SearchQuery(query, search_type="websearch", config="english")
-    hits = list(_ranked(sections, every_word)[:limit])
+    hits = list(_ranked(sections, every_word, concept)[:limit])
     words = _WORD.findall(query)
     if len(hits) < limit and len(words) > 1:
         any_word = SearchQuery(" | ".join(words), search_type="raw", config="english")
-        hits += _ranked(sections.exclude(pk__in=[h.pk for h in hits]), any_word)[
-            : limit - len(hits)
-        ]
+        hits += _ranked(
+            sections.exclude(pk__in=[h.pk for h in hits]), any_word, concept
+        )[: limit - len(hits)]
 
     base = docs_base_url()
     return [
@@ -176,7 +216,7 @@ def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
             breadcrumb=section.breadcrumb,
             excerpt=excerpt(section.text, query),
             url=section_url(section.path, section.anchor, base),
-            enabled_here=not (off | unknown).intersection(section.requires),
+            enabled_here=set(section.requires) <= on,
             requires=tuple(section.requires),
         )
         for section in hits
@@ -207,7 +247,20 @@ def switched_off_here(user, query: str, hits: list[DocHit]) -> list[dict]:
             audience__in=audiences_for(user), requires__overlap=sorted(off)
         )
         every_word = SearchQuery(query, search_type="websearch", config="english")
-        for section in _ranked(hidden, every_word)[:HIDDEN_MATCHES]:
+        # Matched on what the section says, not on its `context`: the
+        # questions written for a section are broad ("How do I get access to
+        # the API?"), and naming a switched-off feature the user did not ask
+        # about is worse than naming none. search_vector holds everything
+        # written_vector() does, so the index narrows the rows first.
+        matches = (
+            hidden.filter(search_vector=every_word)
+            .annotate(written=written_vector())
+            .filter(written=every_word)
+            .annotate(rank=SearchRank(F("written"), every_word))
+            .order_by("-rank", "id")
+            .only("requires")
+        )
+        for section in matches[:HIDDEN_MATCHES]:
             found |= off.intersection(section.requires)
     names: dict[str, str] = {}
     for term in sorted(found):
