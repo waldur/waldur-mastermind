@@ -275,6 +275,14 @@ class MCPServerTest(test.APITestCase):
         self.assertEqual(self.request().status_code, 404)
 
     @override_config(MCP_ENABLED=False)
+    def test_other_paths_read_no_settings(self):
+        with mock.patch.object(server, "is_mcp_enabled") as enabled:
+            response = self.request(None, method="GET", path="/other")
+
+        self.assertEqual(response.status_code, 404)
+        enabled.assert_not_called()
+
+    @override_config(MCP_ENABLED=False)
     def test_health_is_served_while_disabled(self):
         response = self.request(None, method="GET", path="/health")
         self.assertEqual(response.status_code, 200)
