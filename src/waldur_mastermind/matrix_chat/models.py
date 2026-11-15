@@ -10,9 +10,12 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.core.models import User
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Customer, Project
+
+from . import scopes
 
 logger = logging.getLogger(__name__)
 
@@ -313,19 +316,58 @@ def get_project_rooms(user_roles):
     )
 
 
-def has_room_role(user, room):
-    """Whether a role puts the user in the room, by the member sync rule."""
-    project = room.project
-    if not project:
-        return UserRole.objects.filter(
-            user=user, scope=room.scope, is_active=True
-        ).exists()
-    return (
-        UserRole.objects.filter(user=user, scope=project, is_active=True).exists()
-        or get_customer_roles_in_project_rooms(project.customer)
-        .filter(user=user)
-        .exists()
+def project_room_members(project):
+    """Who belongs in a project's room: everyone with an active role on the
+    project, and the customer roles of get_customer_roles_in_project_rooms."""
+    return User.all_objects.filter(
+        models.Q(
+            id__in=UserRole.objects.filter(scope=project, is_active=True).values(
+                "user_id"
+            )
+        )
+        | models.Q(
+            id__in=get_customer_roles_in_project_rooms(project.customer).values(
+                "user_id"
+            )
+        )
     )
+
+
+def project_power_level(user, project):
+    """50 for the project admin, or anyone who may create the project's room;
+    0 for everyone else.
+
+    No Waldur user gets the bot's 100: the bot is not a Waldur user, and one
+    named like its localpart is someone else, possibly linked to another
+    Matrix account.
+    """
+    if UserRole.objects.filter(
+        user=user,
+        scope=project,
+        role__name=RoleEnum.PROJECT_ADMIN,
+        is_active=True,
+    ).exists():
+        return 50
+    # Whoever may create the project's room runs it. Only role grants
+    # count: staff and support become moderators by joining the room.
+    for room_scope in (project, project.customer):
+        if UserRole.objects.filter(
+            user=user,
+            scope=room_scope,
+            role__permissions__permission=PermissionEnum.CREATE_MATRIX_ROOM,
+            is_active=True,
+        ).exists():
+            return 50
+    return 0
+
+
+def has_room_role(user, room):
+    """Whether the room's scope puts the user in it, by the member sync rule
+    (scopes.members)."""
+    scope = room.scope
+    if scope is None:
+        return False
+    return scopes.members(scope).filter(pk=user.pk).exists()
 
 
 # A membership that member sync and role revocation leave alone: staff or support
