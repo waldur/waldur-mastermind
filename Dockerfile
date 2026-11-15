@@ -45,7 +45,14 @@ COPY . /usr/src/waldur/
 
 COPY docker/rootfs /
 
-RUN bash docker_build.sh
+# The documentation corpus the AI assistant searches (search_docs), published by
+# waldur-docs CI. A release pins DOCS_CORPUS_VERSION to the docs commit it was
+# released with; DOCS_CORPUS_URL points an offline build at a mirror. If the
+# download fails the image is built without it and the tool is not offered.
+ARG DOCS_CORPUS_VERSION=latest
+ARG DOCS_CORPUS_URL=""
+
+RUN DOCS_CORPUS_VERSION="${DOCS_CORPUS_VERSION}" DOCS_CORPUS_URL="${DOCS_CORPUS_URL}" bash docker_build.sh
 
 # The runtime stage copies the source with --chown, and COPY keeps the mode
 # bits, so the group-writable modes OpenShift's arbitrary UIDs need are set

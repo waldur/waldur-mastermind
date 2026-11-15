@@ -18,6 +18,7 @@ from waldur_mastermind.chat.context_assembler import (
     build_context,
     resolve_prompt_role,
 )
+from waldur_mastermind.chat.deployment_profile import get_term_states
 from waldur_mastermind.chat.health_checks import (
     LLMConfigurationHealthCheck,
     LLMConnectivityHealthCheck,
@@ -27,6 +28,7 @@ from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.tools.marketplace.helpers import (
     is_public_marketplace_enabled,
 )
+from waldur_mastermind.chat.tools.tool_sets import is_tool_permitted
 from waldur_mastermind.chat.validation.evaluators import get_evaluator
 from waldur_mastermind.chat.validation.presets import is_preset_loaded
 from waldur_mastermind.chat.validation.scenarios import load_all_scenarios
@@ -477,6 +479,44 @@ class Command(BaseCommand):
                             )
                         )
                         continue
+
+                    missing_tools = [
+                        name
+                        for name in scenario.requires_tools
+                        if not is_tool_permitted(run_user, name)
+                    ]
+                    if missing_tools:
+                        skipped = len(scenario.inputs)
+                        total_skipped += skipped
+                        category_stats(category)["skipped"] += skipped
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"  ⊘ {scenario.name}: needs "
+                                f"{', '.join(missing_tools)}, which "
+                                f"'{run_user.username}' is not offered here."
+                            )
+                        )
+                        continue
+
+                    if scenario.site_config:
+                        states = get_term_states(scenario.site_config)
+                        mismatched = [
+                            f"{term} {wanted}"
+                            for term, wanted in scenario.site_config.items()
+                            if states[term].value != wanted
+                        ]
+                        if mismatched:
+                            skipped = len(scenario.inputs)
+                            total_skipped += skipped
+                            category_stats(category)["skipped"] += skipped
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"  ⊘ {scenario.name}: assumes "
+                                    f"{', '.join(mismatched)}, which this "
+                                    "deployment does not match."
+                                )
+                            )
+                            continue
 
                     # Test each input
                     for input_text in scenario.inputs:

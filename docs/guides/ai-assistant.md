@@ -254,7 +254,13 @@ returns a list of `ToolName`s based on the caller's role:
 - `SUPPORT_TOOLS` — same as staff minus `call_insights`.
 - `END_USER_TOOLS` — VM, account, marketplace, proposal-researcher,
   proposal-reviewer (no `get_user_overview`).
-- All three include the meta-tools (`search_tools`, `ask_user`).
+- All three include the meta-tools (`search_tools`, `ask_user`) and
+  `search_docs`.
+
+Two tool groups also depend on the deployment rather than the role: the
+HPC tools drop out where staff have allowed no FirecREST or cluster
+monitor endpoint (or the session is delegated), and `search_docs` drops
+out where the image carries no documentation corpus.
 
 This filter is applied in two places:
 
@@ -272,6 +278,41 @@ catches `PermissionDenied` and returns it as a structured error
 (`src/waldur_mastermind/chat/tools/executor.py:62`), but the tool
 itself owns the actual authorization check (e.g. raise
 `PermissionDenied` if the user is not staff for staff-only data).
+
+### Documentation search
+
+`search_docs` (`chat/tools/docs/search_docs.py`) answers how-to questions
+from the documentation of the deployed release instead of the model's
+memory.
+
+- **Corpus.** waldur-docs CI publishes `docs-corpus.jsonl.gz`: one line per
+  section, with `path`, `anchor`, `title`, `breadcrumb`, `text`,
+  `audience`, `requires` and an optional `boost`. `docker_build.sh`
+  downloads it into `/usr/share/waldur/docs-corpus/`
+  (`DOCS_CORPUS_VERSION` / `DOCS_CORPUS_URL` build args). A failed
+  download leaves the image without it.
+- **Loading.** `initdb` runs `waldur load_docs_corpus`. It writes
+  `chat.DocSection` rows and only touches sections whose content hash
+  changed. `$WALDUR_DOCS_CORPUS_PATH` overrides the path.
+- **Search.** Postgres full-text search (`websearch_to_tsquery`, weighted
+  title > breadcrumb > text, multiplied by `boost`) returns the top five
+  sections, each with an excerpt of about 800 characters and a link under
+  `DOCS_URL` (or docs.waldur.com).
+- **Filtering.** `audience` is `all`, `staff_support` or `staff`. End users
+  get `all`, support also gets `staff_support`, and staff get everything.
+  `requires` lists the site configuration a section depends on. Those terms
+  are evaluated by `chat/deployment_profile.py`:
+  - `setting:<KEY>` and `feature:<key>` / `!feature:<key>` check a setting
+    or feature flag;
+  - `offering_type:<type>` holds when an active offering of that type
+    exists and the type is not disabled;
+  - `capability:<name>` checks a named capability (`hpc`).
+
+  End users never get a section with an off or unknown term. Staff and
+  support still get such sections, and a section with an off term is
+  marked `enabled_here: false`. `waldur
+  print_docs_requires_vocabulary` prints the valid keys, and docs CI
+  validates the corpus against that list.
 
 ## Security guards
 

@@ -13,10 +13,12 @@ import uuid
 from pathlib import Path
 from unittest import mock
 
+from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.db import connection
 from django.test import SimpleTestCase, TestCase
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.context_assembler import resolve_prompt_role
 from waldur_mastermind.chat.validation.presets import is_preset_loaded
@@ -314,6 +316,44 @@ class TestEvaluationScoringTest(TestCase):
         )
         self.assertIn("hpc_ai_platform", out)
         self.assertFalse(_FakeStreamer.instances)
+
+    def test_scenario_needing_a_tool_the_user_lacks_is_skipped(self):
+        scenario = self._no_tool_scenario()
+        scenario.requires_tools = ["search_docs"]
+        with mock.patch(
+            "waldur_mastermind.chat.tools.tool_sets.docs_corpus.is_available",
+            return_value=False,
+        ):
+            out = self._run_all_skipped(scenario, [_markdown("Hello")])
+        self.assertIn("needs search_docs", out)
+        self.assertFalse(_FakeStreamer.instances)
+
+    def test_scenario_with_its_tool_runs(self):
+        scenario = self._no_tool_scenario()
+        scenario.requires_tools = ["search_docs"]
+        with mock.patch(
+            "waldur_mastermind.chat.tools.tool_sets.docs_corpus.is_available",
+            return_value=True,
+        ):
+            self._run(scenario, [_markdown("Hello")])
+        self.assertTrue(_FakeStreamer.instances)
+
+    @override_config(PAT_ENABLED=True)
+    def test_scenario_assuming_other_site_config_is_skipped(self):
+        cache.clear()
+        scenario = self._no_tool_scenario()
+        scenario.site_config = {"setting:PAT_ENABLED": "off"}
+        out = self._run_all_skipped(scenario, [_markdown("Hello")])
+        self.assertIn("setting:PAT_ENABLED off", out)
+        self.assertFalse(_FakeStreamer.instances)
+
+    @override_config(PAT_ENABLED=False)
+    def test_scenario_matching_site_config_runs(self):
+        cache.clear()
+        scenario = self._no_tool_scenario()
+        scenario.site_config = {"setting:PAT_ENABLED": "off"}
+        self._run(scenario, [_markdown("Hello")])
+        self.assertTrue(_FakeStreamer.instances)
 
     def test_user_option_picks_that_user(self):
         support = structure_factories.UserFactory(username="support", is_support=True)

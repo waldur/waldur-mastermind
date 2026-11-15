@@ -58,6 +58,9 @@ waldur load_features /etc/waldur/features.json
 echo "INFO: Loading notifications..."
 waldur load_notifications /etc/waldur/notifications.json
 
+echo "INFO: Loading the AI assistant's documentation corpus..."
+waldur load_docs_corpus
+
 echo "INFO: Cleanup API configuration settings cache..."
 waldur clean_settings_cache
 

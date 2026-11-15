@@ -32,6 +32,35 @@ uv sync --frozen --no-dev --no-install-package setuptools
 # WALDUR_WEB_SHELL_ASSETS_DIR at the same directory.
 WALDUR_WEB_SHELL_ASSETS_DIR=/usr/share/waldur/web-shell python3 -c "from waldur_core.web_shell import assets; assets.fetch()"
 
+# Download the documentation corpus searched by the AI assistant's search_docs
+# tool (waldur/waldur-docs#37); initdb loads it with `waldur load_docs_corpus`.
+# Optional: on any failure the image is built without it, and the tool is left
+# out of every tool set. The file is only kept if it is a complete gzip stream.
+DOCS_CORPUS_VERSION=${DOCS_CORPUS_VERSION:-latest}
+DOCS_CORPUS_URL=${DOCS_CORPUS_URL:-https://code.opennodecloud.com/api/v4/projects/waldur%2Fwaldur-docs/packages/generic/docs-corpus/${DOCS_CORPUS_VERSION}/docs-corpus.jsonl.gz}
+mkdir -p /usr/share/waldur/docs-corpus
+if python3 - "$DOCS_CORPUS_URL" /usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz << 'EOF'
+import gzip
+import shutil
+import sys
+import urllib.request
+
+url, target = sys.argv[1], sys.argv[2]
+partial = target + ".part"
+with urllib.request.urlopen(url, timeout=60) as response, open(partial, "wb") as out:
+    shutil.copyfileobj(response, out)
+with gzip.open(partial, "rb") as stream:
+    while stream.read(1 << 20):
+        pass
+shutil.move(partial, target)
+EOF
+then
+    echo "Docs corpus ${DOCS_CORPUS_VERSION} downloaded."
+else
+    echo "WARNING: docs corpus not downloaded from ${DOCS_CORPUS_URL}; the AI assistant will have no documentation search."
+    rm -f /usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz.part
+fi
+
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 
 # Build static assets

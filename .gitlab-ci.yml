@@ -936,6 +936,8 @@ Upload configuration guide:
     - echo "Generating documentation files..."
     - uv run waldur print_settings > ${CI_PROJECT_DIR}/docs/admin/configuration-guide.md
     - uv run waldur print_features_docs > ${CI_PROJECT_DIR}/docs/admin/features.md
+    # Keys a docs section's `requires` may name; waldur-docs validates its corpus against it.
+    - uv run waldur print_docs_requires_vocabulary > ${CI_PROJECT_DIR}/docs/admin/docs-requires-vocabulary.json
     - uv run waldur print_notifications > ${CI_PROJECT_DIR}/docs/admin/notifications.md
     - uv run waldur print_commands > ${CI_PROJECT_DIR}/docs/admin/cli-guide.md
     - uv run waldur print_events > ${CI_PROJECT_DIR}/docs/events.md
