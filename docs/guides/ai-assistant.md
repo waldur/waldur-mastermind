@@ -260,7 +260,7 @@ returns a list of `ToolName`s based on the caller's role:
 Two tool groups also depend on the deployment rather than the role: the
 HPC tools drop out where staff have allowed no FirecREST or cluster
 monitor endpoint (or the session is delegated), and `search_docs` drops
-out where the image carries no documentation corpus.
+out where no documentation corpus is loaded.
 
 This filter is applied in two places:
 
@@ -289,11 +289,19 @@ memory.
   section, with `path`, `anchor`, `title`, `breadcrumb`, `text`,
   `audience`, `requires` and an optional `boost`. `docker_build.sh`
   downloads it into `/usr/share/waldur/docs-corpus/`
-  (`DOCS_CORPUS_VERSION` / `DOCS_CORPUS_URL` build args). A failed
+  (`DOCS_CORPUS_VERSION` / `DOCS_CORPUS_URL` build args). A release build
+  takes the corpus published under its own tag (waldur-docs tags the same
+  version), other builds take `latest`. The package registry is private:
+  CI passes `CI_JOB_TOKEN` as the `docs_corpus_token` build secret, so
+  waldur-mastermind must be on waldur-docs' job token allowlist. A failed
   download leaves the image without it.
 - **Loading.** `initdb` runs `waldur load_docs_corpus`. It writes
   `chat.DocSection` rows and only touches sections whose content hash
-  changed. `$WALDUR_DOCS_CORPUS_PATH` overrides the path.
+  changed. `$WALDUR_DOCS_CORPUS_PATH` overrides the path. It never fails a
+  deployment: an invalid line (say, an audience this release does not
+  know) is skipped with a warning, and a file that cannot be read or has
+  no valid line leaves the loaded sections as they were. The tool is
+  offered only while sections are loaded.
 - **Search.** Postgres full-text search (`websearch_to_tsquery`, weighted
   title > breadcrumb > text, multiplied by `boost`) returns the top five
   sections, each with an excerpt of about 800 characters and a link under
@@ -309,15 +317,15 @@ memory.
   - `capability:<name>` checks a named capability (`hpc`).
 
   End users never get a section with an off or unknown term. Staff and
-  support still get such sections, and a section with an off term is
-  marked `enabled_here: false`. `waldur
+  support still get such sections, marked `enabled_here: false`: that
+  value is true only when every term is known to be on. `waldur
   print_docs_requires_vocabulary` prints the valid keys, and docs CI
   validates the corpus against that list.
 - **Without the assistant.** The search needs no LLM. `GET
   /api/docs-search/?query=…&limit=…` (`chat/docs/views.py`) runs the same
   search with the same filtering for any signed-in user, whether or not
-  `AI_ASSISTANT_ENABLED` is on, and answers 503 when the image has no
-  corpus. With `MCP_ENABLED`, MCP clients also get `search_docs`
+  `AI_ASSISTANT_ENABLED` is on, and answers 503 when no corpus is
+  loaded. With `MCP_ENABLED`, MCP clients also get `search_docs`
   regardless of the assistant switch.
 - **Turning it off.** `DOCS_SEARCH_ENABLED` (on by default, public) removes
   the bundled documentation everywhere: no role is offered `search_docs`,

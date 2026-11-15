@@ -147,6 +147,14 @@ class SiteConfigurationTest(DocsTestMixin, TestCase):
         self.assertNotIn(FUTURE["title"], self.titles(self.fixture.user, "teleport"))
         self.assertIn(FUTURE["title"], self.titles(self.fixture.staff, "teleport"))
 
+    def test_unknown_term_is_not_reported_as_enabled(self):
+        # This code cannot tell whether the setting is on, so staff must not be
+        # told the feature works here.
+        for user in (self.fixture.staff, self.fixture.global_support):
+            with self.subTest(user=user):
+                hits = self.titles(user, "teleport")
+                self.assertFalse(hits[FUTURE["title"]]["enabled_here"])
+
 
 class AudienceTest(DocsTestMixin, TestCase):
     def test_end_user_gets_only_sections_for_all(self):
@@ -325,6 +333,7 @@ def test_search_runs_a_bounded_number_of_queries(django_assert_max_num_queries):
 
 class ToolSetTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.fixture = structure_fixtures.ProjectFixture()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -332,48 +341,63 @@ class ToolSetTest(TestCase):
     def corpus_env(self, path):
         return mock.patch.dict(os.environ, {"WALDUR_DOCS_CORPUS_PATH": str(path)})
 
+    def users(self):
+        return (self.fixture.user, self.fixture.global_support, self.fixture.staff)
+
     def test_without_corpus_no_tool_set_has_search_docs(self):
         with self.corpus_env(Path(self.tmp.name) / "missing.jsonl.gz"):
-            for user in (
-                self.fixture.user,
-                self.fixture.global_support,
-                self.fixture.staff,
-            ):
+            for user in self.users():
+                self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(user))
+
+    def test_corpus_file_that_was_never_loaded_offers_no_tool(self):
+        # Every search would answer "not covered".
+        with self.corpus_env(write_corpus(self.tmp.name, CORPUS)):
+            for user in self.users():
                 self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(user))
 
     def test_with_corpus_every_authenticated_role_has_search_docs(self):
-        with self.corpus_env(write_corpus(self.tmp.name, CORPUS)):
-            for user in (
-                self.fixture.user,
-                self.fixture.global_support,
-                self.fixture.staff,
-            ):
-                self.assertIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(user))
-            self.assertIn(
-                ToolName.SEARCH_DOCS,
-                get_tool_set_for_user(self.fixture.user, delegated=True),
-            )
-            self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(None))
+        call_command(
+            "load_docs_corpus",
+            str(write_corpus(self.tmp.name, CORPUS)),
+            stdout=StringIO(),
+        )
+        for user in self.users():
+            self.assertIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(user))
+        self.assertIn(
+            ToolName.SEARCH_DOCS,
+            get_tool_set_for_user(self.fixture.user, delegated=True),
+        )
+        self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(None))
+
+    def test_availability_is_cached_and_reset_by_a_load(self):
+        self.assertFalse(corpus.is_available())
+        with self.assertNumQueries(0):
+            self.assertFalse(corpus.is_available())
+        call_command(
+            "load_docs_corpus",
+            str(write_corpus(self.tmp.name, CORPUS)),
+            stdout=StringIO(),
+        )
+        self.assertTrue(corpus.is_available())
 
     @override_config(DOCS_SEARCH_ENABLED=False)
     def test_turned_off_no_tool_set_has_search_docs(self):
-        with self.corpus_env(write_corpus(self.tmp.name, CORPUS)):
-            for user in (
-                self.fixture.user,
-                self.fixture.global_support,
-                self.fixture.staff,
-            ):
-                self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(user))
-            self.assertNotIn(
-                ToolName.SEARCH_DOCS,
-                get_tool_set_for_user(self.fixture.staff, delegated=True),
-            )
+        call_command(
+            "load_docs_corpus",
+            str(write_corpus(self.tmp.name, CORPUS)),
+            stdout=StringIO(),
+        )
+        for user in self.users():
+            self.assertNotIn(ToolName.SEARCH_DOCS, get_tool_set_for_user(user))
+        self.assertNotIn(
+            ToolName.SEARCH_DOCS,
+            get_tool_set_for_user(self.fixture.staff, delegated=True),
+        )
 
     def test_executor_refuses_without_corpus(self):
-        with self.corpus_env(Path(self.tmp.name) / "missing.jsonl.gz"):
-            result = ToolExecutor(self.fixture.user).execute_tool(
-                "search_docs", {"query": "project"}
-            )
+        result = ToolExecutor(self.fixture.user).execute_tool(
+            "search_docs", {"query": "project"}
+        )
         self.assertEqual(result["error"], "Permission denied")
 
 
@@ -425,11 +449,40 @@ class LoadDocsCorpusTest(TestCase):
             "Projects group resources.",
         )
 
-    def test_invalid_audience_fails(self):
+    def load_with_errors(self, path):
+        out, err = StringIO(), StringIO()
+        call_command("load_docs_corpus", str(path), stdout=out, stderr=err)
+        return out.getvalue(), err.getvalue()
+
+    def test_invalid_line_is_skipped_and_the_rest_loads(self):
+        # An audience this release does not know cannot be filtered, so that
+        # section is left out; the deployment goes on.
+        path = write_corpus(self.tmp.name, [{**PAT, "audience": "everyone"}, PROJECTS])
+        output, errors = self.load_with_errors(path)
+        self.assertIn("1 created", output)
+        self.assertIn("1 invalid line", errors)
+        self.assertEqual(
+            list(DocSection.objects.values_list("path", flat=True)),
+            [PROJECTS["path"]],
+        )
+
+    def test_corpus_without_a_valid_line_leaves_loaded_sections(self):
+        self.load(write_corpus(self.tmp.name, CORPUS))
         path = write_corpus(self.tmp.name, [{**PAT, "audience": "everyone"}])
-        with self.assertRaisesMessage(Exception, "unknown audience"):
-            self.load(path)
-        self.assertFalse(DocSection.objects.exists())
+        output, errors = self.load_with_errors(path)
+        self.assertIn("no valid section", errors)
+        self.assertIn("left unchanged", errors)
+        self.assertEqual(DocSection.objects.count(), len(CORPUS))
+
+    def test_unreadable_corpus_leaves_loaded_sections(self):
+        self.load(write_corpus(self.tmp.name, CORPUS))
+        for content in (b"not gzip at all", gzip.compress(b'{"path": "a"}\n')[:-8]):
+            with self.subTest(content=content):
+                path = Path(self.tmp.name) / "broken.jsonl.gz"
+                path.write_bytes(content)
+                _, errors = self.load_with_errors(path)
+                self.assertIn("cannot be read", errors)
+                self.assertEqual(DocSection.objects.count(), len(CORPUS))
 
 
 class DeploymentProfileTest(TestCase):

@@ -24,7 +24,8 @@ class DocsSearchHitSerializer(serializers.Serializer):
     enabled_here = serializers.BooleanField(
         help_text=(
             "False when the section describes a feature that is switched off "
-            "on this portal. Only staff and support get such sections."
+            "on this portal, or that it cannot confirm is switched on. Only "
+            "staff and support get such sections."
         )
     )
 

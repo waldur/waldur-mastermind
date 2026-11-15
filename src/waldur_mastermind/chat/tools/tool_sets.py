@@ -142,7 +142,7 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     staff / support / end-user. The HPC tools are left out where staff
     have allowed no FirecREST or cluster monitor endpoint, since no
     allocation can then be reached, and ``search_docs`` where the image
-    carries no documentation corpus.
+    has no documentation corpus loaded.
 
     Always returns a non-empty list — never ``None`` — so callers can
     treat the result as "the authoritative permitted set" without
@@ -159,8 +159,8 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     # The HPC tools act as the user's own sign-in, and need an endpoint.
     if delegated or not workspace.is_configured():
         tools = [tool for tool in tools if tool not in _OWN_SIGN_IN_TOOLS]
-    # The image was built without a documentation corpus, or staff turned the
-    # bundled documentation off (DOCS_SEARCH_ENABLED).
+    # No documentation corpus is loaded, or staff turned the bundled
+    # documentation off (DOCS_SEARCH_ENABLED).
     if not docs_corpus.search_enabled():
         tools = [tool for tool in tools if tool not in _DOCS_TOOLS]
     return tools

@@ -65,8 +65,9 @@ class SearchDocsTool(BaseTool):
                 "cover it. Do not fill the gap from memory with menu paths or "
                 "steps.\n"
                 "- A section with `enabled_here: false` describes a feature "
-                "that is switched off on this portal. Say it is not enabled "
-                "here and do not give its steps as instructions.\n"
+                "that is switched off on this portal, or that this portal "
+                "cannot confirm is switched on. Say it is not enabled here, "
+                "or may not be, and do not give its steps as instructions.\n"
                 "- The documentation names the product; refer to the portal "
                 "by its own name instead."
             ),
@@ -103,8 +104,8 @@ class SearchDocsTool(BaseTool):
             summary = f"{len(hits)} documentation section(s) found."
             if disabled:
                 summary += (
-                    f" {disabled} describe(s) a feature that is not enabled on "
-                    "this portal."
+                    f" {disabled} describe(s) a feature that is not enabled, or "
+                    "not known to be enabled, on this portal."
                 )
         return {"type": "success", "summary": summary, "data": data}
 

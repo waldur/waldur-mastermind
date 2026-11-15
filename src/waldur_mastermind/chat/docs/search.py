@@ -2,8 +2,10 @@
 
 A section reaches a caller only if its audience covers the caller's role and,
 for end users, everything in its ``requires`` is switched on here. Staff and
-support also get sections for switched-off features, marked
-``enabled_here: False``, so they can answer "why can't my users see X".
+support also get the other sections, marked ``enabled_here: False``, so they
+can answer "why can't my users see X". ``enabled_here`` is true only when every
+term is known to be on: a term this code does not know (a corpus newer or
+older than the release) cannot be confirmed, so it counts as not enabled.
 """
 
 import re
@@ -16,6 +18,7 @@ from django.db.models import F, Func
 from waldur_core.configuration import config
 from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat.deployment_profile import TermState
+from waldur_mastermind.chat.docs import corpus
 from waldur_mastermind.chat.docs.models import DocAudience, DocSection
 
 DEFAULT_DOCS_URL = "https://docs.waldur.com"
@@ -70,6 +73,7 @@ def _requires_terms() -> list[str]:
 
 def invalidate_cache() -> None:
     cache.delete(TERMS_CACHE_KEY)
+    corpus.invalidate_cache()
 
 
 def docs_base_url() -> str:
@@ -154,7 +158,7 @@ def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
             breadcrumb=section.breadcrumb,
             excerpt=excerpt(section.text, query),
             url=section_url(section.path, section.anchor, base),
-            enabled_here=not off.intersection(section.requires),
+            enabled_here=not (off | unknown).intersection(section.requires),
         )
         for section in sections
     ]

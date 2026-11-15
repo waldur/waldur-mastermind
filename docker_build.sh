@@ -36,18 +36,29 @@ WALDUR_WEB_SHELL_ASSETS_DIR=/usr/share/waldur/web-shell python3 -c "from waldur_
 # tool (waldur/waldur-docs#37); initdb loads it with `waldur load_docs_corpus`.
 # Optional: on any failure the image is built without it, and the tool is left
 # out of every tool set. The file is only kept if it is a complete gzip stream.
+# The package registry is private. A CI job token, mounted as the
+# `docs_corpus_token` build secret, is sent as JOB-TOKEN; the job's project must
+# be on waldur-docs' job token allowlist.
 DOCS_CORPUS_VERSION=${DOCS_CORPUS_VERSION:-latest}
 DOCS_CORPUS_URL=${DOCS_CORPUS_URL:-https://code.opennodecloud.com/api/v4/projects/waldur%2Fwaldur-docs/packages/generic/docs-corpus/${DOCS_CORPUS_VERSION}/docs-corpus.jsonl.gz}
+DOCS_CORPUS_TOKEN_FILE=/run/secrets/docs_corpus_token
 mkdir -p /usr/share/waldur/docs-corpus
-if python3 - "$DOCS_CORPUS_URL" /usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz << 'EOF'
+if python3 - "$DOCS_CORPUS_URL" /usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz "$DOCS_CORPUS_TOKEN_FILE" << 'EOF'
 import gzip
+import os
 import shutil
 import sys
 import urllib.request
 
-url, target = sys.argv[1], sys.argv[2]
+url, target, token_file = sys.argv[1], sys.argv[2], sys.argv[3]
 partial = target + ".part"
-with urllib.request.urlopen(url, timeout=60) as response, open(partial, "wb") as out:
+request = urllib.request.Request(url)
+if os.path.isfile(token_file):
+    with open(token_file) as stream:
+        token = stream.read().strip()
+    if token:
+        request.add_header("JOB-TOKEN", token)
+with urllib.request.urlopen(request, timeout=60) as response, open(partial, "wb") as out:
     shutil.copyfileobj(response, out)
 with gzip.open(partial, "rb") as stream:
     while stream.read(1 << 20):

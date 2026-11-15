@@ -56,8 +56,8 @@ class DocsSearchView(ConstanceCheckExtensionMixin, APIView):
         End users get only the sections for their role whose features are
         switched on here. Staff and support also get sections for switched-off
         features, marked ``enabled_here: false``. Answers 424 while
-        DOCS_SEARCH_ENABLED is off and 503 when the image carries no
-        documentation corpus.
+        DOCS_SEARCH_ENABLED is off and 503 when no documentation corpus
+        is loaded.
         """
         params = serializers.DocsSearchRequestSerializer(data=request.query_params)
         params.is_valid(raise_exception=True)

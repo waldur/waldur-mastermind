@@ -7,8 +7,16 @@ registry (waldur/waldur-docs#37). Each line is one section::
      "audience": "all" | "staff_support" | "staff", "requires": [...],
      "boost": 1.5}
 
-``boost`` is optional. When the download failed there is no file, and the
-assistant has no documentation tool (see ``is_available``).
+``boost`` is optional. When the download failed there is no file, nothing is
+loaded, and the assistant has no documentation tool (see ``is_available``).
+
+Loading runs on every deploy (initdb), so a bad corpus must not stop one. A
+line that does not parse, or names an audience or ``requires`` shape this code
+does not know, is skipped with a warning: an unknown audience cannot be
+filtered safely, so leaving the section out is the fail-closed choice, and the
+rest of the corpus still loads. A file that cannot be read at all, or has no
+valid line, raises ``CorpusError`` and the loaded sections are left as they
+were.
 """
 
 import gzip
@@ -19,6 +27,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from django.core.cache import cache
 from django.db import transaction
 
 from waldur_core.configuration import config
@@ -35,13 +44,29 @@ def corpus_path() -> Path:
     return Path(os.environ.get("WALDUR_DOCS_CORPUS_PATH") or DEFAULT_CORPUS_PATH)
 
 
+LOADED_CACHE_KEY = "waldur_mastermind.chat.docs.loaded"
+LOADED_CACHE_TIMEOUT = 5 * 60
+
+
 def is_available() -> bool:
-    """Whether this image carries a documentation corpus."""
-    return corpus_path().is_file()
+    """Whether a documentation corpus is loaded, so a search can find anything.
+
+    A corpus file the image carries but that was never loaded, or loaded empty,
+    would answer "not covered" to every question; that counts as unavailable.
+    """
+    loaded = cache.get(LOADED_CACHE_KEY)
+    if loaded is None:
+        loaded = DocSection.objects.exists()
+        cache.set(LOADED_CACHE_KEY, loaded, LOADED_CACHE_TIMEOUT)
+    return loaded
+
+
+def invalidate_cache() -> None:
+    cache.delete(LOADED_CACHE_KEY)
 
 
 def search_enabled() -> bool:
-    """Whether documentation search is offered: the image carries a corpus and
+    """Whether documentation search is offered: a corpus is loaded and
     DOCS_SEARCH_ENABLED is on."""
     return bool(config.DOCS_SEARCH_ENABLED) and is_available()
 
@@ -56,6 +81,7 @@ class LoadResult:
     updated: int = 0
     deleted: int = 0
     unchanged: int = 0
+    skipped: int = 0
 
     @property
     def written(self) -> int:
@@ -101,20 +127,36 @@ def _parse_line(raw: str, line_no: int) -> dict:
     return section
 
 
-def read_corpus(path: Path) -> list[dict]:
-    """The sections in a corpus file. Later duplicates of a section are skipped."""
+def read_corpus(path: Path) -> tuple[list[dict], int]:
+    """The valid sections in a corpus file, and how many lines were skipped.
+
+    Invalid lines and later duplicates of a section are skipped with a
+    warning. Raises ``CorpusError`` when the file cannot be read or holds no
+    valid section, so that the caller keeps what is loaded.
+    """
     sections: dict[tuple[str, str], dict] = {}
-    with gzip.open(path, "rt", encoding="utf-8") as stream:
-        for line_no, raw in enumerate(stream, start=1):
-            if not raw.strip():
-                continue
-            section = _parse_line(raw, line_no)
-            key = (section["path"], section["anchor"])
-            if key in sections:
-                logger.warning("Docs corpus: duplicate section %s#%s", *key)
-                continue
-            sections[key] = section
-    return list(sections.values())
+    skipped = 0
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            for line_no, raw in enumerate(stream, start=1):
+                if not raw.strip():
+                    continue
+                try:
+                    section = _parse_line(raw, line_no)
+                except CorpusError as exc:
+                    logger.warning("Docs corpus %s: skipped %s", path, exc)
+                    skipped += 1
+                    continue
+                key = (section["path"], section["anchor"])
+                if key in sections:
+                    logger.warning("Docs corpus: duplicate section %s#%s", *key)
+                    continue
+                sections[key] = section
+    except (OSError, EOFError, UnicodeDecodeError) as exc:
+        raise CorpusError(f"cannot be read ({exc})") from exc
+    if not sections:
+        raise CorpusError(f"no valid section ({skipped} invalid line(s))")
+    return list(sections.values()), skipped
 
 
 @transaction.atomic
@@ -150,12 +192,20 @@ def load_sections(sections: list[dict]) -> LoadResult:
         )
     result.created = len(to_create)
     result.updated = len(to_update)
+    transaction.on_commit(invalidate_cache)
     return result
 
 
 def load_corpus(path: Path | None = None) -> LoadResult | None:
-    """Load the corpus at ``path``; ``None`` when there is no corpus file."""
+    """Load the corpus at ``path``; ``None`` when there is no corpus file.
+
+    Raises ``CorpusError``, without touching the loaded sections, when the file
+    is unreadable or has no valid section.
+    """
     path = path or corpus_path()
     if not path.is_file():
         return None
-    return load_sections(read_corpus(path))
+    sections, skipped = read_corpus(path)
+    result = load_sections(sections)
+    result.skipped = skipped
+    return result
