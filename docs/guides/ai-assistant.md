@@ -313,6 +313,12 @@ memory.
   marked `enabled_here: false`. `waldur
   print_docs_requires_vocabulary` prints the valid keys, and docs CI
   validates the corpus against that list.
+- **Without the assistant.** The search needs no LLM. `GET
+  /api/docs-search/?query=…&limit=…` (`chat/docs/views.py`) runs the same
+  search with the same filtering for any signed-in user, whether or not
+  `AI_ASSISTANT_ENABLED` is on, and answers 503 when the image has no
+  corpus. With `MCP_ENABLED`, MCP clients also get `search_docs`
+  regardless of the assistant switch.
 
 ## Security guards
 

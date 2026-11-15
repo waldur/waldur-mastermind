@@ -6,7 +6,7 @@ from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.output_schemas import BOOLEAN, STRING, array, obj
 from waldur_mastermind.chat.tools.registry import tool_registry
 
-MAX_QUERY_LENGTH = 300
+MAX_QUERY_LENGTH = search.MAX_QUERY_LENGTH
 
 OUTPUT_SCHEMA = obj(
     {

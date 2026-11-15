@@ -20,6 +20,9 @@ from waldur_mastermind.chat.docs.models import DocAudience, DocSection
 
 DEFAULT_DOCS_URL = "https://docs.waldur.com"
 MAX_RESULTS = 5
+# The most a caller of the REST endpoint may ask for in one page.
+MAX_PAGE_RESULTS = 20
+MAX_QUERY_LENGTH = 300
 EXCERPT_LENGTH = 800
 
 TERMS_CACHE_KEY = "waldur_mastermind.chat.docs.requires_terms"

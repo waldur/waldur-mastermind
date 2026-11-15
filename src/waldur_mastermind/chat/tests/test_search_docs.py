@@ -10,9 +10,16 @@ import pytest
 from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase
+from django.urls import reverse
+from rest_framework import status, test
 
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import Feature
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.tests.test_pat_list_filtering import (
+    _auth_header,
+    _create_pat,
+)
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat.deployment_profile import TermState
@@ -208,6 +215,83 @@ class SearchToolTest(DocsTestMixin, TestCase):
         urls = [s["url"] for s in result["data"]["sections"]]
         self.assertTrue(urls[0].endswith("#high"))
         self.assertTrue(urls[-1].endswith("#low"))
+
+
+@override_config(PAT_ENABLED=False, AI_ASSISTANT_ENABLED=False)
+@mock.patch.object(corpus, "is_available", return_value=True)
+class DocsSearchApiTest(DocsTestMixin, test.APITestCase):
+    url = reverse("docs-search")
+
+    def get(self, user, **params):
+        self.client.force_authenticate(user)
+        return self.client.get(self.url, params)
+
+    def titles(self, user, query):
+        response = self.get(user, query=query)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return {s["title"]: s for s in response.data["sections"]}
+
+    def test_works_without_the_ai_assistant(self, _):
+        response = self.get(self.fixture.user, query="create a project")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["query"], "create a project")
+        hit = response.data["sections"][0]
+        self.assertEqual(hit["title"], PROJECTS["title"])
+        self.assertEqual(
+            hit["url"],
+            "https://docs.waldur.com/user-guide/end-users/projects/#create-a-project",
+        )
+        self.assertTrue(hit["enabled_here"])
+
+    def test_filters_as_the_assistant_does(self, _):
+        hits = self.titles(self.fixture.user, "project")
+        self.assertNotIn(STAFF_USERS["title"], hits)
+        self.assertNotIn(ADMIN["title"], hits)
+        self.assertNotIn(PAT["title"], self.titles(self.fixture.user, "token"))
+
+        hits = self.titles(self.fixture.staff, "personal access token")
+        self.assertFalse(hits[PAT["title"]]["enabled_here"])
+
+    def test_limit(self, _):
+        corpus.load_sections(
+            [
+                corpus._parse_line(json.dumps({**PROJECTS, "anchor": f"part-{i}"}), i)
+                for i in range(12)
+            ]
+        )
+        response = self.get(self.fixture.user, query="project")
+        self.assertEqual(len(response.data["sections"]), search.MAX_RESULTS)
+        response = self.get(self.fixture.user, query="project", limit=10)
+        self.assertEqual(len(response.data["sections"]), 10)
+        response = self.get(
+            self.fixture.user, query="project", limit=search.MAX_PAGE_RESULTS + 1
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_query_is_required(self, _):
+        for params in ({}, {"query": "   "}, {"query": "x" * 301}):
+            with self.subTest(params=params):
+                response = self.get(self.fixture.user, **params)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_anonymous_is_refused(self, _):
+        response = self.client.get(self.url, {"query": "project"})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_no_corpus_answers_503(self, is_available):
+        is_available.return_value = False
+        response = self.get(self.fixture.user, query="project")
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_without_staff_scope_cannot_read_as_staff(self, _):
+        staff = self.fixture.staff
+        staff.can_use_personal_access_tokens = True
+        staff.save(update_fields=["can_use_personal_access_tokens"])
+        pat = _create_pat(staff, [PermissionEnum.LIST_PROJECTS.value], [])
+        self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+        response = self.client.get(self.url, {"query": "project"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 # Cold caches: corpus terms, settings, feature flags, offering types, the HPC
