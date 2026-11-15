@@ -1544,7 +1544,11 @@ CONSTANCE_CONFIG = {
     ),
     "AI_ASSISTANT_STREAM_TIMEOUT_SECONDS": (
         120,
-        "Hard timeout in seconds for a full streaming request including LLM completion.",
+        "Seconds a streaming request may go without receiving anything from the LLM or sending anything to the client before it times out.",
+    ),
+    "AI_ASSISTANT_SHOW_REASONING": (
+        False,
+        "Stream and store a thinking model's reasoning for logged-in users, and show what the model says before a tool call as narration. Anonymous users get neither.",
     ),
     "AI_ASSISTANT_INJECTION_ALLOWLIST": (
         "",
@@ -2447,6 +2451,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS",
         "AI_ASSISTANT_COMPLETION_KWARGS",
         "AI_ASSISTANT_STREAM_TIMEOUT_SECONDS",
+        "AI_ASSISTANT_SHOW_REASONING",
         "AI_ASSISTANT_TOKEN_LIMIT_DAILY",
         "AI_ASSISTANT_TOKEN_LIMIT_WEEKLY",
         "AI_ASSISTANT_TOKEN_LIMIT_MONTHLY",

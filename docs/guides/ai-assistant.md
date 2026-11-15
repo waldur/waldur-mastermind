@@ -487,6 +487,8 @@ Registered block kinds (see `src/waldur_mastermind/chat/components.py`):
 | `resource_list` | Signal to render a paginated marketplace resource table client-side. | yes |
 | `homeport_nav` | Navigation links / call-to-action buttons. | no |
 | `ask_user_form` | Multi-question interactive form emitted by the `ask_user` meta-tool. | no |
+| `reasoning` | A thinking model's reasoning for one model call (`c`). Stored with `duration_ms`; see [Reasoning models](#reasoning-models). | no |
+| `narration` | What the model said before a tool call (`c`); see [Reasoning models](#reasoning-models). | no |
 
 Tools opt into a UI block by setting `ui_component` and `ui_data` in
 their result dict; tools that omit `ui_component` rely on the LLM to
@@ -523,6 +525,61 @@ section "AI assistant settings" (around line 2549). Quick reference:
 | `AI_ASSISTANT_HISTORY_LIMIT` | int | Max past messages replayed into context. |
 | `AI_ASSISTANT_SESSION_RETENTION_DAYS` | int | Cleanup cutoff for `cleanup_old_chat_sessions`. `-1` disables. |
 | `AI_ASSISTANT_INJECTION_ALLOWLIST` | str | Comma-separated phrases that bypass injection detection (only when one phrase covers ≥80% of input). |
+| `AI_ASSISTANT_STREAM_TIMEOUT_SECONDS` | int | Seconds a stream may go without receiving anything from the LLM or sending anything to the client before it times out. |
+| `AI_ASSISTANT_SHOW_REASONING` | bool | Stream and store a thinking model's reasoning for logged-in users, and show what the model says before a tool call as narration. Off by default. Anonymous users get neither. |
+
+## Reasoning models
+
+*For operators.* A thinking model (for example Qwen3) reasons before it
+answers, and one answer often takes several model calls. The streamer
+reads the reasoning from the `reasoning` or `reasoning_content` field of
+each streamed delta, whichever the server sends.
+
+- **Logged-in users, with `AI_ASSISTANT_SHOW_REASONING` on** (it is off
+  by default) get the reasoning as `{"k":"reasoning","c":"…"}`
+  frames, grouped into frames of about 100 ms or 80 characters. When the
+  thinking of a model call ends, `{"k":"reasoning","c":"","d":6200}` gives
+  its duration in milliseconds, before any answer text or tool call. Each model
+  call is saved as one `reasoning` block with its `duration_ms`, so a reloaded
+  thread can show "Thought for Ns". At most 20,000 characters of reasoning are
+  stored per reply.
+- **Anonymous users, or `AI_ASSISTANT_SHOW_REASONING` off:** reasoning is
+  neither streamed nor stored. While reasoning streams from the model, the
+  client gets a `{"m":{"status":"thinking"}}` keepalive every 15 seconds. A
+  model that thinks without streaming its reasoning gives nothing to send.
+- `AI_ASSISTANT_STREAM_TIMEOUT_SECONDS` counts from the last chunk received
+  from the model or the last frame sent to the client, so long thinking doesn't
+  time out. Each request is stopped after five times that timeout overall, 10
+  minutes by default, which also ends a model stuck in a reasoning loop.
+- **Narration,** for logged-in users with `AI_ASSISTANT_SHOW_REASONING` on. The
+  first 300 characters of each model call's text are held back. If a tool call
+  comes first, the text was narration ("Let me check your
+  projects…"): it is sent as `{"k":"narration","c":"…"}` and stored as a
+  `narration` block, and clients show it as a status rather than as the start
+  of the answer. Longer text, or text with a code block, streams as usual, and
+  a short answer arrives when the call ends. Narration counts as text for the
+  model history, search and the evaluators. This applies to every model, with
+  or without reasoning. For anyone else, text streams as it arrives and text
+  before a tool call stays in the answer.
+- Reasoning is never sent back to the model, and it is left out of the
+  message search text and the validation evaluators' answer text.
+- Reasoning tokens are counted in `completion_tokens`, so they count
+  against quotas.
+
+Server setup:
+
+- vLLM fills the reasoning field only when started with
+  `--reasoning-parser qwen3`. Without it, thinking arrives inside the
+  answer as `<think>…</think>` and is shown to the user.
+- Set the effort through `reasoning_effort` or
+  `extra_body.chat_template_kwargs` in `AI_ASSISTANT_COMPLETION_KWARGS`.
+  Qwen3.8 defaults to `xhigh`.
+- Thinking mode needs different sampling from the vLLM defaults in
+  `providers.py`:
+
+  ```json
+  {"temperature": 1.0, "top_p": 0.95, "presence_penalty": 0}
+  ```
 
 ## Scheduled tasks
 

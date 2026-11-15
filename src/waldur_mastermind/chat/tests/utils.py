@@ -118,12 +118,15 @@ def _make_usage_chunk(input_tokens, output_tokens, **cache_figures):
     return chunk
 
 
-def _make_chunk(content=None, tool_calls=None, usage=None):
+def _make_chunk(
+    content=None, tool_calls=None, usage=None, reasoning=None, reasoning_content=None
+):
     """Build a mock OpenAI ChatCompletionChunk (unified form).
 
     Pass ``usage`` dict with 'prompt_tokens'/'completion_tokens' (and
     optionally the cache figures ``_set_usage`` takes) for a usage-only chunk; otherwise pass
-    ``content`` and/or ``tool_calls``.
+    ``content``, ``tool_calls`` and/or reasoning text under either field name
+    servers use.
     """
     chunk = MagicMock()
     chunk.usage = None
@@ -136,8 +139,11 @@ def _make_chunk(content=None, tool_calls=None, usage=None):
         delta = MagicMock()
         delta.content = content
         delta.tool_calls = tool_calls
+        delta.reasoning = reasoning
+        delta.reasoning_content = reasoning_content
         choice = MagicMock()
         choice.delta = delta
+        choice.finish_reason = None
         chunk.choices = [choice]
 
     return chunk

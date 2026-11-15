@@ -79,6 +79,15 @@ class ChatResponseSerializer(serializers.Serializer):
     - w: Warning message (PII detected, content redacted, etc.)
     - m: System metadata (thread_uuid, message UUIDs)
 
+    reasoning component fields (k='reasoning'):
+    - c: A fragment of the model's thinking
+    - d: Thinking time in milliseconds, sent once with an empty c when the
+      thinking of one model call ends
+
+    narration component (k='narration'):
+    - c: What the model said before a tool call ("Let me check…"), shown as a
+      status rather than as part of the answer
+
     vm_order component fields (k='vm_order'):
     - status: 'form' | 'project_form' | 'preview' | 'success' | 'error'
     - name: VM name
@@ -112,6 +121,9 @@ class ChatResponseSerializer(serializers.Serializer):
         {"k":"vm_order","status":"preview","name":"my-vm","flavor":"m1.small (2 vCPU, 4GB RAM)","image":"Ubuntu 22.04"}
         {"k":"vm_order","status":"success","name":"my-vm","order_id":"uuid","message":"VM order created."}
         {"k":"vm_order","status":"error","name":"","error":"No offering available."}
+        {"k":"reasoning","c":"The user wants"}
+        {"k":"reasoning","c":"","d":6200}
+        {"k":"narration","c":"Let me check your projects."}
         {"k":"resource_list"}
         {"k":"resource_list","project_uuid":"abc...","state":["Erred"]}
         {"m":{"thread_uuid":"uuid"}}
@@ -132,6 +144,10 @@ class ChatResponseSerializer(serializers.Serializer):
     )
     w = serializers.CharField(
         required=False, help_text="PII detection warning message."
+    )
+    d = serializers.IntegerField(
+        required=False,
+        help_text="reasoning: thinking time in milliseconds, sent when the thinking ends.",
     )
     # vm_order fields
     status = serializers.CharField(
