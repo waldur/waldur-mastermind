@@ -147,6 +147,30 @@ class SiteConfigurationTest(DocsTestMixin, TestCase):
         self.assertNotIn(FUTURE["title"], self.titles(self.fixture.user, "teleport"))
         self.assertIn(FUTURE["title"], self.titles(self.fixture.staff, "teleport"))
 
+    def test_a_term_loaded_after_the_term_list_was_cached_hides_its_section(self):
+        # The term list is cached per process; a corpus loaded since may
+        # require a term it does not hold. The end user must not get it.
+        self.titles(self.fixture.user, "project")
+        corpus.load_sections(
+            [
+                corpus._parse_line(json.dumps(s), i)
+                for i, s in enumerate(
+                    [
+                        *CORPUS,
+                        {
+                            **PROJECTS,
+                            "anchor": "archive",
+                            "title": "Archive a project",
+                            "requires": ["setting:PAT_ENABLED"],
+                        },
+                    ]
+                )
+            ]
+        )
+        self.assertNotIn("Archive a project", self.titles(self.fixture.user, "project"))
+        staff_hits = self.titles(self.fixture.staff, "project")
+        self.assertFalse(staff_hits["Archive a project"]["enabled_here"])
+
     def test_unknown_term_is_not_reported_as_enabled(self):
         # This code cannot tell whether the setting is on, so staff must not be
         # told the feature works here.
@@ -194,6 +218,21 @@ class SwitchedOffHereTest(DocsTestMixin, TestCase):
             deployment_profile.term_name("feature:customer.show_project_digest"),
             "Enable display of project digest configuration in organization settings",
         )
+
+    def test_questions_written_for_a_hidden_section_do_not_name_its_feature(self):
+        corpus.load_sections(
+            [
+                corpus._parse_line(
+                    json.dumps({**PAT, "context": "How do I get project API access?"}),
+                    1,
+                )
+            ]
+        )
+        # Only the questions mention a project: nothing is named.
+        result = self.result(self.fixture.user, "project API access")
+        self.assertEqual(result["data"]["switched_off_here"], [])
+        result = self.result(self.fixture.user, "personal access token")
+        self.assertEqual(result["data"]["switched_off_here"], self.PAT_OFF)
 
 
 class AudienceTest(DocsTestMixin, TestCase):
@@ -272,6 +311,83 @@ class SearchToolTest(DocsTestMixin, TestCase):
         urls = [s["url"] for s in result["data"]["sections"]]
         self.assertTrue(urls[0].endswith("#high"))
         self.assertTrue(urls[-1].endswith("#low"))
+
+    def test_context_words_find_a_section_its_text_does_not_use(self):
+        corpus.load_sections(
+            [
+                corpus._parse_line(
+                    json.dumps(
+                        {**PROJECTS, "context": "How do I start a new workspace?"}
+                    ),
+                    1,
+                )
+            ]
+        )
+        titles = self.titles(self.fixture.user, "start workspace")
+        self.assertEqual(list(titles), ["Create a project"])
+        # Context helps find the section; it is not shown.
+        self.assertNotIn("workspace", titles["Create a project"]["excerpt"])
+
+    def load_concept_and_howto(self):
+        concept = {
+            **PROJECTS,
+            "anchor": "concept",
+            "title": "Projects",
+            "text": "A project groups resources and members of an organization.",
+            "kind": "concept",
+        }
+        howto = {
+            **PROJECTS,
+            "anchor": "howto",
+            "title": "Project members",
+            "text": "Add members to a project of an organization; a project groups "
+            "resources and members, and members see project resources.",
+            "kind": "howto",
+        }
+        corpus.load_sections(
+            [
+                corpus._parse_line(json.dumps(s), i)
+                for i, s in enumerate([concept, howto])
+            ]
+        )
+
+    def anchors(self, query):
+        result = self.tool.execute(self.fixture.user, {"query": query})
+        return [s["url"].rpartition("#")[2] for s in result["data"]["sections"]]
+
+    def test_concept_question_brings_the_concept_section_up(self):
+        self.load_concept_and_howto()
+        self.assertEqual(self.anchors("project members resources")[0], "howto")
+        self.assertEqual(
+            self.anchors("what is a project members resources")[0], "concept"
+        )
+        self.assertEqual(
+            self.anchors("project members resources difference")[0], "concept"
+        )
+
+    def test_concept_queries(self):
+        for query in (
+            "What is a project?",
+            "organization project difference",
+            "member vs manager",
+            "how do roles differ",
+            "member compared to manager",
+            "resource end date passed what happens",
+            "how billing works",
+            "how does billing work",
+        ):
+            self.assertTrue(search.is_concept_query(query), query)
+        for query in (
+            "How do I create a project?",
+            "add member",
+            "whatever",
+            "Why can't I sign in with my passkey?",
+            "compare invoices between months",
+            "How do I work with volumes?",
+            "how can I work around the quota",
+            "Show an overview of my costs",
+        ):
+            self.assertFalse(search.is_concept_query(query), query)
 
 
 @override_config(PAT_ENABLED=False, AI_ASSISTANT_ENABLED=False)
@@ -474,6 +590,20 @@ class LoadDocsCorpusTest(TestCase):
         section = DocSection.objects.get(path=PAT["path"])
         self.assertEqual(section.requires, ["setting:PAT_ENABLED"])
         self.assertEqual(section.audience, "all")
+        self.assertEqual((section.kind, section.context), ("", ""))
+
+    def test_kind_and_context_are_loaded_and_an_unknown_kind_dropped(self):
+        path = write_corpus(
+            self.tmp.name,
+            [
+                {**PAT, "kind": "concept", "context": "How do I get a token?"},
+                {**PROJECTS, "kind": "tutorial"},
+            ],
+        )
+        self.load(path)
+        pat = DocSection.objects.get(path=PAT["path"])
+        self.assertEqual((pat.kind, pat.context), ("concept", "How do I get a token?"))
+        self.assertEqual(DocSection.objects.get(path=PROJECTS["path"]).kind, "")
 
     def test_unchanged_corpus_writes_nothing(self):
         path = write_corpus(self.tmp.name, CORPUS)
@@ -504,6 +634,26 @@ class LoadDocsCorpusTest(TestCase):
         out, err = StringIO(), StringIO()
         call_command("load_docs_corpus", str(path), stdout=out, stderr=err)
         return out.getvalue(), err.getvalue()
+
+    def test_lines_the_columns_cannot_hold_are_skipped(self):
+        bad = [
+            {**PAT, "anchor": "a" * 256},
+            {**PAT, "path": "p" * 501},
+            {**PAT, "anchor": 5},
+            {**PAT, "requires": ["setting:" + "X" * 260]},
+            {**PAT, "boost": "NaN"},
+            {**PAT, "boost": -1},
+            {**PAT, "text": ["not", "a", "string"]},
+        ]
+        output, errors = self.load_with_errors(
+            write_corpus(self.tmp.name, [*bad, PROJECTS])
+        )
+        self.assertIn("1 created", output)
+        self.assertIn(f"{len(bad)} invalid line", errors)
+        self.assertEqual(
+            list(DocSection.objects.values_list("path", flat=True)),
+            [PROJECTS["path"]],
+        )
 
     def test_invalid_line_is_skipped_and_the_rest_loads(self):
         # An audience this release does not know cannot be filtered, so that
@@ -624,6 +774,15 @@ class HelpersTest(TestCase):
         }
         for (path, anchor), url in cases.items():
             self.assertEqual(search.section_url(path, anchor), url)
+
+    def test_excerpt_starts_at_a_whole_word(self):
+        text = (
+            "Your email address is kept. "
+            + "filler " * 300
+            + "Add user steps "
+            + "tail " * 300
+        )
+        self.assertIn("Add user steps", search.excerpt(text, "add user"))
 
     def test_excerpt_starts_near_the_match(self):
         text = "filler " * 300 + "the token lives here " + "tail " * 300

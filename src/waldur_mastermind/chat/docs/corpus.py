@@ -5,9 +5,10 @@ registry (waldur/waldur-docs#37). Each line is one section::
 
     {"path": ..., "anchor": ..., "title": ..., "breadcrumb": ..., "text": ...,
      "audience": "all" | "staff_support" | "staff", "requires": [...],
-     "boost": 1.5}
+     "boost": 1.5, "kind": "howto" | "concept" | "reference", "context": ...}
 
-``boost`` is optional. When the download failed there is no file, nothing is
+``boost``, ``kind`` and ``context`` are optional; a ``kind`` this code does not
+know is dropped, since it only steers ranking. When the download failed there is no file, nothing is
 loaded, and the assistant has no documentation tool (see ``is_available``).
 
 Loading runs on every deploy (initdb), so a bad corpus must not stop one. A
@@ -23,6 +24,7 @@ import gzip
 import hashlib
 import json
 import logging
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,13 +33,22 @@ from django.core.cache import cache
 from django.db import transaction
 
 from waldur_core.configuration import config
-from waldur_mastermind.chat.docs.models import DocAudience, DocSection
+from waldur_mastermind.chat.docs.models import DocAudience, DocKind, DocSection
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CORPUS_PATH = "/usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz"
 
-_FIELDS = ("title", "breadcrumb", "text", "audience", "requires", "boost")
+_FIELDS = (
+    "title",
+    "breadcrumb",
+    "text",
+    "context",
+    "kind",
+    "audience",
+    "requires",
+    "boost",
+)
 
 
 def corpus_path() -> Path:
@@ -88,6 +99,17 @@ class LoadResult:
         return self.created + self.updated + self.deleted
 
 
+def _text(item: dict, key: str, line_no: int, max_length: int | None = None) -> str:
+    """An optional string field, checked against its column's length: one bad
+    value must skip its line, not fail the transaction that loads them all."""
+    value = item.get(key) or ""
+    if not isinstance(value, str):
+        raise CorpusError(f"line {line_no}: {key} must be a string")
+    if max_length and len(value) > max_length:
+        raise CorpusError(f"line {line_no}: {key} is longer than {max_length}")
+    return value
+
+
 def _parse_line(raw: str, line_no: int) -> dict:
     try:
         item = json.loads(raw)
@@ -95,28 +117,46 @@ def _parse_line(raw: str, line_no: int) -> dict:
         raise CorpusError(f"line {line_no}: not JSON ({exc})") from exc
     if not isinstance(item, dict):
         raise CorpusError(f"line {line_no}: not an object")
-    path = item.get("path")
+    path = _text(item, "path", line_no, DocSection._meta.get_field("path").max_length)
     title = item.get("title")
-    if not isinstance(path, str) or not path or not isinstance(title, str):
+    if not path or not isinstance(title, str):
         raise CorpusError(f"line {line_no}: path and title are required")
+    anchor = _text(
+        item, "anchor", line_no, DocSection._meta.get_field("anchor").max_length
+    )
     audience = item.get("audience") or DocAudience.ALL
     if audience not in DocAudience.values:
         raise CorpusError(f"line {line_no}: unknown audience {audience!r}")
     requires = item.get("requires") or []
+    term_length = DocSection._meta.get_field("requires").base_field.max_length
     if not isinstance(requires, list) or not all(
-        isinstance(term, str) for term in requires
+        isinstance(term, str) and len(term) <= term_length for term in requires
     ):
-        raise CorpusError(f"line {line_no}: requires must be a list of strings")
+        raise CorpusError(
+            f"line {line_no}: requires must be a list of strings of at most "
+            f"{term_length} characters"
+        )
     try:
         boost = float(item.get("boost", 1.0))
     except (TypeError, ValueError) as exc:
         raise CorpusError(f"line {line_no}: boost must be a number") from exc
+    # NaN would sort first for every query.
+    if not math.isfinite(boost) or boost < 0:
+        raise CorpusError(
+            f"line {line_no}: boost must be a finite number, not negative"
+        )
+    kind = item.get("kind") or ""
+    if kind not in DocKind.values:
+        kind = ""
+    context = _text(item, "context", line_no)
     section = {
         "path": path,
-        "anchor": item.get("anchor") or "",
+        "anchor": anchor,
         "title": title,
-        "breadcrumb": item.get("breadcrumb") or "",
-        "text": item.get("text") or "",
+        "breadcrumb": _text(item, "breadcrumb", line_no),
+        "text": _text(item, "text", line_no),
+        "context": context,
+        "kind": kind,
         "audience": audience,
         "requires": sorted(set(requires)),
         "boost": boost,

@@ -1,0 +1,166 @@
+# Validation questions for `waldur ai_assistant docs_evaluation --questions`
+# (waldur/waldur-docs#37). Written before any page they point at was changed,
+# then used to choose between variants (section questions, kinds, the concept
+# weight), so their scores flatter the chosen variant. To measure whether a
+# change generalises, use evaluation_questions_test.yaml instead.
+- id: h_org_invite
+  category: howto
+  question: How do I invite someone to my organization?
+  queries: [invite user organization]
+  gold: [user-guide/customer-organization/organization_membership_management.md]
+
+- id: h_end_date
+  category: howto
+  question: How can I change when my resource expires?
+  queries: [change resource end date, resource expiry]
+  gold: [user-guide/customer-organization/resource-end-date-changes.md]
+
+- id: h_end_date_passes
+  category: concept
+  question: What happens to my resource when its end date passes?
+  queries: [resource end date reached]
+  gold: [user-guide/customer-organization/resource-end-date-changes.md]
+
+- id: h_cost_cap
+  category: howto
+  question: How do I stop a project from spending more than a fixed amount?
+  queries: [project cost limit, project spending limit]
+  gold:
+    - user-guide/customer-organization/cost-and-usage-policies.md
+    - user-guide/customer-organization/resource-spending-limits.md
+
+- id: h_credit_left
+  category: howto
+  question: Where can I see how much credit my project has left?
+  queries: [project credit remaining, credit consumption]
+  gold:
+    - user-guide/customer-organization/project-credit-dashboard.md
+    - user-guide/customer-organization/credit-management.md
+
+- id: h_passkey
+  category: howto
+  question: How do I sign in with a passkey instead of a password?
+  queries: [passkey login, add passkey]
+  gold: [user-guide/end-users/passkeys.md]
+
+- id: h_posix_uid
+  category: howto
+  question: Where do I find my POSIX username and UID?
+  queries: [POSIX identity user id]
+  gold: [user-guide/end-users/posix-identity.md]
+  switches: {feature:marketplace.show_posix_id_pools: on}
+
+- id: h_resource_actions
+  category: howto
+  question: How do I restart or resize one of my resources?
+  queries: [resource actions restart resize]
+  gold:
+    - user-guide/end-users/resource-actions.md
+    - user-guide/customer-organization/resource_management.md
+
+- id: h_api_key_rotate
+  category: howto
+  question: How do I rotate the API key of my resource?
+  queries: [rotate resource API key]
+  gold: [user-guide/customer-organization/resource-api-keys.md]
+
+- id: h_provider_register
+  category: howto
+  question: How can my organization become a service provider?
+  queries: [register service provider]
+  gold: [user-guide/service-provider-organization/service-provider-registration.md]
+
+- id: h_offering_add
+  category: howto
+  question: How do I publish a new offering in the marketplace?
+  queries: [add offering marketplace, create offering]
+  gold: [user-guide/service-provider-organization/adding-an-offering.md]
+
+- id: h_order_approve
+  category: howto
+  question: How do I approve or reject orders for my offering?
+  queries: [approve order provider, reject order]
+  gold: [user-guide/service-provider-organization/order-management.md]
+  switches: {feature:marketplace.catalogue_only: off}
+
+- id: h_report_usage
+  category: howto
+  question: How does a provider report usage for a resource?
+  queries: [report resource usage provider]
+  gold: [user-guide/service-provider-organization/reporting-usage.md]
+
+- id: h_org_create
+  category: howto
+  question: How do I register a new organization?
+  queries: [create organization, register organization]
+  gold: [user-guide/customer-organization/creat_an_organization.md]
+  switches: {feature:customer.show_onboarding: on}
+
+- id: h_ipv6
+  category: howto
+  question: How do I add an IPv6 subnet to my OpenStack network?
+  queries: [IPv6 subnet OpenStack]
+  gold: [user-guide/customer-organization/openstack-ipv6.md]
+  roles: [staff, support]  # OpenStack pages need an OpenStack offering for end users
+
+- id: h_gateway
+  category: howto
+  question: How do I connect my tenant network to the internet?
+  queries: [router external gateway, network internet access]
+  gold: [user-guide/customer-organization/router-external-gateway.md]
+  roles: [staff, support]
+
+- id: h_access_subnets
+  category: howto
+  question: How do I allow access to my resources only from certain IP addresses?
+  queries: [restrict access IP addresses, access subnets]
+  gold: [user-guide/customer-organization/resource-access-subnets.md]
+
+- id: h_review_proposal
+  category: howto
+  question: I was assigned a proposal to review. How do I submit my review?
+  queries: [submit proposal review, reviewer]
+  gold: [user-guide/call-managing-organization/reviewer-guide.md]
+  switches: {feature:marketplace.call_only: off}
+
+- id: h_coi
+  category: howto
+  question: How do I declare a conflict of interest for a proposal?
+  queries: [conflict of interest proposal]
+  gold: [user-guide/call-managing-organization/coi-management.md]
+  switches: {feature:marketplace.show_call_management_functionality: on, feature:marketplace.call_only: off}
+
+- id: h_what_offering
+  category: concept
+  question: What is an offering?
+  queries: [offering]
+  gold: [about/concepts/marketplace.md, about/terminology/glossary.md]
+
+- id: h_what_quota
+  category: concept
+  question: What is the difference between a quota and a limit?
+  queries: [quota limit difference]
+  gold: [about/concepts/quotas.md]
+
+- id: h_what_round
+  category: concept
+  question: What is a call round?
+  queries: [call round]
+  gold:
+    - about/concepts/call-management.md
+    - user-guide/call-managing-organization/call-rounds.md
+  switches: {feature:marketplace.show_call_management_functionality: on, feature:marketplace.call_only: off}
+
+- id: h_why_credit
+  category: concept
+  question: How are credits used to pay for resources?
+  queries: [credits pay resources]
+  gold:
+    - about/concepts/billing.md
+    - user-guide/customer-organization/credit-management.md
+
+- id: h_access_modes
+  category: concept
+  question: What are the different ways I can get access to a service?
+  queries: [service access modes]
+  gold: [user-guide/end-users/service-access-modes.md]
