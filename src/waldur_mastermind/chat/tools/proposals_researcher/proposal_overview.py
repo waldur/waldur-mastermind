@@ -10,6 +10,7 @@ from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.models import Proposal, RequestedResource, Review
+from waldur_mastermind.proposal.permissions import offering_scope
 from waldur_mastermind.proposal.utils import get_proposal_duration_months
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,13 @@ class ProposalOverviewTool(BaseTool):
         resource_requests = RequestedResource.objects.filter(
             proposal=proposal
         ).select_related("requested_offering__offering", "call_resource_template")
+        # A provider reads only their own offerings' part of the proposal, as
+        # the proposal API shows it to them; None when they read all of it.
+        scope = offering_scope(user, proposal)
+        if scope is not None:
+            resource_requests = resource_requests.filter(
+                requested_offering__offering_id__in=scope
+            )
 
         resources = []
         for rr in resource_requests:
@@ -222,6 +230,20 @@ class ProposalOverviewTool(BaseTool):
             "markdown link: `[View call](url)` using the parent call's "
             "`url` field verbatim."
         )
+
+        proposal_data["reads_own_offerings_only"] = scope is not None
+        if scope is not None:
+            # A provider reads none of the proposal's reviews, nor how many
+            # came in (``managers.filter_reviews_for_user``).
+            del proposal_data["reviews"]
+            summary = (
+                f"Proposal '{proposal.slug}' ({proposal.state}) in call "
+                f"'{call.name if call else 'N/A'}': the user reads only their "
+                f"own offerings' part of it ({len(resources)} resource "
+                f"request{'s' if len(resources) != 1 else ''}). Close your "
+                "reply with one inline markdown link: `[View call](url)` "
+                "using the parent call's `url` field verbatim."
+            )
 
         return {
             "type": "success",
