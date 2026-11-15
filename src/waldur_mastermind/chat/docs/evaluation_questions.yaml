@@ -69,6 +69,7 @@
 
 - id: pat_off
   category: switched_off
+  feature: personal access tokens
   question: How do I create a personal access token?
   queries: [create personal access token, personal access tokens]
   switches: {setting:PAT_ENABLED: off}
@@ -86,6 +87,7 @@
 
 - id: chat_encryption_off
   category: switched_off
+  feature: project chat (Matrix) and its encryption
   question: How do I turn on end-to-end encryption in the project chat?
   queries: [chat encryption, project chat end-to-end encryption]
   switches: {setting:MATRIX_ENABLED: off}
@@ -102,6 +104,7 @@
 
 - id: call_create_off
   category: switched_off
+  feature: call management (creating and running calls)
   question: How do I create a call for proposals?
   queries: [create call for proposals, new call]
   switches: {feature:marketplace.show_call_management_functionality: off}
@@ -129,6 +132,7 @@
 
 - id: vmware_without_offering
   category: switched_off
+  feature: VMware virtual machines
   question: How do I create a VMware virtual machine?
   queries: [create VMware virtual machine]
   assume_off: [offering_type:VMware.VirtualMachine]

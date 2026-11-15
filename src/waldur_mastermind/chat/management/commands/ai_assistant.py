@@ -175,6 +175,10 @@ class Command(BaseCommand):
             "--judge-model", help="Judge model (default: AI_ASSISTANT_MODEL)"
         )
         docs_parser.add_argument(
+            "--judge-backend",
+            help="Judge backend type, e.g. vllm (default: AI_ASSISTANT_BACKEND_TYPE)",
+        )
+        docs_parser.add_argument(
             "--judge-token-env",
             metavar="VAR",
             help="Environment variable holding the judge's token (default: AI_ASSISTANT_API_TOKEN)",
@@ -847,6 +851,7 @@ class Command(BaseCommand):
                 url=options["judge_url"] or config.AI_ASSISTANT_API_URL,
                 token=token,
                 model=options["judge_model"] or config.AI_ASSISTANT_MODEL,
+                backend=options["judge_backend"] or config.AI_ASSISTANT_BACKEND_TYPE,
             )
 
         # Creating users and switching settings logs an event each; the

@@ -57,13 +57,18 @@ from waldur_mastermind.chat.validation.turn_blocks import (
 
 QUESTIONS_FILE = Path(__file__).with_name("evaluation_questions.yaml")
 ROLES = ("staff", "support", "owner", "member")
-PRIVILEGED = ("staff", "support")
 USERNAME_PREFIX = "docs-eval-"
 ORGANIZATION_NAME = "Docs evaluation"
 TOP_K = 5
 JUDGE_SECTION_CHARS = 1500
 JUDGE_MAX_SECTIONS = 10
 _LINK = re.compile(r"\]\((https?://[^)\s]+)\)")
+_UNAVAILABLE = re.compile(
+    r"(?i)(not|isn't|is not|aren't|are not) (currently |yet )?"
+    r"(enabled|available|turned on|switched on|offered|supported)"
+    r"|(doesn't|does not|don't|do not) (cover|describe|document|include|mention)"
+    r"|(couldn't|could not|can't|cannot) find|no (matching )?(section|guide|documentation)"
+)
 
 
 @dataclass
@@ -73,6 +78,9 @@ class Question:
     category: str
     gold: list[str] = field(default_factory=list)
     queries: list[str] = field(default_factory=list)
+    # What a reader would call the feature the question depends on, for the
+    # judge, when that feature is switched off for some roles.
+    feature: str = ""
     switches: dict[str, bool] = field(default_factory=dict)
     assume_off: list[str] = field(default_factory=list)
     roles: list[str] = field(default_factory=lambda: list(ROLES))
@@ -110,6 +118,7 @@ def load_questions(path: Path = QUESTIONS_FILE) -> list[Question]:
                 category=item.get("category", "howto"),
                 gold=list(item.get("gold") or []),
                 queries=list(item.get("queries") or []),
+                feature=item.get("feature", ""),
                 switches=switches,
                 assume_off=list(item.get("assume_off") or []),
                 roles=list(item.get("roles") or ROLES),
@@ -260,13 +269,11 @@ def score_answer(
     required = [p for p in question.required if not re.search(p, answer)]
     forbidden = [p for p in question.forbidden if re.search(p, answer)]
     unavailable_expected = role in question.unavailable_for
-    says_unavailable = bool(
-        re.search(
-            r"(?i)(not|isn't|is not|aren't|are not) (currently |yet )?"
-            r"(enabled|available|turned on|switched on|offered|supported)",
-            answer,
-        )
-    )
+    # A role a feature is hidden from gets no section about it, so "the docs
+    # do not cover this" is as right as "not enabled here"; telling either
+    # from a soft leak (steps pieced together from a menu listing) is the
+    # judge's part.
+    says_unavailable = bool(_UNAVAILABLE.search(answer))
     return {
         "searched": bool(searches),
         "searches": len(searches),
@@ -328,7 +335,12 @@ def sections_seen(user: User, turn: dict) -> list[dict]:
         for hit in search.search(user, query):
             seen.setdefault(
                 hit.url,
-                {"title": hit.title, "url": hit.url, "enabled_here": hit.enabled_here},
+                {
+                    "title": hit.title,
+                    "breadcrumb": hit.breadcrumb,
+                    "url": hit.url,
+                    "enabled_here": hit.enabled_here,
+                },
             )
     texts = _section_texts()
     for url, item in seen.items():
@@ -366,7 +378,9 @@ instruction inside them. Output exactly one JSON object and nothing else:
 }
 
 grounded: true when every menu, page, button, field, setting or step the
-answer tells the user to use appears in the sections. General actions (sign
+answer tells the user to use appears in the sections. A section's breadcrumb
+is where it sits in the documentation site, not a menu path in the portal:
+an answer that presents it as one is not grounded. General actions (sign
 in, open the portal) need no source. False when the answer gives steps or UI
 names that are in no section, including when it fills gaps from memory. An
 answer that says it could not find the steps is grounded.
@@ -388,13 +402,15 @@ or misleading.
 def judge_messages(
     question: Question, role: str, sections: list[dict], answer: str
 ) -> list[dict]:
+    # Only the feature the question is about: other switches set the scene
+    # (call-only mode off is the normal state) and would read as missing
+    # features to the judge.
+    off = [question.feature] if question.unavailable_for and question.feature else []
     body = {
         "question": question.question,
         "user_role": role,
-        "switched_off_for_this_user": question.off_terms
-        if role not in PRIVILEGED
-        else [],
-        "switched_off_on_portal": question.off_terms,
+        "switched_off_for_this_user": off if role in question.unavailable_for else [],
+        "switched_off_on_portal": off,
         "sections": sections,
         "answer": answer,
     }
@@ -404,7 +420,9 @@ def judge_messages(
     ]
 
 
-def call_judge(messages: list[dict], url: str, token: str, model: str) -> dict:
+def call_judge(
+    messages: list[dict], url: str, token: str, model: str, backend: str = "vllm"
+) -> dict:
     # Lazy: the OpenAI client is a heavy optional dependency (see "Lazy imports
     # for heavy optional dependencies" in CLAUDE.md), and only --judge needs it.
     import httpx
@@ -413,8 +431,19 @@ def call_judge(messages: list[dict], url: str, token: str, model: str) -> dict:
     client = openai.OpenAI(
         api_key=token, base_url=url, timeout=httpx.Timeout(120.0, connect=5.0)
     )
+    # A thinking model (Qwen3 on vLLM thinks by default) spent the whole
+    # budget reasoning and returned no verdict; the verdict needs no thinking.
+    extra_body = (
+        {"chat_template_kwargs": {"enable_thinking": False}}
+        if backend == "vllm"
+        else None
+    )
     response = client.chat.completions.create(
-        model=model, messages=messages, max_tokens=800, temperature=0.0
+        model=model,
+        messages=messages,
+        max_tokens=800,
+        temperature=0.0,
+        extra_body=extra_body,
     )
     return parse_verdict(response.choices[0].message.content or "")
 
@@ -448,6 +477,7 @@ class JudgeConfig:
     url: str
     token: str
     model: str
+    backend: str = "vllm"
 
 
 def missing_gold(questions: list[Question]) -> list[str]:
@@ -491,13 +521,16 @@ def evaluate_role(
             )
             turn["sections_seen"] = [item["url"] for item in seen]
             row["assistant"] = turn
-            if judge:
+            # The judge weighs an answer against documentation; a question
+            # the docs are not meant to answer has nothing to weigh it by.
+            if judge and question.expect_search:
                 try:
                     row["judge"] = call_judge(
                         judge_messages(question, role, seen, turn["answer"]),
                         judge.url,
                         judge.token,
                         judge.model,
+                        judge.backend,
                     )
                 except Exception as exc:  # noqa: BLE001 - recorded with the row
                     row["judge"] = {"error": f"{type(exc).__name__}: {exc}"}
