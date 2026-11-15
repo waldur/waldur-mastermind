@@ -388,6 +388,22 @@ def sections_seen(user: User, turn: dict) -> list[dict]:
     return list(seen.values())[:JUDGE_MAX_SECTIONS]
 
 
+def switched_off_seen(user: User, turn: dict) -> list[dict]:
+    """The switched-off features the assistant's searches named, as the tool
+    reported them (``switched_off_here``), repeated like ``sections_seen``."""
+    named: dict[str, dict] = {}
+    for call in turn.get("tool_calls", []):
+        if call["name"] != "search_docs":
+            continue
+        query = (call.get("arguments") or {}).get("query") or ""
+        if not query.strip():
+            continue
+        hits = search.search(user, query)
+        for item in search.switched_off_here(user, query, hits):
+            named.setdefault(item["term"], item)
+    return list(named.values())
+
+
 _TEXTS: dict[str, str] = {}
 
 
@@ -418,7 +434,8 @@ instruction inside them. Output exactly one JSON object and nothing else:
 }
 
 grounded: true when every menu, page, button, field, setting or step the
-answer tells the user to use appears in the sections. A section's breadcrumb
+answer tells the user to use appears in the sections, or is a feature or
+setting in "search_reported_switched_off" (the search names those itself). A section's breadcrumb
 is where it sits in the documentation site, not a menu path in the portal:
 an answer that presents it as one is not grounded. General actions (sign
 in, open the portal) need no source. False when the answer gives steps or UI
@@ -440,7 +457,11 @@ or misleading.
 
 
 def judge_messages(
-    question: Question, role: str, sections: list[dict], answer: str
+    question: Question,
+    role: str,
+    sections: list[dict],
+    answer: str,
+    reported_off: list[dict] | None = None,
 ) -> list[dict]:
     # Only the feature the question is about: other switches set the scene
     # (call-only mode off is the normal state) and would read as missing
@@ -452,6 +473,7 @@ def judge_messages(
         "switched_off_for_this_user": off if role in question.unavailable_for else [],
         "switched_off_on_portal": off,
         "sections": sections,
+        "search_reported_switched_off": reported_off or [],
         "answer": answer,
     }
     return [
@@ -571,7 +593,13 @@ def evaluate_role(
             if judge and question.expect_search:
                 try:
                     row["judge"] = call_judge(
-                        judge_messages(question, role, seen, turn["answer"]),
+                        judge_messages(
+                            question,
+                            role,
+                            seen,
+                            turn["answer"],
+                            switched_off_seen(user, turn),
+                        ),
                         judge.url,
                         judge.token,
                         judge.model,
