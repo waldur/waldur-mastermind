@@ -115,6 +115,11 @@ class ProposalConfig(AppConfig):
             dispatch_uid="waldur_mastermind.proposal.leave_pool_on_role_revoke",
         )
         signals.post_save.connect(
+            reviewer_membership.close_assignments_on_leaving_pool,
+            sender=models.CallReviewerPool,
+            dispatch_uid="waldur_mastermind.proposal.close_assignments_on_leaving_pool",
+        )
+        signals.post_save.connect(
             reviewer_membership.grant_role_on_acceptance,
             sender=models.CallReviewerPool,
             dispatch_uid="waldur_mastermind.proposal.grant_role_on_acceptance",

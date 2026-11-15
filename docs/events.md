@@ -64,7 +64,7 @@
 - call_document_added
 - call_document_removed
 - review_assignment_force_unblocked
-- review_assignments_closed_on_role_revoke
+- review_assignments_closed_on_leaving_pool
 - reviewer_invitation_force_accepted
 - reviewer_workload_limit_overridden
 
