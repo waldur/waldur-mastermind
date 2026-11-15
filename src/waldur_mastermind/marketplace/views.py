@@ -14103,7 +14103,7 @@ class OfferingUsersViewSet(
             "service provider for the associated offerings."
         ),
         request=None,
-        responses={200: serializers.ProfileFieldWarningsSerializer},
+        responses={200: serializers.PROFILE_FIELD_WARNINGS_SCHEMA},
     )
     @action(detail=False, methods=["get"])
     def profile_field_warnings(self, request):
@@ -14332,49 +14332,22 @@ class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet)
             self.request.user, include_consent_filtering=True, action="list"
         )
 
-        # Use SubqueryCount per metric to avoid the Cartesian product that
-        # plain Count(distinct=True) over multiple multi-valued joins
-        # (answers + checklist__questions) produces.
-        answers_qs = checklist_models.Answer.objects.filter(completion=OuterRef("pk"))
-        questions_qs = checklist_models.Question.objects.filter(
-            checklist=OuterRef("checklist_id")
-        )
-        required_questions_qs = checklist_models.Question.objects.filter(
-            checklist=OuterRef("checklist_id"), required=True
-        )
-
+        # Completion is counted over the questions shown for the answers,
+        # which SQL cannot tell; the serializer works it out from these.
         queryset = (
             checklist_models.ChecklistCompletion.objects.filter(
                 scope_content_type=content_type,
                 scope_object_id__in=Subquery(allowed_offering_users.values("id")),
             )
             .select_related("checklist")
-            .annotate(
-                # Denominator for completion_percentage — must count questions
-                # in the checklist, not Answer rows (which only exist for
-                # questions the user has touched).
-                total_questions=SubqueryCount(questions_qs),
-                # Answered questions, not Answer rows: answers are per-user
-                # rows, so a question answered by two users has two.
-                answered_answers=SubqueryCount(
-                    answers_qs.filter(answer_data__isnull=False)
-                    .values("question_id")
-                    .distinct()
+            .prefetch_related(
+                "answers",
+                Prefetch(
+                    "checklist__questions",
+                    queryset=checklist_models.Question.objects.order_by(
+                        "order"
+                    ).prefetch_related("dependencies"),
                 ),
-                total_required_questions=SubqueryCount(required_questions_qs),
-                total_required_answers=SubqueryCount(
-                    answers_qs.filter(
-                        question__required=True, answer_data__isnull=False
-                    )
-                    .values("question_id")
-                    .distinct()
-                ),
-            )
-            .annotate(
-                unanswered_required_questions=ExpressionWrapper(
-                    F("total_required_questions") - F("total_required_answers"),
-                    output_field=IntegerField(),
-                )
             )
         )
 

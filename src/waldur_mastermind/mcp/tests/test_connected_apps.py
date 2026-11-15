@@ -238,7 +238,7 @@ class ListTest(ConnectedAppTestCase):
             user=self.user,
             application=self.application,
             token="extra",
-            scope="mcp:read mcp:staff",
+            scope="mcp:read mcp:retired",
             expires=timezone.now() + timedelta(hours=1),
         )
 
@@ -248,7 +248,7 @@ class ListTest(ConnectedAppTestCase):
             app["scopes"],
             [
                 {"name": "mcp:read", "description": "Read your Waldur data"},
-                {"name": "mcp:staff", "description": "mcp:staff"},
+                {"name": "mcp:retired", "description": "mcp:retired"},
             ],
         )
 

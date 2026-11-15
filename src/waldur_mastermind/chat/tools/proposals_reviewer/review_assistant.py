@@ -7,14 +7,22 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.proposal_helpers import applicant_details
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.proposal.enums import AssignmentBatchStatuses
+from waldur_mastermind.proposal.applicant_visibility import ApplicantVisibility
+from waldur_mastermind.proposal.managers import (
+    get_assigned_proposals,
+    holds_live_review,
+)
 from waldur_mastermind.proposal.models import (
-    AssignmentItem,
     ConflictOfInterest,
     Proposal,
     RequestedResource,
     Review,
+)
+from waldur_mastermind.proposal.permissions import (
+    offering_scope,
+    user_can_view_review_scores,
 )
 from waldur_mastermind.proposal.utils import get_proposal_duration_months
 
@@ -111,17 +119,19 @@ class ReviewAssistantTool(BaseTool):
                 "ui_data": {"c": f"Could not find proposal '{identifier}'."},
             }
 
+        # Live review work only: a review in progress or submitted, or an
+        # assignment offered and not yet answered (an accepted one reads on
+        # through its review). A rejected review, a declined or expired
+        # assignment, or a review held on one's own proposal opens nothing.
         is_assigned = (
-            Review.objects.filter(proposal=proposal, reviewer=user).exists()
-            or AssignmentItem.objects.filter(
-                proposal=proposal,
-                batch__reviewer_pool_entry__reviewer__user=user,
-                batch__status__in=AssignmentBatchStatuses.SENT_TO_REVIEWER,
-            ).exists()
-            or user.is_staff
+            user.is_staff
+            or holds_live_review(user, proposal)
+            or get_assigned_proposals(user).filter(proposal_id=proposal.pk).exists()
         )
 
-        if not is_assigned:
+        # Whoever reads the proposal only as a provider reads only their own
+        # offerings' part of it (``offering_scope``), never this analysis.
+        if not is_assigned or offering_scope(user, proposal) is not None:
             return {
                 "type": "error",
                 "summary": "You are not assigned to review this proposal.",
@@ -219,17 +229,25 @@ class ReviewAssistantTool(BaseTool):
             avg_score=Avg("summary_score"),
         )
 
+        # The average is the call team's: a reviewer's own score next to it
+        # gives their peers'. A reviewer is told only how many came in.
+        avg_score = (
+            round(existing_reviews["avg_score"], 1)
+            if existing_reviews["avg_score"]
+            and user_can_view_review_scores(user, proposal)
+            else None
+        )
+
         review_data = {
             "proposal": {
                 "slug": proposal.slug,
                 "name": proposal.name,
                 "state": proposal.state,
-                "created_by": proposal.created_by.full_name
-                if proposal.created_by
-                else "",
-                "organization": proposal.created_by.organization
-                if proposal.created_by
-                else "",
+                **applicant_details(
+                    proposal,
+                    ApplicantVisibility(user),
+                    {"created_by": "full_name", "organization": "organization"},
+                ),
                 "project_summary": proposal.project_summary[:1000]
                 if proposal.project_summary
                 else "",
@@ -249,9 +267,7 @@ class ReviewAssistantTool(BaseTool):
             },
             "existing_reviews": {
                 "count": existing_reviews["count"],
-                "avg_score": round(existing_reviews["avg_score"], 1)
-                if existing_reviews["avg_score"]
-                else None,
+                "avg_score": avg_score,
             },
             "coi_flags": list(coi_for_user),
             "disclaimer": "This AI analysis is advisory only. The reviewer makes the final evaluation.",

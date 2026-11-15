@@ -3,14 +3,21 @@ import re
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.validators import RegexValidator
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
-from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure.models import Project
 
-from . import matrix_client, models, recovery_keys, room_provisioning, tickets
+from . import (
+    matrix_client,
+    models,
+    recovery_keys,
+    room_provisioning,
+    scopes,
+    tickets,
+)
 from .models import CryptoLeaseKinds
 
 # Matrix appservice registration regexes are built by string interpolation into
@@ -136,8 +143,17 @@ class MatrixRoomMemberSummarySerializer(serializers.Serializer):
     membership_state = serializers.CharField()
 
 
+@extend_schema_field(OpenApiTypes.STR)
+class RoomScopeField(serializers.Field):
+    """The room's scope as its API URL, by its registration in `scopes`;
+    null for a kind of object with no API route of its own."""
+
+    def to_representation(self, obj):
+        return scopes.scope_url(obj, self.context.get("request"))
+
+
 class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
-    scope = GenericRelatedField(read_only=True)
+    scope = RoomScopeField(read_only=True)
     scope_uuid = serializers.SerializerMethodField()
     scope_name = serializers.SerializerMethodField()
     customer_uuid = serializers.SerializerMethodField()
@@ -193,8 +209,8 @@ class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_scope_name(self, obj):
-        if obj.scope and hasattr(obj.scope, "name"):
-            return obj.scope.name
+        if obj.scope:
+            return scopes.scope_name(obj.scope)
         return None
 
     @extend_schema_field(serializers.CharField(allow_null=True))

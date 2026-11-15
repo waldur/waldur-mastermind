@@ -2036,6 +2036,17 @@ class SmaxWebHookReceiverSerializer(serializers.Serializer):
 # ==========================================
 
 
+ATLASSIAN_AUTH_METHOD_CHOICES = [
+    ("api_token", "API Token (Cloud)"),
+    ("personal_access_token", "Personal Access Token (Server)"),
+    ("basic", "Basic Authentication"),
+    (
+        "oauth2_client_credentials",
+        "OAuth 2.0 client credentials (Cloud service account)",
+    ),
+]
+
+
 class AtlassianCredentialsSerializer(serializers.Serializer):
     """Serializer for Atlassian credentials - accepts temporary credentials."""
 
@@ -2046,15 +2057,7 @@ class AtlassianCredentialsSerializer(serializers.Serializer):
         "API gateway URL.",
     )
     auth_method = serializers.ChoiceField(
-        choices=[
-            ("api_token", "API Token (Cloud)"),
-            ("personal_access_token", "Personal Access Token (Server)"),
-            ("basic", "Basic Authentication"),
-            (
-                "oauth2_client_credentials",
-                "OAuth 2.0 client credentials (Cloud service account)",
-            ),
-        ],
+        choices=ATLASSIAN_AUTH_METHOD_CHOICES,
         required=True,
         help_text="Authentication method to use",
     )
@@ -2186,6 +2189,48 @@ class AtlassianPriorityResponseSerializer(serializers.Serializer):
     name = serializers.CharField()
     description = serializers.CharField(allow_blank=True, required=False)
     icon_url = serializers.URLField(required=False, allow_blank=True)
+
+
+class AtlassianCurrentSettingsSerializer(serializers.Serializer):
+    """Response of current_settings: the saved Atlassian configuration.
+
+    Secrets are never returned; settings still holding their placeholder
+    default are returned as an empty string.
+    """
+
+    ATLASSIAN_API_URL = serializers.CharField(allow_blank=True)
+    ATLASSIAN_PROJECT_ID = serializers.CharField(allow_blank=True)
+    ATLASSIAN_VERIFY_SSL = serializers.BooleanField()
+    ATLASSIAN_USE_OLD_API = serializers.BooleanField()
+    ATLASSIAN_ISSUE_TYPES = serializers.ListField(child=serializers.CharField())
+    ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = serializers.BooleanField()
+    ATLASSIAN_REPORTER_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_IMPACT_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_ORGANISATION_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_PROJECT_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_AFFECTED_RESOURCE_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_CALLER_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_TEMPLATE_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_SLA_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_RESOLUTION_SLA_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_SATISFACTION_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_REQUEST_FEEDBACK_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_WALDUR_BACKEND_ID_FIELD = serializers.CharField(allow_blank=True)
+    ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE = serializers.CharField(allow_blank=True)
+    ATLASSIAN_EMAIL = serializers.CharField(allow_blank=True)
+    ATLASSIAN_USERNAME = serializers.CharField(allow_blank=True)
+    ATLASSIAN_OAUTH2_CLIENT_ID = serializers.CharField(allow_blank=True)
+    auth_method = serializers.ChoiceField(
+        choices=ATLASSIAN_AUTH_METHOD_CHOICES, allow_null=True
+    )
+    auth_configured = serializers.BooleanField()
+
+
+# Number of feedback entries per evaluation score, keyed by the score.
+FEEDBACK_REPORT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {"type": "integer"},
+}
 
 
 # Preview and Save serializers

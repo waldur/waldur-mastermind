@@ -7424,6 +7424,10 @@ class ProposalViewSet(
         return {
             "request": request,
             "can_view_internal_notes": can_view_internal_notes,
+            # The score a step's threshold reads is the call team's alone.
+            "can_view_step_scores": proposal_permissions.user_can_view_step_scores(
+                user, proposal, staff=has_staff_access(request)
+            ),
             # A reader who is only one of the proposal's reviewers sees the
             # outcome and reason only of the steps they take part in.
             "can_view_step_outcome": lambda instance: (
@@ -8754,8 +8758,15 @@ class ProposalViewSet(
                     }
                 )
 
+            reads_score = proposal_permissions.user_can_view_step_scores(
+                request.user, proposal, staff=has_staff_access(request)
+            )
             in_run = current_instance.run_id is not None
             try:
+                if not reads_score:
+                    # Whether the score gate holds is the call team's to
+                    # know while evaluations are still coming in.
+                    workflow_service.enforce_closed_scored_work(current_instance)
                 next_instance = workflow_service.complete_step(
                     proposal=proposal,
                     current_instance=current_instance,
@@ -8767,9 +8778,15 @@ class ProposalViewSet(
                         "budget_override_reason"
                     ],
                 )
+            except workflow_service.ScoreBelowThreshold as e:
+                # The score and threshold are the call team's: an evaluator
+                # completing the step learns only that the gate holds.
+                raise exceptions.ValidationError(
+                    {"detail": str(e) if reads_score else e.concealed_message}
+                )
             except ValueError as e:
-                # Step gate not satisfied (e.g. too few reviews / score below
-                # threshold). Roll back and surface the reason to the caller.
+                # Step gate not satisfied (e.g. too few reviews). Roll back
+                # and surface the reason to the caller.
                 raise exceptions.ValidationError({"detail": str(e)})
             # Step-activation notifications were intentionally removed; see
             # commit d2d5fb77c "Drop step-activation notifications [WAL-9346]".
@@ -9140,6 +9157,7 @@ class ProposalViewSet(
             instance,
             context={
                 "can_view_internal_notes": True,
+                "can_view_step_scores": True,
                 "can_view_step_actors": True,
                 "can_view_review_content": True,
             },
@@ -13909,20 +13927,36 @@ class AssignmentBatchViewSet(ActionsViewSet):
         """Send the assignment batch invitation to the reviewer."""
         batch: models.AssignmentBatch = self.get_object()
 
-        if batch.status != models.AssignmentBatchStatuses.DRAFT:
-            return response.Response(
-                {"error": _("Only draft batches can be sent.")},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         serializer = serializers.SendAssignmentBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        if serializer.validated_data.get("manager_notes"):
-            batch.manager_notes = serializer.validated_data["manager_notes"]
-            batch.save(update_fields=["manager_notes"])
+        with transaction.atomic():
+            # Locked in the order revoking the reviewer's role locks them, so
+            # a batch is never sent to a reviewer who has just been removed.
+            entry = models.CallReviewerPool.objects.select_for_update().get(
+                pk=batch.reviewer_pool_entry_id
+            )
+            batch = models.AssignmentBatch.objects.select_for_update().get(pk=batch.pk)
+            if batch.status != models.AssignmentBatchStatuses.DRAFT:
+                return response.Response(
+                    {"error": _("Only draft batches can be sent.")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not entry.is_accepted:
+                return response.Response(
+                    {
+                        "error": _(
+                            "The reviewer is no longer in this call's reviewer pool."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        batch.send_invitation(user=request.user)
+            if serializer.validated_data.get("manager_notes"):
+                batch.manager_notes = serializer.validated_data["manager_notes"]
+                batch.save(update_fields=["manager_notes"])
+
+            batch.send_invitation(user=request.user)
         tasks.send_assignment_batch_invitation.delay(batch.uuid)
 
         return response.Response(
@@ -13980,6 +14014,18 @@ class AssignmentBatchViewSet(ActionsViewSet):
         """
         batch: models.AssignmentBatch = self.get_object()
 
+        serializer = serializers.ExtendDeadlineRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            # Locked as in ``send``: a reviewer removed meanwhile is seen.
+            entry = models.CallReviewerPool.objects.select_for_update().get(
+                pk=batch.reviewer_pool_entry_id
+            )
+            batch = models.AssignmentBatch.objects.select_for_update().get(pk=batch.pk)
+            return self._extend_deadline(batch, entry, serializer)
+
+    def _extend_deadline(self, batch, entry, serializer):
         if batch.status not in [
             models.AssignmentBatchStatuses.SENT,
             models.AssignmentBatchStatuses.EXPIRED,
@@ -13988,9 +14034,13 @@ class AssignmentBatchViewSet(ActionsViewSet):
                 {"error": _("Can only extend deadline for sent or expired batches.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        serializer = serializers.ExtendDeadlineRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        # A reviewer who left the pool, or whose call role was revoked, has
+        # nothing to answer: a new deadline would reopen their assignments.
+        if not entry.is_accepted:
+            return response.Response(
+                {"error": _("The reviewer is no longer in this call's reviewer pool.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         new_expires_at = serializer.validated_data["expires_at"]
         batch.expires_at = new_expires_at
@@ -14085,8 +14135,15 @@ class AssignmentItemViewSet(ActionsViewSet):
         item: models.AssignmentItem = self.get_object()
 
         with transaction.atomic():
+            # The pool entry first, in the order revoking the reviewer's role
+            # locks it and then their items: a reviewer removed meanwhile is
+            # seen, and takes on no review.
+            entry = models.CallReviewerPool.objects.select_for_update().get(
+                pk=item.batch.reviewer_pool_entry_id
+            )
             # Locked, so two concurrent answers cannot both find it pending
             item = models.AssignmentItem.objects.select_for_update().get(pk=item.pk)
+            item.batch.reviewer_pool_entry = entry
 
             # Block responses to expired batches
             if item.batch.is_expired:
@@ -14342,6 +14399,11 @@ class AssignmentItemViewSet(ActionsViewSet):
         if item.status != models.AssignmentItemStatuses.COI_BLOCKED:
             return response.Response(
                 {"error": _("Only COI-blocked items can be force-unblocked.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not item.batch.reviewer_pool_entry.is_accepted:
+            return response.Response(
+                {"error": _("The reviewer is no longer in this call's reviewer pool.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

@@ -50,8 +50,8 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
     resource_backend_id = serializers.CharField(
         read_only=True, source="robot_account.resource.backend_id"
     )
-    resource_end_date = serializers.DateTimeField(
-        read_only=True, source="robot_account.resource.end_date"
+    resource_end_date = serializers.DateField(
+        read_only=True, source="robot_account.resource.end_date", allow_null=True
     )
     project_uuid = serializers.UUIDField(
         read_only=True, source="robot_account.resource.project.uuid"

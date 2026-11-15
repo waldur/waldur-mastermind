@@ -3156,7 +3156,13 @@ Override keyword arguments merged on top of provider defaults for AI Assistant c
 
 **Default value:** 120
 
-Hard timeout in seconds for a full streaming request including LLM completion.
+Seconds a streaming request may go without receiving anything from the LLM or sending anything to the client before it times out.
+
+#### AI_ASSISTANT_SHOW_REASONING
+
+**Type:** bool
+
+Stream and store a thinking model's reasoning for logged-in users, and show what the model says before a tool call as narration. Anonymous users get neither.
 
 #### AI_ASSISTANT_TOKEN_LIMIT_DAILY
 

@@ -226,8 +226,10 @@ class ClientIPMiddlewareTest(SimpleTestCase):
 
         self.assertEqual(seen, {"10.1.2.3": "10.1.2.3", "192.0.2.1": "192.0.2.1"})
 
-    def test_verifier_without_the_middleware_fails(self):
-        verify_token = auth.WaldurTokenVerifier().verify_token
+    def test_authentication_without_the_middleware_fails(self):
+        middleware = auth.AuthMiddleware(app=None)
+        authorization = f"Bearer {models.PAT_PREFIX}token".encode()
+        scope = {"type": "http", "headers": [(b"authorization", authorization)]}
 
         with self.assertRaises(LookupError):
-            async_to_sync(verify_token)(f"{models.PAT_PREFIX}token")
+            async_to_sync(middleware)(scope, None, None)

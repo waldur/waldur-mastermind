@@ -349,6 +349,41 @@ def on_project_pre_delete(sender, instance, **kwargs):
         )
 
 
+def close_deleted_scope_room(sender, instance, **kwargs):
+    """Close the room of a registered scope that is being deleted: kick its
+    members, export its history and archive it once the deletion commits
+    (tasks.close_room_on_commit). Connected by scopes.register for each
+    registered model."""
+    room = MatrixRoom.objects.filter(
+        content_type=ContentType.objects.get_for_model(instance),
+        object_id=instance.pk,
+    ).first()
+    if room is None:
+        return
+    if tasks.close_room_on_commit(room, reason=f"{sender._meta.verbose_name} deletion"):
+        return
+    if not matrix_client.is_enabled():
+        # Nothing can kick its members or export its history now, and no
+        # task closes it later: its members keep it until staff disable it.
+        logger.warning(
+            "Matrix chat is disabled, so room %s (%s) of deleted %s %s was "
+            "left %s. Disable it once chat is enabled again.",
+            room.uuid,
+            room.room_id,
+            sender._meta.verbose_name,
+            instance.pk,
+            room.state,
+        )
+    else:
+        logger.info(
+            "Room %s of deleted %s %s is %s, not closing it",
+            room.uuid,
+            sender._meta.verbose_name,
+            instance.pk,
+            room.state,
+        )
+
+
 def on_order_state_changed(sender, instance, created=False, **kwargs):
     """Notify the project's Matrix room when an order is approved, completed, or rejected."""
     if not matrix_client.is_enabled():

@@ -9,6 +9,7 @@ from waldur_mastermind.proposal import reviewer_stats
 from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
+    ReviewerPoolInvitationStatuses,
 )
 from waldur_mastermind.proposal.models import (
     AssignmentItem,
@@ -114,6 +115,9 @@ proposals_reviewer in the same search_tools batch.\
 
         pending_assignments = AssignmentItem.objects.filter(
             batch__reviewer_pool_entry__reviewer__user=user,
+            batch__reviewer_pool_entry__invitation_status=(
+                ReviewerPoolInvitationStatuses.ACCEPTED
+            ),
             batch__status__in=AssignmentBatchStatuses.SENT_TO_REVIEWER,
             status=AssignmentItemStatuses.PENDING,
         ).select_related(

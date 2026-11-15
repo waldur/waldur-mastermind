@@ -23,7 +23,11 @@ class MCPExtension(WaldurExtension):
 
         OAUTH2_PROVIDER = {
             "OAUTH2_VALIDATOR_CLASS": "waldur_mastermind.mcp.oauth.MCPOAuth2Validator",
-            "SCOPES": {"mcp:read": "Read your Waldur data"},
+            "SCOPES": {
+                "mcp:read": "Read your Waldur data",
+                "mcp:staff": "Read with your staff access, across all organizations",
+                "mcp:support": "Read with your support access, across all organizations",
+            },
             "DEFAULT_SCOPES": ["mcp:read"],
             "PKCE_REQUIRED": True,
             "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,

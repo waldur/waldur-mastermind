@@ -241,14 +241,23 @@ def open_assignment_items_q():
 
     A pending item counts unless its batch was cancelled or has expired,
     including a batch whose deadline has passed but which the expiry task has
-    not marked yet; an accepted item counts until its review is submitted or
-    rejected. Declined, expired, reassigned and COI-blocked items never count.
+    not marked yet, or its reviewer's pool entry is no longer accepted; an
+    accepted item counts until its review is submitted or rejected. Declined,
+    expired, reassigned and COI-blocked items never count.
     """
-    pending = assignment_item_status_q([AssignmentItemStatuses.PENDING]) & ~Q(
-        batch__status__in=[
-            AssignmentBatchStatuses.CANCELLED,
-            AssignmentBatchStatuses.EXPIRED,
-        ]
+    pending = (
+        assignment_item_status_q([AssignmentItemStatuses.PENDING])
+        & Q(
+            batch__reviewer_pool_entry__invitation_status=(
+                ReviewerPoolInvitationStatuses.ACCEPTED
+            )
+        )
+        & ~Q(
+            batch__status__in=[
+                AssignmentBatchStatuses.CANCELLED,
+                AssignmentBatchStatuses.EXPIRED,
+            ]
+        )
     )
     accepted = Q(status=AssignmentItemStatuses.ACCEPTED) & (
         Q(review__isnull=True) | Q(review__state=models.Review.States.IN_REVIEW)
@@ -623,11 +632,16 @@ def get_assigned_proposals(user):
 
     An accepted item reads on through the review it created, and stops with
     it once that review is rejected; a declined, expired, reassigned or
-    blocked item grants nothing.
+    blocked item grants nothing. Nor does any item once the user's pool entry
+    is no longer accepted: a reviewer who left the pool, or whose call role
+    was revoked, is no longer deciding.
     """
     return (
         models.AssignmentItem.objects.filter(
             batch__reviewer_pool_entry__reviewer__user=user,
+            batch__reviewer_pool_entry__invitation_status=(
+                ReviewerPoolInvitationStatuses.ACCEPTED
+            ),
             batch__status__in=AssignmentBatchStatuses.SENT_TO_REVIEWER,
             status=AssignmentItemStatuses.PENDING,
         )

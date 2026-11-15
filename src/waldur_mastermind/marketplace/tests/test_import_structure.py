@@ -19,6 +19,7 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role, RolePermission, UserRole
+from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import ledger
@@ -367,6 +368,58 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(project.description, "Test project description")
         self.assertEqual(project.customer, customer)
         self.assertEqual(project.oecd_fos_2007_code, "1.1")
+
+    def test_import_project_without_kind_gets_default_kind(self):
+        customer = structure_factories.CustomerFactory()
+        self._create_test_json(
+            {
+                "projects": [
+                    {
+                        "uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                        "name": "Project without kind",
+                        "customer_uuid": str(customer.uuid),
+                    }
+                ]
+            }
+        )
+
+        self._call_import_command("-i", self.test_file_path)
+
+        project = Project.available_objects.get(
+            uuid="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        )
+        self.assertEqual(project.kind, ProjectKind.DEFAULT)
+
+    def test_import_project_with_unknown_kind_gets_default_kind(self):
+        customer = structure_factories.CustomerFactory()
+        self._create_test_json(
+            {
+                "projects": [
+                    {
+                        "uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                        "name": "Project with unknown kind",
+                        "customer_uuid": str(customer.uuid),
+                        "kind": "workshop",
+                    },
+                    {
+                        "uuid": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+                        "name": "Course project",
+                        "customer_uuid": str(customer.uuid),
+                        "kind": "course",
+                    },
+                ]
+            }
+        )
+
+        self._call_import_command("-i", self.test_file_path)
+
+        kinds = dict(
+            Project.available_objects.filter(customer=customer).values_list(
+                "name", "kind"
+            )
+        )
+        self.assertEqual(kinds["Project with unknown kind"], ProjectKind.DEFAULT)
+        self.assertEqual(kinds["Course project"], ProjectKind.COURSE)
 
     def test_import_categories(self):
         """Test that importing categories creates category objects."""

@@ -16,7 +16,17 @@ class MatrixChatConfig(AppConfig):
         from waldur_core.structure.models import Project
         from waldur_mastermind.marketplace.models import Order
 
-        from . import handlers, managers, models
+        from . import handlers, managers, models, scopes
+
+        # Project rooms are matrix_chat's own; other apps register their
+        # kinds of rooms the same way from their own ready().
+        scopes.register(
+            Project,
+            members=models.project_room_members,
+            power_level=models.project_power_level,
+            # on_project_pre_delete below closes a deleted project's room.
+            close_on_delete=False,
+        )
 
         permission_signals.role_granted.connect(
             handlers.on_role_granted,

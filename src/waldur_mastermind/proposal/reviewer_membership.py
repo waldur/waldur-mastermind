@@ -11,7 +11,9 @@ the other:
 - an accepted pool entry gives its reviewer the role;
 - a granted role puts its holder in the pool as accepted;
 - a revoked role marks their pool entry declined (kept, with its history,
-  not deleted: assignment batches hang off it).
+  not deleted: assignment batches hang off it);
+- an entry that stops being accepted, by whatever path, closes the
+  assignments its reviewer had not answered.
 
 Each direction checks before it writes, so neither sets the other off again.
 """
@@ -21,14 +23,22 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import UserRole
+from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.proposal import models
-from waldur_mastermind.proposal.enums import ReviewerPoolInvitationStatuses
+from waldur_mastermind.proposal.enums import (
+    AssignmentBatchStatuses,
+    AssignmentItemStatuses,
+    ReviewerPoolInvitationStatuses,
+)
 
 GRANTED_REASON = "Given the call's reviewer role."
 REVOKED_REASON = "The call's reviewer role was revoked."
+LEFT_REASON = "The reviewer left the call's reviewer pool."
 
 
 def _is_call_reviewer_role(role) -> bool:
@@ -130,23 +140,91 @@ def join_pool_on_role_grant(sender, instance, current_user=None, **kwargs):
         )
 
 
+def close_pending_assignments(entry, reason):
+    """End the assignments ``entry``'s reviewer has not answered, for
+    ``reason``.
+
+    Their pending items lapse as expired, as they do when the proposal is
+    withdrawn, so they no longer read the proposal or can take it on; each
+    keeps ``reason`` as its decline reason, and the call team is told in the
+    event log, so the manager sees why and can reassign them. A sent batch
+    left with nothing to answer is done (responded), as answering its last
+    item makes it; a draft one left so has nothing to send and is cancelled.
+    A cancelled batch already grants nothing and is left as it is. Nothing
+    reopens them while the entry is not accepted (see ``extend_deadline``).
+    """
+    items = models.AssignmentItem.objects.filter(
+        batch__reviewer_pool_entry=entry,
+        status=AssignmentItemStatuses.PENDING,
+    ).exclude(batch__status=AssignmentBatchStatuses.CANCELLED)
+    batch_ids = set(items.values_list("batch_id", flat=True))
+    if not batch_ids:
+        return
+    closed = items.update(status=AssignmentItemStatuses.EXPIRED, decline_reason=reason)
+    done = models.AssignmentBatch.objects.filter(pk__in=batch_ids).exclude(
+        items__status=AssignmentItemStatuses.PENDING
+    )
+    done.filter(status=AssignmentBatchStatuses.SENT).update(
+        status=AssignmentBatchStatuses.RESPONDED, responded_at=timezone.now()
+    )
+    done.filter(status=AssignmentBatchStatuses.DRAFT).update(
+        status=AssignmentBatchStatuses.CANCELLED
+    )
+    call = entry.call
+    event_logger.emit(
+        "%(count)s review assignment(s) of %(reviewer)s on %(call)s not yet "
+        "answered were closed: %(reason)s"
+        % {
+            "count": event_logger.literal(closed),
+            "reviewer": event_logger.literal(entry.invitee_name),
+            "call": event_logger.literal(call.name),
+            "reason": event_logger.literal(reason),
+        },
+        event_type=EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_LEAVING_POOL,
+        event_context={"call": call, "reason": reason},
+        scopes=[_get_customer(call)],
+    )
+
+
 def leave_pool_on_role_revoke(sender, instance, **kwargs):
     """Whoever loses the call's reviewer role is no longer an accepted member
-    of its pool: their entry is marked declined, not deleted."""
+    of its pool: their entry is marked declined, not deleted, and the
+    assignments they have not answered close."""
     if not isinstance(instance.scope, models.Call):
         return
     if not _is_call_reviewer_role(instance.role):
         return
     entry = _entry_of(instance.scope, instance.user)
+    if entry is None:
+        return
+    with transaction.atomic():
+        # Locked, as sending a batch and extending its deadline lock it: none
+        # of them acts on a stale status of the entry.
+        entry = models.CallReviewerPool.objects.select_for_update().get(pk=entry.pk)
+        if entry.invitation_status != ReviewerPoolInvitationStatuses.ACCEPTED:
+            return
+        entry.invitation_status = ReviewerPoolInvitationStatuses.DECLINED
+        entry.decline_reason = REVOKED_REASON
+        entry.response_date = timezone.now()
+        # Saving it closes the reviewer's pending assignments
+        # (``close_assignments_on_leaving_pool``).
+        entry.save()
+
+
+def close_assignments_on_leaving_pool(sender, instance, created=False, **kwargs):
+    """A pool entry that stops being accepted, by whatever path, ends the
+    assignments its reviewer has not answered: re-accepting it later must
+    not bring them back."""
+    if created or not instance.tracker.has_changed("invitation_status"):
+        return
+    if instance.is_accepted:
+        return
     if (
-        entry is None
-        or entry.invitation_status != ReviewerPoolInvitationStatuses.ACCEPTED
+        instance.tracker.previous("invitation_status")
+        != ReviewerPoolInvitationStatuses.ACCEPTED
     ):
         return
-    entry.invitation_status = ReviewerPoolInvitationStatuses.DECLINED
-    entry.decline_reason = REVOKED_REASON
-    entry.response_date = timezone.now()
-    entry.save()
+    close_pending_assignments(instance, instance.decline_reason or LEFT_REASON)
 
 
 def sync_call_reviewers(calls):

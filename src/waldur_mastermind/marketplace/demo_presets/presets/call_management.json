@@ -922,7 +922,7 @@
       "required_answer_value": [
         "cb300000000000000000000000000001"
       ],
-      "operator": "not_equals"
+      "operator": "not_in"
     },
     {
       "uuid": "cb400000000000000000000000000004",

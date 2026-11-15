@@ -8,8 +8,8 @@ DEFAULT_PORT = 8091
 
 class Command(BaseCommand):
     help = (
-        "Serve the remote MCP endpoint (/mcp) and /health. The endpoint answers "
-        "404 while the MCP_ENABLED setting is off."
+        "Serve the remote MCP endpoint (/mcp), its OAuth resource metadata and "
+        "/health. All but /health answer 404 while the MCP_ENABLED setting is off."
     )
 
     def add_arguments(self, parser):

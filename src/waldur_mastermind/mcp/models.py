@@ -58,8 +58,8 @@ class ConnectedAppQuerySet(models.QuerySet):
 class ConnectedApp(UuidMixin, TimeStampedModel):
     """An OAuth client a user has authorised, with what DOT doesn't record.
 
-    ``created`` is when the user first authorised it. ``last_used_at`` is for
-    the MCP token verifier to set once it accepts OAuth tokens.
+    ``created`` is when the user first authorised it. ``last_used_at`` is when
+    the client last called the MCP server, up to ten minutes stale.
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")

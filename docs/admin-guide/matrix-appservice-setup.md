@@ -617,7 +617,7 @@ State transitions:
 
 **GET /api/matrix/rooms/**
 
-Returns rooms accessible to the authenticated user based on their project and customer roles. Staff and support users see all rooms.
+Returns rooms accessible to the authenticated user based on their project and customer roles, and the rooms of other objects they are a member of (see [Rooms of other objects](#rooms-of-other-objects)). Staff and support users see all rooms.
 
 **Query parameters:**
 
@@ -706,6 +706,20 @@ The same rule decides who else sees a room. A user sees a project's room in the 
 
 Joins and leaves act as the user through the appservice token with `?user_id=`. They never log in as the user, so they create no Matrix device or access token.
 
+### Rooms of other objects
+
+A room belongs to one object, its scope, and most are a project's. Another Waldur app can give its own kind of object a room, such as a review panel's meeting. Who belongs in such a room is that app's rule, not a role on the object: the app registers it from its `AppConfig.ready()` in `waldur_mastermind.matrix_chat.scopes`, together with each member's power level and, optionally, the role a member added later is announced with. Projects are registered the same way, with the rule above.
+
+Member sync works the same for these rooms: it invites and joins whoever the rule names now and is active, and kicks anyone else, except staff and support who joined with Join. The app asks for a sync whenever its rule's answer changes (`tasks.resync_scope_rooms`), and creates the room with `room_provisioning.ensure_room`. Role changes on the object itself do not sync such a room.
+
+`ensure_room` refuses with `MatrixChatDisabled` while chat is switched off (`MATRIX_ENABLED`), which the app turns into a 400, as the room API does. A room whose creation never finished, in error before it got a homeserver room or still creating after ten minutes, is queued for creation again by the next `ensure_room`.
+
+A reactivated user's rooms are synced again: the rooms they were in, and, when the app registers `scope_ids_for_user`, the rooms its rule put them in while they were deactivated.
+
+Apps get the room's end for free: deleting a registered object closes its room the way deleting a project does. The members are told and removed, the history is exported first when history export is on, and the room is archived. While chat is switched off nothing can be done on the homeserver, so the room is left as it is with a warning in the log; disable it once chat is back.
+
+Such a room is listed only to its current members, invited or joined. A kind of object with no API of its own is listed with a `null` `scope` URL. Bot commands answer only in project rooms. A room of an object no app registered, such as an organization room created before rooms had registered scopes, is never synced. Access checks still go by the earlier rule for it: whoever holds an active role on the object belongs in it, as a member.
+
 ### Existing Matrix accounts
 
 Waldur only provisions Matrix accounts it creates. The appservice can act as any
@@ -775,7 +789,7 @@ The integration automatically responds to role changes:
 - **Role permissions changed** — when a role gains or loses `MATRIX_ROOM.CREATE`, through the role API or the role files loaded at deployment (`permissions.yaml`, `custom-roles.yaml`, `permissions-override.yaml`), every active room of the projects and organizations where the role has holders is synced three minutes later (see [Member Sync](#member-sync))
 - **Project deleted** — the room is disabled (members kicked, history exported, room archived)
 - **Order state changed** — notifications are posted when orders are approved, completed, rejected, canceled, or errored
-- **User deactivated or deleted** — a background task signs out every Matrix device of the user, Element included, removes them from all their rooms, and then locks their Matrix account. A locked account refuses its tokens and every new sign-in, by password or single sign-on, so the user cannot return through an external client while the IdP still accepts them. An open chat drawer then asks Waldur for a new session, gets none, and the user is returned to the login page. This runs even while chat is switched off (`MATRIX_ENABLED`), because open drawers renew their tokens with the homeserver directly. A user reactivated before the task runs keeps access. Reactivation unlocks the account and then invites the user back to every room a role puts them in. A deleted user's account stays locked, and its password is replaced with one nobody knows. Locking needs the bot to be a homeserver admin (see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin)). Until it is, the account stays usable: the user can still sign in to an external client but finds no rooms there, and with `oidc` has to be disabled at the IdP as well. Making the bot an admin later does not lock the accounts of users who were deactivated earlier
+- **User deactivated or deleted** — a background task signs out every Matrix device of the user, Element included, removes them from all their rooms, and then locks their Matrix account. A locked account refuses its tokens and every new sign-in, by password or single sign-on, so the user cannot return through an external client while the IdP still accepts them. An open chat drawer then asks Waldur for a new session, gets none, and the user is returned to the login page. This runs even while chat is switched off (`MATRIX_ENABLED`), because open drawers renew their tokens with the homeserver directly. A user reactivated before the task runs keeps access. Reactivation unlocks the account and then invites the user back to every room a role puts them in, and syncs the rooms of other objects they were in. A deleted user's account stays locked, and its password is replaced with one nobody knows. Locking needs the bot to be a homeserver admin (see [Making the bot a homeserver admin](#making-the-bot-a-homeserver-admin)). Until it is, the account stays usable: the user can still sign in to an external client but finds no rooms there, and with `oidc` has to be disabled at the IdP as well. Making the bot an admin later does not lock the accounts of users who were deactivated earlier
 
 Losing roles, or staff or support status, only takes the user out of Waldur's rooms. Their Matrix account and its sessions stay, and so do their direct messages and rooms Waldur does not manage, and they can still start web chat sessions. Deactivate the user to end their Matrix access.
 
@@ -1812,7 +1826,7 @@ The Matrix chat UI is gated on the project feature flag `project.show_matrix_cha
 | Model | Description |
 | --- | --- |
 | `MatrixUserProfile` | Links a Waldur user to their Matrix user ID and tracks provisioning state. It also holds the user's escrowed recovery key, encrypted under `FIELD_ENCRYPTION_KEY` (see [Encryption keys](#encryption-keys)), the lease for setting encryption up, when a reset's temporary password expires, and the master key the bot pinned. It stores no Matrix token. |
-| `MatrixRoom` | A Matrix room linked to a project via generic FK. One room per project. Manages state via FSM transitions. |
+| `MatrixRoom` | A Matrix room linked to its scope, usually a project, via generic FK. One room per scope. Manages state via FSM transitions. |
 | `MatrixRoomMember` | Tracks room membership, power levels, and membership state per user. `manually_joined` marks staff and support who joined with the Join action. |
 | `MatrixHistoryExport` | A chat history export with state, message/media counts, and file references. |
 | `MatrixAppserviceTransaction` | Idempotency record for processed webhook transactions. |

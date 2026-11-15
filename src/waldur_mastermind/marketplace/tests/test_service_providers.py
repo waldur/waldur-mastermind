@@ -19,6 +19,7 @@ from waldur_core.permissions.tests.test_pat_list_filtering import (
 )
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.serializers import ProjectPermissionLogSerializer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices.tests import factories as invoices_factories
@@ -486,6 +487,19 @@ class ConsumerProjectPermissionListTest(test.APITestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(len(response.data), 1)
+
+    def test_project_end_date_is_null_for_project_without_end_date(self):
+        self.consumer_project.end_date = None
+        self.consumer_project.save(update_fields=["end_date"])
+        self.client.force_login(self.mp_fixture.offering_owner)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(200, response.status_code)
+        self.assertIsNone(response.data[0]["project_end_date"])
+        # The schema has to say so too, or generated clients fail to parse it.
+        field = ProjectPermissionLogSerializer().fields["project_end_date"]
+        self.assertTrue(field.allow_null)
 
 
 class ConsumerUserListTest(test.APITestCase):
