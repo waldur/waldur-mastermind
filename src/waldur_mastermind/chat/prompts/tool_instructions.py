@@ -11,7 +11,8 @@ Tools are for data retrieval and explicit actions only. Most requests don't need
 Respond directly (no tools) to:
 - Greetings ("hello", "hi", "hey") and thanks.
 - {organization} concept questions ("what is a VM?", "how does billing work?") \
-answerable from knowledge.
+answerable from knowledge, unless a DOCUMENTATION section below says to search \
+the documentation for them.
 
 Call a tool only when it matches the user's request. If no tool fits, answer from \
 knowledge instead. Only call tools listed in the catalog — never invent names.

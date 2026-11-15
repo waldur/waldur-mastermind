@@ -126,6 +126,15 @@ def excerpt(text: str, query: str, length: int = EXCERPT_LENGTH) -> str:
     return f"{prefix}{text[start:end]}{suffix}"
 
 
+def _ranked(sections, search_query):
+    return (
+        sections.filter(search_vector=search_query)
+        .annotate(rank=SearchRank(F("search_vector"), search_query) * F("boost"))
+        .order_by("-rank", "id")
+        .only("path", "anchor", "title", "breadcrumb", "text", "requires")
+    )
+
+
 def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
     terms = _requires_terms()
     states = deployment_profile.get_term_states(terms)
@@ -138,19 +147,23 @@ def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
     # not exist.
     excluded = set() if privileged else off | unknown
 
-    search_query = SearchQuery(query, search_type="websearch", config="english")
-    sections = DocSection.objects.filter(
-        search_vector=search_query, audience__in=audiences_for(user)
-    )
+    sections = DocSection.objects.filter(audience__in=audiences_for(user))
     if excluded:
         sections = sections.exclude(requires__overlap=sorted(excluded))
-    sections = (
-        sections.annotate(
-            rank=SearchRank(F("search_vector"), search_query) * F("boost")
-        )
-        .order_by("-rank", "id")
-        .only("path", "anchor", "title", "breadcrumb", "text", "requires")[:limit]
-    )
+
+    # Every word first. A how-to rarely uses the guide's own words ("new
+    # project" against "Project creation"), so when that finds too little the
+    # rest is filled with sections that match any of the words, the ones
+    # matching more of them ranking higher.
+    every_word = SearchQuery(query, search_type="websearch", config="english")
+    hits = list(_ranked(sections, every_word)[:limit])
+    words = _WORD.findall(query)
+    if len(hits) < limit and len(words) > 1:
+        any_word = SearchQuery(" | ".join(words), search_type="raw", config="english")
+        hits += _ranked(sections.exclude(pk__in=[h.pk for h in hits]), any_word)[
+            : limit - len(hits)
+        ]
+
     base = docs_base_url()
     return [
         DocHit(
@@ -160,5 +173,5 @@ def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
             url=section_url(section.path, section.anchor, base),
             enabled_here=not (off | unknown).intersection(section.requires),
         )
-        for section in sections
+        for section in hits
     ]

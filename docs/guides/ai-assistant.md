@@ -302,10 +302,15 @@ memory.
   know) is skipped with a warning, and a file that cannot be read or has
   no valid line leaves the loaded sections as they were. The tool is
   offered only while sections are loaded.
-- **Search.** Postgres full-text search (`websearch_to_tsquery`, weighted
-  title > breadcrumb > text, multiplied by `boost`) returns the top five
-  sections, each with an excerpt of about 800 characters and a link under
-  `DOCS_URL` (or docs.waldur.com).
+- **Search.** Postgres full-text search (weighted title > breadcrumb >
+  text, multiplied by `boost`) returns the top five sections, each with an
+  excerpt of about 800 characters and a link under `DOCS_URL` (or
+  docs.waldur.com). Sections matching every word come first
+  (`websearch_to_tsquery`); when there are fewer than five, the rest are
+  sections matching any of the words. Questions rarely use the guide's own
+  words: on the model's real queries in an evaluation, every-word matching
+  alone put the right guide in the top five 40% of the time, the fallback
+  75%.
 - **Filtering.** `audience` is `all`, `staff_support` or `staff`. End users
   get `all`, support also gets `staff_support`, and staff get everything.
   `requires` lists the site configuration a section depends on. Those terms

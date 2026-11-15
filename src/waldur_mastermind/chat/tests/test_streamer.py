@@ -14,6 +14,7 @@ from rest_framework import test as drf_test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.llm_streamer import (
     _CANCEL_CHECK_INTERVAL,
+    _CAP_HIT_NOTE,
     _MAX_TOOL_ROUNDS,
     LLMStreamer,
 )
@@ -1980,6 +1981,11 @@ class StreamerAgenticLoopTest(_LLMStreamerTestBase, unittest.TestCase):
         # Last call must NOT include tools
         last_kwargs = streamer.client.chat.completions.create.call_args_list[-1].kwargs
         self.assertNotIn("tools", last_kwargs)
+        # ...and says the search is over, or the model writes its next call
+        # as text, which is stripped to an empty answer.
+        self.assertEqual(
+            last_kwargs["messages"][-1], {"role": "user", "content": _CAP_HIT_NOTE}
+        )
 
     def test_cancellation_exits_loop(self):
         """Cancellation after round 0 prevents further tool rounds.
@@ -2299,7 +2305,12 @@ class LLMStreamerRejectedToolCallsTest(_LLMStreamerTestBase, unittest.TestCase):
     validation harness scores ``forbidden_tools`` against.
     """
 
-    def test_a_refused_call_is_recorded_with_its_arguments(self):
+    # No database here; whether a docs corpus is loaded is read from it.
+    @patch(
+        "waldur_mastermind.chat.tools.tool_sets.docs_corpus.search_enabled",
+        return_value=False,
+    )
+    def test_a_refused_call_is_recorded_with_its_arguments(self, _):
         user = Mock(is_staff=True, is_support=False, is_anonymous=False)
         user.id = 1
         user.username = "staff"

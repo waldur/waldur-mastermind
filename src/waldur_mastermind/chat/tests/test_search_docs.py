@@ -189,6 +189,15 @@ class SearchToolTest(DocsTestMixin, TestCase):
         hit = self.titles(self.fixture.user, "create a project")[PROJECTS["title"]]
         self.assertTrue(hit["url"].startswith("https://docs.example.com/user-guide/"))
 
+    def test_query_in_other_words_still_finds_the_guide(self):
+        # "new" is not in the section, so not every word matches.
+        hits = self.titles(self.fixture.user, "how do I create a new project")
+        self.assertIn(PROJECTS["title"], hits)
+
+    def test_sections_matching_every_word_come_first(self):
+        result = self.tool.execute(self.fixture.user, {"query": "create project"})
+        self.assertEqual(result["data"]["sections"][0]["title"], PROJECTS["title"])
+
     def test_no_match_says_so(self):
         result = self.tool.execute(self.fixture.user, {"query": "kubernetes"})
         self.assertEqual(result["data"]["sections"], [])
