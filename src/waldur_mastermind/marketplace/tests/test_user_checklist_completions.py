@@ -651,7 +651,9 @@ class OfferingUserChecklistCompletionsViewSetTest(test.APITestCase):
 
         # Pinned to lock in the bulk-fetch optimization. Should NOT grow as
         # more completions are added — verify by re-running with 50 vs. 5.
-        with self.assertNumQueries(7):
+        # Answers, questions and their dependencies are prefetched: which
+        # questions are shown depends on the answers, so SQL cannot count them.
+        with self.assertNumQueries(9):
             response = self.client.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertEqual(len(response.data), 7)

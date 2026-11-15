@@ -4488,14 +4488,13 @@ class Proposal(
 
     def unanswered_compliance_questions(self) -> int:
         """How many required questions of the call's compliance checklist the
-        proposal has left unanswered: all of them before it answers any."""
+        proposal has left unanswered, counting only those shown for its answers."""
         checklist = self.round.call.compliance_checklist
         if not checklist:
             return 0
         completion = self.get_checklist_completion_for(checklist)
-        if completion is None:
-            return checklist.questions.filter(required=True).count()
-        return completion.get_unanswered_required_questions().count()
+        answers = completion.get_latest_answers() if completion else {}
+        return len(checklist.get_progress(answers).unanswered_required_question_ids)
 
     def save(self, *args, **kwargs):
         if not self.slug:

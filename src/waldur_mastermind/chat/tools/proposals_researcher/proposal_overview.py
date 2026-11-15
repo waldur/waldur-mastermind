@@ -2,7 +2,7 @@ import logging
 
 from django.db.models import Avg, Count, Q
 
-from waldur_core.checklist.models import Answer, ChecklistCompletion
+from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
@@ -177,17 +177,12 @@ class ProposalOverviewTool(BaseTool):
                 scope_object_id=proposal.pk,
             ).first()
             if completion:
-                total_questions = completion.checklist.questions.count()
-                # Answered questions, not per-user answer rows
-                answered = (
-                    Answer.objects.filter(completion=completion)
-                    .values("question_id")
-                    .distinct()
-                    .count()
-                )
+                # Only the questions shown for the answers count
+                answers = completion.get_latest_answers()
+                shown = completion.get_progress(answers).visible_question_ids
                 compliance_status = {
-                    "total_questions": total_questions,
-                    "answered": answered,
+                    "total_questions": len(shown),
+                    "answered": len(shown & answers.keys()),
                     "is_completed": completion.is_completed,
                     "requires_review": completion.requires_review,
                 }

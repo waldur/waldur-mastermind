@@ -14,6 +14,7 @@ scoped to the contribution, so the answers of one contributor, or of one
 step, never mix with another's.
 """
 
+from collections import defaultdict
 from uuid import UUID
 
 from django.contrib.auth import get_user_model
@@ -1497,14 +1498,16 @@ def prefetch_answers(contributions):
         for c in contributions
         if c.proposal_step.call_step.checklist_id
     }
-    required = {checklist_id: set() for checklist_id in checklist_ids}
-    for checklist_id, question_id in checklist_models.Question.objects.filter(
-        checklist_id__in=checklist_ids, required=True
-    ).values_list("checklist_id", "id"):
-        required[checklist_id].add(question_id)
+    questions = {checklist_id: [] for checklist_id in checklist_ids}
+    for question in (
+        checklist_models.Question.objects.filter(checklist_id__in=checklist_ids)
+        .order_by("order")
+        .prefetch_related("dependencies")
+    ):
+        questions[question.checklist_id].append(question)
     for contribution in contributions:
         contribution._checklist_completions = by_scope.get(contribution.pk, {})
-        contribution._required_question_ids = required
+        contribution._checklist_questions = questions
 
 
 def latest_answers(completion):
@@ -1524,18 +1527,10 @@ def unanswered_required_count(contribution):
     if cached is not None:
         return cached
     completion = contribution.get_checklist_completion(checklist)
-    required = getattr(contribution, "_required_question_ids", {}).get(checklist.id)
-    if required is not None:
-        answered = (
-            {answer.question_id for answer in completion._prefetched_answers}
-            if completion is not None
-            else set()
-        )
-        count = len(required - answered)
-    elif completion is None:
-        count = checklist.questions.filter(required=True).count()
-    else:
-        count = completion.get_unanswered_required_questions().count()
+    questions = getattr(contribution, "_checklist_questions", {}).get(checklist.id)
+    answers = latest_answers(completion) if completion is not None else {}
+    progress = checklist.get_progress(answers, questions)
+    count = len(progress.unanswered_required_question_ids)
     contribution._unanswered_required_count = count
     return count
 
@@ -1648,20 +1643,32 @@ def unanswered_required_questions(instance):
     A step whose form is the call's compliance checklist also counts the
     applicant's answers to it, which stay on the proposal: before steps had
     contributions, such a step read exactly those.
+
+    Each contributor sees the questions their own answers show, so a question
+    stays open while it is shown to any of them and nobody has answered it.
     """
     checklist = instance.call_step.checklist
-    completions = contribution_completions(instance)
-    answered = checklist_models.Answer.objects.filter(completion__in=completions)
+    completions = list(contribution_completions(instance))
     proposal = instance.proposal
     if checklist.id == proposal.round.call.compliance_checklist_id:
         compliance = proposal.get_checklist_completion_for(checklist)
         if compliance is not None:
-            answered = answered | checklist_models.Answer.objects.filter(
-                completion=compliance
-            )
-    return checklist.questions.filter(required=True).exclude(
-        id__in=answered.values_list("question_id", flat=True)
-    )
+            completions.append(compliance)
+    answers_by_completion = defaultdict(list)
+    for answer in checklist_models.Answer.objects.filter(completion__in=completions):
+        answers_by_completion[answer.completion_id].append(answer)
+    questions = list(checklist.get_visibility_questions())
+    answered = set()
+    shown_required = set()
+    for completion in completions or [None]:
+        answers = checklist_utils.latest_answers_by_question(
+            answers_by_completion[completion.pk] if completion else []
+        )
+        answered |= answers.keys()
+        shown_required |= checklist.get_progress(
+            answers, questions
+        ).unanswered_required_question_ids
+    return checklist.questions.filter(id__in=shown_required - answered)
 
 
 def adopt_proposal_answers(proposal):
@@ -1837,12 +1844,10 @@ def submit(contribution, user, outcome="", conditions="", comment=""):
     _validate_outcome(call_step, outcome, conditions)
     if call_step.checklist_id and call_step.checklist_required:
         completion = contribution.get_checklist_completion(call_step.checklist)
-        unanswered = (
-            completion.get_unanswered_required_questions()
-            if completion is not None
-            else call_step.checklist.questions.filter(required=True)
+        answers = completion.get_latest_answers() if completion is not None else {}
+        count = len(
+            call_step.checklist.get_progress(answers).unanswered_required_question_ids
         )
-        count = unanswered.count()
         if count:
             raise ContributionError(
                 f"{count} required "

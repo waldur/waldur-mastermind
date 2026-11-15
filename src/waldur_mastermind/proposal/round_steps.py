@@ -410,10 +410,7 @@ def unanswered_required_questions(note):
     completion = report_completion(note)
     if completion is None or not note.call_step.checklist_required:
         return checklist_models.Question.objects.none()
-    answered = completion.answers.values_list("question_id", flat=True)
-    return note.call_step.checklist.questions.filter(required=True).exclude(
-        id__in=answered
-    )
+    return completion.get_unanswered_required_questions()
 
 
 def _lock_report(note):
