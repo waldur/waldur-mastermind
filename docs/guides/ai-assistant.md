@@ -337,6 +337,22 @@ memory.
   in the assistant or over MCP, and the endpoint answers 424. Staff turn it
   off when the portal provides its own documentation to end users and the
   Waldur guides would contradict it.
+- **Measuring it.** `waldur ai_assistant docs_evaluation --database NAME`
+  (`chat/docs/evaluation.py`) puts the questions in
+  `chat/docs/evaluation_questions.yaml` to the loaded corpus as staff,
+  support, an organization owner and a project member, switching the
+  settings and feature flags each question names and restoring them after.
+  It scores the search through `/api/docs-search/` — where the page that
+  answers ranks, and whether a role got a page it must not — and with
+  `--assistant` the configured LLM's answers: did it search, is it empty,
+  do its links come from the search, does it say a switched-off feature is
+  not available. `--judge` adds an LLM verdict per answer, given the full
+  text of every section the assistant's searches returned: are the steps
+  grounded in them, is availability right, a 1–5 score. The run creates
+  `docs-eval-*` users and switches settings, so it needs a database of its
+  own, named on the command line. The workspace script
+  `scripts/docs-search-eval.sh` builds or downloads a corpus, creates that
+  database and holds the LLM token there for the run only.
 
 ## Security guards
 

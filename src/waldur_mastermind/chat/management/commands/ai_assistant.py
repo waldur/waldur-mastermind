@@ -2,6 +2,7 @@ import argparse
 import difflib
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from textwrap import dedent
@@ -19,6 +20,8 @@ from waldur_mastermind.chat.context_assembler import (
     resolve_prompt_role,
 )
 from waldur_mastermind.chat.deployment_profile import get_term_states
+from waldur_mastermind.chat.docs import evaluation as docs_evaluation
+from waldur_mastermind.chat.docs.models import DocSection
 from waldur_mastermind.chat.health_checks import (
     LLMConfigurationHealthCheck,
     LLMConnectivityHealthCheck,
@@ -52,6 +55,8 @@ class Command(BaseCommand):
                 waldur ai_assistant test_evaluation --user support --preload-tools
                 waldur ai_assistant test_evaluation --preset credit_realistic
                 waldur ai_assistant run_all
+                waldur ai_assistant docs_evaluation --database waldur_docs_eval
+                waldur ai_assistant docs_evaluation --database waldur_docs_eval --judge
     """).strip()
 
     def create_parser(self, prog_name, subcommand, **kwargs):
@@ -119,6 +124,64 @@ class Command(BaseCommand):
             ),
         )
         self._add_evaluation_arguments(run_all_parser)
+
+        # Docs evaluation subcommand
+        docs_parser = subparsers.add_parser(
+            "docs_evaluation",
+            help="Score the docs search and the assistant's docs answers per role",
+            description=dedent(docs_evaluation.__doc__),
+        )
+        docs_parser.add_argument(
+            "--database",
+            required=True,
+            metavar="NAME",
+            help=(
+                "Name of the database to run in, stated so a copied command "
+                "cannot run against the wrong one: the run creates users and "
+                "an organization, and switches settings while it runs"
+            ),
+        )
+        docs_parser.add_argument(
+            "--corpus",
+            type=Path,
+            help="Load this docs-corpus.jsonl.gz first (else use what is loaded)",
+        )
+        docs_parser.add_argument(
+            "--questions",
+            type=Path,
+            default=docs_evaluation.QUESTIONS_FILE,
+            help="Question pack (default: chat/docs/evaluation_questions.yaml)",
+        )
+        docs_parser.add_argument("--only", help="Comma-separated question ids to run")
+        docs_parser.add_argument(
+            "--roles",
+            default=",".join(docs_evaluation.ROLES),
+            help="Comma-separated roles to run as (default: all four)",
+        )
+        docs_parser.add_argument(
+            "--assistant",
+            action="store_true",
+            help="Also put each question to the configured LLM and score the answer",
+        )
+        docs_parser.add_argument(
+            "--judge",
+            action="store_true",
+            help="Have an LLM judge each answer (implies --assistant)",
+        )
+        docs_parser.add_argument(
+            "--judge-url", help="Judge endpoint (default: AI_ASSISTANT_API_URL)"
+        )
+        docs_parser.add_argument(
+            "--judge-model", help="Judge model (default: AI_ASSISTANT_MODEL)"
+        )
+        docs_parser.add_argument(
+            "--judge-token-env",
+            metavar="VAR",
+            help="Environment variable holding the judge's token (default: AI_ASSISTANT_API_TOKEN)",
+        )
+        docs_parser.add_argument(
+            "--out", type=Path, help="Write every row as JSON lines to this file"
+        )
 
     @staticmethod
     def _add_evaluation_arguments(parser):
@@ -739,6 +802,75 @@ class Command(BaseCommand):
             raise CommandError(
                 f"Validation failed: {total_tests - passed_tests} test(s) failed"
             )
+
+    def handle_docs_evaluation(self, **options):
+        database = connection.settings_dict["NAME"]
+        if options["database"] != database:
+            raise CommandError(
+                f"--database says '{options['database']}' but this run is "
+                f"connected to '{database}'. Nothing was changed."
+            )
+        if options["corpus"]:
+            call_command("load_docs_corpus", str(options["corpus"]), stdout=self.stdout)
+        if not DocSection.objects.exists():
+            raise CommandError("No docs corpus is loaded; pass --corpus.")
+
+        questions = docs_evaluation.load_questions(options["questions"])
+        if options["only"]:
+            wanted = set(options["only"].split(","))
+            questions = [q for q in questions if q.id in wanted]
+        roles = [r for r in options["roles"].split(",") if r]
+        unknown = set(roles) - set(docs_evaluation.ROLES)
+        if unknown:
+            raise CommandError(f"Unknown roles: {', '.join(sorted(unknown))}")
+        for missing in docs_evaluation.missing_gold(questions):
+            self.stdout.write(
+                self.style.WARNING(f"Gold page not in the corpus: {missing}")
+            )
+
+        assistant = options["assistant"] or options["judge"]
+        if assistant and not (
+            config.AI_ASSISTANT_API_URL and config.AI_ASSISTANT_MODEL
+        ):
+            raise CommandError(
+                "--assistant needs AI_ASSISTANT_API_URL and AI_ASSISTANT_MODEL set."
+            )
+        judge = None
+        if options["judge"]:
+            token_env = options["judge_token_env"]
+            token = (
+                os.environ.get(token_env, "")
+                if token_env
+                else config.AI_ASSISTANT_API_TOKEN
+            )
+            judge = docs_evaluation.JudgeConfig(
+                url=options["judge_url"] or config.AI_ASSISTANT_API_URL,
+                token=token,
+                model=options["judge_model"] or config.AI_ASSISTANT_MODEL,
+            )
+
+        # Creating users and switching settings logs an event each; the
+        # report is what matters here.
+        logging.disable(logging.WARNING)
+        try:
+            users = docs_evaluation.ensure_users()
+            rows = docs_evaluation.run(
+                questions,
+                users,
+                roles,
+                assistant=assistant,
+                judge=judge,
+                report=self.stdout.write,
+            )
+        finally:
+            logging.disable(logging.NOTSET)
+        if options["out"]:
+            with open(options["out"], "w", encoding="utf-8") as out:
+                for row in rows:
+                    out.write(json.dumps(row, ensure_ascii=False) + "\n")
+        self.stdout.write("")
+        for line in docs_evaluation.summarize(rows):
+            self.stdout.write(line)
 
     def _confirm_preset_load(self, preset, wipe_database):
         """Loading a preset deletes structure data, so make it deliberate.

@@ -1,0 +1,213 @@
+# Questions for `waldur ai_assistant docs_evaluation` (chat/docs/evaluation.py).
+#
+# Each question runs once per role in `roles` (default: staff, support, owner,
+# member) with `switches` applied — settings and feature flags, `on` or `off`,
+# restored afterwards. Other site state is whatever the database holds;
+# `assume_off` names terms the question relies on being off and stops the
+# question if they are not.
+#
+#   gold            source paths of the pages that answer it, as in the corpus
+#   queries         phrasings a model would search with, also put to the search
+#                   endpoint (the question itself always is)
+#   hidden_from     roles that must not get a gold page back
+#   unavailable_for roles whose answer must say the feature is not available
+#   required        regular expressions the answer must match
+#   forbidden       regular expressions the answer must not match
+#   expect_search   false when the assistant should not search the docs
+#
+# Gold paths are the pages that answer the question in the waldur-docs release
+# the corpus was built from; the command reports gold paths that are not in the
+# loaded corpus.
+
+# --- How-to questions about features every portal has ------------------------
+
+- id: project_create
+  category: howto
+  question: How do I create a new project in my organization?
+  queries: [create project organization, add new project]
+  gold: [user-guide/customer-organization/project-management.md]
+  required: ['\]\(https?://']
+
+- id: project_member_add
+  category: howto
+  question: How can I add a colleague to my project?
+  queries: [add user to project, invite project member]
+  gold: [user-guide/customer-organization/project_membership_management.md]
+
+- id: limit_increase
+  category: howto
+  question: How do I request a higher limit for one of my resources?
+  queries: [request limit change resource, increase resource limit]
+  gold: [user-guide/customer-organization/resource-limit-change-requests.md]
+
+- id: usage_reports
+  category: howto
+  question: Where can I see the usage reports for my organization?
+  queries: [usage reports organization]
+  gold: [user-guide/customer-organization/usage_reports.md]
+
+# --- Concepts -----------------------------------------------------------------
+
+- id: org_vs_project
+  category: concept
+  question: What is the difference between an organization and a project?
+  queries: [organization project difference]
+  gold:
+    - about/terminology/roles_and_permissions.md
+    - user-guide/end-users/interface.md
+    - about/concepts/platform.md
+
+- id: member_vs_manager
+  category: concept
+  question: What can a project member do compared to a project manager?
+  queries: [project member manager permissions roles]
+  gold:
+    - about/terminology/roles_and_permissions.md
+    - user-guide/customer-organization/project_membership_management.md
+
+# --- A feature switched off, and the same question with it on -----------------
+
+- id: pat_off
+  category: switched_off
+  question: How do I create a personal access token?
+  queries: [create personal access token, personal access tokens]
+  switches: {setting:PAT_ENABLED: off}
+  gold: [user-guide/end-users/personal-access-tokens.md]
+  hidden_from: [owner, member]
+  unavailable_for: [owner, member]
+
+- id: pat_on
+  category: switched_on
+  question: How do I create a personal access token?
+  queries: [create personal access token, personal access tokens]
+  switches: {setting:PAT_ENABLED: on}
+  gold: [user-guide/end-users/personal-access-tokens.md]
+  required: ['(?i)credentials|personal access tokens']
+
+- id: chat_encryption_off
+  category: switched_off
+  question: How do I turn on end-to-end encryption in the project chat?
+  queries: [chat encryption, project chat end-to-end encryption]
+  switches: {setting:MATRIX_ENABLED: off}
+  gold: [user-guide/end-users/chat-encryption.md]
+  hidden_from: [owner, member]
+  unavailable_for: [owner, member]
+
+- id: chat_encryption_on
+  category: switched_on
+  question: How do I turn on end-to-end encryption in the project chat?
+  queries: [chat encryption, project chat end-to-end encryption]
+  switches: {setting:MATRIX_ENABLED: on, feature:project.show_matrix_chat: on}
+  gold: [user-guide/end-users/chat-encryption.md]
+
+- id: call_create_off
+  category: switched_off
+  question: How do I create a call for proposals?
+  queries: [create call for proposals, new call]
+  switches: {feature:marketplace.show_call_management_functionality: off}
+  gold: [user-guide/call-managing-organization/creating-a-call.md]
+  hidden_from: [owner, member]
+  unavailable_for: [owner, member]
+
+- id: call_create_on
+  category: switched_on
+  question: How do I create a call for proposals?
+  queries: [create call for proposals, new call]
+  switches: {feature:marketplace.show_call_management_functionality: on}
+  gold: [user-guide/call-managing-organization/creating-a-call.md]
+
+# Applicants reach calls without the call-management flag: only managing
+# calls needs it, so the applicant guide stays available.
+- id: proposal_submit_without_call_management
+  category: switched_off
+  question: How do I submit a proposal to a call for resources?
+  queries: [submit proposal call, apply to call]
+  switches:
+    feature:marketplace.show_call_management_functionality: off
+    feature:marketplace.call_only: off
+  gold: [user-guide/call-managing-organization/applicant-guide.md]
+
+- id: vmware_without_offering
+  category: switched_off
+  question: How do I create a VMware virtual machine?
+  queries: [create VMware virtual machine]
+  assume_off: [offering_type:VMware.VirtualMachine]
+  gold: [user-guide/customer-organization/vmware-virtual-machines.md]
+  hidden_from: [owner, member]
+  unavailable_for: [owner, member]
+
+# --- Staff and support tasks --------------------------------------------------
+
+- id: impersonate
+  category: staff
+  question: How do I impersonate a user to reproduce their problem?
+  queries: [impersonate user]
+  gold: [user-guide/staff-users/impersonation.md]
+  hidden_from: [owner, member]
+
+- id: announcement
+  category: staff
+  question: How do I show an announcement banner to all users?
+  queries: [announcement banner, create announcement]
+  gold: [user-guide/staff-users/announcements.md]
+  hidden_from: [owner, member]
+
+- id: keycloak
+  category: staff
+  question: How do I configure Keycloak as an identity provider for the portal?
+  queries: [Keycloak identity provider configure]
+  gold: [admin-guide/identities/keycloak.md]
+  hidden_from: [support, owner, member]
+
+- id: pat_why_hidden
+  category: staff
+  roles: [staff, support]
+  question: Why can't our users see the personal access tokens page?
+  queries: [personal access tokens enable, PAT_ENABLED]
+  switches: {setting:PAT_ENABLED: off}
+  gold: [user-guide/end-users/personal-access-tokens.md]
+  required: ['(?i)PAT_ENABLED|enable|switched off|turned off|disabled']
+
+# --- Not in the documentation ------------------------------------------------
+
+- id: migrate_to_google_cloud
+  category: undocumented
+  question: How do I migrate my project to Google Cloud?
+  queries: [migrate project Google Cloud]
+  roles: [owner, member]
+
+- id: ssh_key_add
+  category: undocumented
+  question: How do I add an SSH key to my profile?
+  queries: [add SSH key profile]
+  roles: [owner, member]
+
+- id: password_change
+  category: undocumented
+  question: How do I change my password?
+  queries: [change password]
+  roles: [owner, member]
+
+# --- Not a documentation question ---------------------------------------------
+
+- id: my_resources
+  category: data
+  question: show my resources
+  roles: [owner, member]
+  expect_search: false
+
+# --- Other languages ----------------------------------------------------------
+
+- id: project_create_et
+  category: language
+  question: Kuidas luua uus projekt?
+  queries: [create project]
+  gold: [user-guide/customer-organization/project-management.md]
+  roles: [owner, member]
+
+- id: project_member_add_de
+  category: language
+  question: Wie lade ich einen Kollegen zu meinem Projekt ein?
+  queries: [invite user to project]
+  gold: [user-guide/customer-organization/project_membership_management.md]
+  roles: [owner, member]
