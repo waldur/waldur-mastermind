@@ -63,6 +63,9 @@ TOP_K = 5
 JUDGE_SECTION_CHARS = 1500
 JUDGE_MAX_SECTIONS = 10
 _LINK = re.compile(r"\]\((https?://[^)\s]+)\)")
+# Answers mark UI names in bold (**Credentials**); one that is in none of the
+# returned sections came from somewhere else, usually the model's memory.
+_BOLD = re.compile(r"\*\*([^*\n]{2,60})\*\*")
 _UNAVAILABLE = re.compile(
     r"(?i)(not|isn't|is not|aren't|are not) (currently |yet )?"
     r"(enabled|available|turned on|switched on|offered|supported)"
@@ -257,8 +260,19 @@ def score_search(question: Question, role: str, query: str, hits: list[dict]) ->
     }
 
 
+def unsourced_terms(answer: str, source_text: str) -> list[str]:
+    """Bold terms of ``answer`` that ``source_text`` does not contain."""
+    haystack = " ".join(source_text.split()).lower()
+    terms = dict.fromkeys(" ".join(t.split()) for t in _BOLD.findall(answer))
+    return [term for term in terms if term.lower() not in haystack]
+
+
 def score_answer(
-    question: Question, role: str, turn: dict, returned_urls: set[str]
+    question: Question,
+    role: str,
+    turn: dict,
+    returned_urls: set[str],
+    source_text: str = "",
 ) -> dict:
     answer = turn.get("answer") or ""
     searches = [c for c in turn.get("tool_calls", []) if c["name"] == "search_docs"]
@@ -285,6 +299,7 @@ def score_answer(
         "missing_required": required,
         "found_forbidden": forbidden,
         "availability_ok": says_unavailable if unavailable_expected else True,
+        "unsourced_terms": unsourced_terms(answer, source_text),
     }
 
 
@@ -516,8 +531,13 @@ def evaluate_role(
         if assistant:
             turn = ask_assistant(user, question.question)
             seen = sections_seen(user, turn)
+            texts = _section_texts()
+            source_text = " ".join(
+                f"{item['title']} {item.get('breadcrumb', '')} {texts.get(item['url'], '')}"
+                for item in seen
+            )
             turn["score"] = score_answer(
-                question, role, turn, {item["url"] for item in seen}
+                question, role, turn, {item["url"] for item in seen}, source_text
             )
             turn["sections_seen"] = [item["url"] for item in seen]
             row["assistant"] = turn
@@ -594,6 +614,7 @@ def describe(row: dict) -> str:
             "invented links" if score["invented_links"] else "",
             "phrases" if score["missing_required"] or score["found_forbidden"] else "",
             "availability" if not score["availability_ok"] else "",
+            f"unsourced {score['unsourced_terms']}" if score["unsourced_terms"] else "",
         ]
         parts.append(" ".join(f for f in flags if f))
     verdict = row.get("judge")
@@ -625,7 +646,7 @@ def summarize(rows: list[dict]) -> list[str]:
         lines.append(
             f"{title:<10} {'search ok':>10} {'gold@5':>7} {'leaks':>6}"
             f" {'searched':>9} {'empty':>6} {'invented':>9} {'phrases':>8}"
-            f" {'avail.':>7} {'grounded':>9} {'score':>6} {'p50 s':>6}"
+            f" {'avail.':>7} {'sourced':>8} {'grounded':>9} {'score':>6} {'p50 s':>6}"
         )
         for name in sorted(groups):
             g = groups[name]
@@ -645,8 +666,9 @@ def summarize(rows: list[dict]) -> list[str]:
                     f" {sum(len(t['score']['invented_links']) for t in turns):>9}"
                     f" {_pct(sum(not t['score']['missing_required'] and not t['score']['found_forbidden'] for t in turns), len(turns)):>8}"
                     f" {_pct(sum(t['score']['availability_ok'] for t in turns), len(turns)):>7}"
+                    f" {_pct(sum(not t['score'].get('unsourced_terms') for t in turns), len(turns)):>8}"
                     if turns
-                    else f" {'-':>9} {'-':>6} {'-':>9} {'-':>8} {'-':>7}"
+                    else f" {'-':>9} {'-':>6} {'-':>9} {'-':>8} {'-':>7} {'-':>8}"
                 )
                 + (
                     f" {_pct(sum(v['grounded'] for v in verdicts), len(verdicts)):>9}"

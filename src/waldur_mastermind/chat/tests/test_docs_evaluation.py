@@ -92,6 +92,16 @@ class ScoringTest(SimpleTestCase):
         self.assertEqual(score["found_forbidden"], ["(?i)click create"])
 
 
+class UnsourcedTermsTest(SimpleTestCase):
+    def test_bold_terms_missing_from_the_sections_are_reported(self):
+        answer = "Open **Credentials** and click **Create token**, then **Save**."
+        sources = "The Credentials tab lists your keys. Click Save to keep them."
+        self.assertEqual(evaluation.unsourced_terms(answer, sources), ["Create token"])
+
+    def test_nothing_to_report_without_bold_terms(self):
+        self.assertEqual(evaluation.unsourced_terms("Plain answer.", ""), [])
+
+
 class VerdictTest(SimpleTestCase):
     def test_json_is_found_after_thinking(self):
         verdict = evaluation.parse_verdict(
