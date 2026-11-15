@@ -15,6 +15,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models, tasks
+from waldur_mastermind.invoices.serializers import InvoiceSerializer
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
@@ -63,6 +64,19 @@ class InvoiceRetrieveTest(test.APITestCase):
         )
         credit = invoice_data.data["items"][0]["credit"]
         self.assertTrue(credit)
+
+    def test_due_date_is_null_until_invoice_is_issued(self):
+        invoice = self.fixture.invoice
+        invoice.invoice_date = None
+        invoice.save(update_fields=["invoice_date"])
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.get(factories.InvoiceFactory.get_url(invoice))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["due_date"])
+        # The schema has to say so too, or generated clients fail to parse it.
+        self.assertTrue(InvoiceSerializer().fields["due_date"].allow_null)
 
 
 @ddt

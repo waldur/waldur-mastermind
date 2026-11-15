@@ -2568,8 +2568,8 @@ class ProjectPermissionLogSerializer(
     project_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     project_name = serializers.CharField(read_only=True, source="scope.name")
     project_created = serializers.DateTimeField(read_only=True, source="scope.created")
-    project_end_date = serializers.DateTimeField(
-        read_only=True, source="scope.end_date"
+    project_end_date = serializers.DateField(
+        read_only=True, source="scope.end_date", allow_null=True
     )
     project = serializers.HyperlinkedRelatedField(
         source="scope",

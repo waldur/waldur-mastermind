@@ -331,3 +331,16 @@ class LexisLinkUpdateTest(test.APITestCase):
     def test_heappe_project_stays_read_only_if_updates_return(self):
         field = serializers.LexisLinkSerializer().fields["heappe_project_id"]
         self.assertTrue(field.read_only)
+
+    def test_resource_end_date_is_null_for_resource_without_end_date(self):
+        self.fixture.resource.end_date = None
+        self.fixture.resource.save(update_fields=["end_date"])
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["resource_end_date"])
+        # The schema has to say so too, or generated clients fail to parse it.
+        field = serializers.LexisLinkSerializer().fields["resource_end_date"]
+        self.assertTrue(field.allow_null)
