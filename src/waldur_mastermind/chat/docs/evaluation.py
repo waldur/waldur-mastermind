@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import re
 import statistics
+import threading
 import time
 from collections import defaultdict
 from collections.abc import Callable, Iterator
@@ -76,6 +77,15 @@ _UNAVAILABLE = re.compile(
     r"(enabled|available|turned on|switched on|offered|supported)"
     r"|(doesn't|does not|don't|do not) (cover|describe|document|include|mention)"
     r"|(couldn't|could not|can't|cannot) find|no (matching )?(section|guide|documentation)"
+    # The same in the languages of evaluation_questions_languages.yaml.
+    # Each needs a negation or names the portal, as the English ones do: "the
+    # token is deactivated when it expires" says nothing about availability.
+    r"|(ei ole|pole)\b.{0,40}\b(lubatud|saadaval|sisse lülitatud|kasutusel)"
+    r"|\b(portaalis|portaalil|siin)\b.{0,40}\bvälja lülitatud|\bei kirjelda"
+    r"|nicht\b.{0,30}\b(aktiviert|verfügbar|freigeschaltet|eingeschaltet|beschrieben)"
+    r"|\b(Portal|hier)\b.{0,30}\b(deaktiviert|abgeschaltet)"
+    r"|(n'est|ne sont|n'y a)\b.{0,30}\b(pas|plus)\b.{0,30}\b(activée?s?|disponibles?|décrite?s?)"
+    r"|\b(portail|instance|ici)\b.{0,30}\bdésactivée?s?"
 )
 
 
@@ -97,6 +107,8 @@ class Question:
     required: list[str] = field(default_factory=list)
     forbidden: list[str] = field(default_factory=list)
     expect_search: bool = True
+    # The language the question is asked in, when the answer must be in it.
+    language: str = ""
 
     @property
     def off_terms(self) -> list[str]:
@@ -135,6 +147,7 @@ def load_questions(path: Path = QUESTIONS_FILE) -> list[Question]:
                 required=list(item.get("required") or []),
                 forbidden=list(item.get("forbidden") or []),
                 expect_search=item.get("expect_search", True),
+                language=item.get("language", ""),
             )
         )
     ids = [q.id for q in questions]
@@ -164,10 +177,19 @@ def ensure_users() -> dict[str, User]:
     )
     users = {}
     for role in ROLES:
-        user, _ = User.objects.get_or_create(
-            username=f"{USERNAME_PREFIX}{role}",
-            defaults={"email": f"{USERNAME_PREFIX}{role}@example.com"},
+        email = f"{USERNAME_PREFIX}{role}@example.com"
+        # all_objects: a deactivated evaluation user is found and reactivated,
+        # not created again into a unique-username error.
+        user, _ = User.all_objects.get_or_create(
+            username=f"{USERNAME_PREFIX}{role}", defaults={"email": email}
         )
+        if user.email != email:
+            # Made staff or support below: never do that to an account the
+            # evaluation did not create.
+            raise ValueError(
+                f"User {user.username} exists and was not created by the docs "
+                "evaluation; use a database of its own."
+            )
         user.is_staff = role == "staff"
         user.is_support = role == "support"
         user.is_active = True
@@ -292,6 +314,36 @@ def unsourced_terms(answer: str, source_text: str) -> list[str]:
     return missing
 
 
+# Common words of the languages the question pack asks in. UI names, links and
+# code stay in English in any answer, so they are left out before counting.
+_LANGUAGE_WORDS = {
+    # No word in two lists: "on" is Estonian too, "in" German, "see" English,
+    # "et" French.
+    "en": "the and to you your is of for with can this are not or",
+    "et": "ja on või kui oma ning siis saad mis ei ka seda selle kus "
+    "kuidas olla peab saate",
+    "de": "und die der das sie ist nicht mit ein eine zu auf für ihr können "
+    "den im wird oder werden",
+    "fr": "le la les et vous de des un une est pour dans votre sur pas du ou "
+    "pouvez être",
+}
+_LANGUAGE_WORDS = {lang: set(words.split()) for lang, words in _LANGUAGE_WORDS.items()}
+_NOT_PROSE = re.compile(r"\[[^\]]*\]\([^)]*\)|`[^`]*`|\*\*[^*]*\*\*|https?://\S+")
+
+
+def answer_language(text: str) -> str:
+    """The language most of the answer's prose is in, or "" when unclear."""
+    words = re.findall(r"\w+", _NOT_PROSE.sub(" ", text).lower())
+    counts = {
+        lang: sum(word in vocab for word in words)
+        for lang, vocab in _LANGUAGE_WORDS.items()
+    }
+    ranked = sorted(counts.values(), reverse=True)
+    best = max(counts, key=counts.get)
+    # Too few words, or a tie, is not a language.
+    return best if ranked[0] >= 3 and ranked[0] > ranked[1] else ""
+
+
 def score_answer(
     question: Question,
     role: str,
@@ -313,6 +365,7 @@ def score_answer(
     # from a soft leak (steps pieced together from a menu listing) is the
     # judge's part.
     says_unavailable = bool(_UNAVAILABLE.search(answer))
+    language = answer_language(answer)
     return {
         "searched": bool(searches),
         "searches": len(searches),
@@ -325,6 +378,8 @@ def score_answer(
         "found_forbidden": forbidden,
         "availability_ok": says_unavailable if unavailable_expected else True,
         "unsourced_terms": unsourced_terms(answer, source_text),
+        "language": language,
+        "language_ok": language == question.language if question.language else None,
     }
 
 
@@ -405,15 +460,21 @@ def switched_off_seen(user: User, turn: dict) -> list[dict]:
 
 
 _TEXTS: dict[str, str] = {}
+_TEXTS_LOCK = threading.Lock()
 
 
 def _section_texts() -> dict[str, str]:
-    if not _TEXTS:
-        base = search.docs_base_url()
-        for path, anchor, text in DocSection.objects.values_list(
-            "path", "anchor", "text"
-        ):
-            _TEXTS[search.section_url(path, anchor, base)] = text
+    """Section text by URL, read once. The roles of a question run in threads:
+    the lock keeps one from returning the dict while another fills it."""
+    with _TEXTS_LOCK:
+        if not _TEXTS:
+            base = search.docs_base_url()
+            _TEXTS.update(
+                (search.section_url(path, anchor, base), text)
+                for path, anchor, text in DocSection.objects.values_list(
+                    "path", "anchor", "text"
+                )
+            )
     return _TEXTS
 
 
@@ -668,6 +729,9 @@ def describe(row: dict) -> str:
             "phrases" if score["missing_required"] or score["found_forbidden"] else "",
             "availability" if not score["availability_ok"] else "",
             f"unsourced {score['unsourced_terms']}" if score["unsourced_terms"] else "",
+            f"answered in {score.get('language') or '?'}"
+            if score.get("language_ok") is False
+            else "",
         ]
         parts.append(" ".join(f for f in flags if f))
     verdict = row.get("judge")
@@ -689,6 +753,13 @@ def _pct(numerator: int, denominator: int) -> str:
     return f"{100 * numerator // denominator}%" if denominator else "-"
 
 
+def _language_share(turns: list[dict]) -> str:
+    """Share of answers in the question's language, of questions that name one."""
+    checked = [t["score"]["language_ok"] for t in turns]
+    checked = [ok for ok in checked if ok is not None]
+    return _pct(sum(checked), len(checked))
+
+
 def summarize(rows: list[dict]) -> list[str]:
     """Report lines: totals per role, then per category."""
     lines = []
@@ -699,7 +770,8 @@ def summarize(rows: list[dict]) -> list[str]:
         lines.append(
             f"{title:<10} {'search ok':>10} {'gold@5':>7} {'leaks':>6}"
             f" {'searched':>9} {'empty':>6} {'invented':>9} {'phrases':>8}"
-            f" {'avail.':>7} {'sourced':>8} {'grounded':>9} {'score':>6} {'p50 s':>6}"
+            f" {'avail.':>7} {'sourced':>8} {'language':>9} {'grounded':>9}"
+            f" {'score':>6} {'p50 s':>6}"
         )
         for name in sorted(groups):
             g = groups[name]
@@ -723,6 +795,7 @@ def summarize(rows: list[dict]) -> list[str]:
                     if turns
                     else f" {'-':>9} {'-':>6} {'-':>9} {'-':>8} {'-':>7} {'-':>8}"
                 )
+                + f" {_language_share(turns):>9}"
                 + (
                     f" {_pct(sum(v['grounded'] for v in verdicts), len(verdicts)):>9}"
                     f" {statistics.mean(v['answer_score'] for v in verdicts):>6.1f}"

@@ -2,11 +2,14 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import mock
 
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.db import connection
 from django.test import SimpleTestCase, TestCase
 
 from waldur_core.configuration import config
 from waldur_core.configuration.testing import override_config
-from waldur_core.core.models import Feature
+from waldur_core.core.models import Feature, User
 from waldur_mastermind.chat.docs import evaluation, search
 
 BASE = "https://docs.example.org"
@@ -83,6 +86,34 @@ class ScoringTest(SimpleTestCase):
             evaluation.score_answer(q, "staff", steps, set())["availability_ok"]
         )
 
+    def test_not_available_is_recognised_in_the_pack_languages(self, _):
+        q = question(unavailable_for=["member"])
+        for answer in (
+            "Isiklikke juurdepääsulube ei ole sellel portaalil lubatud.",
+            "Persönliche Zugriffstoken sind auf diesem Portal nicht aktiviert.",
+            "Les jetons d'accès personnels ne sont pas activés sur ce portail.",
+        ):
+            turn = {"answer": answer, "tool_calls": []}
+            self.assertTrue(
+                evaluation.score_answer(q, "member", turn, set())["availability_ok"],
+                answer,
+            )
+
+    def test_deactivated_without_negation_is_not_unavailable(self, _):
+        q = question(unavailable_for=["member"])
+        for answer in (
+            "Öffnen Sie Profil und klicken Sie Erstellen. Ein abgelaufenes "
+            "Token wird automatisch deaktiviert.",
+            "Ouvrez le profil et créez un jeton; le jeton est désactivé après "
+            "expiration.",
+            "Token on pärast aegumist automaatselt välja lülitatud.",
+        ):
+            turn = {"answer": answer, "tool_calls": []}
+            self.assertFalse(
+                evaluation.score_answer(q, "member", turn, set())["availability_ok"],
+                answer,
+            )
+
     def test_required_and_forbidden_phrases(self, _):
         q = question(required=["(?i)credentials"], forbidden=["(?i)click create"])
         score = evaluation.score_answer(
@@ -115,6 +146,47 @@ class UnsourcedTermsTest(SimpleTestCase):
         self.assertEqual(evaluation.unsourced_terms(answer, ""), [])
 
 
+class AnswerLanguageTest(SimpleTestCase):
+    def test_prose_language_is_found_despite_english_ui_names(self):
+        answers = {
+            "et": "Avage oma organisatsioon ja klõpsake **Add project**. Kui see "
+            "puudub, siis küsige omanikult, kus see on.",
+            "de": "Öffnen Sie die Organisation und klicken Sie auf **Add project**. "
+            "Sie können den Namen mit der Schaltfläche ändern.",
+            "fr": "Ouvrez votre organisation et cliquez sur **Add project**. Vous "
+            "pouvez changer le nom dans la page du projet.",
+            "en": "Open your organization and click **Add project**. You can "
+            "change the name on the project page.",
+        }
+        for language, answer in answers.items():
+            self.assertEqual(evaluation.answer_language(answer), language)
+        self.assertEqual(evaluation.answer_language("[Docs](https://x)"), "")
+
+    def test_language_word_lists_share_no_word(self):
+        lists = list(evaluation._LANGUAGE_WORDS.items())
+        for i, (a, words_a) in enumerate(lists):
+            for b, words_b in lists[i + 1 :]:
+                self.assertEqual(words_a & words_b, set(), (a, b))
+
+    def test_shared_or_too_few_words_are_no_language(self):
+        self.assertEqual(evaluation.answer_language("See on hea."), "")
+        self.assertEqual(evaluation.answer_language("Klicken Sie in in in."), "")
+
+    @mock.patch.object(search, "docs_base_url", return_value=BASE)
+    def test_answer_in_another_language_than_asked_is_reported(self, _):
+        q = question(language="de")
+        turn = {
+            "answer": "Open the organization and click the button.",
+            "tool_calls": [],
+        }
+        score = evaluation.score_answer(q, "owner", turn, set())
+        self.assertEqual(score["language"], "en")
+        self.assertFalse(score["language_ok"])
+        self.assertIsNone(
+            evaluation.score_answer(question(), "owner", turn, set())["language_ok"]
+        )
+
+
 class VerdictTest(SimpleTestCase):
     def test_json_is_found_after_thinking(self):
         verdict = evaluation.parse_verdict(
@@ -137,8 +209,12 @@ class VerdictTest(SimpleTestCase):
 
 
 class QuestionsTest(SimpleTestCase):
-    def test_bundled_pack_loads(self):
+    def test_bundled_packs_load(self):
         questions = evaluation.load_questions()
+        for name in ("languages", "validation", "test"):
+            questions += evaluation.load_questions(
+                evaluation.QUESTIONS_FILE.with_name(f"evaluation_questions_{name}.yaml")
+            )
         self.assertTrue(questions)
         for q in questions:
             self.assertTrue(set(q.roles) <= set(evaluation.ROLES), q.id)
@@ -195,6 +271,20 @@ class SwitchedTest(TestCase):
 
 
 class UsersTest(TestCase):
+    def test_deactivated_evaluation_user_is_reactivated(self):
+        users = evaluation.ensure_users()
+        users["member"].is_active = False
+        users["member"].save()
+        again = evaluation.ensure_users()
+        self.assertEqual(again["member"].pk, users["member"].pk)
+        self.assertTrue(again["member"].is_active)
+
+    def test_an_account_it_did_not_create_is_not_made_staff(self):
+        User.objects.create(username="docs-eval-staff", email="someone@example.org")
+        with self.assertRaises(ValueError):
+            evaluation.ensure_users()
+        self.assertFalse(User.objects.get(username="docs-eval-staff").is_staff)
+
     def test_one_user_per_role_and_idempotent(self):
         users = evaluation.ensure_users()
         again = evaluation.ensure_users()
@@ -204,3 +294,20 @@ class UsersTest(TestCase):
         self.assertTrue(users["staff"].is_staff)
         self.assertTrue(users["support"].is_support)
         self.assertFalse(users["owner"].is_staff or users["owner"].is_support)
+
+
+class CommandCorpusTest(TestCase):
+    def test_a_corpus_that_does_not_load_stops_the_run(self):
+        f = NamedTemporaryFile("wb", suffix=".jsonl.gz", delete=False)
+        f.write(b"not gzip")
+        f.close()
+        self.addCleanup(Path(f.name).unlink)
+        with self.assertRaisesMessage(CommandError, "cannot be read"):
+            call_command(
+                "ai_assistant",
+                "docs_evaluation",
+                "--database",
+                connection.settings_dict["NAME"],
+                "--corpus",
+                f.name,
+            )
