@@ -14135,8 +14135,15 @@ class AssignmentItemViewSet(ActionsViewSet):
         item: models.AssignmentItem = self.get_object()
 
         with transaction.atomic():
+            # The pool entry first, in the order revoking the reviewer's role
+            # locks it and then their items: a reviewer removed meanwhile is
+            # seen, and takes on no review.
+            entry = models.CallReviewerPool.objects.select_for_update().get(
+                pk=item.batch.reviewer_pool_entry_id
+            )
             # Locked, so two concurrent answers cannot both find it pending
             item = models.AssignmentItem.objects.select_for_update().get(pk=item.pk)
+            item.batch.reviewer_pool_entry = entry
 
             # Block responses to expired batches
             if item.batch.is_expired:
