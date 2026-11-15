@@ -396,3 +396,63 @@ class DeclinedEntryAssignmentsStayClosedTest(RevokedReviewerAssignmentsBaseTest)
         self.declined_entry_with_item()
         result = ReviewWorkloadTool().execute(self.reviewer, {})
         self.assertEqual(result["data"]["pending_assignments"], [])
+
+
+class ReviewAssistantFollowsTheAssignmentAccessRuleTest(
+    RevokedReviewerAssignmentsBaseTest
+):
+    """The review assistant answers only whoever reads the proposal through
+    a live assignment, as the proposal API decides it."""
+
+    def assert_refused(self):
+        result = ReviewAssistantTool().execute(
+            self.reviewer, {"uuid": self.proposal.uuid.hex}
+        )
+        self.assertEqual(result["type"], "error", result)
+        self.assertNotIn("Ada Applicant", str(result))
+
+    def test_an_expired_item_opens_nothing(self):
+        self.make_item(self.make_entry(), item_status=ITEM.EXPIRED)
+        self.assert_refused()
+
+    def test_a_reassigned_item_opens_nothing(self):
+        self.make_item(self.make_entry(), item_status=ITEM.REASSIGNED)
+        self.assert_refused()
+
+    def test_a_pending_item_of_a_declined_entry_opens_nothing(self):
+        self.make_item(self.make_entry(invitation_status=POOL.DECLINED))
+        self.assert_refused()
+
+    def test_a_pending_item_of_an_accepted_entry_is_answered(self):
+        self.make_item(self.make_entry())
+        result = ReviewAssistantTool().execute(
+            self.reviewer, {"uuid": self.proposal.uuid.hex}
+        )
+        self.assertEqual(result["type"], "success", result)
+
+
+class AcceptingLocksThePoolEntryTest(RevokedReviewerAssignmentsBaseTest):
+    def test_the_entry_is_locked_before_the_item(self):
+        # Revoking the role locks the entry and then its items: accepting
+        # takes them in the same order, so it sees a revocation that won.
+        item = self.make_item(self.make_entry())
+        locked = []
+        for model in (models.CallReviewerPool, models.AssignmentItem):
+            original = model.objects.select_for_update
+
+            def spy(*args, _model=model, _original=original, **kwargs):
+                locked.append(_model)
+                return _original(*args, **kwargs)
+
+            patcher = mock.patch.object(model.objects, "select_for_update", spy)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+        self.client.force_authenticate(self.reviewer)
+        response = self.client.post(
+            factories.AssignmentItemFactory.get_url(item) + "accept/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            locked[:2], [models.CallReviewerPool, models.AssignmentItem], locked
+        )
