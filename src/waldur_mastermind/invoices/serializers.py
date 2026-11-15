@@ -354,7 +354,7 @@ class InvoiceSerializer(
     items = serializers.SerializerMethodField()
     issuer_details = serializers.SerializerMethodField()
     customer_details = CustomerDetailsSerializer(source="customer")
-    due_date = serializers.DateField()
+    due_date = serializers.DateField(read_only=True, allow_null=True)
     compensations = serializers.SerializerMethodField()
     incurred_costs = serializers.SerializerMethodField()
     volume_discounts = serializers.SerializerMethodField()
@@ -481,7 +481,9 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
     invoice_year = serializers.ReadOnlyField(source="invoice.year")
     invoice_month = serializers.ReadOnlyField(source="invoice.month")
     invoice_date = serializers.ReadOnlyField(source="invoice.invoice_date")
-    due_date = serializers.ReadOnlyField(source="invoice.due_date")
+    due_date = serializers.DateField(
+        source="invoice.due_date", read_only=True, allow_null=True
+    )
     customer_uuid = serializers.UUIDField(
         read_only=True, source="invoice.customer.uuid"
     )

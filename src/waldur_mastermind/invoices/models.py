@@ -213,7 +213,8 @@ class Invoice(
         return sum(item.price_current for item in self.items.all())
 
     @property
-    def due_date(self) -> datetime.date:
+    def due_date(self) -> datetime.date | None:
+        """None until the invoice is issued and has an invoice date."""
         if self.invoice_date:
             return self.invoice_date + datetime.timedelta(
                 days=settings.WALDUR_INVOICES["PAYMENT_INTERVAL"]

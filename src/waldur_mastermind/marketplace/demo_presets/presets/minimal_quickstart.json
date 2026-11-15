@@ -217,7 +217,7 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "single_datacenter_085_config",
+            "type": "single_datacenter_k8s_config",
             "label": "Cluster Configuration",
             "help_text": "Configure your Kubernetes cluster including controller nodes, load balancers, and worker node groups",
             "required": true,
@@ -264,7 +264,7 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "multi_datacenter_085_config",
+            "type": "multi_datacenter_k8s_config",
             "label": "Multi-Datacenter Cluster Configuration",
             "help_text": "Configure your Kubernetes cluster across multiple datacenters for high availability and disaster recovery",
             "required": true,
