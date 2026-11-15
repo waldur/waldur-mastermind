@@ -1299,6 +1299,10 @@ def _assignment_tasks(standing):
     items = (
         models.AssignmentItem.objects.filter(
             batch__reviewer_pool_entry__reviewer__user=standing.user,
+            # Not once they have left the pool or lost the call's role.
+            batch__reviewer_pool_entry__invitation_status=(
+                ReviewerPoolInvitationStatuses.ACCEPTED
+            ),
             batch__status=AssignmentBatchStatuses.SENT,
             status=AssignmentItemStatuses.PENDING,
         )

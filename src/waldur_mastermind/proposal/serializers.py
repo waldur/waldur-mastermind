@@ -127,6 +127,7 @@ from . import (
 )
 from . import status_labels as step_status_labels
 from .managers import (
+    get_assigned_proposals,
     get_connected_calls,
     get_offering_manager_proposals,
     get_reviewed_proposals,
@@ -190,7 +191,8 @@ class ApplicantVisibility:
     manages the call -- a call manager, or an organiser through the managing
     organisation. Among the rest, evaluators are call reviewers, panel members,
     anyone holding a live review of the proposal (an accepted assignment
-    grants no role), the holders of an evaluator role on it, such as its
+    grants no role), anyone sent an assignment to it they have not answered
+    yet, the holders of an evaluator role on it, such as its
     rapporteurs, and the providers: the managers of an offering the proposal
     requested or was awarded, who assess it and later serve the award. They
     see only what the call exposes. Anyone else is not an evaluator and sees
@@ -204,6 +206,7 @@ class ApplicantVisibility:
         self.user = user
         self._evaluator_call_ids = None
         self._reviewed_proposal_ids = None
+        self._assigned_proposal_ids = None
         self._held_proposal_ids = None
         self._provided_proposal_ids = None
         self._proposal_role_ids = None
@@ -222,6 +225,10 @@ class ApplicantVisibility:
         if self._reviewed_proposal_ids is None:
             self._reviewed_proposal_ids = set(get_reviewed_proposals(self.user))
         if proposal.id in self._reviewed_proposal_ids:
+            return True
+        if self._assigned_proposal_ids is None:
+            self._assigned_proposal_ids = set(get_assigned_proposals(self.user))
+        if proposal.id in self._assigned_proposal_ids:
             return True
         if self._held_proposal_ids is None:
             self._held_proposal_ids = set(proposal_roles.proposals_held_by(self.user))

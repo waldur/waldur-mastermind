@@ -13909,20 +13909,36 @@ class AssignmentBatchViewSet(ActionsViewSet):
         """Send the assignment batch invitation to the reviewer."""
         batch: models.AssignmentBatch = self.get_object()
 
-        if batch.status != models.AssignmentBatchStatuses.DRAFT:
-            return response.Response(
-                {"error": _("Only draft batches can be sent.")},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         serializer = serializers.SendAssignmentBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        if serializer.validated_data.get("manager_notes"):
-            batch.manager_notes = serializer.validated_data["manager_notes"]
-            batch.save(update_fields=["manager_notes"])
+        with transaction.atomic():
+            # Locked in the order revoking the reviewer's role locks them, so
+            # a batch is never sent to a reviewer who has just been removed.
+            entry = models.CallReviewerPool.objects.select_for_update().get(
+                pk=batch.reviewer_pool_entry_id
+            )
+            batch = models.AssignmentBatch.objects.select_for_update().get(pk=batch.pk)
+            if batch.status != models.AssignmentBatchStatuses.DRAFT:
+                return response.Response(
+                    {"error": _("Only draft batches can be sent.")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not entry.is_accepted:
+                return response.Response(
+                    {
+                        "error": _(
+                            "The reviewer is no longer in this call's reviewer pool."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        batch.send_invitation(user=request.user)
+            if serializer.validated_data.get("manager_notes"):
+                batch.manager_notes = serializer.validated_data["manager_notes"]
+                batch.save(update_fields=["manager_notes"])
+
+            batch.send_invitation(user=request.user)
         tasks.send_assignment_batch_invitation.delay(batch.uuid)
 
         return response.Response(
@@ -13980,6 +13996,18 @@ class AssignmentBatchViewSet(ActionsViewSet):
         """
         batch: models.AssignmentBatch = self.get_object()
 
+        serializer = serializers.ExtendDeadlineRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            # Locked as in ``send``: a reviewer removed meanwhile is seen.
+            entry = models.CallReviewerPool.objects.select_for_update().get(
+                pk=batch.reviewer_pool_entry_id
+            )
+            batch = models.AssignmentBatch.objects.select_for_update().get(pk=batch.pk)
+            return self._extend_deadline(batch, entry, serializer)
+
+    def _extend_deadline(self, batch, entry, serializer):
         if batch.status not in [
             models.AssignmentBatchStatuses.SENT,
             models.AssignmentBatchStatuses.EXPIRED,
@@ -13988,9 +14016,13 @@ class AssignmentBatchViewSet(ActionsViewSet):
                 {"error": _("Can only extend deadline for sent or expired batches.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        serializer = serializers.ExtendDeadlineRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        # A reviewer who left the pool, or whose call role was revoked, has
+        # nothing to answer: a new deadline would reopen their assignments.
+        if not entry.is_accepted:
+            return response.Response(
+                {"error": _("The reviewer is no longer in this call's reviewer pool.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         new_expires_at = serializer.validated_data["expires_at"]
         batch.expires_at = new_expires_at
@@ -14342,6 +14374,11 @@ class AssignmentItemViewSet(ActionsViewSet):
         if item.status != models.AssignmentItemStatuses.COI_BLOCKED:
             return response.Response(
                 {"error": _("Only COI-blocked items can be force-unblocked.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not item.batch.reviewer_pool_entry.is_accepted:
+            return response.Response(
+                {"error": _("The reviewer is no longer in this call's reviewer pool.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
