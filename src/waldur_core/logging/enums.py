@@ -459,8 +459,8 @@ class EventType(StrEnum):
     REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN = "reviewer_workload_limit_overridden"
     REVIEWER_INVITATION_FORCE_ACCEPTED = "reviewer_invitation_force_accepted"
     REVIEW_ASSIGNMENT_FORCE_UNBLOCKED = "review_assignment_force_unblocked"
-    REVIEW_ASSIGNMENTS_CLOSED_ON_ROLE_REVOKE = (
-        "review_assignments_closed_on_role_revoke"
+    REVIEW_ASSIGNMENTS_CLOSED_ON_LEAVING_POOL = (
+        "review_assignments_closed_on_leaving_pool"
     )
     REVIEWER_STANDING_CHANGED = "reviewer_standing_changed"
     REVIEWER_PUBLICATION_REQUESTED = "reviewer_publication_requested"
@@ -658,7 +658,7 @@ EVENT_GROUP_MAPPING = {
         EventType.REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN,
         EventType.REVIEWER_INVITATION_FORCE_ACCEPTED,
         EventType.REVIEW_ASSIGNMENT_FORCE_UNBLOCKED,
-        EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_ROLE_REVOKE,
+        EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_LEAVING_POOL,
     ],
     EventGroup.CREDITS: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,

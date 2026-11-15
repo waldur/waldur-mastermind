@@ -6,9 +6,11 @@ Revoking a reviewer's call role declines their pool entry; the assignments
 they had not answered close with it.
 """
 
+import importlib
 from datetime import timedelta
 from unittest import mock
 
+from django.apps import apps
 from django.core import mail
 from django.utils import timezone
 from rest_framework import status, test
@@ -137,7 +139,7 @@ class RevokingTheRoleClosesPendingAssignmentsTest(RevokedReviewerAssignmentsBase
         self.item.refresh_from_db()
         self.assertEqual(self.item.decline_reason, reviewer_membership.REVOKED_REASON)
         event = Event.objects.get(
-            event_type=EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_ROLE_REVOKE
+            event_type=EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_LEAVING_POOL
         )
         self.assertEqual(event.context["call_uuid"], self.call.uuid.hex)
 
@@ -147,7 +149,7 @@ class RevokingTheRoleClosesPendingAssignmentsTest(RevokedReviewerAssignmentsBase
         self.revoke()
         self.assertFalse(
             Event.objects.filter(
-                event_type=EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_ROLE_REVOKE
+                event_type=EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_LEAVING_POOL
             ).exists()
         )
 
@@ -455,4 +457,65 @@ class AcceptingLocksThePoolEntryTest(RevokedReviewerAssignmentsBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(
             locked[:2], [models.CallReviewerPool, models.AssignmentItem], locked
+        )
+
+
+close_migration = importlib.import_module(
+    "waldur_mastermind.proposal.migrations.0102_close_assignments_of_departed_reviewers"
+)
+
+
+class LeavingThePoolClosesPendingAssignmentsTest(RevokedReviewerAssignmentsBaseTest):
+    """Whatever takes an entry out of accepted closes its pending items, so
+    re-accepting it later does not bring them back."""
+
+    def regrant(self):
+        self.call.add_user(self.reviewer, CallRole.REVIEWER, created_by=self.staff)
+
+    def test_any_path_out_of_accepted_closes_the_pending_items(self):
+        entry = self.make_entry()
+        item = self.make_item(entry)
+        entry.invitation_status = POOL.DECLINED
+        entry.decline_reason = "Asked to leave."
+        entry.save()
+        item.refresh_from_db()
+        self.assertEqual(item.status, ITEM.EXPIRED)
+        self.assertEqual(item.decline_reason, "Asked to leave.")
+
+    def test_a_regranted_reviewer_does_not_get_old_items_back(self):
+        entry = self.make_entry()
+        item = self.make_item(entry)
+        self.call.remove_user(self.reviewer, CallRole.REVIEWER, removed_by=self.staff)
+        self.regrant()
+        entry.refresh_from_db()
+        item.refresh_from_db()
+        self.assertTrue(entry.is_accepted)
+        self.assertEqual(item.status, ITEM.EXPIRED)
+        self.assertEqual(self.get_proposal(self.reviewer).status_code, 404)
+
+    def test_the_migration_closes_items_left_by_earlier_revocations(self):
+        # As revocation left them before it closed them: entry declined, item
+        # pending in a sent batch.
+        entry = self.make_entry(invitation_status=POOL.DECLINED)
+        item = self.make_item(entry)
+        live = factories.AssignmentItemFactory(
+            batch=self.make_item(self.make_entry_for_other()).batch,
+            proposal=factories.ProposalFactory(round=self.round),
+        )
+        close_migration.close_assignments_of_departed_reviewers(apps, None)
+        item.refresh_from_db()
+        item.batch.refresh_from_db()
+        live.refresh_from_db()
+        self.assertEqual(item.status, ITEM.EXPIRED)
+        self.assertEqual(item.batch.status, BATCH.RESPONDED)
+        self.assertEqual(live.status, ITEM.PENDING)
+
+        self.regrant()
+        self.assertEqual(self.get_proposal(self.reviewer).status_code, 404)
+
+    def make_entry_for_other(self):
+        return factories.CallReviewerPoolFactory(
+            call=self.call,
+            reviewer=factories.ReviewerProfileFactory(),
+            invitation_status=POOL.ACCEPTED,
         )

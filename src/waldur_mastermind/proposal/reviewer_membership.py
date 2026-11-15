@@ -11,8 +11,9 @@ the other:
 - an accepted pool entry gives its reviewer the role;
 - a granted role puts its holder in the pool as accepted;
 - a revoked role marks their pool entry declined (kept, with its history,
-  not deleted: assignment batches hang off it), and the assignments they had
-  not answered close with it.
+  not deleted: assignment batches hang off it);
+- an entry that stops being accepted, by whatever path, closes the
+  assignments its reviewer had not answered.
 
 Each direction checks before it writes, so neither sets the other off again.
 """
@@ -37,6 +38,7 @@ from waldur_mastermind.proposal.enums import (
 
 GRANTED_REASON = "Given the call's reviewer role."
 REVOKED_REASON = "The call's reviewer role was revoked."
+LEFT_REASON = "The reviewer left the call's reviewer pool."
 
 
 def _is_call_reviewer_role(role) -> bool:
@@ -178,7 +180,7 @@ def close_pending_assignments(entry, reason):
             "call": event_logger.literal(call.name),
             "reason": event_logger.literal(reason),
         },
-        event_type=EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_ROLE_REVOKE,
+        event_type=EventType.REVIEW_ASSIGNMENTS_CLOSED_ON_LEAVING_POOL,
         event_context={"call": call, "reason": reason},
         scopes=[_get_customer(call)],
     )
@@ -204,8 +206,25 @@ def leave_pool_on_role_revoke(sender, instance, **kwargs):
         entry.invitation_status = ReviewerPoolInvitationStatuses.DECLINED
         entry.decline_reason = REVOKED_REASON
         entry.response_date = timezone.now()
+        # Saving it closes the reviewer's pending assignments
+        # (``close_assignments_on_leaving_pool``).
         entry.save()
-        close_pending_assignments(entry, REVOKED_REASON)
+
+
+def close_assignments_on_leaving_pool(sender, instance, created=False, **kwargs):
+    """A pool entry that stops being accepted, by whatever path, ends the
+    assignments its reviewer has not answered: re-accepting it later must
+    not bring them back."""
+    if created or not instance.tracker.has_changed("invitation_status"):
+        return
+    if instance.is_accepted:
+        return
+    if (
+        instance.tracker.previous("invitation_status")
+        != ReviewerPoolInvitationStatuses.ACCEPTED
+    ):
+        return
+    close_pending_assignments(instance, instance.decline_reason or LEFT_REASON)
 
 
 def sync_call_reviewers(calls):
