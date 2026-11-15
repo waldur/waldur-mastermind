@@ -18,7 +18,10 @@ from waldur_mastermind.proposal.models import (
     RequestedResource,
     Review,
 )
-from waldur_mastermind.proposal.permissions import offering_scope
+from waldur_mastermind.proposal.permissions import (
+    offering_scope,
+    user_can_view_review_scores,
+)
 from waldur_mastermind.proposal.utils import get_proposal_duration_months
 
 logger = logging.getLogger(__name__)
@@ -224,6 +227,15 @@ class ReviewAssistantTool(BaseTool):
             avg_score=Avg("summary_score"),
         )
 
+        # The average is the call team's: a reviewer's own score next to it
+        # gives their peers'. A reviewer is told only how many came in.
+        avg_score = (
+            round(existing_reviews["avg_score"], 1)
+            if existing_reviews["avg_score"]
+            and user_can_view_review_scores(user, proposal)
+            else None
+        )
+
         review_data = {
             "proposal": {
                 "slug": proposal.slug,
@@ -254,9 +266,7 @@ class ReviewAssistantTool(BaseTool):
             },
             "existing_reviews": {
                 "count": existing_reviews["count"],
-                "avg_score": round(existing_reviews["avg_score"], 1)
-                if existing_reviews["avg_score"]
-                else None,
+                "avg_score": avg_score,
             },
             "coi_flags": list(coi_for_user),
             "disclaimer": "This AI analysis is advisory only. The reviewer makes the final evaluation.",

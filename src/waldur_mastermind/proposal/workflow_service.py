@@ -770,6 +770,24 @@ def _enforce_derived_outcome(current_instance, outcome, call_step):
         )
 
 
+class ScoreBelowThreshold(ValueError):
+    """A step's minimum score threshold refused its completion.
+
+    The message names the score and the threshold: the call team's to read
+    (``permissions.user_can_view_step_scores``). The score sums up the
+    evaluators' grading, so an evaluator completing the step is told only
+    ``concealed_message``: with two reviewers, the average and their own
+    score would tell them their peer's.
+    """
+
+    def __init__(self, instance, message):
+        super().__init__(message)
+        self.concealed_message = (
+            f"Cannot complete {_step_label(instance)}: its score is below "
+            "the required minimum."
+        )
+
+
 def _enforce_step_gates(proposal, current_instance, outcome, call_step):
     """Block completion of a gated step until its thresholds are met.
 
@@ -848,16 +866,18 @@ def _enforce_step_gates(proposal, current_instance, outcome, call_step):
         avg_score, source = gate_score(current_instance)
         if avg_score is None or avg_score < call_step.min_score_threshold:
             if source is not None:
-                raise ValueError(
+                raise ScoreBelowThreshold(
+                    current_instance,
                     f"Cannot complete {_step_label(current_instance)}: the "
                     f"score from {_step_label(source)} ({_format_score(avg_score)}) "
                     "is below the required minimum of "
-                    f"{call_step.min_score_threshold}."
+                    f"{call_step.min_score_threshold}.",
                 )
-            raise ValueError(
+            raise ScoreBelowThreshold(
+                current_instance,
                 f"Cannot complete {_step_label(current_instance)}: the average review "
                 f"score ({avg_score if avg_score is not None else 0}) is below "
-                f"the required minimum of {call_step.min_score_threshold}."
+                f"the required minimum of {call_step.min_score_threshold}.",
             )
 
 
@@ -938,13 +958,34 @@ def score_gate(instance):
     }
 
 
-def is_ready_to_complete(user, instance) -> bool:
+def enforce_closed_scored_work(instance):
+    """Refuse completing a step with a minimum score threshold while any of
+    its contributions is still open, for a completer who does not read the
+    step's score (``permissions.user_can_view_step_scores``).
+
+    Whether the gate lets the step through would otherwise tell an
+    evaluator who has not yet submitted about their peers' grading; the
+    call team may still close the step early, withdrawing what is open.
+    """
+    if instance.call_step.min_score_threshold is None:
+        return
+    if instance.contributions.filter(status__in=StepContributionStatuses.OPEN).exists():
+        raise ValueError(
+            f"Cannot complete {_step_label(instance)} while its evaluations "
+            "are still open."
+        )
+
+
+def is_ready_to_complete(user, instance, reads_score=True) -> bool:
     """Whether the active step ``instance`` waits only for ``user`` to
     complete it: they may act on it, none of its contributions is still
     open, at least one was submitted, and its gates are met.
 
     A step is never completed for its completer, as completing may carry
-    an outcome decision: this only tells them their turn has come.
+    an outcome decision: this only tells them their turn has come. For a
+    completer who does not read the step's score (``reads_score`` false)
+    the minimum score threshold is left out: whether the score passes
+    would tell them about their peers' grading.
     """
     proposal = instance.proposal
     if instance.status != WorkflowStepInstanceStatuses.ACTIVE:
@@ -960,6 +1001,9 @@ def is_ready_to_complete(user, instance) -> bool:
         return False
     try:
         _enforce_step_gates(proposal, instance, "", instance.call_step)
+    except ScoreBelowThreshold:
+        # The score gate is the last one checked: every other gate is met.
+        return not reads_score
     except ValueError:
         return False
     return True

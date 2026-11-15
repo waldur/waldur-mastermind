@@ -23,7 +23,8 @@ from waldur_mastermind.chat.tools.tool_sets import (
     STAFF_TOOLS,
     SUPPORT_TOOLS,
 )
-from waldur_mastermind.proposal.enums import CallStates
+from waldur_mastermind.proposal.enums import CallStates, ProposalStates
+from waldur_mastermind.proposal.models import Review
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 
@@ -398,3 +399,70 @@ class ReviewAssistantToolExecuteTest(TestCase):
     def test_unknown_proposal_returns_error(self):
         result = self.tool.execute(self.fixture.staff, {"slug": "no-such-slug"})
         self.assertEqual(result["type"], "error")
+
+
+class ReviewScoreAverageVisibilityTest(TestCase):
+    """The average of a proposal's review scores is the call team's: a
+    reviewer's own score next to it gives their peers', and the applicant
+    reads no review before the decision."""
+
+    def setUp(self):
+        self.fixture = proposal_fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.save()
+        for reviewer, score in (
+            (self.fixture.reviewer_1, 5),
+            (self.fixture.reviewer_2, 1),
+        ):
+            proposal_factories.ReviewFactory(
+                proposal=self.proposal,
+                reviewer=reviewer,
+                state=Review.States.SUBMITTED,
+                summary_score=score,
+            )
+        self.args = {"uuid": str(self.proposal.uuid)}
+
+    def _overview(self, user):
+        result = ProposalOverviewTool().execute(user, self.args)
+        self.assertEqual(result["type"], "success", result)
+        return result
+
+    def _assistant(self, user):
+        result = ReviewAssistantTool().execute(user, self.args)
+        self.assertEqual(result["type"], "success", result)
+        return result
+
+    def test_reviewer_gets_no_average_from_review_assistant(self):
+        result = self._assistant(self.fixture.reviewer_1)
+        self.assertEqual(result["data"]["existing_reviews"]["count"], 2)
+        self.assertIsNone(result["data"]["existing_reviews"]["avg_score"])
+
+    def test_staff_gets_the_average_from_review_assistant(self):
+        result = self._assistant(self.fixture.staff)
+        self.assertEqual(result["data"]["existing_reviews"]["avg_score"], 3.0)
+
+    def test_reviewer_gets_no_average_from_proposal_overview(self):
+        result = self._overview(self.fixture.reviewer_1)
+        self.assertEqual(result["data"]["reviews"]["completed"], 2)
+        self.assertIsNone(result["data"]["reviews"]["avg_score"])
+        self.assertNotIn("avg score", result["summary"])
+
+    def test_applicant_gets_no_average_during_review(self):
+        result = self._overview(self.fixture.proposal_creator)
+        self.assertIsNone(result["data"]["reviews"]["avg_score"])
+        self.assertNotIn("avg score", result["summary"])
+
+    def test_call_manager_gets_the_average_from_proposal_overview(self):
+        result = self._overview(self.fixture.call_manager)
+        self.assertEqual(result["data"]["reviews"]["avg_score"], 3.0)
+        self.assertIn("avg score 3.0", result["summary"])
+
+    def test_applicant_gets_the_average_once_reviews_are_shown(self):
+        call = self.fixture.call
+        call.reviews_visible_to_submitters = True
+        call.save()
+        self.proposal.state = ProposalStates.ACCEPTED
+        self.proposal.save()
+        result = self._overview(self.fixture.proposal_creator)
+        self.assertEqual(result["data"]["reviews"]["avg_score"], 3.0)

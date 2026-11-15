@@ -10,7 +10,10 @@ from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.models import Proposal, RequestedResource, Review
-from waldur_mastermind.proposal.permissions import offering_scope
+from waldur_mastermind.proposal.permissions import (
+    offering_scope,
+    user_can_view_review_scores,
+)
 from waldur_mastermind.proposal.utils import get_proposal_duration_months
 
 logger = logging.getLogger(__name__)
@@ -154,6 +157,15 @@ class ProposalOverviewTool(BaseTool):
             avg_score=Avg("summary_score", filter=Q(state=Review.States.SUBMITTED)),
         )
 
+        # The average is the call team's unless every review is the reader's
+        # to read: a reviewer's own score next to it gives their peers', and
+        # the applicant reads no review before the decision.
+        avg_score = (
+            round(review_stats["avg_score"], 1)
+            if review_stats["avg_score"] and user_can_view_review_scores(user, proposal)
+            else None
+        )
+
         compliance_status = None
         try:
             completion = ChecklistCompletion.objects.filter(
@@ -202,9 +214,7 @@ class ProposalOverviewTool(BaseTool):
             "reviews": {
                 "total": review_stats["total"],
                 "completed": review_stats["completed"],
-                "avg_score": round(review_stats["avg_score"], 1)
-                if review_stats["avg_score"]
-                else None,
+                "avg_score": avg_score,
             },
             "compliance": compliance_status,
             "deadline": deadline,
@@ -217,11 +227,7 @@ class ProposalOverviewTool(BaseTool):
 
         # Render directive in the result summary — LLM weights tool
         # results higher than usage_instructions for "what to do next".
-        score_clause = (
-            f", avg score {round(review_stats['avg_score'], 1)}"
-            if review_stats["avg_score"]
-            else ""
-        )
+        score_clause = f", avg score {avg_score}" if avg_score else ""
         summary = (
             f"Proposal '{proposal.slug}' ({proposal.state}) in call "
             f"'{call.name if call else 'N/A'}': "

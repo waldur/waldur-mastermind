@@ -7424,6 +7424,10 @@ class ProposalViewSet(
         return {
             "request": request,
             "can_view_internal_notes": can_view_internal_notes,
+            # The score a step's threshold reads is the call team's alone.
+            "can_view_step_scores": proposal_permissions.user_can_view_step_scores(
+                user, proposal, staff=has_staff_access(request)
+            ),
             # A reader who is only one of the proposal's reviewers sees the
             # outcome and reason only of the steps they take part in.
             "can_view_step_outcome": lambda instance: (
@@ -8754,8 +8758,15 @@ class ProposalViewSet(
                     }
                 )
 
+            reads_score = proposal_permissions.user_can_view_step_scores(
+                request.user, proposal, staff=has_staff_access(request)
+            )
             in_run = current_instance.run_id is not None
             try:
+                if not reads_score:
+                    # Whether the score gate holds is the call team's to
+                    # know while evaluations are still coming in.
+                    workflow_service.enforce_closed_scored_work(current_instance)
                 next_instance = workflow_service.complete_step(
                     proposal=proposal,
                     current_instance=current_instance,
@@ -8767,9 +8778,15 @@ class ProposalViewSet(
                         "budget_override_reason"
                     ],
                 )
+            except workflow_service.ScoreBelowThreshold as e:
+                # The score and threshold are the call team's: an evaluator
+                # completing the step learns only that the gate holds.
+                raise exceptions.ValidationError(
+                    {"detail": str(e) if reads_score else e.concealed_message}
+                )
             except ValueError as e:
-                # Step gate not satisfied (e.g. too few reviews / score below
-                # threshold). Roll back and surface the reason to the caller.
+                # Step gate not satisfied (e.g. too few reviews). Roll back
+                # and surface the reason to the caller.
                 raise exceptions.ValidationError({"detail": str(e)})
             # Step-activation notifications were intentionally removed; see
             # commit d2d5fb77c "Drop step-activation notifications [WAL-9346]".
@@ -9140,6 +9157,7 @@ class ProposalViewSet(
             instance,
             context={
                 "can_view_internal_notes": True,
+                "can_view_step_scores": True,
                 "can_view_step_actors": True,
                 "can_view_review_content": True,
             },

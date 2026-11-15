@@ -178,3 +178,61 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         response = self.client.get(f"/api/proposal-reviews/{self.review.uuid.hex}/")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ProtectedRoundReviewsVisibilityTest(APITestCase):
+    """The reviews nested in a protected call's round proposals follow the
+    same rule as /api/proposal-reviews/: a reviewer reads their own."""
+
+    def setUp(self):
+        self.fixture = proposal_fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal_submitted
+        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.save()
+        self.peer_review = factories.ReviewFactory(
+            proposal=self.proposal,
+            reviewer=self.fixture.reviewer_1,
+            state=models.Review.States.SUBMITTED,
+            summary_score=4,
+            summary_public_comment="Peer assessment",
+        )
+        self.own_review = factories.ReviewFactory(
+            proposal=self.proposal,
+            reviewer=self.fixture.reviewer_2,
+            state=models.Review.States.IN_REVIEW,
+        )
+
+    def _reviews_seen_by(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            factories.CallFactory.get_protected_url(self.call, action="rounds")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        proposals = [
+            proposal
+            for call_round in response.data
+            for proposal in call_round["proposals"]
+            if proposal["uuid"] == self.proposal.uuid.hex
+        ]
+        self.assertEqual(len(proposals), 1)
+        return {review["uuid"] for review in proposals[0]["reviews"]}
+
+    def test_reviewer_sees_only_their_own_review(self):
+        self.assertEqual(
+            self._reviews_seen_by(self.fixture.reviewer_2),
+            {self.own_review.uuid.hex},
+        )
+
+    def _every_review(self):
+        return {review.uuid.hex for review in self.proposal.review_set.all()}
+
+    def test_call_manager_sees_every_review(self):
+        seen = self._reviews_seen_by(self.fixture.call_manager)
+        self.assertEqual(seen, self._every_review())
+        self.assertIn(self.peer_review.uuid.hex, seen)
+
+    def test_staff_sees_every_review(self):
+        seen = self._reviews_seen_by(self.fixture.staff)
+        self.assertEqual(seen, self._every_review())
+        self.assertIn(self.peer_review.uuid.hex, seen)
