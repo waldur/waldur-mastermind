@@ -11,11 +11,15 @@ looks them up by ``id``.
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from django.db.models import Q
+
 from waldur_core.configuration import config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.managers import (
     filter_queryset_for_user,
+    get_connected_customers,
     get_connected_customers_by_permission,
+    get_connected_projects,
 )
 from waldur_firecrest import workspace
 from waldur_mastermind.chat import deployment_profile
@@ -27,6 +31,7 @@ from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates
+from waldur_mastermind.marketplace.managers import filter_orders_for_user
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
@@ -51,8 +56,23 @@ class Suggestion:
     check: Callable | None = None
 
 
+def _own(user, queryset, project="project", customer="project__customer"):
+    """Narrow ``queryset`` to the caller's own projects and organizations
+    when the caller is staff or support, who otherwise see the whole
+    deployment: "your paused resource" must be theirs, not anybody's."""
+    if not (user.is_staff or user.is_support):
+        return queryset
+    return queryset.filter(
+        Q(**{f"{project}__in": get_connected_projects(user)})
+        | Q(**{f"{customer}__in": get_connected_customers(user)})
+    )
+
+
 def _live_resources(user):
-    return user_consumer_resources(user).exclude(state=Resource.States.TERMINATED)
+    return _own(
+        user,
+        user_consumer_resources(user).exclude(state=Resource.States.TERMINATED),
+    )
 
 
 def _has_paused_resource(user) -> bool:
@@ -82,21 +102,30 @@ def _has_draft_proposal(user) -> bool:
     ).exists()
 
 
+# Every state in which an order waits on someone, as list_orders' "pending".
+_PENDING_ORDER_STATES = (
+    OrderStates.PENDING_CONSUMER,
+    OrderStates.PENDING_PROVIDER,
+    OrderStates.PENDING_PROJECT,
+    OrderStates.PENDING_START_DATE,
+)
+
+
 def _has_pending_order(user) -> bool:
-    return Order.objects.filter(
-        created_by=user,
-        state__in=(
-            OrderStates.PENDING_CONSUMER,
-            OrderStates.PENDING_PROVIDER,
-            OrderStates.PENDING_PROJECT,
-        ),
-    ).exists()
+    # The orders list_orders shows the caller, so also those waiting on the
+    # caller's approval as a project manager, owner or provider.
+    orders = filter_orders_for_user(Order.objects.all(), user)
+    return _own(user, orders).filter(state__in=_PENDING_ORDER_STATES).exists()
 
 
 def _has_credit(user) -> bool:
+    customer_credits = filter_queryset_for_user(CustomerCredit.objects.all(), user)
+    project_credits = filter_queryset_for_user(ProjectCredit.objects.all(), user)
     return (
-        filter_queryset_for_user(CustomerCredit.objects.all(), user).exists()
-        or filter_queryset_for_user(ProjectCredit.objects.all(), user).exists()
+        _own(
+            user, customer_credits, project="customer__projects", customer="customer"
+        ).exists()
+        or _own(user, project_credits).exists()
     )
 
 
@@ -117,7 +146,7 @@ def _has_project(user) -> bool:
 
 
 def _has_hpc_allocation(user) -> bool:
-    return workspace.resources_for_user(user).exists()
+    return _own(user, workspace.resources_for_user(user)).exists()
 
 
 _MARKETPLACE_HIDDEN = "feature:marketplace.hide_marketplace_from_end_users"
@@ -153,6 +182,10 @@ def _staff_with_credits(user) -> bool:
 
 
 _PRICES_SHOWN = "!feature:marketplace.conceal_prices"
+# A catalogue-only portal lists offerings but takes no orders.
+_ORDERING = "!feature:marketplace.catalogue_only"
+# A call-only portal runs proposals and reviews outside Waldur.
+_CALLS_IN_WALDUR = "!feature:marketplace.call_only"
 
 # In the order they are offered: the user's own state first (something needs
 # their attention), then what the portal offers.
@@ -165,17 +198,19 @@ CATALOG: tuple[Suggestion, ...] = (
     Suggestion(
         "review_workload",
         (ToolName.REVIEW_WORKLOAD,),
+        requires=(_CALLS_IN_WALDUR,),
         check=_has_review_work,
     ),
     Suggestion(
         "proposal_help",
         (ToolName.GUIDE_PROPOSAL, ToolName.PROPOSAL_OVERVIEW),
-        requires=("!feature:marketplace.call_only",),
+        requires=(_CALLS_IN_WALDUR,),
         check=_has_draft_proposal,
     ),
     Suggestion(
         "pending_orders",
         (ToolName.LIST_ORDERS,),
+        requires=(_ORDERING,),
         check=_has_pending_order,
     ),
     Suggestion(
@@ -199,7 +234,7 @@ CATALOG: tuple[Suggestion, ...] = (
     Suggestion(
         "create_vm",
         (ToolName.PLAN_VM, ToolName.CREATE_VM),
-        requires=("offering_type:OpenStack.Instance",),
+        requires=("offering_type:OpenStack.Instance", _ORDERING),
         check=_has_project,
     ),
     Suggestion(

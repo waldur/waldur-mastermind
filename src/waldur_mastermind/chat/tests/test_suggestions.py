@@ -16,6 +16,7 @@ from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat import suggestions as chat_suggestions
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Offering
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models as proposal_models
@@ -112,6 +113,37 @@ class DataConditionsTest(SuggestionsTestBase):
 
         self.assertIn("create_vm", self.offered(self.owner))
 
+    def test_staff_are_not_offered_other_peoples_paused_resources(self):
+        marketplace_factories.ResourceFactory(paused=True)  # someone else's
+        staff = self.fixture.staff
+
+        self.assertNotIn("resource_paused", self.offered(staff))
+        self.assertNotIn("my_resources", self.offered(staff))
+
+        project = structure_factories.ProjectFactory()
+        project.customer.add_user(staff, CustomerRole.OWNER)
+        marketplace_factories.ResourceFactory(project=project, paused=True)
+        self.assertEqual(self.offered(staff)[0], "resource_paused")
+
+    def test_pending_order_awaiting_the_owners_approval(self):
+        other = structure_factories.UserFactory()
+        marketplace_factories.OrderFactory(
+            project=self.project,
+            created_by=other,
+            state=OrderStates.PENDING_CONSUMER,
+        )
+
+        self.assertIn("pending_orders", self.offered(self.owner))
+
+    def test_order_waiting_for_its_start_date_is_pending(self):
+        marketplace_factories.OrderFactory(
+            project=self.project,
+            created_by=self.owner,
+            state=OrderStates.PENDING_START_DATE,
+        )
+
+        self.assertIn("pending_orders", self.offered(self.owner))
+
     def test_no_hpc_suggestion_without_an_endpoint(self):
         offered = self.offered(self.owner)
         self.assertNotIn("hpc_jobs", offered)
@@ -126,6 +158,38 @@ class ConfigurationTest(SuggestionsTestBase):
         deployment_profile.invalidate_cache()
 
         self.assertNotIn("list_invoices", self.offered(self.owner))
+
+    def test_catalogue_only_portal_offers_no_ordering(self):
+        marketplace_factories.OfferingFactory(
+            type="OpenStack.Instance", state=Offering.States.ACTIVE
+        )
+        marketplace_factories.OrderFactory(
+            project=self.project,
+            created_by=self.owner,
+            state=OrderStates.PENDING_CONSUMER,
+        )
+        deployment_profile.invalidate_cache()
+        offered = self.offered(self.owner)
+        self.assertIn("create_vm", offered)
+        self.assertIn("pending_orders", offered)
+
+        Feature.objects.create(key="marketplace.catalogue_only", value=True)
+        deployment_profile.invalidate_cache()
+
+        offered = self.offered(self.owner)
+        self.assertNotIn("create_vm", offered)
+        self.assertNotIn("pending_orders", offered)
+
+    def test_call_only_portal_offers_no_review_prompts(self):
+        review = proposal_factories.ReviewFactory(reviewer=self.owner)
+        review.state = proposal_models.Review.States.IN_REVIEW
+        review.save()
+        self.assertIn("review_workload", self.offered(self.owner))
+
+        Feature.objects.create(key="marketplace.call_only", value=True)
+        deployment_profile.invalidate_cache()
+
+        self.assertNotIn("review_workload", self.offered(self.owner))
 
     def test_hidden_marketplace_hides_find_service_from_end_users_only(self):
         self.assertIn("find_service", self.offered(self.owner))

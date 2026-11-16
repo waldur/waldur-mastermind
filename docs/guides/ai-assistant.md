@@ -383,15 +383,19 @@ skips ids it does not know. An entry is offered only when all of these hold:
   `offering_type:OpenStack.Instance` for creating a VM, `capability:hpc`,
   `feature:marketplace.display_software_catalog`,
   `!feature:marketplace.conceal_prices` for invoices,
-  `!feature:marketplace.call_only` for proposal help and
+  `!feature:marketplace.catalogue_only` for creating a VM and pending orders,
+  `!feature:marketplace.call_only` for proposal help and reviews, and
   `feature:marketplace.show_call_management_functionality` for call insights.
   `marketplace.hide_marketplace_from_end_users` hides "Find a service" from
   everyone but staff and support.
 - **The caller has the data it is about**, for some: a paused resource, a
   pending review or a reviewer profile (`REVIEWER_PROFILES_ENABLED`), a
   draft proposal, a pending order, a credit, a resource with usage-based
-  components, an HPC allocation, an open call. Each check is one query, so
-  the endpoint's cost does not grow with the caller's organizations.
+  components, an HPC allocation, an open call. Pending orders are the ones
+  `list_orders` shows, so also those waiting on the caller's approval. For
+  staff and support, who can see the whole deployment, these checks look only
+  at their own projects and organizations. Each check is one query, so the
+  endpoint's cost does not grow with the caller's organizations.
 
 Prompts about the caller's own state (a paused resource, pending reviews, a
 draft proposal) come first. The endpoint sits behind the same switches as
