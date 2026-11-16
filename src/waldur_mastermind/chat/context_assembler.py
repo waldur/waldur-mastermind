@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.configuration import config
+from waldur_mastermind.chat import prompt_context
 from waldur_mastermind.chat.input_guards import SeverityLevel
 from waldur_mastermind.chat.models import Message, SystemPrompt
 from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
@@ -155,9 +156,12 @@ def build_context(
             tools=tools_prompt,
             assistant_name=config.AI_ASSISTANT_NAME,
             organization=organization,
-            currency=config.CURRENCY_NAME or "EUR",
-            today=timezone.localdate().isoformat(),
             custom_instructions=custom_instructions,
+            deployment_context=prompt_context.deployment_block(
+                today=timezone.localdate().isoformat(),
+                currency=config.CURRENCY_NAME or "EUR",
+            ),
+            user_context=prompt_context.user_block(user),
         )
     )
 

@@ -401,6 +401,27 @@ Prompts about the caller's own state (a paused resource, pending reviews, a
 draft proposal) come first. The endpoint sits behind the same switches as
 the stream (`AI_ASSISTANT_ENABLED`, `AI_ASSISTANT_ENABLED_ROLES`).
 
+### What the prompt says about the portal and the user
+
+The system prompt ends with two blocks built in `chat/prompt_context.py`:
+
+- **Platform context**, the same for every user of a deployment: the date,
+  the currency, `SITE_DESCRIPTION`, the service categories with an offering
+  anyone may see, what the portal offers (virtual machines, HPC, calls,
+  reviewing) and the rules the model must keep: `marketplace.conceal_prices`
+  (never state prices), `marketplace.catalogue_only` (nothing can be ordered)
+  and `marketplace.call_only` (proposals run elsewhere).
+- **Current user**, last: the user's organizations and projects with their
+  role in each, at most 10 of each with a total after that, and whether they
+  review proposals, have a paused resource or an HPC allocation. Staff and
+  support get counts only. Names are user-editable, so they sit in a block
+  marked as data, one line each, cut to 80 characters, with the block
+  markers removed. No e-mail addresses or other people's data.
+
+Everything before the user block is the same for two users of the same tier,
+so providers can cache it; the date sits in the platform block rather than the
+persona so the cached prefix does not change every day.
+
 ## Security guards
 
 Two detection layers, both enforced *before* any LLM call:

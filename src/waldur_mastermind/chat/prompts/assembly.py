@@ -3,7 +3,9 @@
 Order optimizes for prefix caching: fully static content first, dynamic content
 (scope_boundary varies by role, tools varies by tool-set) at the end. The longest
 common prefix across requests is the persona + generic tool rules + UI capabilities
-block, which providers can cache.
+block, which providers can cache. The deployment block (date, currency, what the
+portal offers) follows the tools, and the user block comes last of all, so that
+two users of the same tier share everything before it.
 """
 
 from waldur_mastermind.chat.prompts.persona import PERSONA_TEMPLATE
@@ -19,4 +21,8 @@ SYSTEM_PROMPT_TEMPLATE = f"""{PERSONA_TEMPLATE}
 
 {{scope_boundary}}
 
-{{tools}}"""
+{{tools}}
+
+{{deployment_context}}
+
+{{user_context}}"""
