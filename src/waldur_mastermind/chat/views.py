@@ -44,11 +44,13 @@ from waldur_core.core.permissions import (
 from waldur_core.core.views import (
     ActionsViewSet,
     ConstanceCheckExtensionMixin,
+    no_count_action,
 )
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import permissions
 from waldur_mastermind.chat import access, models, serializers
+from waldur_mastermind.chat import suggestions as chat_suggestions
 from waldur_mastermind.chat.budget_gate import (
     capacity_exception_handler,
     enforce_global_budget,
@@ -129,7 +131,12 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 "A message continues or edits only a thread of the caller's own; "
                 "without a thread it starts one."
             ),
-        ]
+        ],
+        "suggestions": [
+            core_access.owned(
+                "Only the caller's own quick prompts, from what the caller can see."
+            ),
+        ],
     }
 
     def get_exception_handler(self):
@@ -404,6 +411,28 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 locked_thread.update_detection_flags()
 
         return user_msg, assistant_placeholder
+
+    @extend_schema(
+        summary="Quick prompts for the caller",
+        description=(
+            "The ids of the quick prompts to offer on an empty AI assistant "
+            "thread, most relevant first. A prompt is offered only when the "
+            "caller has every tool it needs (as the stream would for this "
+            "request), the portal has the features it needs switched on, and, "
+            "for some, the caller has the data it is about, such as a paused "
+            "resource or a draft proposal."
+        ),
+        responses={200: serializers.ChatSuggestionsResponseSerializer},
+    )
+    @no_count_action
+    @decorators.action(detail=False, methods=["get"])
+    def suggestions(self, request):
+        ids = chat_suggestions.suggestions_for(request.user, is_delegated(request))
+        return Response(
+            serializers.ChatSuggestionsResponseSerializer(
+                {"suggestions": [{"id": suggestion_id} for suggestion_id in ids]}
+            ).data
+        )
 
     @extend_schema(
         request=serializers.ChatRequestSerializer,

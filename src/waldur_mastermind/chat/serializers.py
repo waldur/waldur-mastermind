@@ -6,6 +6,7 @@ from rest_framework import serializers
 from waldur_core.configuration import config
 from waldur_core.core import serializers as core_serializers
 from waldur_mastermind.chat import models
+from waldur_mastermind.chat import suggestions as chat_suggestions
 from waldur_mastermind.chat.block_schemas import BLOCK_KINDS, BlockSerializer
 from waldur_mastermind.chat.input_guards import SeverityLevel
 
@@ -221,6 +222,20 @@ class ChatResponseSerializer(serializers.Serializer):
         required=False,
         help_text="State display name filters (e.g. ['OK', 'Erred']). Present when k='resource_list'.",
     )
+
+
+class ChatSuggestionSerializer(serializers.Serializer):
+    id = serializers.ChoiceField(
+        choices=chat_suggestions.SUGGESTION_IDS,
+        help_text=(
+            "A quick prompt the caller may be offered. The client holds the "
+            "wording for each id and skips ids it does not know."
+        ),
+    )
+
+
+class ChatSuggestionsResponseSerializer(serializers.Serializer):
+    suggestions = ChatSuggestionSerializer(many=True)
 
 
 class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
