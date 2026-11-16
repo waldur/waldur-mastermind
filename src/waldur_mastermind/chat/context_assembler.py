@@ -128,6 +128,7 @@ def build_context(
     thread=None,
     *,
     history=None,
+    delegated=False,
 ) -> list[dict]:
     """
     Build the messages array for the AI Assistant in OpenAI chat completions format.
@@ -136,11 +137,14 @@ def build_context(
       1. System message (persona + tool catalog + UI capabilities)
       2. Conversation history from DB (limited by AI_ASSISTANT_HISTORY_LIMIT, chronological)
       3. Current user message
+
+    ``delegated`` is ``is_delegated(request)``: the catalog lists only the
+    tools the executor will run for this caller.
     """
     if thread and thread.chat_session.user != user:
         raise PermissionDenied("Thread does not belong to the requesting user.")
 
-    tool_names = get_tool_set_for_user(user)
+    tool_names = get_tool_set_for_user(user, delegated)
     tools_prompt = tool_registry.get_tools_prompt(tool_names)
     organization = config.SITE_NAME
     scope_boundary = build_scope_boundary(resolve_prompt_role(user), organization)

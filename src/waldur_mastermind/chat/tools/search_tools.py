@@ -78,7 +78,10 @@ class SearchToolsTool(BaseTool):
             usage_instructions="",
         )
 
-    def execute(self, user, arguments: dict) -> dict:
+    def execute(self, user, arguments: dict, permitted=None) -> dict:
+        """``permitted`` is the caller's tool set as ``ToolExecutor`` computed
+        it. Only the executor knows whether the caller is delegated, so it
+        passes the set in; without it the user's own sign-in is assumed."""
         raw_categories = arguments.get("categories") or []
         seen: set[str] = set()
         resolved: list[ToolCategory] = []
@@ -92,7 +95,9 @@ class SearchToolsTool(BaseTool):
             except ValueError:
                 missing.append(raw)
 
-        permitted = set(get_tool_set_for_user(user))
+        if permitted is None:
+            permitted = get_tool_set_for_user(user)
+        permitted = set(permitted)
 
         specs: list[dict] = []
         seen_names: set[ToolName] = set()
