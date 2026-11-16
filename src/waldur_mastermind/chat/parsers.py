@@ -3,6 +3,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from enum import Enum, auto
 
+from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
 from waldur_mastermind.chat.ui_registry import ui_registry
 
 logger = logging.getLogger(__name__)
@@ -289,6 +290,12 @@ class StreamParser:
         ui_data = result.get("ui_data", {"c": result.get("summary", "")})
 
         try:
+            if ui_key == "chart":
+                # A chart is drawn from its spec as is, so check all of it,
+                # not only the required fields create_content checks.
+                spec = ChartSpecSerializer(data=ui_data)
+                if not spec.is_valid():
+                    raise ValueError(f"Invalid chart spec: {spec.errors}")
             ui_component = ui_registry.create_content(ui_key, ui_data)
             return self._to_ui_dict(ui_component)
         except ValueError:

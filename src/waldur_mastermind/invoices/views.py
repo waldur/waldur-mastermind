@@ -788,25 +788,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         )
         # Grouped by the month each item counts in, so that a payment of an
         # earlier invoice lowers the month it pays, not the current one.
-        invoices = (
-            utils.annotate_cost_month(invoices)
-            .values("cost_year", "cost_month")
-            .annotate(
-                price=Sum(F("unit_price") * F("quantity")),
-                compensation=Sum(
-                    F("unit_price") * F("quantity"),
-                    filter=Q(unit_price__lt=0),
-                    default=0,
-                ),
-                incurred=Sum(
-                    F("unit_price") * F("quantity"),
-                    filter=Q(unit_price__gt=0),
-                    default=0,
-                ),
-            )
-            .values("cost_year", "cost_month", "price", "compensation", "incurred")
-            .order_by("-cost_year", "-cost_month")
-        )
+        invoices = utils.monthly_costs(invoices)
         page = self.paginate_queryset(invoices)
         if page is not None:
             data = self._get_costs_data(page, current_month_items)
