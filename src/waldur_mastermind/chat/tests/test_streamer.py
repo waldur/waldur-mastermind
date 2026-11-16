@@ -2327,12 +2327,14 @@ class LLMStreamerRejectedToolCallsTest(_LLMStreamerTestBase, unittest.TestCase):
     validation harness scores ``forbidden_tools`` against.
     """
 
-    # No database here; whether a docs corpus is loaded is read from it.
+    # No database here; whether a docs corpus is loaded and whether prices
+    # are shown are read from it.
+    @patch("waldur_mastermind.chat.tools.tool_sets._prices_shown", return_value=True)
     @patch(
         "waldur_mastermind.chat.tools.tool_sets.docs_corpus.search_enabled",
         return_value=False,
     )
-    def test_a_refused_call_is_recorded_with_its_arguments(self, _):
+    def test_a_refused_call_is_recorded_with_its_arguments(self, *_):
         user = Mock(is_staff=True, is_support=False, is_anonymous=False)
         user.id = 1
         user.username = "staff"

@@ -170,12 +170,16 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     if not docs_corpus.search_enabled():
         tools = [tool for tool in tools if tool not in _DOCS_TOOLS]
     # The portal conceals prices (marketplace.conceal_prices).
-    if (
-        deployment_profile.get_term_states([_PRICES_SHOWN])[_PRICES_SHOWN]
-        != deployment_profile.TermState.ON
-    ):
+    if not _prices_shown():
         tools = [tool for tool in tools if tool not in _PRICE_TOOLS]
     return tools
+
+
+def _prices_shown() -> bool:
+    """Whether the portal shows prices; read from the cached deployment
+    profile, which queries the database when its cache is cold."""
+    states = deployment_profile.get_term_states([_PRICES_SHOWN])
+    return states[_PRICES_SHOWN] == deployment_profile.TermState.ON
 
 
 def is_tool_permitted(user, tool_name: str | ToolName, delegated=False) -> bool:
