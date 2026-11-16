@@ -653,6 +653,40 @@ class EESSIMultiCatalogUpdateTest(TestCase):
         SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS=False,
     )
     @patch("requests.get")
+    def test_daily_update_refreshes_renamed_eessi_catalog(self, mock_get):
+        mock_response = Mock()
+        mock_response.json.return_value = self.eessi_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        # Imported catalogs carry the loader's metadata, which survives a rename.
+        renamed = SoftwareCatalog.objects.create(
+            name="EESSI prod",
+            version="2023.06",
+            catalog_type="binary_runtime",
+            metadata={"architectures_map": {"2023.06": {}}},
+        )
+        custom = SoftwareCatalog.objects.create(
+            name="Site builds", version="1.0", catalog_type="binary_runtime"
+        )
+
+        result = update_software_catalogs()
+
+        self.assertEqual(result["results"]["eessi"]["catalog_versions"], ["2023.06"])
+        renamed.refresh_from_db()
+        self.assertIsNotNone(renamed.last_successful_update)
+        self.assertEqual(renamed.name, "EESSI prod")
+        custom.refresh_from_db()
+        self.assertIsNone(custom.last_update_attempt)
+
+    @override_config(
+        SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED=True,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=False,
+        SOFTWARE_CATALOG_EESSI_API_URL="https://test.eessi.io/",
+        SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES=True,
+        SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS=False,
+    )
+    @patch("requests.get")
     def test_daily_update_updates_all_eessi_catalogs(self, mock_get):
         """Test that update_software_catalogs updates ALL EESSI catalogs."""
 

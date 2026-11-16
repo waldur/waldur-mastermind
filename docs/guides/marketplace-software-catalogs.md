@@ -310,6 +310,20 @@ Use the response when linking a catalog to an offering. Store `cpu_family` in `e
 
 Catalogs without an architectures map, including Spack, return `[]`. The same empty list is returned when `catalog.version` is not a key in `architectures_map`.
 
+### Software offered in the HPC workspace and AI assistant
+
+When a user looks for software for a job, Waldur offers a version from a linked EESSI catalog only if it will load on the chosen partition:
+
+- The link's `enabled_cpu_family` and `enabled_cpu_microarchitectures` limit which builds count. Short values saved by older clients (`zen3`) match the full subtype (`amd/zen3`).
+- The partition's `cpu_arch` is resolved through the catalog's `architectures_map` to the build EESSI loads on those nodes (in EESSI 2023.06, `x86_64/amd/zen5` uses the `x86_64/amd/zen4` build), and the version needs a target for that build. A target without a microarchitecture counts as a build for the whole family. A CPU the map lists with no build gets no EESSI software; a CPU the map does not list (or a catalog without a map) is matched on its family only.
+- When the partition declares `gpu_arch`, versions with GPU builds must include it. CPU-only versions are still offered.
+
+For other catalogs, a version built only for other CPU families is not offered; versions without CPU targets, such as Spack recipes, always are.
+
+A catalog counts as EESSI when its type is `binary_runtime` and either its name is `EESSI` or its metadata carries the loader's `architectures_map`. Renaming an imported catalog therefore keeps its `module load EESSI/<version>` line and its daily refresh.
+
+Before a job is submitted, Waldur warns (without blocking) when the job loads more than one EESSI version, and when a `module load` or `spack load` line names catalog software that is not offered on the partition. A bare name (`GROMACS`) or a version without its toolchain suffix (`GROMACS/2024.1`) counts as offered when a matching build is. Modules the linked catalogs do not know, such as the site's own, are not checked.
+
 `supports_cpu_target_restrictions` on the catalog (list, retrieve, and the nested catalog inside an offering) is `true` only for `binary_runtime`. Spack (`source_package`) is `false`. Use that flag to show or hide the CPU fields. An empty `cpu_targets` list on a catalog where the flag is `true` means this version has no map entries, not that CPU restrictions do not apply.
 
 ```bash

@@ -9,6 +9,7 @@ partitions (``OfferingPartition``) and the QoS each partition allows.
 import re
 from dataclasses import dataclass, field
 
+from waldur_firecrest import software
 from waldur_mastermind.marketplace import models as marketplace_models
 
 JOB_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -114,6 +115,44 @@ def get_partition(offering, name):
 
 
 def validate(spec: JobSpec, offering) -> Validation:
+    result = _validate_limits(spec, offering)
+    result.warnings += module_warnings(spec, offering)
+    return result
+
+
+def module_warnings(spec: JobSpec, offering) -> list[str]:
+    """Setup lines that will likely fail to load; advisory, never errors.
+
+    Only software the offering's linked catalogs know is checked; Waldur
+    knows nothing about the site's own modules.
+    """
+    if not spec.modules:
+        return []
+    warnings = []
+    loads = software.requested_loads(spec.modules)
+    stacks = sorted(
+        {
+            line.removeprefix("module load ")
+            for line in loads
+            if line.startswith("module load EESSI/")
+        }
+    )
+    if len(stacks) > 1:
+        warnings.append(
+            f"The job loads several EESSI stacks ({', '.join(stacks)}); "
+            "load one, and only software from it."
+        )
+    partition = get_partition(offering, spec.partition)
+    where = f"partition '{partition.partition_name}'" if partition else "this cluster"
+    for line in software.unoffered_loads(offering, partition, loads):
+        warnings.append(
+            f"'{line}' is not offered on {where} by the software catalogs; "
+            "the job may fail to load it."
+        )
+    return warnings
+
+
+def _validate_limits(spec: JobSpec, offering) -> Validation:
     result = Validation()
     if not JOB_NAME_PATTERN.match(spec.name or ""):
         result.errors.append(
