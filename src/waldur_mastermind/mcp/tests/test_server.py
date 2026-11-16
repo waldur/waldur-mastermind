@@ -8,6 +8,8 @@ import httpx
 from asgiref.sync import async_to_sync
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.core.management import CommandError, call_command
+from django.db import DEFAULT_DB_ALIAS, OperationalError, connection, connections
 from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework import test
@@ -380,7 +382,17 @@ class DropBrokenConnectionsTest(test.APITestCase):
         unopened.close.assert_not_called()
 
 
+def without_statement_timeout(test_case):
+    # Bounding statements opens a transaction, so a database these tests don't have.
+    patcher = mock.patch.object(auth, "statement_timeout_ms", 0)
+    patcher.start()
+    test_case.addCleanup(patcher.stop)
+
+
 class RunOrmAsyncTest(SimpleTestCase):
+    def setUp(self):
+        without_statement_timeout(self)
+
     def test_orm_calls_leave_the_calling_thread(self):
         caller = threading.get_ident()
 
@@ -409,3 +421,158 @@ class RunOrmAsyncTest(SimpleTestCase):
 
         self.assertEqual(len({thread.ident for thread in threads}), 2)
         self.assertTrue(all(t.name.startswith("mcp-orm") for t in threads))
+
+
+def show_statement_timeout():
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW statement_timeout")
+        return cursor.fetchone()[0]
+
+
+class StatementTimeoutTest(SimpleTestCase):
+    """On a real pool thread, with its own connection to the test database."""
+
+    databases = {DEFAULT_DB_ALIAS}
+
+    def setUp(self):
+        auth.configure_orm_threads(1)
+        self.addCleanup(auth.configure_orm_threads, auth.DEFAULT_ORM_THREADS)
+        # Before the pool is replaced, so the connection doesn't outlive the test.
+        self.addCleanup(
+            lambda: auth.orm_executor.submit(connections.close_all).result()
+        )
+        patcher = mock.patch.object(auth, "statement_timeout_ms", 100)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def on_pool(self, func):
+        return async_to_sync(auth.run_orm_async)(func)
+
+    def test_slow_query_is_cancelled_and_the_thread_serves_the_next_call(self):
+        threads = []
+
+        def slow():
+            threads.append(threading.get_ident())
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_sleep(5)")
+
+        with self.assertRaisesMessage(OperationalError, "statement timeout"):
+            self.on_pool(slow)
+        threads.append(self.on_pool(threading.get_ident))
+        self.assertEqual(self.on_pool(show_statement_timeout), "100ms")
+
+        self.assertEqual(threads[0], threads[1])
+
+    def test_timeout_does_not_outlive_the_call(self):
+        default = auth.orm_executor.submit(show_statement_timeout).result()
+
+        self.assertEqual(self.on_pool(show_statement_timeout), "100ms")
+        # The same thread and connection, outside run_orm.
+        after = auth.orm_executor.submit(show_statement_timeout).result()
+
+        self.assertNotEqual(default, "100ms")
+        self.assertEqual(after, default)
+
+    def test_zero_turns_it_off(self):
+        default = auth.orm_executor.submit(show_statement_timeout).result()
+        auth.statement_timeout_ms = 0
+
+        self.assertEqual(self.on_pool(show_statement_timeout), default)
+
+
+class BusyPoolTest(SimpleTestCase):
+    """The gate and token checks share the pool with tool calls.
+
+    A separate pool would only answer refusals sooner: an accepted request
+    still waits for a thread to run its tool, and every thread is one more
+    connection. The statement timeout bounds how long any thread stays busy.
+    """
+
+    def setUp(self):
+        without_statement_timeout(self)
+        auth.configure_orm_threads(1)
+        self.addCleanup(auth.configure_orm_threads, auth.DEFAULT_ORM_THREADS)
+
+    def test_gate_check_waits_for_a_thread_and_then_answers(self):
+        release = threading.Event()
+        app = mock.AsyncMock()
+        gate = server.MCPEnabledGate(app)
+
+        async def scenario():
+            busy = asyncio.ensure_future(auth.run_orm_async(release.wait, 5))
+            checked = asyncio.ensure_future(
+                gate({"type": "http", "path": "/mcp"}, None, None)
+            )
+            await asyncio.sleep(0.2)
+            waited = not checked.done()
+            release.set()
+            await asyncio.wait_for(asyncio.gather(busy, checked), 5)
+            return waited
+
+        with mock.patch.object(server, "is_mcp_enabled", return_value=True):
+            waited = async_to_sync(scenario)()
+
+        self.assertTrue(waited)
+        app.assert_awaited_once()
+
+    def test_token_check_waits_for_a_thread_and_then_answers(self):
+        release = threading.Event()
+        app = mock.AsyncMock()
+        middleware = auth.AuthMiddleware(app)
+        token = mock.Mock(claims={}, scopes=[])
+        scope = {"type": "http", "path": "/mcp", "headers": []}
+
+        async def scenario():
+            busy = asyncio.ensure_future(auth.run_orm_async(release.wait, 5))
+            checked = asyncio.ensure_future(middleware(scope, None, None))
+            await asyncio.sleep(0.2)
+            waited = not checked.done()
+            release.set()
+            await asyncio.wait_for(asyncio.gather(busy, checked), 5)
+            return waited
+
+        with mock.patch.object(auth, "authenticate", return_value=(token, None)):
+            reset_token = auth.client_ip_var.set(None)
+            try:
+                waited = async_to_sync(scenario)()
+            finally:
+                auth.client_ip_var.reset(reset_token)
+
+        self.assertTrue(waited)
+        app.assert_awaited_once()
+
+
+class CommandTest(SimpleTestCase):
+    def run_command(self, *args):
+        with (
+            mock.patch("uvicorn.run"),
+            mock.patch.object(auth, "configure_orm_threads"),
+            mock.patch.object(auth, "configure_statement_timeout") as configure,
+        ):
+            call_command("mcp_server", *args)
+        return configure
+
+    def test_statement_timeout_has_a_default(self):
+        configure = self.run_command()
+
+        configure.assert_called_once_with(auth.DEFAULT_STATEMENT_TIMEOUT)
+
+    def test_statement_timeout_is_configurable(self):
+        configure = self.run_command("--statement-timeout", "5")
+
+        configure.assert_called_once_with(5)
+
+    def test_negative_statement_timeout_is_refused(self):
+        with self.assertRaises(CommandError):
+            self.run_command("--statement-timeout", "-1")
+
+    def test_statement_timeout_above_the_postgres_limit_is_refused(self):
+        with self.assertRaises(CommandError):
+            self.run_command("--statement-timeout", str(auth.MAX_STATEMENT_TIMEOUT + 1))
+
+    def test_statement_timeout_at_the_postgres_limit_is_accepted(self):
+        configure = self.run_command(
+            "--statement-timeout", str(auth.MAX_STATEMENT_TIMEOUT)
+        )
+
+        configure.assert_called_once_with(auth.MAX_STATEMENT_TIMEOUT)

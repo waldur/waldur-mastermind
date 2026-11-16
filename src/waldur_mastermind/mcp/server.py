@@ -73,7 +73,7 @@ async def call_tool(ctx, params) -> types.CallToolResult:
         return tools.error_result(INVALID_TOKEN)
     except Exception:
         logger.exception("MCP tool call failed: %.64s", params.name)
-        return tools.error_result("An error occurred while executing the tool.")
+        return tools.error_result(tools.TOOL_ERROR)
 
 
 def build_mcp() -> Server:

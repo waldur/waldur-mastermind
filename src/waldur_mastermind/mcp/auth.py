@@ -1,10 +1,11 @@
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import timedelta
 
 from asgiref.sync import sync_to_async
-from django.db import connections
+from django.db import connections, transaction
 from django.db.models import Q
 from django.utils import timezone
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
@@ -39,10 +40,45 @@ def drop_broken_connections():
             connection.close()
 
 
+# Without it, a slow query holds its pool thread for as long as it runs, and
+# the gate and token checks queue behind it. 0 turns it off.
+DEFAULT_STATEMENT_TIMEOUT = 30
+# Postgres stores the setting in milliseconds as a 32-bit integer.
+MAX_STATEMENT_TIMEOUT = (2**31 - 1) // 1000
+statement_timeout_ms = DEFAULT_STATEMENT_TIMEOUT * 1000
+
+
+def configure_statement_timeout(seconds: int) -> None:
+    global statement_timeout_ms
+    statement_timeout_ms = seconds * 1000
+
+
+@contextmanager
+def bounded_statements():
+    """Run the block in a transaction whose statements time out.
+
+    Set for the transaction, not the session: behind a pooler in transaction
+    mode a session setting would reach other clients' queries, and a startup
+    option is refused outright.
+    """
+    database = transaction.get_connection()
+    if not statement_timeout_ms or database.vendor != "postgresql":
+        yield
+        return
+    with transaction.atomic():
+        with database.cursor() as cursor:
+            cursor.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                [str(statement_timeout_ms)],
+            )
+        yield
+
+
 def run_orm(func, *args):
-    """Call an ORM function on a live connection."""
+    """Call an ORM function on a live connection, with bounded statements."""
     drop_broken_connections()
-    return func(*args)
+    with bounded_statements():
+        return func(*args)
 
 
 # Off asgiref's single shared thread, so one slow query doesn't hold up every

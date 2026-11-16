@@ -9,6 +9,7 @@ from unittest import mock
 
 from asgiref.sync import async_to_sync
 from django.core.cache import cache
+from django.db import OperationalError, connection
 from django.test import SimpleTestCase
 from django.utils import timezone
 from jsonschema import Draft202012Validator
@@ -35,7 +36,10 @@ from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.mcp import auth, server, tools
-from waldur_mastermind.mcp.tests.test_server import create_pat
+from waldur_mastermind.mcp.tests.test_server import (
+    create_pat,
+    without_statement_timeout,
+)
 
 CLIENT_IP = "203.0.113.5"
 END_USER_TOOLS = {tool.value for tool in (*_ACCOUNT_TOOLS, *_MARKETPLACE_TOOLS)}
@@ -902,6 +906,47 @@ class AuditTest(MCPToolsTestCase):
         self.assertIn("{user_uuid} {unknown}", self.tool_events().get().message)
 
 
+@override_config(PAT_ENABLED=True, MCP_ENABLED=True)
+class StatementTimeoutTest(MCPToolsTestCase):
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(auth, "statement_timeout_ms", 100)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.token = access_token(structure_factories.UserFactory())
+        self.tool = StubTool(ToolName.LIST_PROJECTS).install(self)
+
+    def sleep(self, user, arguments):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_sleep(5)")
+
+    def test_slow_query_gives_the_generic_error_and_the_next_call_is_served(self):
+        self.tool.execute = self.sleep
+
+        with self.assertLogs("waldur_mastermind.chat.tools.executor", "ERROR") as logs:
+            started = time.monotonic()
+            result = call(self.token, "list_projects")
+
+        self.assertLess(time.monotonic() - started, 4)
+        self.assertTrue(result.is_error)
+        self.assertEqual(texts(result), [tools.TOOL_ERROR])
+        self.assertIsInstance(logs.records[0].exc_info[1], OperationalError)
+
+        # Under ORM_THREAD_SENSITIVE the next call runs on the same thread and
+        # connection.
+        del self.tool.execute
+        result = call(self.token, "list_projects")
+
+        self.assertFalse(result.is_error, result.content)
+
+    def test_timed_out_call_is_still_audited(self):
+        self.tool.execute = self.sleep
+
+        call(self.token, "list_projects")
+
+        self.assertEqual(Event.objects.filter(event_type="mcp_tool_called").count(), 1)
+
+
 TOKEN = AccessToken(
     token="w_test",
     client_id="pat:test",
@@ -920,6 +965,9 @@ async def with_token(awaitable_factory):
 
 
 class HandlerTest(SimpleTestCase):
+    def setUp(self):
+        without_statement_timeout(self)
+
     def test_call_without_a_token_is_refused(self):
         with mock.patch.object(tools, "call_tool") as call_tool:
             with self.assertRaises(MCPError):
