@@ -382,7 +382,7 @@ skips ids it does not know. An entry is offered only when all of these hold:
   `deployment_profile` terms, the vocabulary the documentation sections use:
   `offering_type:OpenStack.Instance` for creating a VM, `capability:hpc`,
   `feature:marketplace.display_software_catalog`,
-  `!feature:marketplace.conceal_prices` for invoices,
+  `!feature:marketplace.conceal_prices` for invoices and cost charts,
   `!feature:marketplace.catalogue_only` for creating a VM and pending orders,
   `!feature:marketplace.call_only` for proposal help and reviews, and
   `feature:marketplace.show_call_management_functionality` for call insights.

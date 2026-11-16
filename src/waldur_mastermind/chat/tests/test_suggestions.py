@@ -16,6 +16,7 @@ from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat import suggestions as chat_suggestions
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Offering
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -151,13 +152,34 @@ class DataConditionsTest(SuggestionsTestBase):
 
 
 class ConfigurationTest(SuggestionsTestBase):
-    def test_concealed_prices_hide_invoices(self):
-        self.assertIn("list_invoices", self.offered(self.owner))
+    def test_concealed_prices_hide_invoices_and_costs(self):
+        invoices_factories.InvoiceItemFactory(
+            invoice=invoices_factories.InvoiceFactory(customer=self.fixture.customer),
+            project=self.project,
+        )
+        offered = self.offered(self.owner)
+        self.assertIn("list_invoices", offered)
+        self.assertIn("visualize_costs", offered)
 
         Feature.objects.create(key="marketplace.conceal_prices", value=True)
         deployment_profile.invalidate_cache()
 
-        self.assertNotIn("list_invoices", self.offered(self.owner))
+        offered = self.offered(self.owner)
+        self.assertNotIn("list_invoices", offered)
+        self.assertNotIn("visualize_costs", offered)
+
+    def test_costs_need_costs_the_caller_may_see(self):
+        self.assertNotIn("visualize_costs", self.offered(self.owner))
+
+        self.fixture.customer.display_billing_info_in_projects = False
+        self.fixture.customer.save()
+        invoices_factories.InvoiceItemFactory(
+            invoice=invoices_factories.InvoiceFactory(customer=self.fixture.customer),
+            project=self.project,
+        )
+
+        self.assertIn("visualize_costs", self.offered(self.owner))
+        self.assertNotIn("visualize_costs", self.offered(self.fixture.member))
 
     def test_catalogue_only_portal_offers_no_ordering(self):
         marketplace_factories.OfferingFactory(

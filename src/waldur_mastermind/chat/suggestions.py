@@ -29,7 +29,11 @@ from waldur_mastermind.chat.tools.account.helpers import (
 )
 from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
-from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
+from waldur_mastermind.invoices.models import (
+    CustomerCredit,
+    InvoiceItem,
+    ProjectCredit,
+)
 from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates
 from waldur_mastermind.marketplace.managers import filter_orders_for_user
 from waldur_mastermind.marketplace.models import Order, Resource
@@ -177,6 +181,13 @@ def _reads_invoices(user) -> bool:
     )
 
 
+def _sees_costs(user) -> bool:
+    """Costs of an organization or project the caller may chart: the invoice
+    items the REST costs endpoint would show them."""
+    items = filter_queryset_for_user(InvoiceItem.objects.all(), user)
+    return _own(user, items, customer="invoice__customer").exists()
+
+
 def _staff_with_credits(user) -> bool:
     return (user.is_staff or user.is_support) and ProjectCredit.objects.exists()
 
@@ -254,6 +265,12 @@ CATALOG: tuple[Suggestion, ...] = (
         check=_has_open_call,
     ),
     Suggestion("search_docs", (ToolName.SEARCH_DOCS,)),
+    Suggestion(
+        "visualize_costs",
+        (ToolName.CHART_COSTS,),
+        requires=(_PRICES_SHOWN,),
+        check=_sees_costs,
+    ),
     Suggestion(
         "list_invoices",
         (ToolName.LIST_INVOICES,),
