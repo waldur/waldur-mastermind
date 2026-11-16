@@ -3112,6 +3112,14 @@ Enable AI Assistant feature and calls to the inference service.
 
 Controls which user roles can access the AI Assistant. 'disabled': No role-based access. 'staff': Staff users only. 'staff_and_support': Staff and support users. 'all': All authenticated users. 'anonymous': All users including anonymous (enables the public anonymous chat endpoint).
 
+#### DOCS_SEARCH_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Let users search the bundled Waldur documentation: the AI assistant's and MCP's search_docs tool, and the /api/docs-search/ endpoint. Turn it off to keep the Waldur documentation out of answers, for example when this portal provides its own documentation to end users.
+
 #### AI_ASSISTANT_BACKEND_TYPE
 
 **Type:** str

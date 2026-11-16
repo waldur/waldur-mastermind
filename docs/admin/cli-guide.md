@@ -16,15 +16,17 @@ waldur ai_assistant test_evaluation --scenario greeting_no_tool
 waldur ai_assistant test_evaluation --user support --preload-tools
 waldur ai_assistant test_evaluation --preset credit_realistic
 waldur ai_assistant run_all
+waldur ai_assistant docs_evaluation --database waldur_docs_eval
+waldur ai_assistant docs_evaluation --database waldur_docs_eval --judge
 ```
 
 ```bash
 
 usage: waldur ai_assistant
-                           {health,validate_scenarios,test_evaluation,run_all} ...
+                           {health,validate_scenarios,test_evaluation,run_all,docs_evaluation} ...
 
 positional arguments:
-  {health,validate_scenarios,test_evaluation,run_all}
+  {health,validate_scenarios,test_evaluation,run_all,docs_evaluation}
                         Available subcommands
     health              Check the LLM configuration, endpoint and a live
                         request
@@ -32,6 +34,8 @@ positional arguments:
     test_evaluation     Put the scenario packs to the live LLM and score the
                         answers
     run_all             health, then validate_scenarios, then test_evaluation
+    docs_evaluation     Score the docs search and the assistant's docs answers
+                        per role
 
 ```
 
@@ -985,6 +989,19 @@ positional arguments:
 
 ```
 
+## load_docs_corpus
+
+Load the documentation corpus that the AI assistant's search_docs tool searches. Defaults to the corpus shipped in the image (/usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz, or $WALDUR_DOCS_CORPUS_PATH). Does nothing when there is no corpus file, and writes nothing when the corpus is unchanged. Invalid lines are skipped; a corpus that cannot be read, or has no valid line, leaves the loaded sections as they were. Never fails, so that a bad corpus does not stop a deployment.
+
+```bash
+
+usage: waldur load_docs_corpus [path]
+
+positional arguments:
+  path  Path to docs-corpus.jsonl.gz.
+
+```
+
 ## load_eessi_catalog
 
 Load EESSI software catalog data using the unified catalog loader
@@ -1298,6 +1315,10 @@ options:
   --path, -p PATH  Path to dumped database.
 
 ```
+
+## print_docs_requires_vocabulary
+
+Print, as JSON, every key a documentation section's `requires` term may name: settings, feature flags, offering types and capabilities. Docs CI validates the corpus against it.
 
 ## print_events_enums
 
