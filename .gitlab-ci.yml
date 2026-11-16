@@ -703,6 +703,7 @@ Try building docker image:
     - buildah build
       --platform=linux/amd64
       --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
+      --secret id=docs_corpus_token,env=CI_JOB_TOKEN
       -t waldur-mastermind:$CI_COMMIT_REF_SLUG
       -f "${CI_PROJECT_DIR}/Dockerfile"
       ${CI_PROJECT_DIR}
@@ -782,6 +783,7 @@ Build MR image for integration tests:
     - buildah bud
       --platform=linux/amd64
       --build-arg DOCKER_REGISTRY="${DOCKER_REGISTRY}"
+      --secret id=docs_corpus_token,env=CI_JOB_TOKEN
       -t "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e"
       -f "${CI_PROJECT_DIR}/Dockerfile"
       "${CI_PROJECT_DIR}"
@@ -826,6 +828,8 @@ Publish the YOLO multiarch docker image:
       alias: docker
   variables:
     IMAGE_TAG: "opennode/${CI_PROJECT_NAME}:yolo"
+    # The docs corpus registry is private; see DOCS_CORPUS_VERSION in the Dockerfile.
+    EXTRA_BUILD_ARGS: "--secret id=docs_corpus_token,env=CI_JOB_TOKEN"
   before_script:
     # Merge the before_script from the template
     - !reference [
@@ -837,6 +841,14 @@ Publish the YOLO multiarch docker image:
 
 Publish multiarch docker image with specific version:
   extends: .Publish multiarch docker image with specific version template
+  variables:
+    # A release ships the documentation of the same release: waldur-docs
+    # publishes the corpus under its tag, and the release tags both repos with
+    # the same version. The registry is private, so the job token goes in as a
+    # build secret, which leaves no trace in the image.
+    # DOCS_CORPUS_REQUIRED: wait for that corpus, and fail rather than ship
+    # a release without documentation search.
+    EXTRA_BUILD_ARGS: "--build-arg DOCS_CORPUS_VERSION=${CI_COMMIT_TAG} --build-arg DOCS_CORPUS_REQUIRED=1 --secret id=docs_corpus_token,env=CI_JOB_TOKEN"
   services:
     - name: registry.hpc.ut.ee/mirror/library/docker:27-dind
       command: ["--mtu=1400"]
@@ -936,6 +948,8 @@ Upload configuration guide:
     - echo "Generating documentation files..."
     - uv run waldur print_settings > ${CI_PROJECT_DIR}/docs/admin/configuration-guide.md
     - uv run waldur print_features_docs > ${CI_PROJECT_DIR}/docs/admin/features.md
+    # Keys a docs section's `requires` may name; waldur-docs validates its corpus against it.
+    - uv run waldur print_docs_requires_vocabulary > ${CI_PROJECT_DIR}/docs/admin/docs-requires-vocabulary.json
     - uv run waldur print_notifications > ${CI_PROJECT_DIR}/docs/admin/notifications.md
     - uv run waldur print_commands > ${CI_PROJECT_DIR}/docs/admin/cli-guide.md
     - uv run waldur print_events > ${CI_PROJECT_DIR}/docs/events.md

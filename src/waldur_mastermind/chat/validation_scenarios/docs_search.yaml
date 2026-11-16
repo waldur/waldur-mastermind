@@ -1,0 +1,51 @@
+# Documentation search (search_docs). Needs an image with a docs corpus loaded
+# (`waldur load_docs_corpus`); skipped where the run user has no search_docs.
+
+- name: docs_enabled_feature_cites_link
+  description: A how-to question about a feature every portal has is answered from the docs, with a link
+  requires_tools: [search_docs]
+  inputs:
+    - "How do I add a new project to my organization?"
+    - "How do I invite a colleague to my project?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: search_docs
+        rationale: "Portal how-to questions are answered from the deployed release's documentation"
+    - type: pattern
+      config:
+        required_patterns:
+          - '\]\(https?://[^)\s]+\)'
+        rationale: "The answer cites the documentation section it used as a link"
+
+- name: docs_disabled_feature_not_instructed
+  description: A how-to question about a feature this portal has switched off gets "not available here", not steps
+  requires_tools: [search_docs]
+  site_config:
+    "setting:PAT_ENABLED": "off"
+  inputs:
+    - "How do I create a personal access token?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: search_docs
+        rationale: "The question is a portal how-to"
+    - type: pattern
+      config:
+        required_patterns:
+          - "(?i)(not|isn't|is not) (currently )?(enabled|available|turned on|switched on|offered)|does(n't| not) cover"
+        forbidden_patterns:
+          - "(?i)(click|select|open|go to|navigate to)[^.\\n]{0,80}(new|create|generate)[^.\\n]{0,40}token"
+        rationale: "Personal access tokens are off here, so the answer says so instead of walking through the menu"
+
+- name: docs_not_for_own_data
+  description: A question about the user's own data goes to the data tools, not the docs
+  requires_tools: [search_docs]
+  inputs:
+    - "show my resources"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: display_user_resources
+        forbidden_tools: [search_docs]
+        rationale: "The docs describe the portal, not the user's resources"

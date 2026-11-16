@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.test import TestCase
 
 from waldur_core.configuration.testing import override_config
@@ -10,9 +12,14 @@ from waldur_mastermind.chat.tools.enums import ToolCategory
 
 
 class BuildCannedRejectionTest(TestCase):
-    # The HPC tools are offered only where staff have allowed an endpoint.
+    # The HPC tools are offered only where staff have allowed an endpoint, and
+    # the docs search only where the image carries a docs corpus.
     @override_config(FIRECREST_ALLOWED_API_URLS="https://firecrest.example.org")
-    def test_includes_organization_and_capabilities(self):
+    @patch(
+        "waldur_mastermind.chat.tools.tool_sets.docs_corpus.is_available",
+        return_value=True,
+    )
+    def test_includes_organization_and_capabilities(self, _):
         user = structure_factories.UserFactory()
         message = build_canned_rejection(user, "MyOrg")
         self.assertIn("I can't help with that request", message)
@@ -25,6 +32,11 @@ class BuildCannedRejectionTest(TestCase):
         message = build_canned_rejection(user, "MyOrg")
         self.assertNotIn(CATEGORY_PHRASES[ToolCategory.HPC], message)
         self.assertIn(CATEGORY_PHRASES[ToolCategory.VM], message)
+
+    def test_docs_are_not_claimed_without_a_corpus(self):
+        user = structure_factories.UserFactory()
+        message = build_canned_rejection(user, "MyOrg")
+        self.assertNotIn(CATEGORY_PHRASES[ToolCategory.DOCS], message)
 
     def test_staff_message_matches_end_user(self):
         # Today staff and end_user differ in specific tools, not categories.

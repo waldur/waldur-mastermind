@@ -254,7 +254,13 @@ returns a list of `ToolName`s based on the caller's role:
 - `SUPPORT_TOOLS` — same as staff minus `call_insights`.
 - `END_USER_TOOLS` — VM, account, marketplace, proposal-researcher,
   proposal-reviewer (no `get_user_overview`).
-- All three include the meta-tools (`search_tools`, `ask_user`).
+- All three include the meta-tools (`search_tools`, `ask_user`) and
+  `search_docs`.
+
+Two tool groups also depend on the deployment rather than the role: the
+HPC tools drop out where staff have allowed no FirecREST or cluster
+monitor endpoint (or the session is delegated), and `search_docs` drops
+out where no documentation corpus is loaded.
 
 This filter is applied in two places:
 
@@ -272,6 +278,93 @@ catches `PermissionDenied` and returns it as a structured error
 (`src/waldur_mastermind/chat/tools/executor.py:62`), but the tool
 itself owns the actual authorization check (e.g. raise
 `PermissionDenied` if the user is not staff for staff-only data).
+
+### Documentation search
+
+`search_docs` (`chat/tools/docs/search_docs.py`) answers how-to questions
+from the documentation of the deployed release instead of the model's
+memory.
+
+- **Corpus.** waldur-docs CI publishes `docs-corpus.jsonl.gz`: one line per
+  section, with `path`, `anchor`, `title`, `breadcrumb`, `text`,
+  `audience`, `requires` and an optional `boost`. `docker_build.sh`
+  downloads it into `/usr/share/waldur/docs-corpus/`
+  (`DOCS_CORPUS_VERSION` / `DOCS_CORPUS_URL` build args). A release build
+  takes the corpus published under its own tag (waldur-docs tags the same
+  version), other builds take `latest`. The package registry is private:
+  CI passes `CI_JOB_TOKEN` as the `docs_corpus_token` build secret, so
+  waldur-mastermind must be on waldur-docs' job token allowlist. A failed
+  download leaves the image without it.
+- **Loading.** `initdb` runs `waldur load_docs_corpus`. It writes
+  `chat.DocSection` rows and only touches sections whose content hash
+  changed. `$WALDUR_DOCS_CORPUS_PATH` overrides the path. It never fails a
+  deployment: an invalid line (say, an audience this release does not
+  know) is skipped with a warning, and a file that cannot be read or has
+  no valid line leaves the loaded sections as they were. The tool is
+  offered only while sections are loaded.
+- **Search.** Postgres full-text search (weighted title > breadcrumb >
+  text, multiplied by `boost`) returns the top five sections, each with an
+  excerpt of about 800 characters and a link under `DOCS_URL` (or
+  docs.waldur.com). Sections matching every word come first
+  (`websearch_to_tsquery`); when there are fewer than five, the rest are
+  sections matching any of the words. Questions rarely use the guide's own
+  words: on the model's real queries in an evaluation, every-word matching
+  alone put the right guide in the top five 40% of the time, the fallback
+  75%.
+- **Filtering.** `audience` is `all`, `staff_support` or `staff`. End users
+  get `all`, support also gets `staff_support`, and staff get everything.
+  `requires` lists the site configuration a section depends on. Those terms
+  are evaluated by `chat/deployment_profile.py`:
+  - `setting:<KEY>` and `feature:<key>` / `!feature:<key>` check a setting
+    or feature flag;
+  - `offering_type:<type>` holds when an active offering of that type
+    exists and the type is not disabled;
+  - `capability:<name>` checks a named capability (`hpc`).
+
+  End users never get a section with an off or unknown term. Staff and
+  support still get such sections, marked `enabled_here: false`: that
+  value is true only when every term is known to be on. `waldur
+  print_docs_requires_vocabulary` prints the valid keys, and docs CI
+  validates the corpus against that list.
+- **Saying "not enabled here".** Hiding a section leaves the model unable to
+  tell a switched-off feature from one the portal does not have; in an
+  evaluation it told users Waldur has no chat. So every result also carries
+  `switched_off_here`: the features the query is about that are off on
+  this portal, by name (`deployment_profile.TERM_NAMES`, falling back to
+  the setting or flag description) and term. For end users they come from
+  matching the query, every word, against the sections hidden from them;
+  only the feature is named, never the section. For staff and support they
+  come from the returned sections marked `enabled_here: false`. Terms that
+  are unknown rather than off are not named. The tool tells the model to
+  say such a feature is not enabled here and an administrator can turn it
+  on, and to give no steps for it.
+- **Without the assistant.** The search needs no LLM. `GET
+  /api/docs-search/?query=…&limit=…` (`chat/docs/views.py`) runs the same
+  search with the same filtering for any signed-in user, whether or not
+  `AI_ASSISTANT_ENABLED` is on, and answers 503 when no corpus is
+  loaded. With `MCP_ENABLED`, MCP clients also get `search_docs`
+  regardless of the assistant switch.
+- **Turning it off.** `DOCS_SEARCH_ENABLED` (on by default, public) removes
+  the bundled documentation everywhere: no role is offered `search_docs`,
+  in the assistant or over MCP, and the endpoint answers 424. Staff turn it
+  off when the portal provides its own documentation to end users and the
+  Waldur guides would contradict it.
+- **Measuring it.** `waldur ai_assistant docs_evaluation --database NAME`
+  (`chat/docs/evaluation.py`) puts the questions in
+  `chat/docs/evaluation_questions.yaml` to the loaded corpus as staff,
+  support, an organization owner and a project member, switching the
+  settings and feature flags each question names and restoring them after.
+  It scores the search through `/api/docs-search/` — where the page that
+  answers ranks, and whether a role got a page it must not — and with
+  `--assistant` the configured LLM's answers: did it search, is it empty,
+  do its links come from the search, does it say a switched-off feature is
+  not available. `--judge` adds an LLM verdict per answer, given the full
+  text of every section the assistant's searches returned: are the steps
+  grounded in them, is availability right, a 1–5 score. The run creates
+  `docs-eval-*` users and switches settings, so it needs a database of its
+  own, named on the command line. The workspace script
+  `scripts/docs-search-eval.sh` builds or downloads a corpus, creates that
+  database and holds the LLM token there for the run only.
 
 ## Security guards
 

@@ -1,5 +1,8 @@
+from django.urls import path
+
 from waldur_mastermind.chat import views
 from waldur_mastermind.chat.anonymous import views as anonymous_views
+from waldur_mastermind.chat.docs import views as docs_views
 
 
 def register_in(router):
@@ -53,3 +56,12 @@ def register_in(router):
         views.SystemPromptViewSet,
         basename="chat-system-prompt",
     )
+
+
+urlpatterns = [
+    path(
+        "api/docs-search/",
+        docs_views.DocsSearchView.as_view(),
+        name="docs-search",
+    ),
+]

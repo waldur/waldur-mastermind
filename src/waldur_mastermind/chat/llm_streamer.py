@@ -92,6 +92,10 @@ _CANCEL_CHECK_INTERVAL = 5
 # On cap hit the loop forces one final text-only call so the user always
 # gets a narrated response.
 _MAX_TOOL_ROUNDS = 5
+_CAP_HIT_NOTE = (
+    "[No more tool calls are possible in this turn. Answer my question now "
+    "from the tool results above. If they do not answer it, say so plainly.]"
+)
 
 # Fields of the tool-emitted cards persisted into Message.blocks
 # (see block_schemas for their validation).
@@ -1161,7 +1165,15 @@ class LLMStreamer:
                 f"exit: CAP HIT at {_MAX_TOOL_ROUNDS} rounds — forced text-only call"
             )
             self._flushed = False
-            self._stream_and_collect(messages, include_tools=False)
+            # Without tools in the request a model that was mid-search still
+            # writes its next call, as text, which clean_answer_blocks then
+            # strips to an empty answer. Say the search is over. A user
+            # message, not a system one: chat templates such as Qwen's accept
+            # a system message only first.
+            self._stream_and_collect(
+                [*messages, {"role": "user", "content": _CAP_HIT_NOTE}],
+                include_tools=False,
+            )
 
     def _absorb_search_tools_results(self, tool_calls):
         """Grow ``_enabled_tool_names`` from any search_tools calls this round.

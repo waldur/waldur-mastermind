@@ -58,6 +58,13 @@ class Scenario:
     # Which chat pipeline the scenario runs through: the authenticated
     # context builder as the run user, or the anonymous marketplace one.
     role: str = "authenticated"
+    # Tools the scenario is about. Skipped where the run user's tool set
+    # lacks one, e.g. search_docs on an image built without a docs corpus.
+    requires_tools: list[str] = field(default_factory=list)
+    # Deployment configuration the scenario's assertions assume, as
+    # chat.deployment_profile terms mapped to "on" or "off", e.g.
+    # {"setting:PAT_ENABLED": "off"}. Skipped where the deployment differs.
+    site_config: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
         """Convert evaluation dicts to EvaluationCriteria objects."""
@@ -66,6 +73,11 @@ class Scenario:
                 f"Invalid scenario role '{self.role}'. "
                 f"Must be one of: {', '.join(sorted(VALID_SCENARIO_ROLES))}"
             )
+        for term, wanted in self.site_config.items():
+            if wanted not in ("on", "off"):
+                raise ValueError(
+                    f"site_config {term!r} must be 'on' or 'off', not {wanted!r}"
+                )
         converted_evaluations: list[EvaluationCriteria] = []
         for ev in self.evaluations:
             if isinstance(ev, dict):
@@ -145,6 +157,8 @@ def load_scenarios_from_yaml(yaml_path: Path) -> list[Scenario]:
                     preset=scenario_data.get("preset"),
                     scope_tier=scenario_data.get("scope_tier"),
                     role=scenario_data.get("role", "authenticated"),
+                    requires_tools=scenario_data.get("requires_tools") or [],
+                    site_config=scenario_data.get("site_config") or {},
                 )
                 scenarios.append(scenario)
 

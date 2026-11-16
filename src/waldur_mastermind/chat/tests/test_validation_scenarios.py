@@ -313,3 +313,68 @@ class NoMatchScenarioTest(unittest.TestCase):
         config = next(e.config for e in scenario.evaluations if e.type == "pattern")
         # Two required patterns: echo the unmet requirement, then redirect.
         self.assertEqual(len(config["required_patterns"]), 2)
+
+
+class DocsSearchScenarioTest(unittest.TestCase):
+    """The docs scenarios skip without a corpus, and the disabled-feature one
+    only where personal access tokens are off."""
+
+    scenarios_dir = Path(__file__).parent.parent / "validation_scenarios"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scenarios = {
+            s.name: s
+            for s in load_scenarios_from_yaml(cls.scenarios_dir / "docs_search.yaml")
+        }
+
+    def _pattern(self, name, text):
+        config = next(
+            e.config for e in self.scenarios[name].evaluations if e.type == "pattern"
+        )
+        return PatternEvaluator().evaluate(text, config)
+
+    def test_every_docs_scenario_requires_search_docs(self):
+        for scenario in self.scenarios.values():
+            self.assertEqual(scenario.requires_tools, ["search_docs"])
+
+    def test_disabled_feature_scenario_assumes_pat_off(self):
+        scenario = self.scenarios["docs_disabled_feature_not_instructed"]
+        self.assertEqual(scenario.site_config, {"setting:PAT_ENABLED": "off"})
+
+    def test_disabled_feature_patterns(self):
+        name = "docs_disabled_feature_not_instructed"
+        self.assertTrue(
+            self._pattern(
+                name, "Personal access tokens are not enabled on this portal."
+            ).passed
+        )
+        self.assertTrue(
+            self._pattern(name, "The documentation doesn't cover that here.").passed
+        )
+        self.assertFalse(
+            self._pattern(
+                name,
+                "Personal access tokens are not enabled. Otherwise you would "
+                "open your profile and click Create new token.",
+            ).passed
+        )
+
+    def test_enabled_feature_requires_a_link(self):
+        name = "docs_enabled_feature_cites_link"
+        self.assertTrue(
+            self._pattern(
+                name, "See [Projects](https://docs.waldur.com/user-guide/x/)."
+            ).passed
+        )
+        self.assertFalse(self._pattern(name, "Open your organization.").passed)
+
+    def test_site_config_values_are_on_or_off(self):
+        with self.assertRaises(ValueError):
+            Scenario(
+                name="x",
+                category="c",
+                description="",
+                inputs=[],
+                site_config={"setting:PAT_ENABLED": "false"},
+            )

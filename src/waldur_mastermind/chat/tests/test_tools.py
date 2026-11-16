@@ -262,24 +262,29 @@ class ToolSetsTest(TestCase):
 # The full role sets: the HPC tools need an allowed FirecREST or cluster
 # monitor endpoint (test_hpc_tools covers the sets without one).
 @override_config(FIRECREST_ALLOWED_API_URLS="https://firecrest.example.org")
+# The role sets are returned whole only where the image carries a docs corpus.
+@patch(
+    "waldur_mastermind.chat.tools.tool_sets.docs_corpus.is_available",
+    return_value=True,
+)
 class GetToolSetForUserTest(TestCase):
-    def test_none_returns_anonymous_tools(self):
+    def test_none_returns_anonymous_tools(self, _):
         self.assertEqual(get_tool_set_for_user(None), ANONYMOUS_TOOLS)
 
-    def test_anonymous_user_returns_anonymous_tools(self):
+    def test_anonymous_user_returns_anonymous_tools(self, _):
         from django.contrib.auth.models import AnonymousUser
 
         self.assertEqual(get_tool_set_for_user(AnonymousUser()), ANONYMOUS_TOOLS)
 
-    def test_staff_returns_staff_tools(self):
+    def test_staff_returns_staff_tools(self, _):
         user = MagicMock(is_staff=True, is_support=False, is_anonymous=False)
         self.assertEqual(get_tool_set_for_user(user), STAFF_TOOLS)
 
-    def test_support_returns_support_tools(self):
+    def test_support_returns_support_tools(self, _):
         user = MagicMock(is_staff=False, is_support=True, is_anonymous=False)
         self.assertEqual(get_tool_set_for_user(user), SUPPORT_TOOLS)
 
-    def test_end_user_returns_end_user_tools(self):
+    def test_end_user_returns_end_user_tools(self, _):
         user = MagicMock(is_staff=False, is_support=False, is_anonymous=False)
         self.assertEqual(get_tool_set_for_user(user), END_USER_TOOLS)
 
@@ -754,7 +759,12 @@ class MCPExposureTest(TestCase):
     def test_exposed_tools(self):
         self.assertEqual(
             set(self._exposed()),
-            {*_ACCOUNT_TOOLS, ToolName.GET_USER_OVERVIEW, *_MARKETPLACE_TOOLS},
+            {
+                *_ACCOUNT_TOOLS,
+                ToolName.GET_USER_OVERVIEW,
+                *_MARKETPLACE_TOOLS,
+                ToolName.SEARCH_DOCS,
+            },
         )
 
     def test_exposed_tool_count_is_capped(self):
