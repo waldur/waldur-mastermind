@@ -249,7 +249,11 @@ def user_block(user) -> str:
         facts.append(("HPC allocation", chat_suggestions.has_hpc_allocation(user)))
     lines += [
         " ".join(f"{name}: {'yes' if value else 'no'}." for name, value in facts),
-        "When the user's request concerns one of these and only one fits, use "
-        "it instead of asking which one.",
+        "This list is background for resolving names, not a lookup result: "
+        "when the request concerns one of these and only one fits, use it "
+        "instead of asking which one. Do not recite the list or comment on "
+        "what it lacks unless the user asks about their organizations or "
+        "projects. When a tool finds no match for a name the user gave, say "
+        "so and stop; do not ask them to check the spelling.",
     ]
     return "\n".join(lines)
