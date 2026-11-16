@@ -458,6 +458,7 @@ class ToolsByCategoryTest(TestCase):
                 ToolName.LIST_ORDERS,
                 ToolName.GET_ORDER,
                 ToolName.LIST_INVOICES,
+                ToolName.CHART_COSTS,
             },
         )
 

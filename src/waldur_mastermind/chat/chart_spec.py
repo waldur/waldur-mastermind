@@ -144,6 +144,66 @@ class ChartSpecSerializer(serializers.Serializer):
     )
 
 
+def _cut(text, limit: int):
+    if not isinstance(text, str) or len(text) <= limit:
+        return text
+    return text[: limit - 1] + "…"
+
+
+def fit(spec: dict) -> dict:
+    """``spec`` with its text cut to the serializer's limits and blank series
+    names filled in, so that text taken from user data (a CSV column header,
+    a job or project name) shortens the chart's labels instead of dropping
+    the chart. Structure is left as it is, for the serializer to judge."""
+    if not isinstance(spec, dict):
+        return spec
+    spec = dict(spec)
+    for key, limit in (("title", 200), ("subtitle", 300), ("empty_message", 300)):
+        spec[key] = _cut(spec.get(key), limit) if key in spec else None
+        if spec[key] is None:
+            spec.pop(key)
+    if isinstance(spec.get("title"), str) and not spec["title"].strip():
+        # Required and never blank; an untitled plot keeps its chart.
+        spec["title"] = "Chart"
+    for key in ("x", "y", "y2"):
+        axis = spec.get(key)
+        if isinstance(axis, dict):
+            axis = dict(axis)
+            axis["label"] = _cut(axis.get("label"), 100)
+            axis["unit"] = _cut(axis.get("unit"), 30)
+            if isinstance(axis.get("categories"), list):
+                axis["categories"] = [_cut(c, 200) for c in axis["categories"]]
+            spec[key] = {k: v for k, v in axis.items() if v is not None}
+    if isinstance(spec.get("series"), list):
+        fitted = []
+        for index, item in enumerate(spec["series"]):
+            if isinstance(item, dict):
+                item = dict(item)
+                name = item.get("name")
+                if isinstance(name, str) and not name.strip():
+                    item["name"] = f"Series {index + 1}"
+                else:
+                    item["name"] = _cut(name, 100)
+                for key, limit in (("labels", 300), ("ids", 100)):
+                    if isinstance(item.get(key), list):
+                        item[key] = [_cut(v, limit) for v in item[key]]
+            fitted.append(item)
+        spec["series"] = fitted
+    if isinstance(spec.get("annotations"), list):
+        spec["annotations"] = [
+            {**a, "label": _cut(a["label"], 100)}
+            if isinstance(a, dict) and "label" in a
+            else a
+            for a in spec["annotations"]
+        ]
+    if isinstance(spec.get("link"), dict) and "label" in spec["link"]:
+        label = spec["link"]["label"]
+        if isinstance(label, str) and not label.strip():
+            label = "Open"
+        spec["link"] = {**spec["link"], "label": _cut(label, 100)}
+    return spec
+
+
 def chart(chart_type: str, title: str, x: dict, y: dict, series: list, **extra):
     """Build a chart spec dict; validated where it is emitted."""
     return {

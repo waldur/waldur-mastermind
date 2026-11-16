@@ -69,6 +69,7 @@ TERM_NAMES: dict[str, str] = {
     ),
     "!feature:marketplace.call_only": "Proposals and reviews for calls",
     "!feature:marketplace.catalogue_only": "Ordering from the marketplace",
+    "!feature:marketplace.conceal_prices": "Prices",
     "setting:COI_DETECTION_ENABLED": "Automated conflict-of-interest detection",
     "setting:AUTOMATED_MATCHING_ENABLED": "Automated reviewer matching",
     "setting:REVIEWER_PROFILES_ENABLED": "Reviewer profiles",

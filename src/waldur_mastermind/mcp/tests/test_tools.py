@@ -292,6 +292,7 @@ class RoleTest(MCPToolsTestCase):
         resource = {"resource_uuid": self.fixture.resource.uuid.hex}
         offering = self.fixture.offering.uuid.hex
         arguments = {
+            "chart_costs": project,
             "explain_invoice_compensations": project,
             "explain_project_credit_balance": project,
             "explain_resource_paused_reason": resource,

@@ -95,6 +95,30 @@ def annotate_cost_month(invoice_items: QuerySet) -> QuerySet:
     )
 
 
+def monthly_costs(invoice_items: QuerySet) -> QuerySet:
+    """Cost of ``invoice_items`` per month they count in (see `month_q`),
+    newest first, as rows of ``cost_year``, ``cost_month`` and three sums:
+
+    - ``incurred``: the chargeable items, gross;
+    - ``compensation``: the negative items, credit compensations among them;
+    - ``price``: every item, so already net of ``compensation``.
+
+    ``price`` must therefore never have ``compensation`` subtracted again.
+    """
+    amount = F("unit_price") * F("quantity")
+    return (
+        annotate_cost_month(invoice_items)
+        .values("cost_year", "cost_month")
+        .annotate(
+            price=Sum(amount),
+            compensation=Sum(amount, filter=Q(unit_price__lt=0), default=0),
+            incurred=Sum(amount, filter=Q(unit_price__gt=0), default=0),
+        )
+        .values("cost_year", "cost_month", "price", "compensation", "incurred")
+        .order_by("-cost_year", "-cost_month")
+    )
+
+
 def get_full_days(start, end):
     seconds_in_day = 24 * 60 * 60
     full_days, extra_seconds = divmod((end - start).total_seconds(), seconds_in_day)
