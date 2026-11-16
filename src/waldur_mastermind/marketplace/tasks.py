@@ -3214,32 +3214,7 @@ def update_software_catalogs():
 
     results = {}
 
-    # Define catalog configurations
-    catalog_configs = [
-        {
-            "name": "EESSI",
-            "enabled_setting": "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",
-            "loader_class": EESSICatalogLoader,
-            "loader_kwargs": {
-                "catalog_name": "EESSI",
-                "catalog_version": config.SOFTWARE_CATALOG_EESSI_VERSION or "auto",
-                "api_base_url": config.SOFTWARE_CATALOG_EESSI_API_URL,
-                "include_extensions": config.SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS,
-            },
-            "catalog_type": "binary_runtime",
-        },
-        {
-            "name": "Spack",
-            "enabled_setting": "SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED",
-            "loader_class": SpackCatalogLoader,
-            "loader_kwargs": {
-                "catalog_name": "Spack",
-                "catalog_version": config.SOFTWARE_CATALOG_SPACK_VERSION or "auto",
-                "data_url": config.SOFTWARE_CATALOG_SPACK_DATA_URL,
-            },
-            "catalog_type": "source_package",
-        },
-    ]
+    catalog_configs = _get_catalog_configs()
 
     # Process each catalog independently with full exception isolation
     for catalog_config in catalog_configs:
@@ -3265,16 +3240,17 @@ def update_software_catalogs():
 
             logger.info(f"Updating {catalog_name} catalog")
 
-            existing_catalogs = list(
-                models.SoftwareCatalog.objects.filter(
-                    name=catalog_name,
-                    catalog_type=catalog_config["catalog_type"],
-                )
+            source_catalogs = models.SoftwareCatalog.objects.filter(
+                name=catalog_name,
+                catalog_type=catalog_config["catalog_type"],
             )
+            existing_catalogs = list(source_catalogs.filter(auto_update_enabled=True))
             if not existing_catalogs:
                 results[catalog_name.lower()] = {
                     "status": "skipped",
-                    "reason": "no_existing_catalog",
+                    "reason": "auto_update_disabled"
+                    if source_catalogs.exists()
+                    else "no_existing_catalog",
                 }
                 continue
 
@@ -3618,7 +3594,10 @@ def cleanup_old_software_catalogs():
     1. Removes true duplicate catalogs — same (name, version, catalog_type) —
        keeping only the newest row. Different versions of the same catalog
        (e.g. EESSI 2023.06 and 2026.06) are intentional and are never collapsed.
-    2. Removes catalogs that haven't been updated within the retention period
+    2. Removes catalogs that haven't been updated within the retention period,
+       but only those the daily update refreshes (their source's update setting
+       is on and their auto_update_enabled is set) and that no offering links
+       to. A catalog nobody refreshes, or one in use, is kept.
 
     This task respects the SOFTWARE_CATALOG_CLEANUP_ENABLED setting.
     """
@@ -3641,12 +3620,15 @@ def cleanup_old_software_catalogs():
     duplicates_deleted = _cleanup_duplicate_catalogs()
     deleted_count += duplicates_deleted
 
-    # Step 2: Find catalogs that haven't been updated within the retention period
-    old_catalogs = models.SoftwareCatalog.objects.filter(
-        last_successful_update__lt=cutoff_date
-    )
+    # Step 2: Find catalogs that haven't been updated within the retention period.
+    # Age only means "stale" for a catalog the daily update is meant to refresh.
+    # A catalog nobody refreshes keeps its import date forever, and a linked one
+    # is in use: deleting either would cascade to the offerings' catalog links.
+    old_catalogs = _stale_catalogs(cutoff_date)
 
     for catalog in old_catalogs:
+        if not _delete_if_unlinked(catalog):
+            continue
         catalog_info = {
             "name": catalog.name,
             "version": catalog.version,
@@ -3657,11 +3639,10 @@ def cleanup_old_software_catalogs():
         }
 
         logger.info(
-            f"Deleting old catalog {catalog.name} v{catalog.version} "
+            f"Deleted old catalog {catalog.name} v{catalog.version} "
             f"(exceeded {retention_days} day retention)"
         )
 
-        catalog.delete()
         deleted_count += 1
         deleted_catalogs.append(catalog_info)
 
@@ -3683,6 +3664,53 @@ def cleanup_old_software_catalogs():
         logger.info("Software catalog cleanup completed: no catalogs to delete")
 
     return result
+
+
+def _stale_catalogs(cutoff_date):
+    """Catalogs that retention cleanup may delete.
+
+    Only catalogs that the daily update refreshes (their source's update
+    setting is on and their own ``auto_update_enabled`` is set), that no
+    offering links to, and that have not been refreshed since ``cutoff_date``.
+    """
+    refreshed_sources = Q(pk__in=[])
+    for catalog_config in _get_catalog_configs():
+        if getattr(config, catalog_config["enabled_setting"], False):
+            refreshed_sources |= Q(
+                name=catalog_config["name"],
+                catalog_type=catalog_config["catalog_type"],
+            )
+
+    expired = models.SoftwareCatalog.objects.filter(
+        refreshed_sources,
+        auto_update_enabled=True,
+        last_successful_update__lt=cutoff_date,
+    )
+    for catalog in expired.filter(offerings__isnull=False).distinct():
+        logger.warning(
+            f"Keeping catalog {catalog.name} v{catalog.version}: it has not been "
+            f"refreshed since {catalog.last_successful_update.date()}, but "
+            f"offerings still link to it"
+        )
+    return expired.filter(offerings__isnull=True)
+
+
+def _delete_if_unlinked(catalog) -> bool:
+    """Delete a catalog unless an offering has linked to it since it was selected.
+
+    Inserting a link takes a key-share lock on the catalog row, which conflicts
+    with this row lock, so no link can appear between the check and the delete.
+    """
+    with transaction.atomic():
+        locked = (
+            models.SoftwareCatalog.objects.select_for_update()
+            .filter(pk=catalog.pk)
+            .first()
+        )
+        if locked is None or locked.offerings.exists():
+            return False
+        locked.delete()
+    return True
 
 
 def _cleanup_duplicate_catalogs():

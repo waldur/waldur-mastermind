@@ -6,6 +6,7 @@ to ensure individual catalog failures don't prevent other catalogs from updating
 """
 
 import json
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -20,6 +21,8 @@ from waldur_mastermind.marketplace.models import (
     SoftwareCatalog,
 )
 from waldur_mastermind.marketplace.tasks import (
+    _delete_if_unlinked,
+    _stale_catalogs,
     _update_catalog_with_error_handling,
     _validate_catalog_config,
     cleanup_old_software_catalogs,
@@ -595,6 +598,61 @@ class EESSIMultiCatalogUpdateTest(TestCase):
         SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS=False,
     )
     @patch("requests.get")
+    def test_daily_update_skips_catalogs_with_auto_update_disabled(self, mock_get):
+        mock_response = Mock()
+        mock_response.json.return_value = self.eessi_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        refreshed = SoftwareCatalog.objects.create(
+            name="EESSI", version="2023.06", catalog_type="binary_runtime"
+        )
+        pinned = SoftwareCatalog.objects.create(
+            name="EESSI",
+            version="2025.06",
+            catalog_type="binary_runtime",
+            auto_update_enabled=False,
+        )
+
+        result = update_software_catalogs()
+
+        self.assertEqual(result["results"]["eessi"]["catalog_versions"], ["2023.06"])
+        refreshed.refresh_from_db()
+        pinned.refresh_from_db()
+        self.assertIsNotNone(refreshed.last_successful_update)
+        self.assertIsNone(pinned.last_successful_update)
+        self.assertIsNone(pinned.last_update_attempt)
+
+    @override_config(
+        SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED=True,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=False,
+        SOFTWARE_CATALOG_EESSI_API_URL="https://test.eessi.io/",
+    )
+    @patch("requests.get")
+    def test_daily_update_reports_source_whose_catalogs_all_opted_out(self, mock_get):
+        SoftwareCatalog.objects.create(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+            auto_update_enabled=False,
+        )
+
+        result = update_software_catalogs()
+
+        self.assertEqual(
+            result["results"]["eessi"],
+            {"status": "skipped", "reason": "auto_update_disabled"},
+        )
+        mock_get.assert_not_called()
+
+    @override_config(
+        SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED=True,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=False,
+        SOFTWARE_CATALOG_EESSI_API_URL="https://test.eessi.io/",
+        SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES=True,
+        SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS=False,
+    )
+    @patch("requests.get")
     def test_daily_update_updates_all_eessi_catalogs(self, mock_get):
         """Test that update_software_catalogs updates ALL EESSI catalogs."""
 
@@ -769,16 +827,19 @@ class CatalogCleanupTasksTest(TestCase):
             last_successful_update=now - timedelta(days=1),
         )
 
-        # Create an old catalog (should be deleted with default 90 days retention)
+        # An old, unlinked catalog of a refreshed source: deleted once its
+        # source's daily update is on and it falls out of the retention period.
         self.old_catalog = SoftwareCatalog.objects.create(
-            name="OldCatalog",
+            name="Spack",
             version="2025.10.01",
             catalog_type="source_package",
             last_successful_update=now - timedelta(days=100),
         )
 
     @override_config(
-        SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=90
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True,
+        SOFTWARE_CATALOG_RETENTION_DAYS=90,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=True,
     )
     def test_cleanup_deletes_old_catalogs(self):
         """Test that cleanup deletes catalogs older than retention period."""
@@ -788,7 +849,7 @@ class CatalogCleanupTasksTest(TestCase):
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["deleted_count"], 1)
         self.assertEqual(len(result["deleted_catalogs"]), 1)
-        self.assertEqual(result["deleted_catalogs"][0]["name"], "OldCatalog")
+        self.assertEqual(result["deleted_catalogs"][0]["version"], "2025.10.01")
 
         # Recent catalog should still exist
         self.assertTrue(
@@ -815,7 +876,9 @@ class CatalogCleanupTasksTest(TestCase):
         self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
 
     @override_config(
-        SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=30
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True,
+        SOFTWARE_CATALOG_RETENTION_DAYS=30,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=True,
     )
     def test_cleanup_respects_retention_days_setting(self):
         """Test that cleanup respects the retention days setting."""
@@ -823,7 +886,7 @@ class CatalogCleanupTasksTest(TestCase):
 
         # Create a catalog that's 50 days old (should be deleted with 30 day retention)
         medium_old_catalog = SoftwareCatalog.objects.create(
-            name="MediumOld",
+            name="Spack",
             version="2025.12.01",
             catalog_type="source_package",
             last_successful_update=timezone.now() - timedelta(days=50),
@@ -864,6 +927,98 @@ class CatalogCleanupTasksTest(TestCase):
             SoftwareCatalog.objects.filter(pk=self.recent_catalog.pk).exists()
         )
         self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+
+    def test_default_settings_keep_old_catalogs(self):
+        """Updates are off by default, so an imported catalog never gets a newer
+        refresh date; that alone must not get it deleted."""
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["deleted_count"], 0)
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True,
+        SOFTWARE_CATALOG_RETENTION_DAYS=90,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=True,
+    )
+    def test_cleanup_keeps_old_catalog_linked_to_offering(self):
+        link = marketplace_factories.OfferingSoftwareCatalogFactory(
+            catalog=self.old_catalog
+        )
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["deleted_count"], 0)
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+        self.assertTrue(OfferingSoftwareCatalog.objects.filter(pk=link.pk).exists())
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True,
+        SOFTWARE_CATALOG_RETENTION_DAYS=90,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=True,
+    )
+    def test_cleanup_keeps_old_catalog_linked_to_partition(self):
+        partition = marketplace_factories.OfferingPartitionFactory()
+        marketplace_factories.OfferingSoftwareCatalogFactory(
+            offering=partition.offering,
+            catalog=self.old_catalog,
+            partition=partition,
+        )
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["deleted_count"], 0)
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True,
+        SOFTWARE_CATALOG_RETENTION_DAYS=90,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=True,
+    )
+    def test_cleanup_keeps_old_catalog_with_auto_update_disabled(self):
+        self.old_catalog.auto_update_enabled = False
+        self.old_catalog.save(update_fields=["auto_update_enabled"])
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["deleted_count"], 0)
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True,
+        SOFTWARE_CATALOG_RETENTION_DAYS=90,
+        SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=True,
+        SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED=False,
+    )
+    def test_cleanup_keeps_old_catalog_whose_source_is_not_updated(self):
+        eessi = SoftwareCatalog.objects.create(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+            last_successful_update=timezone.now() - timedelta(days=100),
+        )
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["deleted_count"], 1)
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=eessi.pk).exists())
+        self.assertFalse(
+            SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists()
+        )
+
+    @override_config(SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED=True)
+    def test_cleanup_skips_catalog_linked_after_it_was_selected(self):
+        cutoff = timezone.now() - timedelta(days=90)
+        selected = list(_stale_catalogs(cutoff))
+        self.assertEqual(selected, [self.old_catalog])
+
+        link = marketplace_factories.OfferingSoftwareCatalogFactory(
+            catalog=self.old_catalog
+        )
+
+        self.assertFalse(_delete_if_unlinked(selected[0]))
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+        self.assertTrue(OfferingSoftwareCatalog.objects.filter(pk=link.pk).exists())
 
     @override_config(
         SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=200
@@ -928,7 +1083,7 @@ class CatalogCleanupTasksTest(TestCase):
             SoftwareCatalog.objects.filter(
                 name="Spack", catalog_type="source_package"
             ).count(),
-            3,  # self.recent_catalog + two extra versions
+            4,  # self.recent_catalog, self.old_catalog + two extra versions
         )
         for catalog in (
             eessi_2023,
