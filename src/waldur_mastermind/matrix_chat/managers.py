@@ -21,19 +21,21 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.models import Customer, Project
 
-from . import models
+from . import models, scopes
 
 # What get_accessible_room_ids reaches, for the room views. Change the two
 # together.
 SHOWS_ROOMS = (
     "Rooms of projects and organizations where the caller holds a role, and of "
     "the projects of organizations where the caller holds MATRIX_ROOM.CREATE; "
-    "staff and support see all."
+    "rooms of other registered kinds of scope the caller is a current member "
+    "of, invited or joined; staff and support see all."
 )
 
 
 def get_accessible_room_ids(user):
-    """Get MatrixRoom IDs accessible to the user based on project/customer roles."""
+    """Get MatrixRoom IDs accessible to the user: by project/customer roles,
+    and, in rooms of other scopes an app registered, by current membership."""
     project_ct = ContentType.objects.get_for_model(Project)
     customer_ct = ContentType.objects.get_for_model(Customer)
 
@@ -48,11 +50,29 @@ def get_accessible_room_ids(user):
         )
     ).values_list("id", flat=True)
 
-    return models.MatrixRoom.objects.filter(
-        Q(content_type=project_ct, object_id__in=connected_projects)
-        | Q(content_type=project_ct, object_id__in=projects_via_customer)
-        | Q(content_type=customer_ct, object_id__in=connected_customers)
-    ).values_list("id", flat=True)
+    visible = Q(content_type=project_ct, object_id__in=connected_projects) | Q(
+        content_type=project_ct, object_id__in=projects_via_customer
+    )
+    # A customer's room goes by a role on the customer, the rule for any
+    # scope nobody registered, unless an app registered customers.
+    if not scopes.is_registered(Customer):
+        visible |= Q(content_type=customer_ct, object_id__in=connected_customers)
+    # Who belongs in such a room is the registered scope's to say, and member
+    # sync writes it down as membership; reading it back here costs one
+    # subquery, where asking every scope would cost a query per room.
+    other_cts = [ct for ct in scopes.registered_content_types() if ct != project_ct]
+    if other_cts:
+        visible |= Q(
+            content_type__in=other_cts,
+            id__in=models.MatrixRoomMember.objects.filter(
+                user=user,
+                membership_state__in=[
+                    models.MembershipStates.INVITED,
+                    models.MembershipStates.JOINED,
+                ],
+            ).values("room_id"),
+        )
+    return models.MatrixRoom.objects.filter(visible).values_list("id", flat=True)
 
 
 def get_manageable_room_ids(user):

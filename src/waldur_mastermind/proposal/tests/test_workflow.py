@@ -2691,6 +2691,53 @@ class CompleteWorkflowStepChecklistGateTest(test.APITestCase):
         response = self._complete()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_required_question_hidden_by_its_dependency_does_not_block(self):
+        gate = checklist_factories.QuestionFactory(
+            checklist=self.checklist, question_type="boolean", required=True
+        )
+        checklist_factories.QuestionDependencyFactory(
+            question=self.question,
+            depends_on_question=gate,
+            operator="equals",
+            required_answer_value=True,
+        )
+        completion = factories.contribution_completion(
+            self.proposal, "administrative_check", self.fixture.staff
+        )
+        checklist_factories.AnswerFactory(
+            completion=completion,
+            question=gate,
+            user=self.fixture.staff,
+            answer_data=False,
+        )
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_question_shown_to_one_contributor_blocks_until_answered(self):
+        gate = checklist_factories.QuestionFactory(
+            checklist=self.checklist, question_type="boolean", required=True
+        )
+        checklist_factories.QuestionDependencyFactory(
+            question=self.question,
+            depends_on_question=gate,
+            operator="equals",
+            required_answer_value=True,
+        )
+        other = structure_factories.UserFactory()
+        for user, answer in ((self.fixture.staff, True), (other, False)):
+            checklist_factories.AnswerFactory(
+                completion=factories.contribution_completion(
+                    self.proposal, "administrative_check", user
+                ),
+                question=gate,
+                user=user,
+                answer_data=answer,
+            )
+
+        # The later "no" hides the question from the other contributor only
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class WorkflowStepResponsibleUsersTest(test.APITestCase):
     """``responsible_users`` tells the call manager who evaluates each step."""

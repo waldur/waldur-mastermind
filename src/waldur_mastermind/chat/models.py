@@ -705,3 +705,9 @@ from waldur_mastermind.chat.anonymous.models import (  # noqa: E402,F401
     AnonymousChatInteraction,
     SessionBinding,
 )
+
+# The documentation corpus searched by the search_docs tool.
+from waldur_mastermind.chat.docs.models import (  # noqa: E402,F401
+    DocAudience,
+    DocSection,
+)

@@ -175,6 +175,38 @@ class StreamHappyPathTest(test.APITestCase):
         self.assertEqual(interaction.output_tokens, 20)
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE, AI_ASSISTANT_SHOW_REASONING=True)
+    def test_reasoning_reaches_neither_the_response_nor_the_interaction(
+        self, mock_openai_cls
+    ):
+        # Reasoning in its own field, and inside the answer as a server
+        # without a reasoning parser sends it.
+        mock_openai_cls.return_value = _mock_openai_client(
+            [
+                _make_chunk(reasoning="secret field plan"),
+                _make_content_chunk("<think>secret tag plan</think>Hello!"),
+                _make_usage_chunk(10, 20),
+            ]
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "input": "what HPC services do you have?",
+                "session_id": "session-abc",
+            },
+        )
+        body = b"".join(response.streaming_content).decode("utf-8")
+
+        self.assertIn("Hello!", body)
+        self.assertNotIn("secret", body)
+        interaction = anonymous_models.AnonymousChatInteraction.objects.get()
+        self.assertNotIn("secret", str(interaction.assistant_blocks))
+        self.assertNotIn(
+            "reasoning", [b.get("key") for b in interaction.assistant_blocks]
+        )
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(**_ANONYMOUS_LIVE)
     def test_persists_cache_tokens_on_the_interaction(self, mock_openai_cls):
         mock_openai_cls.return_value = _mock_openai_client(

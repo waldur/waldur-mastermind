@@ -4488,14 +4488,13 @@ class Proposal(
 
     def unanswered_compliance_questions(self) -> int:
         """How many required questions of the call's compliance checklist the
-        proposal has left unanswered: all of them before it answers any."""
+        proposal has left unanswered, counting only those shown for its answers."""
         checklist = self.round.call.compliance_checklist
         if not checklist:
             return 0
         completion = self.get_checklist_completion_for(checklist)
-        if completion is None:
-            return checklist.questions.filter(required=True).count()
-        return completion.get_unanswered_required_questions().count()
+        answers = completion.get_latest_answers() if completion else {}
+        return len(checklist.get_progress(answers).unanswered_required_question_ids)
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -6389,6 +6388,12 @@ class CallReviewerPool(
         )
 
     @property
+    def is_accepted(self) -> bool:
+        """Whether the reviewer is an accepted member of the pool: only then
+        are assignments sent, reopened or answered, or read through."""
+        return self.invitation_status == ReviewerPoolInvitationStatuses.ACCEPTED
+
+    @property
     def invitee_name(self) -> str:
         if self.reviewer:
             return self.reviewer.user.full_name
@@ -7046,6 +7051,10 @@ class AssignmentBatch(
         """
         if self.status != AssignmentBatchStatuses.DRAFT:
             raise ValidationError(_("Can only send draft batches."))
+        if not self.reviewer_pool_entry.is_accepted:
+            raise ValidationError(
+                _("The reviewer is no longer in this call's reviewer pool.")
+            )
 
         # Get expiration days from call config or use default
         try:
@@ -7244,6 +7253,12 @@ class AssignmentItem(
         reviewer_profile = self.batch.reviewer_pool_entry.reviewer
         if not reviewer_profile:
             raise ValidationError(_("Reviewer profile not found."))
+        # An offer stands only while its reviewer is an accepted member of
+        # the call's pool, as it reads the proposal only then.
+        if not self.batch.reviewer_pool_entry.is_accepted:
+            raise ValidationError(
+                _("The reviewer is no longer in this call's reviewer pool.")
+            )
         # Taking on the review: refused to a reviewer the operator has
         # suspended or blocked since the offer, or outside the call's reviewer
         # eligibility, and, where disclosures are required, until one is filed.

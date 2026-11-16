@@ -799,13 +799,22 @@ class ChecklistCompletionSerializer(serializers.ModelSerializer):
             "modified",
         )
 
+    def _get_progress(self, obj):
+        """Worked out once per serialization; the completion may change between."""
+        if getattr(self, "_progress_for", None) is not obj:
+            self._progress_for = obj
+            self._progress = obj.get_progress()
+        return self._progress
+
     @extend_schema_field(serializers.FloatField())
     def get_completion_percentage(self, obj):
-        return obj.get_completion_percentage()
+        return self._get_progress(obj).percentage
 
     @extend_schema_field(serializers.ListField())
     def get_unanswered_required_questions(self, obj):
-        unanswered = obj.get_unanswered_required_questions()
+        unanswered = obj.checklist.questions.filter(
+            id__in=self._get_progress(obj).unanswered_required_question_ids
+        )
         return [
             {
                 "uuid": str(q.uuid),

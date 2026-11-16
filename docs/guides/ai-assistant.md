@@ -254,7 +254,13 @@ returns a list of `ToolName`s based on the caller's role:
 - `SUPPORT_TOOLS` — same as staff minus `call_insights`.
 - `END_USER_TOOLS` — VM, account, marketplace, proposal-researcher,
   proposal-reviewer (no `get_user_overview`).
-- All three include the meta-tools (`search_tools`, `ask_user`).
+- All three include the meta-tools (`search_tools`, `ask_user`) and
+  `search_docs`.
+
+Two tool groups also depend on the deployment rather than the role: the
+HPC tools drop out where staff have allowed no FirecREST or cluster
+monitor endpoint (or the session is delegated), and `search_docs` drops
+out where no documentation corpus is loaded.
 
 This filter is applied in two places:
 
@@ -272,6 +278,93 @@ catches `PermissionDenied` and returns it as a structured error
 (`src/waldur_mastermind/chat/tools/executor.py:62`), but the tool
 itself owns the actual authorization check (e.g. raise
 `PermissionDenied` if the user is not staff for staff-only data).
+
+### Documentation search
+
+`search_docs` (`chat/tools/docs/search_docs.py`) answers how-to questions
+from the documentation of the deployed release instead of the model's
+memory.
+
+- **Corpus.** waldur-docs CI publishes `docs-corpus.jsonl.gz`: one line per
+  section, with `path`, `anchor`, `title`, `breadcrumb`, `text`,
+  `audience`, `requires` and an optional `boost`. `docker_build.sh`
+  downloads it into `/usr/share/waldur/docs-corpus/`
+  (`DOCS_CORPUS_VERSION` / `DOCS_CORPUS_URL` build args). A release build
+  takes the corpus published under its own tag (waldur-docs tags the same
+  version), other builds take `latest`. The package registry is private:
+  CI passes `CI_JOB_TOKEN` as the `docs_corpus_token` build secret, so
+  waldur-mastermind must be on waldur-docs' job token allowlist. A failed
+  download leaves the image without it.
+- **Loading.** `initdb` runs `waldur load_docs_corpus`. It writes
+  `chat.DocSection` rows and only touches sections whose content hash
+  changed. `$WALDUR_DOCS_CORPUS_PATH` overrides the path. It never fails a
+  deployment: an invalid line (say, an audience this release does not
+  know) is skipped with a warning, and a file that cannot be read or has
+  no valid line leaves the loaded sections as they were. The tool is
+  offered only while sections are loaded.
+- **Search.** Postgres full-text search (weighted title > breadcrumb >
+  text, multiplied by `boost`) returns the top five sections, each with an
+  excerpt of about 800 characters and a link under `DOCS_URL` (or
+  docs.waldur.com). Sections matching every word come first
+  (`websearch_to_tsquery`); when there are fewer than five, the rest are
+  sections matching any of the words. Questions rarely use the guide's own
+  words: on the model's real queries in an evaluation, every-word matching
+  alone put the right guide in the top five 40% of the time, the fallback
+  75%.
+- **Filtering.** `audience` is `all`, `staff_support` or `staff`. End users
+  get `all`, support also gets `staff_support`, and staff get everything.
+  `requires` lists the site configuration a section depends on. Those terms
+  are evaluated by `chat/deployment_profile.py`:
+  - `setting:<KEY>` and `feature:<key>` / `!feature:<key>` check a setting
+    or feature flag;
+  - `offering_type:<type>` holds when an active offering of that type
+    exists and the type is not disabled;
+  - `capability:<name>` checks a named capability (`hpc`).
+
+  End users never get a section with an off or unknown term. Staff and
+  support still get such sections, marked `enabled_here: false`: that
+  value is true only when every term is known to be on. `waldur
+  print_docs_requires_vocabulary` prints the valid keys, and docs CI
+  validates the corpus against that list.
+- **Saying "not enabled here".** Hiding a section leaves the model unable to
+  tell a switched-off feature from one the portal does not have; in an
+  evaluation it told users Waldur has no chat. So every result also carries
+  `switched_off_here`: the features the query is about that are off on
+  this portal, by name (`deployment_profile.TERM_NAMES`, falling back to
+  the setting or flag description) and term. For end users they come from
+  matching the query, every word, against the sections hidden from them;
+  only the feature is named, never the section. For staff and support they
+  come from the returned sections marked `enabled_here: false`. Terms that
+  are unknown rather than off are not named. The tool tells the model to
+  say such a feature is not enabled here and an administrator can turn it
+  on, and to give no steps for it.
+- **Without the assistant.** The search needs no LLM. `GET
+  /api/docs-search/?query=…&limit=…` (`chat/docs/views.py`) runs the same
+  search with the same filtering for any signed-in user, whether or not
+  `AI_ASSISTANT_ENABLED` is on, and answers 503 when no corpus is
+  loaded. With `MCP_ENABLED`, MCP clients also get `search_docs`
+  regardless of the assistant switch.
+- **Turning it off.** `DOCS_SEARCH_ENABLED` (on by default, public) removes
+  the bundled documentation everywhere: no role is offered `search_docs`,
+  in the assistant or over MCP, and the endpoint answers 424. Staff turn it
+  off when the portal provides its own documentation to end users and the
+  Waldur guides would contradict it.
+- **Measuring it.** `waldur ai_assistant docs_evaluation --database NAME`
+  (`chat/docs/evaluation.py`) puts the questions in
+  `chat/docs/evaluation_questions.yaml` to the loaded corpus as staff,
+  support, an organization owner and a project member, switching the
+  settings and feature flags each question names and restoring them after.
+  It scores the search through `/api/docs-search/` — where the page that
+  answers ranks, and whether a role got a page it must not — and with
+  `--assistant` the configured LLM's answers: did it search, is it empty,
+  do its links come from the search, does it say a switched-off feature is
+  not available. `--judge` adds an LLM verdict per answer, given the full
+  text of every section the assistant's searches returned: are the steps
+  grounded in them, is availability right, a 1–5 score. The run creates
+  `docs-eval-*` users and switches settings, so it needs a database of its
+  own, named on the command line. The workspace script
+  `scripts/docs-search-eval.sh` builds or downloads a corpus, creates that
+  database and holds the LLM token there for the run only.
 
 ## Security guards
 
@@ -487,6 +580,8 @@ Registered block kinds (see `src/waldur_mastermind/chat/components.py`):
 | `resource_list` | Signal to render a paginated marketplace resource table client-side. | yes |
 | `homeport_nav` | Navigation links / call-to-action buttons. | no |
 | `ask_user_form` | Multi-question interactive form emitted by the `ask_user` meta-tool. | no |
+| `reasoning` | A thinking model's reasoning for one model call (`c`). Stored with `duration_ms`; see [Reasoning models](#reasoning-models). | no |
+| `narration` | What the model said before a tool call (`c`); see [Reasoning models](#reasoning-models). | no |
 
 Tools opt into a UI block by setting `ui_component` and `ui_data` in
 their result dict; tools that omit `ui_component` rely on the LLM to
@@ -523,6 +618,65 @@ section "AI assistant settings" (around line 2549). Quick reference:
 | `AI_ASSISTANT_HISTORY_LIMIT` | int | Max past messages replayed into context. |
 | `AI_ASSISTANT_SESSION_RETENTION_DAYS` | int | Cleanup cutoff for `cleanup_old_chat_sessions`. `-1` disables. |
 | `AI_ASSISTANT_INJECTION_ALLOWLIST` | str | Comma-separated phrases that bypass injection detection (only when one phrase covers ≥80% of input). |
+| `AI_ASSISTANT_STREAM_TIMEOUT_SECONDS` | int | Seconds a stream may go without receiving anything from the LLM or sending anything to the client before it times out. |
+| `AI_ASSISTANT_SHOW_REASONING` | bool | Stream and store a thinking model's reasoning for logged-in users, and show what the model says before a tool call as narration. Off by default. Anonymous users get neither. |
+
+## Reasoning models
+
+*For operators.* A thinking model (for example Qwen3) reasons before it
+answers, and one answer often takes several model calls. The streamer
+reads the reasoning from the `reasoning` or `reasoning_content` field of
+each streamed delta, whichever the server sends.
+
+- **Logged-in users, with `AI_ASSISTANT_SHOW_REASONING` on** (it is off
+  by default) get the reasoning as `{"k":"reasoning","c":"…"}`
+  frames, grouped into frames of about 100 ms or 80 characters. When the
+  thinking of a model call ends, `{"k":"reasoning","c":"","d":6200}` gives
+  its duration in milliseconds, before any answer text or tool call. Each model
+  call is saved as one `reasoning` block with its `duration_ms`, so a reloaded
+  thread can show "Thought for Ns". At most 20,000 characters of reasoning are
+  stored per reply.
+- **Anonymous users, or `AI_ASSISTANT_SHOW_REASONING` off:** reasoning is
+  neither streamed nor stored. While reasoning streams from the model, the
+  client gets a `{"m":{"status":"thinking"}}` keepalive every 15 seconds. A
+  model that thinks without streaming its reasoning gives nothing to send.
+- `AI_ASSISTANT_STREAM_TIMEOUT_SECONDS` counts from the last chunk received
+  from the model or the last frame sent to the client, so long thinking doesn't
+  time out. Each request is stopped after five times that timeout overall, 10
+  minutes by default, which also ends a model stuck in a reasoning loop.
+- **Narration,** for logged-in users with `AI_ASSISTANT_SHOW_REASONING` on. The
+  first 300 characters of each model call's text are held back. If a tool call
+  comes first, the text was narration ("Let me check your
+  projects…"): it is sent as `{"k":"narration","c":"…"}` and stored as a
+  `narration` block, and clients show it as a status rather than as the start
+  of the answer. Longer text, or text with a code block, streams as usual, and
+  a short answer arrives when the call ends. Narration counts as text for the
+  model history, search and the evaluators. This applies to every model, with
+  or without reasoning. For anyone else, text streams as it arrives and text
+  before a tool call stays in the answer.
+- Reasoning is never sent back to the model, and it is left out of the
+  message search text and the validation evaluators' answer text.
+- Reasoning tokens are counted in `completion_tokens`, so they count
+  against quotas.
+
+Server setup:
+
+- vLLM fills the reasoning field only when started with
+  `--reasoning-parser qwen3`. Without it, thinking arrives inside the
+  answer as `<think>…</think>` and is shown to logged-in users as part of
+  the answer. For anonymous visitors the streamer strips the tags and
+  their content. A chat template that opens the `<think>` tag in the
+  prompt leaves only `</think>` in the output, which the streamer cannot
+  recognise, so that setup needs the parser.
+- Set the effort through `reasoning_effort` or
+  `extra_body.chat_template_kwargs` in `AI_ASSISTANT_COMPLETION_KWARGS`.
+  Qwen3.8 defaults to `xhigh`.
+- Thinking mode needs different sampling from the vLLM defaults in
+  `providers.py`:
+
+  ```json
+  {"temperature": 1.0, "top_p": 0.95, "presence_penalty": 0}
+  ```
 
 ## Scheduled tasks
 

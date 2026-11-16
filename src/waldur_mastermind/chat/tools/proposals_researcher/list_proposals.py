@@ -11,8 +11,12 @@ from waldur_mastermind.chat.tools.base import (
     ToolDefinition,
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
-from waldur_mastermind.chat.tools.proposal_helpers import proposal_detail_url
+from waldur_mastermind.chat.tools.proposal_helpers import (
+    applicant_details,
+    proposal_detail_url,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal.applicant_visibility import ApplicantVisibility
 from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.models import Proposal
 
@@ -148,6 +152,8 @@ class ListProposalsTool(BaseTool):
         truncated = total_count > MAX_LIST_RESULTS
 
         now = timezone.now()
+        # One per listing, so the rows share its lookups.
+        visibility = ApplicantVisibility(user)
         data = []
         for p in proposals:
             call = p.round.call if p.round else None
@@ -164,7 +170,7 @@ class ListProposalsTool(BaseTool):
                     "days_until_deadline": (p.round.cutoff_time - now).days
                     if p.round and p.round.cutoff_time
                     else None,
-                    "created_by": p.created_by.full_name if p.created_by else "",
+                    **applicant_details(p, visibility, {"created_by": "full_name"}),
                     "url": url,
                 }
             )

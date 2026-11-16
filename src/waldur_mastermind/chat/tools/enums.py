@@ -56,6 +56,7 @@ class ToolName(Enum):
     GET_HPC_JOB_STATS = "get_hpc_job_stats"
     GET_HPC_CLUSTER_LOAD = "get_hpc_cluster_load"
     PLOT_HPC_OUTPUT = "plot_hpc_output"
+    SEARCH_DOCS = "search_docs"
     # Meta-tool: lazy-loads tool schemas by name to reduce system-prompt bloat.
     SEARCH_TOOLS = "search_tools"
     # Meta-tool: ask the user 1–4 structured multiple-choice questions when
@@ -91,3 +92,4 @@ class ToolCategory(str, Enum):
     ACCOUNT = "account"
     PROPOSALS_RESEARCHER = "proposals_researcher"
     PROPOSALS_REVIEWER = "proposals_reviewer"
+    DOCS = "docs"

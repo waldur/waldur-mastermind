@@ -1,11 +1,19 @@
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
+from datetime import timedelta
 
 from asgiref.sync import sync_to_async
 from django.db import connections
-from mcp.server.auth.provider import AccessToken, TokenVerifier
+from django.db.models import Q
+from django.utils import timezone
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+from mcp.server.auth.provider import AccessToken
+from oauth2_provider.models import get_access_token_model
 from rest_framework.exceptions import AuthenticationFailed
+from starlette.authentication import AuthCredentials
 from starlette.requests import HTTPConnection
+from starlette.responses import JSONResponse
 
 from waldur_core.core import models
 from waldur_core.core import utils as core_utils
@@ -14,6 +22,11 @@ from waldur_core.core.authentication import (
     authenticate_personal_access_token,
 )
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_mastermind.mcp import oauth
+from waldur_mastermind.mcp.models import ConnectedApp
+
+# Shown to the user only, so up to ten minutes stale is fine, as for PATs.
+USAGE_DEBOUNCE = timedelta(minutes=10)
 
 
 def drop_broken_connections():
@@ -135,12 +148,145 @@ def verify_personal_access_token(
     )
 
 
-class WaldurTokenVerifier(TokenVerifier):
-    """Accepts Personal Access Tokens sent as ``Authorization: Bearer w_...``."""
+def load_oauth_token(raw_token: str):
+    """The DOT access token for ``raw_token``, if it is valid on /mcp."""
+    checksum = hashlib.sha256(raw_token.encode()).hexdigest()
+    token = (
+        get_access_token_model()
+        .objects.select_related("user", "application")
+        .filter(token_checksum=checksum)
+        .first()
+    )
+    if (
+        token is None
+        # DCR registration tokens have neither a user nor a resource.
+        or token.user is None
+        or not token.user.is_active
+        or token.application is None
+        or token.is_expired()
+        or oauth.READ_SCOPE not in token.scope.split()
+    ):
+        return None
+    # Read only for a known token: settings aren't cached, and anyone can send
+    # an unknown one.
+    allowed = oauth.get_allowed_resources()
+    # DOT treats a token without a resource as valid anywhere.
+    if not any(oauth.is_allowed_resource(uri, allowed) for uri in token.resource):
+        return None
+    return token
 
-    async def verify_token(self, token: str) -> AccessToken | None:
-        if not token.startswith(models.PAT_PREFIX):
-            return None
-        return await run_orm_async(
-            verify_personal_access_token, token, client_ip_var.get()
+
+def record_oauth_use(token) -> None:
+    now = timezone.now()
+    # Only updates the existing row, so a revoked connection stays deleted.
+    ConnectedApp.objects.filter(
+        Q(last_used_at__isnull=True) | Q(last_used_at__lt=now - USAGE_DEBOUNCE),
+        user_id=token.user_id,
+        application_id=token.application_id,
+    ).update(last_used_at=now)
+
+
+def verify_oauth_token(raw_token: str) -> AccessToken | None:
+    token = load_oauth_token(raw_token)
+    if token is None:
+        return None
+    scopes = token.scope.split()
+    missing_scope = oauth.missing_elevated_scope(token.user, scopes)
+    if not missing_scope:
+        record_oauth_use(token)
+    return AccessToken(
+        token=raw_token,
+        client_id=f"oauth:{token.application.client_id}",
+        scopes=scopes,
+        expires_at=int(token.expires.timestamp()),
+        subject=token.user.uuid.hex,
+        claims={
+            "username": token.user.username,
+            "oauth_token_id": token.pk,
+            # Refused by AuthMiddleware with insufficient_scope, not as invalid.
+            "missing_scope": missing_scope,
+        },
+    )
+
+
+def verify_token(raw_token: str, client_ip: str | None) -> AccessToken | None:
+    """A Personal Access Token (``w_...``) or a DOT access token."""
+    if raw_token.startswith(models.PAT_PREFIX):
+        return verify_personal_access_token(raw_token, client_ip)
+    return verify_oauth_token(raw_token)
+
+
+def authenticate(
+    raw_token: str | None, client_ip: str | None, host: str | None
+) -> tuple[AccessToken | None, str | None]:
+    """The token, and the resource URL a challenge names if it is refused.
+
+    Both in one trip to the few ORM threads, which every caller shares.
+    """
+    token = verify_token(raw_token, client_ip) if raw_token else None
+    if token is not None and not token.claims.get("missing_scope"):
+        return token, None
+    return token, oauth.get_resource_url(host)
+
+
+def get_bearer_token(connection: HTTPConnection) -> str | None:
+    scheme, _, token = connection.headers.get("authorization", "").partition(" ")
+    token = token.strip()
+    return token if scheme.lower() == "bearer" and token else None
+
+
+class AuthMiddleware:
+    """Authenticates /mcp with the challenges MCP clients follow to sign in.
+
+    In place of the SDK's: it takes the resource URL and scopes once, and leaves
+    the scope out of insufficient_scope.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        connection = HTTPConnection(scope)
+        raw_token = get_bearer_token(connection)
+        token, resource = await run_orm_async(
+            authenticate,
+            raw_token,
+            client_ip_var.get(),
+            connection.headers.get("host"),
         )
+        if token is None:
+            # RFC 6750: no error code when the client sent no credentials.
+            response = challenge(
+                resource,
+                401,
+                "invalid_token" if raw_token else None,
+                "Authentication required.",
+            )
+        elif missing_scope := token.claims.get("missing_scope"):
+            response = challenge(
+                resource,
+                403,
+                "insufficient_scope",
+                f"This account needs the {missing_scope} scope.",
+                required_scope=f"{oauth.READ_SCOPE} {missing_scope}",
+            )
+        else:
+            scope["user"] = AuthenticatedUser(token)
+            scope["auth"] = AuthCredentials(token.scopes)
+            await self.app(scope, receive, send)
+            return
+        await response(scope, receive, send)
+
+
+def challenge(resource, status_code, error, description, required_scope=None):
+    params = {"error": error, "error_description": description} if error else {}
+    if required_scope:
+        params["scope"] = required_scope
+    if resource:
+        params["resource_metadata"] = oauth.get_resource_metadata_url(resource)
+    header = ", ".join(f'{key}="{value}"' for key, value in params.items())
+    return JSONResponse(
+        {"error": error or "invalid_token", "error_description": description},
+        status_code=status_code,
+        headers={"WWW-Authenticate": f"Bearer {header}".rstrip()},
+    )

@@ -367,6 +367,11 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_vmware.Port` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_vmware.Disk` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
+| `recompute_completions_on_dependency_change` | `Django Signal (post_save)` | `checklist.QuestionDependency` | Adding, changing or removing a dependency changes which questions are shown. |
+| `recompute_completions_on_dependency_change` | `Django Signal (post_delete)` | `checklist.QuestionDependency` | Adding, changing or removing a dependency changes which questions are shown. |
+| `recompute_completions_on_question_change` | `Django Signal (post_save)` | `checklist.Question` | A question that becomes required, or whose dependencies combine |
+| `recompute_completions_on_question_delete` | `Django Signal (post_delete)` | `checklist.Question` | No description |
+| `remember_question_visibility_fields` | `Django Signal (pre_save)` | `checklist.Question` | Keep the fields completion depends on, to tell on save whether they changed. |
 | `remove_cached_template` | `Django Signal (pre_delete)` | `core.NotificationTemplate` | Also wired as a pre_delete receiver on NotificationTemplate (see core/apps.py). |
 | `rename_clones_on_customer_slug_change` | `Django Signal (post_save)` | `structure.Customer` | Keep an organization's cloned role names in sync with its slug. |
 | `revoke_roles_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | When project is deleted, capture user role snapshots before revoking them. |
@@ -491,6 +496,7 @@ td:nth-child(4) {
 | `cleanup_admin_announcement_on_maintenance_deletion` | `Django Signal (pre_delete)` | `marketplace.MaintenanceAnnouncement` | Ensure AdminAnnouncement is cleaned up when MaintenanceAnnouncement is deleted. |
 | `cleanup_agent_identity_queue` | `Django Signal (pre_delete)` | `marketplace_site_agent.AgentIdentity` | Delete the linked EventConsumer when an AgentIdentity is deleted. |
 | `clear_panel_chair_on_role_revoked` | `Custom Signal (role_revoked)` | `—` | Drop ``Call.panel_chair`` or ``Call.panel_vice_chair`` when its holder |
+| `close_assignments_on_leaving_pool` | `Django Signal (post_save)` | `proposal.CallReviewerPool` | A pool entry that stops being accepted, by whatever path, ends the |
 | `close_course_accounts_after_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `close_customer_service_accounts_on_customer_deletion` | `Django Signal (pre_delete)` | `structure.Customer` | Close service accounts associated with a customer when the customer is deleted. |
 | `close_resource_plan_period_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Handle case when resource has been terminated by service provider. |
@@ -877,15 +883,15 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 793
+Total unique handlers found: 799
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 348 handlers
+- **waldur_core**: 353 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 381 handlers
+- **waldur_mastermind**: 382 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers

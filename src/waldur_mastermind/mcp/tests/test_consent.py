@@ -360,17 +360,23 @@ class ConsentDetailsTest(ConsentTestMixin, test.APITestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.data["client_host"], "xn--laude-0ye.ai")
 
-    def test_elevated_access_names_the_role(self):
+    def test_elevated_access_names_the_role_whatever_the_scopes(self):
         cases = [
-            ({"is_staff": True}, "staff"),
-            ({"is_support": True}, "support"),
-            ({"is_staff": True, "is_support": True}, "staff"),
+            ({"is_staff": True}, "mcp:read", "staff"),
+            ({"is_staff": True}, "mcp:read mcp:staff", "staff"),
+            ({"is_support": True}, "mcp:read", "support"),
+            ({"is_support": True}, "mcp:read mcp:support", "support"),
+            # Needs mcp:staff, so the page tells it mcp:support won't do.
+            ({"is_staff": True, "is_support": True}, "mcp:read mcp:support", "staff"),
+            ({}, "mcp:read mcp:staff", None),
         ]
-        for roles, expected in cases:
-            with self.subTest(roles=roles):
+        for roles, scope, expected in cases:
+            with self.subTest(roles=roles, scope=scope):
                 self.login(factories.UserFactory(**roles))
 
-                self.assertEqual(self.get_consent().data["elevated_access"], expected)
+                response = self.get_consent(scope=scope)
+
+                self.assertEqual(response.data["elevated_access"], expected)
 
     def test_scope_defaults_when_the_client_names_none(self):
         self.login()
@@ -755,6 +761,65 @@ class DelegatedAccessTest(ConsentTestMixin, test.APITestCase):
         self.client.force_authenticate(self.user, token={"sub": "someone"})
 
         self.assert_forbidden()
+
+
+@override_config(MCP_ENABLED=True, MCP_RESOURCE_URLS=MCP_URL)
+class ElevatedScopeConsentTest(ConsentTestMixin, test.APITestCase):
+    CASES = [
+        ({}, "mcp:read mcp:staff", "mcp:read"),
+        ({"is_staff": True}, "mcp:read mcp:staff", "mcp:read mcp:staff"),
+        ({"is_support": True}, "mcp:read mcp:support", "mcp:read mcp:support"),
+        (
+            {"is_support": True},
+            "mcp:read mcp:staff mcp:support",
+            "mcp:read mcp:support",
+        ),
+        ({"is_staff": True}, "mcp:read mcp:support", "mcp:read"),
+        ({"is_staff": True}, "mcp:staff", "mcp:read mcp:staff"),
+        ({"is_support": True}, "mcp:support", "mcp:read mcp:support"),
+    ]
+
+    def granted_scope(self, roles, scope):
+        self.login(factories.UserFactory(**roles))
+        response = self.decide(scope=scope)
+        self.assertEqual(response.status_code, 200, response.content)
+        code = parse_qs(urlparse(response.json()["redirect_url"]).query)["code"][0]
+        self.client.credentials()
+        token = self.exchange_code(self.application, Grant.objects.get(code=code))
+        return token.json()["scope"]
+
+    def test_only_elevated_scopes_of_the_users_role_are_granted(self):
+        for roles, requested, granted in self.CASES:
+            with self.subTest(roles=roles, requested=requested):
+                self.assertEqual(self.granted_scope(roles, requested), granted)
+
+    def test_page_shows_only_the_scopes_that_would_be_granted(self):
+        for roles, requested, granted in self.CASES:
+            with self.subTest(roles=roles, requested=requested):
+                self.login(factories.UserFactory(**roles))
+
+                response = self.get_consent(scope=requested)
+
+                names = [scope["name"] for scope in response.data["scopes"]]
+                self.assertEqual(names, granted.split())
+
+    def test_audit_names_the_granted_scopes(self):
+        self.login()
+
+        self.decide(scope="mcp:read mcp:staff")
+
+        event = Event.objects.get(event_type="oauth_consent_granted")
+        self.assertEqual(event.context["scope"], "mcp:read")
+
+    def test_request_with_nothing_the_user_can_grant_is_refused(self):
+        self.login()
+
+        for response in (
+            self.get_consent(scope="mcp:staff"),
+            self.decide(scope="mcp:staff"),
+        ):
+            self.assert_refused(response)
+            self.assertEqual(response.json()["error"], "invalid_scope")
 
 
 class ConsentGatingTest(ConsentTestMixin, test.APITestCase):

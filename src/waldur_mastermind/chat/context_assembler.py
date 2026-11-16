@@ -205,7 +205,7 @@ def build_rejection_input(thread) -> list[dict] | None:
 # -------- blocks -> LLM messages --------
 
 _FENCED_KINDS = {"code", "mermaid"}
-_TEXT_KINDS = {"markdown"} | _FENCED_KINDS
+_TEXT_KINDS = {"markdown", "narration"} | _FENCED_KINDS
 
 
 def _block_to_text(block: dict) -> str:

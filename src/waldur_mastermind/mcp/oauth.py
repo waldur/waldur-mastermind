@@ -33,6 +33,43 @@ from waldur_core.configuration import config
 # give any registered client a token without anyone's consent.
 ALLOWED_GRANT_TYPES = ("authorization_code", "refresh_token")
 
+READ_SCOPE = "mcp:read"
+STAFF_SCOPE = "mcp:staff"
+SUPPORT_SCOPE = "mcp:support"
+# Clients ask for the elevated scopes only when /mcp answers insufficient_scope,
+# so a staff or support user never grants them along with a plain connection.
+ADVERTISED_SCOPES = [READ_SCOPE]
+
+RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource"
+
+
+def missing_elevated_scope(user, scopes) -> str | None:
+    """The scope a token lacks to act with the user's staff or support role.
+
+    Tools see the user's role and can't narrow it, as REST does for a PAT, so a
+    token without the scope is refused rather than widened.
+    """
+    if STAFF_SCOPE in scopes:
+        return None
+    if user.is_staff:
+        return STAFF_SCOPE
+    if user.is_support and SUPPORT_SCOPE not in scopes:
+        return SUPPORT_SCOPE
+    return None
+
+
+def grantable_scopes(user, scopes) -> list[str]:
+    """The requested scopes, without the elevated ones the user's role lacks.
+
+    An elevated scope only widens mcp:read, which /mcp requires, so it brings
+    mcp:read along.
+    """
+    held = {STAFF_SCOPE: user.is_staff, SUPPORT_SCOPE: user.is_support}
+    granted = [scope for scope in scopes if held.get(scope, True)]
+    if READ_SCOPE not in granted and {STAFF_SCOPE, SUPPORT_SCOPE} & set(granted):
+        granted.insert(0, READ_SCOPE)
+    return granted
+
 
 def get_resource_urls() -> list[str]:
     return config.MCP_RESOURCE_URLS.split()
@@ -58,6 +95,41 @@ def is_allowed_resource(uri: str, allowed: set[tuple] | None = None) -> bool:
         allowed = get_allowed_resources()
     resource = parse_resource(uri)
     return resource is not None and resource in allowed
+
+
+def get_resource_url(host: str | None, path: str | None = None) -> str | None:
+    """The configured MCP URL on the host the client reached, or else the first.
+
+    With ``path``, only a URL with that path, as its metadata URL carries it.
+    """
+    urls = [url for url in get_resource_urls() if parse_resource(url)]
+    if path is not None:
+        urls = [
+            url for url in urls if urlparse(url).path.rstrip("/") == path.rstrip("/")
+        ]
+    for url in urls:
+        if host and urlparse(url).netloc.lower() == host.lower():
+            return url
+    return urls[0] if urls else None
+
+
+def get_resource_metadata_url(resource: str) -> str:
+    # RFC 9728 puts the well-known part between the host and the resource's path.
+    parts = urlparse(resource)
+    path = parts.path.rstrip("/")
+    return f"{parts.scheme}://{parts.netloc}{RESOURCE_METADATA_PATH}{path}"
+
+
+def get_resource_metadata(resource: str) -> dict:
+    parts = urlparse(resource)
+    # The API's issuer, as DOT derives it, when /mcp is served on the API host.
+    issuer = oauth2_settings.OIDC_ISS_ENDPOINT or f"{parts.scheme}://{parts.netloc}"
+    return {
+        "resource": resource,
+        "authorization_servers": [issuer],
+        "scopes_supported": ADVERTISED_SCOPES,
+        "bearer_methods_supported": ["header"],
+    }
 
 
 class ClientRegistrationThrottle(SimpleRateThrottle):

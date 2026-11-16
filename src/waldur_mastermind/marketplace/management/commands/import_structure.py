@@ -38,6 +38,7 @@ from waldur_core.permissions.models import (
     UserRole,
 )
 from waldur_core.permissions.tasks import sync_user_deactivation_status
+from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.models import (
     Customer,
     Project,
@@ -3159,7 +3160,11 @@ class Command(BaseCommand):
                     "customer": customer,
                     "start_date": start_date,
                     "end_date": end_date,
-                    "kind": project_data.get("kind", ""),
+                    # Anything that is not a ProjectKind choice would be stored
+                    # as is and break clients generated from the API schema.
+                    "kind": project_data.get("kind")
+                    if project_data.get("kind") in ProjectKind.values
+                    else ProjectKind.DEFAULT,
                     "oecd_fos_2007_code": project_data.get("oecd_fos_2007_code", ""),
                     "slug": project_data.get("slug", ""),
                     "backend_id": project_data.get("backend_id", ""),

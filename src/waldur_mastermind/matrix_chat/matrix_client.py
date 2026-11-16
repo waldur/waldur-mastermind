@@ -19,10 +19,8 @@ from markdown_it import MarkdownIt
 from waldur_core.configuration import config
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import User
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.models import UserRole
-from waldur_core.structure.models import Project
 
+from . import scopes
 from .models import MatrixUserProfile
 
 # matrix-nio is imported lazily via _load_nio() rather than at module top —
@@ -1397,41 +1395,9 @@ def generate_matrix_user_id(waldur_user):
 
 
 def get_power_level_for_scope(user, scope):
-    """
-    Determine the Matrix power level for a user in a given scope.
-
-    Returns:
-        50 for Project Admin, or anyone who may create the project's room
-        0 for all other members
-
-    No Waldur user gets the bot's 100: the bot is not a Waldur user, and one
-    named like its localpart is someone else, possibly linked to another
-    Matrix account.
-    """
-    if isinstance(scope, Project):
-        # Check if user is project admin
-        is_admin = UserRole.objects.filter(
-            user=user,
-            scope=scope,
-            role__name=RoleEnum.PROJECT_ADMIN,
-            is_active=True,
-        ).exists()
-        if is_admin:
-            return 50
-
-        # Whoever may create the project's room runs it. Only role grants
-        # count: staff and support become moderators by joining the room.
-        for room_scope in (scope, scope.customer):
-            can_create_room = UserRole.objects.filter(
-                user=user,
-                scope=room_scope,
-                role__permissions__permission=PermissionEnum.CREATE_MATRIX_ROOM,
-                is_active=True,
-            ).exists()
-            if can_create_room:
-                return 50
-
-    return 0
+    """The Matrix power level the user's place in ``scope`` gives them: what
+    the scope's registration says (scopes.register), 0 without one."""
+    return scopes.power_level(user, scope)
 
 
 # Devices the chat drawer signs in on. Every web session gets its own: Tuwunel

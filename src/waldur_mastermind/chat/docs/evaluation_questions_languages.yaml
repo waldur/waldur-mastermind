@@ -1,0 +1,247 @@
+# The same questions in English, Estonian, German and French, for
+# `waldur ai_assistant docs_evaluation --questions` (waldur/waldur-docs#37).
+# The documentation is in English only, so a question in another language finds
+# little by itself: what counts is what the assistant searches with and whether
+# it answers in the user's language (`language`, checked per answer). The
+# English rows are the baseline the others are compared with. Asked as an
+# owner and as staff.
+
+- id: project_create_en
+  category: en
+  language: en
+  question: 'How do I create a new project in my organization?'
+  gold: [user-guide/customer-organization/project-management.md]
+  roles: [owner, staff]
+
+- id: project_create_et
+  category: et
+  language: et
+  question: 'Kuidas luua oma organisatsioonis uus projekt?'
+  gold: [user-guide/customer-organization/project-management.md]
+  roles: [owner, staff]
+
+- id: project_create_de
+  category: de
+  language: de
+  question: 'Wie erstelle ich ein neues Projekt in meiner Organisation?'
+  gold: [user-guide/customer-organization/project-management.md]
+  roles: [owner, staff]
+
+- id: project_create_fr
+  category: fr
+  language: fr
+  question: 'Comment créer un nouveau projet dans mon organisation ?'
+  gold: [user-guide/customer-organization/project-management.md]
+  roles: [owner, staff]
+
+- id: project_member_add_en
+  category: en
+  language: en
+  question: 'How can I add a colleague to my project?'
+  gold: [user-guide/customer-organization/project_membership_management.md]
+  roles: [owner, staff]
+
+- id: project_member_add_et
+  category: et
+  language: et
+  question: 'Kuidas lisada kolleeg oma projekti?'
+  gold: [user-guide/customer-organization/project_membership_management.md]
+  roles: [owner, staff]
+
+- id: project_member_add_de
+  category: de
+  language: de
+  question: 'Wie kann ich einen Kollegen zu meinem Projekt hinzufügen?'
+  gold: [user-guide/customer-organization/project_membership_management.md]
+  roles: [owner, staff]
+
+- id: project_member_add_fr
+  category: fr
+  language: fr
+  question: 'Comment ajouter un collègue à mon projet ?'
+  gold: [user-guide/customer-organization/project_membership_management.md]
+  roles: [owner, staff]
+
+- id: org_invite_en
+  category: en
+  language: en
+  question: 'How do I invite someone to my organization?'
+  gold: [user-guide/customer-organization/organization_membership_management.md]
+  roles: [owner, staff]
+
+- id: org_invite_et
+  category: et
+  language: et
+  question: 'Kuidas kutsuda kedagi oma organisatsiooni?'
+  gold: [user-guide/customer-organization/organization_membership_management.md]
+  roles: [owner, staff]
+
+- id: org_invite_de
+  category: de
+  language: de
+  question: 'Wie lade ich jemanden in meine Organisation ein?'
+  gold: [user-guide/customer-organization/organization_membership_management.md]
+  roles: [owner, staff]
+
+- id: org_invite_fr
+  category: fr
+  language: fr
+  question: "Comment inviter quelqu'un dans mon organisation ?"
+  gold: [user-guide/customer-organization/organization_membership_management.md]
+  roles: [owner, staff]
+
+- id: usage_reports_en
+  category: en
+  language: en
+  question: 'Where can I see the usage reports for my organization?'
+  gold: [user-guide/customer-organization/usage_reports.md]
+  roles: [owner, staff]
+
+- id: usage_reports_et
+  category: et
+  language: et
+  question: 'Kust ma näen oma organisatsiooni kasutusaruandeid?'
+  gold: [user-guide/customer-organization/usage_reports.md]
+  roles: [owner, staff]
+
+- id: usage_reports_de
+  category: de
+  language: de
+  question: 'Wo finde ich die Nutzungsberichte meiner Organisation?'
+  gold: [user-guide/customer-organization/usage_reports.md]
+  roles: [owner, staff]
+
+- id: usage_reports_fr
+  category: fr
+  language: fr
+  question: "Où puis-je voir les rapports d'utilisation de mon organisation ?"
+  gold: [user-guide/customer-organization/usage_reports.md]
+  roles: [owner, staff]
+
+- id: api_key_rotate_en
+  category: en
+  language: en
+  question: 'How do I rotate the API key of my resource?'
+  gold: [user-guide/customer-organization/resource-api-keys.md]
+  roles: [owner, staff]
+
+- id: api_key_rotate_et
+  category: et
+  language: et
+  question: 'Kuidas vahetada oma ressursi API-võtit?'
+  gold: [user-guide/customer-organization/resource-api-keys.md]
+  roles: [owner, staff]
+
+- id: api_key_rotate_de
+  category: de
+  language: de
+  question: 'Wie erneuere ich den API-Schlüssel meiner Ressource?'
+  gold: [user-guide/customer-organization/resource-api-keys.md]
+  roles: [owner, staff]
+
+- id: api_key_rotate_fr
+  category: fr
+  language: fr
+  question: 'Comment renouveler la clé API de ma ressource ?'
+  gold: [user-guide/customer-organization/resource-api-keys.md]
+  roles: [owner, staff]
+
+- id: cost_cap_en
+  category: en
+  language: en
+  question: 'How do I stop a project from spending more than a fixed amount?'
+  gold: [user-guide/customer-organization/cost-and-usage-policies.md, user-guide/customer-organization/resource-spending-limits.md]
+  roles: [owner, staff]
+
+- id: cost_cap_et
+  category: et
+  language: et
+  question: 'Kuidas takistada projektil kulutamast üle kindla summa?'
+  gold: [user-guide/customer-organization/cost-and-usage-policies.md, user-guide/customer-organization/resource-spending-limits.md]
+  roles: [owner, staff]
+
+- id: cost_cap_de
+  category: de
+  language: de
+  question: 'Wie verhindere ich, dass ein Projekt mehr als einen festen Betrag ausgibt?'
+  gold: [user-guide/customer-organization/cost-and-usage-policies.md, user-guide/customer-organization/resource-spending-limits.md]
+  roles: [owner, staff]
+
+- id: cost_cap_fr
+  category: fr
+  language: fr
+  question: "Comment empêcher un projet de dépenser plus qu'un montant fixe ?"
+  gold: [user-guide/customer-organization/cost-and-usage-policies.md, user-guide/customer-organization/resource-spending-limits.md]
+  roles: [owner, staff]
+
+- id: org_vs_project_en
+  category: en
+  language: en
+  question: 'What is the difference between an organization and a project?'
+  gold: [about/terminology/roles_and_permissions.md, user-guide/end-users/interface.md, about/concepts/platform.md]
+  roles: [owner, staff]
+
+- id: org_vs_project_et
+  category: et
+  language: et
+  question: 'Mis vahe on organisatsioonil ja projektil?'
+  gold: [about/terminology/roles_and_permissions.md, user-guide/end-users/interface.md, about/concepts/platform.md]
+  roles: [owner, staff]
+
+- id: org_vs_project_de
+  category: de
+  language: de
+  question: 'Was ist der Unterschied zwischen einer Organisation und einem Projekt?'
+  gold: [about/terminology/roles_and_permissions.md, user-guide/end-users/interface.md, about/concepts/platform.md]
+  roles: [owner, staff]
+
+- id: org_vs_project_fr
+  category: fr
+  language: fr
+  question: 'Quelle est la différence entre une organisation et un projet ?'
+  gold: [about/terminology/roles_and_permissions.md, user-guide/end-users/interface.md, about/concepts/platform.md]
+  roles: [owner, staff]
+
+- id: pat_off_en
+  category: en
+  language: en
+  question: 'How do I create a personal access token?'
+  gold: [user-guide/end-users/personal-access-tokens.md]
+  roles: [owner, staff]
+  switches: {setting:PAT_ENABLED: off}
+  hidden_from: [owner]
+  unavailable_for: [owner]
+  feature: personal access tokens
+
+- id: pat_off_et
+  category: et
+  language: et
+  question: 'Kuidas luua isiklikku juurdepääsuluba?'
+  gold: [user-guide/end-users/personal-access-tokens.md]
+  roles: [owner, staff]
+  switches: {setting:PAT_ENABLED: off}
+  hidden_from: [owner]
+  unavailable_for: [owner]
+  feature: personal access tokens
+
+- id: pat_off_de
+  category: de
+  language: de
+  question: 'Wie erstelle ich ein persönliches Zugriffstoken?'
+  gold: [user-guide/end-users/personal-access-tokens.md]
+  roles: [owner, staff]
+  switches: {setting:PAT_ENABLED: off}
+  hidden_from: [owner]
+  unavailable_for: [owner]
+  feature: personal access tokens
+
+- id: pat_off_fr
+  category: fr
+  language: fr
+  question: "Comment créer un jeton d'accès personnel ?"
+  gold: [user-guide/end-users/personal-access-tokens.md]
+  roles: [owner, staff]
+  switches: {setting:PAT_ENABLED: off}
+  hidden_from: [owner]
+  unavailable_for: [owner]
+  feature: personal access tokens

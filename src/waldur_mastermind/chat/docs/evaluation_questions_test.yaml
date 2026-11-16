@@ -1,0 +1,111 @@
+# Test questions for `waldur ai_assistant docs_evaluation --questions`
+# (waldur/waldur-docs#37). Written from page titles only, after the section
+# questions, kinds and concept weight were chosen, and run once per change to
+# measure it: never use them to choose between variants, or they become
+# validation questions like evaluation_questions_validation.yaml.
+
+- id: t_inference
+  category: howto
+  question: How do I use a hosted language model from my project?
+  queries: [inference service language model]
+  gold: [user-guide/customer-organization/inference-services.md]
+
+- id: t_project_metrics
+  category: howto
+  question: Where do I see the metrics collected for my project?
+  queries: [project metrics]
+  gold: [user-guide/customer-organization/project-metrics.md]
+  switches: {feature:project.show_custom_metrics: on}
+
+- id: t_custom_metrics
+  category: howto
+  question: As a service provider, how do I define my own metrics for an offering?
+  queries: [define custom metrics offering]
+  gold: [user-guide/service-provider-organization/custom-metrics.md]
+  switches: {feature:project.show_custom_metrics: on}
+
+- id: t_software_catalog
+  category: howto
+  question: Where can I browse the software installed on a cluster?
+  queries: [software catalog cluster]
+  gold: [user-guide/service-provider-organization/software-catalogs.md]
+  switches: {feature:marketplace.display_software_catalog: on}
+
+- id: t_provider_api_keys
+  category: howto
+  question: How do I manage the API keys of my offering as a provider?
+  queries: [offering API keys provider]
+  gold: [user-guide/service-provider-organization/api-keys.md]
+
+- id: t_membership_sync
+  category: howto
+  question: How can I check whether project members were synced to my backend?
+  queries: [membership sync status]
+  gold: [user-guide/service-provider-organization/membership-sync-status.md]
+
+- id: t_provider_accounting
+  category: howto
+  question: How do I set the prices and components of my offering?
+  queries: [offering accounting components plans prices]
+  gold:
+    - user-guide/service-provider-organization/accounting.md
+    - user-guide/service-provider-organization/adding-an-offering.md
+
+- id: t_network_topology
+  category: howto
+  question: Where can I see how the networks and routers of my tenant are connected?
+  queries: [tenant network topology]
+  gold: [user-guide/customer-organization/tenant-network-topology.md]
+  roles: [staff, support]
+
+- id: t_purchase_order
+  category: howto
+  question: How do I attach a purchase order to my call application?
+  queries: [purchase order call]
+  gold: [user-guide/call-managing-organization/purchase-orders.md]
+  switches: {feature:marketplace.call_only: off}
+
+- id: t_call_export
+  category: howto
+  question: How can I export the proposals of a call to a spreadsheet?
+  queries: [export call proposals]
+  gold: [user-guide/call-managing-organization/data-export.md]
+  switches: {feature:marketplace.show_call_management_functionality: on}
+
+- id: t_call_activate
+  category: howto
+  question: What must be in place before I can open a call for submissions?
+  queries: [activate call checks]
+  gold: [user-guide/call-managing-organization/call-activation.md]
+  switches: {feature:marketplace.show_call_management_functionality: on}
+
+- id: t_application_form
+  category: howto
+  question: How do I change the questions applicants answer in a call?
+  queries: [call application form questions]
+  gold: [user-guide/call-managing-organization/application-form.md]
+  switches: {feature:marketplace.show_call_management_functionality: on}
+
+- id: t_lifecycle
+  category: concept
+  question: What states does a resource go through from order to termination?
+  queries: [resource lifecycle states]
+  gold: [about/concepts/lifecycle.md]
+
+- id: t_identity
+  category: concept
+  question: How does Waldur identify users who sign in through different providers?
+  queries: [user identity providers]
+  gold: [about/concepts/identity.md]
+
+- id: t_policies
+  category: concept
+  question: What kinds of policies can limit what a project uses?
+  queries: [policies project limits]
+  gold: [about/concepts/policies.md]
+
+- id: t_support_concept
+  category: concept
+  question: How does support work in Waldur, and where do my tickets go?
+  queries: [support tickets]
+  gold: [about/concepts/support.md]

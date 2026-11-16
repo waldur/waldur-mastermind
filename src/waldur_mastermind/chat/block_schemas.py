@@ -22,6 +22,8 @@ BLOCK_KINDS = (
     "homeport_nav",
     "ask_user_form",
     "tool",
+    "reasoning",
+    "narration",
 )
 
 
@@ -154,6 +156,14 @@ class _ToolBlockSerializer(_BaseBlockSerializer):
         return inner.validated_data
 
 
+class _ReasoningBlockSerializer(_BaseBlockSerializer):
+    """The model's thinking during one model call. Shown to the user only,
+    never sent back to the model or included in the answer text."""
+
+    content = serializers.CharField(allow_blank=True)
+    duration_ms = serializers.IntegerField(min_value=0)
+
+
 _KIND_TO_SERIALIZER = {
     "markdown": _TextBlockSerializer,
     "code": _TextBlockSerializer,
@@ -165,6 +175,9 @@ _KIND_TO_SERIALIZER = {
     "homeport_nav": _HomeportNavBlockSerializer,
     "ask_user_form": _AskUserFormBlockSerializer,
     "tool": _ToolBlockSerializer,
+    "reasoning": _ReasoningBlockSerializer,
+    # What the model said it is about to do before a tool call.
+    "narration": _TextBlockSerializer,
 }
 
 
@@ -189,30 +202,37 @@ class BlockSerializer(serializers.Serializer):
         return instance
 
 
-_TEXT_BLOCK_KINDS = ("markdown", "code", "mermaid")
+_TEXT_BLOCK_KINDS = ("markdown", "code", "mermaid", "narration")
 
 
 def blocks_to_text(blocks: list[dict] | None) -> str:
-    """Concatenate text from text-bearing blocks (markdown/code/mermaid).
+    """Concatenate text from text-bearing blocks (markdown/code/mermaid and
+    narration).
 
     Code and mermaid blocks are rendered as fenced blocks, matching the way
     ``context_assembler._block_to_text`` feeds them to the LLM. Used by
     anything that needs the assistant's plain-text answer (e.g. the
     validation management command and tests).
     """
-    parts: list[str] = []
+    text = ""
+    prev_key = None
     for b in blocks or []:
         key = b.get("key")
         if key not in _TEXT_BLOCK_KINDS:
             continue
         content = b.get("content", "")
         if key == "code":
-            parts.append(f"```{b.get('tag', '')}\n{content}\n```")
+            part = f"```{b.get('tag', '')}\n{content}\n```"
         elif key == "mermaid":
-            parts.append(f"```mermaid\n{content}\n```")
+            part = f"```mermaid\n{content}\n```"
         else:
-            parts.append(content)
-    return "".join(parts)
+            part = content
+        # Narration is a sentence of its own, stored without surrounding space.
+        if text and "narration" in (key, prev_key):
+            text += "\n\n"
+        text += part
+        prev_key = key
+    return text
 
 
 # Some models emit a tool call as literal text (the older XML-ish syntax)
@@ -245,7 +265,7 @@ def clean_answer_blocks(blocks: list[dict] | None) -> list[dict]:
     """
     cleaned: list[dict] = []
     for b in blocks or []:
-        if b.get("key") == "markdown":
+        if b.get("key") in ("markdown", "narration"):
             content = strip_tool_call_artifacts(b.get("content", ""))
             if not content.strip():
                 continue

@@ -38,7 +38,7 @@ urlpatterns = [
     # RFC 8414 puts the metadata at the issuer's root, which is the API host.
     path(
         ".well-known/oauth-authorization-server",
-        public_oauth_endpoint(oauth2_views.OAuthServerMetadataView.as_view()),
+        public_oauth_endpoint(views.OAuthServerMetadataView.as_view()),
         name="oauth-server-metadata",
     ),
     path("oauth/", include((oauth_urlpatterns, "oauth2_provider"))),

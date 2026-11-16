@@ -13,7 +13,11 @@ from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.configuration import config
 from waldur_mastermind.chat import models, providers
-from waldur_mastermind.chat.block_schemas import blocks_to_text, clean_answer_blocks
+from waldur_mastermind.chat.block_schemas import (
+    blocks_to_text,
+    clean_answer_blocks,
+    strip_tool_call_artifacts,
+)
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser
 from waldur_mastermind.chat.prompts.rejection import TITLE_GENERATION_PROMPT
@@ -88,6 +92,10 @@ _CANCEL_CHECK_INTERVAL = 5
 # On cap hit the loop forces one final text-only call so the user always
 # gets a narrated response.
 _MAX_TOOL_ROUNDS = 5
+_CAP_HIT_NOTE = (
+    "[No more tool calls are possible in this turn. Answer my question now "
+    "from the tool results above. If they do not answer it, say so plainly.]"
+)
 
 # Fields of the tool-emitted cards persisted into Message.blocks
 # (see block_schemas for their validation).
@@ -116,6 +124,109 @@ _CHART_BLOCK_FIELDS = (
     "link",
     "empty_message",
 )
+
+# Reasoning fragments are sent as one frame per interval or size, whichever
+# comes first.
+_REASONING_FLUSH_SECONDS = 0.1
+_REASONING_FLUSH_CHARS = 80
+
+# Longest reasoning text stored per reply, over all its model calls. The live
+# stream is not cut.
+_REASONING_MAX_STORED_CHARS = 20_000
+
+# When reasoning isn't streamed, the client gets a keepalive this often while
+# the model thinks, so proxies don't close the idle connection.
+_THINKING_KEEPALIVE_SECONDS = 15
+
+# A model call's text is held back until it is this long. A tool call before
+# then means the text was narration ("Let me check your projects…"), which the
+# client shows as a status rather than as the start of the answer.
+_NARRATION_MAX_CHARS = 300
+
+# Upper bound on one request, as a multiple of the stream timeout: 10 minutes at
+# the default. A model stuck in a reasoning loop keeps streaming, so the idle
+# timeout alone would never end it.
+_MAX_REQUEST_TIMEOUTS = 5
+
+# Rough size of a token, for estimating the usage of a call stopped early.
+_CHARS_PER_TOKEN = 4
+
+
+def _delta_reasoning(delta) -> str:
+    """Return the reasoning text on a streamed delta, or "" if there is none.
+
+    The OpenAI SDK doesn't declare these fields but keeps them as extras.
+    vLLM, Ollama and OpenRouter send ``reasoning``; DeepSeek, llama.cpp and
+    older vLLM send ``reasoning_content``.
+    """
+    for field in ("reasoning", "reasoning_content"):
+        value = getattr(delta, field, None)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+_THINK_OPEN = "<think>"
+_THINK_CLOSE = "</think>"
+
+
+def _partial_tag_length(text: str, tag: str) -> int:
+    """How much of the end of text could be the start of tag."""
+    for length in range(min(len(tag) - 1, len(text)), 0, -1):
+        if text.endswith(tag[:length]):
+            return length
+    return 0
+
+
+class _ThinkTagFilter:
+    """Split streamed text into the answer and the <think>…</think> reasoning
+    a server without a reasoning parser leaves in it. A tag can arrive split
+    across chunks, so text that could be the start of one is held back."""
+
+    def __init__(self):
+        self.thinking = False
+        self._pending = ""
+
+    def feed(self, text: str) -> tuple[str, str]:
+        """Return the (answer, reasoning) parts of a fragment."""
+        text = self._pending + text
+        self._pending = ""
+        answer, reasoning = [], []
+        while text:
+            tag = _THINK_CLOSE if self.thinking else _THINK_OPEN
+            part = reasoning if self.thinking else answer
+            index = text.find(tag)
+            if index >= 0:
+                part.append(text[:index])
+                text = text[index + len(tag) :]
+                self.thinking = not self.thinking
+                continue
+            held = _partial_tag_length(text, tag)
+            part.append(text[: len(text) - held])
+            self._pending = text[len(text) - held :]
+            break
+        return "".join(answer), "".join(reasoning)
+
+    def flush(self) -> str:
+        """End of the call: answer text held back as a possible tag."""
+        text, self._pending = self._pending, ""
+        thinking, self.thinking = self.thinking, False
+        return "" if thinking else text
+
+
+def _is_finishing(chunk) -> bool:
+    """Whether a chunk closes a call that is complete, whatever the time."""
+    return bool(chunk.usage or (chunk.choices and chunk.choices[0].finish_reason))
+
+
+def _delta_chars(delta, reasoning: str) -> int:
+    """Generated text in a delta, for estimating the usage of a stopped call."""
+    arguments = sum(
+        len(call.function.arguments or "")
+        for call in delta.tool_calls or []
+        if call.function
+    )
+    return len(reasoning) + len(delta.content or "") + arguments
 
 
 def _cache_read_tokens(usage) -> int | None:
@@ -151,6 +262,10 @@ def _add_reported(total: int | None, value: int | None) -> int | None:
 
 class _StreamDone:
     """Sentinel placed on queue to signal the worker has finished."""
+
+
+class _DeadlineExceeded(Exception):
+    """Raised in the worker when a request runs past _MAX_REQUEST_TIMEOUTS."""
 
 
 class _StreamError:
@@ -285,6 +400,23 @@ class LLMStreamer:
         # so admin Constance / "auto" continues to govern.
         self._tool_choice_override = tool_choice_override
 
+        # Anonymous visitors never get reasoning: hiding it in the UI would
+        # still leave it readable in the browser's network tab.
+        self._show_reasoning = user is not None and bool(
+            config.AI_ASSISTANT_SHOW_REASONING
+        )
+        self._reasoning_buffer = ""
+        self._reasoning_stored_chars = 0
+        # A server without a reasoning parser streams the thinking inside the
+        # answer as <think>…</think>; anonymous visitors must not get it.
+        self._think_filter: _ThinkTagFilter | None = None
+        self._held_text = ""
+        self._holding_text = False
+        self._tools_sent = False
+        self._sent_tools: list[dict] = []
+        self._reasoning_started_at: float | None = None
+        self._reasoning_flushed_at = 0.0
+
         # Thread-based streaming infrastructure
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._client_gone = threading.Event()
@@ -293,6 +425,10 @@ class LLMStreamer:
         self._chunk_count = 0
         self._persisted = False
         self._flushed = False
+        # Written by the worker, read by the consumer's timeout check.
+        self._last_llm_activity = time.monotonic()
+        self._deadline = time.monotonic() + self._worker_timeout * _MAX_REQUEST_TIMEOUTS
+        self._last_sent = time.monotonic()
 
         # Per-turn event log. Each step in the agentic loop appends a line;
         # the whole report is flushed as a single logger.info at workflow
@@ -471,6 +607,8 @@ class LLMStreamer:
             # required/named tool_choice without a tools array).
             kwargs.pop("tool_choice", None)
 
+        self._tools_sent = "tools" in kwargs
+        self._sent_tools = kwargs.get("tools") or []
         return self.client.chat.completions.create(**kwargs)
 
     @property
@@ -487,6 +625,7 @@ class LLMStreamer:
         while not self._client_gone.is_set():
             try:
                 self._queue.put(item, timeout=0.5)
+                self._last_sent = time.monotonic()
                 return
             except queue.Full:
                 continue
@@ -583,7 +722,7 @@ class LLMStreamer:
             self._finalize_current_block()
             return
 
-        if kind in ("markdown", "code", "mermaid"):
+        if kind in ("markdown", "code", "mermaid", "narration"):
             if (
                 self._current_block is not None
                 and self._current_block.get("key") == kind
@@ -595,6 +734,24 @@ class LLMStreamer:
                 self._current_block = self._chunk_to_block(
                     chunk, blk_id=self._next_block_id()
                 )
+            return
+
+        if kind == "reasoning":
+            if (
+                self._current_block is None
+                or self._current_block.get("key") != "reasoning"
+            ):
+                self._finalize_current_block()
+                self._current_block = {
+                    "id": self._next_block_id(),
+                    "key": "reasoning",
+                    "content": "",
+                }
+            stored = chunk.get("c", "")[
+                : _REASONING_MAX_STORED_CHARS - self._reasoning_stored_chars
+            ]
+            self._current_block["content"] += stored
+            self._reasoning_stored_chars += len(stored)
             return
 
         if kind in (
@@ -659,7 +816,7 @@ class LLMStreamer:
         """Normalize a wire chunk dict into a persisted block dict."""
         kind = chunk.get("k", "markdown")
         base: dict = {"id": blk_id, "key": kind, "status": "complete"}
-        if kind in ("markdown", "code", "mermaid"):
+        if kind in ("markdown", "code", "mermaid", "narration"):
             base["content"] = chunk.get("c", "")
             if "t" in chunk and kind == "code":
                 base["tag"] = chunk["t"]
@@ -685,6 +842,9 @@ class LLMStreamer:
             ):
                 if field in chunk:
                     base[field] = chunk[field]
+            # Frames carry the card state as `status`, which is the block lifecycle here.
+            if "status" in chunk:
+                base["order_status"] = chunk["status"]
         elif kind == "hpc_job":
             # The card's own status would clash with the block lifecycle.
             for field in _HPC_JOB_BLOCK_FIELDS:
@@ -725,6 +885,8 @@ class LLMStreamer:
         if self._flushed:
             return
         self._flushed = True
+        self._end_reasoning()
+        self._release_held_text()
         for block in self.parser.flush():
             self._absorb_block(block)
             self._enqueue(self._format_ndjson(block))
@@ -797,7 +959,10 @@ class LLMStreamer:
                 try:
                     item = self._queue.get(timeout=1.0)
                 except queue.Empty:
-                    if time.monotonic() - start > self._worker_timeout:
+                    # A thinking model can stream for minutes without
+                    # producing a frame for the client.
+                    idle_since = max(start, self._last_llm_activity)
+                    if time.monotonic() - idle_since > self._worker_timeout:
                         logger.error(
                             "LLM worker thread exceeded %ds timeout",
                             self._worker_timeout,
@@ -838,6 +1003,18 @@ class LLMStreamer:
 
         try:
             self._run_llm_workflow()
+        except _DeadlineExceeded:
+            logger.error(
+                "LLM request exceeded %ds; stream closed",
+                self._worker_timeout * _MAX_REQUEST_TIMEOUTS,
+            )
+            self.error = "Request exceeded the time limit."
+            self._flush_before_error()
+            self._enqueue(
+                _StreamError(
+                    [self._format_ndjson({"e": "Request timed out. Please try again."})]
+                )
+            )
         except openai.APIError as e:
             user_msg = _llm_error_messages().get(
                 type(e),
@@ -845,6 +1022,7 @@ class LLMStreamer:
             )
             logger.error("Upstream LLM request failed.", exc_info=True)
             self.error = str(e)
+            self._flush_before_error()
             self._enqueue(_StreamError([self._format_ndjson({"e": user_msg})]))
         except Exception as e:
             logger.critical(
@@ -852,6 +1030,7 @@ class LLMStreamer:
                 exc_info=True,
             )
             self.error = str(e)
+            self._flush_before_error()
             self._enqueue(
                 _StreamError(
                     [
@@ -891,6 +1070,14 @@ class LLMStreamer:
             # to avoid destroying the caller's connection.
             if threading.current_thread() is not threading.main_thread():
                 connections.close_all()
+
+    def _flush_before_error(self):
+        """Send held-back text before the error frame. A failure here must
+        not stop the error from being sent and saved."""
+        try:
+            self._flush_parser()
+        except Exception:
+            logger.exception("Could not flush the stream before the error.")
 
     def _run_llm_workflow(self):
         """Execute the agentic tool-use loop (runs in worker thread).
@@ -978,7 +1165,15 @@ class LLMStreamer:
                 f"exit: CAP HIT at {_MAX_TOOL_ROUNDS} rounds — forced text-only call"
             )
             self._flushed = False
-            self._stream_and_collect(messages, include_tools=False)
+            # Without tools in the request a model that was mid-search still
+            # writes its next call, as text, which clean_answer_blocks then
+            # strips to an empty answer. Say the search is over. A user
+            # message, not a system one: chat templates such as Qwen's accept
+            # a system message only first.
+            self._stream_and_collect(
+                [*messages, {"role": "user", "content": _CAP_HIT_NOTE}],
+                include_tools=False,
+            )
 
     def _absorb_search_tools_results(self, tool_calls):
         """Grow ``_enabled_tool_names`` from any search_tools calls this round.
@@ -1055,10 +1250,17 @@ class LLMStreamer:
 
     def _stream_and_collect(self, messages, include_tools=True, round_num: int = 0):
         """Stream one LLM completion, accumulating content and tool calls."""
+        self._held_text = ""
+        self._think_filter = _ThinkTagFilter() if self.user is None else None
         with self._stream_completion(
             messages, include_tools=include_tools, round_num=round_num
         ) as stream:
+            # Only a call that was offered tools can turn out to be narration.
+            # Without the thinking UI, text streams as it comes.
+            self._holding_text = self._tools_sent and self._show_reasoning
+            received_chars = 0
             for chunk in stream:
+                self._last_llm_activity = time.monotonic()
                 if chunk.usage:
                     prompt_tokens = chunk.usage.prompt_tokens or 0
                     completion_tokens = chunk.usage.completion_tokens or 0
@@ -1081,26 +1283,146 @@ class LLMStreamer:
                         completion_tokens,
                     )
 
+                if self._last_llm_activity > self._deadline and not _is_finishing(
+                    chunk
+                ):
+                    self._estimate_usage(messages, received_chars)
+                    # Leaving the block closes the stream, which also stops
+                    # the generation upstream.
+                    if self._cancel_requested.is_set():
+                        # Stopped and already saved; only the usage was awaited.
+                        break
+                    raise _DeadlineExceeded()
+
                 if not chunk.choices:
                     continue
+
+                delta = chunk.choices[0].delta
+                reasoning = _delta_reasoning(delta)
+                received_chars += _delta_chars(delta, reasoning)
 
                 if self._check_cancelled():
                     if not self._persisted:
                         self._persist_on_cancel()
                     continue
 
-                delta = chunk.choices[0].delta
+                content = delta.content
+                if content and self._think_filter:
+                    content, thought = self._think_filter.feed(content)
+                    reasoning += thought
 
-                if delta.content:
-                    for block in self.parser.parse(delta.content):
-                        self._absorb_block(block)
-                        self._enqueue(self._format_ndjson(block))
+                if reasoning:
+                    self._add_reasoning(reasoning)
+
+                # No marker ends the thinking; the answer starting does.
+                if content or delta.tool_calls:
+                    self._end_reasoning()
+
+                if content:
+                    if self._holding_text:
+                        self._held_text += content
+                        # A code fence means content to show, not narration.
+                        if (
+                            len(self._held_text) >= _NARRATION_MAX_CHARS
+                            or "```" in self._held_text
+                        ):
+                            self._release_held_text()
+                    else:
+                        self._send_text(content)
 
                 if delta.tool_calls:
+                    self._send_narration()
                     for tc in delta.tool_calls:
                         self._accumulate_tool_call_delta(tc)
 
+        if self._think_filter and (rest := self._think_filter.flush()):
+            self._send_text(rest)
         self._flush_parser()
+
+    def _estimate_usage(self, messages, received_chars: int) -> None:
+        """Count a call that is stopped early against the quotas. Its usage
+        chunk comes last, so the stream never delivers it."""
+        # The tool definitions are part of the prompt too.
+        request = {"messages": messages, "tools": self._sent_tools}
+        prompt = len(json.dumps(request, cls=DjangoJSONEncoder)) // _CHARS_PER_TOKEN
+        completion = received_chars // _CHARS_PER_TOKEN
+        self.input_tokens = (self.input_tokens or 0) + prompt
+        self.output_tokens = (self.output_tokens or 0) + completion
+        logger.warning(
+            "Estimated usage of a stopped LLM call: prompt=%d completion=%d",
+            prompt,
+            completion,
+        )
+
+    def _send_text(self, text: str) -> None:
+        for block in self.parser.parse(text):
+            self._absorb_block(block)
+            self._enqueue(self._format_ndjson(block))
+
+    def _release_held_text(self) -> None:
+        """The held text is the start of the answer: stream it as usual."""
+        text, self._held_text = self._held_text, ""
+        self._holding_text = False
+        if text:
+            self._send_text(text)
+
+    def _send_narration(self) -> None:
+        """A tool call came while text was held, so that text was narration."""
+        text = strip_tool_call_artifacts(self._held_text)
+        self._held_text = ""
+        self._holding_text = False
+        if text:
+            frame = {"k": "narration", "c": text}
+            self._absorb_block(frame)
+            self._enqueue(self._format_ndjson(frame))
+
+    def _add_reasoning(self, text: str) -> None:
+        """Stream a reasoning fragment, or keep the connection alive when
+        reasoning isn't shown to this user."""
+        now = time.monotonic()
+        if self._reasoning_started_at is None:
+            self._reasoning_started_at = now
+            self._reasoning_flushed_at = now
+
+        if not self._show_reasoning:
+            if now - self._last_sent >= _THINKING_KEEPALIVE_SECONDS:
+                # Not {"k":"load"}: _absorb_block would turn it into a tool
+                # placeholder.
+                self._enqueue(self._format_ndjson({"m": {"status": "thinking"}}))
+            return
+
+        self._reasoning_buffer += text
+        if (
+            len(self._reasoning_buffer) >= _REASONING_FLUSH_CHARS
+            or now - self._reasoning_flushed_at >= _REASONING_FLUSH_SECONDS
+        ):
+            self._flush_reasoning()
+
+    def _flush_reasoning(self) -> None:
+        if not self._reasoning_buffer:
+            return
+        frame = {"k": "reasoning", "c": self._reasoning_buffer}
+        self._reasoning_buffer = ""
+        self._reasoning_flushed_at = time.monotonic()
+        self._absorb_block(frame)
+        self._enqueue(self._format_ndjson(frame))
+
+    def _end_reasoning(self) -> None:
+        """Close the thinking phase of the current model call, if any, and
+        record how long it took on its block."""
+        if self._reasoning_started_at is None:
+            return
+        self._flush_reasoning()
+        duration_ms = int((time.monotonic() - self._reasoning_started_at) * 1000)
+        self._reasoning_started_at = None
+        if self._current_block and self._current_block.get("key") == "reasoning":
+            self._current_block["duration_ms"] = duration_ms
+            self._finalize_current_block()
+            # Tells the client thinking is over even when a tool call, not
+            # answer text, comes next.
+            self._enqueue(
+                self._format_ndjson({"k": "reasoning", "c": "", "d": duration_ms})
+            )
 
     def _execute_tool_calls_worker(self, tool_calls: dict[int, dict]):
         """Execute all streamed tool calls and enqueue UI component results."""
@@ -1119,6 +1441,10 @@ class LLMStreamer:
             for entry in tool_calls.values()
             if entry.get("id")
         }
+        # A client drops a tool's loading block when the next frame arrives.
+        # A tool without a result frame is followed by the next tool's load,
+        # so announce once until a result goes out, or a loading block is left.
+        load_sent = False
 
         for entry in tool_calls.values():
             tool_name = entry["name"]
@@ -1171,9 +1497,8 @@ class LLMStreamer:
                     self.pending_tool_calls[call_id]["summary"] = guard_msg
                 continue
 
-            # Create the loading tool block in the ACCUMULATOR only — the
-            # wire is NOT notified (no skeleton flicker on the frontend).
-            # The accumulator uses this loading block as the target into
+            # The client shows a status until the next frame. The accumulator
+            # uses this loading block as the target into
             # which the subsequent result chunk is wrapped, producing the
             # complete tool block that gets persisted to Message.blocks.
             # Without this, tools whose results return no ui_component
@@ -1181,6 +1506,9 @@ class LLMStreamer:
             # rehydration can't see what tools were used in prior turns.
             load_chunk = {"k": "load", "t": "tool", "call_id": call_id}
             self._absorb_block(load_chunk)
+            if not load_sent:
+                self._enqueue(self._format_ndjson({"k": "load", "t": "tool"}))
+                load_sent = True
 
             logger.debug(
                 "Executing tool call",
@@ -1220,6 +1548,7 @@ class LLMStreamer:
             if tool_block:
                 self._absorb_block({**tool_block, "call_id": call_id})
                 self._enqueue(self._format_ndjson(tool_block))
+                load_sent = False
             else:
                 # Tools without ui_component (search_tools, list_categories,
                 # etc.) still need their tool block finalised so the name/
@@ -1304,11 +1633,16 @@ class LLMStreamer:
         # Finalize any block still streaming.
         self._finalize_current_block()
 
-        if self.error and not self.accumulated_blocks:
+        blocks = clean_answer_blocks(self.accumulated_blocks)
+        # Reasoning and narration aren't an answer, so an error after only those
+        # still revives the replaced message. A tool call stays on record.
+        if self.error and all(
+            block.get("key") in ("reasoning", "narration") for block in blocks
+        ):
             self.assistant_msg.delete()
             return None
 
-        self.assistant_msg.blocks = clean_answer_blocks(self.accumulated_blocks)
+        self.assistant_msg.blocks = blocks
         self.assistant_msg.warning = self.accumulated_warning
         self.assistant_msg.input_tokens = self.input_tokens
         self.assistant_msg.output_tokens = self.output_tokens
@@ -1459,6 +1793,10 @@ class LLMStreamer:
 
             with self._stream_completion(title_messages, include_tools=False) as stream:
                 for chunk in stream:
+                    self._last_llm_activity = time.monotonic()
+                    # The title is optional, so the limit only cuts it short.
+                    if self._last_llm_activity > self._deadline:
+                        break
                     if chunk.usage:
                         title_input += chunk.usage.prompt_tokens or 0
                         title_output += chunk.usage.completion_tokens or 0

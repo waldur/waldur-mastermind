@@ -32,7 +32,6 @@ from waldur_core.media import models as media_models
 from waldur_core.media.validators import DocumentValidator, ImageValidator
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
-from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -126,10 +125,8 @@ from . import (
     workflow_service,
 )
 from . import status_labels as step_status_labels
+from .applicant_visibility import ApplicantVisibility
 from .managers import (
-    get_connected_calls,
-    get_offering_manager_proposals,
-    get_reviewed_proposals,
     round_open_q,
     round_overlaps,
 )
@@ -179,104 +176,6 @@ APPLICANT_FIELD_MAP: dict[str, list[str]] = {
     "birth_date": ["applicant_birth_date"],
     "active_isds": ["applicant_active_isds"],
 }
-
-
-class ApplicantVisibility:
-    """Whether one viewer sees proposals solely as an evaluator, and which
-    applicant attributes the call's visibility config then conceals.
-
-    Full-data viewers are staff, support, anyone holding a role on the
-    proposal itself (the applicant team), and whoever
-    manages the call -- a call manager, or an organiser through the managing
-    organisation. Among the rest, evaluators are call reviewers, panel members,
-    anyone holding a live review of the proposal (an accepted assignment
-    grants no role), the holders of an evaluator role on it, such as its
-    rapporteurs, and the providers: the managers of an offering the proposal
-    requested or was awarded, who assess it and later serve the award. They
-    see only what the call exposes. Anyone else is not an evaluator and sees
-    whatever their access otherwise gives them.
-
-    Lookups are per viewer, per call or per proposal set and are memoised, so
-    one instance can resolve a whole listing without a query per row.
-    """
-
-    def __init__(self, user):
-        self.user = user
-        self._evaluator_call_ids = None
-        self._reviewed_proposal_ids = None
-        self._held_proposal_ids = None
-        self._provided_proposal_ids = None
-        self._proposal_role_ids = None
-        self._call_managed = {}
-        self._concealed_by_call = {}
-
-    def _evaluates(self, proposal) -> bool:
-        if self._evaluator_call_ids is None:
-            self._evaluator_call_ids = set(
-                get_connected_calls(
-                    self.user, [CallRole.REVIEWER, CallRole.PANEL_MEMBER]
-                )
-            )
-        if proposal.round.call_id in self._evaluator_call_ids:
-            return True
-        if self._reviewed_proposal_ids is None:
-            self._reviewed_proposal_ids = set(get_reviewed_proposals(self.user))
-        if proposal.id in self._reviewed_proposal_ids:
-            return True
-        if self._held_proposal_ids is None:
-            self._held_proposal_ids = set(proposal_roles.proposals_held_by(self.user))
-        if proposal.id in self._held_proposal_ids:
-            return True
-        if self._provided_proposal_ids is None:
-            self._provided_proposal_ids = set(get_offering_manager_proposals(self.user))
-        return proposal.id in self._provided_proposal_ids
-
-    def _on_applicant_team(self, proposal) -> bool:
-        # The current team, as ``proposal_roles.is_on_applicant_team`` reads
-        # it: an author removed from the team is no longer the applicant.
-        if self._proposal_role_ids is None:
-            self._proposal_role_ids = set(
-                proposal_roles.applicant_team_proposal_ids(self.user)
-            )
-        return proposal.id in self._proposal_role_ids
-
-    def _manages_call(self, call) -> bool:
-        if call.id not in self._call_managed:
-            self._call_managed[call.id] = call.id in get_connected_calls(
-                self.user, CallRole.MANAGER
-            ) or permissions_utils.has_permission_on_any_source(
-                self.user,
-                permissions_enums.PermissionEnum.UPDATE_CALL,
-                call,
-                proposal_permissions.CALL_PERMISSION_SOURCES,
-            )
-        return self._call_managed[call.id]
-
-    def is_reviewer_only(self, proposal) -> bool:
-        user = self.user
-        if not user or user.is_anonymous:
-            return False
-        if user.is_staff or user.is_support:
-            return False
-        if not self._evaluates(proposal):
-            return False
-        if self._on_applicant_team(proposal):
-            return False
-        return not self._manages_call(proposal.round.call)
-
-    def concealed_attributes(self, proposal) -> set[str] | None:
-        """None for a viewer who is not solely an evaluator of ``proposal``;
-        otherwise the attributes its call's config conceals."""
-        if not self.is_reviewer_only(proposal):
-            return None
-        call_id = proposal.round.call_id
-        if call_id not in self._concealed_by_call:
-            config_model = models.CallApplicantVisibilityConfig
-            exposed = set(config_model.get_exposed_fields_for_call(proposal.round.call))
-            self._concealed_by_call[call_id] = (
-                set(config_model.get_attribute_names()) - exposed
-            )
-        return set(self._concealed_by_call[call_id])
 
 
 class ReviewerVisibility:
@@ -1256,7 +1155,9 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
     def get_reviews(self, obj) -> list:
         """
         Return serialized reviews based on user permissions and visibility settings.
-        - Staff, call managers, and reviewers see all reviews.
+        - Staff and call managers see all reviews.
+        - Reviewers see their own reviews only, as on /api/proposal-reviews/
+          (filter_reviews_for_user): reviewers judge independently.
         - Submitters see submitted reviews if visibility is enabled.
         """
         request = self.context.get("request")
@@ -1268,17 +1169,20 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
         reviews_qs = obj.review_set.all()
         on_team = proposal_roles.is_on_applicant_team(user, obj)
 
-        if (
-            user.is_staff
-            or (
-                not on_team
-                and proposal_permissions.manages_call_workflow(user, obj.round.call)
-            )
-            or (not on_team and reviews_qs.filter(reviewer=user).exists())
+        if user.is_staff or (
+            not on_team
+            and proposal_permissions.manages_call_workflow(user, obj.round.call)
         ):
             return ProposalReviewSerializer(
                 reviews_qs, many=True, context=self.context
             ).data
+
+        if not on_team:
+            own_reviews = reviews_qs.filter(reviewer=user)
+            if own_reviews.exists():
+                return ProposalReviewSerializer(
+                    own_reviews, many=True, context=self.context
+                ).data
 
         # The applicant team's view
         if (
@@ -5790,17 +5694,18 @@ class ProposalSerializer(
                 "completion_percentage": 0,
             }
 
+        progress = completion.get_progress()
         return {
             "has_checklist": True,
             "is_completed": completion.is_completed,
             "requires_review": completion.requires_review,
-            "completion_percentage": completion.get_completion_percentage(),
+            "completion_percentage": progress.percentage,
             "reviewed_by": completion.reviewed_by.full_name
             if completion.reviewed_by
             else None,
             "reviewed_at": completion.reviewed_at,
             "checklist_name": completion.checklist.name,
-            "unanswered_required_count": completion.get_unanswered_required_questions().count(),
+            "unanswered_required_count": len(progress.unanswered_required_question_ids),
         }
 
     @extend_schema_field(ProposalCanSubmitResponseSerializer)
@@ -7136,6 +7041,11 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
     def get_proposals(self, call):
         """Get proposal compliance status."""
         proposals_data = []
+        questions = (
+            list(call.compliance_checklist.get_visibility_questions())
+            if call.compliance_checklist
+            else None
+        )
 
         for proposal in models.Proposal.objects.filter(round__call=call):
             proposal_data = {
@@ -7155,16 +7065,19 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
             if hasattr(proposal, "checklist_completion"):
                 completion = proposal.checklist_completion
                 if completion:
+                    progress = completion.get_progress(questions=questions)
                     proposal_data["compliance"] = {
                         "is_completed": completion.is_completed,
                         "requires_review": completion.requires_review,
-                        "completion_percentage": completion.get_completion_percentage(),
+                        "completion_percentage": progress.percentage,
                         "reviewed_by": completion.reviewed_by.full_name
                         if completion.reviewed_by
                         else None,
                         "reviewed_at": completion.reviewed_at,
                         "review_triggers": completion.get_review_trigger_summary(),
-                        "unanswered_required_count": completion.get_unanswered_required_questions().count(),
+                        "unanswered_required_count": len(
+                            progress.unanswered_required_question_ids
+                        ),
                     }
 
             proposals_data.append(proposal_data)
@@ -12267,7 +12180,8 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
         help_text=(
             "For whoever may complete the active step: every contribution "
             "is in and its completion gates are met, so it waits only for "
-            "them. False for everyone else."
+            "them. The minimum score threshold counts only for those who "
+            "read score_gate. False for everyone else."
         )
     )
     decided_automatically = serializers.SerializerMethodField(
@@ -12281,7 +12195,8 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             "The active step's score against its minimum score threshold, "
             "before anyone decides: below it, only declining is possible. "
             "Null without a threshold, once the step is no longer active, "
-            "and for readers outside the call team."
+            "and for readers outside the call team, the step's own "
+            "evaluators included."
         )
     )
     stage = serializers.SerializerMethodField(
@@ -12855,11 +12770,13 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(StepScoreGateSerializer(allow_null=True))
     def get_score_gate(self, obj):
-        # The score sums up the evaluators' grading: the call team's side.
+        # The score sums up the evaluators' grading: the call team's side,
+        # not that of an evaluator taking part in the step, who would read
+        # their peers' scores off it.
         if (
             obj.status != WorkflowStepInstanceStatuses.ACTIVE
             or obj.call_step.min_score_threshold is None
-            or not self._context_flag("can_view_internal_notes", obj)
+            or not self._context_flag("can_view_step_scores", obj)
         ):
             return None
         gate = workflow_service.score_gate(obj)
@@ -12963,7 +12880,11 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             or not obj.call_step.collects_contributions
         ):
             return False
-        return workflow_service.is_ready_to_complete(request.user, obj)
+        return workflow_service.is_ready_to_complete(
+            request.user,
+            obj,
+            reads_score=self._context_flag("can_view_step_scores", obj),
+        )
 
     @extend_schema_field(serializers.ListField(child=serializers.UUIDField()))
     def get_input_step_uuids(self, obj):

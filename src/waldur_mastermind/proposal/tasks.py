@@ -1749,6 +1749,10 @@ def send_assignment_expiry_reminders():
             reminder_sent=False,
             # A batch past its deadline is for the expiry task, not a reminder.
             expires_at__gt=timezone.now(),
+            # A reviewer who has left the pool has nothing left to answer.
+            reviewer_pool_entry__invitation_status=(
+                ReviewerPoolInvitationStatuses.ACCEPTED
+            ),
         )
         .select_related(
             "call",

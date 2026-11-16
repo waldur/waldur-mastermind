@@ -1,4 +1,5 @@
 from waldur_firecrest import workspace
+from waldur_mastermind.chat.docs import corpus as docs_corpus
 from waldur_mastermind.chat.tools.enums import ToolName
 
 # Tools grouped by category — mirrors the subfolder layout under tools/.
@@ -69,6 +70,8 @@ _PROPOSALS_REVIEWER_STAFF_ONLY_TOOLS: list[ToolName] = [
     ToolName.CALL_INSIGHTS,
 ]
 
+_DOCS_TOOLS: list[ToolName] = [ToolName.SEARCH_DOCS]
+
 # Meta-tools — always available regardless of role. ``search_tools`` only
 # returns specs for tools the user is already permitted to use; ``ask_user``
 # is purely client-facing (collects user input) and grants no privileged
@@ -85,6 +88,7 @@ STAFF_TOOLS: list[ToolName] = [
     *_PROPOSALS_RESEARCHER_TOOLS,
     *_PROPOSALS_REVIEWER_TOOLS,
     *_PROPOSALS_REVIEWER_STAFF_ONLY_TOOLS,
+    *_DOCS_TOOLS,
     *_META_TOOLS,
 ]
 
@@ -96,6 +100,7 @@ SUPPORT_TOOLS: list[ToolName] = [
     *_MARKETPLACE_TOOLS,
     *_PROPOSALS_RESEARCHER_TOOLS,
     *_PROPOSALS_REVIEWER_TOOLS,
+    *_DOCS_TOOLS,
     *_META_TOOLS,
 ]
 
@@ -106,6 +111,7 @@ END_USER_TOOLS: list[ToolName] = [
     *_MARKETPLACE_TOOLS,
     *_PROPOSALS_RESEARCHER_TOOLS,
     *_PROPOSALS_REVIEWER_TOOLS,
+    *_DOCS_TOOLS,
     *_META_TOOLS,
 ]
 
@@ -135,7 +141,8 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     marketplace-discovery surface. Authenticated callers split by role:
     staff / support / end-user. The HPC tools are left out where staff
     have allowed no FirecREST or cluster monitor endpoint, since no
-    allocation can then be reached.
+    allocation can then be reached, and ``search_docs`` where the image
+    has no documentation corpus loaded.
 
     Always returns a non-empty list — never ``None`` — so callers can
     treat the result as "the authoritative permitted set" without
@@ -151,7 +158,11 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
         tools = END_USER_TOOLS
     # The HPC tools act as the user's own sign-in, and need an endpoint.
     if delegated or not workspace.is_configured():
-        return [tool for tool in tools if tool not in _OWN_SIGN_IN_TOOLS]
+        tools = [tool for tool in tools if tool not in _OWN_SIGN_IN_TOOLS]
+    # No documentation corpus is loaded, or staff turned the bundled
+    # documentation off (DOCS_SEARCH_ENABLED).
+    if not docs_corpus.search_enabled():
+        tools = [tool for tool in tools if tool not in _DOCS_TOOLS]
     return tools
 
 

@@ -6,6 +6,7 @@ from datetime import timedelta
 import httpx
 from celery import shared_task
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import File
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
@@ -14,6 +15,7 @@ from django_fsm import TransitionNotAllowed
 
 from waldur_core.configuration import config
 from waldur_core.permissions.models import UserRole
+from waldur_core.structure.models import Project
 
 from . import (
     bot_state,
@@ -24,6 +26,7 @@ from . import (
     matrix_client,
     models,
     project_facts,
+    scopes,
     tickets,
 )
 
@@ -161,17 +164,38 @@ def _power_level_in_room(user, room):
 
 @shared_task(name="waldur_mastermind.matrix_chat.create_room")
 def create_room(room_uuid):
-    """Create a Matrix room and sync project members."""
+    """Create a Matrix room and sync its members."""
     if not matrix_client.is_enabled():
         logger.info("Matrix integration is disabled, skipping room creation")
         return
 
-    try:
-        room = models.MatrixRoom.objects.get(uuid=room_uuid)
-    except models.MatrixRoom.DoesNotExist:
-        logger.error("MatrixRoom %s not found", room_uuid)
-        return
+    # Only one task creates a room at a time: the row stays locked until its
+    # homeserver room is created and the row says so. A second task for the
+    # same room -- queued again by ensure_room while this one waited behind a
+    # busy queue, say -- finds it locked and leaves it, or finds it no longer
+    # CREATING once the first is done. Creating it twice would leave a second
+    # homeserver room behind. A worker that dies releases the lock with its
+    # connection, so a lost creation can still be queued again.
+    with transaction.atomic():
+        room = (
+            models.MatrixRoom.objects.select_for_update(skip_locked=True)
+            .filter(uuid=room_uuid)
+            .first()
+        )
+        if room is None:
+            if models.MatrixRoom.objects.filter(uuid=room_uuid).exists():
+                logger.info(
+                    "Skipped creating Matrix room %s: another task is creating it",
+                    room_uuid,
+                )
+            else:
+                logger.error("MatrixRoom %s not found", room_uuid)
+            return
+        _create_locked_room(room)
 
+
+def _create_locked_room(room):
+    """create_room's work on a room row its transaction holds locked."""
     # Every dispatch moves the row to CREATING first, so any other state means
     # an earlier task already handled it; creating again would leave a second
     # homeserver room behind and flip the working one to ERROR.
@@ -196,26 +220,32 @@ def create_room(room_uuid):
         return
 
     try:
-        alias_localpart = None
-        if room.project:
-            # The whole UUID: a prefix collides on sequential UUIDs, and the
-            # alias must come out the same when a room is reprovisioned.
-            alias_localpart = f"{models.ROOM_ALIAS_PREFIX}{room.project.uuid.hex}"
+        with transaction.atomic():
+            alias_localpart = None
+            if room.project:
+                # The whole UUID: a prefix collides on sequential UUIDs, and the
+                # alias must come out the same when a room is reprovisioned.
+                alias_localpart = f"{models.ROOM_ALIAS_PREFIX}{room.project.uuid.hex}"
 
-        room_id, alias_was_set = matrix_client.create_room(
-            name=room.room_name,
-            alias_localpart=alias_localpart,
-        )
+            room_id, alias_was_set = matrix_client.create_room(
+                name=room.room_name,
+                alias_localpart=alias_localpart,
+            )
 
-        room.room_id = room_id
-        if alias_was_set:
-            room.room_alias = f"#{alias_localpart}:{config.MATRIX_HOMESERVER_DOMAIN}"
-        room.set_active()
-        room.save(update_fields=["room_id", "room_alias", "state"])
+            room.room_id = room_id
+            if alias_was_set:
+                room.room_alias = (
+                    f"#{alias_localpart}:{config.MATRIX_HOMESERVER_DOMAIN}"
+                )
+            room.set_active()
+            room.save(update_fields=["room_id", "room_alias", "state"])
 
-        logger.info("Created Matrix room %s for %s", room_id, room.scope)
+            logger.info("Created Matrix room %s for %s", room_id, room.scope)
 
-        sync_project_members_to_room.delay(str(room.uuid))
+            # Also what brings a reprovisioned room's members back, whatever its
+            # scope: they are read from the scope again, not from member rows.
+            room_uuid = str(room.uuid)
+            transaction.on_commit(lambda: sync_room_members.delay(room_uuid))
 
     except Exception as e:
         room.set_erred()
@@ -228,16 +258,29 @@ WELCOME_CONTENT_KEY = "com.waldur.welcome"
 
 
 def welcome_text(room):
+    if room.project is None and (text := scopes.welcome(room)):
+        return text
     creator = room.created_by
-    if creator:
-        name = formatting.escape_markdown(creator.full_name or creator.username)
-        intro = f"{name} started this chat for the project team."
-    else:
-        intro = "Here the project team can talk, share files and start calls."
-    return (
-        "**Welcome to this project's team chat!**\n\n"
-        f"{intro} Type @ and a name to notify someone."
+    creator_name = (
+        formatting.escape_markdown(creator.full_name or creator.username)
+        if creator
+        else ""
     )
+    if room.project is None:
+        title = "**Welcome to this chat!**"
+        intro = (
+            f"{creator_name} started this chat."
+            if creator
+            else "Here you can talk, share files and start calls."
+        )
+    else:
+        title = "**Welcome to this project's team chat!**"
+        intro = (
+            f"{creator_name} started this chat for the project team."
+            if creator
+            else "Here the project team can talk, share files and start calls."
+        )
+    return f"{title}\n\n{intro} Type @ and a name to notify someone."
 
 
 def _welcome_members(room):
@@ -270,9 +313,11 @@ def _welcome_members(room):
         logger.exception("Failed to welcome the members of room %s", room.room_id)
 
 
-@shared_task(name="waldur_mastermind.matrix_chat.sync_project_members_to_room")
-def sync_project_members_to_room(room_uuid):
-    """Ensure all project members are provisioned and invited to the room."""
+@shared_task(name="waldur_mastermind.matrix_chat.sync_room_members")
+def sync_room_members(room_uuid):
+    """Bring the room's members in line with who its scope says belongs in it
+    (scopes.members): provision, invite and join each active one, and kick
+    anyone else. Staff and support who joined with Join stay."""
     if not matrix_client.is_enabled():
         return
 
@@ -286,30 +331,36 @@ def sync_project_members_to_room(room_uuid):
         logger.warning("Room %s is not active, skipping sync", room.room_id)
         return
 
-    project = room.project
-    if not project:
-        logger.warning("Room %s has no associated project", room.room_id)
+    scope = room.scope
+    if scope is None:
+        logger.warning("Room %s has no scope, skipping sync", room.room_id)
+        return
+    # A room of a kind of scope no app registered, such as an organization
+    # room from before rooms had registered scopes, has no rule for who
+    # belongs in it beyond a role on the object, which would bring in reader
+    # and support roles and backfill them the room's history. It is left as
+    # it is, as it always was.
+    if not scopes.is_registered(scope):
+        logger.info(
+            "Room %s belongs to an unregistered kind of scope, skipping sync",
+            room.room_id,
+        )
         return
 
-    # Get all active users in the project (direct + via customer). Deactivation
-    # leaves a user's roles in place, so the user's own flag is checked too.
-    user_roles = UserRole.objects.filter(
-        scope=project,
-        is_active=True,
-        user__is_active=True,
-    ).select_related("user")
-
-    customer_roles = (
-        models.get_customer_roles_in_project_rooms(project.customer)
-        .filter(user__is_active=True)
-        .select_related("user")
+    # Deactivation leaves a user's roles, or whatever else puts them in the
+    # room, in place, so the user's own flag is checked here.
+    users = list(scopes.members(scope).filter(is_active=True).order_by("id"))
+    # A member a sync adds to a room already welcomed is announced, if the
+    # scope names their role: the notice is their "you were added" toast.
+    announce = room.announced_at is not None
+    joined_before = set(
+        models.MatrixRoomMember.objects.filter(
+            room=room, membership_state=models.MembershipStates.JOINED
+        ).values_list("user_id", flat=True)
     )
 
     seen_users = set()
-    for role in list(user_roles) + list(customer_roles):
-        user = role.user
-        if user.id in seen_users:
-            continue
+    for user in users:
         seen_users.add(user.id)
 
         try:
@@ -339,11 +390,19 @@ def sync_project_members_to_room(room_uuid):
 
             _save_member(room, user, matrix_user_id, membership_state, power_level)
 
+            if (
+                announce
+                and membership_state == models.MembershipStates.JOINED
+                and user.id not in joined_before
+                and (role_label := scopes.role_label(user, scope))
+            ):
+                _announce_role(room, user, matrix_user_id, role_label, welcome=True)
+
             logger.info("Synced user %s to room %s", matrix_user_id, room.room_id)
         except Exception:
             logger.exception("Failed to sync user %s to room %s", user, room.room_id)
 
-    # Kick members who no longer have any active roles in this project or its customer
+    # Kick members who no longer belong in the room
     stale_members = (
         models.MatrixRoomMember.objects.filter(room=room)
         .exclude(user_id__in=seen_users)
@@ -358,7 +417,7 @@ def sync_project_members_to_room(room_uuid):
         .select_related("user")
     )
     for member in stale_members:
-        # The roles were read before the loop; one granted since then comes
+        # The members were read before the loop; one added since then comes
         # with an invite that may already have joined the user.
         if models.keeps_room_access(member.user, room):
             continue
@@ -385,13 +444,40 @@ def sync_project_members_to_room(room_uuid):
     room.save(update_fields=["modified"])
 
 
+@shared_task(name="waldur_mastermind.matrix_chat.sync_project_members_to_room")
+def sync_project_members_to_room(room_uuid):
+    """The member sync under its first name, for its callers and for tasks
+    queued before the rename; it syncs a room of any scope."""
+    sync_room_members(room_uuid)
+
+
+def resync_scope_rooms(scope):
+    """Sync the members of the scope's active room once the current
+    transaction commits. Apps call it when who belongs in the rooms of their
+    scope changes."""
+    content_type = ContentType.objects.get_for_model(scope)
+    object_id = scope.pk
+
+    def _dispatch():
+        if not matrix_client.is_enabled():
+            return
+        for room_uuid in models.MatrixRoom.objects.filter(
+            content_type=content_type,
+            object_id=object_id,
+            state=models.RoomStates.ACTIVE,
+        ).values_list("uuid", flat=True):
+            sync_room_members.delay(str(room_uuid))
+
+    transaction.on_commit(_dispatch)
+
+
 def _welcome_after_join(room):
     """Welcome a room that a single join found unwelcomed, once its team is in."""
     # The room's first sync may still be joining the team. A sync joins
     # everyone before it welcomes, so nobody joins after the welcome and finds
     # it already read as history.
     if models.MatrixRoom.objects.filter(pk=room.pk, announced_at__isnull=True).exists():
-        sync_project_members_to_room(str(room.uuid))
+        sync_room_members(str(room.uuid))
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.sync_rooms_of_role")
@@ -913,6 +999,22 @@ def restore_matrix_access(user_uuid):
         UserRole.objects.filter(user=user, is_active=True)
     ).values_list("uuid", flat=True):
         sync_project_members_to_room.delay(str(room_uuid))
+    # Rooms of other registered scopes have no role to find them by.
+    # Deactivation left the user's member rows in the rooms they were in, and
+    # a scope that can say which of its objects put the user in a room
+    # (scope_ids_for_user) also names those whose sync skipped the user while
+    # inactive. Each sync asks the scope again.
+    project_ct = ContentType.objects.get_for_model(Project)
+    other_cts = [ct for ct in scopes.registered_content_types() if ct != project_ct]
+    rooms = Q(content_type__in=other_cts, members__user=user)
+    if (named := scopes.rooms_of_user(user)) is not None:
+        rooms |= named & ~Q(content_type=project_ct)
+    for room_uuid in (
+        models.MatrixRoom.objects.filter(rooms, state=models.RoomStates.ACTIVE)
+        .values_list("uuid", flat=True)
+        .distinct()
+    ):
+        sync_room_members.delay(str(room_uuid))
 
 
 def _kick_or_retry(member, reason):
@@ -1221,6 +1323,28 @@ def _export_before_closing(room):
         "The Matrix bot did not export the room's history in time, so the room "
         "was not archived. Disable it again once the export has finished."
     )
+
+
+def close_room_on_commit(room, reason=""):
+    """Start disabling an active room, and disable it -- kick its members,
+    export its history, archive it -- once the transaction commits. False,
+    and nothing done, while Matrix chat is disabled or the room is not
+    active: one still being created is erred by create_room when its scope
+    is gone, and one in error is left to the staff retry."""
+    if not matrix_client.is_enabled():
+        return False
+    with transaction.atomic():
+        room = models.MatrixRoom.objects.select_for_update().get(pk=room.pk)
+        if room.state != models.RoomStates.ACTIVE:
+            return False
+        try:
+            room.begin_disabling()
+        except TransitionNotAllowed:
+            return False
+        room.save(update_fields=["state", "closing_export"])
+        room_uuid = str(room.uuid)
+        transaction.on_commit(lambda: disable_room.delay(room_uuid, reason=reason))
+    return True
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.disable_room")

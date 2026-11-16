@@ -28,6 +28,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.server.middleware import add_public_cors_headers
 from waldur_mastermind.mcp import models, serializers
 from waldur_mastermind.mcp.oauth import (
+    ADVERTISED_SCOPES,
     ALLOWED_GRANT_TYPES,
     AuthorizationRequest,
     ClientRegistrationThrottle,
@@ -35,6 +36,7 @@ from waldur_mastermind.mcp.oauth import (
     get_client_host,
     get_client_name,
     get_redirect_hosts,
+    grantable_scopes,
     validate_authorization_request,
 )
 from waldur_mastermind.mcp.utils import is_mcp_enabled
@@ -132,6 +134,17 @@ def identity_change_response(request, client):
         },
         status=400,
     )
+
+
+class OAuthServerMetadataView(oauth2_views.OAuthServerMetadataView):
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+        # DOT lists every scope, and clients without resource metadata would
+        # ask for all of them.
+        data = json.loads(response.content)
+        data["scopes_supported"] = ADVERTISED_SCOPES
+        response.content = json.dumps(data)
+        return response
 
 
 class TokenView(oauth2_views.TokenView):
@@ -254,6 +267,8 @@ class AuthorizationView(View):
 
 
 def get_elevated_access(user) -> str | None:
+    # The role, not the granted scopes: the consent page compares it with them to
+    # warn that the app won't work for the user until it asks for the role's scope.
     if user.is_staff:
         return "staff"
     if user.is_support:
@@ -298,9 +313,17 @@ class ConsentView(views.APIView):
 
     def validate(self, request, params) -> AuthorizationRequest:
         try:
-            return validate_authorization_request(request, params)
+            authorization = validate_authorization_request(request, params)
         except oauth_errors.OAuth2Error as error:
             raise self.refused(error) from error
+        authorization.scopes = grantable_scopes(request.user, authorization.scopes)
+        if not authorization.scopes:
+            raise self.refused(
+                oauth_errors.InvalidScopeError(
+                    description="None of the requested scopes can be granted to you."
+                )
+            )
+        return authorization
 
     def issue_code(self, request, authorization: AuthorizationRequest) -> str:
         try:

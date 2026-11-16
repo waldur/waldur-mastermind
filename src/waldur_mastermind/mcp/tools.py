@@ -8,6 +8,7 @@ import json
 import logging
 import re
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
@@ -19,7 +20,7 @@ from mcp.server.auth.provider import AccessToken
 from waldur_core.core import middleware as core_middleware
 from waldur_core.core import utils as core_utils
 from waldur_core.core.authentication import set_user_context
-from waldur_core.core.models import PersonalAccessToken
+from waldur_core.core.models import PersonalAccessToken, User
 from waldur_core.logging import event_logger
 from waldur_core.logging import middleware as logging_middleware
 from waldur_core.logging.enums import EventType
@@ -27,6 +28,7 @@ from waldur_mastermind.chat.tools.base import ToolDefinition
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
+from waldur_mastermind.mcp import auth, oauth
 from waldur_mastermind.mcp.utils import MCP_PATH
 
 logger = logging.getLogger(__name__)
@@ -40,30 +42,62 @@ MAX_ECHO_CHARS = 64
 UNSTORABLE_TEXT = re.compile("[\x00\ud800-\udfff]")
 
 
-def load_pat(token: AccessToken) -> PersonalAccessToken:
-    """The caller's token, unless it stopped being valid after it was verified.
+class InvalidToken(Exception):
+    """The caller's token stopped being valid after it was verified."""
+
+
+@dataclass(frozen=True)
+class Caller:
+    user: User
+    # Named in the audit event: the PAT's name, or the OAuth client's.
+    client: str
+    pat: PersonalAccessToken | None = None
+    oauth_client_id: str | None = None
+
+    def allows(self, definition: ToolDefinition) -> bool:
+        # An OAuth token acts as the full user, so only the role limits it.
+        return self.pat is None or definition.pat_allows(self.pat.scopes)
+
+
+def load_caller(token: AccessToken) -> Caller:
+    """Who the token acts for, unless it stopped being valid after it was verified.
 
     A call can wait for a pool thread, so this repeats the verifier's checks.
     """
-    return PersonalAccessToken.objects.select_related("user").get(
-        uuid=token.claims["pat_uuid"],
-        is_active=True,
-        expires_at__gt=timezone.now(),
-        user__is_active=True,
-        user__can_use_personal_access_tokens=True,
+    claims = token.claims or {}
+    if "pat_uuid" in claims:
+        try:
+            pat = PersonalAccessToken.objects.select_related("user").get(
+                uuid=claims["pat_uuid"],
+                is_active=True,
+                expires_at__gt=timezone.now(),
+                user__is_active=True,
+                user__can_use_personal_access_tokens=True,
+            )
+        except PersonalAccessToken.DoesNotExist:
+            raise InvalidToken from None
+        return Caller(user=pat.user, client=pat.name, pat=pat)
+
+    oauth_token = auth.load_oauth_token(token.token)
+    if oauth_token is None or oauth.missing_elevated_scope(
+        oauth_token.user, oauth_token.scope.split()
+    ):
+        raise InvalidToken
+    return Caller(
+        user=oauth_token.user,
+        client=oauth.get_client_name(oauth_token.application),
+        oauth_client_id=oauth_token.application.client_id,
     )
 
 
-def get_visible_definitions(pat: PersonalAccessToken) -> dict[str, ToolDefinition]:
+def get_visible_definitions(caller: Caller) -> dict[str, ToolDefinition]:
     """The tools this caller may see and call, by name."""
     # A token is never the user's own sign-in, so it gets no HPC tools.
-    permitted = set(get_tool_set_for_user(pat.user, delegated=True))
+    permitted = set(get_tool_set_for_user(caller.user, delegated=True))
     return {
         name.value: definition
         for name, definition in tool_registry.definitions.items()
-        if definition.mcp_exposed
-        and name in permitted
-        and definition.pat_allows(pat.scopes)
+        if definition.mcp_exposed and name in permitted and caller.allows(definition)
     }
 
 
@@ -162,7 +196,7 @@ def to_call_result(result: dict, definition: ToolDefinition) -> types.CallToolRe
 
 
 @contextmanager
-def caller_context(pat: PersonalAccessToken, client_ip: str | None):
+def caller_context(caller: Caller, client_ip: str | None):
     """Attribute everything done in this block to the caller.
 
     Both contexts are thread-locals and the pool's threads serve every user, so
@@ -174,51 +208,55 @@ def caller_context(pat: PersonalAccessToken, client_ip: str | None):
         logging_middleware.set_event_context(
             {"ip_address": client_ip} if client_ip else {}
         )
-        set_user_context(pat.user, skip_token_check=True)
-        logging_middleware.set_current_auth(pat)
+        set_user_context(caller.user, skip_token_check=True)
+        if caller.pat:
+            logging_middleware.set_current_auth(caller.pat)
         yield
     finally:
         logging_middleware.reset_event_context()
         core_middleware.set_current_user(None)
 
 
-def emit_tool_called(pat: PersonalAccessToken, tool_name: str) -> None:
+def emit_tool_called(caller: Caller, tool_name: str) -> None:
+    event_context = {
+        "user": caller.user,
+        "client": caller.client,
+        "tool_name": tool_name,
+        "server": MCP_PATH,
+    }
+    if caller.oauth_client_id:
+        event_context["oauth_client_id"] = caller.oauth_client_id
     # Arguments stay out: they can hold personal data, and events are kept.
     event_logger.emit(
         "User {user_username} called MCP tool {tool_name} with {client}.",
         event_type=EventType.MCP_TOOL_CALLED,
-        event_context={
-            "user": pat.user,
-            "client": pat.name,
-            "tool_name": tool_name,
-            "server": MCP_PATH,
-        },
-        scopes=[pat.user],
+        event_context=event_context,
+        scopes=[caller.user],
     )
 
 
 def list_tools(token: AccessToken) -> list[types.Tool]:
     return [
         to_mcp_tool(definition)
-        for definition in get_visible_definitions(load_pat(token)).values()
+        for definition in get_visible_definitions(load_caller(token)).values()
     ]
 
 
 def call_tool(
     token: AccessToken, name: str, arguments: dict, client_ip: str | None
 ) -> types.CallToolResult:
-    pat = load_pat(token)
+    caller = load_caller(token)
     # The same answer as for a name that doesn't exist, so that callers can't
     # learn about tools outside their set.
-    definition = get_visible_definitions(pat).get(name)
+    definition = get_visible_definitions(caller).get(name)
     if definition is None:
         return error_result(f"Unknown tool: {shorten(name)!r}")
     # Clients send null for options left unset, and tools read it as missing.
     arguments = {key: value for key, value in arguments.items() if value is not None}
     if error := argument_error(definition, arguments):
         return error_result(error)
-    with caller_context(pat, client_ip):
+    with caller_context(caller, client_ip):
         # Before the tool, so that nothing is read without a record of it.
-        emit_tool_called(pat, name)
-        result = ToolExecutor(pat.user, delegated=True).execute_tool(name, arguments)
+        emit_tool_called(caller, name)
+        result = ToolExecutor(caller.user, delegated=True).execute_tool(name, arguments)
         return to_call_result(result, definition)

@@ -99,6 +99,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`CreateRequiresProjectAdminMixin`](#createrequiresprojectadminmixin) | `waldur_core.structure.views` | Let only those who may change a resource create one |
 | [`ScopeInvitationMixin`](#scopeinvitationmixin) | `waldur_core.users.models` | Mixin for invitations scoped to a Customer with a system Role |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_freeipa.views` | Raise exception if extension is disabled |
+| [`DocsTestMixin`](#docstestmixin) | `waldur_mastermind.chat.tests.test_search_docs` | No description available |
 | [`LLMConfigurationMixin`](#llmconfigurationmixin) | `waldur_mastermind.chat.views` | Validates that AI Assistant is enabled, the user has the required role, and t... |
 | [`FeedbackTestMixin`](#feedbacktestmixin) | `waldur_mastermind.feedback.tests.test_feedback` | No description available |
 | [`PeriodMixin`](#periodmixin) | `waldur_mastermind.invoices.models` | Make subclasses preserve the alters_data attribute on overridden methods |
@@ -133,6 +134,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
+| [`RegisteredScopeMixin`](#registeredscopemixin) | `waldur_mastermind.matrix_chat.tests.test_room_scopes` | Registers Customer, for the test only, as a kind of room scope whose members ... |
 | [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
 | [`ConsentTestMixin`](#consenttestmixin) | `waldur_mastermind.mcp.tests.test_consent` | No description available |
@@ -1455,6 +1457,12 @@ Raise exception if extension is disabled
 
 **Base classes:** `ConstanceCheckExtensionMixin`
 
+### DocsTestMixin
+
+**Module:** `waldur_mastermind.chat.tests.test_search_docs`
+
+**Description:** No description available.
+
 ### LLMConfigurationMixin
 
 **Module:** `waldur_mastermind.chat.views`
@@ -1776,6 +1784,16 @@ Mixin to execute scripts in containers for marketplace script processing.
 **Module:** `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access`
 
 **Description:** No description available.
+
+### RegisteredScopeMixin
+
+**Module:** `waldur_mastermind.matrix_chat.tests.test_room_scopes`
+
+**Description:**
+
+Registers Customer, for the test only, as a kind of room scope whose
+members are whoever the test puts in ``self.member_ids``; the registry's
+fallback (a role on the customer) does not apply to it then.
 
 ### AppserviceErrorCountMixin
 

@@ -26,6 +26,7 @@ CATEGORY_PHRASES: dict[ToolCategory, str] = {
     ToolCategory.ACCOUNT: "viewing your resources or projects",
     ToolCategory.PROPOSALS_RESEARCHER: "proposal-call workflows",
     ToolCategory.PROPOSALS_REVIEWER: "reviewing proposals",
+    ToolCategory.DOCS: "finding answers in the documentation",
 }
 
 _CANNED_REJECTION_BASE = "I can't help with that request."

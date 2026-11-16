@@ -32,6 +32,88 @@ uv sync --frozen --no-dev --no-install-package setuptools
 # WALDUR_WEB_SHELL_ASSETS_DIR at the same directory.
 WALDUR_WEB_SHELL_ASSETS_DIR=/usr/share/waldur/web-shell python3 -c "from waldur_core.web_shell import assets; assets.fetch()"
 
+# Download the documentation corpus searched by the AI assistant's search_docs
+# tool (waldur/waldur-docs#37); initdb loads it with `waldur load_docs_corpus`.
+# Optional for branch and MR builds: on any failure the image is built without
+# it, and the tool is left out of every tool set. A release build sets
+# DOCS_CORPUS_REQUIRED: it waits up to DOCS_CORPUS_WAIT seconds (default 900)
+# for the docs pipeline of the same tag to publish the corpus, then fails, so a
+# release never ships without documentation search unnoticed. The file is only
+# kept if it is a complete gzip stream.
+# The package registry is private. A CI job token, mounted as the
+# `docs_corpus_token` build secret, is sent as JOB-TOKEN; the job's project must
+# be on waldur-docs' job token allowlist.
+DOCS_CORPUS_VERSION=${DOCS_CORPUS_VERSION:-latest}
+DOCS_CORPUS_URL=${DOCS_CORPUS_URL:-https://code.opennodecloud.com/api/v4/projects/waldur%2Fwaldur-docs/packages/generic/docs-corpus/${DOCS_CORPUS_VERSION}/docs-corpus.jsonl.gz}
+DOCS_CORPUS_TOKEN_FILE=/run/secrets/docs_corpus_token
+mkdir -p /usr/share/waldur/docs-corpus
+download_docs_corpus() {
+python3 - "$DOCS_CORPUS_URL" /usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz "$DOCS_CORPUS_TOKEN_FILE" << 'EOF'
+import gzip
+import os
+import shutil
+import sys
+import urllib.error
+import urllib.request
+
+url, target, token_file = sys.argv[1], sys.argv[2], sys.argv[3]
+partial = target + ".part"
+request = urllib.request.Request(url)
+if os.path.isfile(token_file):
+    with open(token_file) as stream:
+        token = stream.read().strip()
+    if token:
+        # Not passed on to a redirect: GitLab may answer with a presigned
+        # object-storage URL, which needs no token and must not receive it.
+        request.add_unredirected_header("JOB-TOKEN", token)
+try:
+    with urllib.request.urlopen(request, timeout=60) as response, open(partial, "wb") as out:
+        shutil.copyfileobj(response, out)
+except urllib.error.HTTPError as exc:
+    print(f"HTTP {exc.code} {exc.reason}", file=sys.stderr)
+    # 401/403: the token is missing or not allowed; waiting will not help.
+    sys.exit(3 if exc.code in (401, 403) else 2)
+with gzip.open(partial, "rb") as stream:
+    while stream.read(1 << 20):
+        pass
+shutil.move(partial, target)
+EOF
+}
+docs_corpus_attempts=1
+if [ -n "${DOCS_CORPUS_REQUIRED:-}" ]; then
+    docs_corpus_attempts=$(( ${DOCS_CORPUS_WAIT:-900} / 60 + 1 ))
+fi
+docs_corpus_ok=""
+docs_corpus_denied=""
+for attempt in $(seq 1 "$docs_corpus_attempts"); do
+    docs_corpus_status=0
+    download_docs_corpus || docs_corpus_status=$?
+    if [ "$docs_corpus_status" = 0 ]; then
+        docs_corpus_ok=1
+        break
+    fi
+    if [ "$docs_corpus_status" = 3 ]; then
+        docs_corpus_denied=1
+        break
+    fi
+    rm -f /usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz.part
+    if [ "$attempt" -lt "$docs_corpus_attempts" ]; then
+        echo "Docs corpus ${DOCS_CORPUS_VERSION} not available yet (attempt ${attempt}/${docs_corpus_attempts}); retrying in 60 seconds."
+        sleep 60
+    fi
+done
+if [ -n "$docs_corpus_ok" ]; then
+    echo "Docs corpus ${DOCS_CORPUS_VERSION} downloaded."
+elif [ -n "${DOCS_CORPUS_REQUIRED:-}" ] && [ -n "$docs_corpus_denied" ]; then
+    echo "ERROR: access to the docs corpus at ${DOCS_CORPUS_URL} was refused. Check that the build gets the docs_corpus_token secret and that this project is on waldur-docs' CI/CD job token allowlist."
+    exit 1
+elif [ -n "${DOCS_CORPUS_REQUIRED:-}" ]; then
+    echo "ERROR: docs corpus ${DOCS_CORPUS_VERSION} not downloaded from ${DOCS_CORPUS_URL}. A release image needs the corpus of its own tag: check the waldur-docs pipeline for ${DOCS_CORPUS_VERSION} (job \"Publish docs corpus\"), then re-run this job."
+    exit 1
+else
+    echo "WARNING: docs corpus not downloaded from ${DOCS_CORPUS_URL}; the AI assistant will have no documentation search."
+fi
+
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 
 # Build static assets

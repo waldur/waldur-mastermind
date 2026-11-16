@@ -49,6 +49,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
+from waldur_core.checklist import utils as checklist_utils
 from waldur_core.configuration import config
 from waldur_core.core import access, encryption
 from waldur_core.core import models as core_models
@@ -13930,21 +13931,23 @@ class OfferingUserServiceProviderCommentSerializer(serializers.ModelSerializer):
         fields = ("service_provider_comment", "service_provider_comment_url")
 
 
-class ProfileFieldWarningOfferingSerializer(serializers.Serializer):
-    offering_uuid = serializers.UUIDField()
-    offering_name = serializers.CharField()
-
-
-class ProfileFieldWarningsSerializer(serializers.Serializer):
-    """Response serializer for profile_field_warnings endpoint.
-
-    Returns a mapping of user field names to lists of offerings
-    that expose those fields via OfferingUserAttributeConfig.
-    """
-
-    # The actual response is a dict with dynamic keys (field names),
-    # each mapping to a list of {offering_uuid, offering_name}.
-    # DRF's Serializer is used here for OpenAPI schema documentation.
+# Response of the profile_field_warnings endpoint: user profile field names
+# mapped to the offerings that expose them via OfferingUserAttributeConfig.
+# A raw schema, because the keys are dynamic.
+PROFILE_FIELD_WARNINGS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "offering_uuid": {"type": "string", "format": "uuid"},
+                "offering_name": {"type": "string"},
+            },
+            "required": ["offering_uuid", "offering_name"],
+        },
+    },
+}
 
 
 class UserChecklistCompletionListSerializer(serializers.ListSerializer):
@@ -14125,44 +14128,26 @@ class UserChecklistCompletionSerializer(serializers.ModelSerializer):
         offering_user = self._get_offering_user(obj)
         return offering_user.offering.customer.name if offering_user else None
 
+    def _get_progress(self, obj):
+        """The completion's progress from the answers and questions the view
+        prefetched, worked out once."""
+        if getattr(self, "_progress_for", None) is not obj:
+            self._progress_for = obj
+            self._progress = obj.get_progress(
+                checklist_utils.latest_answers_by_question(obj.answers.all()),
+                list(obj.checklist.questions.all()),
+            )
+        return self._progress
+
     @extend_schema_field(serializers.FloatField(min_value=0, max_value=100))
     def get_completion_percentage(self, obj):
-        """Percentage of checklist questions that have a recorded answer.
-
-        The denominator is the number of questions in the checklist, NOT the
-        number of existing Answer rows — those only exist for questions the
-        user has touched.
-        """
-        total = getattr(obj, "total_questions", None)
-        if total is None:
-            # Single-object retrieve or no annotations — delegate to the model
-            # method so the formula stays in one place. Matches the canonical
-            # path used by the proposal-side compliance summary.
-            return obj.get_completion_percentage()
-        if total == 0:
-            return 100  # An empty checklist is "100% done" — matches the model.
-        answered = getattr(obj, "answered_answers", 0)
-        return round((answered / total) * 100, 1)
+        """Percentage of the questions shown to the user that have an answer."""
+        return self._get_progress(obj).percentage
 
     @extend_schema_field(serializers.IntegerField(min_value=0))
     def get_unanswered_required_questions(self, obj):
-        """Get count of unanswered required questions.
-
-        A required question counts as answered when an Answer row exists
-        for it. Note: an Answer row with an empty answer_data (e.g. ``[]``)
-        is treated as answered — Answer.answer_data is NOT NULL at the
-        database level.
-        """
-        unanswered = getattr(obj, "unanswered_required_questions", None)
-        if unanswered is not None:
-            return unanswered
-
-        # Fallback for single object views or if annotations are missing
-        required_questions = obj.checklist.questions.filter(required=True)
-        answered_questions = obj.answers.filter(
-            question__in=required_questions, answer_data__isnull=False
-        ).values_list("question_id", flat=True)
-        return required_questions.exclude(id__in=answered_questions).count()
+        """Count of required questions shown to the user that have no answer."""
+        return len(self._get_progress(obj).unanswered_required_question_ids)
 
     @extend_schema_field(UserChecklistCompletionOfferingUserSerializer(allow_null=True))
     def get_offering_user(self, obj):
