@@ -13,7 +13,7 @@ from waldur_core.server.middleware import is_public_cors_path
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.enums import OrderStates
 
-from . import formatting, matrix_client, room_provisioning, tasks
+from . import formatting, matrix_client, room_provisioning, scopes, tasks
 from .models import (
     MatrixRoom,
     MatrixRoomMember,
@@ -360,14 +360,21 @@ def close_deleted_scope_room(sender, instance, **kwargs):
     ).first()
     if room is None:
         return
-    if tasks.close_room_on_commit(room, reason=f"{sender._meta.verbose_name} deletion"):
+    spec = scopes.get(instance)
+    if tasks.close_room_on_commit(
+        room,
+        reason=f"{sender._meta.verbose_name} deletion",
+        # A scope whose record keeps the room's history has it exported
+        # whatever the export setting says.
+        export_history=True if spec is not None and spec.export_on_close else None,
+    ):
         return
     if not matrix_client.is_enabled():
-        # Nothing can kick its members or export its history now, and no
-        # task closes it later: its members keep it until staff disable it.
+        # Nothing can kick its members or export its history now. The
+        # nightly close_rooms_of_ended_scopes closes it once chat is back.
         logger.warning(
             "Matrix chat is disabled, so room %s (%s) of deleted %s %s was "
-            "left %s. Disable it once chat is enabled again.",
+            "left %s. It is closed once chat is enabled again.",
             room.uuid,
             room.room_id,
             sender._meta.verbose_name,

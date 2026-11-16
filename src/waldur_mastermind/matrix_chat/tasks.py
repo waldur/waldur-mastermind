@@ -412,13 +412,13 @@ def sync_room_members(room_uuid):
                 models.MembershipStates.BANNED,
             ]
         )
-        # Staff and support who joined with the Join button hold no role here.
-        .exclude(models.STAFF_JOINED)
         .select_related("user")
     )
     for member in stale_members:
         # The members were read before the loop; one added since then comes
-        # with an invite that may already have joined the user.
+        # with an invite that may already have joined the user. Staff and
+        # support who joined with the Join button hold no role here, and
+        # stay while they may still join it.
         if models.keeps_room_access(member.user, room):
             continue
         try:
@@ -563,7 +563,9 @@ def _announce_role(room, user, matrix_user_id, role_name, welcome):
     try:
         post_as_bot(
             room,
-            f"{full_name} has been granted the {role_name} role.",
+            scopes.role_notice(room.scope).format(
+                name=full_name, role=formatting.escape_markdown(role_name)
+            ),
             extra_content=extra_content,
         )
     except Exception:
@@ -1325,7 +1327,7 @@ def _export_before_closing(room):
     )
 
 
-def close_room_on_commit(room, reason=""):
+def close_room_on_commit(room, reason="", export_history=None):
     """Start disabling an active room, and disable it -- kick its members,
     export its history, archive it -- once the transaction commits. False,
     and nothing done, while Matrix chat is disabled or the room is not
@@ -1343,13 +1345,96 @@ def close_room_on_commit(room, reason=""):
             return False
         room.save(update_fields=["state", "closing_export"])
         room_uuid = str(room.uuid)
-        transaction.on_commit(lambda: disable_room.delay(room_uuid, reason=reason))
+        if export_history is None:
+            transaction.on_commit(lambda: disable_room.delay(room_uuid, reason=reason))
+        else:
+            transaction.on_commit(
+                lambda: disable_room.delay(
+                    room_uuid, reason=reason, export_history=export_history
+                )
+            )
     return True
 
 
+def close_rooms_of_ended_scopes():
+    """Archive, their history exported, the active rooms of scopes that ended
+    while Matrix chat could not close them -- disabled then, say -- or whose
+    closing export failed, which leaves the room active. Until then their
+    members keep them: a registered scope that has ended still names who
+    took part (scopes.members), so no sync takes them out unexported.
+
+    Also the active rooms of registered objects deleted while chat was off,
+    which handlers.close_deleted_scope_room could not close then; an app
+    that closes its own (``close_on_delete=False``) is left to it."""
+    if not matrix_client.is_enabled():
+        return 0
+    closed = 0
+    for content_type, ended_ids, reason in scopes.ended_scopes():
+        rooms = models.MatrixRoom.objects.filter(
+            content_type=content_type,
+            object_id__in=ended_ids,
+            state=models.RoomStates.ACTIVE,
+        )
+        for room in rooms:
+            if close_room_on_commit(room, reason=reason, export_history=True):
+                closed += 1
+                logger.info(
+                    "Closing room %s, whose scope ended while it was open",
+                    room.room_id,
+                )
+    for model, spec in scopes.registrations():
+        if not spec.close_on_delete:
+            continue
+        orphaned = models.MatrixRoom.objects.filter(
+            content_type=ContentType.objects.get_for_model(model),
+            state=models.RoomStates.ACTIVE,
+        ).exclude(object_id__in=model._base_manager.values("pk"))
+        for room in orphaned:
+            if close_room_on_commit(
+                room,
+                reason=f"{model._meta.verbose_name} deletion",
+                export_history=True if spec.export_on_close else None,
+            ):
+                closed += 1
+                logger.info(
+                    "Closing room %s, whose %s was deleted while it was open",
+                    room.room_id,
+                    model._meta.verbose_name,
+                )
+    return closed
+
+
+def resync_scope_rooms_nightly():
+    """Sync the active rooms of registered scopes other than projects: who
+    belongs in them may have changed while Matrix chat was off, when
+    ``resync_scope_rooms`` dispatches nothing. Project rooms are left out:
+    they follow the project's roles as they always have."""
+    if not matrix_client.is_enabled():
+        return 0
+    project_ct = ContentType.objects.get_for_model(Project)
+    other_cts = [ct for ct in scopes.registered_content_types() if ct != project_ct]
+    queued = 0
+    for room_uuid in models.MatrixRoom.objects.filter(
+        content_type__in=other_cts, state=models.RoomStates.ACTIVE
+    ).values_list("uuid", flat=True):
+        sync_room_members.delay(str(room_uuid))
+        queued += 1
+    return queued
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.disable_room")
-def disable_room(room_uuid, delete_history=False, reason=""):
-    """Disable a Matrix room: kick members, export history, and archive."""
+def disable_room(room_uuid, delete_history=False, reason="", export_history=None):
+    """Disable a Matrix room: kick members, export history, and archive.
+
+    The history is exported when MATRIX_HISTORY_EXPORT_ENABLED says so, or
+    always with ``export_history``: a scope whose record keeps its room's
+    history, such as a step discussion, asks for it whatever the setting.
+    Such a room is exported before anyone is removed, and one whose export
+    is not made goes back to active with its members kept, for the nightly
+    close_rooms_of_ended_scopes to try again, rather than into error with
+    nobody left in it. Other rooms export after their members are removed,
+    as they always have.
+    """
     try:
         room = models.MatrixRoom.objects.get(uuid=room_uuid)
     except models.MatrixRoom.DoesNotExist:
@@ -1359,6 +1444,19 @@ def disable_room(room_uuid, delete_history=False, reason=""):
     if room.state != models.RoomStates.DISABLING:
         logger.warning("Room %s is not in DISABLING state, skipping", room_uuid)
         return
+
+    export_first = export_history is True and not delete_history
+    if export_history is None:
+        export_history = config.MATRIX_HISTORY_EXPORT_ENABLED
+    exported = False
+    export = None
+    if export_first:
+        try:
+            export = _export_before_closing(room)
+        except Exception as e:
+            _keep_open_unexported(room, e)
+            return
+        exported = True
 
     try:
         # 1. Notify room before kicking members. The reason is shown only when
@@ -1388,9 +1486,9 @@ def disable_room(room_uuid, delete_history=False, reason=""):
                 _kick_or_retry(member, "Chat room was deactivated")
             _end_room_call(room.room_id)
 
-        # 3. Export history if enabled, unless the caller is discarding it anyway
-        export = None
-        if config.MATRIX_HISTORY_EXPORT_ENABLED and not delete_history:
+        # 3. Export history if enabled, unless the caller is discarding it
+        # anyway or it was exported first
+        if export_history and not delete_history and not exported:
             export = _export_before_closing(room)
 
         # 4. Optionally delete all history exports, files included
@@ -1440,9 +1538,35 @@ def disable_room(room_uuid, delete_history=False, reason=""):
             )
 
 
+def _keep_open_unexported(room, error):
+    """Put a room whose closing export was not made back to active, its
+    members still in it: nobody was removed yet, and its scope's history
+    is not lost to a room in error that no task closes again."""
+    reopened = models.MatrixRoom.objects.filter(
+        pk=room.pk, state=models.RoomStates.DISABLING
+    ).update(
+        state=models.RoomStates.ACTIVE,
+        error_message=str(error),
+        modified=timezone.now(),
+    )
+    if reopened:
+        logger.warning(
+            "Room %s was left active: its history was not exported before "
+            "closing (%s). The nightly export closes it again.",
+            room.room_id,
+            error,
+        )
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.periodic_history_export")
 def periodic_history_export():
-    """Periodically export history for all active rooms."""
+    """Periodically export history for all active rooms; and first, whatever
+    the export setting, export and archive the rooms whose scope ended while
+    Matrix chat could not close them (close_rooms_of_ended_scopes), and
+    sync the members of the other registered scopes' rooms that stay open
+    (resync_scope_rooms_nightly)."""
+    close_rooms_of_ended_scopes()
+    resync_scope_rooms_nightly()
     if not config.MATRIX_HISTORY_EXPORT_ENABLED:
         return
     # The export task does nothing without Matrix, so every row queued here

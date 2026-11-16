@@ -22,7 +22,7 @@ from waldur_mastermind.proposal.enums import (
     WorkflowStepInstanceStatuses,
 )
 
-from . import models, proposal_roles, serializers
+from . import models, proposal_roles, serializers, step_discussions
 from . import permissions as proposal_permissions
 from .managers import (
     assignment_batch_status_q,
@@ -1229,6 +1229,62 @@ class RoundMeetingNoteFilter(django_filters.FilterSet):
     class Meta:
         model = models.RoundMeetingNote
         fields = []
+
+
+class StepDiscussionFilter(django_filters.FilterSet):
+    state = django_filters.ChoiceFilter(
+        choices=(("open", "Open"), ("closed", "Closed")), method="filter_state"
+    )
+    call_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-public-call-detail", method="filter_call"
+    )
+    round_uuid = core_filters.RelatedUUIDFilter(
+        view_name="call-round-detail", method="filter_round"
+    )
+    proposal_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-proposal-detail",
+        field_name="proposal_step__proposal__uuid",
+    )
+    call_step_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-call-workflow_step-detail", method="filter_call_step"
+    )
+    mine = django_filters.BooleanFilter(
+        method="filter_mine",
+        widget=BooleanWidget,
+        label="Only the discussions the caller takes part in",
+    )
+
+    class Meta:
+        model = models.StepDiscussion
+        fields = []
+
+    def filter_state(self, queryset, name, value):
+        return queryset.filter(closed_at__isnull=value == "open")
+
+    def filter_call(self, queryset, name, value):
+        return queryset.filter(
+            Q(proposal_step__proposal__round__call__uuid=value)
+            | Q(round_step__round__call__uuid=value)
+        )
+
+    def filter_round(self, queryset, name, value):
+        return queryset.filter(
+            Q(proposal_step__proposal__round__uuid=value)
+            | Q(round_step__round__uuid=value)
+        )
+
+    def filter_call_step(self, queryset, name, value):
+        return queryset.filter(
+            Q(proposal_step__call_step__uuid=value)
+            | Q(round_step__call_step__uuid=value)
+        )
+
+    def filter_mine(self, queryset, name, value):
+        user = getattr(self.request, "user", None)
+        if value is None or user is None or not user.is_authenticated:
+            return queryset
+        mine = Q(id__in=step_discussions.participating_ids(user))
+        return queryset.filter(mine) if value else queryset.exclude(mine)
 
 
 class CallTemplateFilter(django_filters.FilterSet):

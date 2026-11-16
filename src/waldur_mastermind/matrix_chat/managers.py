@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rest_framework import exceptions
 
+from waldur_core.core import access
 from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import PermissionEnum
@@ -29,7 +30,11 @@ SHOWS_ROOMS = (
     "Rooms of projects and organizations where the caller holds a role, and of "
     "the projects of organizations where the caller holds MATRIX_ROOM.CREATE; "
     "rooms of other registered kinds of scope the caller is a current member "
-    "of, invited or joined; staff and support see all."
+    "of, invited or joined. Staff see all, and support all but those whose "
+    "kind of scope keeps them out (a step discussion of a proposal they are "
+    "on the applicant team of, wrote, or have a conflict of interest on "
+    "record with). With a personal access token, staff and support only "
+    "with its staff or support scope."
 )
 
 
@@ -125,6 +130,24 @@ def get_unlinked_room_users():
     ).order_by("username")
 
 
+@access.describes(
+    access.custom(
+        "Staff, and support unless the room's kind of scope keeps them out "
+        "of it (a step discussion of a proposal they apply with or are in "
+        "conflict with)."
+    ),
+    needs_object=True,
+)
+def may_join_room(request, view, obj=None):
+    """The Join of a room: refused to support whom the room's scope keeps
+    out (scopes.may_join). Joining backfills the room's history and keeps
+    them in it through syncs, so it goes no further than reading it."""
+    if obj is None:
+        return
+    if not scopes.may_join(request.user, obj.scope):
+        raise exceptions.PermissionDenied()
+
+
 def can_manage_room(request, view, obj=None):
     """Whoever may create a room manages it day to day, syncing its members
     and exporting its history, and so does support. That is as far as either
@@ -180,7 +203,10 @@ def pat_filter_exports(ids):
 # What filter_exports_for_request leaves. Change the two together.
 SHOWS_EXPORTS = (
     "History exports of rooms the caller manages: MATRIX_ROOM.CREATE on the "
-    "room's project or organization. Staff and support see all. A personal "
+    "room's project or organization, or for a room of another registered "
+    "kind of scope whoever its app says runs it (the call's managers for a "
+    "step discussion). Staff see all, and support all but those of such a "
+    "scope, which its app's rule decides for them too. A personal "
     "access token reaches only its bindings, and needs the support scope or "
     "MATRIX_ROOM.CREATE."
 )
@@ -203,8 +229,26 @@ def filter_exports_for_request(queryset, request):
         return queryset.none()
     queryset = PATScopeListFilter().filter_queryset(request, queryset, None)
     if (user.is_staff or user.is_support) and check_pat_support_scope(request):
-        return queryset
+        if user.is_staff:
+            return queryset
+        # Support reads every export but those of rooms whose kind of scope
+        # says who downloads them (export_readers), which they read by that
+        # rule: it keeps them from a step discussion they apply in.
+        narrowed = scopes.export_reader_content_types()
+        if not narrowed:
+            return queryset
+        readable = ~Q(room__content_type__in=narrowed)
+        if (scope_rooms := scopes.readable_export_rooms(request)) is not None:
+            readable |= scope_rooms
+        return queryset.filter(readable)
     auth = getattr(request, "auth", None)
     if is_pat_auth(auth) and PermissionEnum.CREATE_MATRIX_ROOM.value not in auth.scopes:
         return queryset.none()
-    return queryset.filter(room__in=get_manageable_room_ids(user))
+    readable = Q(room__in=get_manageable_room_ids(user))
+    # Rooms of other kinds of scope, whose apps say who runs them.
+    # Given the request: a personal access token reaches them only within
+    # its scopes for those scopes too (the call's CALL.UPDATE for a step
+    # discussion), not on MATRIX_ROOM.CREATE alone.
+    if (scope_rooms := scopes.readable_export_rooms(request)) is not None:
+        readable |= scope_rooms
+    return queryset.filter(readable)

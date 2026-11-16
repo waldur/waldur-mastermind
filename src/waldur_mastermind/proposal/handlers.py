@@ -10,6 +10,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import RoleChange, RoleEventDetails
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import (
     activity,
     change_requests,
@@ -21,6 +22,7 @@ from waldur_mastermind.proposal import (
     panels,
     proposal_roles,
     reviewer_standing,
+    step_discussions,
     tasks,
     workflow_service,
 )
@@ -660,3 +662,202 @@ def notify_provider_about_changed_terms(sender, instance, **kwargs):
     transaction.on_commit(
         lambda: tasks.notify_call_offering_terms_changed.delay(uuid_hex)
     )
+
+
+# -- step discussions ----------------------------------------------------------
+# Who belongs in a step discussion's room is worked out when its members are
+# synced (step_discussions.people); these ask for a sync when that may have
+# changed, and close a discussion when its step ends. Each does nothing while
+# Matrix chat is disabled, but closing, which keeps the record's participants.
+
+
+DISCUSSION_SETTINGS = (
+    "has_discussion",
+    "discussion_call_managers",
+    "discussion_panel_members",
+)
+# The step's fields that say who works on it, and so who is in its
+# discussions; as values() names them, with the attribute each is read by.
+STEP_PEOPLE_FIELDS = {
+    "completer": "completer",
+    "completer_proposal_role": "completer_proposal_role_id",
+    "contributor_source": "contributor_source",
+    "delegable_to": "delegable_to",
+    "contributors_lead_only": "contributors_lead_only",
+    "per_requested_offering": "per_requested_offering",
+}
+_FOLLOWED_STEP_FIELDS = (*DISCUSSION_SETTINGS, *STEP_PEOPLE_FIELDS)
+
+
+def remember_discussion_settings(sender, instance, update_fields=None, **kwargs):
+    """Note a call step's discussion settings before it is saved, for
+    ``follow_discussion_settings``."""
+    instance._previous_discussion_settings = None
+    if instance.pk is None:
+        return
+    if update_fields is not None and not set(_FOLLOWED_STEP_FIELDS) & {
+        field.removesuffix("_id") for field in update_fields
+    }:
+        return
+    instance._previous_discussion_settings = (
+        models.CallWorkflowStep.objects.filter(pk=instance.pk)
+        .values(*_FOLLOWED_STEP_FIELDS)
+        .first()
+    )
+
+
+def follow_discussion_settings(sender, instance, created=False, **kwargs):
+    """A step whose discussion is switched off closes its open discussions,
+    their history exported: nothing opens on it any more, and a blind step
+    -- which needs it off -- keeps no room showing who speaks."""
+    previous = getattr(instance, "_previous_discussion_settings", None)
+    if created or previous is None:
+        return
+    if previous["has_discussion"] and not instance.has_discussion:
+        step_discussions.close_step_discussions(instance)
+    elif instance.has_discussion and (
+        any(
+            previous[field] != getattr(instance, field)
+            for field in ("discussion_call_managers", "discussion_panel_members")
+        )
+        or any(
+            previous[field] != getattr(instance, attribute)
+            for field, attribute in STEP_PEOPLE_FIELDS.items()
+        )
+    ):
+        # The call's managers or the panel's members join or leave, or the
+        # step is now worked on by others.
+        step_discussions.resync_call_step(instance)
+
+
+def resync_discussions_on_requested_resource(sender, instance, **kwargs):
+    """A proposal requested an offering, or dropped one: its offering teams
+    change."""
+    step_discussions.resync_offering_requests([instance.proposal_id])
+
+
+def resync_discussions_on_requested_offering(sender, instance, created=False, **kwargs):
+    """A requested offering accepted, or no longer: the offering managers of
+    the proposals requesting it change."""
+    update_fields = kwargs.get("update_fields")
+    if created or (update_fields is not None and "state" not in update_fields):
+        return
+    step_discussions.resync_offering_requests(
+        models.RequestedResource.objects.filter(requested_offering=instance).values(
+            "proposal_id"
+        )
+    )
+
+
+def follow_step_for_discussions(sender, instance, created=False, **kwargs):
+    """A proposal's step that is no longer active closes its discussion, and
+    the round's once it was the last of its panel at a round step; one
+    reaching a round step brings its evaluators into the round's discussion."""
+    update_fields = kwargs.get("update_fields")
+    if created or (update_fields is not None and "status" not in update_fields):
+        return
+    # A step without a discussion has none to close or resync: switching it
+    # off closed them (follow_discussion_settings), and the nightly
+    # close_stale_step_discussions catches any left behind.
+    if not instance.call_step.has_discussion:
+        return
+    if instance.status != enums.WorkflowStepInstanceStatuses.ACTIVE:
+        step_discussions.close_ended(instance)
+    elif instance.run_id is None and instance.call_step.round_scoped:
+        step_discussions.resync_round_step(
+            instance.proposal.round_id, instance.call_step_id
+        )
+
+
+def follow_proposal_for_discussions(sender, instance, created=False, **kwargs):
+    """A proposal rejected or withdrawn closes its discussions; one moved to
+    another panel changes who is in them, and the round discussions of the
+    panel it joins cover it from then on (as those of its old panel still
+    do)."""
+    if created:
+        step_discussions.cover_proposal(instance)
+        return
+    tracker = instance.tracker
+    if (
+        tracker.has_changed("state")
+        and instance.state in step_discussions.ENDED_PROPOSAL_STATES
+    ):
+        step_discussions.close_proposal(instance)
+    elif tracker.has_changed("panel_id"):
+        step_discussions.cover_proposal(instance)
+        step_discussions.resync_proposal(instance)
+
+
+def resync_discussions_on_contribution(sender, instance, **kwargs):
+    """A contribution given, taken, handed on, declined or withdrawn."""
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None and not (
+        {"status", "contributor", "delegate"} & set(update_fields)
+    ):
+        return
+    step_discussions.resync_step(instance.proposal_step_id)
+
+
+def resync_discussions_on_assignment(sender, instance, **kwargs):
+    """An evaluator role assigned, revoked or its lead moved."""
+    step_discussions.resync_proposal(instance.proposal)
+
+
+def resync_discussions_on_conflict(sender, instance, **kwargs):
+    """A conflict of interest recorded, recused for, dismissed or waived."""
+    if instance.proposal_id:
+        step_discussions.resync_proposal(instance.proposal)
+    elif instance.call_id:
+        step_discussions.resync_call(instance.call_id)
+
+
+def resync_discussions_on_role_change(sender, instance, **kwargs):
+    """A role on a call -- its managers, panel members, reviewers -- on a
+    proposal's team, or on an offering's team granted or revoked."""
+    scope = instance.scope
+    if isinstance(scope, models.Call):
+        # Only the discussions taking people from that role, and the user's.
+        step_discussions.resync_call_role(
+            scope.pk, instance.role.name, instance.user_id
+        )
+    elif isinstance(scope, models.Proposal):
+        step_discussions.resync_proposal(scope)
+    elif isinstance(scope, marketplace_models.Offering):
+        # An offering's team contributes to, or completes, the steps of the
+        # proposals requesting it.
+        step_discussions.resync_offering(scope.pk)
+
+
+def resync_discussions_on_panel_members(sender, instance, action=None, **kwargs):
+    """Members joined or left a panel: its discussions that take in the
+    panel's members."""
+    if action not in ("post_add", "post_remove", "post_clear"):
+        return
+    if isinstance(instance, models.CallPanel):
+        step_discussions.resync_panel_members(instance)
+        return
+    # Taken off panels from the user's side: pk_set names the panels.
+    for panel in models.CallPanel.objects.filter(pk__in=kwargs.get("pk_set") or ()):
+        step_discussions.resync_panel_members(panel)
+
+
+def follow_panel_for_discussions(sender, instance, created=False, **kwargs):
+    """A panel added to the call, or its chair changed (as
+    ``remember_panel_chair`` noted it); a rename changes nobody."""
+    if created:
+        step_discussions.resync_panel_added(instance.call_id)
+        return
+    if not hasattr(instance, "_previous_chair_id"):
+        return
+    if instance._previous_chair_id != instance.chair_id:
+        step_discussions.resync_panel_chair(instance)
+
+
+def follow_call_chairs_for_discussions(sender, instance, created=False, **kwargs):
+    """The call's panel chair or vice-chair changed."""
+    if created:
+        return
+    if instance.tracker.has_changed("panel_chair_id") or instance.tracker.has_changed(
+        "panel_vice_chair_id"
+    ):
+        step_discussions.resync_call_chairs(instance.pk)

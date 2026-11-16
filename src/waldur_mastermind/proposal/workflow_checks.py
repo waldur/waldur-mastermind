@@ -29,6 +29,7 @@ from django.utils.translation import gettext_lazy
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.matrix_chat import matrix_client
 from waldur_mastermind.proposal import (
     call_transfer,
     models,
@@ -1491,6 +1492,101 @@ def blind_review_identity_exposed(context):
         )
         for s in context.enabled
         if s["blind_review"] and s["release_to_applicant"]
+    ]
+
+
+# -- step discussions ------------------------------------------------------------
+
+DISCUSSION = "has_discussion"
+
+
+def _discussed(context):
+    return [s for s in context.enabled if context.raw[s["key"]].get(DISCUSSION)]
+
+
+@rule(
+    "discussion_not_allowed",
+    ERROR,
+    gettext_lazy("Discussion not allowed on the step"),
+)
+def discussion_not_allowed(context):
+    findings = []
+    for step in _discussed(context):
+        key = step["key"]
+        because = [_ref("step", DISCUSSION, key)]
+        if step["kind"] == StepKinds.APPLICANT_ACTION:
+            findings.append(
+                context.finding(
+                    key,
+                    DISCUSSION,
+                    _(
+                        "An applicant step has no discussion: discussions are "
+                        "for the people evaluating the proposal."
+                    ),
+                    [*because, _ref("step", "kind", key)],
+                )
+            )
+        elif step["blind_review"]:
+            findings.append(
+                context.finding(
+                    key,
+                    DISCUSSION,
+                    _(
+                        "The step is blind, and its discussion would show its "
+                        "evaluators who the others are."
+                    ),
+                    [*because, _ref("step", "blind_review", key)],
+                )
+            )
+        elif offering_team := _offering_team_field(context.raw[key]):
+            findings.append(
+                context.finding(
+                    key,
+                    DISCUSSION,
+                    _(
+                        "The step is done by the teams of the requested "
+                        "offerings, and its discussion would put the teams of "
+                        "every offering a proposal requests in one room."
+                    ),
+                    [*because, _ref("step", offering_team, key)],
+                )
+            )
+    return findings
+
+
+def _offering_team_field(raw):
+    """The field that has a step done by the requested offerings' teams
+    (``CallWorkflowStep.draws_on_offering_teams``), or None."""
+    if raw.get("per_requested_offering"):
+        return "per_requested_offering"
+    if raw.get("contributor_source") == ContributorSources.REQUESTED_OFFERING_TEAM:
+        return "contributor_source"
+    if raw.get("completer") == ResponsibleRoles.OFFERING_MANAGER:
+        return "completer"
+    return None
+
+
+@rule(
+    "discussion_without_matrix",
+    WARNING,
+    gettext_lazy("Discussion without Matrix chat"),
+)
+def discussion_without_matrix(context):
+    discussed = _discussed(context)
+    # Read the portal's settings only for a workflow that needs them.
+    if not discussed or matrix_client.is_enabled():
+        return []
+    return [
+        context.finding(
+            step["key"],
+            DISCUSSION,
+            _(
+                "Matrix chat is disabled on this portal, so the step's "
+                "discussion does not open."
+            ),
+            [_ref("step", DISCUSSION, step["key"])],
+        )
+        for step in discussed
     ]
 
 

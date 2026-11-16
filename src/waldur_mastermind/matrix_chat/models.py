@@ -361,6 +361,11 @@ def project_power_level(user, project):
     return 0
 
 
+def project_room_subtitle(project):
+    """A project room's line under its name: the project's organization."""
+    return project.customer.name if project.customer_id else None
+
+
 def has_room_role(user, room):
     """Whether the room's scope puts the user in it, by the member sync rule
     (scopes.members)."""
@@ -381,12 +386,16 @@ STAFF_JOINED = (
 
 def keeps_room_access(user, room):
     """Whether the user may stay in the room: an active user whom a role puts
-    in it, or staff who joined with the Join button."""
+    in it, or staff or support who joined with the Join button, while they
+    still may join it (scopes.may_join): support whom the room's scope has
+    since kept out lose it."""
     if not user.is_active:
         return False
     if has_room_role(user, room):
         return True
-    return MatrixRoomMember.objects.filter(STAFF_JOINED, room=room, user=user).exists()
+    if not MatrixRoomMember.objects.filter(STAFF_JOINED, room=room, user=user).exists():
+        return False
+    return scopes.may_join(user, room.scope)
 
 
 class ExportTypes:

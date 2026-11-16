@@ -1460,6 +1460,34 @@ class CallWorkflowStep(
             "the round, never on one proposal."
         ),
     )
+    # A tracked discussion (StepDiscussion): an end-to-end encrypted Matrix
+    # room for the people working on the step, exported to its record and
+    # closed when the step ends. Switched on only while Matrix chat is
+    # enabled, which the serializer and the call import check: a call whose
+    # step has one keeps it when Matrix chat is disabled later, and no
+    # discussion opens meanwhile.
+    has_discussion = models.BooleanField(
+        default=False,
+        help_text=(
+            "The step's contributors and completer may open a tracked "
+            "discussion: an encrypted Matrix room, one per proposal, or for "
+            "a step run once per round one per round and panel. Its history "
+            "is exported to the step's record when the step ends. Only while "
+            "Matrix chat is enabled; never on a blind or an applicant step."
+        ),
+    )
+    discussion_call_managers = models.BooleanField(
+        default=True,
+        help_text="The call's managers join the step's discussion as observers.",
+    )
+    discussion_panel_members = models.BooleanField(
+        default=False,
+        help_text=(
+            "The members of the proposal's panel join the step's discussion; "
+            "for a step run once per round, the members of the discussion's "
+            "panel. On a call without panels, its panel members."
+        ),
+    )
     phase = models.CharField(
         max_length=16,
         choices=enums.WorkflowPhases.CHOICES,
@@ -2380,6 +2408,7 @@ class CallWorkflowStep(
                     )
                 }
             )
+        self._clean_discussion(kind)
         self._clean_contributions(kind)
         self._clean_run_condition()
         self._clean_round_scoped(kind)
@@ -2473,6 +2502,59 @@ class CallWorkflowStep(
                 "evaluation at the cut-off."
             )
         return None
+
+    def _clean_discussion(self, kind):
+        """A discussion is the evaluators': never on the applicant's step,
+        and never on a blind one, since Matrix shows who speaks. Whether
+        Matrix chat is enabled is checked where the discussion is switched
+        on, not here: a step keeps its discussion when chat is disabled
+        later."""
+        if not self.has_discussion:
+            return
+        if kind.id == enums.StepKinds.APPLICANT_ACTION:
+            raise DjangoValidationError(
+                {
+                    "has_discussion": (
+                        "An applicant step has no discussion: discussions are "
+                        "for the people evaluating the proposal."
+                    )
+                }
+            )
+        if self.blind_review:
+            raise DjangoValidationError(
+                {
+                    "has_discussion": (
+                        "A blind step cannot have a discussion: the room shows "
+                        "who speaks. Switch the discussion off to make the "
+                        "step blind."
+                    )
+                }
+            )
+        if self.draws_on_offering_teams:
+            raise DjangoValidationError(
+                {
+                    "has_discussion": (
+                        "A step done by the teams of the requested offerings "
+                        "cannot have a discussion: one room would hold the "
+                        "teams of every offering the proposal requests, "
+                        "whose work on it is each their own."
+                    )
+                }
+            )
+
+    @property
+    def draws_on_offering_teams(self) -> bool:
+        """Whether the step's people come from the teams of the offerings a
+        proposal requests -- a contribution per offering, the offering team
+        as contributors, or the offering managers completing it -- so that
+        on a proposal requesting several offerings, several providers' teams
+        work on it apart."""
+        return (
+            self.per_requested_offering
+            or self.contributor_source
+            == enums.ContributorSources.REQUESTED_OFFERING_TEAM
+            or self.completer == enums.ResponsibleRoles.OFFERING_MANAGER
+        )
 
     def _clean_round_scoped(self, kind):
         if not self.round_scoped:
@@ -8006,6 +8088,145 @@ class RoundStep(TimeStampedModel, core_models.UuidMixin):
     @property
     def is_open(self) -> bool:
         return self.opened_at is not None
+
+
+class StepDiscussion(TimeStampedModel, core_models.UuidMixin):
+    """The tracked discussion of a workflow step (``has_discussion``): the
+    scope of an end-to-end encrypted Matrix room for the people working on
+    the step, and the record of it.
+
+    One open at a time per proposal's step, or for a step run once per round
+    per round and panel (``panel`` empty on a call without panels); a step
+    running again after it was reactivated opens a new one. Opened by one
+    of its participants (``step_discussions``), closed when the step ends:
+    ``participants`` then keeps who took part, and the room's history is
+    exported to the room (``MatrixHistoryExport``, read through
+    ``step_discussions.closing_export``) before it is archived. ``created``
+    is when it opened.
+    """
+
+    proposal_step = models.ForeignKey(
+        ProposalWorkflowStepInstance,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="discussions",
+        help_text="The proposal's step discussed; empty for a round step.",
+    )
+    round_step = models.ForeignKey(
+        RoundStep,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="discussions",
+        help_text="The round step discussed; empty for a proposal's step.",
+    )
+    panel = models.ForeignKey(
+        CallPanel,
+        # As a proposal's panel is: a panel that evaluated stays.
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="discussions",
+        help_text="The panel whose round discussion this is, on a call with panels.",
+    )
+    opened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+    participants = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="+",
+        help_text="Who took part, kept when the discussion closed.",
+    )
+    # Never shrinks: a proposal moved off the panel stays covered, so its
+    # team and conflicted people stay out of the room and its record.
+    covered_proposals = models.ManyToManyField(
+        Proposal,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "Every proposal the discussion has covered, kept when one leaves "
+            "its panel: their teams, authors and people with a conflict of "
+            "interest stay out of it and its record."
+        ),
+    )
+
+    class Meta:
+        ordering = ["-created", "id"]
+        verbose_name = _("Step discussion")
+        verbose_name_plural = _("Step discussions")
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    proposal_step__isnull=False,
+                    round_step__isnull=True,
+                    panel__isnull=True,
+                )
+                | Q(proposal_step__isnull=True, round_step__isnull=False),
+                name="proposal_step_discussion_one_scope",
+            ),
+            # One open discussion at a time: a step run again, once
+            # reactivated, gets a new one, and the closed ones stay on
+            # record with their exports.
+            models.UniqueConstraint(
+                fields=["proposal_step"],
+                condition=Q(proposal_step__isnull=False, closed_at__isnull=True),
+                name="proposal_unique_open_discussion_per_step",
+            ),
+            # Two, rather than one with nulls_distinct, which PostgreSQL
+            # before 15 does not have: the round discussion of a call
+            # without panels has none.
+            models.UniqueConstraint(
+                fields=["round_step", "panel"],
+                condition=Q(
+                    round_step__isnull=False,
+                    panel__isnull=False,
+                    closed_at__isnull=True,
+                ),
+                name="proposal_unique_open_round_discussion_per_panel",
+            ),
+            models.UniqueConstraint(
+                fields=["round_step"],
+                condition=Q(
+                    round_step__isnull=False,
+                    panel__isnull=True,
+                    closed_at__isnull=True,
+                ),
+                name="proposal_unique_open_round_discussion_without_panel",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Discussion of {self.proposal_step or self.round_step}"
+
+    @property
+    def call_step(self):
+        if self.proposal_step_id:
+            return self.proposal_step.call_step
+        return self.round_step.call_step
+
+    @property
+    def call(self):
+        if self.proposal_step_id:
+            return self.proposal_step.proposal.round.call
+        return self.round_step.round.call
+
+    @property
+    def is_open(self) -> bool:
+        return self.closed_at is None
+
+    @property
+    def is_removed(self) -> bool:
+        # matrix_chat's create_room marks the room erred instead of creating
+        # it for a scope that is removed: a discussion closed before its
+        # room was created needs no room.
+        return self.closed_at is not None
 
 
 class CallTemplate(TimeStampedModel, core_models.UuidMixin):

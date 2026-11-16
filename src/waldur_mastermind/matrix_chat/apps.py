@@ -24,6 +24,9 @@ class MatrixChatConfig(AppConfig):
             Project,
             members=models.project_room_members,
             power_level=models.project_power_level,
+            kind="project",
+            subtitle=models.project_room_subtitle,
+            select_related=("customer",),
             # on_project_pre_delete below closes a deleted project's room.
             close_on_delete=False,
         )

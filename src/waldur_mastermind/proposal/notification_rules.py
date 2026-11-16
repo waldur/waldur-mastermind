@@ -183,6 +183,12 @@ def _responsible_role_users(call_step, proposal=None):
     return users
 
 
+def step_completer_users(call_step, proposal):
+    """Who completes ``call_step`` on ``proposal``: the holders of its
+    completer role there, as the step's notifications address them."""
+    return _responsible_role_users(call_step, proposal)
+
+
 def _applicant_users(proposal, roles=()):
     """The applicant side of a proposal.
 

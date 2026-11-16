@@ -243,6 +243,125 @@ class ProposalConfig(AppConfig):
             step_inputs.proposals_hiding_report_releases_from,
         )
 
+        # Step discussions: who belongs in their Matrix rooms, and when that
+        # changes or the step ends.
+        from waldur_mastermind.matrix_chat import scopes as room_scopes
+
+        from . import step_discussions
+
+        room_scopes.register(
+            models.StepDiscussion,
+            members=step_discussions.room_members,
+            power_level=step_discussions.room_power_level,
+            # What each member takes part as, shown beside their name.
+            role_label=step_discussions.room_role_label,
+            role_notice=step_discussions.ROLE_NOTICE,
+            welcome=step_discussions.room_welcome,
+            name=step_discussions.discussion_name,
+            url=step_discussions.room_url,
+            export_readers=step_discussions.export_reader_ids,
+            ended=step_discussions.ended_ids,
+            closing_reason=step_discussions.ROOM_CLOSING_REASON,
+            # The record keeps the room's history: a discussion deleted with
+            # its step, proposal or round has its room exported too.
+            export_on_close=True,
+            # Support joins only the rooms of discussions they are not kept
+            # away from.
+            may_join=step_discussions.may_join,
+            # Nor do they see the others' rooms, members or exports, and one
+            # who joined leaves once kept away.
+            kept_from=step_discussions.kept_away_ids,
+            scope_ids_for_user=step_discussions.discussion_ids_for_user,
+            kind="step_discussion",
+            subtitle=step_discussions.room_subtitle,
+            select_related=(
+                "proposal_step__call_step",
+                "proposal_step__proposal__round__call",
+                "round_step__call_step",
+                "round_step__round__call",
+                "panel",
+            ),
+        )
+        signals.pre_save.connect(
+            handlers.remember_discussion_settings,
+            sender=models.CallWorkflowStep,
+            dispatch_uid="waldur_mastermind.proposal.remember_discussion_settings",
+        )
+        signals.post_save.connect(
+            handlers.follow_discussion_settings,
+            sender=models.CallWorkflowStep,
+            dispatch_uid="waldur_mastermind.proposal.follow_discussion_settings",
+        )
+        for signal in (signals.post_save, signals.post_delete):
+            signal.connect(
+                handlers.resync_discussions_on_requested_resource,
+                sender=models.RequestedResource,
+                dispatch_uid=(
+                    "waldur_mastermind.proposal."
+                    f"resync_discussions_on_requested_resource_{id(signal)}"
+                ),
+            )
+        signals.post_save.connect(
+            handlers.resync_discussions_on_requested_offering,
+            sender=models.RequestedOffering,
+            dispatch_uid="waldur_mastermind.proposal.resync_discussions_on_requested_offering",
+        )
+        signals.post_save.connect(
+            handlers.follow_step_for_discussions,
+            sender=models.ProposalWorkflowStepInstance,
+            dispatch_uid="waldur_mastermind.proposal.follow_step_for_discussions",
+        )
+        signals.post_save.connect(
+            handlers.follow_proposal_for_discussions,
+            sender=models.Proposal,
+            dispatch_uid="waldur_mastermind.proposal.follow_proposal_for_discussions",
+        )
+        for signal in (signals.post_save, signals.post_delete):
+            signal.connect(
+                handlers.resync_discussions_on_contribution,
+                sender=models.StepContribution,
+                dispatch_uid=(
+                    "waldur_mastermind.proposal.resync_discussions_on_contribution"
+                    f"_{id(signal)}"
+                ),
+            )
+        signals.post_save.connect(
+            handlers.resync_discussions_on_assignment,
+            sender=models.ProposalRoleAssignment,
+            dispatch_uid="waldur_mastermind.proposal.resync_discussions_on_assignment",
+        )
+        signals.post_save.connect(
+            handlers.resync_discussions_on_conflict,
+            sender=models.ConflictOfInterest,
+            dispatch_uid="waldur_mastermind.proposal.resync_discussions_on_conflict",
+        )
+        for signal in (
+            permission_signals.role_granted,
+            permission_signals.role_revoked,
+        ):
+            signal.connect(
+                handlers.resync_discussions_on_role_change,
+                dispatch_uid=(
+                    "waldur_mastermind.proposal.resync_discussions_on_role_change"
+                    f"_{id(signal)}"
+                ),
+            )
+        signals.m2m_changed.connect(
+            handlers.resync_discussions_on_panel_members,
+            sender=models.CallPanel.members.through,
+            dispatch_uid="waldur_mastermind.proposal.resync_discussions_on_panel_members",
+        )
+        signals.post_save.connect(
+            handlers.follow_panel_for_discussions,
+            sender=models.CallPanel,
+            dispatch_uid="waldur_mastermind.proposal.follow_panel_for_discussions",
+        )
+        signals.post_save.connect(
+            handlers.follow_call_chairs_for_discussions,
+            sender=models.Call,
+            dispatch_uid="waldur_mastermind.proposal.follow_call_chairs_for_discussions",
+        )
+
         event_dispatch.register_event_chain(models.Call, event_publishing.call_chain)
         event_dispatch.register_event_chain(
             models.Proposal, event_publishing.proposal_chain

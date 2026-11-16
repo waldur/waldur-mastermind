@@ -250,7 +250,9 @@ def round_steps_by_round(call, round_ids):
     )
     records = {
         (record.round_id, record.call_step_id): record
-        for record in models.RoundStep.objects.filter(round_id__in=round_ids)
+        for record in models.RoundStep.objects.filter(
+            round_id__in=round_ids
+        ).select_related("call_step", "round__call")
     }
     instances = models.ProposalWorkflowStepInstance.objects.filter(
         proposal__round_id__in=round_ids,
@@ -301,6 +303,8 @@ def round_steps_by_round(call, round_ids):
             rows.append(
                 {
                     "call_step": call_step,
+                    "round_step": record,
+                    "round_step_uuid": record.uuid if record else None,
                     "has_reports": call_step.round_scoped
                     and call_step.collects_contributions,
                     "due_at": record.due_at if record else None,

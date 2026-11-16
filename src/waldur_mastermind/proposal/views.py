@@ -118,6 +118,7 @@ from waldur_mastermind.proposal import (
     round_steps,
     runs,
     serializers,
+    step_discussions,
     step_inputs,
     tasks,
     utils,
@@ -524,12 +525,20 @@ def validate_proposal_role_unused(role):
 
 
 def validate_panel_unused(panel):
-    """Refuse to delete a panel proposals are routed to: move them first."""
+    """Refuse to delete a panel proposals are routed to: move them first.
+    Nor one that held a step discussion, whose record is kept with it."""
     if panel.proposals.exists():
         raise exceptions.ValidationError(
             _(
                 "Proposals are routed to this panel; move them to another "
                 "panel before deleting it."
+            )
+        )
+    if panel.discussions.exists():
+        raise exceptions.ValidationError(
+            _(
+                "This panel has held a step discussion, whose record is kept "
+                "with the panel, so it cannot be deleted."
             )
         )
 
@@ -3422,7 +3431,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
         return response.Response(
             serializers.RoundStepSerializer(
-                round_reports.round_steps_of(call_round), many=True
+                round_reports.round_steps_of(call_round),
+                many=True,
+                context=self.get_serializer_context(),
             ).data,
             status=status.HTTP_200_OK,
         )
@@ -7486,7 +7497,11 @@ class ProposalViewSet(
         # checklist status...) cost no query per row.
         instances = (
             proposal.workflow_step_instances.select_related(
-                "call_step__checklist", "call_step__completer_proposal_role", "run"
+                "call_step__checklist",
+                "call_step__completer_proposal_role",
+                # Read by the discussion of a step that has one.
+                "call_step__call",
+                "run",
             )
             .prefetch_related("input_steps")
             # The evaluation's path, then each post-award run's in turn.
@@ -15156,4 +15171,124 @@ class MyTaskViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
                 my_tasks.summary_of(self._tasks())
             ).data,
             status=status.HTTP_200_OK,
+        )
+
+
+class StepDiscussionViewSet(ReadOnlyActionsViewSet):
+    """Tracked discussions of workflow steps: an encrypted Matrix room for
+    the people working on a step, opened by one of them and closed with its
+    history exported when the step ends (``step_discussions``).
+
+    Who reads a discussion: ``step_discussions.SHOWS``; who opens one:
+    ``step_discussions.OPENS``.
+    """
+
+    lookup_field = "uuid"
+    serializer_class = serializers.StepDiscussionSerializer
+    filterset_class = filters.StepDiscussionFilter
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = (rf_permissions.IsAuthenticated,)
+    # The service checks the step the request names (check_open).
+    access_declarations = {
+        "open": [access.custom(step_discussions.OPENS)],
+        "startable": [
+            access.owned(
+                "The discussions the caller could start now: of steps they "
+                "take part in, by the rules of open."
+            )
+        ],
+    }
+
+    @access.shows(step_discussions.SHOWS)
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return models.StepDiscussion.objects.none()
+        return (
+            # The request, so that a personal access token is held to its
+            # scopes.
+            step_discussions.visible_to(self.request)
+            .select_related(
+                "proposal_step__call_step",
+                "proposal_step__proposal__round__call",
+                "round_step__call_step",
+                "round_step__round__call",
+                "panel",
+                "opened_by",
+            )
+            .prefetch_related("participants")
+            .order_by("-created", "id")
+        )
+
+    @extend_schema(
+        summary="Open a step's discussion",
+        description=(
+            "Open the discussion of a proposal's step, or of a round step for "
+            "one of the call's panels, as one of the people working on it: "
+            "201 with the discussion the first time, which creates its Matrix "
+            "room, 200 with the same one afterwards. 403 for anyone who does "
+            "not take part in it, before anything is said about the step's "
+            "state. Then 400 when the step has no discussion or Matrix chat is "
+            "disabled, 409 when the step is not active or its discussion has "
+            "closed."
+        ),
+        request=serializers.OpenStepDiscussionSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.StepDiscussionSerializer,
+            status.HTTP_201_CREATED: serializers.StepDiscussionSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def open(self, request):
+        serializer = serializers.OpenStepDiscussionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # A token opens no discussion it could not read.
+        step_discussions.check_token(
+            request,
+            proposal_step=serializer.validated_data.get("proposal_step_uuid"),
+            round_step=serializer.validated_data.get("round_step_uuid"),
+        )
+        discussion, created = step_discussions.open_discussion(
+            request.user,
+            proposal_step=serializer.validated_data.get("proposal_step_uuid"),
+            round_step=serializer.validated_data.get("round_step_uuid"),
+            panel=serializer.validated_data.get("panel_uuid"),
+        )
+        discussion = models.StepDiscussion.objects.select_related(
+            "proposal_step__call_step",
+            "proposal_step__proposal__round__call",
+            "round_step__call_step",
+            "round_step__round__call",
+            "panel",
+            "opened_by",
+        ).get(pk=discussion.pk)
+        return response.Response(
+            serializers.StepDiscussionSerializer(
+                discussion, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    open_serializer_class = serializers.OpenStepDiscussionSerializer
+
+    @extend_schema(
+        summary="List the discussions the current user could start",
+        description=(
+            "The discussions nobody has started yet that the current user "
+            "could start now: of the active steps with a discussion they take "
+            "part in, and of the opened round steps of their panels, one per "
+            "panel. Each names what the open action takes. Empty while Matrix "
+            "chat is disabled. Not paginated."
+        ),
+        responses={
+            status.HTTP_200_OK: serializers.StartableStepDiscussionSerializer(many=True)
+        },
+        filters=False,
+    )
+    @decorators.action(detail=False, methods=["get"], pagination_class=None)
+    def startable(self, request):
+        return response.Response(
+            serializers.StartableStepDiscussionSerializer(
+                step_discussions.startable_for(request.user, request=request),
+                many=True,
+            ).data
         )

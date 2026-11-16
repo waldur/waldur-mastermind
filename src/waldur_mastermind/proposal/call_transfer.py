@@ -39,6 +39,7 @@ from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.permissions import models as permissions_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.matrix_chat import matrix_client
 from waldur_mastermind.proposal import (
     budgets,
     enums,
@@ -1490,6 +1491,14 @@ class _Importer:
             # Parked above; an entry that names no order is appended.
             step.order = None
             self._assign(step, values, context)
+            if step.has_discussion and not matrix_client.is_enabled():
+                # A discussion is a Matrix room: this portal has none to
+                # give, and the rest of the call imports as it is.
+                step.has_discussion = False
+                self.warn(
+                    f"{context}.has_discussion: Matrix chat is disabled on this "
+                    "portal, so the step has no discussion."
+                )
             step.checklist = self._step_form(
                 call, values.get("checklist"), f"{context}.checklist"
             )

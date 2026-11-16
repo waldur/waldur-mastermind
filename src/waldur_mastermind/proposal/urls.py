@@ -70,6 +70,11 @@ def register_in(router):
         basename="proposal-ranking",
     )
     router.register(
+        r"proposal-step-discussions",
+        views.StepDiscussionViewSet,
+        basename="proposal-step-discussion",
+    )
+    router.register(
         r"round-meeting-notes",
         views.RoundMeetingNoteViewSet,
         basename="round-meeting-note",

@@ -964,7 +964,7 @@ class StepWork:
 # =============================================================================
 
 
-def _step_candidates(standing, statuses):
+def step_candidates(standing, statuses):
     """Step instances where the user could hold work: a superset, narrowed
     by the rules above."""
     user = standing.user
@@ -1014,7 +1014,7 @@ def _slots_by_instance(instance_ids):
 def _active_step_tasks(standing):
     # A step run once per round is the round's work, listed per round below.
     instances = list(
-        _step_candidates(standing, [WorkflowStepInstanceStatuses.ACTIVE])
+        step_candidates(standing, [WorkflowStepInstanceStatuses.ACTIVE])
         .filter(
             # In evaluation, or in an accepted proposal's open post-award run.
             Q(proposal__state__in=OPEN_PROPOSAL_STATES)
@@ -1040,7 +1040,7 @@ def _release_tasks(standing):
     """Completed assessments whose report waits to be released to the
     applicant (``step_inputs.can_release``)."""
     instances = list(
-        _step_candidates(standing, [WorkflowStepInstanceStatuses.COMPLETED])
+        step_candidates(standing, [WorkflowStepInstanceStatuses.COMPLETED])
         .filter(
             call_step__kind=StepKinds.ASSESSMENT,
             call_step__release_to_applicant=True,

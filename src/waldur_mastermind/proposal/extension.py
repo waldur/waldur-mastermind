@@ -117,4 +117,9 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(minutes=30),
                 "args": (),
             },
+            "close-stale-step-discussions": {
+                "task": "waldur_mastermind.proposal.close_stale_step_discussions",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
         }
