@@ -103,6 +103,73 @@ def _conflicted_proposals(user):
     )
 
 
+conflicted_proposals = _conflicted_proposals
+
+
+def conflicted_user_ids(proposals) -> set[int]:
+    """Ids of the users ``_conflicted_proposals`` names any of ``proposals``
+    for: their authors, everyone on their applicant teams, and whoever has a
+    conflict of interest on record with one. The same rule seen from the
+    proposals' side, in one query."""
+    proposal_ids = proposals.order_by().values("id")
+    on_team = (
+        permissions_models.UserRole.objects.filter(
+            is_active=True,
+            content_type=ContentType.objects.get_for_model(models.Proposal),
+            object_id__in=proposal_ids,
+        )
+        .order_by()
+        .values_list("user_id", flat=True)
+    )
+    conflicts = (
+        models.ConflictOfInterest.objects.filter(
+            proposal_id__in=proposal_ids,
+            status__in=proposal_roles.BLOCKING_COI_STATUSES,
+        )
+        .order_by()
+        .values_list("reviewer__user_id", flat=True)
+    )
+    authors = (
+        models.Proposal.objects.filter(id__in=proposal_ids, created_by__isnull=False)
+        .order_by()
+        .values_list("created_by_id", flat=True)
+    )
+    return set(on_team.union(conflicts, authors)) - {None}
+
+
+def conflicted_user_ids_by_proposal(proposals) -> dict[int, set[int]]:
+    """``conflicted_user_ids`` of each of ``proposals``, in one query: the
+    same rule, for a caller that needs it for several sets of them."""
+    proposal_ids = proposals.order_by().values("id")
+    on_team = (
+        permissions_models.UserRole.objects.filter(
+            is_active=True,
+            content_type=ContentType.objects.get_for_model(models.Proposal),
+            object_id__in=proposal_ids,
+        )
+        .order_by()
+        .values_list("object_id", "user_id")
+    )
+    conflicts = (
+        models.ConflictOfInterest.objects.filter(
+            proposal_id__in=proposal_ids,
+            status__in=proposal_roles.BLOCKING_COI_STATUSES,
+        )
+        .order_by()
+        .values_list("proposal_id", "reviewer__user_id")
+    )
+    authors = (
+        models.Proposal.objects.filter(id__in=proposal_ids, created_by__isnull=False)
+        .order_by()
+        .values_list("id", "created_by_id")
+    )
+    by_proposal: dict[int, set[int]] = {}
+    for proposal_id, user_id in on_team.union(conflicts, authors):
+        if user_id is not None:
+            by_proposal.setdefault(proposal_id, set()).add(user_id)
+    return by_proposal
+
+
 def readable_rounds(user):
     """Rounds whose ranking and meeting notes ``user`` reads."""
     rounds = models.Round.objects.all()

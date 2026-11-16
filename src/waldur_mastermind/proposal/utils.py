@@ -32,6 +32,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
+from waldur_mastermind.matrix_chat import matrix_client
 from waldur_mastermind.proposal import (
     activity,
     allocation_names,
@@ -40,6 +41,7 @@ from waldur_mastermind.proposal import (
     event_publishing,
     notification_rules,
     proposal_roles,
+    step_discussions,
 )
 from waldur_mastermind.proposal import enums as proposal_enums
 from waldur_mastermind.proposal import models as proposal_models
@@ -1522,6 +1524,11 @@ def duplicate_call(
                         **_clone_concrete_fields(
                             src_step, _DUPLICATE_WORKFLOW_STEP_OVERRIDE_FIELDS
                         ),
+                        # A discussion is a Matrix room: while Matrix chat
+                        # is disabled the copy has none, as an imported
+                        # call has none.
+                        "has_discussion": src_step.has_discussion
+                        and matrix_client.is_enabled(),
                         "assigns_roles": [
                             role_map[role.pk] for role in src_step.assigns_roles.all()
                         ],
@@ -1817,6 +1824,9 @@ def withdraw_proposal(proposal, user, reason=""):
             WorkflowStepInstanceStatuses.ACTIVE,
         )
     ).update(status=WorkflowStepInstanceStatuses.SKIPPED)
+    # Saving the proposal closed its discussions, but the skipped steps sent
+    # no signal: closed again now that they are, with the round's.
+    step_discussions.close_proposal(proposal)
     proposal.review_set.filter(state=proposal_models.Review.States.IN_REVIEW).update(
         state=proposal_models.Review.States.REJECTED
     )

@@ -59,6 +59,7 @@ from . import (
     models,
     recovery_keys,
     room_provisioning,
+    scopes,
     serializers,
     tasks,
     tickets,
@@ -75,6 +76,7 @@ from .managers import (
     filter_exports_for_request,
     get_accessible_room_ids,
     get_unlinked_room_users,
+    may_join_room,
 )
 
 logger = logging.getLogger(__name__)
@@ -165,12 +167,19 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
 
     @access.shows(SHOWS_ROOMS)
     def get_queryset(self):
-        queryset = super().get_queryset()
+        # The rooms' scopes, and what their names read, a query per kind.
+        queryset = super().get_queryset().prefetch_related(scopes.scope_prefetch())
         user = self.request.user
         if not user.is_authenticated:
             return queryset.none()
-        if user.is_staff or user.is_support:
+        if user.is_staff:
             return queryset
+        if user.is_support:
+            # Support reads every room but those whose kind of scope keeps
+            # them out, such as a step discussion of a proposal they apply
+            # with: the list, the room, its members and its exports alike.
+            kept = scopes.rooms_kept_from(user)
+            return queryset.exclude(kept) if kept is not None else queryset
         return queryset.filter(id__in=get_accessible_room_ids(user))
 
     @extend_schema(
@@ -253,7 +262,9 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         )
         page = self.paginate_queryset(queryset)
         serializer = serializers.MatrixRoomMemberSerializer(
-            page or queryset, many=True, context=self.get_serializer_context()
+            page or queryset,
+            many=True,
+            context={**self.get_serializer_context(), "scope": room.scope},
         )
         if page is not None:
             return self.get_paginated_response(serializer.data)
@@ -524,7 +535,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         )
         return Response(output_serializer.data, status=status.HTTP_202_ACCEPTED)
 
-    join_permissions = [structure_permissions.is_staff_or_support]
+    join_permissions = [structure_permissions.is_staff_or_support, may_join_room]
 
     @extend_schema(
         summary="Leave a chat room as staff",

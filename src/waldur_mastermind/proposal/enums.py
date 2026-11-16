@@ -27,6 +27,16 @@ class WorkflowStepInstanceStatuses:
     ENDED = frozenset({COMPLETED, EXPIRED, SKIPPED, WITHDRAWN})
 
 
+class StepDiscussionStates:
+    """Where a step's discussion stands, as its step shows it."""
+
+    NOT_OPENED = "not_opened"
+    OPEN = "open"
+    CLOSED = "closed"
+
+    CHOICES = ((NOT_OPENED, "Not opened"), (OPEN, "Open"), (CLOSED, "Closed"))
+
+
 class CheckRunStatuses:
     """Whether checks or scenarios asked to run in the background are still
     on their way."""
@@ -730,6 +740,13 @@ PANEL_CHAIR_NOTIFICATION_RULES = (
     ),
 )
 
+# The settings of a step's discussion, on every kind but the applicant's.
+DISCUSSION_STEP_FIELDS = (
+    "has_discussion",
+    "discussion_call_managers",
+    "discussion_panel_members",
+)
+
 STEP_KINDS = [
     StepKindDefinition(
         id=StepKinds.APPLICANT_ACTION,
@@ -765,6 +782,7 @@ STEP_KINDS = [
             "assigns_roles",
             "requires_coi_confirmation",
             "coi_declaration_text",
+            *DISCUSSION_STEP_FIELDS,
         ),
     ),
     StepKindDefinition(
@@ -798,6 +816,7 @@ STEP_KINDS = [
             "collects_reviewer_suggestions",
             "allows_change_requests",
             "round_scoped",
+            *DISCUSSION_STEP_FIELDS,
         ),
     ),
     StepKindDefinition(
@@ -819,6 +838,7 @@ STEP_KINDS = [
             "include_award_response",
             "allows_change_requests",
             "round_scoped",
+            *DISCUSSION_STEP_FIELDS,
         ),
     ),
 ]

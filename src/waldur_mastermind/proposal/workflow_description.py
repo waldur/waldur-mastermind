@@ -1554,6 +1554,23 @@ def _drawn_step_fields(step, describer):
 
 
 STEP_EXTENSIONS: list[Callable] = [_drawn_step_fields]
+
+
+def _discussion_step_extension(step, describer):
+    """A step's tracked discussion: who joins it besides the step's
+    contributors and completer. Only for documents whose steps carry
+    ``has_discussion``, and only when the step has one."""
+    if not step.get("has_discussion"):
+        return {}
+    return {
+        "discussion": {
+            "call_managers": step.get("discussion_call_managers", True) is not False,
+            "panel_members": bool(step.get("discussion_panel_members")),
+        }
+    }
+
+
+STEP_EXTENSIONS.append(_discussion_step_extension)
 CALL_EXTENSIONS: list[Callable] = []
 
 

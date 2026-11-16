@@ -156,6 +156,16 @@ class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
     scope = RoomScopeField(read_only=True)
     scope_uuid = serializers.SerializerMethodField()
     scope_name = serializers.SerializerMethodField()
+    scope_type = serializers.SerializerMethodField(
+        help_text="The kind of room: 'project' for a project's team room, "
+        "'step_discussion' for a proposal workflow step's discussion. Null "
+        "for a room of a kind of object no app registered."
+    )
+    scope_subtitle = serializers.SerializerMethodField(
+        help_text="A short line saying what the room is for: the "
+        "organization of a project room, the step and proposal or round of a "
+        "discussion."
+    )
     customer_uuid = serializers.SerializerMethodField()
     customer_name = serializers.SerializerMethodField()
     members_count = serializers.SerializerMethodField()
@@ -179,6 +189,8 @@ class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
             "scope",
             "scope_uuid",
             "scope_name",
+            "scope_type",
+            "scope_subtitle",
             "customer_uuid",
             "customer_name",
             "members_count",
@@ -211,6 +223,18 @@ class MatrixRoomSerializer(serializers.HyperlinkedModelSerializer):
     def get_scope_name(self, obj):
         if obj.scope:
             return scopes.scope_name(obj.scope)
+        return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_scope_type(self, obj):
+        if obj.scope:
+            return scopes.scope_type(obj.scope)
+        return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_scope_subtitle(self, obj):
+        if obj.scope:
+            return scopes.scope_subtitle(obj.scope)
         return None
 
     @extend_schema_field(serializers.CharField(allow_null=True))
@@ -300,6 +324,13 @@ class MatrixRoomMemberSerializer(serializers.HyperlinkedModelSerializer):
     user_uuid = serializers.ReadOnlyField(source="user.uuid")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     user_image = serializers.ImageField(source="user.image", read_only=True)
+    role_label = serializers.SerializerMethodField(
+        help_text=(
+            "What the member takes part as, by the room's kind: in a step "
+            "discussion, say, Panel chair, Call manager or Reviewer. Null "
+            "where the kind of room names none."
+        )
+    )
 
     class Meta:
         model = models.MatrixRoomMember
@@ -311,10 +342,20 @@ class MatrixRoomMemberSerializer(serializers.HyperlinkedModelSerializer):
             "matrix_user_id",
             "power_level",
             "membership_state",
+            "role_label",
             "created",
             "modified",
         )
         read_only_fields = fields
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_role_label(self, member) -> str | None:
+        # The room's scope, loaded once for the list (``context["scope"]``),
+        # answers for every member of it.
+        scope = self.context.get("scope")
+        if scope is None:
+            return None
+        return scopes.role_label(member.user, scope)
 
 
 class MatrixHistoryExportSerializer(serializers.HyperlinkedModelSerializer):

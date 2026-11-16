@@ -6,9 +6,10 @@ import uuid
 from datetime import datetime
 
 import yaml
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.template.defaultfilters import filesizeformat
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -50,6 +51,9 @@ from waldur_mastermind.marketplace.serializers import (
     UserAttributeConfigBaseSerializer,
     validate_prepaid_duration_against_component,
 )
+from waldur_mastermind.matrix_chat import managers as matrix_managers
+from waldur_mastermind.matrix_chat import matrix_client
+from waldur_mastermind.matrix_chat import models as matrix_models
 from waldur_mastermind.proposal import (
     activity,
     call_templates,
@@ -120,6 +124,7 @@ from . import (
     rankings,
     reviewer_suggestions,
     round_reports,
+    step_discussions,
     step_inputs,
     utils,
     workflow_service,
@@ -4388,9 +4393,92 @@ class ProtectedCallSerializer(PublicCallSerializer):
         config.save()
 
 
+class StepDiscussionViewerSerializer(serializers.Serializer):
+    """A step's discussion as its viewer sees it."""
+
+    uuid = serializers.UUIDField(
+        format="hex",
+        allow_null=True,
+        help_text=(
+            "The step's latest discussion, once opened (proposal-step-"
+            "discussions): the open one, else the last closed."
+        ),
+    )
+    state = serializers.ChoiceField(
+        choices=enums.StepDiscussionStates.CHOICES,
+        help_text="not_opened, open, or closed with its step.",
+    )
+    can_open = serializers.BooleanField(
+        help_text=(
+            "Whether the viewer may open it now -- or join it, once open: they "
+            "take part in it, the step is active and Matrix chat is enabled. "
+            "With state closed, the step runs again: opening starts a new "
+            "discussion, and the closed one stays on record."
+        )
+    )
+
+
+class RoundStepDiscussionSerializer(StepDiscussionViewerSerializer):
+    panel_uuid = serializers.UUIDField(
+        format="hex",
+        allow_null=True,
+        help_text="The panel whose discussion it is; null on a call without panels.",
+    )
+    panel_name = serializers.CharField(allow_null=True)
+
+
 class RoundStepSerializer(serializers.Serializer):
     """A step of the call in one round: its due date there, and for a step
     run once per round its opening and round reports."""
+
+    round_step_uuid = serializers.UUIDField(
+        format="hex",
+        allow_null=True,
+        help_text=(
+            "The step's record in the round, once it has a due date or was "
+            "opened there; null before."
+        ),
+    )
+    has_discussion = serializers.BooleanField(source="call_step.has_discussion")
+    discussions = serializers.SerializerMethodField(
+        help_text=(
+            "For a round step with a discussion, its discussion per panel (one "
+            "on a call without panels) that the viewer takes part in or "
+            "oversees; empty otherwise."
+        )
+    )
+
+    @extend_schema_field(RoundStepDiscussionSerializer(many=True))
+    def get_discussions(self, row):
+        request = self.context.get("request")
+        call_step = row["call_step"]
+        round_step = row.get("round_step")
+        if request is None or round_step is None or not call_step.round_scoped:
+            return []
+        if not call_step.has_discussion:
+            return []
+        # Shared by the rows of the response: what they ask alike is asked
+        # once (step_discussions.viewer_state).
+        cache = self.context.setdefault("_step_discussions", {})
+        result = []
+        call_panels = step_discussions.call_panels(round_step.round.call, cache)
+        for panel in call_panels or [None]:
+            state = step_discussions.viewer_state(
+                request.user,
+                round_step=round_step,
+                panel=panel,
+                cache=cache,
+                request=request,
+            )
+            if state is not None:
+                result.append(
+                    {
+                        **state,
+                        "panel_uuid": panel.uuid.hex if panel else None,
+                        "panel_name": panel.name if panel else None,
+                    }
+                )
+        return result
 
     step_uuid = serializers.UUIDField(source="call_step.uuid", format="hex")
     step_key = serializers.CharField(source="call_step.key")
@@ -4549,7 +4637,9 @@ class ProtectedRoundSerializer(
             if call_round.pk not in round_ids:
                 round_ids.append(call_round.pk)
             cache.update(round_reports.round_steps_by_round(call_round.call, round_ids))
-        return RoundStepSerializer(cache[call_round.pk], many=True).data
+        return RoundStepSerializer(
+            cache[call_round.pk], many=True, context=self.context
+        ).data
 
     def get_has_proposals(self, call_round) -> bool:
         # Round lists annotate the count; a single round asks here.
@@ -11131,6 +11221,9 @@ class CallWorkflowStepSerializer(
             "run_condition_step_name",
             "parallel_with_previous",
             "round_scoped",
+            "has_discussion",
+            "discussion_call_managers",
+            "discussion_panel_members",
             "phase",
             "project_end_offset_days",
             "status_labels",
@@ -11460,6 +11553,22 @@ class CallWorkflowStepSerializer(
             attrs, "collects_reviewer_suggestions", False
         )
         candidate.round_scoped = self._current(attrs, "round_scoped", False)
+        candidate.blind_review = self._current(attrs, "blind_review", False)
+        candidate.has_discussion = self._current(attrs, "has_discussion", False)
+        if (
+            attrs.get("has_discussion")
+            and not getattr(self.instance, "has_discussion", False)
+            and not matrix_client.is_enabled()
+        ):
+            # A step that has one keeps it when chat is disabled later.
+            raise serializers.ValidationError(
+                {
+                    "has_discussion": _(
+                        "Matrix chat is disabled, so a step cannot be given a "
+                        "discussion."
+                    )
+                }
+            )
         candidate.min_score_threshold = self._current(attrs, "min_score_threshold")
         candidate.phase = self._current(attrs, "phase", WorkflowPhases.EVALUATION)
         candidate.project_end_offset_days = self._current(
@@ -12070,6 +12179,14 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             "round, never on the proposal alone."
         ),
     )
+    discussion = serializers.SerializerMethodField(
+        help_text=(
+            "The step's discussion, for a step that has one, as the viewer "
+            "sees it: on a step run once per round the round's discussion of "
+            "the proposal's panel. Null when the step has none, or the viewer "
+            "neither takes part in it nor oversees the call."
+        )
+    )
     awaiting_lead = serializers.SerializerMethodField(
         help_text=(
             "Why the active step waits for the lead of its evaluator role, "
@@ -12337,8 +12454,22 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             "ready_to_complete",
             "score_gate",
             "decided_automatically",
+            "discussion",
         ]
         read_only_fields = fields
+
+    @extend_schema_field(StepDiscussionViewerSerializer(allow_null=True))
+    def get_discussion(self, obj):
+        request = self.context.get("request")
+        # Steps without one cost no query.
+        if request is None or not obj.call_step.has_discussion:
+            return None
+        return step_discussions.viewer_state(
+            request.user,
+            proposal_step=obj,
+            cache=self.context.setdefault("_step_discussions", {}),
+            request=request,
+        )
 
     # Steps whose outcome/commentary is peer-review content, gated by the
     # call's reviews_visible_to_submitters setting (separate from the reviewer
@@ -15925,3 +16056,376 @@ class OfferingDemandSerializer(serializers.Serializer):
     components = OfferingDemandComponentSerializer(
         many=True, help_text="Empty for closed rows, which only count proposals."
     )
+
+
+class StepDiscussionParticipantSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(format="hex")
+    full_name = serializers.CharField()
+    username = serializers.CharField()
+
+
+class StepDiscussionSerializer(serializers.ModelSerializer):
+    """A step's tracked discussion: the step, proposal or round and panel it
+    is held for, its Matrix room, and once closed who took part and the
+    export of its history."""
+
+    state = serializers.SerializerMethodField(
+        help_text="open, or closed with its step."
+    )
+    opened_at = serializers.DateTimeField(source="created", read_only=True)
+    opened_by_uuid = serializers.SerializerMethodField()
+    opened_by_name = serializers.SerializerMethodField()
+    call_uuid = serializers.SerializerMethodField()
+    call_name = serializers.SerializerMethodField()
+    call_step_uuid = serializers.SerializerMethodField()
+    step_key = serializers.SerializerMethodField()
+    step_name = serializers.SerializerMethodField()
+    round_scoped = serializers.SerializerMethodField(
+        help_text="Whether it is a round step's discussion."
+    )
+    proposal_step_uuid = serializers.SerializerMethodField(
+        help_text="The proposal's step discussed; null for a round step."
+    )
+    proposal_uuid = serializers.SerializerMethodField()
+    proposal_name = serializers.SerializerMethodField()
+    proposal_slug = serializers.SerializerMethodField()
+    round_step_uuid = serializers.SerializerMethodField(
+        help_text="The round step discussed; null for a proposal's step."
+    )
+    round_uuid = serializers.SerializerMethodField(
+        help_text="The round of the round step, or of the proposal."
+    )
+    round_name = serializers.SerializerMethodField()
+    panel_uuid = serializers.SerializerMethodField(
+        help_text="The panel of a round step's discussion on a call with panels."
+    )
+    panel_name = serializers.SerializerMethodField()
+    room_uuid = serializers.SerializerMethodField(
+        help_text="The discussion's Matrix room (matrix/rooms), once created."
+    )
+    room_id = serializers.SerializerMethodField(
+        help_text="The Matrix room ID, e.g. !abc:domain, once created."
+    )
+    room_state = serializers.SerializerMethodField(
+        help_text="The room's state in Waldur: creating, active, archived..."
+    )
+    export_uuid = serializers.SerializerMethodField(
+        help_text=(
+            "The export of the room's history made when the discussion closed "
+            "(matrix/exports), for those who may download it: the call's "
+            "managers, staff and support. Null otherwise, and until it is made."
+        )
+    )
+    participants = serializers.SerializerMethodField(
+        help_text=("Once closed, who took part; while open, who is in the room now.")
+    )
+
+    class Meta:
+        model = models.StepDiscussion
+        fields = [
+            "uuid",
+            "state",
+            "opened_at",
+            "closed_at",
+            "opened_by_uuid",
+            "opened_by_name",
+            "call_uuid",
+            "call_name",
+            "call_step_uuid",
+            "step_key",
+            "step_name",
+            "round_scoped",
+            "proposal_step_uuid",
+            "proposal_uuid",
+            "proposal_name",
+            "proposal_slug",
+            "round_step_uuid",
+            "round_uuid",
+            "round_name",
+            "panel_uuid",
+            "panel_name",
+            "room_uuid",
+            "room_id",
+            "room_state",
+            "export_uuid",
+            "participants",
+        ]
+        read_only_fields = fields
+
+    # -- the rooms and exports of every listed discussion, loaded once ------
+
+    def _listed(self):
+        parent = getattr(self, "parent", None)
+        listed = getattr(parent, "instance", None) if parent is not None else None
+        if listed is not None and not isinstance(listed, models.StepDiscussion):
+            return list(listed)
+        return [self.instance] if self.instance is not None else []
+
+    def _rooms(self, obj):
+        cache = self.context.setdefault("_discussion_rooms", {})
+        if obj.pk not in cache:
+            discussions = [d for d in self._listed() if d is not None]
+            if all(d.pk != obj.pk for d in discussions):
+                discussions.append(obj)
+            ids = [d.pk for d in discussions]
+            rooms = {
+                room.object_id: room
+                for room in matrix_models.MatrixRoom.objects.filter(
+                    content_type=ContentType.objects.get_for_model(
+                        models.StepDiscussion
+                    ),
+                    object_id__in=ids,
+                ).prefetch_related(
+                    Prefetch(
+                        "members",
+                        queryset=matrix_models.MatrixRoomMember.objects.filter(
+                            membership_state__in=(
+                                matrix_models.MembershipStates.INVITED,
+                                matrix_models.MembershipStates.JOINED,
+                            )
+                        ).select_related("user"),
+                        to_attr="current_members",
+                    )
+                )
+            }
+            exports = {}
+            request = self.context.get("request")
+            if request is not None and rooms:
+                for export in matrix_managers.filter_exports_for_request(
+                    matrix_models.MatrixHistoryExport.objects.filter(
+                        room__in=rooms.values(),
+                        export_type=matrix_models.ExportTypes.ON_DELETION,
+                        state=matrix_models.ExportStates.COMPLETED,
+                    ).order_by("-created"),
+                    request,
+                ):
+                    exports.setdefault(export.room_id, export)
+            for pk in ids:
+                room = rooms.get(pk)
+                cache[pk] = (room, exports.get(room.pk) if room else None)
+        return cache[obj.pk]
+
+    # -- fields -------------------------------------------------------------
+
+    @staticmethod
+    def _proposal(obj):
+        return obj.proposal_step.proposal if obj.proposal_step_id else None
+
+    @staticmethod
+    def _round(obj):
+        if obj.proposal_step_id:
+            return obj.proposal_step.proposal.round
+        return obj.round_step.round
+
+    def get_state(self, obj) -> str:
+        return "open" if obj.closed_at is None else "closed"
+
+    @extend_schema_field(serializers.UUIDField(format="hex", allow_null=True))
+    def get_opened_by_uuid(self, obj):
+        return obj.opened_by.uuid.hex if obj.opened_by_id else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_opened_by_name(self, obj):
+        if not obj.opened_by_id:
+            return None
+        return obj.opened_by.full_name or obj.opened_by.username
+
+    @extend_schema_field(serializers.UUIDField(format="hex"))
+    def get_call_uuid(self, obj):
+        return obj.call.uuid.hex
+
+    def get_call_name(self, obj) -> str:
+        return obj.call.name
+
+    @extend_schema_field(serializers.UUIDField(format="hex"))
+    def get_call_step_uuid(self, obj):
+        return obj.call_step.uuid.hex
+
+    def get_step_key(self, obj) -> str:
+        return obj.call_step.key
+
+    def get_step_name(self, obj) -> str:
+        return obj.call_step.name
+
+    def get_round_scoped(self, obj) -> bool:
+        return bool(obj.round_step_id)
+
+    @extend_schema_field(serializers.UUIDField(format="hex", allow_null=True))
+    def get_proposal_step_uuid(self, obj):
+        return obj.proposal_step.uuid.hex if obj.proposal_step_id else None
+
+    @extend_schema_field(serializers.UUIDField(format="hex", allow_null=True))
+    def get_proposal_uuid(self, obj):
+        proposal = self._proposal(obj)
+        return proposal.uuid.hex if proposal else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_proposal_name(self, obj):
+        proposal = self._proposal(obj)
+        return proposal.name if proposal else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_proposal_slug(self, obj):
+        proposal = self._proposal(obj)
+        return proposal.slug if proposal else None
+
+    @extend_schema_field(serializers.UUIDField(format="hex", allow_null=True))
+    def get_round_step_uuid(self, obj):
+        return obj.round_step.uuid.hex if obj.round_step_id else None
+
+    @extend_schema_field(serializers.UUIDField(format="hex"))
+    def get_round_uuid(self, obj):
+        return self._round(obj).uuid.hex
+
+    def get_round_name(self, obj) -> str:
+        return self._round(obj).name
+
+    @extend_schema_field(serializers.UUIDField(format="hex", allow_null=True))
+    def get_panel_uuid(self, obj):
+        return obj.panel.uuid.hex if obj.panel_id else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_panel_name(self, obj):
+        return obj.panel.name if obj.panel_id else None
+
+    @extend_schema_field(serializers.UUIDField(format="hex", allow_null=True))
+    def get_room_uuid(self, obj):
+        room, _ = self._rooms(obj)
+        return room.uuid.hex if room else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_room_id(self, obj):
+        room, _ = self._rooms(obj)
+        return room.room_id if room else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_room_state(self, obj):
+        room, _ = self._rooms(obj)
+        return room.state if room else None
+
+    @extend_schema_field(serializers.UUIDField(format="hex", allow_null=True))
+    def get_export_uuid(self, obj):
+        if obj.closed_at is None:
+            return None
+        _, export = self._rooms(obj)
+        return export.uuid.hex if export else None
+
+    @extend_schema_field(StepDiscussionParticipantSerializer(many=True))
+    def get_participants(self, obj):
+        if obj.closed_at is not None:
+            users = list(obj.participants.all())
+        else:
+            room, _ = self._rooms(obj)
+            users = [member.user for member in room.current_members] if room else []
+        users.sort(key=lambda user: (user.full_name or user.username).lower())
+        return [
+            {
+                "uuid": user.uuid.hex,
+                "full_name": user.full_name,
+                "username": user.username,
+            }
+            for user in users
+        ]
+
+
+class StartableStepDiscussionSerializer(serializers.Serializer):
+    """A discussion the current user could start now that nobody has
+    started (``step_discussions.startable_for``). Its proposal_step_uuid, or
+    its round_step_uuid and panel_uuid, are what the open action takes."""
+
+    proposal_step_uuid = serializers.UUIDField(allow_null=True)
+    round_step_uuid = serializers.UUIDField(allow_null=True)
+    panel_uuid = serializers.UUIDField(allow_null=True)
+    panel_name = serializers.CharField(allow_null=True)
+    call_uuid = serializers.UUIDField()
+    call_name = serializers.CharField()
+    call_step_uuid = serializers.UUIDField()
+    step_name = serializers.CharField()
+    round_scoped = serializers.BooleanField()
+    proposal_uuid = serializers.UUIDField(allow_null=True)
+    proposal_name = serializers.CharField(allow_null=True)
+    proposal_slug = serializers.CharField(allow_null=True)
+    round_uuid = serializers.UUIDField()
+    round_name = serializers.CharField()
+    due_at = serializers.DateTimeField(
+        allow_null=True,
+        help_text="When the step is due: the proposal's step deadline, or the "
+        "round step's due date.",
+    )
+
+    def to_representation(self, instance):
+        proposal_step, round_step, panel = instance
+        if proposal_step is not None:
+            call_step = proposal_step.call_step
+            proposal = proposal_step.proposal
+            call_round = proposal.round
+            due_at = proposal_step.deadline
+        else:
+            call_step = round_step.call_step
+            proposal = None
+            call_round = round_step.round
+            due_at = round_step.due_at
+        return super().to_representation(
+            {
+                "proposal_step_uuid": proposal_step.uuid if proposal_step else None,
+                "round_step_uuid": round_step.uuid if round_step else None,
+                "panel_uuid": panel.uuid if panel else None,
+                "panel_name": panel.name if panel else None,
+                "call_uuid": call_round.call.uuid,
+                "call_name": call_round.call.name,
+                "call_step_uuid": call_step.uuid,
+                "step_name": call_step.name or call_step.key,
+                "round_scoped": call_step.round_scoped,
+                "proposal_uuid": proposal.uuid if proposal else None,
+                "proposal_name": proposal.name if proposal else None,
+                "proposal_slug": (proposal.slug or None) if proposal else None,
+                "round_uuid": call_round.uuid,
+                "round_name": call_round.name,
+                "due_at": due_at,
+            }
+        )
+
+
+class OpenStepDiscussionSerializer(serializers.Serializer):
+    """Which discussion to open: a proposal's step's, or a round step's for
+    a panel."""
+
+    proposal_step_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ProposalWorkflowStepInstance.objects.select_related(
+            "call_step", "proposal__round__call", "proposal__panel"
+        ),
+        required=False,
+        allow_null=True,
+        help_text=(
+            "The proposal's step, as workflow_states lists it. On a step run "
+            "once per round, the round's discussion of the proposal's panel."
+        ),
+    )
+    round_step_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.RoundStep.objects.select_related("call_step", "round__call"),
+        required=False,
+        allow_null=True,
+        help_text="The round step (round_steps of a round).",
+    )
+    panel_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.CallPanel.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="With round_step_uuid on a call with panels: whose discussion.",
+    )
+
+    def validate(self, attrs):
+        proposal_step = attrs.get("proposal_step_uuid")
+        round_step = attrs.get("round_step_uuid")
+        if (proposal_step is None) == (round_step is None):
+            raise serializers.ValidationError(
+                "Name either a proposal's step or a round step."
+            )
+        if proposal_step is not None and attrs.get("panel_uuid") is not None:
+            raise serializers.ValidationError(
+                {"panel_uuid": "A proposal's step is discussed on its own panel."}
+            )
+        return attrs

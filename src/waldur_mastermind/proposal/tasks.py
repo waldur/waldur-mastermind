@@ -30,6 +30,7 @@ from waldur_mastermind.proposal import (
     provider_calls,
     round_reports,
     runs,
+    step_discussions,
     step_inputs,
     utils,
     workflow_scenarios,
@@ -3098,3 +3099,12 @@ def notify_award_provision_failed(awarded_resource_uuid):
         },
         recipients,
     )
+
+
+@shared_task(name="waldur_mastermind.proposal.close_stale_step_discussions")
+def close_stale_step_discussions():
+    """Close the step discussions whose step has ended without closing them,
+    as when it ends: nightly, the backstop for an event that was missed."""
+    closed = step_discussions.close_stale()
+    if closed:
+        logger.info("Closed %s step discussions whose step had ended", closed)

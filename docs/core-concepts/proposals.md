@@ -531,6 +531,76 @@ as a technical assessment the call managers check before it moves on. The
 round's `round_steps` field lists each step's due date, proposals before, at
 and after it, and the state of its reports.
 
+### Step discussions
+
+A call manager can give a step a tracked discussion (`has_discussion`): an
+end-to-end encrypted Matrix room for the people working on it, kept with the
+step's record (`StepDiscussion`). It is off by default and in every shipped
+template, can be switched on only while Matrix chat is enabled, and never on
+a `blind_review` step or an applicant step. A step keeps it when chat is
+disabled later; a call imported while chat is disabled loses it, with a
+warning, and the workflow check warns about it.
+
+- **Scope.** One discussion per proposal on a proposal's step. On a round
+  step one per round, and one per panel on a call with panels.
+- **Participants.** The holders of an open or submitted contribution to the
+  step who still hold the standing it came through (the evaluator or call
+  role, a role on the offering, a delegation they may still take over), its
+  completers, the call's managers as observers when
+  `discussion_call_managers` (default on), and the panel's members when
+  `discussion_panel_members` (the proposal's panel, the discussion's panel on
+  a round step, the call's panel members on a call without panels).
+  Never anyone on the applicant team of, author of, or with a conflict of
+  interest recorded with the proposal; for a round discussion, with any
+  proposal of the round on its panel (of the round, on a call without
+  panels), whatever that proposal's state -- the rule that keeps them from
+  the round's ranking and notes. A round discussion records every proposal
+  it has covered and never forgets one: a proposal moved to another panel
+  keeps its people out of the old panel's room and record, and moving it
+  back admits nobody. Completers and the panel chair moderate.
+  Membership is synced again when contributions, evaluator roles, conflicts,
+  panels, the proposal's panel, or roles on the call or a requested
+  offering change.
+- **Opening.** `POST /api/proposal-step-discussions/open/` with
+  `proposal_step_uuid` (on a round step, the round's discussion of the
+  proposal's panel) or `round_step_uuid` and `panel_uuid`. The first open
+  creates the room (`201`), later ones return the same discussion (`200`).
+  One is open at a time: a step that runs again after its discussion closed
+  -- reactivated, or a round step whose proposals came back to it -- opens a
+  new one with a new room (`201`), and the closed ones stay on record with
+  their exports. The step shows its latest (`discussion.uuid`); `closed`
+  with `can_open` means opening starts the new one.
+  Anyone not taking part is refused with `403` first, whatever the step's
+  state -- also for a round step with a panel of another call, or none on
+  a call with panels. Participants are refused with `400` when the step has none or chat
+  is disabled, `409` when the step is not active or the discussion has
+  closed. Step instances (`discussion`) and round steps (`discussions`)
+  tell their viewer whether they may open it.
+- **A closed room still active** (closed while chat was off, or its export
+  failed) keeps those who took part and are still in it, but no one who
+  has since joined a covered proposal's team or been found in conflict
+  with one; nobody is brought in.
+- **Closing.** When the proposal's step ends (completed, expired, withdrawn,
+  skipped, or the proposal rejected or withdrawn), or the round's last
+  proposal of the panel is done with the round step, the discussion records
+  who took part and closes. Its room's history is exported -- whatever the
+  periodic export setting says -- before anyone is removed, and the room
+  archived. If the export cannot be made (the bot is down), the room stays
+  open with its members and the nightly export closes it again. A
+  discussion deleted with its step, proposal or round has its room closed
+  and exported the same way. The export is on
+  the record (`export_uuid`) for the call's managers, staff and support.
+- **Reading.** Participants (in the room now, or who took part once closed)
+  and those who may update the call read a discussion -- with a personal
+  access token, as a participant only with `PROPOSAL.LIST` and within its
+  bindings to calls and proposals, as a manager only where its scopes allow
+  `CALL.UPDATE` -- never one they are kept out of as a participant by the
+  rule above. Staff read all; support read all but those they are kept out
+  of, and neither read their exports nor join their rooms.
+  Opening one gives no read of its own. `mine=true` lists one's own.
+- **Switching it off.** Switching `has_discussion` off closes the step's open
+  discussions as if the step ended, so a step made blind keeps no room.
+
 ## Checking a Workflow and Its History
 
 ### Workflow check before activation

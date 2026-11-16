@@ -61,6 +61,7 @@ from waldur_mastermind.proposal.enums import (
     ReviewerStandings,
     RoundStatuses,
     StepContributionStatuses,
+    StepDiscussionStates,
     StepKinds,
     WorkflowPhases,
     WorkflowStepOutcomes,
@@ -116,6 +117,8 @@ SPECTACULAR_SETTINGS = {
         "ReviewerStandingEnum": ReviewerStandings.CHOICES,
         # When a call step runs; shared by steps, step instances and runs.
         "WorkflowPhaseEnum": WorkflowPhases.CHOICES,
+        # A step's discussion, on a proposal's step and on a round step.
+        "StepDiscussionStateEnum": StepDiscussionStates.CHOICES,
         # Template checks and a call's scenarios run in the background alike.
         "CheckRunStatusEnum": CheckRunStatuses.CHOICES,
         # trigger_status.gate would otherwise be a bare GateEnum in the SDK.

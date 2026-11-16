@@ -181,6 +181,21 @@ def proposal_role_holders(proposal, role_ref=None, lead_only=False):
     )
 
 
+def role_holder_ids(call, proposal_ids, role_ref, lead_only=False) -> set[int]:
+    """``proposal_role_holders`` of one role of ``call`` over several of its
+    proposals at once: the ids of whoever holds it on any of them, on the
+    same terms. Two queries however many proposals."""
+    role = resolve_role(call, role_ref)
+    if role is None or not proposal_ids:
+        return set()
+    assignments = models.ProposalRoleAssignment.objects.filter(
+        proposal_id__in=proposal_ids, role=role
+    )
+    if lead_only:
+        assignments = assignments.filter(is_lead=True)
+    return set(_effective(assignments).values_list("user_id", flat=True))
+
+
 def holds_role(user, proposal, role_ref=None) -> bool:
     if user is None or user.is_anonymous:
         return False

@@ -18,6 +18,7 @@ from waldur_mastermind.matrix_chat import (
     models,
     room_provisioning,
     scopes,
+    serializers,
     tasks,
 )
 
@@ -124,6 +125,33 @@ class SyncRoomMembersTest(RegisteredScopeMixin, TestCase):
         self.assertEqual(
             self._member(staff).membership_state, models.MembershipStates.JOINED
         )
+
+    def test_takes_out_support_who_joined_once_the_scope_keeps_them_out(
+        self, mock_client
+    ):
+        support = structure_factories.UserFactory(is_support=True)
+        kept_out = set()
+        self.register_customer_scope(
+            may_join=lambda user, customer: user.pk not in kept_out
+        )
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=support,
+            matrix_user_id=_matrix_id(support),
+            power_level=50,
+            membership_state=models.MembershipStates.JOINED,
+            manually_joined=True,
+        )
+        self.member_ids.add(self.alice.id)
+        self._sync(mock_client)
+        mock_client.kick_user.assert_not_called()
+
+        kept_out.add(support.pk)
+        self._sync(mock_client)
+        mock_client.kick_user.assert_called_once_with(
+            self.room.room_id, _matrix_id(support), reason="Role removed in Waldur"
+        )
+        self.assertFalse(models.keeps_room_access(support, self.room))
 
     def test_skips_an_inactive_member_and_syncs_the_rest(self, mock_client):
         carol = structure_factories.UserFactory(username="carol", is_active=False)
@@ -419,6 +447,73 @@ class RegisteredScopeRoomListTest(RegisteredScopeMixin, test.APITestCase):
         self.assertEqual(
             response.data[0]["scope"], f"https://example.com/meetings/{customer.pk}/"
         )
+
+    def test_the_room_says_what_kind_it_is(self):
+        self.register_customer_scope(
+            kind="meeting", subtitle=lambda scope: f"Meetings of {scope.name}"
+        )
+        customer = structure_factories.CustomerFactory(name="Acme")
+        meeting = self.make_room(customer)
+        self._join(meeting, self.member)
+        project = structure_factories.ProjectFactory()
+        project_room = self.make_room(project, room_id="!project:matrix.example.com")
+        profile = models.MatrixUserProfile.objects.create(
+            user=structure_factories.UserFactory(),
+            matrix_user_id="@profile:matrix.example.com",
+        )
+        unregistered = self.make_room(profile, room_id="!other:matrix.example.com")
+
+        self.client.force_authenticate(self.member)
+        rows = {r["uuid"]: r for r in self.client.get(self.url).data}
+        self.assertEqual(rows[meeting.uuid.hex]["scope_type"], "meeting")
+        self.assertEqual(rows[meeting.uuid.hex]["scope_subtitle"], "Meetings of Acme")
+        request = test.APIRequestFactory().get(self.url)
+        request.user = self.member
+        project_row = serializers.MatrixRoomSerializer(
+            project_room, context={"request": request}
+        ).data
+        self.assertEqual(project_row["scope_type"], "project")
+        self.assertEqual(project_row["scope_subtitle"], project.customer.name)
+        other_row = serializers.MatrixRoomSerializer(
+            unregistered, context={"request": request}
+        ).data
+        self.assertIsNone(other_row["scope_type"])
+        self.assertIsNone(other_row["scope_subtitle"])
+
+        for kind, expected in (
+            ("meeting", [meeting.uuid.hex]),
+            ("project", []),
+            ("nothing", []),
+        ):
+            response = self.client.get(self.url, {"scope_type": kind})
+            self.assertEqual([r["uuid"] for r in response.data], expected, kind)
+
+    def test_support_see_every_room_but_those_their_scope_keeps_them_from(self):
+        support = structure_factories.UserFactory(is_support=True)
+        staff = structure_factories.UserFactory(is_staff=True)
+        kept, other = (
+            structure_factories.CustomerFactory(),
+            structure_factories.CustomerFactory(),
+        )
+        self.register_customer_scope(
+            kept_from=lambda user: [kept.pk] if user.pk == support.pk else []
+        )
+        kept_room = self.make_room(kept)
+        other_room = self.make_room(other, room_id="!other:matrix.example.com")
+        self.assertEqual(
+            scopes.rooms_kept_from(staff),
+            None,
+        )
+
+        self.client.force_authenticate(support)
+        listed = {r["uuid"] for r in self.client.get(self.url).data}
+        self.assertEqual(listed, {other_room.uuid.hex})
+        response = self.client.get(f"{self.url}{kept_room.uuid.hex}/members/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.client.force_authenticate(staff)
+        listed = {r["uuid"] for r in self.client.get(self.url).data}
+        self.assertEqual(listed, {kept_room.uuid.hex, other_room.uuid.hex})
 
     def test_current_members_see_the_room_and_no_one_else(self):
         self.register_customer_scope()

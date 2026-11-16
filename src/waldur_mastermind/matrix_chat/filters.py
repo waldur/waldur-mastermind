@@ -4,7 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from waldur_core.core import filters as core_filters
 from waldur_core.structure.models import Project
 
-from . import models
+from . import models, scopes
 
 
 class MatrixRoomFilter(django_filters.FilterSet):
@@ -14,6 +14,10 @@ class MatrixRoomFilter(django_filters.FilterSet):
         label="Project UUID",
     )
     state = django_filters.ChoiceFilter(choices=models.RoomStates.CHOICES)
+    scope_type = django_filters.CharFilter(
+        method="filter_by_scope_type",
+        label="Kind of room, such as project or step_discussion",
+    )
     member = django_filters.BooleanFilter(
         method="filter_by_member",
         label="Only rooms the current user is a member of",
@@ -31,6 +35,9 @@ class MatrixRoomFilter(django_filters.FilterSet):
                 "id", flat=True
             ),
         )
+
+    def filter_by_scope_type(self, queryset, name, value):
+        return queryset.filter(content_type__in=scopes.content_types_of_kind(value))
 
     def filter_by_member(self, queryset, name, value):
         # Used by the user-facing chat list to show only conversations the
