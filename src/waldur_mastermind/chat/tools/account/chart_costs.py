@@ -1,8 +1,10 @@
 """AI Assistant tool: chart an organization's or a project's monthly costs.
 
-The figures are the ones the portal's cost charts show, from the same
-aggregation as ``/api/invoice-items/costs/`` (``invoices.utils.monthly_costs``),
-so the chart in the thread always matches the dashboard.
+The figures come from the same aggregation as ``/api/invoice-items/costs/``
+(``invoices.utils.monthly_costs``), which the project cost chart shows. Items
+count in the month they are for: a payment of an earlier month lowers that
+month. The organization dashboard groups by invoice month instead, so for an
+organization the two can differ in such a month.
 """
 
 import datetime
@@ -111,6 +113,12 @@ def _may_see_project_costs(user, project) -> bool:
     )
 
 
+def _describe(match) -> str:
+    customer = getattr(match, "customer", None)
+    where = f"{customer.name}, " if customer else ""
+    return f"{match.name} ({where}{match.uuid.hex})"
+
+
 def _one(queryset, uuid: str, name: str, kind: str):
     """The single match for a UUID or a name, or an error summary."""
     if uuid:
@@ -121,7 +129,7 @@ def _one(queryset, uuid: str, name: str, kind: str):
     if not matches:
         return None, f"No {kind} matches '{name}'."
     if len(matches) > 1:
-        names = ", ".join(f"{m.name} ({m.uuid.hex})" for m in matches[:5])
+        names = ", ".join(_describe(m) for m in matches[:5])
         return None, f"Several {kind}s match '{name}': {names}. Pass a UUID."
     return matches[0], ""
 
@@ -129,24 +137,26 @@ def _one(queryset, uuid: str, name: str, kind: str):
 def cost_chart(title: str, rows: list[dict], currency: str, link: str) -> dict:
     """Stacked bars of incurred cost and compensation per month.
 
-    Compensation is negative, so it stacks below zero and the bar's net is
-    what the month costs. The current month is still accruing.
+    Compensation is negative, so it stacks below zero; each bar's tooltip
+    gives the month's net cost. The current month is an estimate. Without any
+    cost the series have no points, so the chart shows its empty message.
     """
-    categories = [row["label"] for row in rows]
+    has_costs = any(row["incurred"] or row["compensation"] for row in rows)
     net = [f"Net {row['price']:,.2f} {currency}" for row in rows]
+
+    def points(key):
+        return [[i, row[key]] for i, row in enumerate(rows)] if has_costs else []
+
     items = [
         series(
-            "Cost",
-            [[i, row["incurred"]] for i, row in enumerate(rows)],
-            tone="info",
-            labels=net,
+            "Cost", points("incurred"), tone="info", labels=net if has_costs else None
         )
     ]
     if any(row["compensation"] for row in rows):
         items.append(
             series(
                 "Credit and compensation",
-                [[i, row["compensation"]] for i, row in enumerate(rows)],
+                points("compensation"),
                 tone="success",
                 labels=net,
             )
@@ -155,7 +165,7 @@ def cost_chart(title: str, rows: list[dict], currency: str, link: str) -> dict:
     return chart(
         "stacked_bar",
         title,
-        x={"type": "category", "categories": categories},
+        x={"type": "category", "categories": [row["label"] for row in rows]},
         y={"type": "value", "label": currency},
         series=items,
         subtitle=(
@@ -181,7 +191,8 @@ class ChartCostsTool(BaseTool):
                 "month, ending with the current month (an estimate). Use for "
                 "'show/visualize/plot my costs' or 'how did costs develop'. "
                 "Pass customer_uuid or customer_name for an organization, or "
-                "project_uuid or project_name for a project."
+                "project_uuid or project_name for a project; with both, the "
+                "organization only narrows which project is meant."
             ),
             inputSchema={
                 "type": "object",
@@ -249,20 +260,34 @@ class ChartCostsTool(BaseTool):
                 }
         by_project = bool(text["project_uuid"] or text["project_name"])
         by_customer = bool(text["customer_uuid"] or text["customer_name"])
-        if by_project == by_customer:
+        if not by_project and not by_customer:
             return {
                 "type": "validation_error",
-                "summary": "Pass either an organization or a project, not both.",
+                "summary": "Pass an organization or a project.",
             }
+        months = arguments.get("months")
         try:
-            months = int(arguments.get("months") or DEFAULT_MONTHS)
+            months = DEFAULT_MONTHS if months in (None, "") else int(months)
         except (TypeError, ValueError):
             return {"type": "validation_error", "summary": "months must be a number."}
         months = max(1, min(months, MAX_MONTHS))
 
         if by_project:
+            projects = user_accessible_projects(user)
+            if by_customer:
+                # "Project X of organization Y": the organization narrows the
+                # project, it is not charted itself.
+                customer, error = _one(
+                    user_accessible_customers(user),
+                    text["customer_uuid"],
+                    text["customer_name"],
+                    "organization",
+                )
+                if error:
+                    return {"type": "validation_error", "summary": error}
+                projects = projects.filter(customer=customer)
             project, error = _one(
-                user_accessible_projects(user),
+                projects,
                 text["project_uuid"],
                 text["project_name"],
                 "project",
@@ -334,7 +359,7 @@ class ChartCostsTool(BaseTool):
                 {
                     "year": month.year,
                     "month": month.month,
-                    "label": f"{label} (so far)" if month == current else label,
+                    "label": f"{label} (estimate)" if month == current else label,
                     "incurred": _amount(row.get("incurred")),
                     "compensation": _amount(row.get("compensation")),
                     "price": _amount(row.get("price")),

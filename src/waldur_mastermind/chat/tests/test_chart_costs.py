@@ -7,6 +7,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from waldur_core.core.models import Feature
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.chat import deployment_profile
@@ -92,7 +93,7 @@ class ChartCostsTest(TestCase):
         assert_matches_output_schema(self.tool, result)
         block = chart_block(result)
         self.assertEqual(block["chart_type"], "stacked_bar")
-        self.assertTrue(block["x"]["categories"][-1].endswith("(so far)"))
+        self.assertTrue(block["x"]["categories"][-1].endswith("(estimate)"))
         self.assertEqual(
             block["link"]["url"],
             f"/organizations/{self.customer.uuid.hex}/dashboard/",
@@ -100,7 +101,7 @@ class ChartCostsTest(TestCase):
 
     def test_compensation_is_not_subtracted_twice(self):
         self._item(self.last_month, "100")
-        self._item(self.last_month, "-30", details={"is_compensation": True})
+        self._item(self.last_month, "-30")
 
         result = self.tool.execute(
             self.fixture.owner,
@@ -211,16 +212,78 @@ class ChartCostsTest(TestCase):
         assert_matches_output_schema(self.tool, result)
         self.assertNotIn("ui_component", result)
 
-    def test_needs_exactly_one_scope(self):
-        for arguments in (
-            {},
+    def test_needs_a_scope(self):
+        result = self.tool.execute(self.fixture.owner, {})
+        self.assertEqual(result["type"], "validation_error")
+
+    def test_organization_narrows_the_project(self):
+        other = structure_factories.ProjectFactory(name=self.project.name)
+        other.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
+        self._item(self.this_month, "15")
+
+        ambiguous = self.tool.execute(
+            self.fixture.owner, {"project_name": self.project.name}
+        )
+        self.assertEqual(ambiguous["type"], "validation_error")
+        self.assertIn(self.customer.name, ambiguous["summary"])
+
+        result = self.tool.execute(
+            self.fixture.owner,
             {
+                "project_name": self.project.name,
                 "customer_uuid": self.customer.uuid.hex,
-                "project_uuid": self.project.uuid.hex,
             },
-        ):
-            result = self.tool.execute(self.fixture.owner, arguments)
-            self.assertEqual(result["type"], "validation_error")
+        )
+        self.assertEqual(result["data"]["project_uuid"], self.project.uuid.hex)
+        self.assertEqual(result["data"]["total_price"], 15.0)
+
+    def test_months_sets_the_window(self):
+        self._item(self.this_month - relativedelta(months=3), "70")
+        self._item(self.last_month, "20")
+
+        one = self.tool.execute(
+            self.fixture.owner, {"customer_uuid": self.customer.uuid.hex, "months": 0}
+        )
+        two = self.tool.execute(
+            self.fixture.owner, {"customer_uuid": self.customer.uuid.hex, "months": 2}
+        )
+
+        self.assertEqual(len(one["data"]["months"]), 1)
+        self.assertEqual(len(two["data"]["months"]), 2)
+        # The item three months back is outside both windows.
+        self.assertEqual(two["data"]["total_price"], 20.0)
+
+    def test_payment_counts_in_the_month_it_pays(self):
+        self._item(self.last_month, "100")
+        # Invoiced this month, but paying last month's cost.
+        self._item(self.this_month, "-40", compensated_period=self.last_month)
+
+        result = self.tool.execute(
+            self.fixture.owner, {"customer_uuid": self.customer.uuid.hex, "months": 2}
+        )
+
+        self.assertEqual(self._month(result, self.last_month)["price"], 60.0)
+        self.assertEqual(self._month(result, self.this_month)["price"], 0.0)
+
+    def test_no_costs_shows_the_empty_message(self):
+        result = self.tool.execute(
+            self.fixture.owner, {"customer_uuid": self.customer.uuid.hex}
+        )
+
+        block = chart_block(result)
+        self.assertEqual([s["points"] for s in block["series"]], [[]])
+        self.assertEqual(len(result["data"]["months"]), 12)
+
+    def test_long_project_name_keeps_the_chart(self):
+        self.project.name = "p" * 400
+        self.project.save()
+        self._item(self.this_month, "5")
+
+        result = self.tool.execute(
+            self.fixture.owner, {"project_uuid": self.project.uuid.hex}
+        )
+
+        self.assertLessEqual(len(chart_block(result)["title"]), 200)
 
     def test_ambiguous_name_asks_for_uuid(self):
         structure_factories.ProjectFactory(
@@ -257,6 +320,33 @@ class ConcealedPricesTest(TestCase):
 
         for user in (self.fixture.owner, self.fixture.staff):
             self.assertNotIn(ToolName.CHART_COSTS, get_tool_set_for_user(user))
+
+
+class ChartFittingTest(TestCase):
+    def test_text_from_user_data_is_cut_not_dropped(self):
+        # As plot_hpc_output builds from a CSV with a blank and a long header.
+        result = {
+            "type": "success",
+            "summary": "Plotted.",
+            "ui_component": "chart",
+            "ui_data": {
+                "chart_type": "line",
+                "title": "t" * 250,
+                "x": {"type": "value"},
+                "y": {"type": "value"},
+                "series": [
+                    {"name": "", "points": [[0, 1]]},
+                    {"name": "n" * 150, "points": [[0, 2]], "labels": ["l" * 400]},
+                ],
+            },
+        }
+
+        block = chart_block(result)
+
+        self.assertEqual(block["series"][0]["name"], "Series 1")
+        self.assertEqual(len(block["series"][1]["name"]), 100)
+        self.assertEqual(len(block["series"][1]["labels"][0]), 300)
+        self.assertEqual(len(block["title"]), 200)
 
 
 class InvalidChartTest(TestCase):
