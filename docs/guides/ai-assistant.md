@@ -366,6 +366,41 @@ memory.
   `scripts/docs-search-eval.sh` builds or downloads a corpus, creates that
   database and holds the LLM token there for the run only.
 
+### Quick prompts
+
+`GET /api/chat/suggestions/` returns the ids of the quick prompts to offer
+on an empty thread, most relevant first. The catalog is in
+`chat/suggestions.py`; homeport holds the wording and icon for each id and
+skips ids it does not know. An entry is offered only when all of these hold:
+
+- **Its tools are in the caller's tool set**, computed as
+  `get_tool_set_for_user(user, is_delegated(request))`, as the stream does.
+  So a quick prompt never leads to a tool the caller lacks: no HPC prompts
+  without an endpoint or in a delegated session, no "Search docs" without a
+  loaded corpus or with `DOCS_SEARCH_ENABLED` off.
+- **The portal has what it needs switched on**, written as
+  `deployment_profile` terms, the vocabulary the documentation sections use:
+  `offering_type:OpenStack.Instance` for creating a VM, `capability:hpc`,
+  `feature:marketplace.display_software_catalog`,
+  `!feature:marketplace.conceal_prices` for invoices and cost charts,
+  `!feature:marketplace.catalogue_only` for creating a VM and pending orders,
+  `!feature:marketplace.call_only` for proposal help and reviews, and
+  `feature:marketplace.show_call_management_functionality` for call insights.
+  `marketplace.hide_marketplace_from_end_users` hides "Find a service" from
+  everyone but staff and support.
+- **The caller has the data it is about**, for some: a paused resource, a
+  pending review or a reviewer profile (`REVIEWER_PROFILES_ENABLED`), a
+  draft proposal, a pending order, a credit, a resource with usage-based
+  components, an HPC allocation, an open call. Pending orders are the ones
+  `list_orders` shows, so also those waiting on the caller's approval. For
+  staff and support, who can see the whole deployment, these checks look only
+  at their own projects and organizations. Each check is one query, so the
+  endpoint's cost does not grow with the caller's organizations.
+
+Prompts about the caller's own state (a paused resource, pending reviews, a
+draft proposal) come first. The endpoint sits behind the same switches as
+the stream (`AI_ASSISTANT_ENABLED`, `AI_ASSISTANT_ENABLED_ROLES`).
+
 ## Security guards
 
 Two detection layers, both enforced *before* any LLM call:
