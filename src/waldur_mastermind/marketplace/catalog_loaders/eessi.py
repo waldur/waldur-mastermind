@@ -55,6 +55,25 @@ def _get_eessi_version(version_info: dict) -> str | None:
     return None
 
 
+# Metadata keys an EESSI catalog carries: ``architectures_map`` from this
+# loader, ``architectures`` from the older ``load_eessi_catalog`` command.
+EESSI_METADATA_MARKERS = ("architectures_map", "architectures")
+
+
+def is_eessi_catalog(catalog: SoftwareCatalog) -> bool:
+    """An EESSI catalog, whatever staff have renamed it to.
+
+    ``binary_runtime`` alone is not enough: it is also the default type of a
+    catalog created by hand.
+    """
+    if catalog.catalog_type != "binary_runtime":
+        return False
+    metadata = catalog.metadata or {}
+    return catalog.name.upper() == "EESSI" or any(
+        key in metadata for key in EESSI_METADATA_MARKERS
+    )
+
+
 def split_eessi_cpu_arch(full_arch: str) -> tuple[str, str]:
     """Split an EESSI cpu_arch path into family and target subtype.
 

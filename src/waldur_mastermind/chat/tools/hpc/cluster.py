@@ -123,7 +123,8 @@ class FindHpcSoftwareTool(BaseTool):
                     },
                     "partition": {
                         "type": "string",
-                        "description": "Only builds for this partition's CPU architecture.",
+                        "description": "Only builds that run on this partition's CPU "
+                        "and GPU.",
                     },
                 },
                 "required": ["query"],

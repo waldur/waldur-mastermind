@@ -59,7 +59,10 @@ from waldur_mastermind.marketplace import (
     utils,
 )
 from waldur_mastermind.marketplace import log as marketplace_log
-from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
+from waldur_mastermind.marketplace.catalog_loaders.eessi import (
+    EESSI_METADATA_MARKERS,
+    EESSICatalogLoader,
+)
 from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
@@ -3241,8 +3244,7 @@ def update_software_catalogs():
             logger.info(f"Updating {catalog_name} catalog")
 
             source_catalogs = models.SoftwareCatalog.objects.filter(
-                name=catalog_name,
-                catalog_type=catalog_config["catalog_type"],
+                _source_catalogs_q(catalog_config)
             )
             existing_catalogs = list(source_catalogs.filter(auto_update_enabled=True))
             if not existing_catalogs:
@@ -3426,6 +3428,32 @@ def _validate_catalog_config(catalog_config):
     return errors
 
 
+# Metadata keys each loader writes on its catalog. With the type they identify
+# the source of a catalog whose name staff have changed.
+SPACK_METADATA_MARKERS = ("data_source",)
+
+
+def _source_catalogs_q(catalog_config) -> Q:
+    """Catalogs loaded from this source: same type, and its name or metadata."""
+    from_source = Q(name__iexact=catalog_config["name"])
+    for key in catalog_config["metadata_markers"]:
+        from_source |= Q(metadata__has_key=key)
+    return Q(catalog_type=catalog_config["catalog_type"]) & from_source
+
+
+def catalog_config_for(catalog):
+    """The source configuration a stored catalog is refreshed from, if any."""
+    metadata = catalog.metadata or {}
+    for catalog_config in _get_catalog_configs():
+        if catalog.catalog_type != catalog_config["catalog_type"]:
+            continue
+        if catalog.name.lower() == catalog_config["name"].lower() or any(
+            key in metadata for key in catalog_config["metadata_markers"]
+        ):
+            return catalog_config
+    return None
+
+
 def _get_catalog_configs():
     """Return the list of known catalog configurations."""
     return [
@@ -3440,6 +3468,7 @@ def _get_catalog_configs():
                 "include_extensions": config.SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS,
             },
             "catalog_type": "binary_runtime",
+            "metadata_markers": EESSI_METADATA_MARKERS,
         },
         {
             "name": "Spack",
@@ -3451,6 +3480,7 @@ def _get_catalog_configs():
                 "data_url": config.SOFTWARE_CATALOG_SPACK_DATA_URL,
             },
             "catalog_type": "source_package",
+            "metadata_markers": SPACK_METADATA_MARKERS,
         },
     ]
 
@@ -3538,15 +3568,7 @@ def update_single_software_catalog(catalog_uuid_hex):
         f"Updating single software catalog: {catalog.name} ({catalog.catalog_type})"
     )
 
-    catalog_configs = _get_catalog_configs()
-    catalog_config = next(
-        (
-            c
-            for c in catalog_configs
-            if c["name"] == catalog.name and c["catalog_type"] == catalog.catalog_type
-        ),
-        None,
-    )
+    catalog_config = catalog_config_for(catalog)
     if catalog_config is None:
         raise ValueError(
             f"No loader configuration found for {catalog.name} ({catalog.catalog_type})"
@@ -3676,10 +3698,7 @@ def _stale_catalogs(cutoff_date):
     refreshed_sources = Q(pk__in=[])
     for catalog_config in _get_catalog_configs():
         if getattr(config, catalog_config["enabled_setting"], False):
-            refreshed_sources |= Q(
-                name=catalog_config["name"],
-                catalog_type=catalog_config["catalog_type"],
-            )
+            refreshed_sources |= _source_catalogs_q(catalog_config)
 
     expired = models.SoftwareCatalog.objects.filter(
         refreshed_sources,

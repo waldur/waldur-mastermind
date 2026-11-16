@@ -20726,11 +20726,7 @@ class SoftwareCatalogViewSet(
     def update_catalog(self, request, uuid=None):
         catalog = self.get_object()
 
-        catalog_configs = tasks._get_catalog_configs()
-        matched = any(
-            c["name"] == catalog.name and c["catalog_type"] == catalog.catalog_type
-            for c in catalog_configs
-        )
+        matched = tasks.catalog_config_for(catalog) is not None
         if not matched:
             raise rf_exceptions.ValidationError(
                 f"No loader configuration found for {catalog.name} ({catalog.catalog_type})."
