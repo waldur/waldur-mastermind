@@ -411,12 +411,20 @@ The system prompt ends with two blocks built in `chat/prompt_context.py`:
   reviewing) and the rules the model must keep: `marketplace.conceal_prices`
   (never state prices), `marketplace.catalogue_only` (nothing can be ordered)
   and `marketplace.call_only` (proposals run elsewhere).
-- **Current user**, last: the user's organizations and projects with their
-  role in each, at most 10 of each with a total after that, and whether they
+- **Current user**, last: the user's organizations and the projects they can
+  see (also through an organization role), with their role in each, at most
+  10 of each with a total, terminated projects left out; and whether they
   review proposals, have a paused resource or an HPC allocation. Staff and
   support get counts only. Names are user-editable, so they sit in a block
-  marked as data, one line each, cut to 80 characters, with the block
-  markers removed. No e-mail addresses or other people's data.
+  marked as data, one JSON-quoted entry per line, normalized, cut to 80
+  characters, without angle brackets or `===` runs: a name can neither leave
+  the block nor pose as another entry. No e-mail addresses or other people's
+  data.
+
+The categories and "virtual machines" come from offerings every user may see
+(shared, not restricted to roles), whether or not anonymous visitors may
+browse the catalogue. Calls and reviewing are named only where calls run in
+Waldur, and reviewing only while a call is active.
 
 Everything before the user block is the same for two users of the same tier,
 so providers can cache it; the date sits in the platform block rather than the

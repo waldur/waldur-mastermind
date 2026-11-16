@@ -89,7 +89,7 @@ def verify_feedback_token(
 def build_domain_context() -> str:
     """Dynamic context injected into the persona so the assistant adapts to any deployment's marketplace shape."""
     site_description = (config.SITE_DESCRIPTION or "").strip()
-    category_titles = prompt_context.public_categories()
+    category_titles = prompt_context.anonymous_categories()
     description_part = site_description or "the marketplace catalog"
     if category_titles:
         return (
