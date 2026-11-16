@@ -16,6 +16,8 @@ from mcp.server.lowlevel import Server
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.shared.exceptions import MCPError
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
@@ -116,6 +118,22 @@ class MCPEnabledGate:
         await self.app(scope, receive, send)
 
 
+class MCPTrailingSlash:
+    """Serves /mcp/ as /mcp.
+
+    A second route isn't enough: the SDK's app under /mcp has its own router,
+    which would redirect it.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"] == MCP_PATH + "/":
+            scope = {**scope, "path": MCP_PATH, "raw_path": MCP_PATH.encode()}
+        await self.app(scope, receive, send)
+
+
 async def health(request):
     return JSONResponse({"status": "ok"})
 
@@ -157,6 +175,27 @@ def build_app():
             # needs neither.
             Route(MCP_PATH, endpoint=endpoint, methods=["POST"]),
         ],
+        middleware=[
+            # Ahead of the gate, so the challenges and its 404 carry it too, but
+            # not Starlette's own 500, which wraps all of these. Any origin, no
+            # credentials: /mcp takes bearer tokens only, never cookies, as the
+            # OAuth endpoints do. Any request header, since modern requests
+            # name some after tool parameters (Mcp-Param-*). The exposed header
+            # lets a browser read resource_metadata from the 401 challenge.
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_methods=["GET", "POST"],
+                allow_headers=["*"],
+                expose_headers=["WWW-Authenticate"],
+                max_age=3600,
+            ),
+            Middleware(MCPTrailingSlash),
+            Middleware(MCPEnabledGate),
+        ],
         lifespan=mcp_app.router.lifespan_context,
     )
-    return MCPEnabledGate(app)
+    # Behind a TLS proxy its redirects would point at http://, because uvicorn
+    # trusts forwarded headers only from 127.0.0.1.
+    app.router.redirect_slashes = False
+    return app

@@ -42,6 +42,12 @@ CALL_LIST_ORGANIZATIONS = {
     "method": "tools/call",
     "params": {"name": "list_organizations", "arguments": {}},
 }
+ORIGIN = "http://localhost:6274"
+PREFLIGHT_HEADERS = {
+    "Origin": ORIGIN,
+    "Access-Control-Request-Method": "POST",
+    "Access-Control-Request-Headers": "authorization, content-type, mcp-protocol-version",
+}
 
 
 def create_pat(user, scopes=None, expires_at=None, **kwargs):
@@ -71,15 +77,28 @@ def parse_rpc(response):
 async def _request(method, path, body, headers, client_ip):
     app = server.build_app()
     transport = httpx.ASGITransport(app=app, client=(client_ip, 4321))
-    async with app.app.router.lifespan_context(app.app):
+    async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(
             transport=transport, base_url="http://testserver"
         ) as client:
             return await client.request(method, path, json=body, headers=headers)
 
 
+class CorsAssertionsMixin:
+    def assert_readable_from_any_origin(self, response):
+        self.assertEqual(response.headers["access-control-allow-origin"], "*")
+        self.assertNotIn("access-control-allow-credentials", response.headers)
+
+    def assert_challenge_readable_from_any_origin(self, response):
+        self.assert_readable_from_any_origin(response)
+        # A browser client reads resource_metadata and the scope from it.
+        self.assertIn(
+            "WWW-Authenticate", response.headers["access-control-expose-headers"]
+        )
+
+
 @override_config(PAT_ENABLED=True, MCP_ENABLED=True)
-class MCPServerTest(test.APITestCase):
+class MCPServerTest(CorsAssertionsMixin, test.APITestCase):
     def setUp(self):
         # PAT usage and audit debounces live in the cache.
         cache.clear()
@@ -287,6 +306,63 @@ class MCPServerTest(test.APITestCase):
         response = self.request(None, method="GET", path="/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_trailing_slash_is_served_like_mcp(self):
+        pat = create_pat(self.user)
+
+        response = self.request_with(pat, path="/mcp/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(parse_rpc(response)["result"]["serverInfo"]["name"], "Waldur")
+        self.assert_rejected(self.request(path="/mcp/"))
+
+    def test_no_path_is_redirected(self):
+        for path in ["/mcp//", "/health/"]:
+            with self.subTest(path=path):
+                response = self.request(path=path)
+
+                self.assertEqual(response.status_code, 404)
+                self.assertNotIn("location", response.headers)
+
+    def test_preflight_from_any_origin_is_allowed(self):
+        response = self.request(None, method="OPTIONS", **PREFLIGHT_HEADERS)
+
+        self.assertEqual(response.status_code, 200)
+        self.assert_readable_from_any_origin(response)
+        allowed = response.headers["access-control-allow-headers"].lower()
+        for header in ["authorization", "content-type", "mcp-protocol-version"]:
+            self.assertIn(header, allowed)
+
+    def test_preflight_allows_the_routing_headers_of_modern_requests(self):
+        requested = "authorization, content-type, mcp-method, mcp-name, mcp-param-region, mcp-protocol-version"
+
+        response = self.request(
+            None,
+            method="OPTIONS",
+            **{**PREFLIGHT_HEADERS, "Access-Control-Request-Headers": requested},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        allowed = response.headers["access-control-allow-headers"].lower()
+        for header in ["mcp-method", "mcp-name", "mcp-param-region"]:
+            self.assertIn(header, allowed)
+
+    def test_answers_are_readable_from_any_origin(self):
+        pat = create_pat(self.user)
+        response = self.request_with(pat, Origin=ORIGIN)
+        self.assertEqual(response.status_code, 200)
+        self.assert_readable_from_any_origin(response)
+
+        response = self.request(Origin=ORIGIN)
+        self.assert_rejected(response)
+        self.assert_challenge_readable_from_any_origin(response)
+
+    @override_config(MCP_ENABLED=False)
+    def test_not_found_answer_is_readable_too(self):
+        response = self.request(Origin=ORIGIN)
+
+        self.assertEqual(response.status_code, 404)
+        self.assert_readable_from_any_origin(response)
 
 
 class DropBrokenConnectionsTest(test.APITestCase):

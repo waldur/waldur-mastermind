@@ -28,7 +28,10 @@ from waldur_mastermind.mcp.tests.test_server import (
     CALL_LIST_ORGANIZATIONS,
     INITIALIZE,
     MCP_HEADERS,
+    ORIGIN,
+    PREFLIGHT_HEADERS,
     TOOLS_LIST,
+    CorsAssertionsMixin,
     _request,
     parse_rpc,
 )
@@ -45,7 +48,7 @@ OTHER_MCP_URL = "https://waldur.example.org/mcp"
 PROXIED_MCP_URL = "https://api.example.com/api/mcp"
 
 
-class ResourceServerTestCase(OAuthTestMixin, test.APITestCase):
+class ResourceServerTestCase(CorsAssertionsMixin, OAuthTestMixin, test.APITestCase):
     def setUp(self):
         # Registration throttles live in the cache.
         cache.clear()
@@ -198,6 +201,20 @@ class DiscoveryTest(ResourceServerTestCase):
     @override_config(MCP_ENABLED=False)
     def test_metadata_is_not_served_while_mcp_is_disabled(self):
         self.assertEqual(self.get_metadata().status_code, 404)
+
+    def test_metadata_is_readable_from_any_origin(self):
+        preflight = self.request(
+            None,
+            method="OPTIONS",
+            path=oauth.RESOURCE_METADATA_PATH + "/mcp",
+            **{**PREFLIGHT_HEADERS, "Access-Control-Request-Method": "GET"},
+        )
+        response = self.get_metadata(Origin=ORIGIN)
+
+        for answer in [preflight, response]:
+            with self.subTest(method=answer.request.method):
+                self.assertEqual(answer.status_code, 200)
+                self.assert_readable_from_any_origin(answer)
 
 
 @override_config(MCP_ENABLED=True, MCP_RESOURCE_URLS=MCP_URL)
@@ -358,6 +375,14 @@ class ElevatedScopeTest(ResourceServerTestCase):
     def test_support_token_without_support_scope_gets_insufficient_scope(self):
         token = self.create_token(self.support)
         self.assert_insufficient_scope(self.request(token=token), "mcp:support")
+
+    def test_insufficient_scope_challenge_is_readable_from_any_origin(self):
+        token = self.create_token(self.support)
+
+        response = self.request(token=token, Origin=ORIGIN)
+
+        self.assert_insufficient_scope(response, "mcp:support")
+        self.assert_challenge_readable_from_any_origin(response)
 
     def test_staff_and_support_needs_the_staff_scope(self):
         user = factories.UserFactory(is_staff=True, is_support=True)
