@@ -304,8 +304,11 @@ memory.
   offered only while sections are loaded.
 - **Search.** Postgres full-text search (weighted title > breadcrumb >
   text, multiplied by `boost`) returns the top five sections, each with an
-  excerpt of about 800 characters and a link under `DOCS_URL` (or
-  docs.waldur.com). Sections matching every word come first
+  excerpt of about 800 characters and a link to the page on
+  docs.waldur.com, under the version the corpus was built from: `/<release>/`
+  on a release image, `/latest/` on any other build. `DOCS_URL` is not used:
+  it is the header's link, and the bare docs.waldur.com path of a page is a
+  404. Sections matching every word come first
   (`websearch_to_tsquery`); when there are fewer than five, the rest are
   sections matching any of the words. Questions rarely use the guide's own
   words: on the model's real queries in an evaluation, every-word matching

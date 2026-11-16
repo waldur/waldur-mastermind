@@ -15,7 +15,7 @@ from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.core.cache import cache
 from django.db.models import Case, F, FloatField, Func, Value, When
 
-from waldur_core.configuration import config
+import waldur_core
 from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat.deployment_profile import TermState
 from waldur_mastermind.chat.docs import corpus
@@ -26,7 +26,14 @@ from waldur_mastermind.chat.docs.models import (
     written_vector,
 )
 
-DEFAULT_DOCS_URL = "https://docs.waldur.com"
+# docs.waldur.com is versioned (mike): every page lives under /latest/, built
+# from waldur-docs master, or under /<release>/, and the bare path is a 404. A
+# release image carries the corpus of its own tag (Dockerfile,
+# DOCS_CORPUS_VERSION), so its links go to that release's pages; every other
+# build carries the `latest` corpus.
+DOCS_SITE_URL = "https://docs.waldur.com"
+LATEST_DOCS_VERSION = "latest"
+_RELEASE_VERSION = re.compile(r"\d+\.\d+\.\d+")
 MAX_RESULTS = 5
 # The most a caller of the REST endpoint may ask for in one page.
 MAX_PAGE_RESULTS = 20
@@ -86,20 +93,31 @@ def invalidate_cache() -> None:
     corpus.invalidate_cache()
 
 
+def docs_version(release: str | None = None) -> str:
+    """The docs.waldur.com version matching the loaded corpus: the release
+    for a release build (X.Y.Z), else ``latest``."""
+    release = waldur_core.__version__ if release is None else release
+    if _RELEASE_VERSION.fullmatch(release or ""):
+        return release
+    return LATEST_DOCS_VERSION
+
+
 def docs_base_url() -> str:
-    return (config.DOCS_URL or DEFAULT_DOCS_URL).rstrip("/")
+    # Not DOCS_URL: that is the portal header's link, usually the site root,
+    # and not a base the corpus paths resolve under.
+    return f"{DOCS_SITE_URL}/{docs_version()}"
 
 
 def section_url(path: str, anchor: str, base: str | None = None) -> str:
-    """The published URL of a section (MkDocs directory URLs)."""
+    """The published URL of a section (MkDocs directory URLs). MkDocs
+    publishes a README.md, like an index.md, as its directory's page."""
     base = base or docs_base_url()
     page = path.lstrip("/")
     if page.endswith(".md"):
         page = page.removesuffix(".md")
-        if page == "index":
-            page = ""
-        elif page.endswith("/index"):
-            page = page.removesuffix("index")
+        head, _, name = page.rpartition("/")
+        if name in ("index", "README"):
+            page = f"{head}/" if head else ""
         else:
             page += "/"
     url = f"{base}/{page}"

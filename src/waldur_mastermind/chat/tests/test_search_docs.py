@@ -32,6 +32,9 @@ from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
+# What a build between releases reports as its version (git describe).
+DEV_BUILD = "8.1.4+12.g1a2b3c4"
+
 PAT = {
     "path": "user-guide/end-users/personal-access-tokens.md",
     "anchor": "",
@@ -278,19 +281,25 @@ class AudienceTest(DocsTestMixin, TestCase):
 
 
 class SearchToolTest(DocsTestMixin, TestCase):
+    @mock.patch("waldur_core.__version__", DEV_BUILD)
     def test_result_carries_link_and_excerpt(self):
         hit = self.titles(self.fixture.user, "create a project")[PROJECTS["title"]]
         self.assertEqual(
             hit["url"],
-            "https://docs.waldur.com/user-guide/end-users/projects/#create-a-project",
+            "https://docs.waldur.com/latest/user-guide/end-users/projects/"
+            "#create-a-project",
         )
         self.assertEqual(hit["excerpt"], PROJECTS["text"])
         self.assertEqual(hit["breadcrumb"], PROJECTS["breadcrumb"])
 
+    @mock.patch("waldur_core.__version__", "8.1.4")
     @override_config(DOCS_URL="https://docs.example.com/")
-    def test_link_uses_docs_url(self):
+    def test_a_release_links_its_own_docs_whatever_the_header_link(self):
         hit = self.titles(self.fixture.user, "create a project")[PROJECTS["title"]]
-        self.assertTrue(hit["url"].startswith("https://docs.example.com/user-guide/"))
+        self.assertTrue(
+            hit["url"].startswith("https://docs.waldur.com/8.1.4/user-guide/"),
+            hit["url"],
+        )
 
     def test_query_in_other_words_still_finds_the_guide(self):
         # "new" is not in the section, so not every word matches.
@@ -434,9 +443,9 @@ class DocsSearchApiTest(DocsTestMixin, test.APITestCase):
         self.assertEqual(response.data["query"], "create a project")
         hit = response.data["sections"][0]
         self.assertEqual(hit["title"], PROJECTS["title"])
-        self.assertEqual(
+        self.assertTrue(
+            hit["url"].endswith("/user-guide/end-users/projects/#create-a-project"),
             hit["url"],
-            "https://docs.waldur.com/user-guide/end-users/projects/#create-a-project",
         )
         self.assertTrue(hit["enabled_here"])
 
@@ -497,9 +506,9 @@ class DocsSearchApiTest(DocsTestMixin, test.APITestCase):
 
 
 # Cold caches: corpus terms, settings, feature flags, offering types, the HPC
-# capability, then the search, DOCS_URL and the hidden sections that name what
-# is switched off. None of these grows with the data.
-COLD_QUERIES = 10
+# capability, then the search and the hidden sections that name what is
+# switched off. None of these grows with the data.
+COLD_QUERIES = 9
 
 
 @pytest.mark.django_db
@@ -513,9 +522,9 @@ def test_search_runs_a_bounded_number_of_queries(django_assert_max_num_queries):
     marketplace_factories.OfferingFactory.create_batch(3)
     tool = SearchDocsTool()
     tool.execute(user, {"query": "project"})  # warms the caches
-    # The search, DOCS_URL and the hidden sections that name what is switched
-    # off (the corpus has a term that is off here).
-    with django_assert_max_num_queries(3):
+    # The search and the hidden sections that name what is switched off (the
+    # corpus has a term that is off here).
+    with django_assert_max_num_queries(2):
         tool.execute(user, {"query": "project"})
     cache.clear()
     with django_assert_max_num_queries(COLD_QUERIES):
@@ -806,15 +815,37 @@ class DeploymentProfileTest(TestCase):
 
 
 class HelpersTest(TestCase):
+    @mock.patch("waldur_core.__version__", DEV_BUILD)
     def test_section_url(self):
+        base = "https://docs.waldur.com/latest"
         cases = {
-            ("index.md", ""): "https://docs.waldur.com/",
-            ("user-guide/index.md", "x"): "https://docs.waldur.com/user-guide/#x",
-            ("user-guide/a.md", ""): "https://docs.waldur.com/user-guide/a/",
-            ("user-guide/a/", "b"): "https://docs.waldur.com/user-guide/a/#b",
+            ("index.md", ""): f"{base}/",
+            ("user-guide/index.md", "x"): f"{base}/user-guide/#x",
+            ("user-guide/a.md", ""): f"{base}/user-guide/a/",
+            ("user-guide/a/", "b"): f"{base}/user-guide/a/#b",
+            ("admin-guide/plugins/moab/README.md", ""): (
+                f"{base}/admin-guide/plugins/moab/"
+            ),
+            ("README.md", "x"): f"{base}/#x",
+            ("user-guide/readme-first.md", ""): f"{base}/user-guide/readme-first/",
         }
         for (path, anchor), url in cases.items():
             self.assertEqual(search.section_url(path, anchor), url)
+
+    def test_docs_version(self):
+        # docs.waldur.com publishes /latest/ and one version per release tag;
+        # anything but a plain release (a dev build, an rc, a commit) carries
+        # the latest corpus.
+        cases = {
+            "8.1.4": "8.1.4",
+            "8.1.5-rc.2": "latest",
+            "8.1.4+12.g1a2b3c4": "latest",
+            "latest-1a2b3c4": "latest",
+            "unknown": "latest",
+            "": "latest",
+        }
+        for release, version in cases.items():
+            self.assertEqual(search.docs_version(release), version, release)
 
     def test_excerpt_starts_at_a_whole_word(self):
         text = (
