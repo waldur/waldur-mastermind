@@ -116,15 +116,18 @@ def excerpt(text: str, query: str, length: int = EXCERPT_LENGTH) -> str:
     if len(text) <= length:
         return text
     # The word or a short inflection of it ("adds", "adding"), not a longer
-    # word it starts: "add" must not start the excerpt inside "address".
+    # word it starts: "add" must not start the excerpt inside "address". Only
+    # when no word occurs that way, any occurrence ("admin" in
+    # "administrator", "enabled" in "PAT_ENABLED").
+    words = [w for w in _WORD.findall(query) if len(w) > 2]
     positions = [
         match.start()
-        for word in _WORD.findall(query)
-        if len(word) > 2
-        and (
-            match := re.search(rf"\b{re.escape(word)}\w{{0,3}}\b", text, re.IGNORECASE)
-        )
+        for word in words
+        if (match := re.search(rf"\b{re.escape(word)}\w{{0,3}}\b", text, re.IGNORECASE))
     ]
+    if not positions:
+        lowered = text.lower()
+        positions = [p for w in words if (p := lowered.find(w.lower())) >= 0]
     start = max(0, min(positions) - length // 4) if positions else 0
     if start:
         # Start on a word boundary.
@@ -209,6 +212,18 @@ def search(user, query: str, limit: int = MAX_RESULTS) -> list[DocHit]:
             sections.exclude(pk__in=[h.pk for h in hits]), any_word, concept
         )[: limit - len(hits)]
 
+    # Terms of a corpus loaded since the term list was cached are not in
+    # `on` yet. End users were already filtered on it (failing closed); for
+    # what staff are shown, ask about those terms now.
+    uncached = {t for hit in hits for t in hit.requires} - set(states)
+    if uncached:
+        on |= {
+            term
+            for term, state in deployment_profile.get_term_states(
+                sorted(uncached)
+            ).items()
+            if state == TermState.ON
+        }
     base = docs_base_url()
     return [
         DocHit(

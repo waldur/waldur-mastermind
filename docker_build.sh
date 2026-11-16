@@ -53,6 +53,7 @@ import gzip
 import os
 import shutil
 import sys
+import urllib.error
 import urllib.request
 
 url, target, token_file = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -65,8 +66,13 @@ if os.path.isfile(token_file):
         # Not passed on to a redirect: GitLab may answer with a presigned
         # object-storage URL, which needs no token and must not receive it.
         request.add_unredirected_header("JOB-TOKEN", token)
-with urllib.request.urlopen(request, timeout=60) as response, open(partial, "wb") as out:
-    shutil.copyfileobj(response, out)
+try:
+    with urllib.request.urlopen(request, timeout=60) as response, open(partial, "wb") as out:
+        shutil.copyfileobj(response, out)
+except urllib.error.HTTPError as exc:
+    print(f"HTTP {exc.code} {exc.reason}", file=sys.stderr)
+    # 401/403: the token is missing or not allowed; waiting will not help.
+    sys.exit(3 if exc.code in (401, 403) else 2)
 with gzip.open(partial, "rb") as stream:
     while stream.read(1 << 20):
         pass
@@ -78,9 +84,16 @@ if [ -n "${DOCS_CORPUS_REQUIRED:-}" ]; then
     docs_corpus_attempts=$(( ${DOCS_CORPUS_WAIT:-900} / 60 + 1 ))
 fi
 docs_corpus_ok=""
+docs_corpus_denied=""
 for attempt in $(seq 1 "$docs_corpus_attempts"); do
-    if download_docs_corpus; then
+    docs_corpus_status=0
+    download_docs_corpus || docs_corpus_status=$?
+    if [ "$docs_corpus_status" = 0 ]; then
         docs_corpus_ok=1
+        break
+    fi
+    if [ "$docs_corpus_status" = 3 ]; then
+        docs_corpus_denied=1
         break
     fi
     rm -f /usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz.part
@@ -91,6 +104,9 @@ for attempt in $(seq 1 "$docs_corpus_attempts"); do
 done
 if [ -n "$docs_corpus_ok" ]; then
     echo "Docs corpus ${DOCS_CORPUS_VERSION} downloaded."
+elif [ -n "${DOCS_CORPUS_REQUIRED:-}" ] && [ -n "$docs_corpus_denied" ]; then
+    echo "ERROR: access to the docs corpus at ${DOCS_CORPUS_URL} was refused. Check that the build gets the docs_corpus_token secret and that this project is on waldur-docs' CI/CD job token allowlist."
+    exit 1
 elif [ -n "${DOCS_CORPUS_REQUIRED:-}" ]; then
     echo "ERROR: docs corpus ${DOCS_CORPUS_VERSION} not downloaded from ${DOCS_CORPUS_URL}. A release image needs the corpus of its own tag: check the waldur-docs pipeline for ${DOCS_CORPUS_VERSION} (job \"Publish docs corpus\"), then re-run this job."
     exit 1

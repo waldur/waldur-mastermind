@@ -107,6 +107,9 @@ def _text(item: dict, key: str, line_no: int, max_length: int | None = None) -> 
         raise CorpusError(f"line {line_no}: {key} must be a string")
     if max_length and len(value) > max_length:
         raise CorpusError(f"line {line_no}: {key} is longer than {max_length}")
+    if "\x00" in value:
+        # Postgres text cannot hold NUL.
+        raise CorpusError(f"line {line_no}: {key} contains a NUL character")
     return value
 
 
@@ -119,8 +122,9 @@ def _parse_line(raw: str, line_no: int) -> dict:
         raise CorpusError(f"line {line_no}: not an object")
     path = _text(item, "path", line_no, DocSection._meta.get_field("path").max_length)
     title = item.get("title")
-    if not path or not isinstance(title, str):
+    if not path or not isinstance(title, str) or not title:
         raise CorpusError(f"line {line_no}: path and title are required")
+    title = _text(item, "title", line_no)
     anchor = _text(
         item, "anchor", line_no, DocSection._meta.get_field("anchor").max_length
     )
@@ -130,7 +134,8 @@ def _parse_line(raw: str, line_no: int) -> dict:
     requires = item.get("requires") or []
     term_length = DocSection._meta.get_field("requires").base_field.max_length
     if not isinstance(requires, list) or not all(
-        isinstance(term, str) and len(term) <= term_length for term in requires
+        isinstance(term, str) and len(term) <= term_length and "\x00" not in term
+        for term in requires
     ):
         raise CorpusError(
             f"line {line_no}: requires must be a list of strings of at most "
