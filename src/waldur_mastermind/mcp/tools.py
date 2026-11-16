@@ -57,8 +57,11 @@ class Caller:
     oauth_client_id: str | None = None
 
     def allows(self, definition: ToolDefinition) -> bool:
-        # An OAuth token acts as the full user, so only the role limits it.
-        return self.pat is None or definition.pat_allows(self.pat.scopes)
+        if self.pat:
+            return definition.pat_allows(self.pat.scopes)
+        # OAuth consent grants only read access, so OAuth callers get only
+        # read-only tools.
+        return definition.read_only
 
 
 def load_caller(token: AccessToken) -> Caller:

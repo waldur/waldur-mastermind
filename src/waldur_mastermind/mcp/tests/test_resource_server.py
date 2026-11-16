@@ -14,6 +14,7 @@ from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.logging.models import Event
 from waldur_core.structure.tests import factories, fixtures
+from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.mcp import auth, oauth, server
 from waldur_mastermind.mcp.models import ConnectedApp
 from waldur_mastermind.mcp.tests.test_consent import ConsentTestMixin
@@ -38,6 +39,8 @@ from waldur_mastermind.mcp.tests.test_server import (
 from waldur_mastermind.mcp.tests.test_tools import (
     END_USER_TOOLS,
     SUPPORT_TOOLS,
+    StubTool,
+    access_token,
     call,
     listed_names,
     texts,
@@ -350,6 +353,26 @@ class TokenTest(ResourceServerTestCase):
             with self.subTest(scope=scope):
                 token = auth.verify_oauth_token(self.create_token(user, scope))
                 self.assertEqual(set(listed_names(token)), expected)
+
+    def test_tool_that_writes_is_hidden_and_rejected(self):
+        tool = StubTool(ToolName.LIST_PROJECTS, read_only=False).install(self)
+        token = auth.verify_oauth_token(self.create_token(self.user))
+
+        self.assertNotIn("list_projects", listed_names(token))
+        result = call(token, "list_projects")
+        self.assertTrue(result.is_error)
+        self.assertEqual(texts(result), ["Unknown tool: 'list_projects'"])
+        self.assertEqual(tool.calls, [])
+        self.assertFalse(Event.objects.filter(event_type="mcp_tool_called").exists())
+
+    @override_config(PAT_ENABLED=True)
+    def test_tool_that_writes_is_still_served_to_a_pat(self):
+        tool = StubTool(ToolName.LIST_PROJECTS, read_only=False).install(self)
+        token = access_token(self.user)
+
+        self.assertIn("list_projects", listed_names(token))
+        self.assertFalse(call(token, "list_projects").is_error)
+        self.assertEqual(len(tool.calls), 1)
 
     def test_tools_list_over_http(self):
         response = self.request(TOOLS_LIST, token=self.create_token(self.user))
