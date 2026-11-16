@@ -141,11 +141,12 @@ Configure automated updates through the settings:
 The `update_software_catalogs` task runs daily at 3 AM and:
 
 1. **Updates only existing catalogs**: The task never creates new catalog records. If no catalog exists in the database for a given name/type, the task skips it with a warning. Create catalogs first via the API, management commands, or the `discover` / `import_catalog` endpoints.
-2. **Multi-version catalogs**: When several rows share a name/type (EESSI releases such as `2023.06` / `2026.06`, or Spack snapshot dates), **each version is refreshed independently**. The version string is never rewritten; import a new upstream version to add another row.
-3. **Independent Processing**: Each catalog source is updated independently - failures don't affect other sources
-4. **Configuration Validation**: Validates settings before attempting updates
-5. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
-6. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
+2. **Per-catalog opt-out**: Catalogs with `auto_update_enabled` set to `false` are skipped. If every catalog of a source is opted out, the task reports it as skipped with reason `auto_update_disabled`.
+3. **Multi-version catalogs**: When several rows share a name/type (EESSI releases such as `2023.06` / `2026.06`, or Spack snapshot dates), **each version is refreshed independently**. The version string is never rewritten; import a new upstream version to add another row.
+4. **Independent Processing**: Each catalog source is updated independently - failures don't affect other sources
+5. **Configuration Validation**: Validates settings before attempting updates
+6. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
+7. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
 
 `import_catalog` creates the upstream-detected version when that exact `(name, version, type)` is not already stored. Another EESSI/Spack version already in the database does **not** block the import.
 
@@ -156,9 +157,12 @@ The `update_software_catalogs` task runs daily at 3 AM and:
 The `cleanup_old_software_catalogs` task runs daily at 4 AM (after updates) when `SOFTWARE_CATALOG_CLEANUP_ENABLED` is true:
 
 1. **True duplicates only**: Rows that share the same `(name, version, catalog_type)` — for example two EESSI `2026.06` catalogs — are collapsed to the newest row. Offering links are remapped when safe. **Distinct versions are never collapsed** (EESSI `2023.06` and `2026.06` both remain).
-2. **Retention**: Catalogs whose `last_successful_update` is older than `SOFTWARE_CATALOG_RETENTION_DAYS` are deleted. Keep auto-update enabled (or re-load periodically) for every version you still need on offerings.
+2. **Retention**: A catalog whose `last_successful_update` is older than `SOFTWARE_CATALOG_RETENTION_DAYS` is deleted only if all of these hold:
+    - no offering or partition links to it;
+    - its source's daily update is enabled (`SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED` / `SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED`);
+    - its `auto_update_enabled` is `true`.
 
-Sites that expose multiple EESSI stacks on one offering should leave cleanup enabled only if those catalogs stay within the retention window via daily updates.
+    A catalog that nothing refreshes keeps its import date, so it is treated as pinned rather than stale. A linked catalog that has fallen out of the retention window is kept, and the task logs a warning for it.
 
 ### Manual Trigger
 
