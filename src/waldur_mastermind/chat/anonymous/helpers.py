@@ -14,6 +14,7 @@ from django.db import DatabaseError
 from django.db.models import Q
 
 from waldur_core.configuration import config
+from waldur_mastermind.chat import prompt_context
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous.catalog import build_catalog_summary
 from waldur_mastermind.chat.anonymous.persona import ANONYMOUS_SYSTEM_PROMPT
@@ -88,13 +89,7 @@ def verify_feedback_token(
 def build_domain_context() -> str:
     """Dynamic context injected into the persona so the assistant adapts to any deployment's marketplace shape."""
     site_description = (config.SITE_DESCRIPTION or "").strip()
-    visible_offerings = offerings_queryset_for(AnonymousUser())
-    category_titles = list(
-        marketplace_models.Category.objects.filter(offerings__in=visible_offerings)
-        .order_by("title")
-        .values_list("title", flat=True)
-        .distinct()
-    )
+    category_titles = prompt_context.anonymous_categories()
     description_part = site_description or "the marketplace catalog"
     if category_titles:
         return (

@@ -79,11 +79,11 @@ def _live_resources(user):
     )
 
 
-def _has_paused_resource(user) -> bool:
+def has_paused_resource(user) -> bool:
     return _live_resources(user).filter(paused=True).exists()
 
 
-def _has_review_work(user) -> bool:
+def has_review_work(user) -> bool:
     if config.REVIEWER_PROFILES_ENABLED and (
         ReviewerProfile.objects.filter(user=user).exists()
     ):
@@ -149,7 +149,7 @@ def _has_project(user) -> bool:
     return user_accessible_projects(user).exists()
 
 
-def _has_hpc_allocation(user) -> bool:
+def has_hpc_allocation(user) -> bool:
     return _own(user, workspace.resources_for_user(user)).exists()
 
 
@@ -204,13 +204,13 @@ CATALOG: tuple[Suggestion, ...] = (
     Suggestion(
         "resource_paused",
         (ToolName.EXPLAIN_RESOURCE_PAUSED_REASON,),
-        check=_has_paused_resource,
+        check=has_paused_resource,
     ),
     Suggestion(
         "review_workload",
         (ToolName.REVIEW_WORKLOAD,),
         requires=(_CALLS_IN_WALDUR,),
-        check=_has_review_work,
+        check=has_review_work,
     ),
     Suggestion(
         "proposal_help",
@@ -252,7 +252,7 @@ CATALOG: tuple[Suggestion, ...] = (
         "hpc_jobs",
         (ToolName.LIST_HPC_JOBS, ToolName.PLAN_HPC_JOB),
         requires=("capability:hpc",),
-        check=_has_hpc_allocation,
+        check=has_hpc_allocation,
     ),
     Suggestion(
         "find_service",
@@ -281,7 +281,7 @@ CATALOG: tuple[Suggestion, ...] = (
         "hpc_software",
         (ToolName.FIND_HPC_SOFTWARE,),
         requires=("capability:hpc", "feature:marketplace.display_software_catalog"),
-        check=_has_hpc_allocation,
+        check=has_hpc_allocation,
     ),
     Suggestion(
         "call_insights",
