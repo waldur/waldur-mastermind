@@ -33,7 +33,7 @@ MODERN_META = {
 async def send_concurrently(requests):
     app = server.build_app()
     transport = httpx.ASGITransport(app=app, client=("203.0.113.5", 4321))
-    async with app.app.router.lifespan_context(app.app):
+    async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(
             transport=transport, base_url="http://testserver"
         ) as client:
