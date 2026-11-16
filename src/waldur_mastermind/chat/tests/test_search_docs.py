@@ -9,6 +9,7 @@ from unittest import mock
 import pytest
 from django.core.cache import cache
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status, test
@@ -170,6 +171,29 @@ class SiteConfigurationTest(DocsTestMixin, TestCase):
         self.assertNotIn("Archive a project", self.titles(self.fixture.user, "project"))
         staff_hits = self.titles(self.fixture.staff, "project")
         self.assertFalse(staff_hits["Archive a project"]["enabled_here"])
+
+    @override_config(MATRIX_ENABLED=True)
+    def test_staff_see_an_uncached_term_that_is_on_as_enabled(self):
+        # MATRIX_ENABLED is in no section of CORPUS, so not in the cached list.
+        self.titles(self.fixture.staff, "project")
+        corpus.load_sections(
+            [
+                corpus._parse_line(json.dumps(s), i)
+                for i, s in enumerate(
+                    [
+                        *CORPUS,
+                        {
+                            **PROJECTS,
+                            "anchor": "tokens",
+                            "title": "Project tokens",
+                            "requires": ["setting:MATRIX_ENABLED"],
+                        },
+                    ]
+                )
+            ]
+        )
+        hits = self.titles(self.fixture.staff, "project")
+        self.assertTrue(hits["Project tokens"]["enabled_here"])
 
     def test_unknown_term_is_not_reported_as_enabled(self):
         # This code cannot tell whether the setting is on, so staff must not be
@@ -579,6 +603,21 @@ class LoadDocsCorpusTest(TestCase):
         call_command("load_docs_corpus", str(path), stdout=out)
         return out.getvalue()
 
+    def test_strict_fails_on_a_missing_or_unreadable_corpus(self):
+        with self.assertRaisesMessage(CommandError, "No docs corpus"):
+            call_command(
+                "load_docs_corpus",
+                str(Path(self.tmp.name) / "missing.jsonl.gz"),
+                strict=True,
+                stdout=StringIO(),
+            )
+        broken = Path(self.tmp.name) / "broken.jsonl.gz"
+        broken.write_bytes(b"not gzip")
+        with self.assertRaisesMessage(CommandError, "cannot be read"):
+            call_command(
+                "load_docs_corpus", str(broken), strict=True, stdout=StringIO()
+            )
+
     def test_missing_corpus_is_a_no_op(self):
         output = self.load(Path(self.tmp.name) / "missing.jsonl.gz")
         self.assertIn("No docs corpus", output)
@@ -644,6 +683,8 @@ class LoadDocsCorpusTest(TestCase):
             {**PAT, "boost": "NaN"},
             {**PAT, "boost": -1},
             {**PAT, "text": ["not", "a", "string"]},
+            {**PAT, "text": "binary \u0000 snippet"},
+            {**PAT, "title": "bad \u0000 title"},
         ]
         output, errors = self.load_with_errors(
             write_corpus(self.tmp.name, [*bad, PROJECTS])
@@ -783,6 +824,10 @@ class HelpersTest(TestCase):
             + "tail " * 300
         )
         self.assertIn("Add user steps", search.excerpt(text, "add user"))
+
+    def test_excerpt_falls_back_to_a_longer_word(self):
+        text = "filler " * 300 + "the administrator decides " + "tail " * 300
+        self.assertIn("administrator", search.excerpt(text, "admin rights"))
 
     def test_excerpt_starts_near_the_match(self):
         text = "filler " * 300 + "the token lives here " + "tail " * 300
