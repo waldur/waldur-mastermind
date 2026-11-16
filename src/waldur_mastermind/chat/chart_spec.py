@@ -162,6 +162,9 @@ def fit(spec: dict) -> dict:
         spec[key] = _cut(spec.get(key), limit) if key in spec else None
         if spec[key] is None:
             spec.pop(key)
+    if isinstance(spec.get("title"), str) and not spec["title"].strip():
+        # Required and never blank; an untitled plot keeps its chart.
+        spec["title"] = "Chart"
     for key in ("x", "y", "y2"):
         axis = spec.get(key)
         if isinstance(axis, dict):
@@ -194,7 +197,10 @@ def fit(spec: dict) -> dict:
             for a in spec["annotations"]
         ]
     if isinstance(spec.get("link"), dict) and "label" in spec["link"]:
-        spec["link"] = {**spec["link"], "label": _cut(spec["link"]["label"], 100)}
+        label = spec["link"]["label"]
+        if isinstance(label, str) and not label.strip():
+            label = "Open"
+        spec["link"] = {**spec["link"], "label": _cut(label, 100)}
     return spec
 
 

@@ -348,6 +348,23 @@ class ChartFittingTest(TestCase):
         self.assertEqual(len(block["series"][1]["labels"][0]), 300)
         self.assertEqual(len(block["title"]), 200)
 
+    def test_untitled_plot_keeps_its_chart(self):
+        # A GROMACS .xvg file may carry `@ title ""`.
+        result = {
+            "type": "success",
+            "summary": "Plotted.",
+            "ui_component": "chart",
+            "ui_data": {
+                "chart_type": "line",
+                "title": "",
+                "x": {"type": "value"},
+                "y": {"type": "value"},
+                "series": [{"name": "a", "points": [[0, 1]]}],
+            },
+        }
+
+        self.assertEqual(chart_block(result)["title"], "Chart")
+
 
 class InvalidChartTest(TestCase):
     def test_invalid_chart_falls_back_to_the_summary(self):
