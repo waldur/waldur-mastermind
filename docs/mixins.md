@@ -139,6 +139,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
 | [`ConsentTestMixin`](#consenttestmixin) | `waldur_mastermind.mcp.tests.test_consent` | No description available |
 | [`OAuthTestMixin`](#oauthtestmixin) | `waldur_mastermind.mcp.tests.test_oauth` | No description available |
+| [`CorsAssertionsMixin`](#corsassertionsmixin) | `waldur_mastermind.mcp.tests.test_server` | No description available |
 | [`EstimatedCostPolicyMixin`](#estimatedcostpolicymixin) | `waldur_mastermind.policy.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
 | [`SlurmFlagTestMixin`](#slurmflagtestmixin) | `waldur_mastermind.policy.tests.test_slurm_flag_keepers` | A resource on an offering that pauses and downscales, with SLURM usage per po... |
@@ -1827,6 +1828,12 @@ frontend hides these actions; this is the backstop for direct or stale calls.
 ### OAuthTestMixin
 
 **Module:** `waldur_mastermind.mcp.tests.test_oauth`
+
+**Description:** No description available.
+
+### CorsAssertionsMixin
+
+**Module:** `waldur_mastermind.mcp.tests.test_server`
 
 **Description:** No description available.
 

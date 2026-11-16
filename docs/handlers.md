@@ -499,6 +499,7 @@ td:nth-child(4) {
 | `close_assignments_on_leaving_pool` | `Django Signal (post_save)` | `proposal.CallReviewerPool` | A pool entry that stops being accepted, by whatever path, ends the |
 | `close_course_accounts_after_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `close_customer_service_accounts_on_customer_deletion` | `Django Signal (pre_delete)` | `structure.Customer` | Close service accounts associated with a customer when the customer is deleted. |
+| `close_deleted_scope_room` | `Django Signal (pre_delete)` | `proposal.StepDiscussion` | Close the room of a registered scope that is being deleted: kick its |
 | `close_resource_plan_period_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Handle case when resource has been terminated by service provider. |
 | `close_service_accounts_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | Close service accounts associated with a project when the project is deleted. |
 | `create_carried_over_usage_if_invoice_has_been_created` | `Django Signal (post_save)` | `invoices.Invoice` | Materialize usage for the new billing period from the previous one. |
@@ -566,6 +567,11 @@ td:nth-child(4) {
 | `evaluate_usage_limit_on_daily_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentDailyUsage` | Re-evaluate a resource with spending limits when a day's usage changes. |
 | `evaluate_usage_limit_on_resource_limit_change` | `Django Signal (post_save)` | `marketplace.Resource` | Re-evaluate a resource's usage-limit restriction when its limits change. |
 | `evaluate_usage_limit_on_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Pause or downscale a resource when reported usage reaches a component limit. |
+| `follow_call_chairs_for_discussions` | `Django Signal (post_save)` | `proposal.Call` | The call's panel chair or vice-chair changed. |
+| `follow_discussion_settings` | `Django Signal (post_save)` | `proposal.CallWorkflowStep` | A step whose discussion is switched off closes its open discussions, |
+| `follow_panel_for_discussions` | `Django Signal (post_save)` | `proposal.CallPanel` | A panel added to the call, or its chair changed (as |
+| `follow_proposal_for_discussions` | `Django Signal (post_save)` | `proposal.Proposal` | A proposal rejected or withdrawn closes its discussions; one moved to |
+| `follow_step_for_discussions` | `Django Signal (post_save)` | `proposal.ProposalWorkflowStepInstance` | A proposal's step that is no longer active closes its discussion, and |
 | `forget_ended_connection` | `Django Signal (pre_save)` | `oauth2_provider.Grant` | Before a new code, drop the record of the client's connection if it has |
 | `forward_attachment_to_children` | `Django Signal (post_save)` | `support.Attachment` | Forward new attachments from parent issues to child issues. |
 | `forward_comment_to_children` | `Django Signal (post_save)` | `support.Comment` | Forward new public comments from parent issues to child issues. |
@@ -677,11 +683,22 @@ td:nth-child(4) {
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingUserGroup` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingRoleGroup` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_provider_project_group_gid` | `Django Signal (post_delete)` | `marketplace.ServiceProviderProjectGroup` | Release a deleted project group's GID, never to be recycled. |
+| `remember_discussion_settings` | `Django Signal (pre_save)` | `proposal.CallWorkflowStep` | Note a call step's discussion settings before it is saved, for |
 | `remember_panel_chair` | `Django Signal (pre_save)` | `proposal.CallPanel` | Note the chair a panel had before it is saved, for |
 | `request_offering_user_deletion_when_project_access_lost` | `Custom Signal (role_revoked)` | `—` | Schedule task to request offering user deletion when project access is lost. |
 | `resource_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource changes. |
 | `resource_options_have_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle script execution when marketplace resource options are changed. |
 | `resource_state_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle resource state changes. |
+| `resync_discussions_on_assignment` | `Django Signal (post_save)` | `proposal.ProposalRoleAssignment` | An evaluator role assigned, revoked or its lead moved. |
+| `resync_discussions_on_conflict` | `Django Signal (post_save)` | `proposal.ConflictOfInterest` | A conflict of interest recorded, recused for, dismissed or waived. |
+| `resync_discussions_on_contribution` | `Django Signal (post_save)` | `proposal.StepContribution` | A contribution given, taken, handed on, declined or withdrawn. |
+| `resync_discussions_on_contribution` | `Django Signal (post_delete)` | `proposal.StepContribution` | A contribution given, taken, handed on, declined or withdrawn. |
+| `resync_discussions_on_panel_members` | `Django Signal (m2m_changed)` | `CallPanel_members` | Members joined or left a panel: its discussions that take in the |
+| `resync_discussions_on_requested_offering` | `Django Signal (post_save)` | `proposal.RequestedOffering` | A requested offering accepted, or no longer: the offering managers of |
+| `resync_discussions_on_requested_resource` | `Django Signal (post_save)` | `proposal.RequestedResource` | A proposal requested an offering, or dropped one: its offering teams |
+| `resync_discussions_on_requested_resource` | `Django Signal (post_delete)` | `proposal.RequestedResource` | A proposal requested an offering, or dropped one: its offering teams |
+| `resync_discussions_on_role_change` | `Custom Signal (role_granted)` | `—` | A role on a call -- its managers, panel members, reviewers -- on a |
+| `resync_discussions_on_role_change` | `Custom Signal (role_revoked)` | `—` | A role on a call -- its managers, panel members, reviewers -- on a |
 | `revoke_api_keys_of_deleted_user` | `Django Signal (pre_delete)` | `core.User` | Withdraw the API keys assigned to a user before the account is deleted. |
 | `revoke_oauth_tokens_on_deactivation` | `Django Signal (post_save)` | `core.User` | Delete a user's OAuth sessions when the user is deactivated. |
 | `revoke_roles_on_offering_deletion` | `Django Signal (pre_delete)` | `marketplace.Offering` | Revoke active user roles bound to an offering before it is deleted. |
@@ -883,7 +900,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 799
+Total unique handlers found: 816
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -891,7 +908,7 @@ Total unique handlers found: 799
 - **waldur_core**: 353 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 382 handlers
+- **waldur_mastermind**: 399 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers

@@ -991,14 +991,17 @@ positional arguments:
 
 ## load_docs_corpus
 
-Load the documentation corpus that the AI assistant's search_docs tool searches. Defaults to the corpus shipped in the image (/usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz, or $WALDUR_DOCS_CORPUS_PATH). Does nothing when there is no corpus file, and writes nothing when the corpus is unchanged. Invalid lines are skipped; a corpus that cannot be read, or has no valid line, leaves the loaded sections as they were. Never fails, so that a bad corpus does not stop a deployment.
+Load the documentation corpus that the AI assistant's search_docs tool searches. Defaults to the corpus shipped in the image (/usr/share/waldur/docs-corpus/docs-corpus.jsonl.gz, or $WALDUR_DOCS_CORPUS_PATH). Does nothing when there is no corpus file, and writes nothing when the corpus is unchanged. Invalid lines are skipped; a corpus that cannot be read, or has no valid line, leaves the loaded sections as they were. Never fails, so that a bad corpus does not stop a deployment; --strict fails instead, for tools that must know what is loaded.
 
 ```bash
 
-usage: waldur load_docs_corpus [path]
+usage: waldur load_docs_corpus [--strict] [path]
 
 positional arguments:
-  path  Path to docs-corpus.jsonl.gz.
+  path      Path to docs-corpus.jsonl.gz.
+
+options:
+  --strict  Fail when the file is missing or cannot be loaded.
 
 ```
 
@@ -1123,6 +1126,7 @@ Serve the remote MCP endpoint (/mcp), its OAuth resource metadata and /health. A
 ```bash
 
 usage: waldur mcp_server [--host HOST] [--port PORT] [--db-threads DB_THREADS]
+                         [--statement-timeout STATEMENT_TIMEOUT]
 
 options:
   --host HOST
@@ -1130,6 +1134,9 @@ options:
   --db-threads DB_THREADS
                         Threads that run database calls; each holds one
                         connection.
+  --statement-timeout STATEMENT_TIMEOUT
+                        Seconds a database statement may run before it is
+                        cancelled; 0 turns the limit off.
 
 ```
 
