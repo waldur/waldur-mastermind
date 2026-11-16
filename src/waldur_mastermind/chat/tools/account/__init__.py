@@ -7,6 +7,7 @@ tool modules do not need to be listed there.
 """
 
 from waldur_mastermind.chat.tools.account import (  # noqa: F401
+    chart_costs,
     display_user_resources,
     explain_invoice_compensations,
     explain_project_credit_balance,

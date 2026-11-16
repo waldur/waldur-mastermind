@@ -32,6 +32,7 @@ class ToolName(Enum):
     LIST_ORDERS = "list_orders"
     GET_ORDER = "get_order"
     LIST_INVOICES = "list_invoices"
+    CHART_COSTS = "chart_costs"
     FIND_MATCHING_CALLS = "find_matching_calls"
     LIST_CALLS = "list_calls"
     LIST_PROPOSALS = "list_proposals"

@@ -1,4 +1,5 @@
 from waldur_firecrest import workspace
+from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat.docs import corpus as docs_corpus
 from waldur_mastermind.chat.tools.enums import ToolName
 
@@ -42,6 +43,7 @@ _ACCOUNT_TOOLS: list[ToolName] = [
     ToolName.LIST_ORDERS,
     ToolName.GET_ORDER,
     ToolName.LIST_INVOICES,
+    ToolName.CHART_COSTS,
 ]
 
 _MARKETPLACE_TOOLS: list[ToolName] = [
@@ -71,6 +73,10 @@ _PROPOSALS_REVIEWER_STAFF_ONLY_TOOLS: list[ToolName] = [
 ]
 
 _DOCS_TOOLS: list[ToolName] = [ToolName.SEARCH_DOCS]
+
+# Tools that show prices, left out where the portal conceals them.
+_PRICE_TOOLS: list[ToolName] = [ToolName.CHART_COSTS]
+_PRICES_SHOWN = "!feature:marketplace.conceal_prices"
 
 # Meta-tools — always available regardless of role. ``search_tools`` only
 # returns specs for tools the user is already permitted to use; ``ask_user``
@@ -163,7 +169,17 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     # documentation off (DOCS_SEARCH_ENABLED).
     if not docs_corpus.search_enabled():
         tools = [tool for tool in tools if tool not in _DOCS_TOOLS]
+    # The portal conceals prices (marketplace.conceal_prices).
+    if not _prices_shown():
+        tools = [tool for tool in tools if tool not in _PRICE_TOOLS]
     return tools
+
+
+def _prices_shown() -> bool:
+    """Whether the portal shows prices; read from the cached deployment
+    profile, which queries the database when its cache is cold."""
+    states = deployment_profile.get_term_states([_PRICES_SHOWN])
+    return states[_PRICES_SHOWN] == deployment_profile.TermState.ON
 
 
 def is_tool_permitted(user, tool_name: str | ToolName, delegated=False) -> bool:
