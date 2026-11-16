@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db import DatabaseError, transaction
 from django.utils import timezone
 from jsonschema import Draft202012Validator, ValidationError
 from jsonschema.exceptions import best_match
@@ -33,6 +34,7 @@ from waldur_mastermind.mcp.utils import MCP_PATH
 
 logger = logging.getLogger(__name__)
 
+TOOL_ERROR = "An error occurred while executing the tool."
 MAX_ARGUMENT_DEPTH = 32
 # The input guards' email pattern is quadratic and holds the GIL, so a long
 # argument stalls every client: 0.06 s at this size, 7 s at 50,000 characters.
@@ -258,5 +260,15 @@ def call_tool(
     with caller_context(caller, client_ip):
         # Before the tool, so that nothing is read without a record of it.
         emit_tool_called(caller, name)
-        result = ToolExecutor(caller.user, delegated=True).execute_tool(name, arguments)
+        # A savepoint, so a statement timeout undoes the tool but not the audit
+        # record. The executor logs and swallows the query's error, so Django
+        # finds the savepoint unreleasable, rolls it back and raises.
+        try:
+            with transaction.atomic():
+                result = ToolExecutor(caller.user, delegated=True).execute_tool(
+                    name, arguments
+                )
+        except DatabaseError:
+            logger.warning("MCP tool %s was rolled back.", name)
+            return error_result(TOOL_ERROR)
         return to_call_result(result, definition)
