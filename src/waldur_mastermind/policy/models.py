@@ -1134,6 +1134,15 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         - no limit-based components have a limit_period set
         - multiple limit-based components have different limit_periods (ambiguous)
         """
+        # Every resource of a sync run asks this several times, and the answer
+        # depends only on the offering: look the components up once per
+        # instance. Policies are loaded fresh by each task run and request.
+        if hasattr(self, "_component_limit_period"):
+            return self._component_limit_period
+        self._component_limit_period = self._query_component_limit_period()
+        return self._component_limit_period
+
+    def _query_component_limit_period(self):
         offering = self._get_offering()
         if not offering:
             return None

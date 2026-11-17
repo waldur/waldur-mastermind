@@ -619,7 +619,7 @@ def sync_slurm_periodic_settings():
         resources = marketplace_models.Resource.objects.filter(
             offering=policy.scope,
             state=marketplace_models.ResourceStates.OK,
-        )
+        ).select_related("offering__customer", "project__customer")
 
         if not policy.apply_to_all and policy.organization_groups.exists():
             resources = resources.filter(

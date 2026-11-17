@@ -3,7 +3,10 @@
 import json
 from unittest import mock
 
+from django.core.cache import cache
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.marketplace.models import ResourceStates
@@ -252,3 +255,44 @@ class TestSyncSlurmPeriodicSettings(TestCase):
             payload["settings"]["grp_tres_mins"]["nodeHours"],
             int(600 * 1.5),
         )
+
+    def _sync_and_count_queries(self):
+        cache.clear()
+        with CaptureQueriesContext(connection) as ctx:
+            result = sync_slurm_periodic_settings()
+        limit_period_queries = sum(
+            1
+            for query in ctx.captured_queries
+            if '"marketplace_offeringcomponent"."limit_period"' in query["sql"]
+        )
+        return result, limit_period_queries
+
+    def _add_resource(self, backend_id):
+        marketplace_factories.ResourceFactory(
+            project=self.fixture.project,
+            offering=self.offering,
+            plan=self.plan,
+            backend_id=backend_id,
+            limits={"nodeHours": 10},
+            state=ResourceStates.OK,
+        )
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_sync_reads_limit_period_once_per_policy(self, mock_publish):
+        """The offering's limit period is looked up once per run, not per resource."""
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            billing_type="limit",
+            limit_period="month",
+        )
+        self._add_resource("sync-period-1")
+        one, one_lookups = self._sync_and_count_queries()
+        for index in range(2, 5):
+            self._add_resource(f"sync-period-{index}")
+        four, four_lookups = self._sync_and_count_queries()
+
+        self.assertEqual(one["sent"], 1)
+        self.assertEqual(four["sent"], 4)
+        self.assertEqual(one_lookups, 1)
+        self.assertEqual(four_lookups, 1)
