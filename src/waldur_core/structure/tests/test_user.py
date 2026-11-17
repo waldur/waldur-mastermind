@@ -3,10 +3,14 @@ from unittest import mock
 
 from ddt import data, ddt
 from django.conf import settings
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_auth_social.const import ProviderChoices
+from waldur_auth_social.models import IdentityProvider
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import utils as core_utils
 from waldur_core.core.authentication import refresh_token
@@ -2374,3 +2378,75 @@ class UserOrganizationAddressTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["organization_address"], "456 University Ave")
+
+
+class UserIdentityProviderQueriesTest(test.APITestCase):
+    """The identity provider of a user is looked up once per serialization."""
+
+    def setUp(self):
+        self.provider = IdentityProvider.objects.create(
+            provider=ProviderChoices.KEYCLOAK,
+            is_active=True,
+            label="Campus login",
+            management_url="https://idp.example.com/account",
+            protected_fields=["first_name", "last_name"],
+        )
+        self.staff = factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(self.staff)
+
+    def _count_provider_queries(self, url, **params):
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url, params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        queries = sum(
+            1
+            for query in ctx.captured_queries
+            if '"waldur_auth_social_identityprovider"' in query["sql"]
+        )
+        return queries, response.data
+
+    def test_list_does_not_query_provider_per_user(self):
+        factories.UserFactory(registration_method=ProviderChoices.KEYCLOAK)
+        few, _ = self._count_provider_queries(
+            factories.UserFactory.get_list_url(), page_size=50
+        )
+        for _ in range(4):
+            factories.UserFactory(registration_method=ProviderChoices.KEYCLOAK)
+        many, users = self._count_provider_queries(
+            factories.UserFactory.get_list_url(), page_size=50
+        )
+
+        self.assertEqual(len(users), 6)
+        self.assertEqual(few, 1)
+        self.assertEqual(many, 1)
+
+    def test_detail_queries_provider_once(self):
+        user = factories.UserFactory(registration_method=ProviderChoices.KEYCLOAK)
+        queries, data = self._count_provider_queries(
+            factories.UserFactory.get_url(user)
+        )
+
+        self.assertEqual(queries, 1)
+        self.assertEqual(data["identity_provider_name"], "Campus login")
+        self.assertEqual(data["identity_provider_label"], "Campus login")
+        self.assertEqual(
+            data["identity_provider_management_url"],
+            "https://idp.example.com/account",
+        )
+        self.assertEqual(data["identity_provider_fields"], ["first_name", "last_name"])
+
+    def test_missing_provider_is_looked_up_once(self):
+        self.provider.delete()
+        for _ in range(3):
+            factories.UserFactory(registration_method=ProviderChoices.EDUTEAMS)
+        queries, users = self._count_provider_queries(
+            factories.UserFactory.get_list_url(),
+            registration_method=ProviderChoices.EDUTEAMS,
+        )
+
+        self.assertEqual(len(users), 3)
+        self.assertEqual(queries, 1)
+        for user in users:
+            self.assertEqual(user["identity_provider_label"], "")
+            self.assertEqual(user["identity_provider_management_url"], "")
+            self.assertEqual(user["identity_provider_fields"], [])

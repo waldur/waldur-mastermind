@@ -26,18 +26,33 @@ logger = logging.getLogger(__name__)
 RESOURCE_MISSING_MESSAGE = "Does not exist at backend."
 
 
-def get_identity_provider_field(registration_method, field):
-    try:
-        return getattr(
-            IdentityProvider.objects.get(provider=registration_method), field
-        )
-    except IdentityProvider.DoesNotExist:
+def _get_identity_provider(
+    registration_method, cache: dict | None = None
+) -> IdentityProvider | None:
+    """The identity provider configured for a registration method, if any.
+
+    With a ``cache`` dict, the provider (or its absence) is looked up once per
+    registration method and remembered there, so serializing many users of
+    the same provider costs one query instead of one per user and field.
+    """
+    if cache is not None and registration_method in cache:
+        return cache[registration_method]
+    provider = IdentityProvider.objects.filter(provider=registration_method).first()
+    if cache is not None:
+        cache[registration_method] = provider
+    return provider
+
+
+def get_identity_provider_field(registration_method, field, cache: dict | None = None):
+    provider = _get_identity_provider(registration_method, cache)
+    if provider is None:
         return None
+    return getattr(provider, field)
 
 
-def get_identity_provider_name(registration_method):
+def get_identity_provider_name(registration_method, cache: dict | None = None):
     if registration_method in ProviderChoices.CHOICES:
-        return get_identity_provider_field(registration_method, "label") or ""
+        return get_identity_provider_field(registration_method, "label", cache) or ""
 
     if registration_method == settings.WALDUR_AUTH_SAML2["NAME"]:
         return settings.WALDUR_AUTH_SAML2["IDENTITY_PROVIDER_LABEL"]
@@ -51,9 +66,9 @@ def get_identity_provider_name(registration_method):
     return ""
 
 
-def get_identity_provider_label(registration_method):
+def get_identity_provider_label(registration_method, cache: dict | None = None):
     if registration_method in ProviderChoices.CHOICES:
-        return get_identity_provider_field(registration_method, "label") or ""
+        return get_identity_provider_field(registration_method, "label", cache) or ""
 
     if registration_method == settings.WALDUR_AUTH_SAML2["NAME"]:
         return settings.WALDUR_AUTH_SAML2["IDENTITY_PROVIDER_LABEL"]
@@ -67,9 +82,14 @@ def get_identity_provider_label(registration_method):
     return ""
 
 
-def get_identity_provider_management_url(registration_method):
+def get_identity_provider_management_url(
+    registration_method, cache: dict | None = None
+):
     if registration_method in ProviderChoices.CHOICES:
-        return get_identity_provider_field(registration_method, "management_url") or ""
+        return (
+            get_identity_provider_field(registration_method, "management_url", cache)
+            or ""
+        )
 
     if registration_method == settings.WALDUR_AUTH_SAML2["NAME"]:
         return settings.WALDUR_AUTH_SAML2["MANAGEMENT_URL"]
@@ -83,10 +103,11 @@ def get_identity_provider_management_url(registration_method):
     return ""
 
 
-def get_identity_provider_fields(registration_method):
+def get_identity_provider_fields(registration_method, cache: dict | None = None):
     if registration_method in ProviderChoices.CHOICES:
         return (
-            get_identity_provider_field(registration_method, "protected_fields") or []
+            get_identity_provider_field(registration_method, "protected_fields", cache)
+            or []
         )
 
     return {
@@ -125,7 +146,7 @@ def _provider_supplies_email(provider: IdentityProvider, user: User) -> bool:
     return not set_in_waldur
 
 
-def get_user_protected_fields(user: User) -> list[str]:
+def get_user_protected_fields(user: User, cache: dict | None = None) -> list[str]:
     """The profile fields of this user that their identity provider manages.
 
     The registration method's protected fields and, for an OIDC provider, the
@@ -134,8 +155,8 @@ def get_user_protected_fields(user: User) -> list[str]:
     """
     method = user.registration_method
     if method not in ProviderChoices.CHOICES:
-        return list(get_identity_provider_fields(method))
-    provider = IdentityProvider.objects.filter(provider=method).first()
+        return list(get_identity_provider_fields(method, cache))
+    provider = _get_identity_provider(method, cache)
     if provider is None:
         return []
     fields = list(provider.protected_fields or [])
