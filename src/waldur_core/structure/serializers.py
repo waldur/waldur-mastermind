@@ -2755,17 +2755,31 @@ class UserSerializer(
         except core_models.ChangeEmailRequest.DoesNotExist:
             return None
 
+    @property
+    def _identity_provider_cache(self) -> dict:
+        # One child serializer renders every row of a list, so the identity
+        # providers it looks up are shared by all users on the page.
+        if not hasattr(self, "_idp_cache"):
+            self._idp_cache = {}
+        return self._idp_cache
+
     def get_identity_provider_name(self, user: core_models.User) -> str:
-        return utils.get_identity_provider_name(user.registration_method)
+        return utils.get_identity_provider_name(
+            user.registration_method, self._identity_provider_cache
+        )
 
     def get_identity_provider_label(self, user: core_models.User) -> str:
-        return utils.get_identity_provider_label(user.registration_method)
+        return utils.get_identity_provider_label(
+            user.registration_method, self._identity_provider_cache
+        )
 
     def get_identity_provider_management_url(self, user: core_models.User) -> str:
-        return utils.get_identity_provider_management_url(user.registration_method)
+        return utils.get_identity_provider_management_url(
+            user.registration_method, self._identity_provider_cache
+        )
 
     def get_identity_provider_fields(self, user: core_models.User) -> list[str]:
-        return utils.get_user_protected_fields(user)
+        return utils.get_user_protected_fields(user, self._identity_provider_cache)
 
     def get_has_active_session(self, user: core_models.User) -> bool:
         return hasattr(user, "auth_token") and user.auth_token is not None
