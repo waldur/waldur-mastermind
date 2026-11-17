@@ -63,6 +63,10 @@ class MembershipSyncFixture:
         self.managed_project = mock.Mock(
             project=self.project,
             local_identifier="someproject",
+            # A Mock would answer these with a truthy Mock: give them the
+            # model's defaults, i.e. no increase waiting for review.
+            pending_allocation=None,
+            approved_credits=None,
         )
         self.managed_project.get_project_template.return_value = self.project_template
         self.managed_project.is_approved.return_value = True

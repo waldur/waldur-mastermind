@@ -1,3 +1,4 @@
+import decimal
 import json
 import logging
 import re
@@ -2335,6 +2336,30 @@ class ManagedProject(ReviewMixin, models.Model):
         help_text=_("The local project identifier in this portal."),
     )
 
+    # The credits of an allocation increase waiting for a local reviewer. Set
+    # only while the award is pending because of that increase, so a pending
+    # award with this set is still live: every other change is applied.
+    pending_allocation = models.DecimalField(
+        max_digits=22,
+        decimal_places=7,
+        verbose_name=_("pending allocation"),
+        help_text=_("Credits of an allocation increase awaiting approval."),
+        blank=True,
+        null=True,
+    )
+
+    # The credits last approved by a local reviewer, or within the project
+    # template's approval limit. Increases are measured against this, so a
+    # series of small ones cannot add up to an unreviewed large one.
+    approved_credits = models.DecimalField(
+        max_digits=22,
+        decimal_places=7,
+        verbose_name=_("approved credits"),
+        help_text=_("Credits last approved, by a local reviewer or by policy."),
+        blank=True,
+        null=True,
+    )
+
     def get_destination(self) -> openportal.Destination:
         """
         Get the destination for this project.
@@ -2786,6 +2811,63 @@ class ManagedProject(ReviewMixin, models.Model):
             self.approve(
                 utils.get_openportal_robot(), comment="Approved automatically."
             )
+
+    def reset_allocation_to_project_credits(self):
+        """
+        Set the allocation the stored details claim back to the credits the
+        project has, in the units the awarding portal uses.
+
+        An update that omits the allocation is merged with the stored
+        details, so an increase that was declined or refused would otherwise
+        be claimed again by every later update.
+        """
+        details = self.get_details()
+        allocation = details.allocation
+        if self.project is None or allocation is None:
+            return
+        project_template = self.get_project_template()
+        credits = utils.get_project_credits(self.project)
+        scale = 1.0
+        if project_template is not None:
+            scale = project_template.get_allocation_units_mapping().get(
+                allocation.units, 1.0
+            )
+        if scale > 0:
+            # The inverse of ProjectTemplate.convert_to_credits.
+            size = float(credits * decimal.Decimal(str(scale)))
+            details.allocation = openportal.Allocation.from_size_and_units(
+                size, allocation.units
+            )
+            self.set_details(details)
+
+    def decline_allocation_increase(self, user, comment: str | None = None):
+        """
+        Decline the allocation increase a live award is pending for, and only
+        that: the award goes back to approved and keeps running with the
+        credits it has, and later updates keep being applied.
+
+        The stored details claim the declined allocation, and an update that
+        omits the allocation is merged with them, so it would hold the same
+        increase again. They are set back to the allocation the project has,
+        in the units the awarding portal uses; an update that sends the
+        increase again is held for review again.
+        """
+        self.reset_allocation_to_project_credits()
+
+        self.pending_allocation = None
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        self.review_comment = comment
+        self.state = ReviewStates.APPROVED
+        self.save(
+            update_fields=[
+                "pending_allocation",
+                "reviewed_by",
+                "reviewed_at",
+                "review_comment",
+                "state",
+            ]
+        )
 
     def is_pending(self) -> bool:
         """

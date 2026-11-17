@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import functools
 import json
 import logging
@@ -7,11 +8,12 @@ import time
 
 import openportal
 from celery import shared_task
+from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.configuration import config as constance_config
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
@@ -19,7 +21,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import backend, config, models, remote_project_service, utils
+from . import backend, config, exceptions, models, remote_project_service, utils
 from .board import OpenPortalBoard, _trim_job
 
 logger = logging.getLogger(__name__)
@@ -1696,12 +1698,18 @@ def update_award(
     project: openportal.ProjectIdentifier,
     details: openportal.AwardDetails,
     force_approve: bool = False,
+    max_approved_credits: decimal.Decimal | None = None,
 ) -> openportal.ProjectMapping:
     """
     Update the project in the OpenPortal board with the given details.
     If the project does not exist, then there will be an error.
     """
-    mapping = board.update_award(project, details, force_approve=force_approve)
+    mapping = board.update_award(
+        project,
+        details,
+        force_approve=force_approve,
+        max_approved_credits=max_approved_credits,
+    )
 
     # schedule creation of default resources again in case any were missed
     try:
@@ -1740,11 +1748,85 @@ def create_award(
     return mapping
 
 
+@shared_task(name="waldur_openportal.reject_ended_waiting_awards")
+def reject_ended_waiting_awards():
+    """
+    Reject awards still waiting, in draft or pending with no project, whose
+    end date has passed: their project could no longer be created, so they
+    would otherwise wait forever. They are rejected the way a site admin's
+    rejection is, so the awarding portal is told, and an audit entry
+    records it. Awards attached to a project are left alone: the project's
+    own lifecycle governs them.
+    """
+    today = datetime.date.today()
+    waiting_states = (ReviewStates.DRAFT, ReviewStates.PENDING)
+    robot = None
+
+    candidates = models.ManagedProject.objects.filter(
+        state__in=waiting_states, project__isnull=True
+    ).values_list("pk", flat=True)
+
+    for pk in candidates:
+        # One award failing must not keep the others waiting.
+        try:
+            with transaction.atomic():
+                # A reviewer may approve or attach the award between the query
+                # above and here: lock it and check again.
+                managed_project = (
+                    models.ManagedProject.objects.select_for_update()
+                    .filter(pk=pk, state__in=waiting_states, project__isnull=True)
+                    .first()
+                )
+                if managed_project is None:
+                    continue
+
+                try:
+                    end_date = managed_project.get_details().end_date
+                except Exception as e:
+                    logger.warning(
+                        f"OpenPortal - cannot read the details of award {managed_project.identifier}: {e}"
+                    )
+                    continue
+
+                # An award ending today is as unable to run as one that has
+                # ended: the same rule refuses it on arrival.
+                if end_date is None or end_date > today:
+                    continue
+
+                if robot is None:
+                    robot = utils.get_openportal_robot()
+
+                comment = (
+                    f"Rejected: the award ended on {end_date} while waiting for "
+                    "approval, so its project can no longer be created."
+                )
+                managed_project.reject(robot, comment)
+                models.ManagedProjectAuditEntry.record(
+                    managed_project,
+                    models.ManagedProjectAuditEventType.REJECTED,
+                    performed_by=robot,
+                    note=comment,
+                )
+
+            logger.info(
+                f"OpenPortal - rejected award {managed_project.identifier}: it ended on {end_date} while waiting"
+            )
+            managed_project.notify_rejected()
+        except Exception:
+            logger.exception(f"OpenPortal - cannot reject the ended award with pk {pk}")
+
+
 @shared_task(name="waldur_openportal.managed_project_approved")
-def managed_project_approved(serialized_managed_project):
+def managed_project_approved(serialized_managed_project, approved_credits=None):
     """
     This task is called when a managed project is approved. It will create the
     default resources for the project.
+
+    approved_credits is the allocation, in credits, the reviewer approved
+    (a string, as it crosses the broker). The stored details are applied as
+    they are when the task runs, which may be after the awarding portal has
+    raised the allocation again: an increase above approved_credits is not
+    applied but waits for review. None approves whatever the details hold.
     """
     logger.info(
         f"OpenPortal task.managed_project_approved: {serialized_managed_project}"
@@ -1775,7 +1857,28 @@ def managed_project_approved(serialized_managed_project):
     identifier = managed_project.get_remote_identifier()
     details = managed_project.get_details()
 
-    result = update_award(board, identifier, details, force_approve=True)
+    max_approved_credits = (
+        decimal.Decimal(str(approved_credits)) if approved_credits is not None else None
+    )
+
+    try:
+        result = update_award(
+            board,
+            identifier,
+            details,
+            force_approve=True,
+            max_approved_credits=max_approved_credits,
+        )
+    except exceptions.ManagedProjectPendingError:
+        # The awarding portal raised the allocation above the approved
+        # figure after the approval: that increase waits for review again,
+        # so the award is not reported as accepted.
+        logger.info(
+            f"OpenPortal - Managed project {managed_project} approved for "
+            f"{approved_credits} credits, but an allocation increase above that "
+            "is waiting for review again."
+        )
+        return
 
     logger.info(
         f"OpenPortal - Managed project {managed_project} approved - mapping is {result}"

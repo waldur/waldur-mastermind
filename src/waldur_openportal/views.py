@@ -2,6 +2,7 @@ import logging
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
@@ -17,6 +18,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from waldur_core.core import access
+from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import executors as core_executors
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
@@ -39,6 +41,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import IsAdminOrOwner, _has_owner_access
 
 from . import config, exceptions, executors, filters, models, serializers, tasks, utils
+from .board import credits_under_review, declines_increase_only, round_credits
 
 logger = logging.getLogger(__name__)
 
@@ -943,7 +946,8 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
 
     serializer_class = serializers.ManagedProjectSerializer
     attach_serializer_class = serializers.ProjectAttachSerializer
-    approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
+    approve_serializer_class = serializers.ManagedProjectApproveSerializer
+    reject_serializer_class = ReviewCommentSerializer
 
     approve_validators = reject_validators = [
         StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
@@ -1098,9 +1102,14 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
                 description="The destination of the managed project",
             ),
         ],
-        request=ReviewCommentSerializer,
+        request=serializers.ManagedProjectApproveSerializer,
         responses=None,
-        description="Approve managed project request",
+        description=(
+            "Approve managed project request. Applies no more than the "
+            "allocation waiting at the time of approval; send "
+            "expected_allocation to refuse the approval (409) if that figure "
+            "is no longer the one the reviewer saw."
+        ),
     )
     @action(
         detail=False,
@@ -1125,18 +1134,60 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        project.approve(request.user, comment)
+        expected = serializer.validated_data.get("expected_allocation")
 
-        models.ManagedProjectAuditEntry.record(
-            project,
-            models.ManagedProjectAuditEventType.APPROVED,
-            performed_by=request.user,
-            note=comment or "",
-            new_details=project.details,
+        with transaction.atomic():
+            # The awarding portal may change the award while the reviewer
+            # looks at it: lock it, and check that it is still waiting and
+            # still for the figure the reviewer approves.
+            project = models.ManagedProject.objects.select_for_update().get(
+                pk=project.pk
+            )
+            if not project.is_pending():
+                raise core_exceptions.IncorrectStateException(
+                    _("This award is no longer pending approval.")
+                )
+
+            approved_credits = credits_under_review(project)
+            if expected is not None and (
+                approved_credits is None or round_credits(expected) != approved_credits
+            ):
+                raise core_exceptions.IncorrectStateException(
+                    _(
+                        "The allocation waiting for approval is now {figure} "
+                        "credits, not {expected}. Review it again."
+                    ).format(
+                        figure=(
+                            "no"
+                            if approved_credits is None
+                            else f"{approved_credits.normalize():f}"
+                        ),
+                        expected=f"{expected.normalize():f}",
+                    )
+                )
+
+            project.approve(request.user, comment)
+            if approved_credits is not None and project.pending_allocation is not None:
+                # The figure is approved from now on: the awarding portal
+                # sending it again before the approval task runs is not an
+                # increase to hold for review again.
+                project.approved_credits = approved_credits
+                project.save(update_fields=["approved_credits"])
+
+            models.ManagedProjectAuditEntry.record(
+                project,
+                models.ManagedProjectAuditEventType.APPROVED,
+                performed_by=request.user,
+                note=comment or "",
+                new_details=project.details,
+            )
+
+        # trigger a task to update the project, applying no more than the
+        # figure approved here
+        tasks.managed_project_approved.delay(
+            core_utils.serialize_instance(project),
+            None if approved_credits is None else str(approved_credits),
         )
-
-        # trigger a task to update the project
-        tasks.managed_project_approved.delay(core_utils.serialize_instance(project))
 
         return Response(status=status.HTTP_200_OK)
 
@@ -1157,7 +1208,11 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
         ],
         request=ReviewCommentSerializer,
         responses=None,
-        description="Reject managed project request",
+        description=(
+            "Reject managed project request. For a live award pending only "
+            "for an allocation increase, only the increase is declined: the "
+            "award goes back to approved with the credits it has."
+        ),
     )
     @action(
         detail=False,
@@ -1172,19 +1227,56 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
 
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment")
-        project.reject(request.user, comment)
+
+        with transaction.atomic():
+            project = models.ManagedProject.objects.select_for_update().get(
+                pk=project.pk
+            )
+            if not project.is_pending():
+                raise core_exceptions.IncorrectStateException(
+                    _("This award is no longer pending approval.")
+                )
+
+            declined = (
+                project.pending_allocation if declines_increase_only(project) else None
+            )
+            if declined is not None:
+                # The award runs a live project and waits only for an
+                # allocation increase: decline the increase, not the award.
+                project.decline_allocation_increase(request.user, comment)
+                note = (
+                    f"Allocation increase to {declined.normalize():f} credits "
+                    "declined; the award stays approved with its current "
+                    "credits."
+                )
+                models.ManagedProjectAuditEntry.record(
+                    project,
+                    models.ManagedProjectAuditEventType.REJECTED,
+                    performed_by=request.user,
+                    note=f"{note} {comment}" if comment else note,
+                )
+            else:
+                project.reject(request.user, comment)
+                models.ManagedProjectAuditEntry.record(
+                    project,
+                    models.ManagedProjectAuditEventType.REJECTED,
+                    performed_by=request.user,
+                    note=comment or "",
+                )
+
+        if declined is not None:
+            # OpenPortal has no message for "increase declined", and
+            # award_rejected would end the award on the awarding portal.
+            # award_changed makes it re-fetch the award, which reports the
+            # allocation the project has.
+            project.notify_changed()
+            return Response(status=status.HTTP_200_OK)
+
         project.notify_rejected()
 
         # notify project admins and managers about the rejection
         tasks.notify_users_about_rejected_allocation.delay(
             core_utils.serialize_instance(project)
-        )
-
-        models.ManagedProjectAuditEntry.record(
-            project,
-            models.ManagedProjectAuditEventType.REJECTED,
-            performed_by=request.user,
-            note=comment or "",
         )
 
         return Response(status=status.HTTP_200_OK)
