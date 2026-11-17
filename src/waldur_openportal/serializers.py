@@ -780,6 +780,25 @@ class AwardDetailsField(rf_serializers.JSONField):
     pass
 
 
+class ManagedProjectApproveSerializer(core_serializers.ReviewCommentSerializer):
+    expected_allocation = rf_serializers.DecimalField(
+        max_digits=22,
+        decimal_places=7,
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "The allocation, in credits, the reviewer is approving: the "
+            "managed project's pending_allocation when an allocation increase "
+            "is waiting, otherwise the credits of the requested allocation. "
+            "The approval is refused with 409 if the figure has changed since. "
+            "Whether or not it is sent, no more than the figure waiting at the "
+            "time of approval is applied: a later increase waits for review "
+            "again. Omitting it approves whatever figure is waiting when the "
+            "request arrives, which may be higher than the one the reviewer saw."
+        ),
+    )
+
+
 class ProjectAttachSerializer(rf_serializers.Serializer):
     project_uuid = rf_serializers.UUIDField(
         help_text="UUID of the project to attach to this managed project"
@@ -834,6 +853,29 @@ class ManagedProjectSerializer(
         source="project_template", read_only=True
     )
 
+    approved_credits = rf_serializers.DecimalField(
+        max_digits=22,
+        decimal_places=7,
+        read_only=True,
+        allow_null=True,
+        help_text=_(
+            "Credits last approved, by a local reviewer or within the project "
+            "template's approval limit. Allocation increases are measured "
+            "against this."
+        ),
+    )
+
+    pending_allocation = rf_serializers.DecimalField(
+        max_digits=22,
+        decimal_places=7,
+        read_only=True,
+        allow_null=True,
+        help_text=_(
+            "Credits of an allocation increase waiting for review. Every other "
+            "change to the award has been applied."
+        ),
+    )
+
     class Meta:
         model = models.ManagedProject
 
@@ -852,6 +894,8 @@ class ManagedProjectSerializer(
             "project_template",
             "project_template_data",
             "local_identifier",
+            "approved_credits",
+            "pending_allocation",
         )
 
         related_paths = ("project",)

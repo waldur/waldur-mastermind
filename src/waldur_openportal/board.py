@@ -18,6 +18,91 @@ logger = logging.getLogger(__name__)
 
 PROJECT_GRACE_PERIOD_DAYS = 30
 
+# An allocation increase smaller than this many credits, measured against the
+# credits last approved, is applied without review. It absorbs rounding
+# between the awarding portal and here, so a live award is never held
+# pending over a fraction of a credit.
+ALLOCATION_REVIEW_THRESHOLD = decimal.Decimal(1)
+
+# Credits are stored with this many decimal places
+# (ManagedProject.approved_credits / pending_allocation), and compared at
+# that fixed precision. The precision the awarding portal sent the
+# allocation with is in its own units, not in credits: a template mapping
+# 100 GPU hours to one credit turns a whole-GPU-hour change into a
+# hundredth of a credit, which rounding at the sent precision would drop.
+# Noise below a credit is absorbed by ALLOCATION_REVIEW_THRESHOLD instead.
+MAX_CREDIT_PLACES = 7
+CREDIT_QUANTUM = decimal.Decimal(1).scaleb(-MAX_CREDIT_PLACES)
+
+
+def round_credits(credits) -> decimal.Decimal:
+    """Credits at the precision they are stored and compared with."""
+    if not isinstance(credits, decimal.Decimal):
+        # str() first, so a float is taken at the value it prints as, not
+        # at its binary expansion.
+        credits = decimal.Decimal(str(credits))
+    return credits.quantize(CREDIT_QUANTUM, rounding=decimal.ROUND_HALF_UP)
+
+
+def _format_credits(credits) -> str:
+    """Credits for a reviewer to read: 1500, not 1500.0000000."""
+    if credits is None:
+        return "none"
+    return f"{decimal.Decimal(credits).normalize():f}"
+
+
+def is_live_award(managed_project: "models.ManagedProject") -> bool:
+    """
+    Whether the award runs a live project: attached to a project that is not
+    removed, and approved, or pending only for an allocation increase. Every
+    change to a live award except an allocation increase is applied without
+    review. A pending award with a project but no pending allocation (e.g.
+    waiting to be attached to an existing project) is not live.
+    """
+    project = managed_project.project
+    if project is None or project.is_removed:
+        return False
+    if managed_project.is_approved():
+        return True
+    return (
+        managed_project.is_pending() and managed_project.pending_allocation is not None
+    )
+
+
+def declines_increase_only(managed_project: "models.ManagedProject") -> bool:
+    """
+    Whether rejecting this award declines only the allocation increase it
+    waits for, keeping the award running: it is live and credits were
+    already approved for it. An award whose first allocation is held (one
+    approved at creation with no credits, say) has nothing to keep running,
+    so rejecting it rejects the award.
+    """
+    return (
+        is_live_award(managed_project)
+        and managed_project.pending_allocation is not None
+        and managed_project.approved_credits is not None
+        and managed_project.approved_credits > 0
+    )
+
+
+def credits_under_review(
+    managed_project: "models.ManagedProject",
+) -> decimal.Decimal | None:
+    """
+    The allocation, in credits, a reviewer approves when approving this award
+    now: the pending increase if one waits, otherwise the requested
+    allocation. None if the award asks for no allocation.
+    """
+    if managed_project.pending_allocation is not None:
+        return round_credits(managed_project.pending_allocation)
+    project_template = managed_project.get_project_template()
+    allocation = managed_project.get_details().allocation
+    if project_template is None or allocation is None:
+        return None
+    return round_credits(
+        decimal.Decimal(str(project_template.convert_to_credits(allocation)))
+    )
+
 
 def _trim_job(job, max_len: int = 256) -> str:
     s = str(job)
@@ -670,13 +755,21 @@ class OpenPortalBoard:
 
         today = date.today()
 
-        if (
-            details.end_date is not None
-            and details.end_date + timedelta(days=PROJECT_GRACE_PERIOD_DAYS) < today
-        ):
-            raise exceptions.ManagedProjectRejectedError(
-                f"End date {details.end_date} is in the past"
-            )
+        if details.end_date is not None:
+            is_new = not models.ManagedProject.objects.filter(
+                destination=str(self.destination()), identifier=str(identifier)
+            ).exists()
+            # A new award must still have time to run: one ending today or
+            # earlier could never be approved, so it would wait forever. An
+            # existing award keeps the grace allowance, so it can be extended.
+            if is_new and details.end_date <= today:
+                raise exceptions.ManagedProjectRejectedError(
+                    f"End date {details.end_date} is not in the future"
+                )
+            if details.end_date + timedelta(days=PROJECT_GRACE_PERIOD_DAYS) < today:
+                raise exceptions.ManagedProjectRejectedError(
+                    f"End date {details.end_date} is in the past"
+                )
 
         # Get (or create) the ManagedProject for the given project identifier
         managed_project, created = models.ManagedProject.objects.get_or_create(
@@ -814,11 +907,17 @@ class OpenPortalBoard:
         identifier: openportal.ProjectIdentifier,
         new_details: openportal.AwardDetails,
         force_approve: bool = False,
+        max_approved_credits: decimal.Decimal | None = None,
     ) -> openportal.ProjectMapping:
         """
         Update an award in OpenPortal with the given identifier and details.
         This returns the mapping from the identifier in the requesting portal
         to the OpenPortal project identifier used internally.
+
+        force_approve applies an allocation increase without review, up to
+        max_approved_credits when that is given: the figure a reviewer
+        approved. An increase the awarding portal sent after that approval,
+        above it, waits for review again.
         """
         logger.debug(f"Updating project {identifier} with details {new_details}")
 
@@ -850,10 +949,11 @@ class OpenPortalBoard:
                 f"ManagedProject for identifier {identifier} and destination {self.destination()} does not exist - recreating."
             )
 
-            if expired_end_date:
-                # no point creating a new project if the end date is already expired, just reject it
+            if new_details.end_date is not None and new_details.end_date <= today:
+                # no point recreating an award that has already ended: it
+                # could never be approved, so it would wait forever
                 raise exceptions.ManagedProjectRejectedError(
-                    f"End date {new_details.end_date} is in the past - cannot create project."
+                    f"End date {new_details.end_date} is not in the future - cannot create project."
                 )
 
             # recreate the project, but make sure to ask for approval
@@ -890,7 +990,12 @@ class OpenPortalBoard:
                 f"{identifier} does not have a project class set"
             )
 
-        if new_details.allocation is not None:
+        # A live award gets every change applied; only an allocation increase
+        # waits for review, or is refused when over the template's maximum
+        # (below). Anything else keeps the checks here.
+        is_live = is_live_award(managed_project)
+
+        if new_details.allocation is not None and not is_live:
             credits = decimal.Decimal(
                 project_template.convert_to_credits(new_details.allocation)
             )
@@ -911,7 +1016,8 @@ class OpenPortalBoard:
                 raise exceptions.ManagedProjectRejectedError()
 
         if (
-            project_template.action_needs_approval()
+            not is_live
+            and project_template.action_needs_approval()
             and not managed_project.is_approved()
         ):
             logger.info(
@@ -926,7 +1032,7 @@ class OpenPortalBoard:
             raise exceptions.ManagedProjectPendingError()
 
         # We can't do anything if the project is pending approval or canceled
-        if managed_project.is_pending():
+        if managed_project.is_pending() and not is_live:
             logger.warning(f"{identifier} is pending approval!")
 
             # We should update the project details to reflect the sent state
@@ -1061,6 +1167,19 @@ class OpenPortalBoard:
             )
             raise exceptions.ManagedProjectRejectedError()
 
+        # The credits of an increase that has to wait for a reviewer. An
+        # update that says nothing about the allocation leaves a waiting
+        # increase waiting.
+        pending_increase = (
+            managed_project.pending_allocation
+            if details.allocation is None and not force_approve
+            else None
+        )
+
+        # The credits of an increase over the template's maximum, refused
+        # while the rest of the update to a live award is applied.
+        refused_increase = None
+
         if details.allocation is not None:
             new_credits = decimal.Decimal(
                 project_template.convert_to_credits(details.allocation)
@@ -1070,76 +1189,170 @@ class OpenPortalBoard:
             if new_credits < decimal.Decimal(0.0):
                 new_credits = decimal.Decimal(0.0)
 
-            if abs(new_credits - current_credits) > decimal.Decimal(0.0):
+            # Compare in credits at the precision they are stored with.
+            new_rounded = round_credits(new_credits)
+            current_rounded = round_credits(current_credits)
+
+            if managed_project.approved_credits is None:
+                # First sync since approval was tracked: what the project has
+                # now is what was approved.
+                managed_project.approved_credits = current_rounded
+                managed_project.save(update_fields=["approved_credits"])
+
+            if new_rounded != current_rounded:
                 logger.debug(
                     f"Allocation for project {identifier} has changed from {current_credits} to {new_credits}"
                 )
 
                 # check that we approve this allocation change
-                if project_template.action_is_rejected(allocation=float(new_credits)):
-                    logger.debug(
-                        f"{identifier} with class {project_template} is rejected as the allocation exceeds the limit."
-                    )
-                    managed_project.reject(
-                        utils.get_openportal_robot(),
-                        f"{identifier} is rejected as allocation exceeds the limit.",
-                    )
-                    raise exceptions.ManagedProjectRejectedError()
+                if project_template.action_is_rejected(
+                    allocation=float(new_credits)
+                ) and not (is_live and new_rounded < current_rounded):
+                    if is_live:
+                        # Over the maximum: only the increase is refused. The
+                        # running award keeps its credits and every other
+                        # change is applied; the awarding portal is answered
+                        # with a rejection of this update once that is done.
+                        logger.info(
+                            f"{identifier} with class {project_template}: allocation "
+                            f"increase to {new_rounded} credits exceeds the limit - "
+                            "refused, every other change is applied."
+                        )
+                        refused_increase = new_rounded
+                    else:
+                        logger.debug(
+                            f"{identifier} with class {project_template} is rejected as the allocation exceeds the limit."
+                        )
+                        managed_project.reject(
+                            utils.get_openportal_robot(),
+                            f"{identifier} is rejected as allocation exceeds the limit.",
+                        )
+                        raise exceptions.ManagedProjectRejectedError()
 
-                # Only check credits if we are increasing the allocation
-                elif (
-                    new_credits - current_credits > decimal.Decimal(0.0)
-                    and project_template.action_needs_approval(
-                        allocation=float(new_credits)
-                    )
-                    and not force_approve
-                ):
-                    logger.debug(
-                        f"{identifier} with class {project_template} requires approval for allocation changes."
-                    )
-                    managed_project.set_needs_approval()
-                    raise exceptions.ManagedProjectPendingError()
-
-                logger.debug(
-                    f"Setting allocation {details.allocation} for project {identifier}"
+                # Only an increase of at least ALLOCATION_REVIEW_THRESHOLD over
+                # the credits last approved needs review. Measuring against
+                # the approved level, not the current one, stops a run of
+                # small increases adding up to an unreviewed large one.
+                needs_approval = project_template.action_needs_approval(
+                    allocation=float(new_credits)
+                )
+                # A reviewer's approval covers the figure they approved, and
+                # no more: the awarding portal may have raised it since.
+                force_approved = force_approve and (
+                    max_approved_credits is None
+                    or new_rounded <= round_credits(max_approved_credits)
+                )
+                needs_review = (
+                    not force_approved
+                    and new_rounded > current_rounded
+                    and new_rounded - managed_project.approved_credits
+                    >= ALLOCATION_REVIEW_THRESHOLD
+                    and needs_approval
                 )
 
-                # don't set credits for project's in the grace period
-                if project.is_in_grace_period:
-                    # The merged details were already saved above and now claim
-                    # an allocation the project does not have, so say so rather
-                    # than letting the two diverge silently.
-                    logger.warning(
-                        f"Project {identifier} is in its grace period (until "
-                        f"{project.end_date_with_grace}) - recorded allocation "
-                        f"{details.allocation} but leaving credits at "
-                        f"{current_credits}."
-                    )
+                if refused_increase is not None:
+                    # Later updates that omit the allocation must not claim
+                    # the refused figure again.
+                    managed_project.reset_allocation_to_project_credits()
                     models.ManagedProjectAuditEntry.record(
                         managed_project,
                         models.ManagedProjectAuditEventType.DETAILS_UPDATED,
                         note=(
-                            f"Allocation change to {details.allocation} was not "
-                            f"applied: project is in its grace period."
+                            f"Allocation increase to "
+                            f"{_format_credits(refused_increase)} credits was "
+                            "refused: it exceeds the maximum credit limit. "
+                            "Every other change was applied."
                         ),
-                        # Credits stay unchanged in grace, so every resend
-                        # lands here again: one note until something changes.
                         skip_repeat=True,
                     )
+                elif needs_review:
+                    logger.info(
+                        f"{identifier} with class {project_template} requires approval for "
+                        f"the allocation increase from {current_rounded} to {new_rounded} credits."
+                    )
+                    pending_increase = new_rounded
                 else:
-                    try:
-                        utils.set_project_credits(project, new_credits)
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to set allocation for project {identifier}: {e}"
+                    logger.debug(
+                        f"Setting allocation {details.allocation} for project {identifier}"
+                    )
+
+                    # don't set credits for project's in the grace period
+                    if project.is_in_grace_period:
+                        # The merged details were already saved above and now claim
+                        # an allocation the project does not have, so say so rather
+                        # than letting the two diverge silently.
+                        logger.warning(
+                            f"Project {identifier} is in its grace period (until "
+                            f"{project.end_date_with_grace}) - recorded allocation "
+                            f"{details.allocation} but leaving credits at "
+                            f"{current_credits}."
                         )
-                        managed_project.reject(
-                            utils.get_openportal_robot(),
-                            f"Failed to set allocation for project: {e}",
+                        models.ManagedProjectAuditEntry.record(
+                            managed_project,
+                            models.ManagedProjectAuditEventType.DETAILS_UPDATED,
+                            note=(
+                                f"Allocation change to {details.allocation} was not "
+                                f"applied: project is in its grace period."
+                            ),
+                            # Credits stay unchanged in grace, so every resend
+                            # lands here again: one note until something changes.
+                            skip_repeat=True,
                         )
-                        raise exceptions.ManagedProjectRejectedError(
-                            f"Failed to set allocation for project: {e}"
-                        )
+                    else:
+                        try:
+                            utils.set_project_credits(project, new_credits)
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to set allocation for project {identifier}: {e}"
+                            )
+                            managed_project.reject(
+                                utils.get_openportal_robot(),
+                                f"Failed to set allocation for project: {e}",
+                            )
+                            raise exceptions.ManagedProjectRejectedError(
+                                f"Failed to set allocation for project: {e}"
+                            )
+
+                    # An increase approved by a reviewer, or within the
+                    # approval limit, is the new baseline. One applied only
+                    # because it is under the review threshold is not.
+                    if (force_approved or not needs_approval) and (
+                        new_rounded > managed_project.approved_credits
+                    ):
+                        managed_project.approved_credits = new_rounded
+                        managed_project.save(update_fields=["approved_credits"])
+
+        if pending_increase is not None:
+            comment = (
+                f"Allocation increase to {_format_credits(pending_increase)} "
+                f"credits (approved: "
+                f"{_format_credits(managed_project.approved_credits)}) "
+                "needs approval."
+            )
+            if managed_project.pending_allocation != pending_increase:
+                managed_project.pending_allocation = pending_increase
+                managed_project.save(update_fields=["pending_allocation"])
+                models.ManagedProjectAuditEntry.record(
+                    managed_project,
+                    models.ManagedProjectAuditEventType.DETAILS_UPDATED,
+                    note=f"{comment} Every other change was applied.",
+                    skip_repeat=True,
+                )
+            if managed_project.is_pending():
+                # Already waiting, possibly for a different figure: say
+                # which increase the reviewer is approving now.
+                if managed_project.review_comment != comment:
+                    managed_project.review_comment = comment
+                    managed_project.save(update_fields=["review_comment"])
+            else:
+                managed_project.set_needs_approval(comment=comment)
+        elif managed_project.pending_allocation is not None:
+            # The increase that was waiting has been approved, applied or
+            # withdrawn: nothing else holds this live award.
+            managed_project.pending_allocation = None
+            managed_project.save(update_fields=["pending_allocation"])
+            if managed_project.is_pending():
+                managed_project.set_needs_approval(False)
 
         # Updating membership last, as we need to know the project is ok
         can_change_membership = details.can_change_membership()
@@ -1225,6 +1438,18 @@ class OpenPortalBoard:
                             f"(not in authoritative member list)."
                         )
                         utils.remove_project_member(project, email)
+
+        if refused_increase is not None:
+            # Everything else has been applied; only the increase is refused.
+            # The award itself stays approved and keeps running.
+            raise exceptions.ManagedProjectRejectedError(
+                f"Allocation increase to {_format_credits(refused_increase)} "
+                "credits exceeds the maximum credit limit and was not applied."
+            )
+
+        if pending_increase is not None:
+            # Everything else has been applied; only the increase waits.
+            raise exceptions.ManagedProjectPendingError()
 
         return managed_project.get_mapping()
 

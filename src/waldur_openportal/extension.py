@@ -22,7 +22,17 @@ class OpenPortalExtension(WaldurExtension):
     def celery_tasks():
         from datetime import timedelta
 
+        from celery.schedules import crontab
+
         return {
+            # This task rejects awards still waiting for approval, with no
+            # project, once their end date has passed, telling the awarding
+            # portal: their project could no longer be created.
+            "waldur-openportal-reject-ended-waiting-awards": {
+                "task": "waldur_openportal.reject_ended_waiting_awards",
+                "schedule": crontab(minute=40, hour=2),
+                "args": (),
+            },
             # This task re-tries to add or remove local users in case
             # user management failed when called directly
             "waldur-openportal-sync-local-users": {
