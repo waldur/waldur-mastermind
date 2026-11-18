@@ -169,11 +169,29 @@ stateDiagram-v2
     [*] --> IN_REVIEW : Review assigned
 
     IN_REVIEW --> SUBMITTED : Review completed
-    IN_REVIEW --> REJECTED : Reviewer withdraws/declines
+    IN_REVIEW --> REJECTED : Closed unsubmitted (see below)
 
     SUBMITTED --> [*] : Review processed
     REJECTED --> [*] : Assignment ended
 ```
+
+A review still being written is closed (rejected) when:
+
+| `rejection_cause` | Why |
+| --- | --- |
+| `declined` | The reviewer, or staff for them, declined it. |
+| `expired` | Its deadline passed. |
+| `withdrawn` | The reviewer joined the proposal's applicant team. |
+| `proposal_decided` | The proposal was accepted, rejected or canceled, by whichever path. |
+
+Closing on a decision happens when the proposal's state changes, so a decision
+held until its round publishes closes the reviews only once it is released; a
+proposal sent back to its applicant stays in review, and so do its reviews. Its
+review assignments not yet answered lapse (`expired`) at the same time. Submitted
+reviews are left as they are, and reviewers are not emailed: the closure is logged
+on the review's history, naming no actor, and the review's open contribution is
+withdrawn, on whichever step it sits. A proposal withdrawn by its applicant closes its reviews
+and assignments too, as it always did.
 
 ## Rounds and Evaluation Policy
 
@@ -844,9 +862,10 @@ profile is read.
 | `last_review_date` | When the reviewer last submitted a review. |
 
 A review records why it was rejected (`rejection_cause`: `declined`, `expired`,
-or `withdrawn` when the reviewer joined the proposal team). A withdrawn review
-counts as none of these; a review rejected before the cause was recorded counts
-as declined.
+`withdrawn` when the reviewer joined the proposal team, or `proposal_decided`
+when the proposal was decided before it was submitted). A withdrawn review, or
+one closed on the decision, counts as none of these; a review rejected before the
+cause was recorded counts as declined.
 
 #### Reviewer settings
 

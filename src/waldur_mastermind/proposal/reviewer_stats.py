@@ -13,8 +13,8 @@ as they stand when asked for, so none can fall behind them.
   its submission -- its last change, for reviews submitted before the
   submission time was recorded.
 
-A review withdrawn because the reviewer joined the proposal team counts as
-none of these.
+A review withdrawn because the reviewer joined the proposal team, or closed
+because its proposal was decided, counts as none of these.
 """
 
 from django.contrib.auth import get_user_model
@@ -86,7 +86,13 @@ def annotate(queryset, user_ref="user_id"):
     return queryset.annotate(
         stats_completed=_count(submitted, _REVIEWER, user_ref),
         stats_declined=_count(
-            rejected.exclude(rejection_cause__in=[Causes.EXPIRED, Causes.WITHDRAWN]),
+            rejected.exclude(
+                rejection_cause__in=[
+                    Causes.EXPIRED,
+                    Causes.WITHDRAWN,
+                    Causes.PROPOSAL_DECIDED,
+                ]
+            ),
             _REVIEWER,
             user_ref,
         )

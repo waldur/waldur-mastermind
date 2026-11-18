@@ -105,6 +105,7 @@ from waldur_mastermind.proposal.enums import (
     ResultsPublication,
     ReviewerPoolInvitationStatuses,
     ReviewerStandings,
+    ReviewRejectionCauses,
     RoundStatuses,
     StepContributionStatuses,
     StepKinds,
@@ -768,6 +769,18 @@ class ProposalReviewSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField()
+    rejection_cause = serializers.ChoiceField(
+        choices=ReviewRejectionCauses.CHOICES,
+        allow_blank=True,
+        read_only=True,
+        help_text=(
+            "Why a rejected review was closed: declined by the reviewer, "
+            "expired at its deadline, withdrawn when the reviewer joined the "
+            "proposal team, or closed when the proposal was decided. Empty "
+            "on reviews not rejected, and on those rejected before this was "
+            "recorded."
+        ),
+    )
     round_uuid = serializers.UUIDField(source="proposal.round.uuid", read_only=True)
     round_cutoff_time = serializers.ReadOnlyField(source="proposal.round.cutoff_time")
     round_start_time = serializers.ReadOnlyField(source="proposal.round.start_time")
@@ -844,6 +857,7 @@ class ProposalReviewSerializer(
             "reviewer_image",
             "anonymous_reviewer_name",
             "state",
+            "rejection_cause",
             "review_end_date",
             "summary_score",
             "criteria",
@@ -6407,6 +6421,10 @@ class ReviewerReportCountsSerializer(serializers.Serializer):
     )
     reviews_withdrawn = serializers.IntegerField(
         help_text="Withdrawn when the reviewer joined the proposal's team."
+    )
+    reviews_closed_on_decision = serializers.IntegerField(
+        help_text="Closed unsubmitted when the proposal was accepted, "
+        "rejected or canceled."
     )
     reviews_overdue = serializers.IntegerField(
         help_text="In review past their deadline."

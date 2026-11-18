@@ -773,6 +773,11 @@ class ProviderApplicantIdentityTest(ApplicantIdentityTestMixin, test.APITestCase
     def test_provider_reads_the_awarded_project_but_not_who_accepted(self):
         self.conceal_identity()
         project = structure_factories.ProjectFactory()
+        # The reviewer reads the decided proposal through a submitted review:
+        # one still open is closed by the decision.
+        models.Review.objects.filter(
+            proposal=self.proposal, reviewer=self.reviewer
+        ).update(state=models.Review.States.SUBMITTED)
         self.proposal.state = ProposalStates.ACCEPTED
         self.proposal.project = project
         self.proposal.approved_by = self.applicant

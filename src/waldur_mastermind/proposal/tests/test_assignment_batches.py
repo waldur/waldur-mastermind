@@ -612,8 +612,11 @@ class AssignmentResponseConsentTest(test.APITestCase):
         self.assertEqual(response.json(), ["Can only decline pending assignments."])
 
     def test_cannot_accept_an_item_of_a_proposal_out_of_evaluation(self):
-        self.proposal.state = ProposalStates.REJECTED
-        self.proposal.save()
+        # Without the signal, which would expire the item on the decision:
+        # the guard on the proposal's state is what is under test.
+        models.Proposal.objects.filter(pk=self.proposal.pk).update(
+            state=ProposalStates.REJECTED
+        )
         self.client.force_authenticate(self.reviewer_user)
 
         response = self.client.post(self.url + "accept/")

@@ -4,9 +4,11 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.checklist import models as checklist_models
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import RoleChange, RoleEventDetails
@@ -392,6 +394,87 @@ def end_evaluation_on_joining_team(sender, instance, current_user=None, **kwargs
         rejection_cause=enums.ReviewRejectionCauses.WITHDRAWN,
     )
     contributions.withdraw_open_of(user, proposal)
+
+
+DECIDED_REASON = "The proposal was decided."
+
+
+def close_open_reviews_on_decision(sender, instance, created=False, **kwargs):
+    """A proposal accepted, rejected or canceled, by whichever path, needs
+    no more reviews: those still being written are closed, and assignments
+    of it not yet answered lapse.
+
+    Without this they stayed open, so the reviewer kept them on their list,
+    was reminded of their deadline and read the decided proposal through
+    them (``managers.get_live_reviews``). A held decision changes the state
+    only when the round publishes it, so they close then. A proposal sent
+    back to its applicant stays in review, and so do its reviews.
+
+    A review closed is rejected with its cause recorded and logged on its
+    feed, as at its deadline (``tasks.expired_reviews_should_be_cancelled``),
+    as no one's: the request that decided the proposal is not its reviewer's.
+    Submitted reviews are left as they are. Reviewers are not emailed. The
+    closed reviews' open contributions are withdrawn, on whichever step they
+    are: the workflow withdraws only those of the steps it ended.
+    """
+    if created or not instance.tracker.has_changed("state"):
+        return
+    if instance.state not in enums.ProposalStates.ALLOCATED_STATES:
+        return
+    with transaction.atomic():
+        # The assignments first: an accept holds its item's lock while it
+        # creates the review, so once the items are locked a review accepted
+        # concurrently is committed and selected below, and no other is made.
+        _expire_pending_assignments(instance)
+        # Locked: a submission being saved concurrently is waited for, and
+        # the review it submitted is then left alone.
+        reviews = list(
+            models.Review.objects.select_for_update()
+            .filter(proposal=instance, state=models.Review.States.IN_REVIEW)
+            .order_by("pk")
+        )
+        models.Review.objects.filter(pk__in=[review.pk for review in reviews]).update(
+            state=models.Review.States.REJECTED,
+            rejection_cause=enums.ReviewRejectionCauses.PROPOSAL_DECIDED,
+            modified=timezone.now(),
+        )
+        contributions.withdraw_open_of_reviews(reviews)
+        with activity.without_actor():
+            for review in reviews:
+                review.state = models.Review.States.REJECTED
+                review.rejection_cause = enums.ReviewRejectionCauses.PROPOSAL_DECIDED
+                review.proposal = instance
+                activity.log_review_event(review, EventType.REVIEW_CANCELED)
+
+
+def _expire_pending_assignments(proposal):
+    """The proposal's assignment items not yet answered lapse, and a batch
+    left with nothing to answer is done, as when its reviewer leaves the pool
+    (``reviewer_membership.close_pending_assignments``). Accepted items keep
+    their status: their review is closed instead."""
+    Statuses = enums.AssignmentItemStatuses
+    BatchStatuses = enums.AssignmentBatchStatuses
+    # Locked, as an accept or a decline locks the item it answers: one
+    # under way is waited for, and its item is then left as it answered it.
+    items = list(
+        models.AssignmentItem.objects.select_for_update(of=("self",))
+        .filter(proposal=proposal, status=Statuses.PENDING)
+        .exclude(batch__status=BatchStatuses.CANCELLED)
+        .order_by("pk")
+    )
+    if not items:
+        return
+    batch_ids = {item.batch_id for item in items}
+    models.AssignmentItem.objects.filter(pk__in=[item.pk for item in items]).update(
+        status=Statuses.EXPIRED, decline_reason=DECIDED_REASON
+    )
+    done = models.AssignmentBatch.objects.filter(pk__in=batch_ids).exclude(
+        items__status=Statuses.PENDING
+    )
+    done.filter(status=BatchStatuses.SENT).update(
+        status=BatchStatuses.RESPONDED, responded_at=timezone.now()
+    )
+    done.filter(status=BatchStatuses.DRAFT).update(status=BatchStatuses.CANCELLED)
 
 
 def settle_slots_on_conflict(sender, instance, created=False, **kwargs):

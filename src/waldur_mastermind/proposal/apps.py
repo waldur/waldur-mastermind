@@ -154,6 +154,11 @@ class ProposalConfig(AppConfig):
             sender=models.Proposal,
             dispatch_uid="waldur_mastermind.proposal.create_checklist_completion",
         )
+        signals.post_save.connect(
+            handlers.close_open_reviews_on_decision,
+            sender=models.Proposal,
+            dispatch_uid="waldur_mastermind.proposal.close_open_reviews_on_decision",
+        )
         signals.pre_delete.connect(
             handlers.delete_checklist_completion,
             sender=models.Proposal,

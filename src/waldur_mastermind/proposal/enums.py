@@ -657,11 +657,14 @@ class ReviewRejectionCauses:
     EXPIRED = "expired"
     # The reviewer joined the proposal's team, so it was withdrawn from them.
     WITHDRAWN = "withdrawn"
+    # The proposal was accepted, rejected or cancelled before it was submitted.
+    PROPOSAL_DECIDED = "proposal_decided"
 
     CHOICES = (
         (DECLINED, "Declined by the reviewer"),
         (EXPIRED, "Expired at its deadline"),
         (WITHDRAWN, "Withdrawn when the reviewer joined the proposal team"),
+        (PROPOSAL_DECIDED, "Closed when the proposal was decided"),
     )
 
 
