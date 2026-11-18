@@ -4,7 +4,9 @@ import decimal
 import json
 import logging
 import re
+from typing import NamedTuple
 
+from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.configuration import config as constance_config
@@ -20,6 +22,7 @@ from waldur_core.permissions.utils import (
 from waldur_core.permissions.utils import add_user as grant_role
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
+    filter_queryset_for_user,
     get_connected_customers,
     get_connected_projects,
     get_project_users,
@@ -1249,55 +1252,357 @@ def get_remote_project_windows(remote_project) -> list[tuple]:
     return windows
 
 
-def get_remote_project_total_hours(remote_project) -> float:
+class RemoteProjectWindow(NamedTuple):
     """
-    Return the hours of usage the award represented by remote_project has
-    had, across every project it has been attached to.
+    One period an award was attached to a local project, and the key its
+    usage and storage were cached under while it was there.
+    """
 
-    Usage is cached under the identifier of the local project that held the
-    award ("{shortname}.{portal}"), so each attachment's usage is read from
-    its own project's key, for the award's destination, and only for the
-    days the award was attached there. Reading the current project's key
-    alone loses the usage on earlier projects, and summing it without dates
-    counts the usage of any award the project held before on the same
-    destination.
+    project: "structure_models.Project | None"  # None once hard-deleted
+    start: datetime.date  # datetime.date.min if the arrival was not recorded
+    end: datetime.date | None  # inclusive; None while still attached
+    key: str | None  # None if the project has no identifier to read under
+
+
+class RemoteProjectReport(NamedTuple):
+    """An award's usage or storage report over [start, end], with its windows."""
+
+    start: datetime.date | None
+    end: datetime.date
+    report: object | None  # openportal.ProjectUsageReport / ProjectStorageReport
+    windows: list[RemoteProjectWindow]
+
+
+def get_remote_project_window_keys(remote_project) -> list[RemoteProjectWindow]:
+    """
+    get_remote_project_windows(), with the key each window's reports are
+    cached under: its project's local identifier, recomputed from the
+    project. That is exact because a project's shortname is set once. A
+    window whose project was hard-deleted, or has no identifier, has no key
+    and contributes nothing.
+    """
+    windows = []
+    for project, start, end in get_remote_project_windows(remote_project):
+        key = None
+        if project is not None:
+            try:
+                key = str(get_local_project_identifier(project))
+            except Exception as e:
+                logger.warning(
+                    f"Could not get local identifier for project {project!r} "
+                    f"of {remote_project}: {e}"
+                )
+        windows.append(RemoteProjectWindow(project, start, end, key))
+    return windows
+
+
+def _clip_to_range(
+    start: datetime.date,
+    end: datetime.date | None,
+    range_start: datetime.date,
+    range_end: datetime.date,
+) -> tuple[datetime.date, datetime.date] | None:
+    """
+    Clip [start, end] (end None meaning open) to [range_start, range_end].
+    Returns None if they do not overlap.
+    """
+    clipped_start = max(start, range_start)
+    clipped_end = min(end or range_end, range_end)
+    if clipped_start > clipped_end:
+        return None
+    return clipped_start, clipped_end
+
+
+def _months_overlapping(start: datetime.date, end: datetime.date) -> Q:
+    """Cached monthly reports whose month overlaps [start, end]."""
+    return (Q(year__gt=start.year) | Q(year=start.year, month__gte=start.month)) & (
+        Q(year__lt=end.year) | Q(year=end.year, month__lte=end.month)
+    )
+
+
+def _get_remote_project_report_identifier(remote_project, windows):
+    """
+    The one project identifier an award's combined report is labelled with:
+    the award's own identifier, else the key of its latest window that has
+    one. None if there is neither, as for a pending award never attached.
     """
     import openportal
 
-    if not remote_project.destination:
-        return 0.0
-
-    total_hours = 0.0
-    for project, start, end in get_remote_project_windows(remote_project):
-        if project is None:
-            # Hard-deleted project: nothing left to find its usage under.
+    candidates = [remote_project.identifier] + [
+        window.key for window in reversed(windows)
+    ]
+    for candidate in candidates:
+        if not candidate:
             continue
         try:
-            project_identifier = str(get_local_project_identifier(project))
-        except Exception as e:
-            logger.warning(
-                f"Could not get local identifier for project {project!r} "
-                f"of {remote_project}: {e}"
-            )
-            continue
+            return openportal.ProjectIdentifier(candidate)
+        except Exception:
+            logger.debug(f"{candidate!r} is not a project identifier.")
+    return None
 
-        end = end or timezone.now().date()
-        cached_reports = models.CachedProjectUsageReport.objects.filter(
-            project_identifier=project_identifier,
+
+def _get_remote_project_report_range(
+    remote_project, windows, cached_model, start=None, end=None
+) -> tuple[datetime.date | None, datetime.date]:
+    """
+    The range a report covers: [start, end] as passed, end defaulting to
+    today and start to the start of the first window. A first window whose
+    start was not recorded (an award with no attachment history) starts at
+    the first month cached under its key, so that nothing it holds is left
+    out; with nothing cached the range is today alone.
+    """
+    end = end or timezone.now().date()
+    if start is None and windows:
+        first = windows[0]
+        start = first.start
+        if start == datetime.date.min:
+            earliest = None
+            if first.key:
+                earliest = (
+                    cached_model.objects.filter(
+                        project_identifier=first.key,
+                        resource=remote_project.destination,
+                    )
+                    .order_by("year", "month")
+                    .values_list("year", "month")
+                    .first()
+                )
+            start = datetime.date(*earliest, 1) if earliest else end
+    return start, end
+
+
+def _iter_remote_project_cached_reports(
+    remote_project, windows, cached_model, start, end
+):
+    """
+    Yield (window, cached_report, first_day, last_day) for every report
+    cached for the award's destination under a window's key, with the days
+    of its month that fall both in that window and in [start, end].
+    """
+    if start is None or start > end or not remote_project.destination:
+        return
+    for window in windows:
+        if window.key is None:
+            continue
+        clipped = _clip_to_range(window.start, window.end, start, end)
+        if clipped is None:
+            continue
+        cached_reports = cached_model.objects.filter(
+            _months_overlapping(*clipped),
+            project_identifier=window.key,
             resource=remote_project.destination,
         )
         for cached_report in cached_reports:
             month_start = datetime.date(cached_report.year, cached_report.month, 1)
-            overlap_start = max(start, month_start)
-            overlap_end = min(end, get_last_day_of_month(month_start))
-            if overlap_start > overlap_end:
-                continue
-            report = cached_report.get_report().filter(
-                openportal.DateRange(overlap_start, overlap_end)
+            days = _clip_to_range(
+                clipped[0], clipped[1], month_start, get_last_day_of_month(month_start)
             )
-            total_hours += float(report.total_usage.hours)
+            if days is not None:
+                yield window, cached_report, days[0], days[1]
 
-    return total_hours
+
+def get_remote_project_visible_project_ids(windows, user) -> set[int]:
+    """
+    The ids of the windows' projects that user can see: all of them for
+    staff and global support, else those user's roles reach.
+    """
+    project_ids = {window.project.id for window in windows if window.project}
+    if user.is_staff or user.is_support:
+        return project_ids
+    return set(
+        filter_queryset_for_user(
+            structure_models.Project.objects.filter(id__in=project_ids), user
+        ).values_list("id", flat=True)
+    )
+
+
+def _hides_users(window, visible_project_ids) -> bool:
+    """
+    Whether a window's per-user detail is withheld: its project is not
+    among visible_project_ids (None meaning every project is visible).
+    """
+    if visible_project_ids is None:
+        return False
+    return window.project is None or window.project.id not in visible_project_ids
+
+
+def _fold_users_usage(report):
+    """
+    report with each day's per-user usage folded into unattributed usage, per
+    component as well, and with no user mapping: the same totals, job counts
+    and wait times, but nothing that names the project's users.
+    """
+    import openportal
+
+    folded = openportal.ProjectUsageReport(report.project)
+    counts = {}
+    for date in report.dates:
+        for daily in report.get_report(date).daily_reports(with_usage_only=False):
+            day = openportal.DailyProjectUsageReport()
+            day.set_unattributed_usage(daily.total_usage)
+            for component in daily.components:
+                day.set_unattributed_component_usage(
+                    component, daily.get_component(component).total_usage
+                )
+            if daily.is_complete:
+                day.set_complete()
+            folded.set_report(date, day)
+            counts[date.isoformat()] = (daily.num_jobs, daily.total_wait_seconds)
+
+    # Job counts and wait times have no setter apart from per-user ones,
+    # which would name the users again, so the totals are carried over in
+    # the serialised form.
+    data = json.loads(folded.to_json())
+    for day, (num_jobs, total_wait_seconds) in counts.items():
+        data["reports"][day]["num_jobs"] = num_jobs
+        data["reports"][day]["total_wait_seconds"] = total_wait_seconds
+    return openportal.ProjectUsageReport.from_json(json.dumps(data))
+
+
+def _drop_users_storage(snapshot):
+    """snapshot without its per-user quotas and user mapping."""
+    import openportal
+
+    data = json.loads(snapshot.to_json())
+    data["user_quotas"] = {}
+    data["users"] = {}
+    return openportal.ProjectStorageReport.from_json(json.dumps(data))
+
+
+def get_remote_project_usage_report(
+    remote_project, start=None, end=None, user=None
+) -> RemoteProjectReport:
+    """
+    The usage of the award represented by remote_project over [start, end]
+    (see _get_remote_project_report_range for the defaults), across every
+    project it has been attached to, as one openportal.ProjectUsageReport.
+
+    Usage is cached under the identifier of the local project that held the
+    award ("{shortname}.{portal}"), so each window's usage is read from its
+    own project's key, for the award's destination, and only for the days
+    the award was attached there. Reading the current project's key alone
+    loses the usage on earlier projects, and reading it without dates counts
+    the usage of any award the project held before on the same destination.
+
+    Every piece is remapped to one project identifier before the pieces are
+    combined: ProjectUsageReport.combine() of reports with different project
+    identifiers does not fail, it silently keeps only the first one's usage.
+    The users' identifiers are remapped with it, to "<user>.<identifier>",
+    which matches no local user; the local usernames are unchanged.
+
+    If user is given, a window on a project user cannot see still counts in
+    full, but its per-user usage is folded into unattributed usage: being
+    able to see the award's current project must not show the usernames and
+    usage of another project's users. Without user, nothing is withheld.
+
+    The report is None only if the award has nothing to be labelled with: no
+    identifier and no window with a key.
+    """
+    import openportal
+
+    windows = get_remote_project_window_keys(remote_project)
+    visible_project_ids = (
+        None if user is None else get_remote_project_visible_project_ids(windows, user)
+    )
+    start, end = _get_remote_project_report_range(
+        remote_project, windows, models.CachedProjectUsageReport, start, end
+    )
+    identifier = _get_remote_project_report_identifier(remote_project, windows)
+    if identifier is None:
+        return RemoteProjectReport(start, end, None, windows)
+
+    pieces = []
+    for (
+        window,
+        cached_report,
+        first_day,
+        last_day,
+    ) in _iter_remote_project_cached_reports(
+        remote_project, windows, models.CachedProjectUsageReport, start, end
+    ):
+        piece = cached_report.get_report().filter(
+            openportal.DateRange(first_day, last_day)
+        )
+        if _hides_users(window, visible_project_ids):
+            piece = _fold_users_usage(piece)
+        piece.remap_project(identifier)
+        pieces.append(piece)
+
+    if pieces:
+        report = openportal.ProjectUsageReport.combine(pieces)
+    else:
+        report = openportal.ProjectUsageReport(identifier)
+    return RemoteProjectReport(start, end, report, windows)
+
+
+def get_remote_project_storage_report(
+    remote_project, start=None, end=None, user=None
+) -> RemoteProjectReport:
+    """
+    The storage of the award represented by remote_project over [start, end],
+    across every project it has been attached to, as one
+    openportal.ProjectStorageReport. Windows, keys and range are those of
+    get_remote_project_usage_report().
+
+    Storage is a series of dated snapshots, not a sum. Each window keeps the
+    snapshots taken on its own days, and the combined report's top-level
+    snapshot is the latest of those. Snapshots are picked by date from
+    daily_reports() rather than with ProjectStorageReport.filter(), which
+    keeps the latest snapshot even when it falls outside the range: the
+    previous project's storage after the award left it would show as the
+    award's. Each snapshot is remapped to one project identifier, since
+    combine() needs them all to be of one project.
+
+    If user is given, a window on a project user cannot see keeps its
+    project-level storage, but its snapshots lose their per-user quotas and
+    user mapping.
+    """
+    import openportal
+
+    windows = get_remote_project_window_keys(remote_project)
+    visible_project_ids = (
+        None if user is None else get_remote_project_visible_project_ids(windows, user)
+    )
+    start, end = _get_remote_project_report_range(
+        remote_project, windows, models.CachedProjectStorageReport, start, end
+    )
+    identifier = _get_remote_project_report_identifier(remote_project, windows)
+    if identifier is None:
+        return RemoteProjectReport(start, end, None, windows)
+
+    snapshots = []
+    for (
+        window,
+        cached_report,
+        first_day,
+        last_day,
+    ) in _iter_remote_project_cached_reports(
+        remote_project, windows, models.CachedProjectStorageReport, start, end
+    ):
+        hides_users = _hides_users(window, visible_project_ids)
+        for snapshot in cached_report.get_report().daily_reports():
+            if first_day <= snapshot.generated_at.date() <= last_day:
+                if hides_users:
+                    snapshot = _drop_users_storage(snapshot)
+                snapshot.remap_project(identifier)
+                snapshots.append(snapshot)
+
+    if snapshots:
+        snapshots.sort(key=lambda snapshot: snapshot.generated_at)
+        report = openportal.ProjectStorageReport.combine(snapshots)
+    else:
+        report = openportal.ProjectStorageReport(identifier)
+    return RemoteProjectReport(start, end, report, windows)
+
+
+def get_remote_project_total_hours(remote_project) -> float:
+    """
+    Return the hours of usage the award represented by remote_project has
+    had, across every project it has been attached to: the total of its
+    usage report over its whole span, so the two cannot disagree.
+    """
+    report = get_remote_project_usage_report(remote_project).report
+    return float(report.total_usage.hours) if report is not None else 0.0
 
 
 def refresh_remote_project(remote_project):

@@ -1,3 +1,5 @@
+import datetime
+import json
 import logging
 from uuid import UUID
 
@@ -1527,7 +1529,7 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
 
     queryset = models.RemoteProject.objects.none()
 
-    access_filtered_actions = ("total_usage",)
+    access_filtered_actions = ("total_usage", "usage_report", "storage_report")
 
     add_note_permissions = set_earliest_approve_permissions = [
         can_change_remote_project
@@ -1929,7 +1931,8 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         """
         Return the total usage hours for this award, across every project
         it has been attached to, each counted only for the days the award
-        was attached there.
+        was attached there. This is the total_hours of usage-report over the
+        award's whole span, so the two cannot disagree.
 
         Returns 0.0 if no usage reports have been cached.
         """
@@ -1937,6 +1940,124 @@ class RemoteProjectViewSet(core_views.ActionsViewSet):
         return Response(
             {"total_hours": utils.get_remote_project_total_hours(remote_project)}
         )
+
+    def _report_query(self, request):
+        query = serializers.RemoteProjectReportQuerySerializer(
+            data=request.query_params
+        )
+        query.is_valid(raise_exception=True)
+        return query.validated_data.get("start"), query.validated_data.get("end")
+
+    def _report_windows(self, windows):
+        """
+        The windows as the caller may see them. A window on a project the
+        caller cannot see still counts towards the report, but is listed
+        without its project, and its users are not shown in the report.
+        """
+        visible = utils.get_remote_project_visible_project_ids(
+            windows, self.request.user
+        )
+        rows = []
+        for window in windows:
+            shown = window.project is not None and window.project.id in visible
+            rows.append(
+                {
+                    "project_uuid": window.project.uuid if shown else None,
+                    "project_name": window.project.name if shown else None,
+                    "start": (
+                        None if window.start == datetime.date.min else window.start
+                    ),
+                    "end": window.end,
+                }
+            )
+        return rows
+
+    @extend_schema(
+        parameters=[serializers.RemoteProjectReportQuerySerializer],
+        responses={status.HTTP_200_OK: serializers.RemoteProjectUsageReportSerializer},
+        description=(
+            "Usage of the award over a date range, across every project it has "
+            "been attached to. Each project's usage counts only for the days the "
+            "award was attached there; on the day the award moved, the project it "
+            "moved to claims the whole day. "
+            "A window on a project the caller cannot see is listed without its "
+            "project, but with its start and end dates, and still counts in "
+            "full; its per-user usage is folded into "
+            "unattributed usage, so that its users' usernames and usage are not "
+            "shown. Unless staff or support, the caller sees per-user usage only "
+            "for windows on projects they can see. "
+            "The report is labeled with the award's identifier (with none, the "
+            "local identifier of the latest project it was attached to): its "
+            "project, and the project part of every user identifier in it, are "
+            "rewritten to that, so user identifiers read "
+            "<user>.<award identifier>, which is a remote portal's identifier and "
+            "matches no local user. Match users by their local username (the "
+            "values of the report's users mapping, and the keys of each day's "
+            "usage) instead."
+        ),
+    )
+    @action(detail=True, methods=["get"], url_path="usage-report")
+    def usage_report(self, request, uuid=None):
+        remote_project = self.get_object()
+        start, end = self._report_query(request)
+        result = utils.get_remote_project_usage_report(
+            remote_project, start, end, user=request.user
+        )
+        report = result.report
+        data = {
+            "start": result.start,
+            "end": result.end,
+            "total_hours": (
+                float(report.total_usage.hours) if report is not None else 0.0
+            ),
+            "report": json.loads(report.to_json()) if report is not None else None,
+            "windows": self._report_windows(result.windows),
+        }
+        return Response(serializers.RemoteProjectUsageReportSerializer(data).data)
+
+    @extend_schema(
+        parameters=[serializers.RemoteProjectReportQuerySerializer],
+        responses={
+            status.HTTP_200_OK: serializers.RemoteProjectStorageReportSerializer
+        },
+        description=(
+            "Storage snapshots of the award over a date range, across every "
+            "project it has been attached to. Each project contributes only the "
+            "snapshots taken while the award was attached there; on the day the "
+            "award moved, the project it moved to claims the whole day. The "
+            "report's top level is the latest snapshot in range. "
+            "A window on a project the caller cannot see is listed without its "
+            "project, but with its start and end dates, and still counts in "
+            "full; its snapshots keep project-level storage "
+            "but lose their per-user quotas and user mapping. Unless staff or "
+            "support, the caller sees per-user storage only for windows on "
+            "projects they can see. "
+            "The report is labeled with the award's identifier (with none, the "
+            "local identifier of the latest project it was attached to): its "
+            "project, and the project part of every user identifier in it, are "
+            "rewritten to that, so user identifiers read "
+            "<user>.<award identifier>, which is a remote portal's identifier and "
+            "matches no local user. Match users by their local username (the "
+            "values of the report's users mapping) instead."
+        ),
+    )
+    @action(detail=True, methods=["get"], url_path="storage-report")
+    def storage_report(self, request, uuid=None):
+        remote_project = self.get_object()
+        start, end = self._report_query(request)
+        result = utils.get_remote_project_storage_report(
+            remote_project, start, end, user=request.user
+        )
+        report = result.report
+        has_snapshot = report is not None and not report.is_empty()
+        data = {
+            "start": result.start,
+            "end": result.end,
+            "latest": report.generated_at if has_snapshot else None,
+            "report": json.loads(report.to_json()) if report is not None else None,
+            "windows": self._report_windows(result.windows),
+        }
+        return Response(serializers.RemoteProjectStorageReportSerializer(data).data)
 
 
 class RemoteProjectAuditEntryViewSet(core_views.ActionsViewSet):
