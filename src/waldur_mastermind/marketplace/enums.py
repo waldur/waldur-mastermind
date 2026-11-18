@@ -745,3 +745,33 @@ class ResourceAction:
         (SYNCHRONIZE, _("Synchronize")),
         (VERSION_HISTORY, _("Version history")),
     )
+
+
+class S3VersioningStatuses:
+    """A bucket's versioning as S3 reports it; Disabled when never enabled."""
+
+    DISABLED = "Disabled"
+    ENABLED = "Enabled"
+    SUSPENDED = "Suspended"
+
+    CHOICES = (
+        (DISABLED, "Disabled"),
+        (ENABLED, "Enabled"),
+        (SUSPENDED, "Suspended"),
+    )
+
+
+class S3BrowserFlavors:
+    """The kind of S3 gateway behind an offering's resources."""
+
+    GENERIC = "generic"
+    CEPH = "ceph"
+    MINIO = "minio"
+    GARAGE = "garage"
+
+    CHOICES = (
+        (GENERIC, "Other S3-compatible gateway"),
+        (CEPH, "Ceph RADOS Gateway"),
+        (MINIO, "MinIO-compatible (MinIO, RustFS)"),
+        (GARAGE, "Garage"),
+    )

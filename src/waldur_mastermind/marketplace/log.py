@@ -191,6 +191,42 @@ def log_resource_api_key_revealed(api_key: models.ResourceApiKey, user):
     )
 
 
+def _acting_user(user) -> str:
+    impersonator = getattr(user, "impersonator", None)
+    if impersonator:
+        return f"{User.__str__(user)}, impersonated by {impersonator}"
+    return str(user)
+
+
+def log_resource_s3_object_downloaded(
+    api_key: models.ResourceApiKey, user, bucket: str, key: str
+):
+    """Audit a download link issued by the bucket browser."""
+    resource = api_key.resource
+    event_logger.emit(
+        f"{event_logger.literal(_acting_user(user))} downloaded "
+        f"{event_logger.literal(f'{bucket}/{key}')} with "
+        f"{event_logger.literal(_api_key_name(api_key))}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_S3_OBJECT_DOWNLOADED,
+        event_context={"resource": resource},
+        scopes=get_resource_scopes(resource),
+    )
+
+
+def log_resource_s3_storage_changed(
+    api_key: models.ResourceApiKey, user, description: str
+):
+    """Audit a change the bucket browser made: a bucket, an upload or a delete."""
+    resource = api_key.resource
+    event_logger.emit(
+        f"{event_logger.literal(_acting_user(user))} {event_logger.literal(description)} "
+        f"with {event_logger.literal(_api_key_name(api_key))}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_S3_STORAGE_CHANGED,
+        event_context={"resource": resource},
+        scopes=get_resource_scopes(resource),
+    )
+
+
 def log_resource_end_date_has_been_updated(resource, user, template=None):
     template = template or (
         "End date of marketplace resource %(resource_name)s has been updated."

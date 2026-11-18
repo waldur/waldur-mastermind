@@ -76,6 +76,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.fields import empty
 from rest_framework.filters import OrderingFilter
 from rest_framework.generics import ListAPIView
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -246,6 +247,7 @@ from . import (
     project_groups,
     resource_api_keys,
     resource_changes,
+    s3_browser,
     serializers,
     spending_limits,
     tasks,
@@ -18055,6 +18057,254 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         # The body carries a live secret; no cache may retain it.
         response["Cache-Control"] = "no-store"
         return response
+
+    # --- S3 bucket browser ------------------------------------------------------
+    #
+    # Each action signs its S3 call with this key's stored secret, so it can do
+    # whatever the secret could once revealed: it is open exactly to who may
+    # reveal the key (can_reveal_api_key), and only on offerings that enable the
+    # browser. See s3_browser for the endpoint allowlist.
+
+    def _s3_api_key(self) -> models.ResourceApiKey:
+        api_key = self.get_object()
+        if not s3_browser.is_enabled(api_key.resource.offering):
+            raise Http404
+        if api_key.state != models.ResourceApiKey.States.OK:
+            raise IncorrectStateException(
+                f"The API key is {api_key.state}; buckets can only be browsed "
+                "with a key that is OK."
+            )
+        return api_key
+
+    s3_info_permissions = [can_reveal_api_key]
+    s3_buckets_permissions = [can_reveal_api_key]
+    s3_bucket_details_permissions = [can_reveal_api_key]
+    s3_object_details_permissions = [can_reveal_api_key]
+    s3_objects_permissions = [can_reveal_api_key]
+    s3_download_url_permissions = [can_reveal_api_key]
+    s3_create_bucket_permissions = [can_reveal_api_key]
+    s3_delete_bucket_permissions = [can_reveal_api_key]
+    s3_delete_objects_permissions = [can_reveal_api_key]
+    s3_upload_permissions = [can_reveal_api_key]
+
+    @extend_schema(
+        summary="S3 browser: connection details",
+        description="The endpoint, region and access key id an S3 client needs "
+        "for this key, the largest file the browser uploads, and the resource's "
+        "quotas. The secret is never returned here; reveal it separately.",
+        responses={status.HTTP_200_OK: serializers.S3BrowserInfoSerializer},
+    )
+    @action(detail=True, methods=["get"], url_path="s3/info")
+    def s3_info(self, request, uuid=None):
+        api_key = self._s3_api_key()
+        gateway = s3_browser.gateway_for(api_key.resource)
+        return Response(
+            serializers.S3BrowserInfoSerializer(
+                {
+                    "endpoint": gateway.endpoint,
+                    "region": gateway.region,
+                    "access_key": api_key.client_id,
+                    "max_upload_size": s3_browser.max_upload_bytes(),
+                    "quotas": s3_browser.quotas_of(api_key.resource),
+                    "capabilities": s3_browser.capabilities_of(
+                        api_key.resource.offering
+                    ),
+                }
+            ).data
+        )
+
+    @extend_schema(
+        summary="S3 browser: list buckets",
+        description="Buckets the key can list, with object count and bytes "
+        "used where the gateway reports them. Mastermind signs the S3 call "
+        "itself with the key's stored secret. Open to whoever may reveal the key, "
+        "on offerings with enable_s3_browser.",
+        responses={status.HTTP_200_OK: serializers.S3BucketSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"], url_path="s3/buckets")
+    def s3_buckets(self, request, uuid=None):
+        buckets = s3_browser.list_buckets(self._s3_api_key())
+        return Response(serializers.S3BucketSerializer(buckets, many=True).data)
+
+    @extend_schema(
+        summary="S3 browser: bucket details",
+        description="The bucket's size, ACL, policy, public access block, "
+        "versioning, object lock, lifecycle rules, default encryption, CORS rules "
+        "and tags, as the key reads them. Read-only.",
+        parameters=[serializers.S3BucketDetailsQuerySerializer],
+        responses={status.HTTP_200_OK: serializers.S3BucketDetailsSerializer},
+    )
+    @action(detail=True, methods=["get"], url_path="s3/bucket-details")
+    def s3_bucket_details(self, request, uuid=None):
+        query = serializers.S3BucketDetailsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        details = s3_browser.bucket_details(
+            self._s3_api_key(), query.validated_data["bucket"]
+        )
+        return Response(serializers.S3BucketDetailsSerializer(details).data)
+
+    @extend_schema(
+        summary="S3 browser: list objects",
+        description="One page of a bucket listing under a prefix, with common "
+        "prefixes as folders. Follow next_continuation_token for the next page.",
+        parameters=[serializers.S3ObjectListQuerySerializer],
+        responses={status.HTTP_200_OK: serializers.S3ObjectListSerializer},
+    )
+    @action(detail=True, methods=["get"], url_path="s3/objects")
+    def s3_objects(self, request, uuid=None):
+        query = serializers.S3ObjectListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        listing = s3_browser.list_objects(self._s3_api_key(), **query.validated_data)
+        return Response(serializers.S3ObjectListSerializer(listing).data)
+
+    @extend_schema(
+        summary="S3 browser: object details",
+        description="One object's content type, storage class, user metadata, "
+        "encryption, object lock, ACL, tags and version count, as the key reads "
+        "them. Read-only.",
+        parameters=[serializers.S3ObjectDetailsQuerySerializer],
+        responses={status.HTTP_200_OK: serializers.S3ObjectDetailsSerializer},
+    )
+    @action(detail=True, methods=["get"], url_path="s3/object-details")
+    def s3_object_details(self, request, uuid=None):
+        query = serializers.S3ObjectDetailsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        details = s3_browser.object_details(
+            self._s3_api_key(),
+            query.validated_data["bucket"],
+            query.validated_data["key"],
+        )
+        return Response(serializers.S3ObjectDetailsSerializer(details).data)
+
+    @extend_schema(
+        summary="S3 browser: download link",
+        description="A presigned URL, valid for five minutes, that downloads the "
+        "object straight from the gateway as an attachment. Audit-logged.",
+        request=serializers.S3ObjectRequestSerializer,
+        responses={status.HTTP_200_OK: serializers.S3DownloadUrlSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="s3/download-url")
+    def s3_download_url(self, request, uuid=None):
+        api_key = self._s3_api_key()
+        body = serializers.S3ObjectRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        bucket, key = body.validated_data["bucket"], body.validated_data["key"]
+        link = s3_browser.download_url(api_key, bucket, key)
+        log.log_resource_s3_object_downloaded(api_key, request.user, bucket, key)
+        response = Response(serializers.S3DownloadUrlSerializer(link).data)
+        # The URL is a bearer credential for the object until it expires.
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @extend_schema(
+        summary="S3 browser: create a bucket",
+        request=serializers.S3BucketRequestSerializer,
+        responses={status.HTTP_201_CREATED: None},
+    )
+    @action(detail=True, methods=["post"], url_path="s3/create-bucket")
+    def s3_create_bucket(self, request, uuid=None):
+        api_key = self._s3_api_key()
+        body = serializers.S3BucketRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        bucket = body.validated_data["bucket"]
+        s3_browser.create_bucket(api_key, bucket)
+        log.log_resource_s3_storage_changed(
+            api_key, request.user, f"created bucket {bucket}"
+        )
+        return Response(status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        summary="S3 browser: delete an empty bucket",
+        description="The gateway refuses a bucket that still holds objects "
+        "(409 BucketNotEmpty).",
+        request=serializers.S3BucketRequestSerializer,
+        responses={status.HTTP_204_NO_CONTENT: None},
+    )
+    @action(detail=True, methods=["post"], url_path="s3/delete-bucket")
+    def s3_delete_bucket(self, request, uuid=None):
+        api_key = self._s3_api_key()
+        body = serializers.S3BucketRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        bucket = body.validated_data["bucket"]
+        s3_browser.delete_bucket(api_key, bucket)
+        log.log_resource_s3_storage_changed(
+            api_key, request.user, f"deleted bucket {bucket}"
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        summary="S3 browser: delete objects",
+        description="Deletes the named objects, or up to 10000 objects under a "
+        "prefix per call; remaining says whether to call again. Current versions "
+        "only: a versioned bucket keeps its history.",
+        request=serializers.S3DeleteObjectsRequestSerializer,
+        responses={status.HTTP_200_OK: serializers.S3DeleteObjectsResultSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="s3/delete-objects")
+    def s3_delete_objects(self, request, uuid=None):
+        api_key = self._s3_api_key()
+        body = serializers.S3DeleteObjectsRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        bucket = body.validated_data["bucket"]
+        prefix = body.validated_data.get("prefix")
+        if prefix:
+            result = s3_browser.delete_prefix(api_key, bucket, prefix)
+            what = f"{bucket}/{prefix}*"
+        else:
+            result = s3_browser.delete_objects(
+                api_key, bucket, body.validated_data["keys"]
+            )
+            what = f"{bucket}: {', '.join(body.validated_data['keys'][:5])}"
+        log.log_resource_s3_storage_changed(
+            api_key, request.user, f"deleted {result['deleted']} object(s) in {what}"
+        )
+        return Response(serializers.S3DeleteObjectsResultSerializer(result).data)
+
+    @extend_schema(
+        summary="S3 browser: upload a small file",
+        description="Uploads one file through Waldur, up to S3_BROWSER_MAX_UPLOAD_SIZE_MB "
+        "(see s3/info). A larger file is refused with 413: use an S3 client. An "
+        "existing file of the same name is refused with 409 unless overwrite is set.",
+        request={"multipart/form-data": serializers.S3UploadRequestSerializer},
+        responses={status.HTTP_201_CREATED: None},
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="s3/upload",
+        parser_classes=[MultiPartParser],
+    )
+    def s3_upload(self, request, uuid=None):
+        api_key = self._s3_api_key()
+        limit = s3_browser.max_upload_bytes()
+        # Refused before the body is read, from what the client declares. The
+        # multipart envelope adds a little, so a margin is allowed here and the
+        # file itself is checked exactly below.
+        try:
+            declared = int(request.META.get("CONTENT_LENGTH") or 0)
+        except ValueError:
+            declared = 0
+        if declared > limit + 64 * 1024:
+            raise s3_browser.S3UploadTooLarge(limit)
+        body = serializers.S3UploadRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        upload = body.validated_data["file"]
+        if upload.size > limit:
+            raise s3_browser.S3UploadTooLarge(limit)
+        bucket, key = body.validated_data["bucket"], body.validated_data["key"]
+        s3_browser.upload(
+            api_key,
+            bucket,
+            key,
+            upload,
+            upload.size,
+            upload.content_type or "",
+            overwrite=body.validated_data["overwrite"],
+        )
+        log.log_resource_s3_storage_changed(
+            api_key, request.user, f"uploaded {bucket}/{key} ({upload.size} bytes)"
+        )
+        return Response(status=status.HTTP_201_CREATED)
 
     def _command(self, request, action_name, message):
         # Whether the command needs governance is decided with the key locked:
