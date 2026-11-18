@@ -1864,6 +1864,12 @@ The image rendered at hero section of Call Management landing page. Please, use 
 
 A custom .png image file for login page
 
+#### LOGIN_LOGO_DARK
+
+**Type:** image_field
+
+The login page logo in dark mode. Falls back to LOGIN_LOGO when not set; language-specific logos apply to the light logo only.
+
 #### LOGIN_LOGO_MULTILINGUAL
 
 **Type:** multilingual_image_field
@@ -3088,15 +3094,7 @@ Dun & Bradstreet API client identifier
 
 Dun & Bradstreet API client secret
 
-### AI assistant settings
-
-#### AI_ASSISTANT_NAME
-
-**Type:** str
-
-**Default value:** Waldur Assistant
-
-Display name for the AI Assistant persona (e.g. 'Mari', 'Waldur Assistant').
+### AI assistant general
 
 #### AI_ASSISTANT_ENABLED
 
@@ -3112,6 +3110,20 @@ Enable AI Assistant feature and calls to the inference service.
 
 Controls which user roles can access the AI Assistant. 'disabled': No role-based access. 'staff': Staff users only. 'staff_and_support': Staff and support users. 'all': All authenticated users. 'anonymous': All users including anonymous (enables the public anonymous chat endpoint).
 
+#### AI_ASSISTANT_NAME
+
+**Type:** str
+
+**Default value:** Waldur Assistant
+
+Display name for the AI Assistant persona (e.g. 'Mari', 'Waldur Assistant').
+
+#### AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS
+
+**Type:** text_field
+
+Additional instructions injected into the AI Assistant system prompt. Use this for organization-specific context, terminology, FAQ content, or behavioral guidelines. Supports {assistant_name} and {organization} placeholders. Overridden by the active SystemPrompt record when set.
+
 #### DOCS_SEARCH_ENABLED
 
 **Type:** bool
@@ -3119,6 +3131,8 @@ Controls which user roles can access the AI Assistant. 'disabled': No role-based
 **Default value:** True
 
 Let users search the bundled Waldur documentation: the AI assistant's and MCP's search_docs tool, and the /api/docs-search/ endpoint. Turn it off to keep the Waldur documentation out of answers, for example when this portal provides its own documentation to end users.
+
+### AI assistant model
 
 #### AI_ASSISTANT_BACKEND_TYPE
 
@@ -3146,12 +3160,6 @@ API key for authenticating with the AI Assistant service.
 
 Name of the AI Assistant model to use for inference.
 
-#### AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS
-
-**Type:** text_field
-
-Additional instructions injected into the AI Assistant system prompt. Use this for organization-specific context, terminology, FAQ content, or behavioral guidelines. Supports {assistant_name} and {organization} placeholders. Overridden by the active SystemPrompt record when set.
-
 #### AI_ASSISTANT_COMPLETION_KWARGS
 
 **Type:** dict_field
@@ -3171,6 +3179,8 @@ Seconds a streaming request may go without receiving anything from the LLM or se
 **Type:** bool
 
 Stream and store a thinking model's reasoning for logged-in users, and show what the model says before a tool call as narration. Anonymous users get neither.
+
+### AI assistant limits
 
 #### AI_ASSISTANT_TOKEN_LIMIT_DAILY
 
@@ -3212,13 +3222,7 @@ Site-wide daily token cap across all assistant traffic (auth + anonymous). -1 me
 
 Site-wide burst cap across all assistant traffic.
 
-#### AI_ASSISTANT_SESSION_RETENTION_DAYS
-
-**Type:** int
-
-**Default value:** 90
-
-Number of days to retain AI Assistant sessions before automatic deletion. Set to -1 to disable automatic cleanup.
+### AI assistant conversations
 
 #### AI_ASSISTANT_HISTORY_LIMIT
 
@@ -3228,11 +3232,21 @@ Number of days to retain AI Assistant sessions before automatic deletion. Set to
 
 Maximum number of past messages included in the AI Assistant context window.
 
+#### AI_ASSISTANT_SESSION_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Number of days to retain AI Assistant sessions before automatic deletion. Set to -1 to disable automatic cleanup.
+
 #### AI_ASSISTANT_INJECTION_ALLOWLIST
 
 **Type:** str
 
 Comma-separated allowlist phrases that bypass injection detection.
+
+### AI assistant public chat
 
 #### ANONYMOUS_CHAT_USER_SLUG_SALT
 
