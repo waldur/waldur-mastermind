@@ -139,6 +139,27 @@ nothing of it.
   offering's technical assessment, and a panel member on the team reads the
   proposal as an applicant.
 
+#### Project details the call asks for
+
+Each call has a field configuration (`CallProposalFieldConfig`, exposed as
+`proposal_field_config` on the call) that marks the project summary,
+description, science sub-domain and supporting documentation as required,
+optional or hidden. Submission, and resubmission of changes that unlock a
+field, refuse a proposal whose required fields are empty.
+
+- **Minimum number of supporting documents.** While supporting documentation
+  is required, `minimum_supporting_documents` (1 by default, never below 1)
+  says how many documents the proposal needs. A proposal with fewer is refused
+  with a message naming both numbers, and its `can_submit` reports the same
+  message, so the form can show what is missing. The minimum is ignored while
+  the field is optional or hidden.
+- **Tightening is locked once the call has proposals.** A field cannot be made
+  required, and the minimum cannot be raised, while the call has proposals:
+  drafts that were complete would stop being submittable without anyone
+  telling their applicants. Loosening is always allowed. Duplicate the call to
+  run a stricter round; duplication and call export and import both carry the
+  field configuration, minimum included.
+
 ### Review States
 
 Reviews maintain independent state for tracking progress:

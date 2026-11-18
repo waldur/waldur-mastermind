@@ -12,9 +12,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Exists, OuterRef, Q
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
+from django.utils.translation import ngettext
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
@@ -146,6 +148,16 @@ def unanswered_compliance_message(count):
         "Answer the required questions of the compliance checklist: "
         "%(count)s unanswered."
     ) % {"count": count}
+
+
+def supporting_documents_shortfall_message(required, attached):
+    return ngettext(
+        "This call requires at least %(required)d supporting document; "
+        "%(attached)d attached.",
+        "This call requires at least %(required)d supporting documents; "
+        "%(attached)d attached.",
+        required,
+    ) % {"required": required, "attached": attached}
 
 
 ROUND_STEPS_NEED_CUTOFF_MESSAGE = (
@@ -857,6 +869,15 @@ class CallProposalFieldConfig(TimeStampedModel, core_models.UuidMixin):
         choices=ProposalFieldStates.CHOICES,
         default=ProposalFieldStates.OPTIONAL,
     )
+    minimum_supporting_documents = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text=(
+            "How many supporting documents a proposal needs before it can be "
+            "submitted, while supporting documentation is required. Ignored "
+            "when it is optional or hidden."
+        ),
+    )
 
     def __str__(self):
         return f"Proposal field config for {self.call}"
@@ -909,6 +930,27 @@ class CallProposalFieldConfig(TimeStampedModel, core_models.UuidMixin):
             field_name: cls._meta.get_field(cls.column_for(field_name)).default
             for field_name in cls.field_names()
         }
+
+    @classmethod
+    def configured_minimum_supporting_documents(cls, call) -> int:
+        """The minimum as the call stores it, whatever the field's state.
+
+        What raising it is measured against. Calls without a row have the
+        model default, which is what "required" always meant: one document.
+        """
+        config = getattr(call, "proposal_field_config", None)
+        if config is not None:
+            return config.minimum_supporting_documents
+        return cls._meta.get_field("minimum_supporting_documents").default
+
+    @classmethod
+    def minimum_supporting_documents_for_call(cls, call) -> int:
+        """How many supporting documents a proposal to ``call`` needs: the
+        configured minimum while the field is required, else none."""
+        states = cls.get_states_for_call(call)
+        if states["supporting_documentation"] != ProposalFieldStates.REQUIRED:
+            return 0
+        return cls.configured_minimum_supporting_documents(call)
 
 
 class CallProposalRole(
@@ -3871,7 +3913,43 @@ def can_submit_annotations():
     return {
         "_has_proposal_manager": has_proposal_manager_expression(),
         "_call_has_resource_templates": call_has_resource_templates_expression(),
+        "_minimum_supporting_documents": minimum_supporting_documents_expression(),
+        "_supporting_documents_count": supporting_documents_count_expression(),
     }
+
+
+def minimum_supporting_documents_expression():
+    """How many supporting documents a proposal's call requires: its
+    configured minimum while the field is required, else 0.
+
+    Mirrors ``CallProposalFieldConfig.minimum_supporting_documents_for_call``.
+    A call without a config row has the model defaults, under which the field
+    is optional, so the LEFT JOIN's NULL falls through to 0.
+    """
+    config = "round__call__proposal_field_config__"
+    return models.Case(
+        models.When(
+            **{f"{config}field_supporting_documentation": ProposalFieldStates.REQUIRED},
+            then=models.F(f"{config}minimum_supporting_documents"),
+        ),
+        default=models.Value(0),
+        output_field=models.PositiveSmallIntegerField(),
+    )
+
+
+def supporting_documents_count_expression():
+    """How many supporting documents a proposal has attached."""
+    return Coalesce(
+        models.Subquery(
+            ProposalDocumentation.objects.filter(proposal=models.OuterRef("pk"))
+            .order_by()
+            .values("proposal")
+            .annotate(count=models.Count("pk"))
+            .values("count")[:1],
+            output_field=models.IntegerField(),
+        ),
+        0,
+    )
 
 
 def has_proposal_manager_expression():
@@ -4452,6 +4530,33 @@ class Proposal(
             }
         )
 
+    def supporting_documents_shortfall(self) -> tuple[int, int] | None:
+        """``(required, attached)`` while the proposal has fewer supporting
+        documents than its call requires, else None.
+
+        Reads the ``can_submit_annotations`` when the queryset carries them,
+        so a list of proposals does not count each one's documents apart.
+        """
+        required = getattr(self, "_minimum_supporting_documents", None)
+        if required is None:
+            required = CallProposalFieldConfig.minimum_supporting_documents_for_call(
+                self.round.call
+            )
+        if not required:
+            return None
+        attached = getattr(self, "_supporting_documents_count", None)
+        if attached is None:
+            attached = self.proposaldocumentation_set.count()
+        if attached >= required:
+            return None
+        return required, attached
+
+    def supporting_documents_error(self):
+        shortfall = self.supporting_documents_shortfall()
+        if shortfall is None:
+            return None
+        return supporting_documents_shortfall_message(*shortfall)
+
     def has_proposal_manager(self) -> bool:
         annotated = getattr(self, "_has_proposal_manager", None)
         if annotated is not None:
@@ -4472,6 +4577,10 @@ class Proposal(
         """
         if self.round.call.state != CallStates.ACTIVE:
             return False, CALL_NOT_ACTIVE_MESSAGE
+
+        documents_error = self.supporting_documents_error()
+        if documents_error:
+            return False, documents_error
 
         # Before amounts: fixing amounts or a purchase order on a request the
         # template rules refuse anyway would be wasted work.
@@ -4530,6 +4639,11 @@ class Proposal(
         question added after submission, a template edited since -- and leave
         the request open with nothing the applicant can do about it.
         """
+        if ChangeRequestParts.DOCUMENTS in parts:
+            documents_error = self.supporting_documents_error()
+            if documents_error:
+                return False, documents_error
+
         if ChangeRequestParts.RESOURCES in parts:
             template_error = self.resource_template_error()
             if template_error:
