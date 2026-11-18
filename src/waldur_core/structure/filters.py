@@ -1,3 +1,7 @@
+import calendar
+import datetime
+import re
+
 import django_filters
 from django import forms
 from django.conf import settings as django_settings
@@ -5,15 +9,18 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions
 from django.db.models import (
     Case,
+    DateField,
     Exists,
+    F,
     FloatField,
+    IntegerField,
     OuterRef,
     Q,
     Subquery,
     Value,
     When,
 )
-from django.db.models.functions import Concat, Length
+from django.db.models.functions import Cast, Coalesce, Concat, Length
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
@@ -61,6 +68,40 @@ class NameFilterSet(django_filters.FilterSet):
     name_exact = django_filters.CharFilter(
         field_name="name", lookup_expr="exact", label="Name (exact)"
     )
+
+
+class PeriodField(forms.CharField):
+    """A year (``2025``) or a month (``2025-03``), cleaned to the period's first
+    and last day."""
+
+    default_error_messages = {
+        "invalid": "Enter a year (YYYY) or a month (YYYY-MM).",
+    }
+    period_re = re.compile(r"^(\d{4})(?:-(\d{2}))?$")
+
+    def to_python(self, value):
+        value = super().to_python(value)
+        if value in self.empty_values:
+            return None
+        match = self.period_re.match(value)
+        try:
+            if not match:
+                raise ValueError(value)
+            year = int(match[1])
+            if match[2] is None:
+                return datetime.date(year, 1, 1), datetime.date(year, 12, 31)
+            month = int(match[2])
+            first_day = datetime.date(year, month, 1)
+        except ValueError:
+            raise exceptions.ValidationError(
+                self.error_messages["invalid"], code="invalid"
+            )
+        last_day = first_day.replace(day=calendar.monthrange(year, month)[1])
+        return first_day, last_day
+
+
+class PeriodFilter(django_filters.CharFilter):
+    field_class = PeriodField
 
 
 def is_read_only_project_action(view) -> bool:
@@ -594,6 +635,68 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Science sub-domain UUID",
     )
 
+    # Project dates are calendar dates in the deployment's TIME_ZONE, so "today"
+    # is timezone.localdate(). An end date is exclusive, as in
+    # Project.is_expired: on its end date a project has already ended.
+    start_date_after = django_filters.DateFilter(
+        field_name="start_date",
+        lookup_expr="gte",
+        label="Return projects whose start date is on or after the given date.",
+    )
+    start_date_before = django_filters.DateFilter(
+        field_name="start_date",
+        lookup_expr="lte",
+        label="Return projects whose start date is on or before the given date.",
+    )
+    end_date_after = django_filters.DateFilter(
+        field_name="end_date",
+        lookup_expr="gte",
+        label="Return projects whose end date is on or after the given date.",
+    )
+    end_date_before = django_filters.DateFilter(
+        field_name="end_date",
+        lookup_expr="lte",
+        label="Return projects whose end date is on or before the given date.",
+    )
+
+    active_during = PeriodFilter(
+        method="filter_active_during",
+        label=(
+            "Return projects active during a year (YYYY) or a month (YYYY-MM): "
+            "started on or before the period's last day (start date, or creation "
+            "date when there is none) and with no end date or one after the "
+            "period's first day."
+        ),
+    )
+
+    started = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_started",
+        label=(
+            "true: projects with no start date or one not after today. "
+            "false: projects whose start date is after today."
+        ),
+    )
+
+    ended = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_ended",
+        label=(
+            "true: projects whose end date is today or earlier. "
+            "false: projects with no end date or one after today."
+        ),
+    )
+
+    in_grace = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_in_grace",
+        label=(
+            "true: projects that have ended but whose end date plus grace period "
+            "(the project's, else the organization's, else none) is after today. "
+            "false: all other projects."
+        ),
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -711,6 +814,53 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         if value:
             return queryset.filter(affiliation__isnull=False)
         return queryset.filter(affiliation__isnull=True)
+
+    def filter_active_during(self, queryset, name, value):
+        period_start, period_end = value
+        started = Q(start_date__lte=period_end) | Q(
+            start_date__isnull=True, created__date__lte=period_end
+        )
+        not_ended = Q(end_date__isnull=True) | Q(end_date__gt=period_start)
+        return queryset.filter(started & not_ended)
+
+    def filter_started(self, queryset, name, value):
+        today = timezone.localdate()
+        if value:
+            return queryset.filter(
+                Q(start_date__isnull=True) | Q(start_date__lte=today)
+            )
+        return queryset.filter(start_date__gt=today)
+
+    def filter_ended(self, queryset, name, value):
+        today = timezone.localdate()
+        if value:
+            return queryset.filter(end_date__lte=today)
+        return queryset.filter(Q(end_date__isnull=True) | Q(end_date__gt=today))
+
+    def filter_in_grace(self, queryset, name, value):
+        # The grace period is resolved per row in the database, as
+        # Project.get_grace_period_days() does in Python: the project's own
+        # value, else the organization's, else zero.
+        today = timezone.localdate()
+        grace_period_days = Coalesce(
+            "grace_period_days",
+            "customer__grace_period_days",
+            Value(0),
+            output_field=IntegerField(),
+        )
+        queryset = queryset.alias(
+            effective_end_date=Cast(
+                F("end_date") + grace_period_days * Value(datetime.timedelta(days=1)),
+                output_field=DateField(),
+            )
+        )
+        if value:
+            return queryset.filter(end_date__lte=today, effective_end_date__gt=today)
+        return queryset.filter(
+            Q(end_date__isnull=True)
+            | Q(end_date__gt=today)
+            | Q(effective_end_date__lte=today)
+        )
 
 
 def filter_visible_users(queryset, user, extra=None):
