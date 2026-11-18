@@ -15,6 +15,7 @@ static_path = get_static_path()
 
 LOGO_MAP = {
     "LOGIN_LOGO": "api/icons/login_logo/",
+    "LOGIN_LOGO_DARK": "api/icons/login_logo_dark/",
     "SIDEBAR_LOGO": "api/icons/sidebar_logo/",
     "SIDEBAR_LOGO_MOBILE": "api/icons/sidebar_logo_mobile/",
     "SIDEBAR_LOGO_DARK": "api/icons/sidebar_logo_dark/",

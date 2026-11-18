@@ -519,3 +519,64 @@ class SingleLogoFileUploadTest(test.APITestCase):
             ("", None),
             msg="Cleared logo should be empty string or null",
         )
+
+
+class LoginLogoDarkTest(test.APITestCase):
+    """LOGIN_LOGO_DARK: the login logo for the dark theme, served on its own route
+    and advertised by /api/configuration/ only when set, so the portal falls back
+    to LOGIN_LOGO."""
+
+    def setUp(self):
+        self.staff = UserFactory(is_staff=True)
+        Setting.objects.filter(key__in=["LOGIN_LOGO", "LOGIN_LOGO_DARK"]).delete()
+        cache.delete("API_CONFIGURATION")
+
+    def test_staff_can_upload_login_logo_dark(self):
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            "/api/override-settings/",
+            {"LOGIN_LOGO_DARK": dummy_image()},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get("/api/override-settings/")
+        self.assertIsInstance(response.data["LOGIN_LOGO_DARK"], str)
+        self.assertTrue(response.data["LOGIN_LOGO_DARK"])
+
+    def test_unset_dark_logo_is_not_found(self):
+        response = self.client.get("/api/icons/login_logo_dark/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @mock.patch("waldur_core.core.views.config")
+    @mock.patch("waldur_core.core.views.default_storage")
+    def test_dark_logo_ignores_language_specific_logos(self, mock_storage, mock_config):
+        """Language-specific logos are light ones; the dark route never serves them."""
+        mock_config.LOGIN_LOGO = "light.png"
+        mock_config.LOGIN_LOGO_DARK = "dark.png"
+        mock_config.LOGIN_LOGO_MULTILINGUAL = {"de": "german.png"}
+        mock_storage.open.return_value = mock.MagicMock()
+
+        self.client.get("/api/icons/login_logo_dark/", {"language": "de"})
+
+        mock_storage.open.assert_called_once_with("dark.png")
+
+    def test_configuration_advertises_dark_logo_only_when_set(self):
+        # Unset image settings are advertised empty, like SIDEBAR_LOGO_DARK.
+        response = self.client.get("/api/configuration/")
+        self.assertFalse(response.data["WALDUR_CORE"]["LOGIN_LOGO_DARK"])
+
+        self.client.force_login(self.staff)
+        self.client.post(
+            "/api/override-settings/",
+            {"LOGIN_LOGO_DARK": dummy_image()},
+            format="multipart",
+        )
+        cache.delete("API_CONFIGURATION")
+
+        response = self.client.get("/api/configuration/")
+        self.assertTrue(
+            response.data["WALDUR_CORE"]["LOGIN_LOGO_DARK"].endswith(
+                "/api/icons/login_logo_dark/"
+            )
+        )
