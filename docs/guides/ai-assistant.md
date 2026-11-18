@@ -668,7 +668,9 @@ replaying history into the next LLM call.
 
 *For operators.* All keys are runtime settings; see the full table in
 [`docs/admin/configuration-guide.md`](../admin/configuration-guide.md)
-section "AI assistant settings" (around line 2549). Quick reference:
+sections "AI assistant general", "AI assistant model", "AI assistant
+limits", "AI assistant conversations" and "AI assistant public chat".
+Quick reference:
 
 | Key | Type | Purpose |
 | --- | ---- | ------- |
