@@ -74,11 +74,12 @@ class MarketplaceBillingService:
             resource.project.customer, core_utils.month_start(today)
         )
 
-        # Get previous limits from the most recent UPDATE order.
-        # Orders are the persistent source of truth — update_limits stores
-        # old_limits in attributes before the change is applied.
-        # Fall back to CREATE order limits, then to field tracker.
-        old_limits = {}
+        # The limits this save replaces are the baseline, not an order's
+        # old_limits: limits also change without an order (set_limits, backend
+        # sync), so an order may describe an earlier change and bill the same
+        # increase again. The caller runs only when limits have changed.
+        old_limits = resource.tracker.previous("limits") or {}
+        # Still needed to tell a renewal save apart below.
         last_update_order = (
             marketplace_models.Order.objects.filter(
                 resource=resource,
@@ -87,26 +88,6 @@ class MarketplaceBillingService:
             .order_by("-created")
             .first()
         )
-        if last_update_order and "old_limits" in last_update_order.attributes:
-            old_limits = last_update_order.attributes["old_limits"]
-        else:
-            create_order = marketplace_models.Order.objects.filter(
-                resource=resource,
-                type=OrderTypes.CREATE,
-            ).first()
-            if create_order and create_order.limits:
-                old_limits = create_order.limits
-            elif resource.tracker.previous("limits"):
-                old_limits = resource.tracker.previous("limits")
-            else:
-                logger.error(
-                    "Cannot determine previous limits for resource %s. "
-                    "No UPDATE order with old_limits, no CREATE order, "
-                    "and field tracker has no previous value. "
-                    "Skipping prepaid billing adjustment.",
-                    resource.uuid,
-                )
-                return
 
         resolved = billing_mode.resolve_for_resource(resource)
 
@@ -116,7 +97,11 @@ class MarketplaceBillingService:
             if component_type not in limit_types:
                 continue
             LimitPeriodProcessor.process_update(
-                resource, invoice, component_type, new_quantity
+                resource,
+                invoice,
+                component_type,
+                new_quantity,
+                old_limit=old_limits.get(component_type),
             )
 
         # Prepaid ONE_TIME components: supplementary charge for remaining period
@@ -227,7 +212,7 @@ class MarketplaceBillingService:
             new_limit = resource.limits.get(component_type, 0)
             old_limit = old_limits.get(component_type, 0)
 
-            if old_limit == 0 or new_limit == old_limit:
+            if new_limit == old_limit:
                 continue
 
             factor = resource.offering.component_factors.get(component_type, 1)

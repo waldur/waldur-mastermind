@@ -2384,11 +2384,15 @@ def get_effective_component_limit(resource, component):
 
     The per-resource limit (``resource.limits[component.type]``, set when the
     resource is ordered) takes precedence, falling back to the offering
-    component's ``limit_amount``. Returns ``None`` when neither is set. A limit
-    of 0 is treated as unset, matching the previous ``limit_amount`` behaviour.
+    component's ``limit_amount``. Returns ``None`` when neither is set, or
+    when the per-resource limit is -1, which billing treats as unlimited. An
+    explicit per-resource limit of 0 is a real limit and is returned as 0; only
+    an absent one falls back. A ``limit_amount`` of 0 still means "not set".
     """
     resource_limit = (resource.limits or {}).get(component.type)
-    if resource_limit:
+    if resource_limit == -1:
+        return None
+    if resource_limit is not None:
         return resource_limit
     return component.limit_amount or None
 
@@ -2422,7 +2426,11 @@ def is_usage_over_limit_component_limit(resource):
             continue
         component = effective.component
         limit = get_effective_component_limit(resource, component)
-        if limit and period_usage.get(component.type, 0) >= limit:
+        if limit is None:
+            continue
+        usage = period_usage.get(component.type, 0)
+        # A zero limit is reached by any usage, but not by the absence of it.
+        if usage > 0 and usage >= limit:
             return True
     return False
 

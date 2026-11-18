@@ -293,6 +293,20 @@ class PrepaidRenewalBillingTest(test.APITestCase):
             ).exists()
         )
 
+    def test_limit_raised_from_zero_is_billed_like_any_other_raise(self):
+        self.resource.limits = {"storage": 0}
+        self.resource.save()
+        invoices_models.InvoiceItem.objects.filter(resource=self.resource).delete()
+
+        self.resource.limits = {"storage": 10}
+        self.resource.save()
+
+        supplementary = self._supplementary_items()
+        self.assertEqual(len(supplementary), 1)
+        # 10 more for the 3 months left of the term, as from 50 to 60
+        self.assertEqual(supplementary[0].quantity, 30)
+        self.assertEqual(supplementary[0].unit_price, Decimal("4.5"))
+
 
 @freeze_time("2024-01-15")
 class RenewalOrderTermsTest(test.APITestCase):

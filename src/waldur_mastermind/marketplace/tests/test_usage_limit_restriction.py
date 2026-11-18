@@ -14,7 +14,10 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace.serializers import ResourceSerializer
 from waldur_mastermind.marketplace.tests import factories
-from waldur_mastermind.marketplace.utils import evaluate_usage_limit_restriction
+from waldur_mastermind.marketplace.utils import (
+    evaluate_usage_limit_restriction,
+    get_effective_component_limit,
+)
 
 
 def build_setup(
@@ -433,11 +436,75 @@ class UsageLimitRestrictionPerResourceLimitTest(test.APITestCase):
         self.assertFalse(resource.paused)
         self.assertEqual(resource.usage_limit_restriction, "")
 
+    def test_zero_per_resource_limit_is_not_replaced_by_component_limit_amount(self):
+        _, component, resource = self._setup(limit_amount=100, resource_limit=0)
+
+        self.assertEqual(get_effective_component_limit(resource, component), 0)
+
+    def test_absent_per_resource_limit_falls_back_to_component_limit_amount(self):
+        _, component, resource = build_setup(action="pause", limit_amount=100)
+
+        self.assertEqual(get_effective_component_limit(resource, component), 100)
+
+    def test_unlimited_per_resource_limit_is_not_a_limit(self):
+        _, component, resource = self._setup(limit_amount=100, resource_limit=-1)
+
+        self.assertIsNone(get_effective_component_limit(resource, component))
+
+    def test_no_pause_with_unlimited_per_resource_limit(self):
+        _, component, resource = self._setup(limit_amount=None, resource_limit=-1)
+        report(resource, component, usage=1)
+
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+
+    def test_pause_on_any_usage_with_zero_per_resource_limit(self):
+        _, component, resource = self._setup(limit_amount=100, resource_limit=0)
+        report(resource, component, usage=1)
+
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.paused)
+
+    def test_no_pause_without_usage_with_zero_per_resource_limit(self):
+        _, component, resource = self._setup(limit_amount=None, resource_limit=0)
+        report(resource, component, usage=0)
+
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+
 
 class UsageLimitRestrictionResourceLimitWiringTest(test.APITestCase):
     def test_usage_report_schedules_with_only_per_resource_limit(self):
         _, component, resource = build_setup(action="pause", limit_amount=None)
         resource.limits = {component.type: 2}
+        resource.save()
+        usage = report(resource, component, usage=3)
+
+        with (
+            mock.patch(
+                "waldur_mastermind.marketplace.tasks."
+                "evaluate_usage_limit_restriction_task.delay"
+            ) as mock_delay,
+            mock.patch(
+                "waldur_mastermind.marketplace.handlers.transaction.on_commit",
+                side_effect=lambda fn: fn(),
+            ),
+        ):
+            handlers.evaluate_usage_limit_on_usage_report(
+                sender=models.ComponentUsage, instance=usage, created=True
+            )
+
+        mock_delay.assert_called_once_with(resource.pk)
+
+    def test_usage_report_schedules_with_zero_per_resource_limit(self):
+        _, component, resource = build_setup(action="pause", limit_amount=None)
+        resource.limits = {component.type: 0}
         resource.save()
         usage = report(resource, component, usage=3)
 
