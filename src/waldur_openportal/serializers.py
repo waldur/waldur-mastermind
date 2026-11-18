@@ -1061,6 +1061,83 @@ class SetLinksSerializer(rf_serializers.Serializer):
         return value
 
 
+class RemoteProjectReportQuerySerializer(rf_serializers.Serializer):
+    start = rf_serializers.DateField(
+        required=False,
+        help_text="First day to include. Defaults to when the award was first attached.",
+    )
+    end = rf_serializers.DateField(
+        required=False,
+        help_text="Last day to include. Defaults to today. A start after the end "
+        "gives an empty report.",
+    )
+
+
+class RemoteProjectReportWindowSerializer(rf_serializers.Serializer):
+    """One period the award was attached to a local project."""
+
+    project_uuid = rf_serializers.UUIDField(
+        format="hex",
+        allow_null=True,
+        help_text="Null if the project was deleted or the caller cannot see it.",
+    )
+    project_name = rf_serializers.CharField(
+        allow_null=True,
+        help_text="Null if the project was deleted or the caller cannot see it.",
+    )
+    start = rf_serializers.DateField(
+        allow_null=True,
+        format="iso-8601",
+        help_text="Null if when the award arrived was not recorded.",
+    )
+    end = rf_serializers.DateField(
+        allow_null=True,
+        format="iso-8601",
+        help_text="Inclusive. Null while still attached.",
+    )
+
+
+class RemoteProjectUsageReportSerializer(rf_serializers.Serializer):
+    """
+    An award's usage across every project it has been attached to. Each
+    project's usage counts only for the days the award was attached there; on
+    the day the award moved, the project it moved to claims the whole day.
+    """
+
+    start = rf_serializers.DateField(allow_null=True, format="iso-8601")
+    end = rf_serializers.DateField(format="iso-8601")
+    total_hours = rf_serializers.FloatField()
+    report = ProjectUsageReportField(
+        allow_null=True,
+        help_text="The combined OpenPortal ProjectUsageReport. Null if the award "
+        "has no identifier and no attachment to report under.",
+    )
+    windows = RemoteProjectReportWindowSerializer(many=True)
+
+
+class RemoteProjectStorageReportSerializer(rf_serializers.Serializer):
+    """
+    An award's storage across every project it has been attached to. Storage
+    is a series of dated snapshots: each project contributes only the
+    snapshots taken while the award was attached there.
+    """
+
+    start = rf_serializers.DateField(allow_null=True, format="iso-8601")
+    end = rf_serializers.DateField(format="iso-8601")
+    latest = rf_serializers.DateTimeField(
+        allow_null=True,
+        format="iso-8601",
+        help_text="When the latest snapshot in range was taken. Null if none was.",
+    )
+    report = ProjectStorageReportField(
+        allow_null=True,
+        help_text="The combined OpenPortal ProjectStorageReport. Its top level is "
+        "the latest snapshot in range; daily_reports holds the others. Null if "
+        "the award has no identifier and no attachment to report under.",
+    )
+    windows = RemoteProjectReportWindowSerializer(many=True)
+
+
 class RemoteProjectSerializer(rf_serializers.ModelSerializer):
     """
     Serializer for RemoteProject.
