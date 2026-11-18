@@ -3086,12 +3086,21 @@ def notify_users_about_tos_update_signal(sender, instance, created, **kwargs):
             .first()
         )
         old_version = previous_tos.version if previous_tos else ""
-        new_version = tos_config.version
-    else:
-        if "version" not in tos_config.tracker.changed():
-            return
+    elif "version" in tos_config.tracker.changed():
         old_version = tos_config.tracker.previous("version") or ""
-        new_version = tos_config.version
+    elif "is_active" in tos_config.tracker.changed():
+        # An existing configuration was activated; the one it replaced is the
+        # most recently modified other configuration of the offering.
+        previous_tos = (
+            models.OfferingTermsOfService.objects.filter(offering=tos_config.offering)
+            .exclude(uuid=tos_config.uuid)
+            .order_by("-modified")
+            .first()
+        )
+        old_version = previous_tos.version if previous_tos else ""
+    else:
+        return
+    new_version = tos_config.version
 
     transaction.on_commit(
         lambda: tasks.send_tos_reconsent_notification.delay(

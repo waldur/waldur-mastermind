@@ -17457,18 +17457,16 @@ class OfferingTermsOfServiceSerializer(
             "requires_reconsent",
         )
 
-    def validate(self, attrs):
-        if attrs.get("is_active", False):
-            offering = self.instance.offering if self.instance else attrs["offering"]
-            existing_active = models.OfferingTermsOfService.objects.filter(
-                offering=offering, is_active=True
-            ).exists()
-            if existing_active:
-                raise serializers.ValidationError(
-                    "An active Terms of Service configuration already exists for this offering. "
-                    "Please deactivate the existing configuration before creating a new active one."
-                )
-        return attrs
+    def update(self, instance, validated_data):
+        previous = None
+        if validated_data.get("is_active") and not instance.is_active:
+            previous = utils.deactivate_active_terms_of_service(
+                instance.offering, exclude=instance
+            )
+        instance = super().update(instance, validated_data)
+        if previous is not None:
+            utils.log_terms_of_service_replaced(previous, instance)
+        return instance
 
     @extend_schema_field(UserConsentInfoSerializer(allow_null=True))
     def get_user_consent(self, obj):
@@ -17570,17 +17568,18 @@ class OfferingTermsOfServiceCreateSerializer(
                     "You don't have permission to manage Terms of Service for this offering."
                 )
 
-        if attrs.get("is_active", False):
-            existing_active = models.OfferingTermsOfService.objects.filter(
-                offering=offering, is_active=True
-            ).exists()
-            if existing_active:
-                raise serializers.ValidationError(
-                    "An active Terms of Service configuration already exists for this offering. "
-                    "Please deactivate the existing configuration before creating a new active one."
-                )
-
         return attrs
+
+    def create(self, validated_data):
+        previous = None
+        if validated_data.get("is_active"):
+            previous = utils.deactivate_active_terms_of_service(
+                validated_data["offering"]
+            )
+        instance = super().create(validated_data)
+        if previous is not None:
+            utils.log_terms_of_service_replaced(previous, instance)
+        return instance
 
 
 class OfferingTermsOfServiceUpdateSerializer(serializers.Serializer):
