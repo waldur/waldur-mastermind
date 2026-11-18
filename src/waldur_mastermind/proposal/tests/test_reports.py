@@ -369,6 +369,10 @@ class ReviewerReportTest(ReportTestBase):
             state=ReviewStates.REJECTED,
             rejection_cause=ReviewRejectionCauses.WITHDRAWN,
         )
+        self.add_review(
+            state=ReviewStates.REJECTED,
+            rejection_cause=ReviewRejectionCauses.PROPOSAL_DECIDED,
+        )
         factories.AssignmentItemFactory(
             batch=self.batch,
             proposal=self.proposal,
@@ -389,12 +393,13 @@ class ReviewerReportTest(ReportTestBase):
         )
 
         row = self.row(self.report("reviewers"))
-        self.assertEqual(row["reviews_assigned"], 7)
+        self.assertEqual(row["reviews_assigned"], 8)
         self.assertEqual(row["reviews_submitted"], 2)
         self.assertEqual(row["reviews_in_progress"], 2)
         self.assertEqual(row["reviews_not_started"], 1)
         self.assertEqual(row["reviews_declined"], 1)
         self.assertEqual(row["reviews_withdrawn"], 1)
+        self.assertEqual(row["reviews_closed_on_decision"], 1)
         self.assertEqual(row["median_turnaround_days"], 6.0)
         self.assertEqual(row["mean_score"], 3.0)
         self.assertEqual(row["invitations"], 2)

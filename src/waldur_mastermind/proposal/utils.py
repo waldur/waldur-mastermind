@@ -1809,6 +1809,15 @@ def withdraw_proposal(proposal, user, reason=""):
     them; review assignments not yet answered lapse. The call team is told by
     ``tasks.notify_call_managers_about_withdrawn_proposal``.
     """
+    # Closed before the proposal is saved canceled, so they keep the closure
+    # of a withdrawal rather than the one a decision gives
+    # (``handlers.close_open_reviews_on_decision``).
+    proposal.review_set.filter(state=proposal_models.Review.States.IN_REVIEW).update(
+        state=proposal_models.Review.States.REJECTED
+    )
+    proposal_models.AssignmentItem.objects.filter(
+        proposal=proposal, status=AssignmentItemStatuses.PENDING
+    ).update(status=AssignmentItemStatuses.EXPIRED)
     proposal.state = ProposalStates.CANCELED
     proposal.current_step = None
     proposal.save(update_fields=["state", "current_step"])
@@ -1834,12 +1843,6 @@ def withdraw_proposal(proposal, user, reason=""):
     # Saving the proposal closed its discussions, but the skipped steps sent
     # no signal: closed again now that they are, with the round's.
     step_discussions.close_proposal(proposal)
-    proposal.review_set.filter(state=proposal_models.Review.States.IN_REVIEW).update(
-        state=proposal_models.Review.States.REJECTED
-    )
-    proposal_models.AssignmentItem.objects.filter(
-        proposal=proposal, status=AssignmentItemStatuses.PENDING
-    ).update(status=AssignmentItemStatuses.EXPIRED)
     message = (
         "Proposal {proposal_name} was withdrawn by {actor}."
         if names_calls()

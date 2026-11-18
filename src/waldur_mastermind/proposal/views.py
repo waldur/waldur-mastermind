@@ -10605,14 +10605,21 @@ class ReviewViewSet(FacetsMixin, ActionsViewSet):
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         review: models.Review = self.get_object()
-        serializer = ReviewSubmitSerializer(
-            instance=review, data=request.data, partial=True
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save(
-            state=models.Review.States.SUBMITTED, submitted_at=timezone.now()
-        )
-        activity.log_review_event(review, EventType.REVIEW_SUBMITTED)
+        with transaction.atomic():
+            # Locked and checked again: the review may have been closed since
+            # the validator read it -- its proposal decided, say
+            # (``handlers.close_open_reviews_on_decision``) -- and a submission
+            # must not overwrite that.
+            review = models.Review.objects.select_for_update().get(pk=review.pk)
+            core_validators.StateValidator(models.Review.States.IN_REVIEW)(review)
+            serializer = ReviewSubmitSerializer(
+                instance=review, data=request.data, partial=True
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save(
+                state=models.Review.States.SUBMITTED, submitted_at=timezone.now()
+            )
+            activity.log_review_event(review, EventType.REVIEW_SUBMITTED)
         tasks.notify_call_managers_about_new_review.delay(review.uuid)
         tasks.notify_manager_when_reviews_are_completed.delay(review.proposal.uuid)
         return response.Response(

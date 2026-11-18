@@ -547,6 +547,7 @@ _REVIEW_COUNTS = (
     "reviews_declined",
     "reviews_expired",
     "reviews_withdrawn",
+    "reviews_closed_on_decision",
     "reviews_overdue",
 )
 # Every sent assignment item falls in exactly one of these, so they add up
@@ -624,6 +625,9 @@ def reviewers(scope: Scope, user=None, now=None) -> dict:
             ),
             reviews_withdrawn=Count(
                 "id", filter=rejected & Q(rejection_cause=Causes.WITHDRAWN)
+            ),
+            reviews_closed_on_decision=Count(
+                "id", filter=rejected & Q(rejection_cause=Causes.PROPOSAL_DECIDED)
             ),
             mean_score=Avg("summary_score", filter=submitted & Q(summary_score__gt=0)),
             # Reviews submitted before the time was recorded have none, and

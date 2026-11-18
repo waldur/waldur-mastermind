@@ -2174,6 +2174,20 @@ def withdraw_open_of(user, proposal):
     open_.update(status=Statuses.WITHDRAWN, modified=timezone.now())
 
 
+def withdraw_open_of_reviews(reviews):
+    """Withdraw the open contributions of ``reviews``, closed as their
+    proposal was decided. A review's contribution may sit on a step other
+    than the one the decision ended -- a later review step its reviewer took
+    a batch for -- which the workflow does not withdraw."""
+    open_ = models.StepContribution.objects.filter(
+        review__in=reviews, status__in=Statuses.OPEN
+    )
+    change_requests.close_open_of_contributions(
+        open_, ChangeRequestResolutions.CANCELLED
+    )
+    open_.update(status=Statuses.WITHDRAWN, modified=timezone.now())
+
+
 def expire_open(instance):
     """Mark the step's open contributions expired, with the step."""
     open_ = instance.contributions.filter(status__in=Statuses.OPEN)

@@ -55,6 +55,8 @@ class ReviewerStatsTest(test.APITestCase):
         review(profile.user, States.REJECTED)
         review(profile.user, States.REJECTED, cause=Causes.EXPIRED)
         review(profile.user, States.REJECTED, cause=Causes.WITHDRAWN)
+        # Closed when the proposal was decided: not the reviewer's doing.
+        review(profile.user, States.REJECTED, cause=Causes.PROPOSAL_DECIDED)
         assignment(profile, ItemStatuses.DECLINED)
         assignment(profile, ItemStatuses.EXPIRED)
         assignment(profile, ItemStatuses.PENDING)

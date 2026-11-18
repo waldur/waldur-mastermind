@@ -5452,14 +5452,14 @@ class Review(
         ),
     )
     rejection_cause = models.CharField(
-        max_length=10,
+        max_length=20,
         blank=True,
         choices=enums.ReviewRejectionCauses.CHOICES,
         help_text=(
             "Why a rejected review was closed: declined by the reviewer, "
-            "expired at its deadline, or withdrawn when the reviewer joined "
-            "the proposal team. Empty on reviews rejected before this was "
-            "recorded."
+            "expired at its deadline, withdrawn when the reviewer joined "
+            "the proposal team, or closed when the proposal was decided. "
+            "Empty on reviews rejected before this was recorded."
         ),
     )
     summary_public_comment = models.TextField(blank=True)
