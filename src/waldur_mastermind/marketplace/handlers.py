@@ -866,7 +866,7 @@ def evaluate_usage_limit_on_usage_report(
     if component.billing_type == BillingTypes.LIMIT:
         # The limit is the per-resource limit when set, otherwise the
         # component's limit_amount. Without any limit the outcome cannot change.
-        if not marketplace_utils.get_effective_component_limit(resource, component):
+        if marketplace_utils.get_effective_component_limit(resource, component) is None:
             return
     elif component.billing_type == BillingTypes.USAGE:
         # A usage-based component restricts only through its spending limits.

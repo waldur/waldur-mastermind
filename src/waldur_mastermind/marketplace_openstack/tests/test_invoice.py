@@ -113,6 +113,64 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
         invoice_items = invoices_models.InvoiceItem.objects.filter(resource=resource)
         self.assertEqual(invoice_items.count(), 3)
 
+    def test_resource_with_zero_limits_is_not_invoiced(self):
+        resource = self.create_resource(
+            self.prices, {RAM_TYPE: 0, CORES_TYPE: 0, STORAGE_TYPE: 0}
+        )
+        self.assertFalse(
+            invoices_models.InvoiceItem.objects.filter(resource=resource).exists()
+        )
+
+    def test_limit_raised_from_zero_is_invoiced_from_the_day_of_the_change(self):
+        with freeze_time("2019-09-01"):
+            resource = self.create_resource(self.prices, {**self.limits, CORES_TYPE: 0})
+
+        with freeze_time("2019-09-15"):
+            self.update_resource_limits(resource, {**self.limits, CORES_TYPE: 4})
+
+        invoice_item = invoices_models.InvoiceItem.objects.get(
+            resource=resource, details__offering_component_type=CORES_TYPE
+        )
+        self.assertEqual(invoice_item.start, parse_datetime("2019-09-15T00:00:00Z"))
+        # 4 cores for the 16 days from the 15th to the 30th
+        self.assertEqual(invoice_item.quantity, 64)
+        self.assertEqual(invoice_item.unit_price, self.prices[CORES_TYPE])
+
+    def test_limit_raised_from_zero_is_invoiced_like_any_other_raise(self):
+        with freeze_time("2019-09-01"):
+            from_zero = self.create_resource(
+                self.prices, {**self.limits, CORES_TYPE: 0}
+            )
+            from_one = self.create_resource(self.prices, {**self.limits, CORES_TYPE: 1})
+
+        with freeze_time("2019-09-15"):
+            self.update_resource_limits(from_zero, {**self.limits, CORES_TYPE: 4})
+            self.update_resource_limits(from_one, {**self.limits, CORES_TYPE: 5})
+
+        def cores_quantity(resource):
+            return invoices_models.InvoiceItem.objects.get(
+                resource=resource, details__offering_component_type=CORES_TYPE
+            ).quantity
+
+        # The second resource differs only by one core held for all 30 days.
+        self.assertEqual(cores_quantity(from_one) - cores_quantity(from_zero), 30)
+
+    def test_limit_lowered_to_zero_and_raised_again_keeps_one_invoice_item(self):
+        with freeze_time("2019-09-01"):
+            resource = self.create_resource(self.prices, self.limits)
+
+        with freeze_time("2019-09-10"):
+            self.update_resource_limits(resource, {**self.limits, CORES_TYPE: 0})
+
+        with freeze_time("2019-09-20"):
+            self.update_resource_limits(resource, {**self.limits, CORES_TYPE: 4})
+
+        invoice_item = invoices_models.InvoiceItem.objects.get(
+            resource=resource, details__offering_component_type=CORES_TYPE
+        )
+        # 2 cores for 10 days, none for 9 days, 4 cores for 11 days
+        self.assertEqual(invoice_item.quantity, 2 * 10 + 4 * 11)
+
     def test_when_resource_is_deleted_invoice_is_updated(self):
         resource = self.create_resource(self.prices, self.limits)
         with freeze_time("2019-09-18"):

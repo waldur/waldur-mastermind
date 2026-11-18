@@ -90,10 +90,16 @@ class LimitPeriodProcessor:
         invoice: invoice_models.Invoice,
         component_type: str,
         new_quantity: int,
+        old_limit=None,
     ):
         """
         Processes the update of invoice items when resource limits change,
         dispatching to the correct handler based on the limit period.
+
+        ``old_limit`` is the limit before the change. A zero, absent or
+        unlimited (-1) limit has no invoice item, so on a plan priced per day
+        raising it opens one from the day of the change rather than from the
+        start of the billing period.
         """
         offering_component = resource.offering.components.get(type=component_type)
         if cls._limit_period_for(offering_component, resource) == LimitPeriods.TOTAL:
@@ -106,7 +112,7 @@ class LimitPeriodProcessor:
             )
         else:
             cls._create_or_update_invoice_item(
-                resource, invoice, component_type, new_quantity
+                resource, invoice, component_type, new_quantity, old_limit
             )
 
     # -- Private methods --
@@ -299,6 +305,7 @@ class LimitPeriodProcessor:
         invoice: invoice_models.Invoice,
         component_type,
         quantity,
+        old_limit=None,
     ):
         """
         Create or update invoice item for limit-based components.
@@ -373,6 +380,19 @@ class LimitPeriodProcessor:
                         )
                         return
 
+                # Nothing was billed while the limit was zero, absent or
+                # unlimited: charge from the day it was set, the same day an
+                # existing item's increase takes effect in _update_invoice_item.
+                # Other units charge a started period in full and weight later
+                # changes by the item's span, so their item keeps the period.
+                if (
+                    (not old_limit or old_limit == -1)
+                    and plan_component.plan.unit
+                    == invoice_models.InvoiceItem.Units.PER_DAY
+                ):
+                    start = max(
+                        start, now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    )
                 cls._create_invoice_item(resource, plan_component, invoice, start, end)
 
     @classmethod
