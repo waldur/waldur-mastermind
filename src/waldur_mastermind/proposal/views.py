@@ -120,6 +120,7 @@ from waldur_mastermind.proposal import (
     serializers,
     step_discussions,
     step_inputs,
+    submission_checks,
     tasks,
     utils,
     workflow_checks,
@@ -587,6 +588,8 @@ def validate_submitted_changes(proposal, parts):
         validate_requested_duration(proposal)
     if ChangeRequestParts.COMPLIANCE in parts:
         validate_compliance_answered(proposal)
+    # Those another app registered, as far as they depend on these parts.
+    submission_checks.validate(proposal, parts=parts)
 
 
 def reviewers_with_email_invitation(call, reviewers):
@@ -6630,6 +6633,9 @@ class ProposalViewSet(
                     {"detail": "Proposal must have a project team before submission."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            # The checks other apps registered, which read what may have
+            # changed since the validators ran just as the rules above do.
+            submission_checks.validate(proposal)
 
             # Saved here, not below: activate_first_step() saves with
             # update_fields and would drop anything set beforehand.
@@ -6734,6 +6740,8 @@ class ProposalViewSet(
         validate_proposal_manager_present,
         validate_requested_duration,
         validate_compliance_answered,
+        # Last, as Proposal.can_submit runs them after its own rules.
+        submission_checks.validate,
     ]
 
     submit_permissions = [proposal_permissions.can_manage_proposal]
