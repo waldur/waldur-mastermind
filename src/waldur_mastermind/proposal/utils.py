@@ -941,11 +941,16 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     today = datetime.date.today()
     # The call's project_name_template, or "<call> - <round start> - <name>".
     project_name = allocation_names.allocated_project_name(proposal, today)
+    # The call's project_description_template, or no description.
+    project_description = allocation_names.allocated_project_description(
+        proposal, today
+    )
     end_date = project_end_date(proposal, start_date or today)
 
     project = structure_models.Project.objects.create(
         customer=proposal_round.call.manager.customer,
         name=project_name,
+        description=project_description,
         start_date=start_date,
         end_date=end_date,
     )

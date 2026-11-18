@@ -4,6 +4,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.permissions.fixtures import CallRole
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import allocation_names, utils
@@ -304,3 +305,212 @@ class CallProjectNameTemplateSerializerTest(test.APITestCase):
         self.call.refresh_from_db()
         self.assertIsNone(self.call.project_name_template)
         self.assertNotEqual(response.status_code, status.HTTP_200_OK)
+
+
+class AllocatedProjectDescriptionTest(AllocationNamingBase):
+    """The project an accepted proposal creates is described by the call's
+    project_description_template (#1221)."""
+
+    def setUp(self):
+        super().setUp()
+        self.proposal.project_summary = "Imaging of rare tissue samples."
+        self.proposal.description = "A longer account of the study."
+        self.proposal.save()
+
+    def set_template(self, template):
+        self.call.project_description_template = template
+        self.call.save()
+
+    def test_summary_becomes_the_description(self):
+        self.set_template("{proposal_summary}")
+
+        project = self.allocate()
+
+        self.assertEqual(project.description, "Imaging of rare tissue samples.")
+
+    def test_template_combines_summary_and_call_name(self):
+        self.call.name = "Spring imaging call"
+        self.set_template("{proposal_summary}\n\nCall: {call_name}")
+
+        project = self.allocate()
+
+        self.assertEqual(
+            project.description,
+            "Imaging of rare tissue samples.\n\nCall: Spring imaging call",
+        )
+
+    def test_description_placeholder(self):
+        self.set_template("{proposal_name}: {proposal_description}")
+
+        project = self.allocate()
+
+        self.assertEqual(
+            project.description, "Clinical school: A longer account of the study."
+        )
+
+    def test_braces_in_summary_are_kept_literally(self):
+        self.call.name = "Spring"
+        self.set_template("{proposal_summary}\n\nCall: {call_name}")
+        self.proposal.project_summary = "Uses {call_name}, {0} and {__class__}."
+        self.proposal.save()
+
+        project = self.allocate()
+
+        self.assertEqual(
+            project.description,
+            "Uses {call_name}, {0} and {__class__}.\n\nCall: Spring",
+        )
+
+    def test_call_without_template_gives_no_description(self):
+        self.set_template(None)
+
+        project = self.allocate()
+
+        self.assertEqual(project.description, "")
+
+    def test_empty_template_gives_no_description(self):
+        self.set_template("")
+
+        project = self.allocate()
+
+        self.assertEqual(project.description, "")
+
+    def test_long_description_is_cut_to_fit(self):
+        self.set_template("{proposal_description}\n{proposal_description}")
+        self.proposal.description = "x" * DESCRIPTION_LENGTH
+        self.proposal.save()
+
+        project = self.allocate()
+
+        self.assertEqual(len(project.description), DESCRIPTION_LENGTH)
+
+    def test_invalid_stored_template_gives_no_description_and_a_warning(self):
+        # Written past the API, e.g. by an older import.
+        self.set_template("{proposal_summary} {nope}")
+
+        with self.assertLogs(allocation_names.logger, level="WARNING") as logs:
+            project = self.allocate()
+
+        self.assertIsNotNone(project)
+        self.assertEqual(project.description, "")
+        self.assertIn("{nope}", "\n".join(logs.output))
+
+    def test_already_allocated_project_is_not_changed(self):
+        self.set_template("{proposal_summary}")
+        project = self.allocate()
+
+        self.set_template("Changed: {proposal_name}")
+        self.proposal.project_summary = "Changed summary."
+        self.proposal.save()
+        utils.allocate_proposal(self.proposal, approved_by=self.fixture.staff)
+
+        project.refresh_from_db()
+        self.assertEqual(project.description, "Imaging of rare tissue samples.")
+
+
+@ddt
+class CallProjectDescriptionTemplateSerializerTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = factories.CallFactory(
+            manager=self.fixture.manager,
+            state=CallStates.ACTIVE,
+            created_by=self.fixture.owner,
+        )
+        self.call.add_user(self.fixture.call_manager, CallRole.MANAGER)
+        self.url = factories.CallFactory.get_protected_url(self.call)
+        self.client.force_authenticate(self.fixture.call_manager)
+
+    def patch(self, value):
+        return self.client.patch(
+            self.url, {"project_description_template": value}, format="json"
+        )
+
+    @data(
+        "{proposal_summary}",
+        "{proposal_summary}\n\nCall: {call_name}",
+        "{call_prefix}/{year}: {proposal_description} ({proposal_name})",
+        "Free text with no placeholders, / and : allowed.",
+    )
+    def test_valid_template_is_saved(self, template):
+        response = self.patch(template)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["project_description_template"], template)
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.project_description_template, template)
+
+    @data("", "   ", None)
+    def test_empty_template_clears_it(self, value):
+        self.call.project_description_template = "{proposal_summary}"
+        self.call.save()
+
+        response = self.patch(value)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.project_description_template)
+
+    @data(
+        "{unknown}",
+        "{}",
+        "{0}",
+        "{proposal_summary.__class__}",
+        "{proposal_summary[0]}",
+        "{proposal_summary!r}",
+        "{proposal_summary:>40}",
+        "{proposal_summary",
+    )
+    def test_invalid_template_is_refused(self, template):
+        response = self.patch(template)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project_description_template", response.data)
+
+    def test_unknown_placeholder_error_lists_the_allowed_ones(self):
+        response = self.patch("{unknown}")
+
+        message = str(response.data["project_description_template"])
+        self.assertIn("{unknown}", message)
+        self.assertIn("{proposal_summary}", message)
+        self.assertIn("{proposal_description}", message)
+        self.assertIn("{call_name}", message)
+
+    @override_config(PROJECT_NAME_REGEX=r"^[A-Za-z0-9 ]+$")
+    def test_project_name_rule_does_not_apply(self):
+        response = self.patch("{proposal_summary} / archive")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    @data("owner", "user")
+    def test_user_who_cannot_update_the_call_cannot_set_it(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        response = self.patch("{proposal_summary}")
+
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.project_description_template)
+
+    def test_public_call_does_not_expose_the_template(self):
+        self.call.project_description_template = "{proposal_summary}"
+        self.call.save()
+
+        response = self.client.get(factories.CallFactory.get_public_url(self.call))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("project_description_template", response.data)
+
+    def test_protected_call_shows_the_template(self):
+        self.call.project_description_template = "{proposal_summary}"
+        self.call.save()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["project_description_template"], "{proposal_summary}"
+        )

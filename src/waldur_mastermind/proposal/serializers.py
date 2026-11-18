@@ -73,6 +73,7 @@ from waldur_mastermind.proposal.enums import (
     AWARD_RESPONSE_KEY,
     COMMON_STEP_FIELDS,
     DEFAULT_CALL_STEPS_MAP,
+    PROJECT_DESCRIPTION_TEMPLATE_HELP,
     PROJECT_NAME_PLACEHOLDERS,
     PROJECT_NAME_TEMPLATE_HELP,
     PROPOSAL_CONFIGURABLE_FIELDS,
@@ -3759,6 +3760,14 @@ class ProtectedCallSerializer(PublicCallSerializer):
         max_length=255,
         help_text=PROJECT_NAME_TEMPLATE_HELP,
     )
+    # Not on the public serializer: applicants do not need to preview it.
+    project_description_template = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        max_length=DESCRIPTION_LENGTH,
+        help_text=PROJECT_DESCRIPTION_TEMPLATE_HELP,
+    )
     proposal_slug_template = serializers.CharField(
         required=False,
         allow_null=True,
@@ -3872,6 +3881,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "panel_vice_chair_uuid",
             "panel_vice_chair_name",
             "proposal_slug_template",
+            "project_description_template",
             "user_email_patterns",
             "user_affiliations",
             "user_identity_sources",
@@ -4216,6 +4226,18 @@ class ProtectedCallSerializer(PublicCallSerializer):
         error = get_project_name_regex_error(sample)
         if error:
             raise serializers.ValidationError(error)
+        return value
+
+    def validate_project_description_template(self, value):
+        """Only the documented placeholders. Empty means no description.
+        A description is free text, so the project name rule does not apply.
+        Not locked once proposals exist: a change applies to the proposals
+        allocated after it."""
+        if not value or not value.strip():
+            return None
+        errors = allocation_names.project_description_template_errors(value)
+        if errors:
+            raise serializers.ValidationError(errors)
         return value
 
     def validate_proposal_slug_template(self, value):

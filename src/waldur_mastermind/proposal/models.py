@@ -437,6 +437,11 @@ class Call(
         null=True,
         help_text=enums.PROJECT_NAME_TEMPLATE_HELP,
     )
+    project_description_template = models.TextField(
+        blank=True,
+        null=True,
+        help_text=enums.PROJECT_DESCRIPTION_TEMPLATE_HELP,
+    )
 
     panel_chair = models.ForeignKey(
         core_models.User,

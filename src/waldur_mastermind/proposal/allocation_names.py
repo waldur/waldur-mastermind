@@ -1,34 +1,37 @@
-"""The names allocation gives the project and resources of an accepted proposal.
+"""The names and description allocation gives the project and resources of an
+accepted proposal.
 
 A call may name its projects with ``Call.project_name_template``; without one
 the project is called ``<call prefix> - <round start> - <proposal name>``, as it
-always was. A resource is named by its offering's ``resource_name_pattern``,
-the same pattern an ordinary order uses, and otherwise after its project and
-offering.
+always was. ``Call.project_description_template`` gives the project a
+description the same way; without one the project has none. A resource is
+named by its offering's ``resource_name_pattern``, the same pattern an ordinary
+order uses, and otherwise after its project and offering.
 
-Only the template is formatted. The values put into it -- the proposal name
-above all, which the applicant types -- are substituted once and never parsed
-again, so a brace in a name is just a brace.
+Only the template is formatted. The values put into it -- the proposal's name,
+summary and description above all, which the applicant types -- are
+substituted once and never parsed again, so a brace in them is just a brace.
 """
 
 import logging
 import string
 
-from waldur_core.core.models import NAME_LENGTH
+from waldur_core.core.models import DESCRIPTION_LENGTH, NAME_LENGTH
 from waldur_core.structure.models import PROJECT_NAME_LENGTH
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.proposal.enums import (
     DEFAULT_PROJECT_NAME_TEMPLATE,
+    PROJECT_DESCRIPTION_PLACEHOLDERS,
     PROJECT_NAME_PLACEHOLDERS,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def project_name_template_errors(template: str) -> list[str]:
+def template_errors(template: str, placeholders) -> list[str]:
     """What is wrong with ``template``, or an empty list when nothing is.
 
-    Only the named placeholders are allowed, as plain ``{name}``: no
+    Only the named ``placeholders`` are allowed, as plain ``{name}``: no
     positional fields, attribute or index lookups, conversions or format
     specs, which would let a template reach past the values it is given.
     """
@@ -43,7 +46,7 @@ def project_name_template_errors(template: str) -> list[str]:
             continue
         if field == "" or field.isdigit():
             errors.append("Positional placeholders such as {} are not allowed.")
-        elif field not in PROJECT_NAME_PLACEHOLDERS:
+        elif field not in placeholders:
             unknown.append(field)
         elif format_spec or conversion:
             errors.append(
@@ -54,12 +57,20 @@ def project_name_template_errors(template: str) -> list[str]:
             "Unknown placeholders: "
             + ", ".join("{%s}" % name for name in sorted(set(unknown)))
             + ". Allowed: "
-            + ", ".join("{%s}" % name for name in PROJECT_NAME_PLACEHOLDERS)
+            + ", ".join("{%s}" % name for name in placeholders)
             + "."
         )
     if not errors and not template.strip():
         errors.append("The template is blank.")
     return errors
+
+
+def project_name_template_errors(template: str) -> list[str]:
+    return template_errors(template, PROJECT_NAME_PLACEHOLDERS)
+
+
+def project_description_template_errors(template: str) -> list[str]:
+    return template_errors(template, PROJECT_DESCRIPTION_PLACEHOLDERS)
 
 
 def project_name_context(proposal, today) -> dict[str, str]:
@@ -93,6 +104,41 @@ def allocated_project_name(proposal, today) -> str:
     if not name:
         name = DEFAULT_PROJECT_NAME_TEMPLATE.format_map(context)
     return name[:PROJECT_NAME_LENGTH]
+
+
+def project_description_context(proposal, today) -> dict[str, str]:
+    return {
+        **project_name_context(proposal, today),
+        "proposal_summary": proposal.project_summary or "",
+        "proposal_description": proposal.description or "",
+    }
+
+
+def allocated_project_description(proposal, today) -> str:
+    """The description of the project allocating ``proposal`` creates.
+
+    Empty without a template, as it always was. A stored template that does
+    not render -- one saved before it was validated, or by an older import --
+    gives an empty description and a warning rather than failing the
+    allocation. The result is cut to what a project description holds.
+    """
+    call = proposal.round.call
+    template = call.project_description_template
+    if not template or not template.strip():
+        return ""
+    errors = project_description_template_errors(template)
+    if errors:
+        logger.warning(
+            "Project description template %r of call %s does not render (%s); "
+            "the project of proposal %s gets no description.",
+            template,
+            call.uuid,
+            " ".join(errors),
+            proposal.uuid,
+        )
+        return ""
+    context = project_description_context(proposal, today)
+    return template.format_map(context).strip()[:DESCRIPTION_LENGTH]
 
 
 def default_resource_name(project_name, offering_name, index=None) -> str:
