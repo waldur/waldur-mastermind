@@ -9243,3 +9243,42 @@ def aggregate_access_subnets(offering_uuids=None, include_organization_subnets=F
         "organization_subnets": organization_subnets,
         "packed": packed,
     }
+
+
+def deactivate_active_terms_of_service(offering, exclude=None):
+    """Deactivate the offering's currently active ToS so that another one can
+    take its place, and return the deactivated configuration (or None).
+
+    Only one ToS per offering may be active (``unique_active_terms_per_offering``),
+    so this must run before the replacement is saved as active. The offering
+    row is locked until the transaction ends, so concurrent activations on the
+    same offering run one after another instead of hitting the constraint.
+    """
+    models.Offering.objects.select_for_update().get(pk=offering.pk)
+    previous_qs = models.OfferingTermsOfService.objects.filter(
+        offering=offering, is_active=True
+    )
+    if exclude is not None:
+        previous_qs = previous_qs.exclude(pk=exclude.pk)
+    previous = previous_qs.first()
+    if previous is None:
+        return None
+
+    previous.is_active = False
+    previous.save(update_fields=["is_active", "modified"])
+    return previous
+
+
+def log_terms_of_service_replaced(previous, new_tos):
+    event_logger.emit(
+        "Terms of Service version {old_version} of offering {offering_name} has been "
+        "deactivated and replaced by version {new_version}.",
+        event_type=EventType.TERMS_OF_SERVICE_REPLACED,
+        event_context={
+            "offering": new_tos.offering,
+            "offering_name": new_tos.offering.name,
+            "old_version": previous.version,
+            "new_version": new_tos.version,
+        },
+        scopes=[new_tos.offering, new_tos.offering.customer],
+    )

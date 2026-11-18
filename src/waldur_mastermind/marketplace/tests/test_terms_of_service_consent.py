@@ -16,7 +16,7 @@ from rest_framework.test import APITestCase
 from waldur_core.configuration.testing import (
     override_config as override_constance_config,
 )
-from waldur_core.logging.models import Event
+from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -1879,8 +1879,7 @@ class ProviderOfferingToSManagementViewsetTest(APITestCase):
         self.assertEqual(tos_config.terms_of_service, "New terms of service")
         self.assertTrue(tos_config.requires_reconsent)
 
-    def test_create_terms_of_service_config_with_existing_active_tos(self):
-        """Test creating a new ToS configuration with an existing active ToS config."""
+    def test_creating_active_tos_deactivates_existing_active_tos(self):
         self.client.force_authenticate(user=self.user)
         data = {
             "offering": OfferingFactory.get_url(self.offering),
@@ -1891,11 +1890,71 @@ class ProviderOfferingToSManagementViewsetTest(APITestCase):
         }
 
         response = self.client.post(self.list_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(
-            "An active Terms of Service configuration already exists for this offering",
-            response.data["non_field_errors"][0],
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.tos_config.refresh_from_db()
+        self.assertFalse(self.tos_config.is_active)
+        new_tos = models.OfferingTermsOfService.objects.get(version="2.0")
+        self.assertTrue(new_tos.is_active)
+        self.assertEqual(
+            list(self.offering.terms_of_service_configs.filter(is_active=True)),
+            [new_tos],
         )
+
+    def test_creating_active_tos_logs_replacement_event(self):
+        self.client.force_authenticate(user=self.user)
+        data = {
+            "offering": OfferingFactory.get_url(self.offering),
+            "terms_of_service": "New terms of service",
+            "version": "2.0",
+            "is_active": True,
+        }
+
+        response = self.client.post(self.list_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        event = Event.objects.get(event_type="terms_of_service_replaced")
+        self.assertIn("version 1.0", event.message)
+        self.assertIn("version 2.0", event.message)
+        self.assertTrue(Feed.objects.filter(scope=self.offering, event=event).exists())
+
+    def test_creating_active_tos_without_existing_active_tos_deactivates_nothing(
+        self,
+    ):
+        self.client.force_authenticate(user=self.user)
+        deactivate_tos_config(self.tos_config)
+        data = {
+            "offering": OfferingFactory.get_url(self.offering),
+            "terms_of_service": "New terms of service",
+            "version": "2.0",
+            "is_active": True,
+        }
+
+        response = self.client.post(self.list_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(
+            Event.objects.filter(event_type="terms_of_service_replaced").exists()
+        )
+
+    def test_creating_active_tos_does_not_touch_other_offerings(self):
+        self.client.force_authenticate(user=self.user)
+        other_offering = OfferingFactory(customer=self.customer)
+        other_tos = models.OfferingTermsOfService.objects.create(
+            offering=other_offering, version="1.0", is_active=True
+        )
+        data = {
+            "offering": OfferingFactory.get_url(self.offering),
+            "terms_of_service": "New terms of service",
+            "version": "2.0",
+            "is_active": True,
+        }
+
+        response = self.client.post(self.list_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        other_tos.refresh_from_db()
+        self.assertTrue(other_tos.is_active)
 
     def test_create_inactive_terms_of_service_config_with_existing_active_tos(self):
         """Test creating an inactive ToS configuration when an active one exists."""
@@ -2086,8 +2145,7 @@ class ProviderOfferingToSManagementViewsetTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(self.tos_config.version, "1.0")
 
-    def test_update_terms_of_service_config_duplicate_active_validation(self):
-        """Test that updating ToS config to active fails when another active exists."""
+    def test_activating_tos_deactivates_existing_active_tos(self):
         self.client.force_authenticate(user=self.user)
 
         other_tos_config = models.OfferingTermsOfService.objects.create(
@@ -2103,10 +2161,28 @@ class ProviderOfferingToSManagementViewsetTest(APITestCase):
             f"/api/marketplace-offering-terms-of-service/{other_tos_config.uuid}/"
         )
 
-        response = self.client.put(other_detail_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("non_field_errors", response.data)
-        self.assertIn("already exists", response.data["non_field_errors"][0])
+        response = self.client.patch(other_detail_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.tos_config.refresh_from_db()
+        other_tos_config.refresh_from_db()
+        self.assertFalse(self.tos_config.is_active)
+        self.assertTrue(other_tos_config.is_active)
+        self.assertTrue(
+            Event.objects.filter(event_type="terms_of_service_replaced").exists()
+        )
+
+    def test_resubmitting_active_flag_on_active_tos_deactivates_nothing(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.patch(self.detail_url, {"is_active": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.tos_config.refresh_from_db()
+        self.assertTrue(self.tos_config.is_active)
+        self.assertFalse(
+            Event.objects.filter(event_type="terms_of_service_replaced").exists()
+        )
 
     def test_delete_terms_of_service_config(self):
         """Test deleting a ToS configuration."""
@@ -4465,6 +4541,35 @@ class ToSConsentNotificationTest(APITestCase):
             is_active=False,
             requires_reconsent=True,
         )
+
+        mock_task.assert_not_called()
+
+    def _activate_new_tos(self, requires_reconsent):
+        new_tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            version="2.0",
+            is_active=False,
+            requires_reconsent=requires_reconsent,
+        )
+        marketplace_utils.deactivate_active_terms_of_service(
+            self.offering, exclude=new_tos
+        )
+        new_tos.is_active = True
+        new_tos.save()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_activating_existing_tos_triggers_reconsent_notification(self, mock_task):
+        self._activate_new_tos(requires_reconsent=True)
+
+        mock_task.assert_called_once_with(self.offering.uuid, "1.0", "2.0")
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_activating_existing_tos_without_reconsent_does_not_notify(self, mock_task):
+        self._activate_new_tos(requires_reconsent=False)
 
         mock_task.assert_not_called()
 

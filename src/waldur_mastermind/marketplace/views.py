@@ -20011,7 +20011,7 @@ class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
     ),
     create=extend_schema(
         summary="Create a Terms of Service configuration",
-        description="Creates a new Terms of Service configuration for an offering. Only one active ToS configuration is allowed per offering.",
+        description="Creates a new Terms of Service configuration for an offering. Only one active ToS configuration is allowed per offering: creating an active one deactivates the currently active one.",
         examples=[
             OpenApiExample(
                 "Create a new active ToS for an offering",
@@ -20027,11 +20027,11 @@ class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
     ),
     update=extend_schema(
         summary="Update a Terms of Service configuration",
-        description="Updates an existing Terms of Service configuration. Note that some fields like `version` and `requires_reconsent` are protected and cannot be changed after creation.",
+        description="Updates an existing Terms of Service configuration. Note that some fields like `version` and `requires_reconsent` are protected and cannot be changed after creation. Activating a configuration deactivates the offering's currently active one.",
     ),
     partial_update=extend_schema(
         summary="Partially update a Terms of Service configuration",
-        description="Partially updates an existing Terms of Service configuration.",
+        description="Partially updates an existing Terms of Service configuration. Activating a configuration deactivates the offering's currently active one.",
     ),
     destroy=extend_schema(
         summary="Delete a Terms of Service configuration",
