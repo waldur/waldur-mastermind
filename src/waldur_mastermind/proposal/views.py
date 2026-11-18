@@ -86,6 +86,7 @@ from waldur_mastermind.proposal import (
     activity,
     affinity_scoring,
     applicant_capacity,
+    assignments,
     budgets,
     call_templates,
     call_transfer,
@@ -212,55 +213,6 @@ def validate_call_is_active(proposal):
     """
     if proposal.round.call.state != CallStates.ACTIVE:
         raise exceptions.ValidationError(models.CALL_NOT_ACTIVE_MESSAGE)
-
-
-def check_reviewer_workload_limit(pool_entry, new_assignments, override, user):
-    """Refuse assignments that would take a reviewer above their limit.
-
-    ``pool_entry`` must be locked by the caller so that concurrent assignments
-    to the same reviewer are counted one after the other. A call manager may
-    pass ``override_workload_limit`` to assign anyway; the override is
-    recorded as an event on the call.
-    """
-    if new_assignments <= 0:
-        return
-    open_assignments = pool_entry.get_open_assignments()
-    if open_assignments + new_assignments <= pool_entry.max_assignments:
-        return
-
-    reviewer_name = (
-        pool_entry.reviewer.user.full_name
-        if pool_entry.reviewer
-        else pool_entry.invited_email
-    )
-    params = {
-        "reviewer": reviewer_name,
-        "open": open_assignments,
-        "limit": pool_entry.max_assignments,
-        "new": new_assignments,
-    }
-    if not override:
-        raise exceptions.ValidationError(
-            _(
-                "Reviewer %(reviewer)s has %(open)s open assignments and a limit "
-                "of %(limit)s, so %(new)s more would exceed it. Set "
-                "override_workload_limit to assign anyway."
-            )
-            % params
-        )
-
-    call = pool_entry.call
-    event_logger.emit(
-        f"{event_logger.literal(user.full_name or user.username)} assigned "
-        f"{event_logger.literal(new_assignments)} more proposal(s) to reviewer "
-        f"{event_logger.literal(reviewer_name)} in call "
-        f"{event_logger.literal(call.name)}, above "
-        f"the limit of {event_logger.literal(pool_entry.max_assignments)} "
-        f"({event_logger.literal(open_assignments)} already open).",
-        event_type=EventType.REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN,
-        event_context={"call": call},
-        scopes=[_get_customer(call)],
-    )
 
 
 def _is_uuid(raw) -> bool:
@@ -1756,6 +1708,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             "notify_proposals",
             "compute_affinities",
             "create_manual_assignment",
+            "import_assignments",
             "detect_conflicts",
             "generate_assignments",
             "generate_suggestions",
@@ -5631,7 +5584,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         out_of_evaluation = sorted(
             proposal.name
             for proposal in proposals
-            if proposal.state not in ProposalStates.UNDER_EVALUATION
+            if not assignments.is_under_evaluation(proposal)
         )
         if out_of_evaluation:
             raise exceptions.ValidationError(
@@ -5644,43 +5597,15 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 }
             )
 
-        skipped_proposals = []
-        new_items = []
-
-        for proposal in proposals:
-            # Already assigned: a live item in any batch, or any item at all in
-            # the draft batch the new items would join -- a conflict-blocked one
-            # included, which a second insert would duplicate.
-            if models.AssignmentItem.objects.filter(
-                Q(
-                    status__in=[
-                        models.AssignmentItemStatuses.PENDING,
-                        models.AssignmentItemStatuses.ACCEPTED,
-                        models.AssignmentItemStatuses.COI_BLOCKED,
-                    ]
-                )
-                | Q(batch__status=models.AssignmentBatchStatuses.DRAFT),
-                batch__reviewer_pool_entry=pool_entry,
-                proposal=proposal,
-            ).exists():
-                skipped_proposals.append(
-                    {
-                        "proposal_uuid": str(proposal.uuid),
-                        "proposal_name": proposal.name,
-                        "reason": _("Assignment already exists for this reviewer"),
-                    }
-                )
-                continue
-
-            # Check for blocking COI
-            coi_records = list(
-                models.ConflictOfInterest.objects.filter(
-                    reviewer=pool_entry.reviewer,
-                    proposal=proposal,
-                    status__in=["pending", "recused"],
-                )
-            )
-            new_items.append((proposal, coi_records))
+        new_items, already_assigned = assignments.find_new_items(pool_entry, proposals)
+        skipped_proposals = [
+            {
+                "proposal_uuid": str(proposal.uuid),
+                "proposal_name": proposal.name,
+                "reason": assignments.ALREADY_ASSIGNED,
+            }
+            for proposal in already_assigned
+        ]
 
         # Nothing qualifies: no batch is made, and the caller is told why
         # each proposal was skipped instead of receiving an empty draft.
@@ -5696,43 +5621,14 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 }
             )
 
-        # COI-blocked items do not add to the reviewer's workload.
-        check_reviewer_workload_limit(
+        batch = assignments.create_manual_batch(
+            call,
             pool_entry,
-            sum(1 for _proposal, coi_records in new_items if not coi_records),
-            override_workload_limit,
+            new_items,
             request.user,
+            manager_notes,
+            override_workload_limit,
         )
-
-        # Create or get existing draft batch for this reviewer
-        batch, batch_created = models.AssignmentBatch.objects.get_or_create(
-            call=call,
-            reviewer_pool_entry=pool_entry,
-            status=models.AssignmentBatchStatuses.DRAFT,
-            defaults={
-                "source": models.AssignmentSources.MANUAL,
-                "manager_notes": manager_notes,
-                "created_by": request.user,
-            },
-        )
-
-        # If batch already existed, update notes if provided
-        if not batch_created and manager_notes:
-            batch.manager_notes = manager_notes
-            batch.save(update_fields=["manager_notes"])
-
-        for proposal, coi_records in new_items:
-            item = models.AssignmentItem.objects.create(
-                batch=batch,
-                proposal=proposal,
-                affinity_score=None,  # Manual assignment - no affinity
-                has_coi=bool(coi_records),
-                status=models.AssignmentItemStatuses.COI_BLOCKED
-                if coi_records
-                else models.AssignmentItemStatuses.PENDING,
-            )
-            if coi_records:
-                item.coi_records.set(coi_records)
 
         items_created = len(new_items)
 
@@ -5749,6 +5645,68 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         serializers.CreateManualAssignmentSerializer
     )
     create_manual_assignment_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["*", "manager"],
+        )
+    ]
+
+    @extend_schema(
+        request={"multipart/form-data": serializers.AssignmentImportSerializer},
+        responses={200: serializers.AssignmentImportResponseSerializer},
+        description=(
+            "Assign proposals of a round to reviewers from a CSV file with a "
+            "header row: reviewer_email, and proposal_slug or proposal_uuid. "
+            "Rows are grouped by reviewer and assigned as "
+            "create-manual-assignment does, in the reviewer's draft manual "
+            "batch: already assigned proposals are skipped, conflicts of "
+            "interest give conflict-blocked items, and the workload limit "
+            "applies unless overridden. Every row is reported with a status "
+            "(ready, created, coi_blocked, skipped, error) and a reason. A dry "
+            "run, the default, changes nothing; otherwise the valid rows are "
+            "applied in one transaction. Nothing is sent to reviewers: send "
+            "the draft batches when they are ready. Refused for a file over "
+            "1 MB, not UTF-8, without the required columns, or with more rows "
+            "than the round's proposals times the call's reviewers."
+        ),
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="import-assignments")
+    def import_assignments(self, request, uuid=None):
+        call = self.get_object()
+
+        serializer = serializers.AssignmentImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        call_round = serializer.validated_data["round"]
+        if call_round.call_id != call.id:
+            raise exceptions.ValidationError(
+                {"round": _("The round is not in this call.")}
+            )
+        dry_run = serializer.validated_data["dry_run"]
+
+        content = assignments.read_upload(serializer.validated_data["file"])
+        rows = assignments.parse_csv(
+            content, assignments.max_import_rows(call, call_round)
+        )
+        result = assignments.import_assignments(
+            call,
+            call_round,
+            rows,
+            request.user,
+            dry_run=dry_run,
+            override_workload_limit=serializer.validated_data[
+                "override_workload_limit"
+            ],
+            manager_notes=serializer.validated_data.get("manager_notes", ""),
+        )
+        return response.Response(
+            serializers.AssignmentImportResponseSerializer(
+                {"dry_run": dry_run, **result}
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    import_assignments_serializer_class = serializers.AssignmentImportSerializer
+    import_assignments_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
             ["*", "manager"],
@@ -10532,7 +10490,7 @@ class ReviewViewSet(FacetsMixin, ActionsViewSet):
                 .first()
             )
             if pool_entry:
-                check_reviewer_workload_limit(
+                assignments.check_reviewer_workload_limit(
                     pool_entry,
                     1,
                     serializer.validated_data.get("override_workload_limit", False),

@@ -114,6 +114,7 @@ from waldur_mastermind.proposal.enums import (
 
 from . import (
     allocation_names,
+    assignments,
     budgets,
     contributions,
     enums,
@@ -10240,6 +10241,67 @@ class CreateManualAssignmentResponseSerializer(serializers.Serializer):
     skipped_proposals = SkippedProposalSerializer(
         many=True,
         help_text="Proposals that were skipped with reasons",
+    )
+
+
+class AssignmentImportSerializer(serializers.Serializer):
+    """A CSV of proposal IDs and reviewer emails, assigned in draft manual
+    batches as create-manual-assignment would."""
+
+    round = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Round.objects.all(),
+        help_text="Round of this call whose proposals the file assigns",
+    )
+    file = serializers.FileField(
+        help_text=(
+            "CSV with a header row: reviewer_email, and proposal_slug or "
+            "proposal_uuid. UTF-8, at most 1 MB."
+        )
+    )
+    dry_run = serializers.BooleanField(
+        default=True,
+        help_text="Report what each row would do and change nothing",
+    )
+    override_workload_limit = serializers.BooleanField(
+        default=False,
+        help_text="Assign even if this takes reviewers above their maximum "
+        "number of open assignments. The override is logged.",
+    )
+    manager_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional notes stored on the draft batches",
+    )
+
+
+class AssignmentImportRowSerializer(serializers.Serializer):
+    row = serializers.IntegerField(help_text="Line of the file, the header is 1")
+    proposal_uuid = serializers.UUIDField(
+        allow_null=True, help_text="The proposal the row names, when found"
+    )
+    proposal_slug = serializers.CharField(allow_blank=True)
+    proposal_name = serializers.CharField(allow_blank=True)
+    reviewer_email = serializers.CharField(allow_blank=True)
+    status = serializers.ChoiceField(choices=assignments.ImportStatuses.CHOICES)
+    reason = serializers.CharField(allow_blank=True)
+
+
+class AssignmentImportTotalsSerializer(serializers.Serializer):
+    ready = serializers.IntegerField()
+    created = serializers.IntegerField()
+    coi_blocked = serializers.IntegerField()
+    skipped = serializers.IntegerField()
+    error = serializers.IntegerField()
+
+
+class AssignmentImportResponseSerializer(serializers.Serializer):
+    dry_run = serializers.BooleanField()
+    rows = AssignmentImportRowSerializer(many=True)
+    totals = AssignmentImportTotalsSerializer()
+    batch_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        help_text="Draft batches created or extended; empty for a dry run",
     )
 
 
