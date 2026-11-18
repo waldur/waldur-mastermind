@@ -93,7 +93,7 @@ from waldur_mastermind.proposal.enums import (
     UndecidedAtRoundCompletion,
 )
 
-from . import managers, proposal_roles, reviewer_standing
+from . import managers, proposal_roles, reviewer_standing, submission_checks
 from . import status_labels as step_status_labels
 
 logger = logging.getLogger(__name__)
@@ -4455,13 +4455,15 @@ class Proposal(
             scope=self, is_active=True, role__name=RoleEnum.PROPOSAL_MANAGER
         ).exists()
 
-    def can_submit(self):
+    def can_submit(self, run_registered_checks=True):
         """Whether the proposal may leave draft, and why not when it may not.
 
         Reports the same conditions the submit action enforces, so the form can
         say what is missing instead of letting the applicant find out from a
         rejected request -- among them the required questions of the call's
-        compliance checklist.
+        compliance checklist. ``run_registered_checks=False`` leaves out the
+        checks other apps registered (``submission_checks``), which changes to
+        a post-award run do not consult.
         """
         if self.round.call.state != CallStates.ACTIVE:
             return False, CALL_NOT_ACTIVE_MESSAGE
@@ -4502,6 +4504,13 @@ class Proposal(
         unanswered = self.unanswered_compliance_questions()
         if unanswered:
             return False, unanswered_compliance_message(unanswered)
+
+        # Those other apps registered (submission_checks), after the
+        # built-in rules, as the submit validators run them.
+        if run_registered_checks:
+            failure = submission_checks.first_failure(self)
+            if failure:
+                return False, failure[1]
 
         return True, None
 
@@ -4550,6 +4559,11 @@ class Proposal(
             unanswered = self.unanswered_compliance_questions()
             if unanswered:
                 return False, unanswered_compliance_message(unanswered)
+
+        # Those other apps registered with one of these parts.
+        failure = submission_checks.first_failure(self, parts=parts)
+        if failure:
+            return False, failure[1]
 
         return True, None
 

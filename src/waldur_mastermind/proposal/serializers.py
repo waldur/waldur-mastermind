@@ -5808,6 +5808,10 @@ class ProposalSerializer(
             can_submit, error = obj.can_submit_changes(
                 {part for request in pending for part in request.unlocked_parts or []}
             )
+        elif pending:
+            # Changes to a post-award run: submit_changes leaves the accepted
+            # proposal as it was and runs no registered check on it.
+            can_submit, error = obj.can_submit(run_registered_checks=False)
         else:
             can_submit, error = obj.can_submit()
         return {"can_submit": can_submit, "error": error}

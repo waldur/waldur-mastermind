@@ -2014,6 +2014,81 @@ def submit_proposal(proposal):
     proposal.save()
 ```
 
+### Submission checks from other apps
+
+The rules a draft must meet before submission are the proposal app's own:
+`ProposalViewSet.submit_validators`, the re-checks `submit` runs under the
+proposal's row lock, and `Proposal.can_submit()`, which the API exposes as
+`can_submit` so the form can say what is missing. Another app adds a rule of
+its own through `waldur_mastermind.proposal.submission_checks`, from its
+`AppConfig.ready()`. It does not append to `submit_validators`: that depends
+on import order, is not re-checked under the lock and is invisible to
+`can_submit`.
+
+```python
+from django.apps import AppConfig
+
+
+class ProposalFormsConfig(AppConfig):
+    name = "my_project.proposal_forms"
+
+    def ready(self):
+        from waldur_mastermind.proposal import submission_checks
+
+        from . import responses
+
+        def forms_answered(proposal):
+            missing = responses.missing_forms(proposal)
+            if missing:
+                return f"Fill in these forms before submitting: {', '.join(missing)}."
+            return None
+
+        submission_checks.register_submission_check("forms", forms_answered)
+```
+
+A check takes the proposal and returns the reason to show the applicant, or
+`None` when the proposal passes. A registered check is consulted:
+
+- by `Proposal.can_submit()`, after the built-in rules, so `can_submit` in the
+  API is `false` with the check's reason as `error`;
+- by the submit validators (last), and again in `submit` under the row lock,
+  so a change made between the two is caught. A failure is a 400 with
+  `{"<key>": ["<reason>"]}`;
+- while changes are requested of the applicant, by
+  `Proposal.can_submit_changes(parts)` and `submit_changes`, but only when it
+  was registered with `parts` and one of them is unlocked:
+
+```python
+submission_checks.register_submission_check(
+    "forms",
+    forms_answered,
+    parts=[ChangeRequestParts.DOCUMENTS, ChangeRequestParts.field("description")],
+)
+```
+
+Without `parts`, a check applies to the first submission only. `parts` must
+be parts a request for changes to the proposal can unlock
+(`submission_checks.CHECKABLE_PARTS`); anything else -- a typo, or a
+post-award run's part -- is a `ValueError` at registration rather than a check
+that silently never applies. Changes to a post-award run (an extension
+request, a final report) leave the accepted proposal as it was and consult no
+registered check. Checks run in registration order and the first failure is
+reported. Keys are unique: registering a key again replaces its check and
+keeps its place, so a module loaded twice in tests registers it once;
+`unregister_submission_check(key)` removes it.
+
+The reason is visible to anyone who can retrieve the proposal, as
+`can_submit.error`, and is the body of the 400: say what the applicant has to
+do, and never embed internal data in it -- other proposals or users,
+configuration, an exception's text.
+
+A check runs for every proposal whose `can_submit` is serialised, list views
+included, so it must be cheap. It should not raise: one that does is logged
+with its key and the proposal's UUID and counts as a failure with a generic
+reason, so the proposal cannot be submitted but can still be read. The
+workflow dry run submits a synthetic proposal and does not consult registered
+checks.
+
 ### Resource Cleanup
 
 Automatic cleanup for canceled or rejected proposals:
