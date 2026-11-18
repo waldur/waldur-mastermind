@@ -240,25 +240,34 @@ def validate_project_details_complete(proposal, fields=None):
     Hidden and optional fields are never checked: the applicant was either not
     asked, or asked without obligation. ``fields``, when given, narrows the
     check to those fields: the ones a request for changes unlocked.
+
+    Required supporting documentation is counted against the call's
+    ``minimum_supporting_documents`` rather than checked for any document at
+    all; ``Proposal.can_submit`` reports the same shortfall to the form.
     """
     states = models.CallProposalFieldConfig.get_states_for_call(proposal.round.call)
     missing = []
+    documents_error = None
     for field_name, state in states.items():
         if state != ProposalFieldStates.REQUIRED:
             continue
         if fields is not None and field_name not in fields:
             continue
         if field_name == "supporting_documentation":
-            if not proposal.proposaldocumentation_set.exists():
-                missing.append(field_name)
+            documents_error = proposal.supporting_documents_error()
             continue
         if not getattr(proposal, field_name, None):
             missing.append(field_name)
+    errors = []
     if missing:
-        raise exceptions.ValidationError(
+        errors.append(
             _("The following required fields are empty: %(fields)s.")
             % {"fields": ", ".join(sorted(missing))}
         )
+    if documents_error:
+        errors.append(documents_error)
+    if errors:
+        raise exceptions.ValidationError(errors)
 
 
 def validate_purchase_orders_present(proposal):
@@ -6569,6 +6578,11 @@ class ProposalViewSet(
             validate_round_is_open(proposal)
             # A request may have been removed or added since, too.
             validate_resource_templates_used(proposal)
+            # And a document detached: counted afresh, below the minimum the
+            # submission is refused as the validators would have.
+            documents_error = proposal.supporting_documents_error()
+            if documents_error:
+                raise exceptions.ValidationError([documents_error])
             # The applicant's row is locked so that two of their drafts
             # submitted at once cannot both take the last place. The draft
             # itself takes none yet, so it is not counted.
@@ -9469,6 +9483,26 @@ class ProposalViewSet(
             documents = request.data.getlist("documents", [])
         else:
             documents = request.data.get("documents", [])
+        with transaction.atomic():
+            # Submitting takes the same lock and counts the documents under
+            # it, so a detach cannot leave a submitted proposal below the
+            # call's minimum. Asked again of the locked row: the proposal may
+            # have been submitted since the permission check.
+            proposal = models.Proposal.objects.select_for_update(of=("self",)).get(
+                pk=proposal.pk
+            )
+            proposal_permissions.can_update_proposal_attachments(
+                request, self, proposal
+            )
+            self._detach_documents(request, proposal, documents)
+
+        return response.Response(
+            "Documents removed successfully",
+            status=status.HTTP_200_OK,
+        )
+
+    @staticmethod
+    def _detach_documents(request, proposal, documents):
         for doc_uuid in documents:
             try:
                 doc = models.ProposalDocumentation.objects.get(
@@ -9490,11 +9524,6 @@ class ProposalViewSet(
                 logger.info(f"Attachment for {proposal.name} has been removed.")
             except models.ProposalDocumentation.DoesNotExist:
                 pass  # Skip non-existent documents
-
-        return response.Response(
-            "Documents removed successfully",
-            status=status.HTTP_200_OK,
-        )
 
     detach_documents_serializer_class = serializers.ProposalDetachDocumentsSerializer
     detach_documents_permissions = [

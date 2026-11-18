@@ -1642,13 +1642,15 @@ def duplicate_call(
         source_states = proposal_models.CallProposalFieldConfig.get_states_for_call(
             source
         )
-        proposal_models.CallProposalFieldConfig.objects.update_or_create(
-            call=new_call,
-            defaults={
-                proposal_models.CallProposalFieldConfig.column_for(field_name): state
-                for field_name, state in source_states.items()
-            },
+        config_model = proposal_models.CallProposalFieldConfig
+        defaults: dict[str, str | int] = {
+            config_model.column_for(field_name): state
+            for field_name, state in source_states.items()
+        }
+        defaults["minimum_supporting_documents"] = (
+            config_model.configured_minimum_supporting_documents(source)
         )
+        config_model.objects.update_or_create(call=new_call, defaults=defaults)
 
     onetoone_targets = (
         ("copy_applicant_visibility_config", "applicant_visibility_config"),

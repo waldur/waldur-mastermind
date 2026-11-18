@@ -287,7 +287,7 @@ class SubmitValidationTest(test.APITestCase):
         response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("supporting_documentation", str(response.data))
+        self.assertIn("at least 1 supporting document", str(response.data))
 
 
 class DuplicateCallTest(test.APITestCase):

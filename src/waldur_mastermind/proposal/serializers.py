@@ -1903,14 +1903,16 @@ class ProposalBudgetSerializer(serializers.Serializer):
 
 
 class CallProposalFieldConfigSerializer(serializers.ModelSerializer):
-    """The per-call Project details field states, as a flat map of field -> state."""
+    """The per-call Project details field states, as a flat map of field -> state,
+    and how many supporting documents the call requires while that field is
+    required."""
 
     class Meta:
         model = models.CallProposalFieldConfig
         fields = [
             models.CallProposalFieldConfig.column_for(field_name)
             for field_name in models.CallProposalFieldConfig.field_names()
-        ]
+        ] + ["minimum_supporting_documents"]
         extra_kwargs = {field: {"required": False} for field in fields}
 
 
@@ -4166,7 +4168,8 @@ class ProtectedCallSerializer(PublicCallSerializer):
         return manager
 
     def validate_proposal_field_config(self, value):
-        """Refuse to make a field required once the call has proposals.
+        """Refuse to make a field required, or to raise the minimum number of
+        supporting documents, once the call has proposals.
 
         Only that direction is refused. Hiding a field, or dropping it back to
         optional, cannot invalidate a draft that was already complete; demanding
@@ -4195,6 +4198,22 @@ class ProtectedCallSerializer(PublicCallSerializer):
                 "and drafts that were complete under the published form would stop "
                 "being submittable. Duplicate the call to run a stricter round."
                 % {"fields": ", ".join(sorted(tightened))}
+            )
+
+        # The same reasoning holds for the number of documents: a draft with
+        # as many as the call asked for would stop being submittable. Lowering
+        # the minimum cannot invalidate anything.
+        minimum = value.get("minimum_supporting_documents")
+        current_minimum = (
+            models.CallProposalFieldConfig.configured_minimum_supporting_documents(call)
+        )
+        if minimum is not None and minimum > current_minimum:
+            raise serializers.ValidationError(
+                "Cannot raise the minimum number of supporting documents from "
+                "%(current)d to %(minimum)d: this call already has proposals, and "
+                "drafts that attached as many documents as it asked for would stop "
+                "being submittable. Duplicate the call to run a stricter round."
+                % {"current": current_minimum, "minimum": minimum}
             )
         return value
 
