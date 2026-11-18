@@ -772,6 +772,18 @@ class CallDuplicateTest(test.APITestCase):
         proposal_count = sum(r.proposal_set.count() for r in new_call.round_set.all())
         self.assertEqual(proposal_count, 0)
 
+    def test_duplicate_keeps_the_project_templates(self):
+        self.source.project_name_template = "{proposal_name}"
+        self.source.project_description_template = "{proposal_summary}"
+        self.source.save()
+
+        response = self.duplicate_call("staff", self.source, name="Copy")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        new_call = models.Call.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(new_call.project_name_template, "{proposal_name}")
+        self.assertEqual(new_call.project_description_template, "{proposal_summary}")
+
     def test_duplicate_can_skip_sections(self):
         # Skip rounds and offerings on the duplicate; expect zero of each.
         response = self.duplicate_call(

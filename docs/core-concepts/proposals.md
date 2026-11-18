@@ -1104,6 +1104,25 @@ template's literal text to `PROJECT_NAME_REGEX`. Only the template is
 formatted: a brace in a proposal name stays a brace. The template is public
 on the call, so the applicant's form previews the project name.
 
+The project's description comes from the call's
+`project_description_template`. Without one the project has no description.
+It takes the same placeholders plus `{proposal_summary}` and
+`{proposal_description}`, under the same rules, but not `PROJECT_NAME_REGEX`:
+a description is free text. The result is cut to 4096 characters. A stored
+template that does not render leaves the description empty and logs a
+warning; allocation goes ahead. The template is visible to those who manage
+the call only, and a change applies to proposals allocated after it.
+
+The description reaches more people than the proposal does. A proposal is
+read by its team, the call's managers and its reviewers. The project
+description is shown to every project member and organization owner, to the
+service providers of the project's resources (as `project_description` on
+orders and resources), and is shared with external portals the project is
+connected to. `{proposal_description}` copies the
+full proposal text into it, so use it only when that text may be shared that
+widely; `{proposal_summary}` is the short abstract meant for this. The copy
+is made once, at allocation: later edits to the proposal do not reach it.
+
 A resource is named by its offering's `plugin_options.resource_name_pattern`,
 as an ordinary order is. A pattern without `{counter}` gets `-2`, `-3`, … on
 further items of the award on the same offering. Without a pattern the

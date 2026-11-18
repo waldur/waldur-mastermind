@@ -185,6 +185,18 @@ class CallTransferTest(test.APITestCase):
             new_call.project_name_template, "{call_prefix}: {proposal_name}"
         )
 
+    def test_project_description_template_travels_with_the_call(self):
+        template = "{proposal_summary}\n\nCall: {call_name}"
+        self.call.project_description_template = template
+        self.call.save()
+        exported = self.export().data["export_data"]
+
+        response = self.import_(exported)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        new_call = models.Call.objects.get(uuid=response.data["call_uuid"])
+        self.assertEqual(new_call.project_description_template, template)
+
     def test_contribution_settings_travel_with_the_call(self):
         step = self.call.workflow_steps.get(key="technical_assessment")
         step.contributor_source = "requested_offering_team"

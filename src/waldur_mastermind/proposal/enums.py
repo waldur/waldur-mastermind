@@ -1825,3 +1825,23 @@ PROJECT_NAME_TEMPLATE_HELP = (
     + DEFAULT_PROJECT_NAME_TEMPLATE
     + "."
 )
+
+# The description may also carry the proposal's own text, which a name could
+# not hold.
+PROJECT_DESCRIPTION_PLACEHOLDERS = {
+    **PROJECT_NAME_PLACEHOLDERS,
+    "proposal_summary": "the proposal's project summary",
+    "proposal_description": "the proposal's description",
+}
+
+PROJECT_DESCRIPTION_TEMPLATE_HELP = (
+    "Description given to the project an accepted proposal creates. "
+    "Placeholders: "
+    + ", ".join("{%s}" % name for name in PROJECT_DESCRIPTION_PLACEHOLDERS)
+    + ". Empty means no description. The project description is not as "
+    "private as the proposal: project members, organization owners and the "
+    "service providers of the project's resources see it, and it is shared "
+    "with external portals the project is connected to. "
+    "{proposal_description} copies the full proposal text there; use "
+    "{proposal_summary} unless that is intended."
+)
