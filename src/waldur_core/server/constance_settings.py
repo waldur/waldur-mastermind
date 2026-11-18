@@ -693,6 +693,12 @@ CONSTANCE_CONFIG = {
         "choice_field",
     ),
     "LOGIN_LOGO": ("", "A custom .png image file for login page", "image_field"),
+    "LOGIN_LOGO_DARK": (
+        "",
+        "The login page logo in dark mode. Falls back to LOGIN_LOGO when not set; "
+        "language-specific logos apply to the light logo only.",
+        "image_field",
+    ),
     "LOGIN_LOGO_MULTILINGUAL": (
         {},
         "Language-specific login logos. Dict mapping language codes to image paths, "
@@ -2242,6 +2248,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MARKETPLACE_HERO_IMAGE",
         "CALL_MANAGEMENT_HERO_IMAGE",
         "LOGIN_LOGO",
+        "LOGIN_LOGO_DARK",
         "LOGIN_LOGO_MULTILINGUAL",
         "FAVICON",
         "OFFERING_LOGO_PLACEHOLDER",
@@ -2639,6 +2646,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "MARKETPLACE_HERO_IMAGE",
     "CALL_MANAGEMENT_HERO_IMAGE",
     "LOGIN_LOGO",
+    "LOGIN_LOGO_DARK",
     "FAVICON",
     "OFFERING_LOGO_PLACEHOLDER",
     "DISCLAIMER_AREA_LOGO",
