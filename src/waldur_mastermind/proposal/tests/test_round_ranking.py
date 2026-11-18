@@ -576,6 +576,45 @@ class RankingCsvTest(RankingTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_import_refuses_a_field_longer_than_the_csv_limit(self):
+        # Well within the size limit, but one field is over the CSV reader's.
+        field = "x" * (csv.field_size_limit() + 1)
+        content = f"proposal_uuid,rank,notes\n{self.first.uuid.hex},1,{field}\n"
+        self.assertLess(len(content), rankings.MAX_IMPORT_BYTES)
+
+        response = self.post_file(content.encode())
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        message = str(response.data["file"])
+        self.assertIn("Line 2", message)
+        self.assertIn("longer than", message)
+        self.assertNotIn("xxxx", message)
+        self.assertFalse(models.ProposalRanking.objects.exists())
+
+    def test_import_refuses_a_file_that_is_not_valid_csv(self):
+        # A carriage return outside quotes inside a row, and in the header.
+        for content in (
+            f"proposal_uuid,rank\n{self.first.uuid.hex}\rx,1\n",
+            "proposal_uuid\rx,rank\n",
+        ):
+            with self.subTest(content=content):
+                response = self.post_file(content.encode())
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("not valid CSV", str(response.data["file"]))
+        self.assertFalse(models.ProposalRanking.objects.exists())
+
+    def test_import_ignores_cells_beyond_the_header(self):
+        content = (
+            f"proposal_uuid,rank\n{self.first.uuid.hex},1,extra,cells\n"
+            f"{self.second.uuid.hex},,more\n"
+        )
+        response = self.post_file(content.encode())
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data, {"created": 1, "updated": 0})
+        self.assertEqual(
+            models.ProposalRanking.objects.get(proposal=self.first).rank, 1
+        )
+
 
 class MeetingNoteTest(RankingTestBase):
     def create_note(self, user=None, **extra):

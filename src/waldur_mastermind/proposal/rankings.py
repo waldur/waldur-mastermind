@@ -713,11 +713,35 @@ def _find_proposal(call_round, row, line, user=None, meeting_note=None):
     return proposal
 
 
+def unreadable_csv(reader):
+    """The ``file`` error for text the CSV reader gives up on. Its own message
+    is not passed on: it is written for programmers, and the offending field
+    is not echoed back."""
+    return exceptions.ValidationError(
+        {
+            "file": _(
+                "Line %(line)s of the file is not valid CSV: a field is longer "
+                "than %(max)s characters, or a line break is outside quotes."
+            )
+            % {"line": reader.line_num, "max": csv.field_size_limit()}
+        }
+    )
+
+
 def parse_csv(call_round, content, meeting_note=None, user=None):
     """The rows of an imported ranking, validated; nothing is saved here.
 
-    Proposals are looked up among those ``user`` reads, when given."""
+    Proposals are looked up among those ``user`` reads, when given. Text the
+    CSV reader cannot read is refused with a ``file`` error."""
     reader = csv.DictReader(io.StringIO(content))
+    try:
+        return _parse_rows(call_round, reader, meeting_note, user)
+    except csv.Error:
+        # DictReader updates its own line_num only after a row reads cleanly.
+        raise unreadable_csv(reader.reader)
+
+
+def _parse_rows(call_round, reader, meeting_note, user):
     if not reader.fieldnames or "rank" not in reader.fieldnames:
         raise exceptions.ValidationError(
             {"file": _("The file needs a header row with a rank column.")}
@@ -744,7 +768,10 @@ def parse_csv(call_round, content, meeting_note=None, user=None):
                     % {"max": max_rows}
                 }
             )
-        if not any((value or "").strip() for value in row.values() if value):
+        # Cells beyond the header are collected by the reader under the
+        # ``None`` key, as a list; they belong to no column and are ignored.
+        row.pop(None, None)
+        if not any((value or "").strip() for value in row.values()):
             continue
         raw_rank = (row.get("rank") or "").strip()
         if not raw_rank:
