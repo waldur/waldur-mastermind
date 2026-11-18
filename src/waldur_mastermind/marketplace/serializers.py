@@ -152,6 +152,8 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     ResourceStatesType,
     RobotAccountStates,
+    S3BrowserFlavors,
+    S3VersioningStatuses,
     ServiceAccountState,
     ServiceAccountStatesType,
     SpendingLimitPeriods,
@@ -1172,6 +1174,23 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         "only — profiles are shown and the selection is recorded on the "
         "resource, but the agent does not touch SLURM QoS. The agent config "
         "may override this per deployment.",
+    )
+    enable_s3_browser = serializers.BooleanField(
+        required=False,
+        help_text="Lets consumers browse, download from and manage the buckets "
+        "of an S3 resource in HomePort, through one of its API keys. "
+        "Mastermind signs the S3 calls itself, so it must reach the resource's "
+        "s3_endpoint, and staff must list that host in "
+        "S3_BROWSER_ALLOWED_ENDPOINTS.",
+    )
+    s3_browser_flavor = serializers.ChoiceField(
+        choices=S3BrowserFlavors.CHOICES,
+        required=False,
+        help_text="The kind of S3 gateway behind the resources, which decides "
+        "what the bucket browser reads and shows: bucket sizes only on Ceph, "
+        "and on Garage none of the versioning, ACL, policy, lock, encryption or "
+        "tag details it does not implement. 'generic' (the default) asks for "
+        "every detail and hides those the gateway refuses.",
     )
     enable_api_key_provisioning = serializers.BooleanField(
         required=False,
@@ -20372,3 +20391,314 @@ class MaintenanceReservationImportResultSerializer(serializers.Serializer):
     updated = serializers.ListField(child=serializers.CharField())
     unchanged = serializers.ListField(child=serializers.CharField())
     skipped = serializers.ListField(child=serializers.CharField())
+
+
+# --- S3 bucket browser ------------------------------------------------------
+
+
+class S3QuotaLimitSerializer(serializers.Serializer):
+    max_size_bytes = serializers.IntegerField(allow_null=True)
+    max_objects = serializers.IntegerField(allow_null=True)
+
+
+class S3QuotasSerializer(serializers.Serializer):
+    scope = serializers.ChoiceField(
+        choices=["account", "user"],
+        help_text="What the total limit applies to: the RGW account (account "
+        "mode) or the S3 user.",
+    )
+    total = S3QuotaLimitSerializer(
+        allow_null=True, help_text="Limit across all buckets; null when unlimited."
+    )
+    per_bucket = S3QuotaLimitSerializer(
+        allow_null=True, help_text="Limit on each bucket; null when unlimited."
+    )
+
+
+class S3BrowserCapabilitiesSerializer(serializers.Serializer):
+    flavor = serializers.ChoiceField(choices=S3BrowserFlavors.CHOICES)
+    bucket_stats = serializers.BooleanField(
+        help_text="Buckets carry an object count and bytes used."
+    )
+    bucket_parts = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Bucket details the gateway implements; others are always null.",
+    )
+    object_parts = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Object details (acl, tags, versions) the gateway implements.",
+    )
+
+
+class S3BrowserInfoSerializer(serializers.Serializer):
+    endpoint = serializers.CharField()
+    region = serializers.CharField()
+    access_key = serializers.CharField(
+        help_text="The key's access key id, for client instructions; never the secret."
+    )
+    max_upload_size = serializers.IntegerField(
+        help_text="Largest file, in bytes, that upload accepts; larger ones need an S3 client."
+    )
+    quotas = S3QuotasSerializer(
+        help_text="Quotas as the provider's site agent last published them."
+    )
+    capabilities = S3BrowserCapabilitiesSerializer(
+        help_text="What the offering's S3 flavor lets the browser show."
+    )
+
+
+class S3BucketSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    created = serializers.DateTimeField(allow_null=True)
+    objects = serializers.IntegerField(
+        allow_null=True, help_text="Null when the gateway reports no statistics."
+    )
+    size_bytes = serializers.IntegerField(
+        allow_null=True, help_text="Null when the gateway reports no statistics."
+    )
+    versioning = serializers.ChoiceField(
+        choices=S3VersioningStatuses.CHOICES, allow_null=True
+    )
+    is_public = serializers.BooleanField(
+        allow_null=True,
+        help_text="Readable by anyone through an ACL grant or a public policy; "
+        "null when the gateway would not say.",
+    )
+
+
+class S3BucketDetailsQuerySerializer(serializers.Serializer):
+    bucket = serializers.CharField(max_length=255)
+
+
+class S3VersioningSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=S3VersioningStatuses.CHOICES)
+    mfa_delete = serializers.BooleanField()
+
+
+class S3ObjectLockSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField()
+    mode = serializers.CharField(allow_blank=True)
+    days = serializers.IntegerField(allow_null=True)
+    years = serializers.IntegerField(allow_null=True)
+
+
+class S3GrantSerializer(serializers.Serializer):
+    type = serializers.CharField(allow_blank=True)
+    grantee = serializers.CharField(allow_blank=True)
+    display_name = serializers.CharField(allow_blank=True)
+    group = serializers.ChoiceField(
+        choices=["all_users", "authenticated_users"],
+        allow_null=True,
+        help_text="Set when the grant is to a public group.",
+    )
+    permission = serializers.CharField(allow_blank=True)
+
+
+class S3AclSerializer(serializers.Serializer):
+    owner = serializers.CharField(allow_blank=True)
+    grants = S3GrantSerializer(many=True)
+
+
+class S3PublicAccessBlockSerializer(serializers.Serializer):
+    block_public_acls = serializers.BooleanField()
+    ignore_public_acls = serializers.BooleanField()
+    block_public_policy = serializers.BooleanField()
+    restrict_public_buckets = serializers.BooleanField()
+
+
+class S3LifecycleRuleSerializer(serializers.Serializer):
+    id = serializers.CharField(allow_blank=True)
+    enabled = serializers.BooleanField()
+    prefix = serializers.CharField(allow_blank=True)
+    expiration_days = serializers.IntegerField(allow_null=True)
+    noncurrent_expiration_days = serializers.IntegerField(allow_null=True)
+    abort_multipart_days = serializers.IntegerField(allow_null=True)
+    transitions = serializers.IntegerField()
+
+
+class S3CorsRuleSerializer(serializers.Serializer):
+    allowed_origins = serializers.ListField(child=serializers.CharField())
+    allowed_methods = serializers.ListField(child=serializers.CharField())
+
+
+class S3TagSerializer(serializers.Serializer):
+    key = serializers.CharField(allow_blank=True)
+    value = serializers.CharField(allow_blank=True)
+
+
+class S3BucketDetailsSerializer(serializers.Serializer):
+    """A bucket's configuration as its own key reads it. A part that is null
+    is not configured, unless it is listed in ``unavailable``."""
+
+    bucket = serializers.CharField()
+    objects = serializers.IntegerField(allow_null=True)
+    size_bytes = serializers.IntegerField(allow_null=True)
+    location = serializers.CharField(allow_null=True, allow_blank=True)
+    versioning = S3VersioningSerializer(allow_null=True)
+    object_lock = S3ObjectLockSerializer(allow_null=True)
+    acl = S3AclSerializer(allow_null=True)
+    policy = serializers.CharField(
+        allow_null=True, allow_blank=True, help_text="The bucket policy as JSON."
+    )
+    policy_public = serializers.BooleanField(allow_null=True)
+    public_access_block = S3PublicAccessBlockSerializer(allow_null=True)
+    lifecycle_rules = S3LifecycleRuleSerializer(many=True, allow_null=True)
+    encryption = serializers.CharField(
+        allow_null=True,
+        allow_blank=True,
+        help_text="Default server-side encryption algorithm.",
+    )
+    cors_rules = S3CorsRuleSerializer(many=True, allow_null=True)
+    tags = S3TagSerializer(many=True, allow_null=True)
+    public_acl_groups = serializers.ListField(child=serializers.CharField())
+    is_public = serializers.BooleanField(
+        help_text="Readable by anyone: through an ACL grant to a public group, "
+        "or a policy the gateway reports as public."
+    )
+    unavailable = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Parts the gateway refused or does not implement.",
+    )
+
+
+class S3ObjectSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    size = serializers.IntegerField()
+    modified = serializers.DateTimeField(allow_null=True)
+    etag = serializers.CharField(allow_blank=True)
+    storage_class = serializers.CharField()
+
+
+class S3ObjectListQuerySerializer(serializers.Serializer):
+    bucket = serializers.CharField()
+    prefix = serializers.CharField(
+        required=False, allow_blank=True, default="", trim_whitespace=False
+    )
+    continuation_token = serializers.CharField(
+        required=False, allow_blank=True, default="", trim_whitespace=False
+    )
+    page_size = serializers.IntegerField(
+        required=False, min_value=1, max_value=1000, default=200
+    )
+
+
+class S3ObjectListSerializer(serializers.Serializer):
+    bucket = serializers.CharField()
+    prefix = serializers.CharField(allow_blank=True)
+    folders = serializers.ListField(child=serializers.CharField())
+    objects = S3ObjectSerializer(many=True)
+    next_continuation_token = serializers.CharField(allow_blank=True)
+    is_truncated = serializers.BooleanField()
+
+
+class S3ObjectDetailsQuerySerializer(serializers.Serializer):
+    bucket = serializers.CharField(max_length=255)
+    # Keys are exact: S3 allows leading and trailing spaces.
+    key = serializers.CharField(max_length=1024, trim_whitespace=False)
+
+
+class S3MetadataEntrySerializer(serializers.Serializer):
+    key = serializers.CharField(allow_blank=True)
+    value = serializers.CharField(allow_blank=True)
+
+
+class S3ObjectDetailsSerializer(serializers.Serializer):
+    """One object as its key reads it. A part listed in ``unavailable`` was
+    refused by the gateway; the rest still answers."""
+
+    bucket = serializers.CharField()
+    key = serializers.CharField()
+    size = serializers.IntegerField()
+    modified = serializers.DateTimeField(allow_null=True)
+    etag = serializers.CharField(allow_blank=True)
+    multipart_parts = serializers.IntegerField(
+        allow_null=True, help_text="Part count when uploaded in parts."
+    )
+    content_type = serializers.CharField(allow_blank=True)
+    content_encoding = serializers.CharField(allow_blank=True)
+    content_disposition = serializers.CharField(allow_blank=True)
+    cache_control = serializers.CharField(allow_blank=True)
+    storage_class = serializers.CharField()
+    version_id = serializers.CharField(allow_blank=True)
+    encryption = serializers.CharField(
+        allow_blank=True, help_text="Server-side encryption algorithm."
+    )
+    metadata = S3MetadataEntrySerializer(
+        many=True, help_text="User metadata (x-amz-meta-*)."
+    )
+    lock_mode = serializers.CharField(allow_blank=True)
+    retain_until = serializers.DateTimeField(allow_null=True)
+    legal_hold = serializers.BooleanField()
+    acl = S3AclSerializer(allow_null=True)
+    is_public = serializers.BooleanField(allow_null=True)
+    tags = S3TagSerializer(many=True, allow_null=True)
+    versions = serializers.IntegerField(allow_null=True)
+    delete_markers = serializers.IntegerField(allow_null=True)
+    versions_truncated = serializers.BooleanField(
+        help_text="More versions exist than were counted."
+    )
+    unavailable = serializers.ListField(child=serializers.CharField())
+
+
+class S3BucketRequestSerializer(serializers.Serializer):
+    bucket = serializers.CharField(max_length=255)
+
+
+class S3ObjectRequestSerializer(serializers.Serializer):
+    bucket = serializers.CharField(max_length=255)
+    # Keys are exact: S3 allows leading and trailing spaces.
+    key = serializers.CharField(max_length=1024, trim_whitespace=False)
+
+
+class S3DownloadUrlSerializer(serializers.Serializer):
+    url = serializers.URLField()
+    expires_in = serializers.IntegerField()
+    size = serializers.IntegerField()
+
+
+class S3DeleteObjectsRequestSerializer(serializers.Serializer):
+    bucket = serializers.CharField(max_length=255)
+    keys = serializers.ListField(
+        child=serializers.CharField(max_length=1024, trim_whitespace=False),
+        required=False,
+        max_length=10000,
+        help_text="Objects to delete. Give either keys or prefix.",
+    )
+    prefix = serializers.CharField(
+        max_length=1024,
+        required=False,
+        trim_whitespace=False,
+        help_text="Delete everything under this prefix, up to 10000 objects per call.",
+    )
+
+    def validate(self, attrs):
+        if bool(attrs.get("keys")) == bool(attrs.get("prefix")):
+            raise serializers.ValidationError(_("Give either keys or prefix."))
+        return attrs
+
+
+class S3DeleteErrorSerializer(serializers.Serializer):
+    key = serializers.CharField(allow_null=True)
+    code = serializers.CharField(allow_null=True)
+    detail = serializers.CharField(allow_null=True)
+
+
+class S3DeleteObjectsResultSerializer(serializers.Serializer):
+    deleted = serializers.IntegerField()
+    errors = S3DeleteErrorSerializer(many=True)
+    remaining = serializers.BooleanField(
+        help_text="More objects remain under the prefix; repeat the request."
+    )
+
+
+class S3UploadRequestSerializer(serializers.Serializer):
+    bucket = serializers.CharField(max_length=255)
+    # Keys are exact: S3 allows leading and trailing spaces.
+    key = serializers.CharField(max_length=1024, trim_whitespace=False)
+    file = serializers.FileField()
+    overwrite = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Replace a file of the same name. Without it, an existing "
+        "file is refused with 409 ObjectExists.",
+    )

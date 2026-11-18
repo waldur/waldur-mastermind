@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = "==3.13.*"
 
 [[package]]
@@ -3351,6 +3351,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "celery" },
     { name = "cryptography" },
+    { name = "defusedxml" },
     { name = "django" },
     { name = "django-auth-ldap" },
     { name = "django-axes" },
@@ -3449,6 +3450,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },
     { name = "celery", specifier = "==5.6.3" },
     { name = "cryptography", specifier = "==50.0.0" },
+    { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "django", specifier = ">=6.0.4,<7.0" },
     { name = "django-auth-ldap", specifier = ">=5.2.0,<6.0.0" },
     { name = "django-axes", specifier = ">=8.0.0,<9.0.0" },

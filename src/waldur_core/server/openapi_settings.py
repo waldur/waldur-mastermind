@@ -35,6 +35,8 @@ from waldur_mastermind.marketplace.enums import (
     ResourceApiKeyStates,
     ResourceStates,
     RobotAccountStates,
+    S3BrowserFlavors,
+    S3VersioningStatuses,
     ServiceAccountState,
     SpendingLimitPeriods,
     SwitchBillingModes,
@@ -110,6 +112,10 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
+        # A bucket's versioning, on the bucket row and in its details.
+        "S3VersioningStatusEnum": S3VersioningStatuses.CHOICES,
+        # On the offering's plugin options and in the browser's capabilities.
+        "S3BrowserFlavorEnum": S3BrowserFlavors.CHOICES,
         "MetricKindEnum": metrics_enums.MetricKinds.CHOICES,
         # A reviewer's pool invitation, on the pool entry and on a suggestion.
         "InvitationStatusEnum": ReviewerPoolInvitationStatuses.CHOICES,

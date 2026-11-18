@@ -1104,6 +1104,21 @@ CONSTANCE_CONFIG = {
         False,
         "Enable SCIM entitlement synchronization to external identity provider.",
     ),
+    "S3_BROWSER_ALLOWED_ENDPOINTS": (
+        "",
+        "Hosts the S3 bucket browser may contact, one per line or comma "
+        "separated, each optionally with :port. The endpoint comes from what a "
+        "provider's site agent publishes, so nothing is contacted unless listed.",
+    ),
+    "S3_BROWSER_VERIFY_TLS": (
+        True,
+        "Verify the TLS certificate of S3 gateways the bucket browser contacts.",
+    ),
+    "S3_BROWSER_MAX_UPLOAD_SIZE_MB": (
+        50,
+        "Largest file the S3 bucket browser uploads through Waldur, in MB. Larger "
+        "files are left to S3 clients, whose instructions the browser shows.",
+    ),
     "SCIM_API_URL": ("", "Base URL of the SCIM API service."),
     "SCIM_API_KEY": ("", "SCIM API key for X-API-Key header.", "secret_field"),
     "SCIM_URN_NAMESPACE": ("", "URN namespace for SCIM entitlements."),
@@ -2354,6 +2369,11 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Publication API settings": (
         "SEMANTIC_SCHOLAR_API_KEY",
         "CROSSREF_MAILTO",
+    ),
+    "S3 bucket browser": (
+        "S3_BROWSER_ALLOWED_ENDPOINTS",
+        "S3_BROWSER_VERIFY_TLS",
+        "S3_BROWSER_MAX_UPLOAD_SIZE_MB",
     ),
     "Table settings": ("USER_TABLE_COLUMNS",),
     "Localization": ("LANGUAGE_CHOICES",),
