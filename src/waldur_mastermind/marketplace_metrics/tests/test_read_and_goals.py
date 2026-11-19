@@ -239,6 +239,174 @@ class MetricBreakdownTest(Scenario):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+class MultiAttributeBreakdownTest(Scenario):
+    """Core hours per software module, build and node CPU, over two resources."""
+
+    def setUp(self):
+        super().setUp()
+        self.core_hours = factories.OfferingMetricFactory(
+            offering=self.offering,
+            definition=factories.MetricDefinitionFactory(
+                key="software.core_hours", attribute_keys=["module", "build", "cpu"]
+            ),
+        )
+        first, second = self.resources
+        for resource, module, build, cpu, hours in (
+            (first, "gromacs", "generic", "zen4", 10),
+            (first, "gromacs", "generic", "icelake", 5),
+            (second, "gromacs", "generic", "zen4", 7),
+            (second, "gromacs", "avx512", "icelake", 3),
+            (second, "lammps", "generic", "zen4", 2),
+        ):
+            attributes = {"module": module, "build": build, "cpu": cpu}
+            self.add(self.core_hours, resource, attributes, hours, minutes=5)
+        rollups.roll_up()
+
+    def breakdown(self, group_by, **params):
+        self.client.force_authenticate(self.fixture.member)
+        params.setdefault("project_uuid", self.fixture.project.uuid.hex)
+        return self.client.get(
+            "/api/marketplace-metric-breakdown/",
+            {
+                "offering_metric_uuid": self.core_hours.uuid.hex,
+                "group_by": group_by,
+                "start": (self.now - datetime.timedelta(days=1)).isoformat(),
+                **params,
+            },
+        )
+
+    def test_one_item_per_combination_with_a_map_value(self):
+        response = self.breakdown("module,build")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            sorted(
+                (item["value"]["module"], item["value"]["build"], item["figure"])
+                for item in response.data
+            ),
+            [
+                ("gromacs", "avx512", 3),
+                ("gromacs", "generic", 22),
+                ("lammps", "generic", 2),
+            ],
+        )
+        self.assertTrue(
+            all(set(item["value"]) == {"module", "build"} for item in response.data)
+        )
+
+    def test_three_attributes_tell_a_build_on_new_cpus_apart(self):
+        response = self.breakdown("module,build,cpu")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        figures = {
+            (item["value"]["module"], item["value"]["build"], item["value"]["cpu"]): (
+                item["figure"]
+            )
+            for item in response.data
+        }
+        self.assertEqual(
+            figures,
+            {
+                ("gromacs", "generic", "zen4"): 17,
+                ("gromacs", "generic", "icelake"): 5,
+                ("gromacs", "avx512", "icelake"): 3,
+                ("lammps", "generic", "zen4"): 2,
+            },
+        )
+
+    def test_a_gauge_combination_counts_every_resource(self):
+        jobs = factories.OfferingMetricFactory(
+            offering=self.offering,
+            definition=factories.MetricDefinitionFactory(
+                key="software.running_jobs",
+                kind=enums.MetricKinds.GAUGE,
+                attribute_keys=["module", "build"],
+            ),
+        )
+        attributes = {"module": "gromacs", "build": "generic"}
+        # The two resources report in different hours.
+        self.add(jobs, self.resources[0], attributes, 4, minutes=5)
+        self.add(jobs, self.resources[1], attributes, 6, hours=3)
+        rollups.roll_up()
+        self.client.force_authenticate(self.fixture.member)
+
+        response = self.client.get(
+            "/api/marketplace-metric-breakdown/",
+            {
+                "offering_metric_uuid": jobs.uuid.hex,
+                "project_uuid": self.fixture.project.uuid.hex,
+                "group_by": "module,build",
+                "start": (self.now - datetime.timedelta(days=1)).isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            [(item["value"], item["figure"]) for item in response.data],
+            [(attributes, 10)],
+        )
+
+    def test_a_series_without_an_attribute_counts_under_none(self):
+        self.add(self.core_hours, self.resources[0], {"module": "vasp"}, 9, minutes=5)
+        rollups.roll_up()
+
+        response = self.breakdown("module,build")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIn(
+            ({"module": "vasp", "build": None}, 9),
+            [(item["value"], item["figure"]) for item in response.data],
+        )
+
+    def test_a_resource_figure_breaks_down_by_several_attributes(self):
+        response = self.breakdown(
+            "module,cpu",
+            project_uuid="",
+            resource_uuid=self.resources[1].uuid.hex,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        figures = {
+            (item["value"]["module"], item["value"]["cpu"]): item["figure"]
+            for item in response.data
+        }
+        self.assertEqual(
+            figures,
+            {("gromacs", "zen4"): 7, ("gromacs", "icelake"): 3, ("lammps", "zen4"): 2},
+        )
+
+    def test_one_attribute_keeps_a_scalar_value(self):
+        response = self.breakdown("module")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        figures = {item["value"]: item["figure"] for item in response.data}
+        self.assertEqual(figures, {"gromacs": 25, "lammps": 2})
+
+    def test_an_undeclared_attribute_in_the_list_is_refused(self):
+        response = self.breakdown("module,course")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("'course'", str(response.data["group_by"]))
+
+    def test_a_repeated_attribute_is_refused(self):
+        response = self.breakdown("module,build,module")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("group_by", response.data)
+
+    def test_an_empty_entry_in_the_list_is_refused(self):
+        response = self.breakdown("module,")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("group_by", response.data)
+
+    def test_resource_does_not_combine_with_attributes(self):
+        response = self.breakdown("resource,module")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("group_by", response.data)
+
+
 class MetricGoalTest(Scenario):
     def create(self, user, **payload):
         self.client.force_authenticate(user)

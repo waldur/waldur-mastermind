@@ -400,7 +400,11 @@ class ResourceMetricSerializer(serializers.Serializer):
 class MetricBreakdownItemSerializer(serializers.Serializer):
     value = serializers.JSONField(
         allow_null=True,
-        help_text="The attribute's value, or the resource's name when broken down by resource.",
+        help_text=(
+            "The attribute's value; a map of each attribute to its value when "
+            "broken down by several; or the resource's name when broken down "
+            "by resource."
+        ),
     )
     figure = serializers.FloatField(allow_null=True)
     resource_uuid = serializers.UUIDField(allow_null=True)

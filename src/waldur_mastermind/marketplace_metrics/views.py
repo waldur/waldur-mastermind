@@ -664,7 +664,7 @@ class ProjectMetricsView(views.APIView):
 
 
 class MetricBreakdownView(views.APIView):
-    """A figure for a metric, per value of one of its attributes or per resource.
+    """A figure for a metric, per value of one or more of its attributes or per resource.
 
     The figure is a project's or, with resource_uuid, one resource's.
     """
@@ -681,7 +681,7 @@ class MetricBreakdownView(views.APIView):
     }
 
     @extend_schema(
-        summary="Break a metric figure down by an attribute or by resource",
+        summary="Break a metric figure down by attributes or by resource",
         parameters=[
             OpenApiParameter(
                 "offering_metric_uuid",
@@ -708,8 +708,10 @@ class MetricBreakdownView(views.APIView):
                 str,
                 required=True,
                 description=(
-                    "An attribute the metric declares, or 'resource' to break a "
-                    "project's figure down by its resources."
+                    "An attribute the metric declares, several of them "
+                    "comma-separated to break the figure down by their "
+                    "combinations, or 'resource' to break a project's figure "
+                    "down by its resources."
                 ),
             ),
             OpenApiParameter("start", OpenApiTypes.DATETIME, required=True),
@@ -747,8 +749,21 @@ class MetricBreakdownView(views.APIView):
                 raise exceptions.NotFound()
         if offering_metric is None:
             raise exceptions.NotFound()
-        group_by = params.get("group_by")
-        if group_by == query.GROUP_BY_RESOURCE:
+        group_by = (params.get("group_by") or "").split(",")
+        if len(set(group_by)) != len(group_by):
+            raise exceptions.ValidationError(
+                {"group_by": _("Each attribute can be listed only once.")}
+            )
+        if query.GROUP_BY_RESOURCE in group_by:
+            if len(group_by) > 1:
+                raise exceptions.ValidationError(
+                    {
+                        "group_by": _(
+                            "A figure broken down by resource cannot also be "
+                            "broken down by attributes."
+                        )
+                    }
+                )
             if resource is not None:
                 raise exceptions.ValidationError(
                     {
@@ -757,10 +772,16 @@ class MetricBreakdownView(views.APIView):
                         )
                     }
                 )
-        elif group_by not in (offering_metric.definition.attribute_keys or []):
-            raise exceptions.ValidationError(
-                {"group_by": _("The metric declares no such attribute.")}
-            )
+        else:
+            declared = set(offering_metric.definition.attribute_keys or [])
+            undeclared = [key for key in group_by if key not in declared]
+            if undeclared:
+                raise exceptions.ValidationError(
+                    {
+                        "group_by": _("The metric declares no attribute %s.")
+                        % ", ".join(repr(key) for key in undeclared)
+                    }
+                )
         window = serializers.MetricSeriesQuerySerializer(
             data={
                 "offering_metric_uuid": offering_metric.uuid.hex,

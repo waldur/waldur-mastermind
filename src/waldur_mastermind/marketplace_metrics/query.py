@@ -358,13 +358,19 @@ def visible_resource(user, uuid):
 
 
 def breakdown(user, offering_metric, group_by, start, end, project=None, resource=None):
-    """A figure for a period, per value of one attribute or per resource.
+    """A figure for a period, per value of some attributes or per resource.
 
-    The figure is a project's, or one resource's. Each value's figure is
+    ``group_by`` lists the attributes, or is ``[GROUP_BY_RESOURCE]``. With one
+    attribute an item's value is that attribute's value; with several it is a
+    map of each attribute to its value, one item per combination the series
+    report. A series that lacks an attribute counts under ``None`` for it.
+
+    The figure is a project's, or one resource's. Each group's figure is
     computed like the whole: every series' total or latest level first, then
     combined. Taking the newest bucket of already combined series instead
     would drop the series that did not report in that bucket.
     """
+    by_resource = list(group_by) == [GROUP_BY_RESOURCE]
     series = visible_series(user, offering_metric)
     if resource is not None:
         series = series.filter(resource=resource)
@@ -375,19 +381,23 @@ def breakdown(user, offering_metric, group_by, start, end, project=None, resourc
     for series_id, attributes, resource_uuid, resource_name in series.values_list(
         "id", "attributes", "resource__uuid", "resource__name"
     ):
-        if group_by == GROUP_BY_RESOURCE:
+        if by_resource:
             names[resource_uuid] = resource_name
             groups[resource_uuid].append(series_id)
         else:
-            groups[attributes.get(group_by)].append(series_id)
+            groups[tuple(attributes.get(key) for key in group_by)].append(series_id)
     result = []
     for value, ids in groups.items():
         item = {"figure": period_figure(offering_metric, ids, start, end)}
-        if group_by == GROUP_BY_RESOURCE:
+        if by_resource:
             item.update(
                 value=names[value], resource_uuid=value, resource_name=names[value]
             )
         else:
+            if len(group_by) == 1:
+                value = value[0]
+            else:
+                value = dict(zip(group_by, value))
             item.update(value=value, resource_uuid=None, resource_name=None)
         result.append(item)
     result.sort(key=lambda item: -(item["figure"] or 0))
