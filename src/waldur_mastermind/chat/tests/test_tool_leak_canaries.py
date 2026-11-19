@@ -41,6 +41,7 @@ from waldur_mastermind.proposal.tests.test_provider_scope import (
 EXEMPT_TOOLS = {
     ToolName.ASK_USER: "asks the user a question; reads no data",
     ToolName.SEARCH_TOOLS: "returns tool schemas; reads no data",
+    ToolName.SEARCH_DOCS: "searches the portal documentation; reads no data",
     ToolName.CREATE_VM: "provisions a VM; reads no proposal data",
     ToolName.PLAN_VM: "plans a VM order; reads no proposal data",
     ToolName.LIST_HPC_ALLOCATIONS: "reads the user's own HPC allocations",
@@ -272,6 +273,7 @@ class ChatToolLeakCanaryTest(TwoProviderProposalBase):
             ToolName.LIST_ORDERS: [{}, *project_args],
             ToolName.LIST_INVOICES: [{}, *customer_args],
             ToolName.GET_CUSTOMER_CREDIT_OVERVIEW: [{}, *customer_args],
+            ToolName.CHART_COSTS: [*customer_args, *project_args],
             ToolName.LIST_OVERDRAWN_PROJECTS: [{}],
             ToolName.SEARCH_OFFERINGS: [
                 {"keyword": offering.name}
