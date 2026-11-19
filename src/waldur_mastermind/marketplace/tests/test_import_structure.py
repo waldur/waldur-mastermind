@@ -32,7 +32,7 @@ from waldur_mastermind.invoices.models import (
     ProjectCredit,
 )
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, RobotAccountStates
 from waldur_mastermind.marketplace.models import (
     Category,
     ComponentUsage,
@@ -492,6 +492,120 @@ class ImportStructureCommandTest(TestCase):
         self.assertTrue(offering.shared)
         self.assertFalse(offering.billable)
         self.assertEqual(offering.attributes, {"key": "value"})
+
+    def _import_offering(self, **offering_data):
+        customer = structure_factories.CustomerFactory()
+        category = marketplace_factories.CategoryFactory()
+        offering = {
+            "uuid": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+            "name": "Test Offering",
+            "state": 1,
+            "customer_uuid": str(customer.uuid),
+            "category_uuid": str(category.uuid),
+            "attributes": {},
+            "options": {},
+            "resource_options": {},
+            **offering_data,
+        }
+        self._create_test_json({"offerings": [offering]})
+        self._call_import_command("-i", self.test_file_path)
+        return Offering.objects.get(uuid=offering["uuid"])
+
+    def test_import_site_agent_offering_keeps_agent_configuration(self):
+        agent_configuration = {
+            "membership_sync_backend": "slurm",
+            "backend_settings": {
+                "default_account": "root",
+                "customer_prefix": "c_",
+                "project_prefix": "p_",
+                "allocation_prefix": "a_",
+            },
+        }
+        offering = self._import_offering(
+            type=SITE_AGENT_OFFERING,
+            plugin_options={"service_provider_can_create_offering_user": True},
+            agent_configuration=agent_configuration,
+        )
+        self.assertEqual(offering.agent_configuration, agent_configuration)
+        self.assertEqual(
+            offering.plugin_options, {"service_provider_can_create_offering_user": True}
+        )
+
+    def test_import_site_agent_offering_moves_legacy_plugin_options(self):
+        """A file written before the move, presets included, still works."""
+        offering = self._import_offering(
+            type=SITE_AGENT_OFFERING,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "default_account": "legacy",
+                "hostname": "slurm.example.com",
+            },
+            agent_configuration={"backend_settings": {"default_account": "root"}},
+        )
+        self.assertEqual(
+            offering.plugin_options, {"service_provider_can_create_offering_user": True}
+        )
+        # A value already in the agent configuration wins over the legacy one.
+        self.assertEqual(
+            offering.agent_configuration,
+            {
+                "backend_settings": {
+                    "default_account": "root",
+                    "hostname": "slurm.example.com",
+                }
+            },
+        )
+
+    def test_import_other_offering_type_leaves_plugin_options_alone(self):
+        offering = self._import_offering(
+            type="Test.Type", plugin_options={"hostname": "example.com"}
+        )
+        self.assertEqual(offering.plugin_options, {"hostname": "example.com"})
+        self.assertEqual(offering.agent_configuration, {})
+
+    def test_import_leaves_out_agent_configuration_it_must_not_store(self):
+        cases = {
+            # The column is not nullable.
+            "null": ("Test.Type", None),
+            "other type": ("Test.Type", {"backend_settings": {"x": 1}}),
+            "secret": (
+                SITE_AGENT_OFFERING,
+                {"backend_settings": {"password": "s3cret"}},
+            ),
+            "nested secret": (
+                SITE_AGENT_OFFERING,
+                {"backend_settings": {"ldap": {"bind_password": "s3cret"}}},
+            ),
+            # Checked against the plugin catalogue, as the API checks it.
+            "unknown backend": (
+                SITE_AGENT_OFFERING,
+                {"order_processing_backend": "my-cluster"},
+            ),
+            "unknown key": (SITE_AGENT_OFFERING, {"membership_backend": "slurm"}),
+            "missing required setting": (
+                SITE_AGENT_OFFERING,
+                {"order_processing_backend": "slurm", "backend_settings": {}},
+            ),
+        }
+        for index, (label, (offering_type, agent_configuration)) in enumerate(
+            cases.items()
+        ):
+            with self.subTest(label):
+                offering = self._import_offering(
+                    uuid=f"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee{index}",
+                    type=offering_type,
+                    agent_configuration=agent_configuration,
+                )
+                self.assertEqual(offering.agent_configuration, {})
+
+    def test_import_keeps_a_component_named_like_a_credential(self):
+        agent_configuration = {
+            "backend_components": {"license_key": {"unit_factor_reporting": 1}}
+        }
+        offering = self._import_offering(
+            type=SITE_AGENT_OFFERING, agent_configuration=agent_configuration
+        )
+        self.assertEqual(offering.agent_configuration, agent_configuration)
 
     def test_update_existing_offering_encrypts_secret_options(self):
         """--update must save through the instance so secret_options is encrypted,

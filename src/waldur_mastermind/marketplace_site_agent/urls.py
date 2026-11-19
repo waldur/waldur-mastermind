@@ -38,6 +38,11 @@ urlpatterns = [
         name="marketplace-provider-resource-sync-user-roles",
     ),
     re_path(
+        r"^api/marketplace-site-agent-plugins/$",
+        views.AgentPluginListView.as_view(),
+        name="marketplace-site-agent-plugins",
+    ),
+    re_path(
         r"^api/marketplace-site-agent-stats/$",
         views.AgentStatsViewSet.as_view(),
         name="marketplace-site-agent-stats",

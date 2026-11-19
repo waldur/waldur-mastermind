@@ -2238,10 +2238,14 @@
       "plugin_options": {
         "slurm_periodic_policy_enabled": true,
         "service_provider_can_create_offering_user": true,
-        "hostname": "slurm.research-council.edu",
         "username": "waldur-agent",
-        "default_account": "research",
         "tres_billing_enabled": true
+      },
+      "agent_configuration": {
+        "backend_settings": {
+          "default_account": "research",
+          "hostname": "slurm.research-council.edu"
+        }
       },
       "getting_started": "## Getting Started with SLURM HPC Allocation\n\n### Access\n```bash\nssh username@slurm.research-council.edu\n```\n\n### Check Your Allocation\n```bash\nsacctmgr show user $USER format=User,Account,QOS\nsbalance -u $USER\n```\n\n### Submit a Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=my_job\n#SBATCH --nodes=2\n#SBATCH --ntasks-per-node=48\n#SBATCH --time=24:00:00\n\nsrun ./my_application\n```\n\n### Support\nEmail: hpc-support@research-council.edu"
     },

@@ -13,6 +13,7 @@ from django.utils import timezone
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.tests import factories as invoices_factories
+from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.policy.tests import factories as policy_factories
 
@@ -255,6 +256,22 @@ class ExportStructureCommandTest(TestCase):
         self.assertFalse(exported_offering["billable"])
         self.assertEqual(exported_offering["attributes"], {"key": "value"})
         self.assertEqual(exported_offering["options"], {"option": "value"})
+
+    def test_export_offering_agent_configuration(self):
+        agent_configuration = {
+            "membership_backend": "slurm",
+            "backend_settings": {"default_account": "root"},
+        }
+        marketplace_factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING, agent_configuration=agent_configuration
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertEqual(
+            data["offerings"][0]["agent_configuration"], agent_configuration
+        )
 
     def test_export_roles_with_content_types(self):
         """Test that export captures roles with content type information."""

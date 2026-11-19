@@ -401,6 +401,7 @@ KNOWN_PLAINTEXT_KEYS = {
     "update",
     "pull",
     "terminate",
+    "resource_options_handler",
     "environ",
 }
 

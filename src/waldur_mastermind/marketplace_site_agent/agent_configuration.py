@@ -1,0 +1,632 @@
+"""A site-agent offering's agent configuration, validated against the plugin catalogue.
+
+Waldur holds everything the agent needs except its secrets: which backend fills
+each role, the non-secret ``backend_settings``, and the per-component fields the
+agent reads beyond the offering's own components (``unit_factor_reporting`` and
+plugin-specific ones). The agent configuration file is generated from it, and the
+secrets are added to that file on the agent host.
+
+What a backend accepts comes from the plugin catalogue the site agent exports
+(``waldur_site_export_plugin_catalogue``), vendored as
+``plugin_catalogue/catalogue.json``; refresh it with
+``scripts/update_site_agent_plugin_catalogue.sh``. This module imports nothing
+from ``marketplace`` so that the marketplace serializers can use it.
+"""
+
+from __future__ import annotations
+
+import copy
+import functools
+import json
+import math
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
+
+import jsonschema
+from django.db import transaction
+from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
+
+CATALOGUE_PATH = Path(__file__).parent / "plugin_catalogue" / "catalogue.json"
+SUPPORTED_CATALOGUE_VERSIONS = (1,)
+
+ORDER_PROCESSING = "order_processing"
+MEMBERSHIP_SYNC = "membership_sync"
+REPORTING = "reporting"
+USERNAME_MANAGEMENT = "username_management"
+ROLES = (ORDER_PROCESSING, MEMBERSHIP_SYNC, REPORTING, USERNAME_MANAGEMENT)
+
+# Agent configuration key -> the role it assigns.
+ROLE_FIELDS = {f"{role}_backend": role for role in ROLES}
+
+# Component fields the agent takes from the offering's own components. Setting
+# them in backend_components as well would let the two disagree. Both names of
+# a field are listed: the agent's (accounting_type, label, limit) and the
+# offering component's (billing_type, name, limit_amount), so neither spelling
+# can store a second copy.
+OFFERING_COMPONENT_FIELDS = frozenset(
+    {
+        "type",
+        "name",
+        "billing_type",
+        "limit_amount",
+        "backend_id",
+        "product_code",
+        "measured_unit",
+        "unit_factor",
+        "accounting_type",
+        "label",
+        "limit",
+        "description",
+        "min_value",
+        "max_value",
+        "max_available_limit",
+        "default_limit",
+        "limit_period",
+        "article_code",
+        "is_boolean",
+        "is_prepaid",
+        "min_prepaid_duration",
+        "max_prepaid_duration",
+        "prepaid_duration_step",
+    }
+)
+
+# The site agent plugin the legacy settings below are for.
+SLURM_BACKEND = "slurm"
+
+# Settings the agent configuration generator used to read from plugin_options,
+# where no serializer declares them. They belong in backend_settings.
+LEGACY_PLUGIN_OPTIONS_SETTINGS = (
+    "default_account",
+    "customer_prefix",
+    "project_prefix",
+    "allocation_prefix",
+    "qos_downscaled",
+    "qos_paused",
+    "qos_default",
+    "hostname",
+    "enable_user_homedir_account_creation",
+)
+
+
+@functools.cache
+def load_catalogue() -> dict[str, Any]:
+    with CATALOGUE_PATH.open(encoding="utf-8") as catalogue_file:
+        catalogue = json.load(catalogue_file)
+    if catalogue.get("catalogue_version") not in SUPPORTED_CATALOGUE_VERSIONS:
+        raise ValueError(
+            f"Unsupported site agent plugin catalogue version "
+            f"{catalogue.get('catalogue_version')!r} in {CATALOGUE_PATH}"
+        )
+    return catalogue
+
+
+def get_plugins(role: str | None = None) -> list[dict[str, Any]]:
+    plugins = load_catalogue()["plugins"]
+    if role:
+        plugins = [plugin for plugin in plugins if role in plugin["roles"]]
+    return plugins
+
+
+def get_plugin(name: str) -> dict[str, Any] | None:
+    return next((p for p in load_catalogue()["plugins"] if p["name"] == name), None)
+
+
+# Words that make a setting name look like a credential, matched against its
+# underscore-separated parts; the site agent's guard test uses the same list.
+CREDENTIAL_WORDS = frozenset(
+    {
+        "secret",
+        "password",
+        "passwd",
+        "pwd",
+        "token",
+        "credential",
+        "credentials",
+        "key",
+        "apikey",
+        "private",
+        "pem",
+        "dsn",
+    }
+)
+
+
+def looks_like_credential(name: str) -> bool:
+    return bool(CREDENTIAL_WORDS & set(str(name).lower().split("_")))
+
+
+def _schema_property_names(schema: Any) -> tuple[set[str], set[str]]:
+    """The (secret, non-secret) property names anywhere in a JSON Schema."""
+    secret: set[str] = set()
+    plain: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+        for name, prop in (node.get("properties") or {}).items():
+            (secret if _is_secret(prop) else plain).add(name)
+        for value in node.values():
+            walk(value)
+
+    walk(schema)
+    return secret, plain
+
+
+@functools.cache
+def secret_setting_names() -> frozenset[str]:
+    """The name of every setting a catalogue plugin, or the agent, keeps secret."""
+    catalogue = load_catalogue()
+    names = set(catalogue.get("offering_secret_fields") or [])
+    for plugin in catalogue["plugins"]:
+        for path in plugin.get("secret_settings") or []:
+            leaf = path.split(".")[-1]
+            names.add(leaf[:-2] if leaf.endswith("[]") else leaf)
+        names |= _schema_property_names(plugin.get("settings_schema"))[0]
+    names.discard("*")
+    return frozenset(names)
+
+
+@functools.cache
+def declared_plain_setting_names() -> frozenset[str]:
+    """Settings some catalogue plugin declares as not secret, such as token_url."""
+    plain: set[str] = set()
+    for plugin in load_catalogue()["plugins"]:
+        plain |= _schema_property_names(plugin.get("settings_schema"))[1]
+    return frozenset(plain - secret_setting_names())
+
+
+def find_secret_settings(data: Any, prefix: str = "") -> list[str]:
+    """Dotted paths in data whose key is a secret, or looks like one.
+
+    Matched by name at any depth and through lists, so a secret is caught
+    whatever shape it is sent in: under a block of another backend, inside a
+    list, or under a key no schema declares. A name that looks like a
+    credential is refused unless some plugin declares it as a plain setting.
+    """
+    found: list[str] = []
+    if isinstance(data, list):
+        for index, item in enumerate(data):
+            found.extend(find_secret_settings(item, f"{prefix}[{index}]"))
+        return found
+    if not isinstance(data, dict):
+        return found
+    secrets = secret_setting_names()
+    plain = declared_plain_setting_names()
+    for key, value in data.items():
+        path = f"{prefix}.{key}" if prefix else str(key)
+        if key in secrets or (looks_like_credential(key) and key not in plain):
+            found.append(path)
+            continue
+        found.extend(find_secret_settings(value, path))
+    return found
+
+
+def configuration_secret_paths(configuration: dict[str, Any]) -> list[str]:
+    """The secrets in an agent configuration, as paths from its top.
+
+    Only values are searched: backend_settings, and the fields of each
+    backend_components entry, whose keys are component types, not settings.
+    """
+    found = find_secret_settings(
+        configuration.get("backend_settings") or {}, "backend_settings"
+    )
+    components = configuration.get("backend_components") or {}
+    if isinstance(components, dict):
+        for component_type, fields in components.items():
+            found.extend(
+                find_secret_settings(fields, f"backend_components.{component_type}")
+            )
+    return found
+
+
+def takes_legacy_settings(agent_configuration: dict[str, Any]) -> bool:
+    """Whether the legacy settings belong in this configuration.
+
+    They are SLURM settings, so they do when every backend it names is SLURM,
+    or when it names none: the generator then writes SLURM for every role.
+    """
+    named = {agent_configuration.get(field) for field in ROLE_FIELDS} - {None, ""}
+    return named <= {SLURM_BACKEND}
+
+
+def move_legacy_plugin_options(
+    plugin_options: dict[str, Any], agent_configuration: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Move the legacy SLURM settings out of plugin_options into backend_settings.
+
+    A value already in backend_settings wins. When the configuration uses
+    another backend, the settings are taken out of plugin_options but not
+    moved: that backend's schema would refuse them. Returns new dicts; the
+    inputs are left untouched.
+    """
+    plugin_options = dict(plugin_options or {})
+    agent_configuration = copy.deepcopy(agent_configuration or {})
+    legacy = {
+        key: plugin_options.pop(key)
+        for key in LEGACY_PLUGIN_OPTIONS_SETTINGS
+        if key in plugin_options
+    }
+    if legacy and takes_legacy_settings(agent_configuration):
+        settings = agent_configuration.setdefault("backend_settings", {})
+        for key, value in legacy.items():
+            settings.setdefault(key, value)
+    return plugin_options, agent_configuration
+
+
+def _strip_secrets(schema: dict[str, Any]) -> dict[str, Any]:
+    """Drop the secret properties from a JSON Schema, and from what it requires.
+
+    Secrets are filled in on the agent host, so a configuration held in Waldur is
+    complete without them.
+    """
+    schema = copy.deepcopy(schema)
+
+    def walk(node: object) -> None:
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+        properties = node.get("properties")
+        if isinstance(properties, dict):
+            secret = [name for name, prop in properties.items() if _is_secret(prop)]
+            for name in secret:
+                del properties[name]
+            if secret and isinstance(node.get("required"), list):
+                node["required"] = [n for n in node["required"] if n not in secret]
+        for value in node.values():
+            walk(value)
+
+    walk(schema)
+    return schema
+
+
+def _is_secret(prop: object) -> bool:
+    return isinstance(prop, dict) and prop.get("secret") is True
+
+
+def _schema_errors(schema: dict[str, Any], data: dict[str, Any]) -> dict[str, list]:
+    errors: dict[str, list] = {}
+    validator = jsonschema.Draft202012Validator(schema)
+    for error in validator.iter_errors(data):
+        base = ".".join(str(part) for part in error.absolute_path)
+        if error.validator == "required":
+            # jsonschema reports each missing property as an error of its own,
+            # each carrying the whole required list: name each field once.
+            for name in error.validator_value:
+                if isinstance(error.instance, dict) and name not in error.instance:
+                    field = f"{base}.{name}" if base else name
+                    messages = errors.setdefault(field, [])
+                    if _("This setting is required.") not in messages:
+                        messages.append(_("This setting is required."))
+        elif error.validator == "additionalProperties" and isinstance(
+            error.instance, dict
+        ):
+            allowed = set(error.schema.get("properties", {}))
+            for name in error.instance:
+                if name not in allowed:
+                    field = f"{base}.{name}" if base else name
+                    errors.setdefault(field, []).append(_("Unknown setting."))
+        else:
+            # error.message quotes the rejected value, which may be a secret
+            # sent in the wrong shape; answer with a fixed text instead.
+            errors.setdefault(base or "non_field_errors", []).append(
+                _schema_error_text(error)
+            )
+    return errors
+
+
+def _schema_error_text(error: jsonschema.ValidationError) -> str:
+    if error.validator == "type":
+        expected = error.validator_value
+        if isinstance(expected, list):
+            expected = " or ".join(str(item) for item in expected)
+        return _("Expected %(type)s.") % {"type": expected}
+    if error.validator in ("anyOf", "oneOf", "allOf"):
+        return _("Does not match any allowed form of this setting.")
+    if error.validator in ("enum", "const"):
+        return _("Not an allowed value.")
+    if error.validator in (
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minLength",
+        "maxLength",
+        "minItems",
+        "maxItems",
+    ):
+        return _("Out of the allowed range (%(rule)s %(limit)s).") % {
+            "rule": error.validator,
+            "limit": error.validator_value,
+        }
+    return _("Invalid value.")
+
+
+def _check_shared_data(
+    data: dict[str, Any],
+    schemas: dict[str, dict[str, Any]],
+    any_unchecked_backend: bool,
+) -> dict[str, list]:
+    """Validate data that several backends read, the way the agent does.
+
+    A strict schema (``additionalProperties: false``) is shown only the keys it
+    declares whenever another backend reads the same data. A key no schema
+    declares is refused only when every backend in use has a strict schema: a
+    custom backend, or one with an open schema, may read any key.
+    """
+    errors: dict[str, list] = {}
+    sharing = len(schemas) > 1 or any_unchecked_backend
+    for name, schema in schemas.items():
+        strict = schema.get("additionalProperties") is False
+        subset = data
+        if sharing and strict:
+            declared = set(schema.get("properties", {}))
+            subset = {key: value for key, value in data.items() if key in declared}
+        for field, messages in _schema_errors(schema, subset).items():
+            errors.setdefault(field, []).extend(f"{name}: {m}" for m in messages)
+    if sharing and not any_unchecked_backend and schemas:
+        if all(
+            schema.get("additionalProperties") is False for schema in schemas.values()
+        ):
+            known = set()
+            for schema in schemas.values():
+                known.update(schema.get("properties", {}))
+            for key in data:
+                if key not in known:
+                    errors.setdefault(key, []).append(_("Unknown setting."))
+    return errors
+
+
+class AgentConfigurationSerializer(serializers.Serializer):
+    """The agent side of a site-agent offering, minus its secrets.
+
+    Writing it replaces the whole configuration. ``backend_components`` is keyed
+    by offering component type and holds only what the agent reads beyond the
+    offering's own components.
+    """
+
+    order_processing_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=100
+    )
+    membership_sync_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=100
+    )
+    reporting_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=100
+    )
+    username_management_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=100
+    )
+    custom_backends = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        required=False,
+        help_text=_(
+            "Backends that are not in the plugin catalog, such as a site's own "
+            "plugin. Their settings and components are not validated."
+        ),
+    )
+    backend_settings = serializers.DictField(required=False)
+    backend_components = serializers.DictField(
+        child=serializers.DictField(), required=False
+    )
+
+    def to_internal_value(self, data):
+        # A key the agent would read but this serializer does not declare, such
+        # as a credential sent at the top level, is refused rather than dropped.
+        if isinstance(data, dict):
+            unknown = sorted(set(data) - set(self.fields))
+            if unknown:
+                raise serializers.ValidationError(
+                    {key: [_("Unknown agent configuration key.")] for key in unknown}
+                )
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        errors: dict[str, Any] = {}
+        custom = set(attrs.get("custom_backends") or [])
+        shadowing = sorted(name for name in custom if get_plugin(name) is not None)
+        if shadowing:
+            raise serializers.ValidationError(
+                {
+                    "custom_backends": [
+                        _(
+                            "%(name)s is in the plugin catalog; name it as a "
+                            "backend directly."
+                        )
+                        % {"name": name}
+                        for name in shadowing
+                    ]
+                }
+            )
+        plugins: dict[str, dict[str, Any]] = {}
+        unchecked = False
+
+        for field, role in ROLE_FIELDS.items():
+            name = attrs.get(field)
+            if not name:
+                continue
+            if name in custom:
+                unchecked = True
+                continue
+            plugin = get_plugin(name)
+            if plugin is None:
+                errors[field] = [
+                    _(
+                        "Unknown backend %(name)s. Add it to custom_backends if it "
+                        "is a plugin of your own."
+                    )
+                    % {"name": name}
+                ]
+            elif role not in plugin["roles"]:
+                errors[field] = [
+                    _("Backend %(name)s cannot be used for %(role)s.")
+                    % {"name": name, "role": role.replace("_", " ")}
+                ]
+            else:
+                plugins[name] = plugin
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        settings = attrs.get("backend_settings") or {}
+        settings_errors = self._secret_errors(settings)
+        if not settings_errors:
+            schemas = {
+                name: _strip_secrets(plugin["settings_schema"])
+                for name, plugin in plugins.items()
+                if plugin.get("settings_schema")
+            }
+            open_backend = unchecked or len(schemas) < len(plugins)
+            settings_errors = _check_shared_data(settings, schemas, open_backend)
+        if settings_errors:
+            errors["backend_settings"] = settings_errors
+
+        components = attrs.get("backend_components") or {}
+        component_errors = self._component_errors(components, plugins, unchecked)
+        # The keys of backend_components are component types, not settings: a
+        # component named license_key is not a secret, so only its fields are
+        # searched.
+        for component_type, fields in components.items():
+            for path in find_secret_settings(fields):
+                component_errors.setdefault(component_type, {}).setdefault(
+                    path, []
+                ).append(
+                    _("Secrets stay in the agent configuration file on the agent host.")
+                )
+        if component_errors:
+            errors["backend_components"] = component_errors
+
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+    @staticmethod
+    def _secret_errors(settings: dict[str, Any]) -> dict[str, list]:
+        return {
+            path: [
+                _(
+                    "This is a secret, or is named like one. Keep it in the agent "
+                    "configuration file on the agent host; Waldur does not store it."
+                )
+            ]
+            for path in find_secret_settings(settings)
+        }
+
+    @staticmethod
+    def _component_errors(
+        components: dict[str, dict[str, Any]],
+        plugins: dict[str, dict[str, Any]],
+        unchecked: bool,
+    ) -> dict[str, Any]:
+        errors: dict[str, Any] = {}
+        schemas = {
+            name: plugin["component_schema"]
+            for name, plugin in plugins.items()
+            if plugin.get("component_schema")
+        }
+        # With no backend named there is nothing to check fields against, as
+        # with backend_settings: accept them rather than refuse every one.
+        open_backend = unchecked or not plugins or len(schemas) < len(plugins)
+        for component_type, fields in components.items():
+            component_errors: dict[str, list] = {}
+            for name in fields:
+                if name in OFFERING_COMPONENT_FIELDS:
+                    component_errors[name] = [
+                        _("Set this on the offering component itself.")
+                    ]
+            reporting_factor = fields.get("unit_factor_reporting")
+            if reporting_factor is not None and (
+                isinstance(reporting_factor, bool)
+                or not isinstance(reporting_factor, int | float)
+                or not math.isfinite(reporting_factor)
+                or reporting_factor <= 0
+            ):
+                component_errors["unit_factor_reporting"] = [
+                    _("Must be a positive number.")
+                ]
+            plugin_fields = {
+                key: value
+                for key, value in fields.items()
+                if key not in OFFERING_COMPONENT_FIELDS
+                and key != "unit_factor_reporting"
+            }
+            if plugin_fields:
+                for field, messages in _check_shared_data(
+                    plugin_fields, schemas, open_backend
+                ).items():
+                    component_errors.setdefault(field, []).extend(messages)
+                if not schemas and not open_backend:
+                    for field in plugin_fields:
+                        component_errors.setdefault(field, []).append(
+                            _("Unknown component setting.")
+                        )
+            if component_errors:
+                errors[component_type] = component_errors
+        return errors
+
+
+def follow_component_changes(offering, changes: dict[str, str | None]) -> None:
+    """Keep backend_components in step with the offering's components.
+
+    ``changes`` maps a component type to its new type, or to None when the
+    component is removed, so that the stored configuration never names a
+    component the offering no longer has, which the next save would refuse.
+
+    The configuration is re-read under a row lock rather than taken from the
+    caller's copy, which may predate a concurrent update_integration, and is
+    written once, only when an entry moves.
+    """
+    model = type(offering)
+    with transaction.atomic():
+        configuration = dict(
+            model.objects.select_for_update()
+            .only("agent_configuration")
+            .get(pk=offering.pk)
+            .agent_configuration
+            or {}
+        )
+        components = dict(configuration.get("backend_components") or {})
+        moved = {
+            old_type: components.pop(old_type)
+            for old_type in changes
+            if old_type in components
+        }
+        if moved:
+            for old_type, fields in moved.items():
+                if changes[old_type] is not None:
+                    components[changes[old_type]] = fields
+            if components:
+                configuration["backend_components"] = components
+            else:
+                configuration.pop("backend_components", None)
+            model.objects.filter(pk=offering.pk).update(
+                agent_configuration=configuration
+            )
+    offering.agent_configuration = configuration
+
+
+def validate_component_types(
+    agent_configuration: dict[str, Any], component_types: Iterable[str]
+) -> None:
+    """Refuse backend_components entries for components the offering does not have."""
+    known = set(component_types)
+    unknown = sorted(set(agent_configuration.get("backend_components") or {}) - known)
+    if unknown:
+        raise serializers.ValidationError(
+            {
+                "agent_configuration": {
+                    "backend_components": {
+                        component_type: [_("The offering has no such component.")]
+                        for component_type in unknown
+                    }
+                }
+            }
+        )

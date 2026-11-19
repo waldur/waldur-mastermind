@@ -223,6 +223,9 @@ from waldur_mastermind.marketplace.utils import (
     narrow_terminated_to_usage_window,
     validate_attributes,
 )
+from waldur_mastermind.marketplace_site_agent import (
+    agent_configuration as site_agent_configuration,
+)
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 from waldur_mastermind.promotions import models as promotions_models
 from waldur_mastermind.proposal import managers as proposal_managers
@@ -1407,19 +1410,27 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         return offering_config
 
     def _build_backend_settings(self, offering):
-        """Build backend_settings from offering plugin_options."""
-        plugin_options = offering.plugin_options or {}
+        """Build backend_settings from the offering's agent configuration.
+
+        The settings used to live in plugin_options; an offering written there
+        since the data migration (by an import of an old export, say) is still
+        read from it.
+        """
+        settings = {
+            **(offering.plugin_options or {}),
+            **((offering.agent_configuration or {}).get("backend_settings") or {}),
+        }
 
         return {
-            "default_account": plugin_options.get("default_account", "root"),
-            "customer_prefix": plugin_options.get("customer_prefix", ""),
-            "project_prefix": plugin_options.get("project_prefix", ""),
-            "allocation_prefix": plugin_options.get("allocation_prefix", ""),
-            "qos_downscaled": plugin_options.get("qos_downscaled", "limited"),
-            "qos_paused": plugin_options.get("qos_paused", "paused"),
-            "qos_default": plugin_options.get("qos_default", "normal"),
-            "hostname": plugin_options.get("hostname", "<YOUR_SLURM_HOST>"),
-            "enable_user_homedir_account_creation": plugin_options.get(
+            "default_account": settings.get("default_account", "root"),
+            "customer_prefix": settings.get("customer_prefix", ""),
+            "project_prefix": settings.get("project_prefix", ""),
+            "allocation_prefix": settings.get("allocation_prefix", ""),
+            "qos_downscaled": settings.get("qos_downscaled", "limited"),
+            "qos_paused": settings.get("qos_paused", "paused"),
+            "qos_default": settings.get("qos_default", "normal"),
+            "hostname": settings.get("hostname", "<YOUR_SLURM_HOST>"),
+            "enable_user_homedir_account_creation": settings.get(
                 "enable_user_homedir_account_creation", False
             ),
         }
@@ -5045,6 +5056,9 @@ class ProviderOfferingViewSet(
                             dependents.component_renamed(
                                 offering, original_type, new_type
                             )
+                            site_agent_configuration.follow_component_changes(
+                                offering, {original_type: new_type}
+                            )
 
                             logger.info(
                                 f"Successfully migrated component {original_type} -> {new_type}"
@@ -5229,7 +5243,11 @@ class ProviderOfferingViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        offering_component.delete()
+        with transaction.atomic():
+            site_agent_configuration.follow_component_changes(
+                offering, {offering_component.type: None}
+            )
+            offering_component.delete()
         return Response(status=status.HTTP_200_OK)
 
     remove_offering_component_permissions = [
@@ -6384,6 +6402,16 @@ class ProviderOfferingViewSet(
 
         if params.get("include_plugin_options", True):
             export_data["plugin_options"] = offering.plugin_options
+            if (
+                offering.type == SITE_AGENT_OFFERING
+                and offering.agent_configuration
+                and marketplace_permissions.can_see_secret_options(
+                    self.request, offering
+                )
+            ):
+                # Holds no secrets, as the serializer refuses them, but it is
+                # still shown only to who may see the integration settings.
+                export_data["agent_configuration"] = offering.agent_configuration
 
         if params.get("include_secret_options", False):
             export_data["secret_options"] = offering.secret_options
@@ -6856,17 +6884,36 @@ class ProviderOfferingViewSet(
         # Note: plugin_options, secret_options, and resource_options are exported
         # at the import_data level (sibling to "offering"), not inside offering_data
         # A null JSON section keeps the current value: the columns are not nullable.
-        if (
-            params.get("import_plugin_options", True)
-            and import_data.get("plugin_options") is not None
-        ):
-            offering.plugin_options = import_data["plugin_options"]
+        # Imported options go through the same serializers as create and
+        # update_integration, so an import cannot store what the API refuses.
+        if params.get("import_plugin_options", True):
+            self._import_plugin_options(offering, import_data, params, user, warnings)
 
         if (
             params.get("import_secret_options", False)
             and import_data.get("secret_options") is not None
         ):
-            offering.secret_options = import_data["secret_options"]
+            if offering.pk:
+                self._check_integration_import(offering, {}, user)
+            secret_options = self._validated_import_options(
+                serializers.MergedSecretOptionsSerializer,
+                import_data["secret_options"],
+                "secret_options",
+                warnings,
+            )
+            certificate = secret_options.get("openstack_api_tls_certificate")
+            if certificate:
+                try:
+                    core_validators.validate_x509_certificate(certificate)
+                except DjangoValidationError as e:
+                    raise rf_exceptions.ValidationError(
+                        {
+                            "secret_options": {
+                                "openstack_api_tls_certificate": e.messages
+                            }
+                        }
+                    )
+            offering.secret_options = secret_options
 
         if offering_data.get("attributes") is not None:
             offering.attributes = offering_data["attributes"]
@@ -6879,6 +6926,189 @@ class ProviderOfferingViewSet(
 
         offering.save()
         return offering, created, warnings
+
+    def _import_plugin_options(self, offering, import_data, params, user, warnings):
+        plugin_options = import_data.get("plugin_options")
+        agent_configuration = import_data.get("agent_configuration")
+        # Checked before anything reads them: the legacy settings move below
+        # treats both as mappings.
+        for section, value in (
+            ("plugin_options", plugin_options),
+            ("agent_configuration", agent_configuration),
+        ):
+            if value is not None and not isinstance(value, dict):
+                raise rf_exceptions.ValidationError({section: _("Expected a mapping.")})
+        if offering.pk and (
+            plugin_options is not None or agent_configuration is not None
+        ):
+            self._check_integration_import(offering, plugin_options or {}, user)
+        if agent_configuration is not None and offering.type != SITE_AGENT_OFFERING:
+            warnings.append(
+                _(
+                    "The agent configuration was not imported: %(type)s offerings have none."
+                )
+                % {"type": offering.type}
+            )
+            agent_configuration = None
+        if offering.type == SITE_AGENT_OFFERING and plugin_options is not None:
+            # An export made before the settings moved still carries them here.
+            # With no configuration of its own, the export's legacy settings are
+            # merged into the offering's current one rather than replacing it.
+            base = agent_configuration
+            if base is None:
+                base = offering.agent_configuration if offering.pk else {}
+            legacy = [
+                key
+                for key in site_agent_configuration.LEGACY_PLUGIN_OPTIONS_SETTINGS
+                if key in plugin_options
+            ]
+            plugin_options, moved = site_agent_configuration.move_legacy_plugin_options(
+                plugin_options, base or {}
+            )
+            if moved != (base or {}):
+                agent_configuration = moved
+            if legacy and not site_agent_configuration.takes_legacy_settings(
+                base or {}
+            ):
+                warnings.append(
+                    _(
+                        "SLURM settings were not imported, as the agent "
+                        "configuration uses another backend: %(keys)s"
+                    )
+                    % {"keys": ", ".join(legacy)}
+                )
+
+        if plugin_options is not None:
+            plugin_options = self._validated_import_options(
+                serializers.MergedPluginOptionsSerializer,
+                plugin_options,
+                "plugin_options",
+                warnings,
+            )
+            existing = offering if offering.pk else None
+            # As in update_integration: a staff user's token without the staff
+            # scope acts without staff (#980).
+            if existing and not has_staff_access(self.request):
+                # An import replaces plugin_options as a whole, so leaving a
+                # staff-only option out would clear it; keep the current value.
+                for key in self.STAFF_ONLY_PLUGIN_OPTIONS:
+                    if key in existing.plugin_options and key not in plugin_options:
+                        plugin_options[key] = existing.plugin_options[key]
+            serializers.validate_auto_approve_for_roles_is_staff_only(
+                self.request, existing, plugin_options
+            )
+            serializers.validate_disable_grace_period_is_staff_only(
+                self.request, existing, plugin_options
+            )
+            serializers.validate_expiration_reminders_is_staff_only(
+                self.request, existing, plugin_options
+            )
+            serializers.validate_uses_robot_accounts(existing, plugin_options)
+            serializers.validate_api_key_options(existing, plugin_options)
+            offering.plugin_options = plugin_options
+
+        if agent_configuration is not None:
+            configuration_serializer = (
+                site_agent_configuration.AgentConfigurationSerializer(
+                    data=agent_configuration
+                )
+            )
+            if not configuration_serializer.is_valid():
+                raise rf_exceptions.ValidationError(
+                    {"agent_configuration": configuration_serializer.errors}
+                )
+            # The file's components count only when they are imported with it;
+            # otherwise the configuration could name a component never created.
+            imported_components = (
+                import_data.get("components") or []
+                if params.get("import_components", True)
+                else []
+            )
+            component_types = {
+                component.get("type")
+                for component in imported_components
+                if isinstance(component, dict)
+            }
+            if offering.pk:
+                component_types.update(
+                    offering.components.values_list("type", flat=True)
+                )
+            serializers.validate_agent_configuration_scope(
+                offering.type, configuration_serializer.validated_data, component_types
+            )
+            offering.agent_configuration = configuration_serializer.validated_data
+
+    # Plugin options only staff may set or change, also by import.
+    STAFF_ONLY_PLUGIN_OPTIONS = (
+        "disabled_resource_actions",
+        "auto_approve_for_roles",
+        "disable_grace_period",
+        "resource_expiration_reminders",
+    )
+
+    def _check_integration_import(self, offering, plugin_options, user):
+        """Hold an overwriting import to what update_integration allows.
+
+        Creating an offering only needs CREATE_OFFERING, but replacing the
+        options of an existing one is an integration change.
+        """
+        if not marketplace_permissions.can_see_secret_options(self.request, offering):
+            raise rf_exceptions.PermissionDenied(
+                _(
+                    "You do not have permission to change the integration "
+                    "settings of this offering."
+                )
+            )
+        current_disabled = offering.plugin_options.get("disabled_resource_actions", [])
+        if (
+            not has_staff_access(self.request)
+            and "disabled_resource_actions" in plugin_options
+            and plugin_options["disabled_resource_actions"] != current_disabled
+        ):
+            raise rf_exceptions.ValidationError(
+                {"plugin_options": _("Only staff can change list of disabled actions.")}
+            )
+        if "account_scope" in plugin_options and plugin_options[
+            "account_scope"
+        ] != offering.plugin_options.get("account_scope", ""):
+            # Switching account scope may have to back existing accounts with
+            # the provider's; update_integration does that, an import does not.
+            raise rf_exceptions.ValidationError(
+                {
+                    "plugin_options": _(
+                        "Change account_scope with update_integration, not by "
+                        "importing over the offering."
+                    )
+                }
+            )
+
+    @staticmethod
+    def _validated_import_options(serializer_class, options, section, warnings):
+        """Validate one imported options section, keeping only the keys it names.
+
+        A key no serializer declares is dropped, as an update through the API
+        would drop it, and reported as a warning.
+        """
+        if not isinstance(options, dict):
+            raise rf_exceptions.ValidationError({section: _("Expected a mapping.")})
+        serializer = serializer_class(data=options)
+        if not serializer.is_valid():
+            raise rf_exceptions.ValidationError({section: serializer.errors})
+        dropped = sorted(set(options) - set(serializer.fields))
+        if dropped:
+            warnings.append(
+                _("Unknown %(section)s were not imported: %(keys)s")
+                % {"section": section.replace("_", " "), "keys": ", ".join(dropped)}
+            )
+        validated = {}
+        for key, value in serializer.validated_data.items():
+            # Unnamed keys would arrive as the serializer's defaults.
+            if key not in options:
+                continue
+            if isinstance(value, datetime.date | datetime.datetime):
+                value = value.isoformat()
+            validated[key] = value
+        return validated
 
     def _import_offering_components(self, offering, components_data):
         """Import offering components."""

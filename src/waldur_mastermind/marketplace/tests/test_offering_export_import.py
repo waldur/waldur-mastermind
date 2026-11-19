@@ -855,7 +855,7 @@ class OfferingExportImportTestCase(test.APITestCase):
                 "update": "update_script_content",
                 "environ": [{"name": "API_KEY", "value": "secret123"}],
             },
-            "plugin_options": {"plugin_key": "plugin_value"},
+            "plugin_options": {"auto_approve_remote_orders": True},
             "resource_options": {"resource_key": "resource_value"},
         }
 
@@ -885,7 +885,7 @@ class OfferingExportImportTestCase(test.APITestCase):
                 "environ": [{"name": "API_KEY", "value": "secret123"}],
             },
         )
-        self.assertEqual(offering.plugin_options, {"plugin_key": "plugin_value"})
+        self.assertEqual(offering.plugin_options, {"auto_approve_remote_orders": True})
         self.assertEqual(offering.resource_options, {"resource_key": "resource_value"})
 
     def test_import_offering_secret_options_not_imported_by_default(self):
@@ -930,7 +930,7 @@ class OfferingExportImportTestCase(test.APITestCase):
             "terminate": "terminate_script",
             "environ": [{"name": "SECRET_KEY", "value": "test123"}],
         }
-        offering.plugin_options = {"config": "value"}
+        offering.plugin_options = {"auto_approve_remote_orders": True}
         offering.resource_options = {"resource": "config"}
         offering.save()
 
@@ -985,7 +985,9 @@ class OfferingExportImportTestCase(test.APITestCase):
                 "environ": [{"name": "SECRET_KEY", "value": "test123"}],
             },
         )
-        self.assertEqual(imported_offering.plugin_options, {"config": "value"})
+        self.assertEqual(
+            imported_offering.plugin_options, {"auto_approve_remote_orders": True}
+        )
         self.assertEqual(imported_offering.resource_options, {"resource": "config"})
 
 
