@@ -2510,6 +2510,30 @@ Semantic Scholar API Key for publication imports. Optional but recommended for h
 
 Email address for Crossref API polite pool. Provides higher rate limits.
 
+### S3 bucket browser
+
+#### S3_BROWSER_ALLOWED_ENDPOINTS
+
+**Type:** str
+
+Hosts the S3 bucket browser may contact, one per line or comma separated, each optionally with :port. The endpoint comes from what a provider's site agent publishes, so nothing is contacted unless listed.
+
+#### S3_BROWSER_VERIFY_TLS
+
+**Type:** bool
+
+**Default value:** True
+
+Verify the TLS certificate of S3 gateways the bucket browser contacts.
+
+#### S3_BROWSER_MAX_UPLOAD_SIZE_MB
+
+**Type:** int
+
+**Default value:** 50
+
+Largest file the S3 bucket browser uploads through Waldur, in MB. Larger files are left to S3 clients, whose instructions the browser shows.
+
 ### Table settings
 
 #### USER_TABLE_COLUMNS

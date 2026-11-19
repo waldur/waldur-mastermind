@@ -472,6 +472,8 @@
 - marketplace_resource_project_created
 - marketplace_resource_project_recovered
 - marketplace_resource_project_removed
+- marketplace_resource_s3_object_downloaded
+- marketplace_resource_s3_storage_changed
 - marketplace_resource_spending_limits_updated
 - marketplace_resource_terminate_canceled
 - marketplace_resource_terminate_failed

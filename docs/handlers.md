@@ -500,6 +500,7 @@ td:nth-child(4) {
 | `close_course_accounts_after_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `close_customer_service_accounts_on_customer_deletion` | `Django Signal (pre_delete)` | `structure.Customer` | Close service accounts associated with a customer when the customer is deleted. |
 | `close_deleted_scope_room` | `Django Signal (pre_delete)` | `proposal.StepDiscussion` | Close the room of a registered scope that is being deleted: kick its |
+| `close_open_reviews_on_decision` | `Django Signal (post_save)` | `proposal.Proposal` | A proposal accepted, rejected or canceled, by whichever path, needs |
 | `close_resource_plan_period_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Handle case when resource has been terminated by service provider. |
 | `close_service_accounts_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | Close service accounts associated with a project when the project is deleted. |
 | `create_carried_over_usage_if_invoice_has_been_created` | `Django Signal (post_save)` | `invoices.Invoice` | Materialize usage for the new billing period from the previous one. |
@@ -900,7 +901,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 816
+Total unique handlers found: 817
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -908,7 +909,7 @@ Total unique handlers found: 816
 - **waldur_core**: 353 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 399 handlers
+- **waldur_mastermind**: 400 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
