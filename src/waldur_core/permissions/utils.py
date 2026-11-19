@@ -190,6 +190,29 @@ def check_pat_support_scope(request) -> bool:
     )
 
 
+def check_pat_permission_on_objects(
+    request, permission: enums.PermissionEnum, objects
+) -> bool:
+    """Return True if the request's token allows ``permission`` on ``objects``.
+
+    Non-PAT requests always pass. A PAT must carry ``permission``; a bound PAT
+    must also name one of ``objects`` itself. Unlike ``check_pat_permission``
+    this does not walk up from them, so a binding on, say, an offering or its
+    service provider does not reach consumer-side objects. Looks up no role.
+    """
+    if isinstance(request, User):
+        return True
+    auth = getattr(request, "auth", None)
+    if not is_pat_auth(auth):
+        return True
+    if permission.value not in auth.scopes:
+        return False
+    allowed_pairs = _pat_allowed_pairs(auth)
+    if not allowed_pairs:
+        return True
+    return _pat_binding_names_any([obj for obj in objects if obj], allowed_pairs)
+
+
 def check_pat_permission(request, permission: enums.PermissionEnum, scope=None) -> bool:
     """Return True if the request's token allows ``permission`` on ``scope``.
 

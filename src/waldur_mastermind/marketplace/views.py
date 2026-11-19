@@ -126,6 +126,7 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
     add_user,
+    check_pat_permission_on_objects,
     check_pat_support_scope,
     get_scope_ids,
     get_user_ids,
@@ -17825,7 +17826,9 @@ check_api_key_assignee.sources = ["*"]
         "permission. For any other key, who holds RESOURCE.REVEAL_API_KEY "
         "through a role on the resource's project or its organization. Staff, "
         "support and site-wide grants are no exception. A personal access token "
-        "never reveals a key, whatever its scopes."
+        "reveals one only when it carries RESOURCE.REVEAL_API_KEY and is unbound "
+        "or bound to the key's resource, project or organization; its user is "
+        "held to the same rules."
     ),
     needs_object=True,
 )
@@ -17833,15 +17836,28 @@ def can_reveal_api_key(request, view, api_key=None):
     if not api_key:
         return
     user = request.user
-    # A personal access token is a script's credential, not trusted with a
-    # live secret whatever its scopes. An OIDC access token is admitted: with
-    # OIDC_ACCESS_TOKEN_ENABLED it is what HomePort itself signs in with, and
-    # Waldur cannot yet tell it from a token another client of the identity
-    # provider holds. Staff impersonating a user sign in with their own token,
-    # so they still reveal what that user may, and the audit event names them.
-    if is_pat_auth(request.auth):
+    # A personal access token reveals only when it was issued for it: it must
+    # carry RESOURCE.REVEAL_API_KEY, and a bound token must name the key's
+    # resource, its project or its organization. A binding on the offering or
+    # its service provider does not count: reveal stays consumer-side. Its
+    # user's roles are then checked below as for any other
+    # credential, so a pipeline gets a token that can reveal keys and nothing
+    # else, instead of its user's full API token. An OIDC access token is
+    # admitted: with OIDC_ACCESS_TOKEN_ENABLED it is what HomePort itself signs
+    # in with, and Waldur cannot yet tell it from a token another client of the
+    # identity provider holds. Staff impersonating a user sign in with their own
+    # token, so they still reveal what that user may, and the audit event names
+    # them.
+    resource = api_key.resource
+    if not check_pat_permission_on_objects(
+        request,
+        PermissionEnum.REVEAL_RESOURCE_API_KEY,
+        [resource, resource.project, resource.project.customer],
+    ):
         raise PermissionDenied(
-            "An API key cannot be revealed with a personal access token."
+            "A personal access token reveals an API key only when it carries "
+            "RESOURCE.REVEAL_API_KEY and is unbound or bound to the key's "
+            "resource, project or organization."
         )
     # An assigned key is personal: its usage is attributed to the assignee,
     # and assigning it is what entrusts them with its value. Reveal also
@@ -17855,6 +17871,22 @@ def can_reveal_api_key(request, view, api_key=None):
         raise PermissionDenied(
             "You do not have permission to reveal the API keys of this resource."
         )
+
+
+@access.describes(
+    access.custom(
+        "Who may reveal the key, signed in as themselves: a personal access "
+        "token never browses, since its reveal scope is for reading the key, "
+        "not for changing buckets and objects through Waldur."
+    ),
+    needs_object=True,
+)
+def can_browse_s3_with_api_key(request, view, api_key=None):
+    if is_pat_auth(request.auth):
+        raise PermissionDenied(
+            "The S3 bucket browser cannot be used with a personal access token."
+        )
+    can_reveal_api_key(request, view, api_key)
 
 
 class ResourceApiKeyViewSet(core_views.ActionsViewSet):
@@ -18023,18 +18055,38 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     partial_update_serializer_class = serializers.ResourceApiKeyUpdateSerializer
 
-    @extend_schema(
-        summary="Reveal an API key",
-        description="Returns the decrypted key value. A key with an assignee is "
+    _REVEAL_DESCRIPTION = (
+        "Returns the decrypted key value. A key with an assignee is "
         "revealed only to the assignee. Any other key is revealed to whoever "
         "holds RESOURCE.REVEAL_API_KEY on the resource's project or organization. "
         "Staff and support are no exception: staff reveal a key by impersonating "
-        "a user who may. Refused with 403 to a personal access token, whatever "
-        "its scopes. Audit-logged; under impersonation the event names the "
-        "impersonator.",
+        "a user who may. A personal access token reveals a key only when it "
+        "carries RESOURCE.REVEAL_API_KEY and is unbound or bound to the key's "
+        "resource, project or organization; otherwise it is refused with 403. Audit-logged; under "
+        "impersonation the event names the impersonator."
+    )
+
+    # POST, because a reveal is not a safe read: it writes an audit event and
+    # hands out a live secret, which prefetchers, link scanners and cross-site
+    # requests must not be able to trigger. GET stays for one release so that
+    # existing clients keep working while they move.
+    @extend_schema(
+        methods=["POST"],
+        operation_id="marketplace_resource_api_keys_reveal",
+        summary="Reveal an API key",
+        description=_REVEAL_DESCRIPTION,
+        request=None,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeySerializer},
     )
-    @action(detail=True, methods=["get"])
+    @extend_schema(
+        methods=["GET"],
+        summary="Reveal an API key (deprecated: use POST)",
+        description=_REVEAL_DESCRIPTION
+        + " Deprecated: reveal with POST; GET will be removed.",
+        deprecated=True,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeySerializer},
+    )
+    @action(detail=True, methods=["get", "post"])
     def reveal(self, request, uuid=None):
         api_key = self.get_object()
         user = request.user
@@ -18076,16 +18128,16 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
             )
         return api_key
 
-    s3_info_permissions = [can_reveal_api_key]
-    s3_buckets_permissions = [can_reveal_api_key]
-    s3_bucket_details_permissions = [can_reveal_api_key]
-    s3_object_details_permissions = [can_reveal_api_key]
-    s3_objects_permissions = [can_reveal_api_key]
-    s3_download_url_permissions = [can_reveal_api_key]
-    s3_create_bucket_permissions = [can_reveal_api_key]
-    s3_delete_bucket_permissions = [can_reveal_api_key]
-    s3_delete_objects_permissions = [can_reveal_api_key]
-    s3_upload_permissions = [can_reveal_api_key]
+    s3_info_permissions = [can_browse_s3_with_api_key]
+    s3_buckets_permissions = [can_browse_s3_with_api_key]
+    s3_bucket_details_permissions = [can_browse_s3_with_api_key]
+    s3_object_details_permissions = [can_browse_s3_with_api_key]
+    s3_objects_permissions = [can_browse_s3_with_api_key]
+    s3_download_url_permissions = [can_browse_s3_with_api_key]
+    s3_create_bucket_permissions = [can_browse_s3_with_api_key]
+    s3_delete_bucket_permissions = [can_browse_s3_with_api_key]
+    s3_delete_objects_permissions = [can_browse_s3_with_api_key]
+    s3_upload_permissions = [can_browse_s3_with_api_key]
 
     @extend_schema(
         summary="S3 browser: connection details",

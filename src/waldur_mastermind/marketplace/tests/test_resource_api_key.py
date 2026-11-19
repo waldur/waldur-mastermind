@@ -124,7 +124,7 @@ class ConsumerApiKeyTest(test.APITestCase):
         with mock.patch(
             "waldur_mastermind.marketplace.views.log.log_resource_api_key_revealed"
         ) as log_reveal:
-            response = self.client.get(detail_url(self.key, "reveal"))
+            response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["api_key"], "sk-secret-one")
         # The audit event must identify which key was revealed, not just the
@@ -143,7 +143,7 @@ class ConsumerApiKeyTest(test.APITestCase):
         with mock.patch(
             "waldur_mastermind.marketplace.views.log.log_resource_api_key_revealed"
         ) as log_reveal:
-            response = self.client.get(detail_url(self.key, "reveal"))
+            response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("FIELD_ENCRYPTION_KEY", str(response.data))
         log_reveal.assert_not_called()
@@ -158,7 +158,7 @@ class ConsumerApiKeyTest(test.APITestCase):
             "waldur_mastermind.marketplace.views.utils.is_resource_project_only_viewer",
             return_value=True,
         ):
-            response = self.client.get(detail_url(self.key, "reveal"))
+            response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_provider_user_cannot_reveal(self):
@@ -166,7 +166,7 @@ class ConsumerApiKeyTest(test.APITestCase):
         # never read a consumer's live key. The shared queryset admits them; reveal
         # narrows back to consumer-side access.
         self.client.force_authenticate(self.fixture.offering_owner)
-        response = self.client.get(detail_url(self.key, "reveal"))
+        response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_and_support_outside_the_project_cannot_reveal(self):
@@ -186,7 +186,7 @@ class ConsumerApiKeyTest(test.APITestCase):
                     with mock.patch(
                         "waldur_mastermind.marketplace.views.log.log_resource_api_key_revealed"
                     ) as log_reveal:
-                        response = self.client.get(detail_url(key, "reveal"))
+                        response = self.client.post(detail_url(key, "reveal"))
                     self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
                     log_reveal.assert_not_called()
 
@@ -195,7 +195,7 @@ class ConsumerApiKeyTest(test.APITestCase):
             with self.subTest(user=user):
                 self.fixture.project.add_user(user, ProjectRole.MEMBER)
                 self.client.force_authenticate(user)
-                response = self.client.get(detail_url(self.key, "reveal"))
+                response = self.client.post(detail_url(self.key, "reveal"))
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
                 self.assertEqual(response.data["api_key"], "sk-secret-one")
 
@@ -204,7 +204,7 @@ class ConsumerApiKeyTest(test.APITestCase):
             with self.subTest(user=user):
                 self.fixture.customer.add_user(user, CustomerRole.OWNER)
                 self.client.force_authenticate(user)
-                response = self.client.get(detail_url(self.key, "reveal"))
+                response = self.client.post(detail_url(self.key, "reveal"))
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_staff_and_support_still_see_every_key_without_the_secret(self):
@@ -229,7 +229,7 @@ class ConsumerApiKeyTest(test.APITestCase):
         self.key.set_updating()
         self.key.save()
         self.client.force_authenticate(self.fixture.admin)
-        response = self.client.get(detail_url(self.key, "reveal"))
+        response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     def test_owner_can_rotate(self):
@@ -589,7 +589,7 @@ class ProviderApiKeyScopeTest(test.APITestCase):
         for label, user in self.provider_users():
             with self.subTest(label):
                 self.client.force_authenticate(user)
-                response = self.client.get(detail_url(key, "reveal"))
+                response = self.client.post(detail_url(key, "reveal"))
                 self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_the_role_must_be_held_on_this_resource_offering(self):

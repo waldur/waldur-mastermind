@@ -12,8 +12,8 @@ from django.db import migrations
 # collaborator is templated on the project member) is left to permissions.yaml,
 # which withholds the permission from it on purpose.
 #
-# Personal access tokens are not given the permission: reveal refuses them
-# whatever their scopes.
+# Personal access tokens are not given the permission: a token reveals a key
+# only when it is issued with the permission among its scopes.
 PERMISSION = "RESOURCE.REVEAL_API_KEY"
 TEMPLATES = {
     "customer": ("CUSTOMER.OWNER",),
