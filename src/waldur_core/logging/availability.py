@@ -55,6 +55,17 @@ class Always(Availability):
         return True
 
 
+class EventLogOnly(Availability):
+    """Shown in the event log but never offered for subscription.
+
+    The group's events carry no scope, and a hook delivers an event only
+    through a scope its owner can see, so a subscription would never fire.
+    """
+
+    def is_available(self) -> bool:
+        return False
+
+
 @dataclass(frozen=True)
 class OfferingTypes(Availability):
     """Available once the marketplace holds an offering served by this plugin.
@@ -92,6 +103,7 @@ class ConstanceSetting(Availability):
 
 
 ALWAYS = Always()
+EVENT_LOG_ONLY = EventLogOnly()
 
 # OpenStack plugin offering types. Kept as literals rather than imported from
 # waldur_mastermind.marketplace.enums: waldur_core must not import mastermind.
@@ -108,7 +120,7 @@ EVENT_GROUP_AVAILABILITY: dict[EventGroup, Availability] = {
     # Nobody could subscribe until after the first one was created, and for a
     # security or finance notification the first event is the one worth having.
     EventGroup.ACCESS_SUBNETS: ALWAYS,
-    EventGroup.ADMIN: ALWAYS,
+    EventGroup.ADMIN: EVENT_LOG_ONLY,
     EventGroup.AUTH: ALWAYS,
     EventGroup.CALL: FeatureFlag("marketplace.show_call_management_functionality"),
     EventGroup.CHAT: ConstanceSetting("AI_ASSISTANT_ENABLED"),

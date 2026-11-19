@@ -1,12 +1,16 @@
+import logging
+
 import reversion
 from django.conf import settings
 from django.contrib.admin.models import ADDITION, CHANGE, DELETION, LogEntry
 from django.contrib.auth.hashers import is_password_usable
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models.fields.files import FieldFile
 from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
 
+from waldur_core.configuration.models import Source
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import SshPublicKey, User
@@ -16,6 +20,8 @@ from waldur_core.logging.middleware import get_event_context
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
 from waldur_core.structure.models import Customer
+
+logger = logging.getLogger(__name__)
 
 # Fields rewritten by routine traffic (every login, every IdP sync) that carry no
 # audit value on their own. They are still captured inside every snapshot - they
@@ -526,9 +532,47 @@ def log_user_locked_out(sender, username=None, ip_address=None, request=None, **
     emit_user_blocked_event(username, ip_address, dedup_timeout)
 
 
-def setting_updated(sender, key, old_value, new_value, **kwargs):
-    """Clear the API configuration cache when a setting is updated."""
+def setting_updated(
+    sender,
+    key,
+    old_value,
+    new_value,
+    changed=False,
+    source=None,
+    source_detail="",
+    user=None,
+    **kwargs,
+):
+    """Clear the API configuration cache and log the change of a setting.
+
+    A setting change goes to the system log, not to the event log, once the
+    write is committed. The record names the setting and the user's UUID, not
+    the values or the username: those include e-mail addresses and URLs, and
+    the log is not a copy of the configuration.
+    """
     cache.delete("API_CONFIGURATION")
+    if not changed:
+        return
+    try:
+        source_label = Source(source).label
+    except ValueError:
+        source_label = source
+    user_uuid = user.uuid.hex if user else None
+
+    def log_change():
+        logger.info(
+            "Setting %s has been changed through %s.",
+            key,
+            source_label,
+            extra={
+                "setting_key": key,
+                "setting_source": str(source),
+                "setting_source_detail": source_detail,
+                "user_uuid": user_uuid,
+            },
+        )
+
+    transaction.on_commit(log_change)
 
 
 ADMIN_ACTION_EVENTS = {

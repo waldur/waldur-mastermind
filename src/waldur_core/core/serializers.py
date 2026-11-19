@@ -34,6 +34,7 @@ from waldur_core.configuration.models import (
     LOCKABLE_SOURCES,
     Setting,
     locked_message,
+    setting_value_differs,
 )
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
@@ -947,10 +948,11 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         """
         # Skip fields that are not present in initial data which are sent via request
         names = [name for name in self.validated_data if name in self.initial_data]
+        current = {name: getattr(config, name) for name in names}
         changed = {
             name
             for name in names
-            if _setting_differs(getattr(config, name), self.validated_data[name])
+            if _setting_differs(name, current[name], self.validated_data[name])
         }
         if source in LOCKABLE_SOURCES:
             locks = Setting.objects.locks(*changed)
@@ -975,7 +977,19 @@ class ConstanceSettingsSerializer(serializers.Serializer):
 
         for name in names:
             new = self.validated_data[name]
-            if name in changed or (restamp_unchanged and not stamped_as_asked(name)):
+            if name not in changed and restamp_unchanged and not stamped_as_asked(name):
+                # Only the stamp changes: keep the stored value as it is, so an
+                # image is not saved again and a multiple choice keeps its order.
+                Setting.objects.set(
+                    name,
+                    current[name],
+                    source=source,
+                    source_detail=source_detail,
+                    user=user,
+                    locked=True if lock else None,
+                    managed_by=managed_by,
+                )
+            elif name in changed:
                 # Handle single image file
                 if hasattr(new, "name"):
                     new = default_storage.save(new.name, new)
@@ -1003,12 +1017,37 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 )
 
 
-def _setting_differs(current, new):
-    # A multiple choice field validates to a set, and the setting is stored as
-    # a list in no particular order.
-    if isinstance(new, set):
-        return set(current or ()) != new
-    return current != new
+def _setting_differs(name, current, new):
+    # An image arrives as a file and is stored as the path it was saved under.
+    # The deployment sends its logos on every deploy, so they are compared by
+    # content: a new name for the same file is not a change.
+    if hasattr(new, "read"):
+        return _file_differs(current, new)
+    if isinstance(new, dict) and any(hasattr(value, "read") for value in new.values()):
+        current = current if isinstance(current, dict) else {}
+        return set(current) != set(new) or any(
+            _file_differs(current.get(key), value)
+            if hasattr(value, "read")
+            else current.get(key) != value
+            for key, value in new.items()
+        )
+    return setting_value_differs(name, current, new)
+
+
+def _file_differs(current_path, new_file):
+    if not current_path:
+        return True
+    try:
+        with default_storage.open(current_path) as stored:
+            stored_content = stored.read()
+    except Exception:
+        # Whatever keeps the stored file from being read -- a path the storage
+        # refuses, a backend error -- the file is saved again, as it always was.
+        return True
+    new_file.seek(0)
+    new_content = new_file.read()
+    new_file.seek(0)
+    return stored_content != new_content
 
 
 def get_localized_field_names(field_name: str) -> list[str]:

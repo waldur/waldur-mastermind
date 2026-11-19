@@ -1,12 +1,13 @@
 from unittest import mock
 
+from django.contrib.admin.models import ADDITION, LogEntry
 from django.core.cache import cache
 from django.test import TestCase
 from rest_framework import status, test
 
 from waldur_core.core.models import Feature
 from waldur_core.logging import availability
-from waldur_core.logging.enums import EVENT_GROUP_MAPPING, EventGroup
+from waldur_core.logging.enums import EVENT_GROUP_MAPPING, EventGroup, EventType
 from waldur_core.logging.tests.factories import WebHookFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.plugins import manager
@@ -173,6 +174,25 @@ class EventGroupsEndpointTest(test.APITestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertIn("resources", response.data)
         self.assertNotIn("openstack_resources", response.data)
+
+    def test_endpoint_omits_groups_whose_events_cannot_be_delivered(self):
+        response = self.client.get(self.url)
+
+        self.assertNotIn(EventGroup.ADMIN.value, response.data)
+
+    def test_event_log_still_filters_by_a_group_that_is_not_advertised(self):
+        key = structure_factories.SshPublicKeyFactory()
+        LogEntry.objects.log_actions(
+            self.user.pk, [key], ADDITION, "Added.", single_object=True
+        )
+
+        response = self.client.get("/api/events/", {"feature": EventGroup.ADMIN.value})
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(
+            [event["event_type"] for event in response.data],
+            [EventType.ADMIN_OBJECT_CREATED.value],
+        )
 
     def test_response_shape_is_unchanged(self):
         response = self.client.get(self.url)
