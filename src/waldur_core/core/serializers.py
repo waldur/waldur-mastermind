@@ -1766,6 +1766,7 @@ REDACTED_VERSION_FIELDS = frozenset(
     {
         "password",
         "secret_options",
+        "agent_configuration",
     }
 )
 

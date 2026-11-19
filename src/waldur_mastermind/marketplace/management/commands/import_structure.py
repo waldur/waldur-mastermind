@@ -61,6 +61,7 @@ from waldur_mastermind.invoices.models import (
 from waldur_mastermind.marketplace import posix_ids
 from waldur_mastermind.marketplace.demo_presets import settings_reset
 from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
     LimitPeriods,
     MissingUsagePolicies,
     RobotAccountStates,
@@ -96,6 +97,9 @@ from waldur_mastermind.marketplace.models import (
     SlurmOfferingQoS,
     SlurmPartitionQoS,
     SoftwareCatalog,
+)
+from waldur_mastermind.marketplace_site_agent import (
+    agent_configuration as site_agent_configuration,
 )
 from waldur_mastermind.policy.models import (
     CustomerEstimatedCostPolicy,
@@ -3336,6 +3340,48 @@ class Command(BaseCommand):
                 )
                 self.stats["categories"]["errors"] += 1
 
+    def _imported_agent_configuration(self, uuid, offering_data):
+        """The agent configuration to store for an imported offering.
+
+        The column is not nullable, only site agent offerings have one, and
+        Waldur never holds a secret of the agent: a configuration that breaks
+        either rule is left out with a warning rather than stored.
+        """
+        configuration = offering_data.get("agent_configuration") or {}
+        if not configuration:
+            return {}
+        problem = None
+        if not isinstance(configuration, dict):
+            problem = "it is not a mapping"
+        elif normalize_offering_type(offering_data.get("type", "")) != (
+            SITE_AGENT_OFFERING
+        ):
+            problem = "only site agent offerings have one"
+        else:
+            secrets = site_agent_configuration.configuration_secret_paths(configuration)
+            if secrets:
+                problem = "it holds secrets ({})".format(", ".join(secrets))
+            else:
+                # Checked against the plugin catalogue as the API does. Its
+                # backend_components are not checked against the offering's
+                # components: those are imported later, by
+                # import_offering_components.
+                serializer = site_agent_configuration.AgentConfigurationSerializer(
+                    data=configuration
+                )
+                if not serializer.is_valid():
+                    problem = f"it is not valid ({json.dumps(serializer.errors, sort_keys=True)})"
+                else:
+                    configuration = serializer.validated_data
+        if problem:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Agent configuration of offering {uuid} not imported: {problem}"
+                )
+            )
+            return {}
+        return configuration
+
     def import_offerings(self, offerings_data):
         """Import marketplace offering data."""
         self.stdout.write("Importing offerings...")
@@ -3417,6 +3463,9 @@ class Command(BaseCommand):
                     "options": offering_data.get("options", {}),
                     "resource_options": offering_data.get("resource_options", {}),
                     "plugin_options": offering_data.get("plugin_options", {}),
+                    "agent_configuration": self._imported_agent_configuration(
+                        uuid, offering_data
+                    ),
                     "slug": offering_data.get("slug", ""),
                     # Additional fields
                     "backend_id": offering_data.get("backend_id", ""),
@@ -3438,6 +3487,16 @@ class Command(BaseCommand):
                     "project": project,
                     "compliance_checklist": compliance_checklist,
                 }
+
+                if defaults["type"] == SITE_AGENT_OFFERING:
+                    # A file written before the SLURM settings moved to the
+                    # agent configuration still carries them in plugin_options.
+                    (
+                        defaults["plugin_options"],
+                        defaults["agent_configuration"],
+                    ) = site_agent_configuration.move_legacy_plugin_options(
+                        defaults["plugin_options"], defaults["agent_configuration"]
+                    )
 
                 # Resolve scope (for offerings linked to backend objects)
                 scope_type = offering_data.get("scope_type")

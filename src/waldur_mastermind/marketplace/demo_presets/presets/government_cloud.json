@@ -451,10 +451,14 @@
       "plugin_options": {
         "slurm_periodic_policy_enabled": true,
         "service_provider_can_create_offering_user": true,
-        "hostname": "hpc.gov.cloud",
         "username": "waldur-agent",
-        "default_account": "gov",
         "security_level": "confidential"
+      },
+      "agent_configuration": {
+        "backend_settings": {
+          "default_account": "gov",
+          "hostname": "hpc.gov.cloud"
+        }
       },
       "getting_started": "## Getting Started with Secure Government HPC\n\n### Security Requirements\n1. **Government-issued SSH keys required**\n2. All access is logged and audited\n3. Security clearance required for access\n\n### SSH Access\n```\nssh -i ~/.ssh/gov_hpc_key username@hpc.gov.cloud\n```\n\n### Check Available Resources\n```bash\nsinfo -N -l\nsqueue -u $USER\n```\n\n### Submit a Secure Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=secure_job\n#SBATCH --partition=secure\n#SBATCH --cpus-per-task=16\n#SBATCH --mem=64G\n#SBATCH --time=4:00:00\n\nmodule load security-tools\npython secure_analysis.py\n```\n\n### Compliance\n- ISO 27001 certified infrastructure\n- GDPR-compliant data handling\n- Audit logs retained for 7 years\n\nContact security@gov.cloud for compliance questions."
     },

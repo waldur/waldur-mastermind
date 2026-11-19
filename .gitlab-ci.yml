@@ -135,6 +135,41 @@ Check US spelling:
   script:
     - python scripts/check_us_spelling.py src/
 
+# The vendored site agent plugin catalogue (marketplace_site_agent/plugin_catalogue)
+# against what the site agent's main exports now. Never blocks: a difference
+# only means the file should be refreshed with
+# scripts/update_site_agent_plugin_catalogue.sh, and the job log says what
+# changed. SITE_AGENT_REF checks against another ref.
+#
+# Cloned from GitLab with the job token, as waldur-docs clones mastermind and
+# homeport, not from the GitHub mirror, which rate-limits the runners' shared
+# egress. waldur-mastermind must be on waldur-site-agent's job-token allowlist
+# (Settings > CI/CD > Job token permissions); no other credential is needed.
+Check site agent plugin catalogue:
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
+  stage: test
+  interruptible: true
+  needs: []
+  allow_failure: true
+  variables:
+    SITE_AGENT_REF: main
+  rules:
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/waldur_mastermind/marketplace_site_agent/plugin_catalogue/**/*
+        - src/waldur_mastermind/marketplace_site_agent/agent_configuration.py
+        - scripts/update_site_agent_plugin_catalogue.sh
+        - .gitlab-ci.yml
+  script:
+    - pip install uv
+    - git clone --depth 1 --branch "$SITE_AGENT_REF" "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/waldur/waldur-site-agent.git" /tmp/waldur-site-agent
+    - (cd /tmp/waldur-site-agent && uv sync --all-packages --locked)
+    - scripts/update_site_agent_plugin_catalogue.sh --check --from /tmp/waldur-site-agent
+
 Check Action decorators:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test

@@ -756,6 +756,7 @@ class Command(BaseCommand):
                 "options": offering.options,
                 "resource_options": offering.resource_options,
                 "plugin_options": offering.plugin_options,
+                "agent_configuration": offering.agent_configuration,
                 "created": offering.created.isoformat() if offering.created else None,
                 # Additional fields identified in analysis
                 "backend_id": offering.backend_id,

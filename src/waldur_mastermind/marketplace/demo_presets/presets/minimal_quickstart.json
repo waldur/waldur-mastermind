@@ -309,9 +309,13 @@
       "plugin_options": {
         "slurm_periodic_policy_enabled": true,
         "service_provider_can_create_offering_user": true,
-        "hostname": "hpc-cluster.demo.waldur.com",
-        "username": "waldur-agent",
-        "default_account": "demo"
+        "username": "waldur-agent"
+      },
+      "agent_configuration": {
+        "backend_settings": {
+          "default_account": "demo",
+          "hostname": "hpc-cluster.demo.waldur.com"
+        }
       },
       "getting_started": "## Getting Started with HPC Cluster\n\n1. **SSH Access**: Connect to the login node\n   ```\n   ssh username@hpc-cluster.demo.waldur.com\n   ```\n\n2. **Check available resources**:\n   ```\n   sinfo -N -l\n   squeue -u $USER\n   ```\n\n3. **Submit a job**:\n   ```\n   sbatch --time=01:00:00 --cpus-per-task=4 --mem=8G my_script.sh\n   ```\n\n4. **Monitor usage**:\n   View your allocation usage in the Waldur dashboard\n\nFor support, contact support@demo.waldur.com"
     }

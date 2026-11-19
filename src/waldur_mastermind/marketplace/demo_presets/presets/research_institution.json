@@ -419,10 +419,14 @@
       "plugin_options": {
         "slurm_periodic_policy_enabled": true,
         "service_provider_can_create_offering_user": true,
-        "hostname": "slurm.university.edu",
         "username": "waldur-agent",
-        "default_account": "research",
         "tres_billing_enabled": true
+      },
+      "agent_configuration": {
+        "backend_settings": {
+          "default_account": "research",
+          "hostname": "slurm.university.edu"
+        }
       },
       "getting_started": "## Getting Started with SLURM Research Cluster\n\n### Login\n```bash\nssh username@slurm.university.edu\n```\n\n### Check Allocation\n```bash\nsacctmgr show user $USER format=User,Account,QOS\nsqueue -u $USER\n```\n\n### Submit Jobs\n```bash\n#!/bin/bash\n#SBATCH --job-name=my_job\n#SBATCH --nodes=2\n#SBATCH --ntasks-per-node=64\n#SBATCH --time=24:00:00\n#SBATCH --partition=research\n\nsrun ./my_simulation\n```\n\n### GPU Jobs\n```bash\n#SBATCH --gres=gpu:4\n#SBATCH --partition=gpu\n```\n\n### Support\n- Documentation: https://docs.slurm.university.edu/\n- Support: hpc-support@university.edu"
     },

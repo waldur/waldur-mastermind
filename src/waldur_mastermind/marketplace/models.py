@@ -777,6 +777,14 @@ class Offering(
             "Validation rules for resource backend_id: format regex and uniqueness scope."
         ),
     )
+    agent_configuration = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "Site agent side of the offering without its secrets: the backend of "
+            "each role, backend settings and agent-only component fields."
+        ),
+    )
 
     privacy_policy_link = models.URLField(blank=True)
     helpdesk_url = models.URLField(blank=True)

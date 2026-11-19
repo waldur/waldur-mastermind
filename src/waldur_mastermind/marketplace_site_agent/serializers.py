@@ -10,7 +10,11 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_COMPATIBLE_OFFERING_TYPES,
 )
-from waldur_mastermind.marketplace_site_agent import enums, models
+from waldur_mastermind.marketplace_site_agent import (
+    agent_configuration,
+    enums,
+    models,
+)
 from waldur_mastermind.marketplace_site_agent.utils import (
     AGENT_CONFIG_VISIBILITY,
     can_manage_offering_agent,
@@ -756,3 +760,28 @@ class SiteAgentLogSerializer(serializers.ModelSerializer):
             "module",
             "created",
         )
+
+
+class AgentPluginSerializer(serializers.Serializer):
+    """One backend of the site agent plugin catalogue."""
+
+    name = serializers.CharField(
+        help_text="Entry point name, as used in the agent configuration"
+    )
+    package = serializers.CharField()
+    version = serializers.CharField(
+        help_text="Version of the package the catalog was built from"
+    )
+    roles = serializers.ListField(
+        child=serializers.ChoiceField(choices=agent_configuration.ROLES)
+    )
+    settings_schema = serializers.JSONField(
+        allow_null=True, help_text="JSON Schema of the backend settings"
+    )
+    component_schema = serializers.JSONField(
+        allow_null=True, help_text="JSON Schema of the plugin's component fields"
+    )
+    secret_settings = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Dotted paths of settings that stay in the agent configuration file",
+    )

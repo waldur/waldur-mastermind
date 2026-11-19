@@ -8,12 +8,13 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status
 from rest_framework import permissions as rf_permissions
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from waldur_core.core import access
 from waldur_core.core import utils as core_utils
@@ -38,6 +39,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.managers import OfferingQuerySet
 from waldur_mastermind.marketplace_site_agent import (
+    agent_configuration,
     filters,
     models,
     serializers,
@@ -877,6 +879,38 @@ class AgentProcessorViewSet(ActionsViewSet):
             raise PermissionDenied()
 
     destroy_permissions = [_check_agent_processor_permission]
+
+
+class AgentPluginListView(APIView):
+    """The backends a site agent can run, from the plugin catalogue Waldur ships."""
+
+    permission_classes = [rf_permissions.IsAuthenticated]
+    # The catalogue holds no offering data: schemas and secret names only.
+    access_declarations = {"get": [access.authenticated()]}
+
+    @extend_schema(
+        summary="List site agent plugins",
+        description=(
+            "Backends from the site agent plugin catalog, with the roles each can "
+            "fill, their settings and component schemas, and which settings are "
+            "secrets that stay in the agent configuration file."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "role",
+                {"type": "string", "enum": list(agent_configuration.ROLES)},
+                location=OpenApiParameter.QUERY,
+                description="Only backends that can fill this role",
+            )
+        ],
+        responses={200: serializers.AgentPluginSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        role = request.query_params.get("role")
+        if role and role not in agent_configuration.ROLES:
+            raise ValidationError({"role": f"Unknown role {role}."})
+        plugins = agent_configuration.get_plugins(role)
+        return Response(serializers.AgentPluginSerializer(plugins, many=True).data)
 
 
 class AgentStatsViewSet(generics.GenericAPIView):

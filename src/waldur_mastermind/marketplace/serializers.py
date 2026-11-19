@@ -184,6 +184,9 @@ from waldur_mastermind.marketplace_rancher.const import (
     DEPLOYMENT_MODE_MANAGED,
     DEPLOYMENT_MODE_SELF_MANAGED,
 )
+from waldur_mastermind.marketplace_site_agent import (
+    agent_configuration as site_agent_configuration,
+)
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
@@ -305,6 +308,35 @@ def validate_disable_grace_period_is_staff_only(request, instance, plugin_option
         raise rf_exceptions.ValidationError(
             {"plugin_options": _("Only staff can change the grace-period setting.")}
         )
+
+
+def refuse_agent_configuration_of_other_types(offering_type, agent_configuration):
+    """An agent configuration belongs to a site agent offering only.
+
+    Checked before the configuration itself is validated, so that one sent for
+    another type is refused as such, not for the settings a backend lacks.
+    """
+    if offering_type != SITE_AGENT_OFFERING and agent_configuration:
+        # An empty configuration is accepted, so that one left behind by a
+        # switch to another offering type can be cleared.
+        raise rf_exceptions.ValidationError(
+            {
+                "agent_configuration": _(
+                    "Only site agent offerings have an agent configuration."
+                )
+            }
+        )
+
+
+def validate_agent_configuration_scope(
+    offering_type, agent_configuration, component_types
+):
+    """An agent configuration belongs to a site agent offering, and its
+    backend_components only to that offering's components."""
+    refuse_agent_configuration_of_other_types(offering_type, agent_configuration)
+    site_agent_configuration.validate_component_types(
+        agent_configuration, component_types
+    )
 
 
 def validate_expiration_reminders_is_staff_only(request, instance, plugin_options):
@@ -824,6 +856,10 @@ class SupportPluginOptionsSerializer(serializers.Serializer):
 
 
 class OpenStackPluginOptionsSerializer(serializers.Serializer):
+    pre_flight_check_enabled = serializers.BooleanField(
+        required=False,
+        help_text="Check the tenant's quotas before an instance is ordered",
+    )
     default_internal_network_mtu = serializers.IntegerField(
         required=False,
         min_value=68,
@@ -1598,7 +1634,7 @@ class SupportSecretOptionsSerializer(serializers.Serializer):
 
 class ScriptEnvVarSerializer(serializers.Serializer):
     name = serializers.CharField()
-    value = serializers.CharField()
+    value = serializers.CharField(allow_blank=True)
 
 
 class ScriptSecretOptionsSerializer(serializers.Serializer):
@@ -1619,6 +1655,9 @@ class ScriptSecretOptionsSerializer(serializers.Serializer):
     )
     pull = serializers.CharField(
         required=False, help_text="Script for regular resource pull"
+    )
+    resource_options_handler = serializers.CharField(
+        required=False, help_text="Script run when a resource's options change"
     )
 
 
@@ -5062,7 +5101,14 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
             component_serializer.is_valid(raise_exception=True)
             component_serializer.save()
 
-        offering.components.exclude(type__in=component_types).delete()
+        removed = offering.components.exclude(type__in=component_types)
+        # Their agent configuration entries go with them, as when a component
+        # is removed through the API; else the next save of it is refused.
+        site_agent_configuration.follow_component_changes(
+            offering,
+            dict.fromkeys(removed.values_list("type", flat=True)),
+        )
+        removed.delete()
 
         plan_names = []
 
@@ -5421,6 +5467,9 @@ class ProviderOfferingDetailsSerializer(
     plugin_options = MergedPluginOptionsField(read_only=True)
     account_settings = serializers.SerializerMethodField()
     secret_options = MergedSecretOptionsField(read_only=True)
+    agent_configuration = site_agent_configuration.AgentConfigurationSerializer(
+        read_only=True
+    )
     service_attributes = serializers.SerializerMethodField()
     # What the caller may change on the offering-update page. The provider-only
     # fields above are dropped for anyone who fails the first of these, so a
@@ -5534,6 +5583,7 @@ class ProviderOfferingDetailsSerializer(
             "plugin_options",
             "account_settings",
             "secret_options",
+            "agent_configuration",
             "service_attributes",
             "can_update_integration",
             "can_update_options",
@@ -5667,7 +5717,11 @@ class ProviderOfferingDetailsSerializer(
         return offering.account_settings
 
     #: Rendered only for a caller entitled to this particular offering.
-    PROVIDER_ONLY_FIELDS = ("secret_options", "service_attributes")
+    PROVIDER_ONLY_FIELDS = (
+        "secret_options",
+        "service_attributes",
+        "agent_configuration",
+    )
 
     def _check_offering_access(self, gate, offering=None) -> bool:
         """Whether the caller passes one provider-side gate for one offering.
@@ -6093,6 +6147,7 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
         fields = super().get_fields()
         fields.pop("secret_options", None)
         fields.pop("service_attributes", None)
+        fields.pop("agent_configuration", None)
         return fields
 
 
@@ -6145,6 +6200,9 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     options = OfferingOptionsSerializer(required=False)
     resource_options = OfferingOptionsSerializer(required=False, for_resource=True)
     plugin_options = MergedPluginOptionsSerializer(required=False)
+    agent_configuration = site_agent_configuration.AgentConfigurationSerializer(
+        required=False
+    )
     # full_description and vendor_details are TextField-backed, hence unbounded.
     description = core_serializers.HTMLCleanField(
         required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
@@ -6157,6 +6215,13 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         required=False,
         allow_null=True,
     )
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and isinstance(data.get("type"), str):
+            refuse_agent_configuration_of_other_types(
+                normalize_offering_type(data["type"]), data.get("agent_configuration")
+            )
+        return super().to_internal_value(data)
 
     def validate(self, attrs):
         if not self.instance:
@@ -6184,6 +6249,12 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
         validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
+        if "agent_configuration" in attrs:
+            validate_agent_configuration_scope(
+                attrs.get("type", getattr(self.instance, "type", None)),
+                attrs["agent_configuration"],
+                [component["type"] for component in attrs.get("components") or []],
+            )
 
         attrs.setdefault("options", {"options": {}, "order": []})
         attrs.setdefault("resource_options", {"options": {}, "order": []})
@@ -6362,7 +6433,11 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         else:
             custom_components = validated_data.pop("components", [])
 
+        agent_configuration = validated_data.pop("agent_configuration", None)
         offering = super().create(validated_data)
+        if agent_configuration is not None:
+            offering.agent_configuration = agent_configuration
+            offering.save(update_fields=["agent_configuration"])
         utils.create_offering_components(offering, custom_components)
         if limits:
             self._update_limits(offering, limits)
@@ -6692,15 +6767,28 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
     service_attributes = serializers.JSONField(required=False)
     secret_options = MergedSecretOptionsSerializer(required=False)
     plugin_options = MergedPluginOptionsSerializer(required=False)
+    agent_configuration = site_agent_configuration.AgentConfigurationSerializer(
+        required=False,
+        help_text=_("Replaces the whole agent configuration of a site agent offering."),
+    )
 
     class Meta:
         model = models.Offering
         fields = (
             "secret_options",
             "plugin_options",
+            "agent_configuration",
             "service_attributes",
             "backend_id",
         )
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and self.instance is not None:
+            refuse_agent_configuration_of_other_types(
+                normalize_offering_type(self.instance.type),
+                data.get("agent_configuration"),
+            )
+        return super().to_internal_value(data)
 
     def validate(self, attrs):
         request = self.context["request"]
@@ -6731,6 +6819,12 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         )
         validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
         validate_api_key_options(self.instance, attrs.get("plugin_options", {}))
+        if "agent_configuration" in attrs:
+            validate_agent_configuration_scope(
+                self.instance.type,
+                attrs["agent_configuration"],
+                self.instance.components.values_list("type", flat=True),
+            )
         self._joining_offerings = self._validate_account_scope_switch(
             attrs.get("plugin_options", {})
         )
@@ -6855,6 +6949,17 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         self._update_service_attributes(instance, validated_data)
         self._update_secret_options(instance, validated_data)
+        if "agent_configuration" in validated_data:
+            agent_configuration = validated_data.pop("agent_configuration")
+            # Locked so that a component renamed or removed meanwhile, which
+            # rewrites backend_components under the same lock, is seen here.
+            models.Offering.objects.select_for_update().only("pk").get(pk=instance.pk)
+            site_agent_configuration.validate_component_types(
+                agent_configuration,
+                instance.components.values_list("type", flat=True),
+            )
+            # Stored by the save in super().update(), not one of its own.
+            instance.agent_configuration = agent_configuration
         self._update_plugin_options(instance, validated_data)
         offering = super().update(instance, validated_data)
         joining = getattr(self, "_joining_offerings", None)
@@ -18675,6 +18780,10 @@ class OfferingExportDataSerializer(serializers.Serializer):
     plugin_options = serializers.JSONField(required=False)
     secret_options = serializers.JSONField(required=False)
     resource_options = serializers.JSONField(required=False)
+    agent_configuration = site_agent_configuration.AgentConfigurationSerializer(
+        required=False,
+        help_text="Site agent configuration, for site agent offerings",
+    )
 
 
 class CategoryByTitleField(serializers.SlugRelatedField):

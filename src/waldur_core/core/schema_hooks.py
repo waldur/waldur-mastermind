@@ -369,7 +369,11 @@ CONDITIONALLY_OPTIONAL_RESPONSE_FIELDS: dict[str, set[str]] = {
     # PROVIDER_ONLY_FIELDS, dropped by to_representation for a caller who may not
     # change the offering's integration settings. Typed as always-present, they
     # let a client read straight through a field the backend never sent.
-    "ProviderOfferingDetails": {"secret_options", "service_attributes"},
+    "ProviderOfferingDetails": {
+        "secret_options",
+        "service_attributes",
+        "agent_configuration",
+    },
 }
 
 
