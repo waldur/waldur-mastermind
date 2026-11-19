@@ -50,8 +50,25 @@ class Source(models.TextChoices):
     MIGRATION = "migration", "Migration"
 
 
+MULTIPLE_CHOICE_FIELD_TYPE = "multiple_choice_field"
+
 # Sources that a lock keeps out: the ones through which people change settings.
 LOCKABLE_SOURCES = (Source.API, Source.ADMIN)
+
+# Changes not written to the system log: Waldur's own (a refreshed token) and
+# data migrations. Every other source, including one added later, is logged.
+UNLOGGED_CHANGE_SOURCES = (Source.APPLICATION, Source.MIGRATION)
+
+
+def setting_value_differs(key, old, new):
+    """Whether ``new`` reads differently from ``old`` for setting ``key``.
+
+    A multiple choice is a set of choices stored as a list in no particular
+    order, so a reordered list is the same value.
+    """
+    if registry.field_type(key) == MULTIPLE_CHOICE_FIELD_TYPE:
+        return set(old or ()) != set(new or ())
+    return old != new
 
 
 def locked_message(key, manager):
@@ -110,6 +127,22 @@ class SettingManager(models.Manager):
         if registry.is_secret(key):
             return secrets.decrypt_secret(key, stored)
         return stored
+
+    def _changed(self, key, old_value, value):
+        """Whether writing ``value`` changes how ``key`` reads.
+
+        Compared as read, since a secret is encrypted afresh on every write. An
+        old secret no key decrypts counts as changed, without the error a read
+        of it logs: it is being replaced.
+        """
+        if old_value is not None and registry.is_secret(key):
+            old = secrets.decrypt_stored(old_value)
+            if old is None:
+                return True
+        else:
+            old = self._decode(key, old_value)
+        new = registry.default(key) if value is None else value
+        return setting_value_differs(key, old, new)
 
     def _unavailable(self, key):
         """What ``key`` reads as while the table cannot be read.
@@ -241,7 +274,7 @@ class SettingManager(models.Manager):
             )
             old_value, was_locked, old_manager = old[0] if old else (None, False, "")
             if was_locked and source in LOCKABLE_SOURCES:
-                if self._decode(key, old_value) == value:
+                if not setting_value_differs(key, self._decode(key, old_value), value):
                     return
                 raise SettingLocked(key, old_manager)
             if managed_by is not None and managed_by != old_manager and locked is None:
@@ -261,7 +294,15 @@ class SettingManager(models.Manager):
             self.update_or_create(key=key, defaults=defaults)
         overrides.release(key)
         setting_updated.send(
-            sender=Setting, key=key, old_value=old_value, new_value=stored
+            sender=Setting,
+            key=key,
+            old_value=old_value,
+            new_value=stored,
+            changed=source not in UNLOGGED_CHANGE_SOURCES
+            and self._changed(key, old_value, value),
+            source=source,
+            source_detail=source_detail,
+            user=user,
         )
 
 

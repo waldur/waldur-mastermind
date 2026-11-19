@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 from io import StringIO
+from unittest import mock
 
 import yaml
 from django.core.management import CommandError, call_command
@@ -9,6 +10,7 @@ from django.test import TestCase
 
 from waldur_core.configuration import config
 from waldur_core.configuration.models import Setting, Source
+from waldur_core.configuration.tests.utils import logged_setting_changes
 from waldur_core.media.utils import dummy_image
 
 
@@ -543,3 +545,69 @@ class DeploymentLockTest(SettingsFileMixin, TestCase):
         )
         self.assertIn("# support.yaml\nBRAND_COLOR:", text)
         self.assertIn("# whitelabeling.yaml\nSITE_NAME:", text)
+
+
+class OverrideConstanceSettingsChangeLogTest(SettingsFileMixin, TestCase):
+    """A deploy logs the settings it changes, and only those."""
+
+    def deploy(self, settings):
+        call_command(
+            "override_constance_settings",
+            self.create_settings_file(settings),
+            stdout=StringIO(),
+        )
+
+    def test_redeploying_the_same_logo_is_not_logged_again(self):
+        logo = os.path.join(self.temp_dir, "logo.png")
+        with open(logo, "wb") as f:
+            f.write(dummy_image().read())
+
+        with logged_setting_changes() as records:
+            self.deploy({"LOGIN_LOGO": logo})
+            stored = config.LOGIN_LOGO
+            self.deploy({"LOGIN_LOGO": logo})
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(config.LOGIN_LOGO, stored)
+
+    def test_a_stored_logo_that_cannot_be_read_is_saved_again(self):
+        logo = os.path.join(self.temp_dir, "logo.png")
+        with open(logo, "wb") as f:
+            f.write(dummy_image().read())
+        self.deploy({"LOGIN_LOGO": logo})
+        stored = config.LOGIN_LOGO
+
+        with mock.patch(
+            "waldur_core.core.serializers.default_storage.open",
+            side_effect=RuntimeError("backend error"),
+        ):
+            with logged_setting_changes() as records:
+                self.deploy({"LOGIN_LOGO": logo})
+
+        self.assertEqual(len(records), 1)
+        self.assertNotEqual(config.LOGIN_LOGO, stored)
+
+    def test_taking_over_an_unchanged_multiple_choice_is_not_logged(self):
+        Setting.objects.set(
+            "DEFAULT_PROPOSAL_HIDDEN_FIELDS",
+            ["description", "project_summary"],
+            source=Source.ADMIN,
+        )
+
+        with logged_setting_changes() as records:
+            self.deploy(
+                {"DEFAULT_PROPOSAL_HIDDEN_FIELDS": ["project_summary", "description"]}
+            )
+
+        self.assertEqual(records, [])
+        row = Setting.objects.get(key="DEFAULT_PROPOSAL_HIDDEN_FIELDS")
+        self.assertEqual(row.source, Source.DEPLOYMENT)
+        self.assertEqual(row.value, ["description", "project_summary"])
+
+    def test_a_changed_setting_names_the_deployment_file(self):
+        with logged_setting_changes() as records:
+            self.deploy({"SITE_NAME": "Deployed portal"})
+
+        [record] = records
+        self.assertEqual(record.setting_source, Source.DEPLOYMENT)
+        self.assertEqual(record.setting_source_detail, "settings.yaml")

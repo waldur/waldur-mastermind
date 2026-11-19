@@ -7,7 +7,13 @@ from django.utils.module_loading import import_string
 from django.utils.text import normalize_newlines
 
 from waldur_core.configuration import registry
-from waldur_core.configuration.models import Setting, Source, locked_message
+from waldur_core.configuration.models import (
+    MULTIPLE_CHOICE_FIELD_TYPE,
+    Setting,
+    Source,
+    locked_message,
+    setting_value_differs,
+)
 from waldur_core.core.validators import collect_access_email_pattern_errors
 from waldur_core.media.validators import validate_notification_emails
 
@@ -49,7 +55,7 @@ def form_field(key):
         )
 
     choices = registry.choices().get(key)
-    if field_type == "multiple_choice_field":
+    if field_type == MULTIPLE_CHOICE_FIELD_TYPE:
         return forms.MultipleChoiceField(
             label=key,
             help_text=registry.help_text(key),
@@ -84,12 +90,6 @@ def locked_field(key, manager):
         disabled=True,
         widget=forms.Textarea(attrs={"rows": 2}),
     )
-
-
-def _differs(key, new, old):
-    if registry.field_type(key) == "multiple_choice_field":
-        return set(new or ()) != set(old or ())
-    return new != old
 
 
 class SettingsForm(forms.Form):
@@ -176,7 +176,7 @@ class SettingsForm(forms.Form):
             key
             for key in self.locked_since_load
             if registry.field_type(key) != "image_field"
-            and _differs(key, self._posted(key), current[key])
+            and setting_value_differs(key, current[key], self._posted(key))
         ]
         for key in self.files:
             upload = self.cleaned_data.get(key)
