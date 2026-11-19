@@ -133,6 +133,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ConcealmentMixin`](#concealmentmixin) | `waldur_mastermind.marketplace_openstack.tests.test_plugin_resource_concealment` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
+| [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration` | No description available |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
 | [`RegisteredScopeMixin`](#registeredscopemixin) | `waldur_mastermind.matrix_chat.tests.test_room_scopes` | Registers Customer, for the test only, as a kind of room scope whose members ... |
 | [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
@@ -1779,6 +1780,12 @@ class MyTestClass(SelectiveDNSMockMixin, test.APITransactionTestCase):
 **Description:**
 
 Mixin to execute scripts in containers for marketplace script processing.
+
+### AgentConfigurationTestMixin
+
+**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration`
+
+**Description:** No description available.
 
 ### ResourceGlauthAccessMixin
 

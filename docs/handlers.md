@@ -387,7 +387,7 @@ td:nth-child(4) {
 | `scrub_logged_request` | `Custom Signal (bind_extra_request_finished_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
 | `scrub_logged_request` | `Custom Signal (bind_extra_request_failed_metadata)` | `—` | Mask credentials in the query of the request django-structlog logs. |
 | `set_default_token_lifetime` | `Django Signal (post_save)` | `core.User` | Set the default token lifetime for a new user. |
-| `setting_updated` | `Custom Signal (setting_updated)` | `—` | Clear the API configuration cache when a setting is updated. |
+| `setting_updated` | `Custom Signal (setting_updated)` | `—` | Clear the API configuration cache and log the change of a setting. |
 | `start_request` | `Unknown Signal` | `—` | No description |
 | `stash_customer_slug` | `Django Signal (pre_save)` | `structure.Customer` | Remember the persisted slug before save so the change can be detected. |
 | `update_customer_users_count` | `Custom Signal (recalculate_quotas)` | `—` | Update the user count for all customers. |
