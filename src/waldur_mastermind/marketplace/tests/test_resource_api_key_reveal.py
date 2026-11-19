@@ -73,7 +73,7 @@ class RevealTestBase(test.APITestCase):
 
     def reveal(self, user, key=None):
         self.client.force_authenticate(user)
-        return self.client.get(reveal_url(key or self.key))
+        return self.client.post(reveal_url(key or self.key))
 
     def project_user(self, role):
         user = structure_factories.UserFactory()
@@ -165,16 +165,15 @@ class RevealWithAccessTokenTest(RevealTestBase):
         user.save(update_fields=["can_use_personal_access_tokens"])
         _, token = create_pat(user, **pat_kwargs)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-        return self.client.get(reveal_url(key or self.key))
+        return self.client.post(reveal_url(key or self.key))
 
-    def test_a_personal_access_token_never_reveals_a_key(self):
+    def test_a_token_without_the_reveal_scope_is_refused(self):
         owner = self.fixture.owner
         cases = {
             "no scopes": {"scopes": []},
             "unrelated scope": {"scopes": [PermissionEnum.LIST_ORDERS.value]},
-            "the reveal permission": {"scopes": [REVEAL.value]},
-            "bound to this organization": {
-                "scopes": [REVEAL.value],
+            "unrelated scope bound to this organization": {
+                "scopes": [PermissionEnum.LIST_ORDERS.value],
                 "allowed_scopes": [binding(self.customer)],
             },
         }
@@ -182,6 +181,29 @@ class RevealWithAccessTokenTest(RevealTestBase):
             with self.subTest(name):
                 response = self.reveal_with_pat(owner, **pat_kwargs)
                 self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_a_token_carrying_the_reveal_scope_reveals_the_key(self):
+        # What a CI/CD pipeline uses: a token that can reveal keys and do
+        # nothing else, instead of its user's full API token.
+        owner = self.fixture.owner
+        cases = {
+            "unbound": {},
+            "bound to this organization": {"allowed_scopes": [binding(self.customer)]},
+            "bound to this project": {"allowed_scopes": [binding(self.project)]},
+            "bound to this resource": {"allowed_scopes": [binding(self.resource)]},
+        }
+        for name, pat_kwargs in cases.items():
+            with self.subTest(name):
+                response = self.reveal_with_pat(
+                    owner, scopes=[REVEAL.value], **pat_kwargs
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["api_key"], "sk-cid-1")
+
+    def test_the_tokens_user_still_needs_the_permission(self):
+        collaborator = self.project_user(ProjectRole.COLLABORATOR)
+        response = self.reveal_with_pat(collaborator, scopes=[REVEAL.value])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_a_token_bound_elsewhere_does_not_find_the_key(self):
         response = self.reveal_with_pat(
@@ -191,12 +213,46 @@ class RevealWithAccessTokenTest(RevealTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_not_even_the_assignees_own_token(self):
+    def test_a_token_bound_to_another_project_does_not_reveal_the_key(self):
+        other = structure_factories.ProjectFactory(customer=self.customer)
+        response = self.reveal_with_pat(
+            self.fixture.owner,
+            scopes=[REVEAL.value],
+            allowed_scopes=[binding(other)],
+        )
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_a_provider_side_binding_does_not_reveal_a_consumer_key(self):
+        # The list admits a token bound to the offering or its service
+        # provider, so these reach the reveal check itself: reveal stays
+        # consumer-side even for a user who also holds a consumer role.
+        offering = self.resource.offering
+        provider = models.ServiceProvider.objects.get_or_create(
+            customer=offering.customer
+        )[0]
+        for name, bound in {"offering": offering, "service provider": provider}.items():
+            with self.subTest(name):
+                response = self.reveal_with_pat(
+                    self.fixture.owner,
+                    scopes=[REVEAL.value],
+                    allowed_scopes=[binding(bound)],
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_the_assignees_token_reveals_their_key_only_with_the_scope(self):
         assigned = self.make_key("cid-2", user=self.fixture.admin)
+        response = self.reveal_with_pat(
+            self.fixture.admin, assigned, scopes=[PermissionEnum.LIST_ORDERS.value]
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         response = self.reveal_with_pat(
             self.fixture.admin, assigned, scopes=[REVEAL.value]
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["api_key"], "sk-cid-2")
 
     def test_an_oidc_access_token_reveals_what_its_user_may(self):
         # With OIDC_ACCESS_TOKEN_ENABLED it is what HomePort signs in with.
@@ -214,13 +270,13 @@ class RevealWithAccessTokenTest(RevealTestBase):
         for user, key, expected in cases:
             with self.subTest(user=user, key=key.client_id):
                 self.client.force_authenticate(user, token={"sub": "homeport"})
-                response = self.client.get(reveal_url(key))
+                response = self.client.post(reveal_url(key))
                 self.assertEqual(response.status_code, expected)
 
     def test_the_users_own_token_reveals_it(self):
         token = Token.objects.get_or_create(user=self.fixture.owner)[0]
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
-        response = self.client.get(reveal_url(self.key))
+        response = self.client.post(reveal_url(self.key))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_staff_impersonating_a_holder_reveal_an_unassigned_key(self):
@@ -231,8 +287,32 @@ class RevealWithAccessTokenTest(RevealTestBase):
                 IMPERSONATED_USER_HEADER: self.fixture.owner.uuid.hex,
             }
         )
+        response = self.client.post(reveal_url(self.key))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class RevealMethodTest(RevealTestBase):
+    """A reveal is a POST: it writes an audit event and returns a live secret."""
+
+    def test_post_reveals_the_key_and_forbids_caching_it(self):
+        response = self.reveal(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["api_key"], "sk-cid-1")
+        self.assertEqual(response["Cache-Control"], "no-store")
+
+    def test_get_still_reveals_while_it_is_deprecated(self):
+        self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(reveal_url(self.key))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["api_key"], "sk-cid-1")
+
+    def test_a_session_post_needs_the_csrf_token(self):
+        # What GET could not offer: a page on another site cannot make a
+        # signed-in browser reveal a key.
+        client = test.APIClient(enforce_csrf_checks=True)
+        client.force_login(self.fixture.owner)
+        response = client.post(reveal_url(self.key))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @override_config(PAT_ENABLED=True)

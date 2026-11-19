@@ -169,13 +169,22 @@ Get a grant for that action, then send it in the `X-Reauthentication-Grant` head
 
 The actions are `create_personal_access_token` (create and rotate) and `widen_personal_access_token_networks`. A grant is single-use, bound to the user and to one action, and expires after `REAUTHENTICATION_GRANT_LIFETIME_SECONDS`. A grant is neither issued nor accepted for a request that is not the user's own sign-in: staff impersonating the user, a personal access token and an OIDC access token get 403.
 
-### Resource API keys are never revealed
+### Revealing resource API keys
 
-`GET /api/marketplace-resource-api-keys/{uuid}/reveal/` refuses every PAT,
-whatever its scopes and bindings: a revealed key is a live credential, and a
-script's token is not trusted with one. A PAT also cannot `rotate` or `retry` a
-key as its assignee. A bound PAT lists only the keys of resources its bindings
-reach. See [Resource API keys](resource-api-keys.md).
+`POST /api/marketplace-resource-api-keys/{uuid}/reveal/` admits a PAT only when
+it carries `RESOURCE.REVEAL_API_KEY` and is unbound or bound to the key's
+resource, its project or its organization. A binding on the resource's offering
+or its service provider does not count: reveal stays consumer-side. Any other
+PAT gets `403`, whatever its other scopes. The token's user is then held to the
+same rules as without a token: a shared key needs `RESOURCE.REVEAL_API_KEY`
+through a role on the project or organization, and an assigned key is revealed
+only to its assignee. No token carries the scope unless it was issued with it,
+so this is how a CI/CD pipeline gets a credential that can read a resource's
+keys and nothing else. The S3 bucket browser actions (`…/s3/…`) refuse every
+PAT, whatever its scopes: the reveal scope is for reading a key, not for changing
+buckets and objects through Waldur. A PAT still cannot `rotate` or `retry` a key
+as its assignee. A bound PAT lists only the keys of resources its bindings reach. See
+[Resource API keys](resource-api-keys.md).
 
 ### Uniform Error Responses
 

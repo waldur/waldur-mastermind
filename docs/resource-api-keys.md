@@ -429,7 +429,7 @@ sequenceDiagram
     A->>B: block that client_id
     A->>W: POST set_paused  -- state Paused
     Note over M,B: Reveal
-    M->>W: GET keys/{id}/reveal (audited)
+    M->>W: POST keys/{id}/reveal (audited)
     W-->>M: {api_key}  (decrypted)
 ```
 
@@ -612,8 +612,10 @@ Consumer side. The actions marked *governance* need the offering's
   with `used`, `limit`, `resets_at` (`null` for a total) and `reached`, and
   `limits` the month limits alone. Visible to resource project/customer members and the provider
   organization.
-- `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
-  URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access.
+- `POST /{uuid}/reveal/` — return the decrypted value (in the body, never the
+  URL, with `Cache-Control: no-store`). A reveal is a `POST` because it is not a
+  safe read: it writes an audit event and hands out a live secret. `GET` still
+  works for one release and is marked deprecated in the schema. Restricted to **consumer-side** access.
   A key with an assignee is revealed **only to the assignee**, who needs no
   permission for it but must still be a member of the resource's project or its
   customer, and not a minimal-visibility viewer. Any other key is revealed to
@@ -623,8 +625,11 @@ Consumer side. The actions marked *governance* need the offering's
   and support are held to the same rules: `is_staff` and a site-wide grant of
   the permission do not count, only a role on the project or its organization
   does. Staff reveal any other key by impersonating its assignee or, for an
-  unassigned key, a member who may. A personal access token is refused with
-  `403` whatever its scopes and bindings, the assignee's own included. An OIDC
+  unassigned key, a member who may. A personal access token reveals a key only
+  when it carries `RESOURCE.REVEAL_API_KEY` and is unbound or bound to the key's
+  resource, project or organization (not its offering or service provider), and
+  its user is then held to the rules above; any other token gets
+  `403`, the assignee's own included. An OIDC
   access token is admitted: with `OIDC_ACCESS_TOKEN_ENABLED` it is what HomePort
   itself signs in with, and Waldur does not yet tell it from a token issued to
   another client of the identity provider. Only an `OK` key is revealed — a transitional
@@ -821,9 +826,10 @@ a key they could reveal. Roles in `custom-roles.yaml` get what that file lists.
 
 The permission governs unassigned keys only. An assigned key is its assignee's,
 and assigning it is the grant: a collaborator a manager requested a key for
-reveals it without the permission. A personal access token never reveals a
-key, so the migration adds the permission to no token, and listing it in a
-token's scopes does nothing for reveal.
+reveals it without the permission. A personal access token reveals a key only
+when it is issued with `RESOURCE.REVEAL_API_KEY` among its scopes and is
+unbound or bound to the key's resource, project or organization. The migration adds the permission to no
+token, so no existing token gains it.
 
 A token bound to organizations, projects, offerings or resources lists only the
 keys of resources its bindings reach, as it does resources themselves.

@@ -757,7 +757,7 @@ class AssigneeRevealTest(ApiKeyManagementTestBase):
 
     def reveal(self, user):
         self.client.force_authenticate(user)
-        return self.client.get(detail_url(self.key, "reveal"))
+        return self.client.post(detail_url(self.key, "reveal"))
 
     def test_assignee_can_reveal(self):
         response = self.reveal(self.fixture.admin)
@@ -813,7 +813,7 @@ class ImpersonatedRevealTest(ApiKeyManagementTestBase):
                 IMPERSONATED_USER_HEADER: impersonated.uuid.hex,
             }
         )
-        return self.client.get(detail_url(self.key, "reveal"))
+        return self.client.post(detail_url(self.key, "reveal"))
 
     def test_staff_impersonating_the_assignee_reveal_and_are_named(self):
         response = self.reveal_as(self.fixture.admin)
@@ -847,7 +847,7 @@ class ImpersonatedRevealTest(ApiKeyManagementTestBase):
 
     def test_a_reveal_without_impersonation_names_only_the_user(self):
         self.client.force_authenticate(self.fixture.admin)
-        response = self.client.get(detail_url(self.key, "reveal"))
+        response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         event = Event.objects.get(
             event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED
@@ -880,7 +880,7 @@ class DeletedAssigneeTest(ApiKeyManagementTestBase):
 
     def reveal(self, user):
         self.client.force_authenticate(user)
-        return self.client.get(detail_url(self.key, "reveal"))
+        return self.client.post(detail_url(self.key, "reveal"))
 
     def test_the_key_is_deleted_and_nobody_else_reveals_it(self):
         self.assertEqual(
@@ -1395,7 +1395,7 @@ class ProjectRoleKeyManagementTest(ApiKeyManagementTestBase):
         for name, user in self.managers():
             with self.subTest(name):
                 self.client.force_authenticate(user)
-                response = self.client.get(detail_url(self.key, "reveal"))
+                response = self.client.post(detail_url(self.key, "reveal"))
                 self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
@@ -1471,7 +1471,7 @@ class PauseResumeDeleteTest(ApiKeyManagementTestBase):
         self.key.state = States.PAUSED
         self.key.save()
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(detail_url(self.key, "reveal"))
+        response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         response, _ = self.post(self.fixture.owner, detail_url(self.key, "rotate"))
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -2463,7 +2463,7 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         response = self.client.get(detail_url(self.key))
         self.assertEqual(response.data["user_uuid"], self.fixture.admin.uuid)
         self.assertEqual(response.data["user_full_name"], self.fixture.admin.full_name)
-        response = self.client.get(detail_url(self.key, "reveal"))
+        response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_managed_actions_are_refused(self):
@@ -2609,7 +2609,7 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         # Switching the capability off hides the assignee but must not hand a
         # personal key to everyone in the project.
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(detail_url(self.key, "reveal"))
+        response = self.client.post(detail_url(self.key, "reveal"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
