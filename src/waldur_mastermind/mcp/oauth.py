@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from urllib.parse import urlencode, urlparse
 
 from django.conf import settings
+from oauth2_provider.cimd import SafeMetadataFetcher
 from oauth2_provider.models import (
     AbstractApplication,
     get_access_token_model,
@@ -168,6 +169,30 @@ class ThrottledCIMDPermission:
         # DOT passes the oauthlib request, whose headers are a copy of Django's META.
         client = SimpleNamespace(META=dict(request.headers))
         return ClientRegistrationThrottle().allow_request(client, None)
+
+
+class MCPMetadataFetcher(SafeMetadataFetcher):
+    """DOT's fetcher, keeping only the grants Waldur serves.
+
+    DOT wants exactly one grant besides refresh_token, but Claude's document
+    adds jwt-bearer and VS Code's adds device_code to authorization_code.
+    """
+
+    def fetch(self, client_id):
+        metadata, max_age = super().fetch(client_id)
+        grant_types = metadata.get("grant_types")
+        # A document left without authorization_code, such as one listing only
+        # implicit, is then refused by DOT. DOT refuses a malformed list itself.
+        if isinstance(grant_types, list) and all(
+            isinstance(grant, str) for grant in grant_types
+        ):
+            metadata = {
+                **metadata,
+                "grant_types": [
+                    grant for grant in grant_types if grant in ALLOWED_GRANT_TYPES
+                ],
+            }
+        return metadata, max_age
 
 
 def code_gone_is_invalid_grant(check):
