@@ -1950,8 +1950,9 @@ class InvitationAcceptOnBehalfTest(BaseInvitationTest):
             self.project_invitation, action="accept"
         )
 
-    def accept_for(self, user, **extra):
-        return self.client.post(self.url, {"user": user.uuid.hex}, **extra)
+    def accept_for(self, user, data_extra=None, **extra):
+        data = {"user": user.uuid.hex, **(data_extra or {})}
+        return self.client.post(self.url, data, **extra)
 
     def assert_not_accepted(self):
         self.project_invitation.refresh_from_db()
@@ -2191,6 +2192,155 @@ class InvitationAcceptOnBehalfTest(BaseInvitationTest):
         response = self.accept_for(other)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.project.has_user(other, self.project_invitation.role))
+        self.assert_not_accepted()
+
+    def test_email_mismatch_is_accepted_when_allowed(self):
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(other, data_extra={"allow_email_mismatch": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.project_invitation.refresh_from_db()
+        self.assertEqual(self.project_invitation.state, InvitationState.ACCEPTED)
+        self.assertTrue(self.project.has_user(other, self.project_invitation.role))
+        self.assertFalse(get_permissions(self.project, self.staff).exists())
+        event = logging_models.Event.objects.get(
+            event_type="role_granted",
+            context__affected_user_uuid=other.uuid.hex,
+        )
+        self.assertIn(
+            f"accepted on behalf of the user by {self.staff.username} "
+            "(email check bypassed)",
+            event.message,
+        )
+        self.assertEqual(event.context["acting_user_uuid"], self.staff.uuid.hex)
+        self.assertIs(event.context["email_check_bypassed"], True)
+        self.assertEqual(
+            event.context["invitation_uuid"], self.project_invitation.uuid.hex
+        )
+        self.assertEqual(
+            event.context["invitation_email"], self.project_invitation.email
+        )
+
+    @override_config(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True)
+    def test_strict_check_blocks_allowed_email_mismatch(self):
+        # A deployment that requires matching emails allows no exceptions,
+        # not even for staff who say they have verified the person.
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(other, data_extra={"allow_email_mismatch": True})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.project.has_user(other, self.project_invitation.role))
+        self.assert_not_accepted()
+
+    def test_allowing_mismatch_does_not_mark_matching_accept_as_bypassed(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(
+            self.invitee, data_extra={"allow_email_mismatch": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        event = logging_models.Event.objects.get(
+            event_type="role_granted",
+            context__affected_user_uuid=self.invitee.uuid.hex,
+        )
+        self.assertIn("on behalf of the user", event.message)
+        self.assertNotIn("bypassed", event.message)
+        self.assertNotIn("email_check_bypassed", event.context)
+        self.assertNotIn("invitation_email", event.context)
+
+    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
+    def test_allowed_email_mismatch_does_not_override_deployment_validation(self):
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(other, data_extra={"allow_email_mismatch": True})
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(self.project.has_user(other, self.project_invitation.role))
+
+    def test_allowing_mismatch_without_user_is_rejected(self):
+        self.client.force_authenticate(user=self.invitee)
+
+        response = self.client.post(self.url, {"allow_email_mismatch": True})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allow_email_mismatch", response.data)
+        self.assert_not_accepted()
+
+    def test_allowing_mismatch_when_naming_oneself_is_rejected(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(
+            self.staff, data_extra={"allow_email_mismatch": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(get_permissions(self.project, self.staff).exists())
+
+    def test_email_mismatch_with_flag_false_is_rejected(self):
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.accept_for(other, data_extra={"allow_email_mismatch": False})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.project.has_user(other, self.project_invitation.role))
+
+    def test_email_mismatch_allowed_by_form_field(self):
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.post(
+            self.url,
+            {"user": other.uuid.hex, "allow_email_mismatch": "true"},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(self.project.has_user(other, self.project_invitation.role))
+
+    @data(None, "")
+    def test_empty_allow_email_mismatch_accepts_for_the_caller(self, value):
+        self.client.force_authenticate(user=self.invitee)
+
+        response = self.client.post(
+            self.url, {"allow_email_mismatch": value}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            self.project.has_user(self.invitee, self.project_invitation.role)
+        )
+
+    @override_config(PAT_ENABLED=True)
+    def test_staff_token_without_staff_scope_cannot_allow_email_mismatch(self):
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.staff.can_use_personal_access_tokens = True
+        self.staff.save(update_fields=["can_use_personal_access_tokens"])
+        _, token = create_pat(self.staff, scopes=[PermissionEnum.LIST_PROJECTS.value])
+
+        response = self.accept_for(
+            other,
+            data_extra={"allow_email_mismatch": True},
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(self.project.has_user(other, self.project_invitation.role))
+
+    def test_non_staff_cannot_allow_email_mismatch(self):
+        other = structure_factories.UserFactory(email="someone-else@example.com")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.accept_for(other, data_extra={"allow_email_mismatch": True})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(self.project.has_user(other, self.project_invitation.role))
         self.assert_not_accepted()
 

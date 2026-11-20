@@ -558,7 +558,11 @@ CONSTANCE_CONFIG = {
     ),
     "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION": (
         False,
-        "If true, user email in Waldur database and in invitatation must strictly match.",
+        "If true, the email of the user accepting an invitation must match the "
+        "invitation's (ignoring case), with no exceptions: staff accepting for a "
+        "named user cannot bypass it with allow_email_mismatch. If false, users "
+        "may accept with another address of their own, and staff accepting for a "
+        "named user with a different address must pass allow_email_mismatch.",
     ),
     "INVITATION_DISABLE_MULTIPLE_ROLES": (
         False,

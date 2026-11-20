@@ -243,6 +243,7 @@ def log(
     event_type: EventType,
     reason: str | None = None,
     acting_user: User | None = None,
+    audit_context: dict | None = None,
 ):
     model_name = instance.scope._meta.model_name
     role_name = instance.role.name
@@ -269,6 +270,10 @@ def log(
 
     if acting_user:
         event_context["acting_user"] = acting_user
+
+    # Extra fields never replace the ones that describe the grant itself.
+    for key, value in (audit_context or {}).items():
+        event_context.setdefault(key, value)
 
     source = getattr(instance, "source", "")
     if source:
@@ -307,6 +312,7 @@ def log_role_granted(
     current_user: User | None = None,
     reason: str | None = None,
     acting_user: User | None = None,
+    audit_context: dict | None = None,
     **kwargs,
 ):
     """Log the event of a user being granted a role."""
@@ -328,6 +334,7 @@ def log_role_granted(
         event_type=EventType.ROLE_GRANTED,
         reason=reason,
         acting_user=acting_user,
+        audit_context=audit_context,
     )
 
 
