@@ -4,6 +4,7 @@ from django.core.cache import cache
 from django.test import RequestFactory, TestCase, override_settings
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.core import views
 from waldur_core.core.logos import LOGO_MAP, build_logo_url
 from waldur_core.core.tests.helpers import override_waldur_core_settings
@@ -170,6 +171,16 @@ class PublicConstanceSettingsTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("INVITATION_DISABLE_MULTIPLE_ROLES", response.data["WALDUR_CORE"])
+
+    @override_config(MCP_RESOURCE_URLS="https://api.example.com/mcp")
+    def test_mcp_resource_urls_are_exposed(self):
+        response = self.client.get("/api/configuration/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["WALDUR_CORE"]["MCP_RESOURCE_URLS"],
+            "https://api.example.com/mcp",
+        )
 
 
 class LogoUrlConfigurationTest(test.APITestCase):
