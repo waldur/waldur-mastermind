@@ -652,6 +652,26 @@ class ScimTasksTest(BaseScimTestCase):
             },
         )
 
+    def test_login_port_is_not_part_of_the_entitlement_hostname(self):
+        """The port is connection info. Entitlements stay hostname to username."""
+        self._grant_project_role()
+        _, offering = self._create_resource_with_login_nodes(
+            self.project, ["login1.example.org", "login2.example.org"]
+        )
+        offering.plugin_options["scim_login_port"] = 2224
+        offering.save()
+        self._create_offering_user(
+            user=self.user, offering=offering, username="user-on-offering"
+        )
+
+        self.assertEqual(
+            tasks.get_user_ssh_login_nodes(self.user),
+            {
+                "login1.example.org": "user-on-offering",
+                "login2.example.org": "user-on-offering",
+            },
+        )
+
     def test_get_user_ssh_login_nodes_empty_when_no_resources(self):
         """Test getting empty dict when user has no resources."""
         self._grant_project_role()
@@ -1214,6 +1234,18 @@ class ScimLoginNodesChangeTest(BaseScimTestCase):
         mock_task_delay.reset_mock()
 
         self.offering.plugin_options["conceal_billing_data"] = True
+        with self.captureOnCommitCallbacks(execute=True):
+            self.offering.save()
+
+        mock_task_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_login_port_change_does_not_trigger_sync(self, mock_task_delay):
+        self.offering.plugin_options["scim_login_nodes"] = ["login.example.org"]
+        self.offering.save()
+        mock_task_delay.reset_mock()
+
+        self.offering.plugin_options["scim_login_port"] = 2224
         with self.captureOnCommitCallbacks(execute=True):
             self.offering.save()
 

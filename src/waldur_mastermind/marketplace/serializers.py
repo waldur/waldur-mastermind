@@ -620,6 +620,17 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
             "dropdown."
         ),
     )
+    scim_login_port = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=1,
+        max_value=65535,
+        help_text=(
+            "SSH port clients should use for every host in scim_login_nodes. "
+            "When unset, clients use port 22. Outbound SCIM entitlements "
+            "carry the hostname only and ignore this value."
+        ),
+    )
     _scim_login_node_validator = DomainNameValidator()
     enable_resource_access_subnets = serializers.BooleanField(
         required=False,
