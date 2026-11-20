@@ -92,7 +92,11 @@ ENV WALDUR_WEB_SHELL_ASSETS_DIR=/usr/share/waldur/web-shell
 # names in Arabic, Hebrew, Thai, CJK, ... print as blank boxes. To render them, add
 # fonts-noto-core (~30 MB; Arabic, Hebrew, Thai, Indic, ...) and fonts-noto-cjk
 # (~60 MB more; Chinese, Japanese, Korean) below.
+#
+# apt-get upgrade picks up package security fixes released since the base image
+# was built.
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
     # bash is used in multiple scripts in docker/rootfs.
     bash \
