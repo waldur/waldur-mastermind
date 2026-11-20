@@ -19,9 +19,9 @@ from rest_framework.throttling import SimpleRateThrottle
 
 from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories
-from waldur_mastermind.mcp import tasks
+from waldur_mastermind.mcp import auth, tasks
 from waldur_mastermind.mcp.apps import configure_django_cors_headers
-from waldur_mastermind.mcp.oauth import MCPOAuth2Validator
+from waldur_mastermind.mcp.oauth import MCPMetadataFetcher, MCPOAuth2Validator
 
 Application = get_application_model()
 AccessToken = get_access_token_model()
@@ -59,14 +59,21 @@ class OAuthTestMixin:
             **kwargs,
         )
 
-    def create_grant(self, application, user, resource=None, scope="mcp:read"):
+    def create_grant(
+        self,
+        application,
+        user,
+        resource=None,
+        scope="mcp:read",
+        redirect_uri=REDIRECT_URI,
+    ):
         # Stands in for the consent bridge, to test the token endpoint alone.
         return Grant.objects.create(
             application=application,
             user=user,
             code="code-" + application.client_id,
             expires=timezone.now() + timedelta(minutes=1),
-            redirect_uri=REDIRECT_URI,
+            redirect_uri=redirect_uri,
             scope=scope,
             code_challenge=s256(VERIFIER),
             code_challenge_method="S256",
@@ -494,6 +501,184 @@ class ClientIdMetadataDocumentTest(OAuthTestMixin, test.APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"], "invalid_grant")
         self.assertFalse(AccessToken.objects.filter(application=application).exists())
+
+
+# As the clients publish them. Claude's and VS Code's add a grant Waldur doesn't
+# serve to authorization_code, which DOT alone refuses.
+CLAUDE_DOCUMENT = {
+    "client_id": "https://claude.ai/oauth/mcp-oauth-client-metadata",
+    "client_name": "Claude",
+    "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"],
+    "grant_types": [
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    ],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "none",
+}
+VS_CODE_DOCUMENT = {
+    "client_id": "https://vscode.dev/oauth/client-metadata.json",
+    "client_name": "Visual Studio Code",
+    "redirect_uris": ["http://127.0.0.1:33418/", "https://vscode.dev/redirect"],
+    "grant_types": [
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:device_code",
+    ],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "none",
+}
+CLAUDE_CODE_DOCUMENT = {
+    "client_id": "https://claude.ai/oauth/claude-code-client-metadata",
+    "client_name": "Claude Code",
+    "redirect_uris": ["http://localhost/callback", "http://127.0.0.1/callback"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "none",
+}
+
+
+@override_config(
+    MCP_ENABLED=True,
+    MCP_RESOURCE_URLS=MCP_URL,
+    HOMEPORT_URL="https://portal.example.com/",
+)
+class PublishedClientDocumentTest(OAuthTestMixin, test.APITestCase):
+    def setUp(self):
+        # DOT backs off a refused URL in the cache.
+        cache.clear()
+        self.user = factories.UserFactory()
+
+    def authorize(self, document, redirect_uri):
+        query = urlencode(
+            {
+                "response_type": "code",
+                "client_id": document["client_id"],
+                "redirect_uri": redirect_uri,
+                "scope": "mcp:read",
+                "state": "client-state",
+                "code_challenge": s256(VERIFIER),
+                "code_challenge_method": "S256",
+                "resource": MCP_URL,
+            }
+        )
+        with mock.patch(
+            "oauth2_provider.cimd.SafeMetadataFetcher.fetch",
+            return_value=(document, 300),
+        ) as fetch:
+            response = self.client.get(f"/oauth/authorize/?{query}")
+        fetch.assert_called_once_with(document["client_id"])
+        return response
+
+    def assert_signs_in(self, document, redirect_uri):
+        response = self.authorize(document, redirect_uri)
+
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertTrue(
+            response.url.startswith("https://portal.example.com/oauth/consent?")
+        )
+        application = Application.objects.get(client_id=document["client_id"])
+        self.assertEqual(
+            application.registration_source, Application.RegistrationSource.CIMD
+        )
+        self.assertEqual(
+            application.authorization_grant_type,
+            Application.GRANT_AUTHORIZATION_CODE,
+        )
+        self.assertEqual(application.name, document["client_name"])
+        self.assertEqual(application.redirect_uris, " ".join(document["redirect_uris"]))
+
+        grant = self.create_grant(
+            application, self.user, resource=[MCP_URL], redirect_uri=redirect_uri
+        )
+        response = self.exchange_code(
+            application, grant, redirect_uri=redirect_uri, resource=MCP_URL
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()
+        self.assertEqual(data["scope"], "mcp:read")
+        self.assertIn("refresh_token", data)
+        token = AccessToken.objects.get(token_checksum=token_hash(data["access_token"]))
+        self.assertEqual(token.application, application)
+        self.assertEqual(token.resource, [MCP_URL])
+        # The check /mcp runs on every request.
+        verified = auth.verify_oauth_token(data["access_token"])
+        self.assertIsNotNone(verified)
+        self.assertEqual(verified.subject, self.user.uuid.hex)
+        self.assertIsNone(verified.claims["missing_scope"])
+
+    def test_claude_signs_in(self):
+        self.assert_signs_in(CLAUDE_DOCUMENT, "https://claude.ai/api/mcp/auth_callback")
+
+    def test_vs_code_signs_in(self):
+        self.assert_signs_in(VS_CODE_DOCUMENT, "https://vscode.dev/redirect")
+
+    def test_claude_code_signs_in_as_before(self):
+        self.assert_signs_in(CLAUDE_CODE_DOCUMENT, "http://127.0.0.1/callback")
+
+    def test_document_without_authorization_code_is_refused(self):
+        for name, grant in (
+            ("device-code", "urn:ietf:params:oauth:grant-type:device_code"),
+            ("implicit", "implicit"),
+        ):
+            with self.subTest(grant=grant):
+                # Not CIMD_CLIENT_ID: DOT backs off a refused URL for a minute,
+                # and other tests register that one.
+                client_id = f"https://refused.example.com/{name}.json"
+                document = {
+                    **VS_CODE_DOCUMENT,
+                    "client_id": client_id,
+                    "grant_types": [grant],
+                }
+
+                response = self.authorize(document, "https://vscode.dev/redirect")
+
+                self.assertEqual(response.status_code, 400)
+                self.assertNotIn("Location", response.headers)
+                self.assertFalse(
+                    Application.objects.filter(client_id=client_id).exists()
+                )
+
+
+class MetadataFetcherTest(test.APITestCase):
+    def fetch(self, document):
+        with mock.patch(
+            "oauth2_provider.cimd.SafeMetadataFetcher.fetch",
+            return_value=(document, 300),
+        ):
+            return MCPMetadataFetcher().fetch(CIMD_CLIENT_ID)
+
+    def test_only_the_grants_waldur_serves_are_kept(self):
+        jwt_bearer = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+        for grant_types, kept in (
+            (
+                ["authorization_code", "refresh_token", jwt_bearer],
+                ["authorization_code", "refresh_token"],
+            ),
+            (["authorization_code", "implicit", "password"], ["authorization_code"]),
+            (["implicit"], []),
+            (["client_credentials", "refresh_token"], ["refresh_token"]),
+        ):
+            with self.subTest(grant_types=grant_types):
+                document = {"client_id": CIMD_CLIENT_ID, "grant_types": grant_types}
+
+                metadata, max_age = self.fetch(document)
+
+                self.assertEqual(
+                    metadata, {"client_id": CIMD_CLIENT_ID, "grant_types": kept}
+                )
+                self.assertEqual(max_age, 300)
+
+    def test_other_documents_are_left_to_dot(self):
+        for document in (
+            {"client_id": CIMD_CLIENT_ID},
+            {"client_id": CIMD_CLIENT_ID, "grant_types": "authorization_code"},
+            {"client_id": CIMD_CLIENT_ID, "grant_types": ["authorization_code", 1]},
+        ):
+            with self.subTest(document=document):
+                self.assertEqual(self.fetch(document), (document, 300))
 
 
 @override_config(MCP_ENABLED=True, MCP_RESOURCE_URLS=MCP_URL)

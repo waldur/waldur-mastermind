@@ -44,6 +44,7 @@ class MCPExtension(WaldurExtension):
             # the token left behind by each open registration.
             "DCR_REGISTRATION_TOKEN_EXPIRE_SECONDS": 30 * 24 * 3600,
             "CIMD_ENABLED": True,
+            "CIMD_METADATA_FETCHER": "waldur_mastermind.mcp.oauth.MCPMetadataFetcher",
             "CIMD_REGISTRATION_PERMISSION_CLASSES": (
                 "waldur_mastermind.mcp.oauth.ThrottledCIMDPermission",
             ),
