@@ -75,6 +75,7 @@ The sync process determines which entitlements a user should have based on:
 4. **Offering Users**: Offering users must be in `OK` state with usernames
 5. **Offering opt-in**: The offering must set `plugin_options.enable_scim_entitlements` to `true`
 6. **Login nodes**: The offering must list bare hostnames in `plugin_options.scim_login_nodes` (for example `login.example.org`). These are not access endpoints and do not appear in the resource access dropdown.
+7. **SSH port**: Optional `plugin_options.scim_login_port` is the port clients should use for every login host of the offering. When unset, use 22. The entitlement URN does not include it, and changing it does not run a sync.
 
 The sync process:
 1. Fetches current entitlements from SCIM service
@@ -103,7 +104,7 @@ Configure these settings in the Waldur admin (*Configuration → Settings*):
 | `SCIM_API_KEY` | Secret | API key for `X-API-Key` header authentication |
 | `SCIM_URN_NAMESPACE` | String | URN namespace for entitlements (e.g., `urn:ietf:dev`) |
 
-The setting is deployment-wide. Each offering must also opt in via `plugin_options.enable_scim_entitlements` and list its login hosts in `plugin_options.scim_login_nodes`. An access endpoint alone does not include the offering in entitlement sync. After enabling the option on an existing offering, trigger a full sync (`POST /api/users/scim_sync_all/`) so current users pick up the change. Changing the login-node list schedules a sync for that offering's users.
+The setting is deployment-wide. Each offering must also opt in via `plugin_options.enable_scim_entitlements` and list its login hosts in `plugin_options.scim_login_nodes`. Set `plugin_options.scim_login_port` when those hosts listen on a port other than 22; clients that open the SSH connection read it, and the sync ignores it. An access endpoint alone does not include the offering in entitlement sync. After enabling the option on an existing offering, trigger a full sync (`POST /api/users/scim_sync_all/`) so current users pick up the change. Changing the login-node list schedules a sync for that offering's users.
 
 ### Prerequisites
 

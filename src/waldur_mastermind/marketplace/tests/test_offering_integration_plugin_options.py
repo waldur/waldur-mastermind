@@ -101,6 +101,33 @@ class LifecyclePluginOptionsPersistenceTest(test.APITestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("scim_login_nodes", serializer.errors)
 
+    def test_scim_login_port_persists_beside_login_nodes(self):
+        result = self._update(
+            {
+                "scim_login_nodes": ["login.test.eu"],
+                "scim_login_port": 2224,
+            }
+        )
+        self.assertEqual(result["scim_login_nodes"], ["login.test.eu"])
+        self.assertEqual(result["scim_login_port"], 2224)
+
+    def test_omitted_scim_login_port_is_not_stored(self):
+        result = self._update({"scim_login_nodes": ["login.example.org"]})
+        self.assertNotIn("scim_login_port", result)
+
+    def test_scim_login_port_can_be_cleared(self):
+        self._update({"scim_login_port": 2224})
+        result = self._update({"scim_login_port": None})
+        self.assertIsNone(result["scim_login_port"])
+
+    @data(0, 65536, -1)
+    def test_scim_login_port_rejects_out_of_range(self, port):
+        serializer = serializers.MergedPluginOptionsSerializer(
+            data={"scim_login_port": port}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("scim_login_port", serializer.errors)
+
     def test_invalid_limit_policy_rejected(self):
         serializer = serializers.MergedPluginOptionsSerializer(
             data={"resource_projects_limit_policy": "bogus"}
