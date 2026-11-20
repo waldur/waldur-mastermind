@@ -138,7 +138,9 @@ Public group invitations are a special type of group invitation that can be view
 - `GET /api/user-invitations/{uuid}/` - Retrieve invitation details
 - `POST /api/user-invitations/{uuid}/send/` - Resend invitation
 - `POST /api/user-invitations/{uuid}/cancel/` - Cancel invitation
-- `POST /api/user-invitations/{uuid}/accept/` - Accept invitation (authenticated)
+- `POST /api/user-invitations/{uuid}/accept/` - Accept invitation (authenticated).
+  Staff may pass `user` to accept for that user instead, and `allow_email_mismatch`
+  for a user whose email differs from the invitation's (see [Email Validation](#email-validation))
 - `POST /api/user-invitations/{uuid}/delete/` - Delete invitation (staff only)
 - `POST /api/user-invitations/approve/` - Approve invitation (token-based)
 - `POST /api/user-invitations/reject/` - Reject invitation (token-based)
@@ -728,11 +730,41 @@ When `civil_number` is provided:
 
 ### Email Validation
 
-Multiple levels of email validation:
+Whether the accepting user's email must match the invitation's depends on who
+accepts and on two settings. Matching always ignores case.
 
-1. **Loose matching** (default): Case-insensitive email comparison
-2. **Strict validation**: Exact email matching when `ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True`
-3. **Pattern matching**: Group invitations validate against email patterns
+| Accepted by | `ENABLE_STRICT_CHECK_ACCEPTING_INVITATION` off (default) | on |
+|---|---|---|
+| The user, for themselves | Any email: a user may accept with another address of their own | Must match |
+| Staff, for a named user (`user`) | Must match, unless `allow_email_mismatch: true` | Must match, no exceptions |
+
+- `VALIDATE_INVITATION_EMAIL` (`WALDUR_CORE`) is stricter still: an invitation
+  is only found for a user whose email matches it, so a mismatch is a 404 for
+  everyone, `allow_email_mismatch` included.
+- Group invitations validate against email patterns instead.
+
+#### Accepting for another user
+
+Staff, typically an identity system's service account, can accept an invitation
+for a user who registered elsewhere:
+
+```http
+POST /api/user-invitations/{uuid}/accept/
+{"user": "<user uuid>"}
+```
+
+The role goes to the named user, and the `role_granted` event records the staff
+caller as `acting_user`. Only staff may name a user (a personal access token
+needs the `STAFF_ACCESS` scope), and the call cannot be combined with the
+impersonation header.
+
+When the person already has an account under a different address, for example a
+personal address or a previous institution's, and the caller has verified their
+identity itself, it adds `"allow_email_mismatch": true`. Sending the flag without
+naming another user is a 400. When a mismatch is actually bypassed, the
+`role_granted` event's reason ends in "(email check bypassed)" and its context
+carries `email_check_bypassed: true`, `invitation_uuid` and `invitation_email`,
+so bypassed accepts can be found and reviewed.
 
 ### Token Security
 

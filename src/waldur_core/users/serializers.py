@@ -835,8 +835,19 @@ class UserInvitationAcceptSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text="Staff only. Accept the invitation for this user instead of the "
-        "caller. The user's email must match the invitation. Empty, null or the "
-        "caller's own uuid accepts for the caller.",
+        "caller. The user's email must match the invitation unless "
+        "allow_email_mismatch is set. Empty, null or the caller's own uuid "
+        "accepts for the caller.",
+    )
+    allow_email_mismatch = serializers.BooleanField(
+        required=False,
+        allow_null=True,
+        help_text="Only with user. Accept even though the user's email differs "
+        "from the invitation's, for a caller that has verified the person's "
+        "identity itself. Has no effect while "
+        "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION is on. The role-granted event "
+        "records the bypass in email_check_bypassed, invitation_uuid and "
+        "invitation_email.",
     )
 
 

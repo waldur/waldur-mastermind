@@ -1054,6 +1054,7 @@ def add_user(
     source="",
     reason=None,
     acting_user=None,
+    audit_context=None,
 ):
     """Grant ``role`` to ``user`` on ``scope`` (low-level write primitive).
 
@@ -1069,7 +1070,9 @@ def add_user(
     generic "System-initiated role assignment". ``acting_user`` records who
     performed the grant when that is not ``created_by``, whose authority the
     role is granted on (e.g. staff accepting an invitation for the invitee).
-    All three are appended last on purpose — several callers pass
+    ``audit_context`` adds fields to the audit event's context, so that what
+    the reason describes can also be filtered on. These are appended last on
+    purpose — several callers pass
     ``created_by`` and ``expiration_time`` positionally.
     """
     if not force:
@@ -1090,6 +1093,7 @@ def add_user(
         current_user=created_by,
         reason=reason,
         acting_user=acting_user,
+        audit_context=audit_context,
     )
     return permission
 

@@ -1,4 +1,4 @@
-from typing import cast
+from typing import NamedTuple, cast
 from uuid import UUID
 
 from django.conf import settings
@@ -19,6 +19,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import ReviewStates
+from waldur_core.core.models import User
 from waldur_core.core.permissions import ActionsPermission, has_staff_access
 from waldur_core.core.views import (
     ActionsViewSet,
@@ -44,6 +45,16 @@ from waldur_core.users.utils import (
     get_invitation_existing_roles,
     parse_invitation_token,
 )
+
+
+class AcceptRequest(NamedTuple):
+    """Whom an invitation is accepted for, read from the accept request body.
+
+    ``user`` is None for an ordinary acceptance by the caller.
+    """
+
+    user: User | None
+    allow_email_mismatch: bool
 
 
 @extend_schema_view(
@@ -405,7 +416,8 @@ class InvitationViewSet(viewsets.ModelViewSet):
         "This grants the user the specified role in the invitation's scope. "
         "Staff may pass `user` to accept it for that user instead, for example "
         "from a service account that registers users elsewhere; the user's "
-        "email must match the invitation.",
+        "email must match the invitation unless `allow_email_mismatch` is set, "
+        "for a caller that has verified the person's identity itself.",
         request=serializers.UserInvitationAcceptSerializer,
         responses={200: None},
     )
@@ -413,7 +425,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
         detail=True, methods=["post"], filter_backends=[filters.PendingInvitationFilter]
     )
     def accept(self, request, uuid=None):
-        target = self._get_named_user()
+        target, allow_email_mismatch = self._parse_accept_request()
         if target is not None:
             # Read by PendingInvitationFilter, so that get_object() finds the
             # invitation for the user the role is going to.
@@ -421,6 +433,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
         invitation: models.Invitation = self.get_object()
         user = target or request.user
 
+        audit_context = None
         if target is None:
             reason = acting_user = None
         else:
@@ -444,17 +457,24 @@ class InvitationViewSet(viewsets.ModelViewSet):
                 )
 
             if invitation.email.casefold() != user.email.casefold():
-                # Accepting for someone else is never let through on a
-                # mismatch: the setting lets a person use another address of
-                # their own, while here it would only hide a caller that named
-                # the wrong user.
-                if (
-                    target is not None
-                    or config.ENABLE_STRICT_CHECK_ACCEPTING_INVITATION
+                # The setting lets a person accept with another address of
+                # their own. Accepting for someone else needs an explicit
+                # opt-in on top, as a mismatch there would otherwise hide a
+                # caller that named the wrong user. A deployment that turned
+                # the strict check on allows no mismatch from anyone.
+                if config.ENABLE_STRICT_CHECK_ACCEPTING_INVITATION or (
+                    target is not None and not allow_email_mismatch
                 ):
                     raise ValidationError(
                         _("User’s email and email of the invitation are not equal.")
                     )
+                if target is not None and allow_email_mismatch:
+                    reason += " (email check bypassed)"
+                    audit_context = {
+                        "email_check_bypassed": True,
+                        "invitation_uuid": invitation.uuid.hex,
+                        "invitation_email": invitation.email,
+                    }
 
             if config.INVITATION_DISABLE_MULTIPLE_ROLES:
                 if UserRole.objects.filter(
@@ -468,36 +488,64 @@ class InvitationViewSet(viewsets.ModelViewSet):
             # Validate user against scope's email/affiliation restrictions
             validate_user_restrictions(invitation.scope, user)
 
-            invitation.accept(user, reason=reason, acting_user=acting_user)
+            invitation.accept(
+                user,
+                reason=reason,
+                acting_user=acting_user,
+                audit_context=audit_context,
+            )
 
         return Response(
             {"detail": _("Invitation has been successfully accepted.")},
             status=status.HTTP_200_OK,
         )
 
-    def _get_named_user(self):
-        """The user named in the body to accept for, or None to accept as the caller.
+    def _parse_accept_request(self) -> AcceptRequest:
+        """Read whom to accept for and whether a different email is allowed.
 
-        An absent, empty or null value, or the caller's own uuid, is an ordinary
-        acceptance.
+        An absent, empty or null user, or the caller's own uuid, is an
+        ordinary acceptance.
         """
         data = self.request.data
-        value = data.get("user") if hasattr(data, "get") else None
+        if not hasattr(data, "get"):
+            data = {}
+        value = data.get("user")
         if value in (None, ""):
-            return None
-        try:
-            if UUID(str(value)) == UUID(str(self.request.user.uuid)):
-                return None
-        except ValueError:
-            pass
+            for_caller = True
+        else:
+            try:
+                for_caller = UUID(str(value)) == UUID(str(self.request.user.uuid))
+            except ValueError:
+                for_caller = False
 
-        # Before validating the field, so that only staff learn whether the
-        # uuid they sent belongs to a user.
-        self._check_can_accept_for_others()
+        if not for_caller:
+            # Before validating the body, so that only staff learn whether the
+            # uuid they sent belongs to a user.
+            self._check_can_accept_for_others()
 
-        serializer = serializers.UserInvitationAcceptSerializer(data={"user": value})
+        serializer = serializers.UserInvitationAcceptSerializer(
+            data={
+                "user": None if for_caller else value,
+                "allow_email_mismatch": data.get("allow_email_mismatch"),
+            }
+        )
         serializer.is_valid(raise_exception=True)
-        return serializer.validated_data["user"]
+        allow_email_mismatch = bool(
+            serializer.validated_data.get("allow_email_mismatch")
+        )
+        if for_caller and allow_email_mismatch:
+            # Rejected rather than ignored, so that the caller does not take
+            # an ordinary acceptance for one that bypasses the email check.
+            raise ValidationError(
+                {
+                    "allow_email_mismatch": _(
+                        "Only applies when accepting for another user."
+                    )
+                }
+            )
+        return AcceptRequest(
+            serializer.validated_data.get("user"), allow_email_mismatch
+        )
 
     def _check_can_accept_for_others(self):
         # Naming the user replaces impersonation for this call; combining the

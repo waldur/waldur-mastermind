@@ -207,7 +207,7 @@ class Invitation(
             + settings.WALDUR_CORE["INVITATION_LIFETIME"]
         )
 
-    def accept(self, user, reason=None, acting_user=None):
+    def accept(self, user, reason=None, acting_user=None, audit_context=None):
         # The role is granted on the inviter's authority, so the change is
         # checked as theirs.
         validate_role_change(
@@ -221,6 +221,7 @@ class Invitation(
             self.created_by,
             reason=reason,
             acting_user=acting_user,
+            audit_context=audit_context,
         )
 
         self.state = InvitationState.ACCEPTED
