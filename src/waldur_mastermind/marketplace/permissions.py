@@ -418,6 +418,39 @@ def check_order_creation_permission_as_consumer(request, view, resource):
     check_order_creation_permission(request, view, resource)
 
 
+# Provider side of an order: a role on the offering, on the provider
+# organization, or on its ServiceProvider (a service provider manager). The
+# consumer side (project, project.customer) is deliberately absent, so a
+# provider-scoped grant never reaches orders the organization places itself.
+ORDER_PROVIDER_SOURCES = [
+    "offering",
+    "offering.customer",
+    "offering.customer.serviceprovider",
+]
+
+
+def may_lower_increase_only_limits(
+    request, resource: models.Resource, plan=None
+) -> bool:
+    """Whether the user may lower the limits of ``resource`` that may only grow.
+
+    True at once when no component of the resource, under ``plan`` if given,
+    is restricted, so that the roles are looked up only when it matters. The
+    restriction binds the consumer. Staff, and the offering's provider, who
+    would approve the update order anyway, are exempt.
+    """
+    if not utils.increase_only_components(resource, plan):
+        return True
+    if has_staff_access(request):
+        return True
+    return has_permission_on_any_source(
+        request,
+        PermissionEnum.APPROVE_ORDER,
+        resource,
+        ORDER_PROVIDER_SOURCES,
+    )
+
+
 def validate_resource_terminate_state(resource: models.Resource) -> None:
     """Allow terminate on OK/ERRED resources and on TERMINATING with pending approval."""
     if resource.state in (ResourceStates.OK, ResourceStates.ERRED):

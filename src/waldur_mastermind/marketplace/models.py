@@ -1483,6 +1483,16 @@ class OfferingComponent(
     max_available_limit = models.DecimalField(
         max_digits=20, decimal_places=2, blank=True, null=True
     )
+    # Checked only where the consumer changes limits (see
+    # utils.validate_limit_increase_only); the provider, staff, the site agent
+    # and awards may still lower them.
+    limit_increase_only = models.BooleanField(
+        default=False,
+        help_text=_(
+            "If set, a consumer cannot lower this component's limit below "
+            "the resource's current limit."
+        ),
+    )
     # is_boolean field allows to render checkbox in UI which set limit amount to 1
     is_boolean = models.BooleanField(default=False)
     # default_limit field is used by UI to prefill limit values

@@ -4952,6 +4952,9 @@ class Command(BaseCommand):
                     ),
                     "min_value": component_data.get("min_value"),
                     "max_value": component_data.get("max_value"),
+                    "limit_increase_only": component_data.get(
+                        "limit_increase_only", False
+                    ),
                     "min_prepaid_duration": component_data.get("min_prepaid_duration"),
                     "max_prepaid_duration": component_data.get("max_prepaid_duration"),
                     "prepaid_duration_step": component_data.get(

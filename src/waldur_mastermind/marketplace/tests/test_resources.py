@@ -679,6 +679,36 @@ class ResourceRenewTest(test.APITestCase):
             ).exists()
         )
 
+    def test_renewal_cannot_lower_an_increase_only_limit(self):
+        self.component.limit_increase_only = True
+        self.component.save()
+
+        response = self.renew_resource(
+            self.fixture.owner,
+            self.resource,
+            {"extension_months": 12, "limits": {"storage": 50}},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("can only be increased", str(response.data))
+        self.assertFalse(
+            models.Order.objects.filter(
+                resource=self.resource, type=OrderTypes.UPDATE
+            ).exists()
+        )
+
+    def test_renewal_may_raise_an_increase_only_limit(self):
+        self.component.limit_increase_only = True
+        self.component.save()
+
+        response = self.renew_resource(
+            self.fixture.owner,
+            self.resource,
+            {"extension_months": 12, "limits": {"storage": 150}},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_renewal_order_records_the_quoted_unit_prices(self):
         response = self.renew_resource(
             self.fixture.owner, self.resource, {"extension_months": 12}
@@ -1716,6 +1746,243 @@ class ResourceUpdateLimitsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class ResourceUpdateLimitsIncreaseOnlyTest(test.APITestCase):
+    """A component whose limit its provider allows only to grow."""
+
+    def setUp(self):
+        plugins.manager.register(
+            offering_type="TEST_TYPE",
+            create_resource_processor=test_utils.TestCreateProcessor,
+            update_resource_processor=test_utils.TestUpdateScopedProcessor,
+            can_update_limits=True,
+        )
+
+        self.fixture = fixtures.ServiceFixture()
+        self.resource = factories.ResourceFactory()
+        self.resource.state = ResourceStates.OK
+        self.resource.project.customer = self.fixture.customer
+        self.resource.project.save()
+        self.resource.limits = {"storage": 100, "vcpu": 4}
+        self.resource.save()
+        self.offering = self.resource.offering
+        self.offering.type = "TEST_TYPE"
+        self.offering.save()
+        self.storage = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            name="Storage",
+            billing_type=BillingTypes.LIMIT,
+            limit_increase_only=True,
+        )
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="vcpu",
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+
+    def update_limits(self, limits, user=None):
+        self.client.force_authenticate(user or self.fixture.owner)
+        url = factories.ResourceFactory.get_url(self.resource, "update_limits")
+        return self.client.post(url, {"limits": limits}, format="json")
+
+    def orders(self):
+        return models.Order.objects.filter(
+            resource=self.resource, type=OrderTypes.UPDATE
+        )
+
+    def test_lowering_a_flagged_limit_is_refused(self):
+        response = self.update_limits({"storage": 50, "vcpu": 4})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        message = str(response.data)
+        self.assertIn("Storage", message)
+        self.assertIn("100", message)
+        self.assertIn("50", message)
+        self.assertFalse(self.orders().exists())
+
+    def test_leaving_out_a_flagged_limit_is_refused(self):
+        # An update order replaces the limits, so a missing one would be dropped.
+        response = self.update_limits({"vcpu": 8})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("left out of the request", str(response.data))
+        self.assertFalse(self.orders().exists())
+
+    def test_raising_a_flagged_limit_is_ordered(self):
+        response = self.update_limits({"storage": 150, "vcpu": 4})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.orders().get().limits["storage"], 150)
+
+    def test_other_components_may_still_be_lowered(self):
+        response = self.update_limits({"storage": 100, "vcpu": 2})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.orders().get().limits["vcpu"], 2)
+
+    def test_without_the_flag_a_limit_may_be_lowered(self):
+        self.storage.limit_increase_only = False
+        self.storage.save()
+
+        response = self.update_limits({"storage": 50, "vcpu": 4})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_a_component_without_a_current_limit_is_not_restricted(self):
+        self.resource.limits = {"vcpu": 4}
+        self.resource.save()
+
+        response = self.update_limits({"storage": 10, "vcpu": 4})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_staff_may_lower_a_flagged_limit(self):
+        response = self.update_limits({"storage": 50, "vcpu": 4}, self.fixture.staff)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.orders().get().limits["storage"], 50)
+
+    def test_the_offering_provider_may_lower_a_flagged_limit(self):
+        # The consumer's organization is also the offering's provider.
+        self.offering.customer = self.fixture.customer
+        self.offering.save()
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+
+        response = self.update_limits({"storage": 50, "vcpu": 4})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_agent_may_report_a_lower_limit(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "set_limits"
+        )
+
+        response = self.client.post(
+            url, {"limits": {"storage": 50, "vcpu": 4}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits["storage"], 50)
+
+    def pending_order(self, limits):
+        # Held on the consumer's organization, not the offering's.
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        order = factories.OrderFactory(
+            resource=self.resource,
+            offering=self.offering,
+            plan=self.resource.plan,
+            project=self.resource.project,
+            type=OrderTypes.UPDATE,
+            created_by=self.fixture.owner,
+            limits=limits,
+            attributes={"old_limits": dict(self.resource.limits)},
+        )
+        # Its creator could approve it, which moves it on when it is saved.
+        models.Order.objects.filter(pk=order.pk).update(
+            state=OrderStates.PENDING_CONSUMER
+        )
+        order.refresh_from_db()
+        return order
+
+    def edit_order(self, order, limits):
+        self.client.force_authenticate(self.fixture.owner)
+        return self.client.patch(
+            factories.OrderFactory.get_url(order), {"limits": limits}, format="json"
+        )
+
+    def test_editing_a_pending_order_cannot_lower_a_flagged_limit(self):
+        order = self.pending_order({"storage": 150, "vcpu": 4})
+
+        response = self.edit_order(order, {"storage": 50, "vcpu": 4})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("can only be increased", str(response.data))
+        order.refresh_from_db()
+        self.assertEqual(order.limits["storage"], 150)
+
+    def test_editing_a_pending_order_may_raise_a_flagged_limit(self):
+        order = self.pending_order({"storage": 150, "vcpu": 4})
+
+        response = self.edit_order(order, {"storage": 200, "vcpu": 4})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order.refresh_from_db()
+        self.assertEqual(order.limits["storage"], 200)
+
+    def test_editing_other_limits_keeps_a_lowering_placed_by_staff(self):
+        order = self.pending_order({"storage": 50, "vcpu": 4})
+
+        response = self.edit_order(order, {"storage": 50, "vcpu": 2})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_roles_are_not_looked_up_without_a_restricted_component(self):
+        self.storage.limit_increase_only = False
+        self.storage.save()
+        request = mock.Mock(user=self.fixture.user)
+
+        with mock.patch.object(
+            marketplace_permissions, "has_permission_on_any_source"
+        ) as lookup:
+            self.assertTrue(
+                marketplace_permissions.may_lower_increase_only_limits(
+                    request, self.resource
+                )
+            )
+        lookup.assert_not_called()
+
+    def test_a_limit_that_is_not_a_number_is_not_compared(self):
+        # A checkbox may hold a boolean, a legacy limit a string.
+        # Not saved: the resource's quotas could not hold it.
+        self.resource.limits = {"storage": "legacy", "vcpu": 4}
+
+        marketplace_utils.validate_limit_increase_only(
+            self.resource, {"storage": "x", "vcpu": 4}
+        )
+        marketplace_utils.validate_limit_increase_only(
+            self.resource, {"storage": 1, "vcpu": 4}
+        )
+
+    def test_a_boolean_limit_is_compared_as_a_number(self):
+        self.resource.limits = {"storage": True, "vcpu": 4}
+        self.resource.save()
+
+        marketplace_utils.validate_limit_increase_only(
+            self.resource, {"storage": 1, "vcpu": 4}
+        )
+        with self.assertRaises(rf_exceptions.ValidationError):
+            marketplace_utils.validate_limit_increase_only(
+                self.resource, {"storage": False, "vcpu": 4}
+            )
+
+    def test_staff_may_reallocate_an_increase_only_limit(self):
+        target = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.resource.project,
+            plan=self.resource.plan,
+            state=ResourceStates.OK,
+            limits={"storage": 10, "vcpu": 1},
+        )
+        targets = [{"resource_uuid": target.uuid, "allocated_limits": {"storage": 20}}]
+
+        with self.assertRaises(rf_exceptions.ValidationError):
+            marketplace_utils.validate_reallocation(
+                self.resource, {"storage": 20}, targets, {target.uuid: target}
+            )
+        marketplace_utils.validate_reallocation(
+            self.resource,
+            {"storage": 20},
+            targets,
+            {target.uuid: target},
+            may_lower_increase_only=True,
+        )
+
+
 class ResourceReallocateLimitsTest(test.APITestCase):
     def setUp(self):
         plugins.manager.register(
@@ -1778,6 +2045,27 @@ class ResourceReallocateLimitsTest(test.APITestCase):
         url = factories.ResourceFactory.get_url(source_resource, "reallocate_limits")
         payload = {"limits": limits, "targets": targets}
         return self.client.post(url, payload)
+
+    def test_increase_only_limit_cannot_be_reallocated(self):
+        models.OfferingComponent.objects.filter(
+            offering=self.source_resource.offering, type="vcpu"
+        ).update(limit_increase_only=True)
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 2},
+            },
+        ]
+
+        response = self.reallocate_limits(
+            self.fixture.owner, self.source_resource, {"vcpu": 2}, targets
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("can only be increased", str(response.data))
+        self.assertFalse(
+            models.Order.objects.filter(resource=self.source_resource).exists()
+        )
 
     def test_create_reallocate_limits_orders(self):
         targets = [
@@ -4582,3 +4870,93 @@ class ProviderSetEndDateOfferingScopeTest(test.APITestCase):
         response = self.set_end_date(self.resource, action)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, action)
+
+
+class ResourceSwitchPlanIncreaseOnlyTest(test.APITestCase):
+    """A plan switch re-derives limits and may not lower one that only grows."""
+
+    def setUp(self):
+        plugins.manager.register(
+            offering_type="TEST_TYPE",
+            create_resource_processor=test_utils.TestCreateProcessor,
+            update_resource_processor=test_utils.TestUpdateScopedProcessor,
+            can_update_limits=True,
+        )
+        self.fixture = MarketplaceFixture()
+        self.offering = factories.OfferingFactory(
+            type="TEST_TYPE",
+            state=OfferingStates.ACTIVE,
+            options={
+                "order": ["size"],
+                "options": {
+                    "size": {
+                        "type": "component_formula",
+                        "label": "Size",
+                        "component_formula_config": {
+                            "targets": [
+                                {"component_type": "storage", "formula": "input"}
+                            ]
+                        },
+                    }
+                },
+            },
+        )
+        self.storage = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            name="Storage",
+            billing_type=BillingTypes.LIMIT,
+            limit_increase_only=True,
+            limit_decimal_places=1,
+        )
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.other_plan = factories.PlanFactory(offering=self.offering)
+        for plan in (self.plan, self.other_plan):
+            factories.PlanComponentFactory(plan=plan, component=self.storage, price=1)
+        # The input changed since without the limit following it, so the
+        # switch re-derives a lower limit than the resource holds.
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            attributes={"size": 50},
+            limits={"storage": 100},
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+
+    def switch_plan(self, user):
+        self.client.force_authenticate(user)
+        url = factories.ResourceFactory.get_url(self.resource, "switch_plan")
+        return self.client.post(
+            url,
+            {"plan": factories.PlanFactory.get_public_url(self.other_plan)},
+            format="json",
+        )
+
+    def update_orders(self):
+        return models.Order.objects.filter(
+            resource=self.resource, type=OrderTypes.UPDATE
+        )
+
+    def test_switch_lowering_a_derived_limit_is_refused(self):
+        response = self.switch_plan(self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Storage", str(response.data))
+        self.assertFalse(self.update_orders().exists())
+
+    def test_switch_keeping_the_limit_is_ordered(self):
+        self.resource.attributes = {"size": 100}
+        self.resource.save()
+
+        response = self.switch_plan(self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.update_orders().get().limits, {"storage": 100})
+
+    def test_staff_may_switch(self):
+        response = self.switch_plan(self.fixture.staff)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

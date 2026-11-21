@@ -10,8 +10,8 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models, tasks, views
-from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace import models, resource_changes, tasks, views
+from waldur_mastermind.marketplace.enums import BillingTypes, OrderTypes
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 OPTION = "enable_resource_limit_change_requests"
@@ -918,3 +918,129 @@ class ResourceLimitChangeRequestNotificationDispatchTest(test.APITestCase):
         )
         recipients = {addr for message in mail.outbox for addr in message.to}
         self.assertIn(self.fixture.manager.email, recipients)
+
+
+class ResourceLimitChangeRequestIncreaseOnlyTest(test.APITestCase):
+    """A request may not lower a limit its provider allows only to grow."""
+
+    def setUp(self):
+        grant_limit_change_requests()
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = models.Resource.States.OK
+        self.resource.limits = {"storage": 100}
+        self.resource.save()
+        self.resource.offering.shared = True
+        self.resource.offering.save()
+        set_limit_change_requests(self.resource.offering)
+        factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            type="storage",
+            name="Storage",
+            billing_type=BillingTypes.LIMIT,
+            limit_increase_only=True,
+        )
+        for permission in (
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            PermissionEnum.CREATE_ORDER,
+        ):
+            CustomerRole.OWNER.add_permission(permission)
+            self.addCleanup(
+                lambda permission=permission: CustomerRole.OWNER.delete_permission(
+                    permission
+                )
+            )
+        self.list_url = factories.ResourceLimitChangeRequestFactory.get_list_url()
+
+    def file_request(self, limits):
+        self.client.force_authenticate(self.fixture.manager)
+        return self.client.post(
+            self.list_url,
+            {"resource": self.resource.uuid.hex, "requested_limits": limits},
+            format="json",
+        )
+
+    def pending_request(self, limits):
+        return factories.ResourceLimitChangeRequestFactory(
+            resource=self.resource,
+            created_by=self.fixture.manager,
+            state=ReviewStates.PENDING,
+            requested_limits=limits,
+        )
+
+    def approve(self, limit_change_request, user):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            factories.ResourceLimitChangeRequestFactory.get_url(
+                limit_change_request, action="approve"
+            ),
+            {"comment": "Approved"},
+        )
+
+    def test_request_lowering_a_flagged_limit_is_refused(self):
+        response = self.file_request({"storage": 50})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Storage", str(response.data))
+        self.assertIn("can only be increased", str(response.data))
+        self.assertFalse(models.ResourceLimitChangeRequest.objects.exists())
+
+    def test_request_raising_a_flagged_limit_is_filed(self):
+        response = self.file_request({"storage": 150})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_request_lowering_an_unflagged_limit_is_filed(self):
+        models.OfferingComponent.objects.filter(offering=self.resource.offering).update(
+            limit_increase_only=False
+        )
+
+        response = self.file_request({"storage": 50})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_approval_is_refused_once_the_request_would_lower_the_limit(self):
+        # Filed as an increase; the limit has grown past it since.
+        limit_change_request = self.pending_request({"storage": 150})
+        self.resource.limits = {"storage": 200}
+        self.resource.save()
+
+        response = self.approve(limit_change_request, self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("can only be increased", str(response.data))
+        limit_change_request.refresh_from_db()
+        self.assertEqual(limit_change_request.state, ReviewStates.PENDING)
+        self.assertFalse(
+            models.Order.objects.filter(
+                resource=self.resource, type=OrderTypes.UPDATE
+            ).exists()
+        )
+
+    def test_approval_of_an_increase_creates_the_order(self):
+        limit_change_request = self.pending_request({"storage": 150})
+
+        response = self.approve(limit_change_request, self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits, {"storage": 150})
+
+    def test_staff_may_approve_a_decrease(self):
+        limit_change_request = self.pending_request({"storage": 50})
+
+        response = self.approve(limit_change_request, self.fixture.staff)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits, {"storage": 50})
+
+    def test_awarded_limits_may_still_lower_a_flagged_limit(self):
+        order = resource_changes.create_limit_update_order(
+            self.resource,
+            {"storage": 50},
+            self.fixture.staff,
+            validate_order=lambda order: None,
+        )
+
+        self.assertEqual(order.limits, {"storage": 50})

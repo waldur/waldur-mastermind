@@ -715,6 +715,84 @@ class ResourceDerivedLimitsUpdateTest(DerivedLimitsOrderMixin, test.APITestCase)
         processors.UpdateScopedResourceProcessor(order).validate_order(None)
         self.assertEqual(order.limits, {**DERIVED_AT_200, "backup": 1005, "extra": 5})
 
+    def use_deriving_processor(self):
+        # The processor every real update order passes, which re-derives
+        # the limits; the test one skips validation.
+        plugins.manager.register(
+            offering_type="TEST_DERIVING_TYPE",
+            create_resource_processor=test_utils.TestCreateProcessor,
+            update_resource_processor=processors.UpdateScopedResourceProcessor,
+            can_update_limits=True,
+        )
+        self.resource.offering.type = "TEST_DERIVING_TYPE"
+        self.resource.offering.save()
+
+    def test_reallocation_cannot_lower_an_increase_only_sum(self):
+        # Moving "extra" away lowers the backup that adds it up.
+        self.use_deriving_processor()
+        models.OfferingComponent.objects.filter(
+            offering=self.resource.offering, type="backup"
+        ).update(limit_increase_only=True)
+        target = factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.resource.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            attributes={"storage": 200},
+            limits={**DERIVED_AT_200, "backup": 1001, "extra": 1},
+        )
+        url = factories.ResourceFactory.get_url(self.resource, "reallocate_limits")
+
+        response = self.client.post(
+            url,
+            {
+                "limits": {"extra": 1},
+                "targets": [
+                    {
+                        "resource_uuid": target.uuid.hex,
+                        "allocated_limits": {"extra": 1},
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("backup", str(response.data))
+        self.assertFalse(
+            models.Order.objects.filter(
+                resource__in=[self.resource, target], type=OrderTypes.UPDATE
+            ).exists()
+        )
+
+    def test_reallocation_of_a_constituent_is_ordered_without_the_flag(self):
+        self.use_deriving_processor()
+        target = factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.resource.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            attributes={"storage": 200},
+            limits={**DERIVED_AT_200, "backup": 1001, "extra": 1},
+        )
+        url = factories.ResourceFactory.get_url(self.resource, "reallocate_limits")
+
+        response = self.client.post(
+            url,
+            {
+                "limits": {"extra": 1},
+                "targets": [
+                    {
+                        "resource_uuid": target.uuid.hex,
+                        "allocated_limits": {"extra": 1},
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_derived_limit_cannot_be_reallocated(self):
         with self.assertRaises(ValidationError) as context:
             marketplace_utils.validate_reallocation(
@@ -1118,3 +1196,227 @@ class PairedResourceOptionRemovalTest(test.APITestCase):
         self.resource.save()
         response = self.remove_option()
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+
+class ResourceOptionChangeIncreaseOnlyTest(test.APITestCase):
+    """A formula input may not lower a limit its provider allows only to grow."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.options = copy.deepcopy(DATABASE_OPTIONS)
+        self.offering.resource_options = copy.deepcopy(PAIRED_RESOURCE_OPTIONS)
+        self.offering.save()
+        for component_type in (*STORAGE_COMPONENTS, "backup"):
+            component = factories.OfferingComponentFactory(
+                offering=self.offering,
+                type=component_type,
+                name=component_type,
+                billing_type=BillingTypes.LIMIT,
+                limit_increase_only=component_type == "data_primary",
+            )
+            factories.PlanComponentFactory(
+                plan=self.fixture.plan, component=component, price=1
+            )
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.attributes = {"storage": 200}
+        self.resource.options = {"storage": 200}
+        self.resource.limits = dict(DERIVED_AT_200)
+        self.resource.save()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+
+    def change_storage(self, value, user=None):
+        self.client.force_authenticate(user or self.fixture.owner)
+        url = factories.ResourceFactory.get_url(self.resource, "update_options")
+        return self.client.post(url, {"options": {"storage": value}}, format="json")
+
+    def orders(self):
+        return models.Order.objects.filter(
+            resource=self.resource, type=OrderTypes.UPDATE
+        )
+
+    def test_input_lowering_a_flagged_derived_limit_is_refused(self):
+        response = self.change_storage(100)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Reported on the derived limit, not on the input.
+        self.assertIn("data_primary", str(response.data))
+        self.assertIn("400", str(response.data))
+        self.assertFalse(self.orders().exists())
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options, {"storage": 200})
+
+    def test_input_raising_a_flagged_derived_limit_is_ordered(self):
+        response = self.change_storage(300)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits["data_primary"], 600)
+
+    def test_without_the_flag_the_input_may_be_lowered(self):
+        models.OfferingComponent.objects.filter(offering=self.offering).update(
+            limit_increase_only=False
+        )
+
+        response = self.change_storage(100)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIn("order_uuid", response.data)
+
+    def test_staff_may_lower_the_input(self):
+        response = self.change_storage(100, user=self.fixture.staff)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits["data_primary"], 200)
+
+    def test_update_limits_cannot_lower_a_flagged_derived_limit(self):
+        # The input changed since without the limit following it, as a
+        # resource option can be set by its provider directly.
+        self.resource.options = {"storage": 100}
+        self.resource.save()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "update_limits"),
+            {"limits": {}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("data_primary", str(response.data))
+
+
+# Up to two volumes, the second asked for only when two are chosen; each
+# volume's size is its own limit.
+VOLUME_ORDER_OPTIONS = {
+    "order": ["volumes", "volume_1_size", "volume_2_size"],
+    "options": {
+        "volumes": {
+            "type": "select_string",
+            "label": "Volumes",
+            "choices": ["1", "2"],
+        },
+        "volume_1_size": {
+            "type": "component_formula",
+            "label": "Volume 1 size",
+            "min": 0,
+            "component_formula_config": {
+                "targets": [{"component_type": "volume_1", "formula": "input"}]
+            },
+        },
+        "volume_2_size": {
+            "type": "component_formula",
+            "label": "Volume 2 size",
+            "min": 0,
+            "visible_if": {"field": "volumes", "values": ["2"]},
+            "component_formula_config": {
+                "targets": [{"component_type": "volume_2", "formula": "input"}]
+            },
+        },
+    },
+}
+
+VOLUME_RESOURCE_OPTIONS = {
+    "order": ["volumes", "volume_1_size", "volume_2_size"],
+    "options": {
+        "volumes": {
+            "type": "select_string",
+            "label": "Volumes",
+            "choices": ["1", "2"],
+        },
+        "volume_1_size": {
+            "type": "component_formula",
+            "label": "Volume 1 size",
+            "min": 0,
+        },
+        "volume_2_size": {
+            "type": "component_formula",
+            "label": "Volume 2 size",
+            "min": 0,
+            "visible_if": {"field": "volumes", "values": ["2"]},
+        },
+    },
+}
+
+
+class HiddenFormulaFieldIncreaseOnlyTest(test.APITestCase):
+    """Hiding a size field through a visibility rule does not lower its limit."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.options = copy.deepcopy(VOLUME_ORDER_OPTIONS)
+        self.offering.resource_options = copy.deepcopy(VOLUME_RESOURCE_OPTIONS)
+        self.offering.save()
+        for component_type in ("volume_1", "volume_2"):
+            component = factories.OfferingComponentFactory(
+                offering=self.offering,
+                type=component_type,
+                name=component_type,
+                billing_type=BillingTypes.LIMIT,
+                limit_increase_only=True,
+            )
+            factories.PlanComponentFactory(
+                plan=self.fixture.plan, component=component, price=1
+            )
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        values = {"volumes": "2", "volume_1_size": 10, "volume_2_size": 50}
+        self.resource.attributes = dict(values)
+        self.resource.options = dict(values)
+        self.resource.limits = {"volume_1": 10, "volume_2": 50}
+        self.resource.save()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        self.client.force_authenticate(self.fixture.owner)
+
+    def post(self, action, payload):
+        url = factories.ResourceFactory.get_url(self.resource, action)
+        return self.client.post(url, payload, format="json")
+
+    def test_hiding_a_size_field_keeps_its_limit(self):
+        # The hidden value is dropped from the options, but the limit derives
+        # from the value the resource was ordered with.
+        response = self.post(
+            "update_options", {"options": {"volumes": "1", "volume_1_size": 20}}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits, {"volume_1": 20, "volume_2": 50})
+        if order.state != OrderStates.EXECUTING:
+            order.set_state_executing()
+            order.save()
+        marketplace_utils.process_order(order, self.fixture.owner)
+        self.resource.refresh_from_db()
+        self.assertNotIn("volume_2_size", self.resource.options)
+        self.assertEqual(self.resource.limits["volume_2"], 50)
+
+    def test_hidden_size_field_with_a_default_cannot_lower_the_limit(self):
+        # Added after ordering, so only the options held the value, and the
+        # option falls back to its default once the value is gone.
+        self.offering.options["options"]["volume_2_size"]["default"] = 0
+        self.offering.save()
+        self.resource.attributes = {"volumes": "1", "volume_1_size": 10}
+        self.resource.options = {"volumes": "1", "volume_1_size": 10}
+        self.resource.save()
+
+        response = self.post("update_options", {"options": {"volume_1_size": 20}})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("volume_2", str(response.data))
+
+        response = self.post("update_limits", {"limits": {}})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("volume_2", str(response.data))
+        self.assertFalse(
+            models.Order.objects.filter(
+                resource=self.resource, type=OrderTypes.UPDATE
+            ).exists()
+        )

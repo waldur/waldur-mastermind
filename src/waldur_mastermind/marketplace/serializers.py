@@ -4534,6 +4534,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             "max_value",
             "min_value",
             "max_available_limit",
+            "limit_increase_only",
             "is_boolean",
             "default_limit",
             "spending_limit_periods",
@@ -7669,8 +7670,39 @@ class OrderUpdateSerializer(BaseOrderSerializer):
                         )
                     }
                 )
+        # After the checks above, which explain why an order's limits cannot
+        # change at all.
+        self._validate_limit_increase_only(attrs)
         self._validate_as_created(attrs)
         return attrs
+
+    def _validate_limit_increase_only(self, attrs):
+        """An edit may not lower a limit the consumer could not lower by ordering.
+
+        Only the limits the edit changes are checked, so an order placed by
+        someone exempt from the restriction can still be edited otherwise.
+        """
+        order = self.instance
+        if (
+            order.type != OrderTypes.UPDATE
+            or order.resource is None
+            or "limits" not in attrs
+            or attrs["limits"] == order.limits
+        ):
+            return
+        if permissions.may_lower_increase_only_limits(
+            self.context["request"], order.resource, plan=order.plan
+        ):
+            return
+        edited = attrs["limits"] or {}
+        stored = order.limits or {}
+        checked = dict(order.resource.limits or {})
+        for component_type in set(edited) | set(stored):
+            if component_type not in edited:
+                checked.pop(component_type, None)
+            elif edited[component_type] != stored.get(component_type):
+                checked[component_type] = edited[component_type]
+        utils.validate_limit_increase_only(order.resource, checked, plan=order.plan)
 
     def _clean_option_change(self, attributes):
         """An option change is edited only as update_options would make it
@@ -11091,6 +11123,17 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
         ):
             raise serializers.ValidationError(
                 _("You already have a pending limit change request for this resource.")
+            )
+        if (
+            resource
+            and "requested_limits" in attrs
+            and not permissions.may_lower_increase_only_limits(
+                self.context["request"], resource
+            )
+        ):
+            # Checked again on approval, against the limits held by then.
+            utils.validate_requested_limit_increase_only(
+                resource, attrs["requested_limits"]
             )
         return attrs
 
@@ -18701,6 +18744,7 @@ class ExportComponentDataSerializer(serializers.Serializer):
     unit_factor = serializers.FloatField(allow_null=True)
     limit_period = serializers.CharField(allow_null=True, allow_blank=True)
     limit_amount = serializers.IntegerField(allow_null=True)
+    limit_increase_only = serializers.BooleanField()
     article_code = serializers.CharField(allow_blank=True)
     backend_id = serializers.CharField(allow_blank=True)
 
