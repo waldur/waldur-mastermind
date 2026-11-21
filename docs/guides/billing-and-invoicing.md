@@ -99,20 +99,22 @@ When a resource is activated mid-month, `_register` calls `get_or_create_invoice
 
 Finalization transitions invoices from mutable to immutable (CREATED) state. The behavior depends on the `INVOICE_FINALIZATION_GRACE_PERIOD_HOURS` setting:
 
-**Without grace period** (default, `grace_hours = 0`):
-
-1. On the 1st at midnight, `create_monthly_invoices` finalizes previous month invoices immediately
-2. Overdue credits are zeroed, compensations are applied, invoices transition PENDING → CREATED
-3. Reports and notifications are sent
-
-**With grace period** (e.g., `grace_hours = 24`):
+**With grace period** (default, `grace_hours = 2`):
 
 1. On the 1st at midnight, `create_monthly_invoices` transitions previous month invoices to PENDING_FINALIZATION
 2. The `finalize_previous_invoices` task runs hourly on the 1st–3rd of each month
 3. Once the configured grace period has elapsed (measured from midnight on the 1st), it finalizes: PENDING_FINALIZATION → CREATED
 4. Reports and notifications are sent only after all invoices are finalized
 
-The grace period allows late usage data (e.g., from external billing systems) to be captured before invoices are frozen.
+The grace period allows late usage data (e.g., from external billing systems) to be captured before invoices are frozen. The default of 2 hours lets a site agent, which reports every 30 minutes by default, send the last hours of the previous month; raise it when usage arrives later than that.
+
+**Without grace period** (`grace_hours = 0`):
+
+1. On the 1st at midnight, `create_monthly_invoices` finalizes previous month invoices immediately
+2. Overdue credits are zeroed, compensations are applied, invoices transition PENDING → CREATED
+3. Reports and notifications are sent
+
+Usage-based usage reported after midnight for the previous month is then refused, so whatever was used since the provider's last report before midnight is not billed.
 
 ```mermaid
 graph TD
@@ -453,10 +455,10 @@ The grace period is configured in `WALDUR_INVOICES` settings:
 ```python
 WALDUR_INVOICES = {
     # Grace period in hours before finalizing previous month invoices.
-    # 0 means finalize immediately (default, backward compatible).
-    # When > 0, invoices transition PENDING -> PENDING_FINALIZATION on the 1st,
+    # Invoices transition PENDING -> PENDING_FINALIZATION on the 1st,
     # then PENDING_FINALIZATION -> CREATED after this many hours.
-    "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS": 0,
+    # 0 finalizes them at midnight on the 1st.
+    "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS": 2,
 }
 ```
 

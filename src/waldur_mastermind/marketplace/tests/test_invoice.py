@@ -13,6 +13,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.invoices.tests import factories as invoices_factories
+from waldur_mastermind.invoices.tests.utils import override_invoices_settings
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import (
     LimitPeriodProcessor,
@@ -85,6 +86,7 @@ class InvoiceTest(test.APITestCase):
 
 
 @freeze_time("2020-11-01")
+@override_invoices_settings(INVOICE_FINALIZATION_GRACE_PERIOD_HOURS=0)
 class TotalLimitTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()

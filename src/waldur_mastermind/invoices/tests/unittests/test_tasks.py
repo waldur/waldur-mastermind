@@ -17,8 +17,10 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
+from waldur_mastermind.invoices.tests.utils import override_invoices_settings
 
 
+@override_invoices_settings(INVOICE_FINALIZATION_GRACE_PERIOD_HOURS=0)
 class CreateMonthlyInvoiceTest(TestCase):
     def test_invoice_item_is_created_for_created_resource_in_new_month(self):
         with freeze_time("2017-01-15"):
@@ -212,6 +214,7 @@ class InvoicesPublicSettingsTest(TestCase):
 
 
 @override_settings(TIME_ZONE="Europe/Tallinn")
+@override_invoices_settings(INVOICE_FINALIZATION_GRACE_PERIOD_HOURS=0)
 class TimezoneConsistencyTest(TestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()

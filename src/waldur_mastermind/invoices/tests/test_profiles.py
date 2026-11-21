@@ -16,6 +16,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models, serializers, tasks, utils
 from waldur_mastermind.invoices.tests import factories
+from waldur_mastermind.invoices.tests.utils import override_invoices_settings
 
 
 @ddt
@@ -336,6 +337,7 @@ class ProfileModelTest(test.APITestCase):
         self.assertTrue(self.profile.is_active)
 
 
+@override_invoices_settings(INVOICE_FINALIZATION_GRACE_PERIOD_HOURS=0)
 class ProfileProcessingTest(test.APITestCase):
     def setUp(self):
         self.profile = factories.PaymentProfileFactory(

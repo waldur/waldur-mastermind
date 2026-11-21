@@ -55,10 +55,11 @@ class InvoicesExtension(WaldurExtension):
             },
             "SEND_CUSTOMER_INVOICES": False,
             # Grace period in hours before finalizing previous month invoices.
-            # 0 means finalize immediately (backward compatible behavior).
-            # When > 0, invoices transition PENDING -> PENDING_FINALIZATION on the 1st,
-            # then PENDING_FINALIZATION -> CREATED after this many hours.
-            "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS": 0,
+            # Invoices transition PENDING -> PENDING_FINALIZATION on the 1st,
+            # then PENDING_FINALIZATION -> CREATED after this many hours, so
+            # service providers can still report the last hours of the month.
+            # 0 finalizes them at midnight on the 1st.
+            "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS": 2,
         }
 
     @staticmethod
