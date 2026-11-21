@@ -1092,6 +1092,7 @@ class Command(BaseCommand):
                     if component.limit_amount is not None
                     else None,
                     "limit_decimal_places": component.limit_decimal_places,
+                    "limit_increase_only": component.limit_increase_only,
                     "article_code": component.article_code,
                     "backend_id": component.backend_id,
                 }

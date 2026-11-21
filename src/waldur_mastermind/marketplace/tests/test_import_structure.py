@@ -1428,6 +1428,7 @@ class ImportStructureCommandTest(TestCase):
                 "limit_period": "month",
                 "limit_amount": 16,
                 "article_code": "CPU-001",
+                "limit_increase_only": True,
             },
             {
                 "uuid": "bbbbbbbb-cccc-dddd-eeee-222222222222",
@@ -1462,6 +1463,7 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(component1.limit_period, "month")
         self.assertEqual(component1.limit_amount, 16)
         self.assertEqual(component1.article_code, "CPU-001")
+        self.assertTrue(component1.limit_increase_only)
         self.assertEqual(component1.offering.uuid, offering.uuid)
 
         component2 = OfferingComponent.objects.get(
@@ -1469,6 +1471,8 @@ class ImportStructureCommandTest(TestCase):
         )
         self.assertEqual(component2.type, "storage")
         self.assertEqual(component2.billing_type, "usage")
+        # A dump taken before the flag existed has no value for it.
+        self.assertFalse(component2.limit_increase_only)
 
     def test_import_plan_components_creates_new_plan_components(self):
         """Test that importing plan components creates new plan component objects."""

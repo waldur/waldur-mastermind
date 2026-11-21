@@ -733,6 +733,7 @@ class ExportStructureCommandTest(TestCase):
             limit_period="month",
             limit_amount=10,
             article_code="CPU-001",
+            limit_increase_only=True,
         )
 
         self._call_export_command()
@@ -753,6 +754,7 @@ class ExportStructureCommandTest(TestCase):
         self.assertEqual(exported_component["limit_period"], "month")
         self.assertEqual(exported_component["limit_amount"], 10)
         self.assertEqual(exported_component["article_code"], "CPU-001")
+        self.assertTrue(exported_component["limit_increase_only"])
 
     def test_export_component_usages(self):
         """Test that export captures component usages with all fields."""

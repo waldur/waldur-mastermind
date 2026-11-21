@@ -1067,6 +1067,37 @@ class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
         )
         self.assertEqual(component.measured_unit, "")
 
+    def test_increase_only_flag_survives_export_and_import(self):
+        offering = factories.OfferingFactory(customer=self.customer)
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="storage",
+            billing_type=BillingTypes.LIMIT,
+            limit_increase_only=True,
+        )
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        offering.add_user(self.user, OfferingRole.MANAGER)
+        response = self.client.post(
+            factories.OfferingFactory.get_url(offering, "export_offering"),
+            {"include_components": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        (exported,) = response.data["export_data"]["components"]
+        self.assertTrue(exported["limit_increase_only"])
+
+        response = self._import(
+            {
+                "offering": {"name": "Imported Increase Only"},
+                "components": [{**exported}],
+            }
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        component = models.OfferingComponent.objects.get(
+            offering__name="Imported Increase Only", type="storage"
+        )
+        self.assertTrue(component.limit_increase_only)
+
     @data(
         (models.Offering, OFFERING_IMPORT_FIELDS),
         (models.OfferingComponent, COMPONENT_IMPORT_FIELDS),

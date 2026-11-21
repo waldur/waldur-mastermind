@@ -310,15 +310,8 @@ USER_USAGE_REPORTER_SOURCES = [
     *(f"resource.offering.{source}" for source in OFFERING_PROVIDER_SOURCES),
 ]
 
-# Provider side of an order: a role on the offering, on the provider
-# organization, or on its ServiceProvider (a service provider manager). The
-# consumer side (project, project.customer) is deliberately absent, so a
-# provider-scoped grant never reaches orders the organization places itself.
-ORDER_PROVIDER_SOURCES = [
-    "offering",
-    "offering.customer",
-    "offering.customer.serviceprovider",
-]
+# Provider side of an order; defined with the checks that read it too.
+ORDER_PROVIDER_SOURCES = permissions.ORDER_PROVIDER_SOURCES
 
 # Where an offering's provider-side settings may be administered from
 # (OFFERING_ADMIN_SOURCES, which can_see_secret_options reads), reached from
@@ -2924,6 +2917,7 @@ COMPONENT_IMPORT_FIELDS = (
     "unit_factor",
     "limit_period",
     "limit_amount",
+    "limit_increase_only",
     "article_code",
     "backend_id",
 )
@@ -6458,6 +6452,7 @@ class ProviderOfferingViewSet(
                     else None,
                     "limit_period": component.limit_period,
                     "limit_amount": component.limit_amount,
+                    "limit_increase_only": component.limit_increase_only,
                     "article_code": component.article_code,
                     "backend_id": component.backend_id,
                 }
@@ -10083,6 +10078,17 @@ class BaseResourceViewSet(
                 order.consumer_reviewed_by = request.user
                 order.consumer_reviewed_at = timezone.now()
             serializers.validate_order(order, request)
+            if order.type == OrderTypes.UPDATE and "limits" in kwargs:
+                # Every limit change a resource action orders passes here:
+                # limits, options that derive them, renewals, plan switches.
+                # Checked on the limits validation settled, derived ones
+                # included, under the plan the order moves to.
+                if not permissions.may_lower_increase_only_limits(
+                    request, resource, plan=order.plan
+                ):
+                    utils.validate_limit_increase_only(
+                        resource, order.limits, plan=order.plan
+                    )
             order.init_cost()
 
             # If a one-time charge (like a renewal fee) is provided,
@@ -11354,7 +11360,13 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             self.check_reallocation_target_permissions(request, target_resource)
 
         utils.validate_reallocation(
-            source_resource, limits_to_reallocate, targets, target_resources
+            source_resource,
+            limits_to_reallocate,
+            targets,
+            target_resources,
+            may_lower_increase_only=permissions.may_lower_increase_only_limits(
+                request, source_resource
+            ),
         )
 
         source_new_limits = utils.calculate_new_limits(
@@ -11373,6 +11385,15 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
                 attributes={"old_limits": source_resource.limits},
             )
             serializers.validate_order(source_order, request)
+            # Validation re-derives the source's limits, so moving a component
+            # a sum adds up lowers the sum too: checked on what is ordered,
+            # beyond the components named above.
+            if not permissions.may_lower_increase_only_limits(
+                request, source_resource, plan=source_order.plan
+            ):
+                utils.validate_limit_increase_only(
+                    source_resource, source_order.limits, plan=source_order.plan
+                )
             source_order.init_cost()
             source_order.save()
 
@@ -22063,6 +22084,11 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
             raise ValidationError(
                 _("This offering no longer accepts limit change requests.")
             )
+
+        # The resource's limits may have grown since the request was filed,
+        # turning it into a decrease; the approver must be exempt to grant it.
+        if not permissions.may_lower_increase_only_limits(request, resource):
+            utils.validate_requested_limit_increase_only(resource, requested_limits)
 
         with transaction.atomic():
             order = resource_changes.create_limit_update_order(

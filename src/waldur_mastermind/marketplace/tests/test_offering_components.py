@@ -276,6 +276,60 @@ class OfferingComponentPrecisionTest(BaseOfferingUpdateTest):
         self.assertIn("limit_decimal_places", response.data)
 
 
+class OfferingComponentIncreaseOnlyTest(BaseOfferingUpdateTest):
+    """The provider decides per component whether its limit may only grow."""
+
+    def setUp(self):
+        super().setUp()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
+        self.client.force_authenticate(self.fixture.owner)
+
+    def post(self, action, **extra):
+        url = factories.OfferingFactory.get_url(self.offering, action)
+        payload = {
+            "type": "storage",
+            "name": "Storage",
+            "measured_unit": "GB",
+            "billing_type": BillingTypes.LIMIT,
+        }
+        payload.update(extra)
+        return self.client.post(url, payload, format="json")
+
+    def test_flag_is_off_by_default(self):
+        response = self.post("create_offering_component")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertFalse(self.offering.components.get().limit_increase_only)
+
+    def test_flag_can_be_set_and_is_read_back(self):
+        response = self.post("create_offering_component", limit_increase_only=True)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        component = self.offering.components.get()
+        self.assertTrue(component.limit_increase_only)
+        response = self.client.get(factories.OfferingFactory.get_url(self.offering))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["components"][0]["limit_increase_only"])
+
+    def test_flag_can_be_changed(self):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            billing_type=BillingTypes.LIMIT,
+            limit_increase_only=True,
+        )
+
+        response = self.post(
+            "update_offering_component",
+            uuid=component.uuid.hex,
+            limit_increase_only=False,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        component.refresh_from_db()
+        self.assertFalse(component.limit_increase_only)
+
+
 class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
     def setUp(self):
         super().setUp()

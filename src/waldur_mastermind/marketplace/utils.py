@@ -916,6 +916,112 @@ def validate_limits(
     return limits
 
 
+def _increase_only_limit_value(value):
+    """A limit as an exact number for comparison, or None if it is not one.
+
+    A checkbox component may hold a boolean and a legacy limit a string; one
+    that is not a number cannot be compared, and is left to validate_limits.
+    """
+    if isinstance(value, bool):
+        return decimal.Decimal(int(value))
+    try:
+        number = decimal.Decimal(str(value))
+    except (decimal.InvalidOperation, TypeError, ValueError):
+        return None
+    return number if number.is_finite() else None
+
+
+def increase_only_components(resource, plan=None):
+    """The components of ``resource`` taking a limit that may only grow.
+
+    Under ``plan`` when given, as for a plan switch, else under the
+    resource's own plan.
+    """
+    resolved = (
+        billing_mode.resolve_plan(plan)
+        if plan is not None
+        else billing_mode.resolve_for_resource(resource)
+    )
+    return {
+        component_type: component
+        for component_type, component in resolved.limit_components.items()
+        if component.limit_increase_only
+    }
+
+
+def validate_limit_increase_only(resource, limits, plan=None):
+    """Refuse limits that lower a component its provider allows only to grow.
+
+    Applies to the components of ``resource``'s offering with
+    ``limit_increase_only`` set, and only to changes the consumer makes: the
+    provider, staff, the site agent and awards must still be able to lower a
+    limit, so it is not part of ``validate_limits``. Callers pass the limits
+    ``validate_limits`` returned, so that a derived limit is checked on its
+    calculated value. A component the resource holds no limit for has nothing
+    to protect; one left out of ``limits`` would be dropped from the resource,
+    and is refused as well.
+    """
+    current = resource.limits or {}
+    if not current:
+        return
+    limits = limits or {}
+    errors = []
+    for component_type, component in sorted(
+        increase_only_components(resource, plan).items()
+    ):
+        old_value = current.get(component_type)
+        if old_value is None:
+            continue
+        old_number = _increase_only_limit_value(old_value)
+        if old_number is None:
+            continue
+        new_value = limits.get(component_type)
+        if new_value is None:
+            errors.append(
+                _(
+                    "The limit of %(component)s can only be increased: it is "
+                    "%(current)s now and was left out of the request; send "
+                    "every limit."
+                )
+                % {
+                    "component": component.name or component_type,
+                    "current": old_value,
+                }
+            )
+            continue
+        new_number = _increase_only_limit_value(new_value)
+        if new_number is None:
+            continue
+        if new_number < old_number:
+            errors.append(
+                _(
+                    "The limit of %(component)s can only be increased: it is "
+                    "%(current)s now, and %(requested)s was requested."
+                )
+                % {
+                    "component": component.name or component_type,
+                    "current": old_value,
+                    "requested": new_value,
+                }
+            )
+    if errors:
+        raise serializers.ValidationError({"limits": errors})
+
+
+def validate_requested_limit_increase_only(resource, limits):
+    """``validate_limit_increase_only`` for limits that have not been through
+    ``validate_limits`` yet, such as a limit change request's: checked on the
+    limits the server would derive from them, as an order would be."""
+    limits = apply_derived_limits(
+        limits or {},
+        resource.offering,
+        derived_limit_inputs(resource),
+        plan=resource.plan,
+        fallback=resource.limits,
+    )
+    validate_limit_increase_only(resource, limits)
+
+
 def get_unique_options(options):
     """Names of the options whose values must be unique across the offering."""
     return [
@@ -8343,7 +8449,11 @@ def get_model_serializer(model: type):
 
 
 def validate_reallocation(
-    source_resource, limits_to_reallocate, targets, target_resources
+    source_resource,
+    limits_to_reallocate,
+    targets,
+    target_resources,
+    may_lower_increase_only=False,
 ):
     """
     Validate reallocation of resource limits from source to target resources.
@@ -8351,6 +8461,8 @@ def validate_reallocation(
     ``target_resources`` maps the UUIDs of the targets the caller may see to
     those resources, already authorized; any other UUID in ``targets`` is
     reported as missing, whether or not a resource has it.
+    ``may_lower_increase_only`` lets the caller take capacity from a component
+    whose limit may otherwise only grow (see validate_limit_increase_only).
     """
 
     if not limits_to_reallocate or not targets:
@@ -8361,7 +8473,20 @@ def validate_reallocation(
     derived = derived_limits.derived_components(
         (source_resource.offering.options or {}).get("options")
     )
+    increase_only = (
+        set()
+        if may_lower_increase_only
+        else set(increase_only_components(source_resource))
+    )
     for component, value in limits_to_reallocate.items():
+        if component in increase_only:
+            # Moving capacity away lowers the source's limit, which its
+            # provider allows only to grow.
+            error_validation(
+                "The limit of %(component)s can only be increased and cannot "
+                "be reallocated to other resources.",
+                component=component,
+            )
         if component in derived:
             # The server sets it from the resource's order options; moving it
             # would be undone on the target's next limit change.
