@@ -2,9 +2,10 @@ import base64
 import copy
 import datetime
 import logging
-import textwrap
+import re
 import traceback
 from collections.abc import Mapping
+from secrets import token_hex
 from typing import cast
 from urllib.parse import urlparse
 
@@ -1313,19 +1314,15 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         data = serializers.NameUUIDSerializer(page, many=True).data
         return self.get_paginated_response(data)
 
-    generate_site_agent_config_permissions = [
-        permission_factory(
-            PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE,
-            ["customer"],
-        )
-    ]
-
     @extend_schema(
         summary="Generate site agent configuration",
         description=(
-            "Generates a YAML configuration file for waldur-site-agent based on selected SLURM offerings. "
-            "The configuration includes offering details, components, backend settings, and optionally "
-            "SLURM periodic usage policy settings. Secrets are shown as placeholders that need to be filled in."
+            "Generates a YAML configuration file for waldur-site-agent based on "
+            "selected site agent offerings. The configuration includes offering "
+            "details, the agent roles, event and backend settings, components, and "
+            "optionally SLURM periodic usage policy settings. Secrets are never "
+            "included: each is left as a placeholder (secret_format) and listed in "
+            "the header; site_agent_config_secrets lists them as data."
         ),
         request=serializers.SiteAgentConfigGenerationSerializer,
         responses={
@@ -1334,7 +1331,44 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     )
     @action(detail=True, methods=["POST"])
     def generate_site_agent_config(self, request, uuid=None):
-        """Generate site agent configuration YAML for SLURM offerings."""
+        """Generate site agent configuration YAML for site agent offerings."""
+        generated = self._generate_site_agent_config(request)
+        return HttpResponse(
+            generated.yaml_content(), content_type="text/plain; charset=utf-8"
+        )
+
+    generate_site_agent_config_permissions = [
+        permission_factory(
+            PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE,
+            ["customer"],
+        )
+    ]
+
+    @extend_schema(
+        summary="List the secrets of a generated site agent configuration",
+        description=(
+            "The secrets the operator adds to the configuration that "
+            "generate_site_agent_config returns for the same request: the Waldur "
+            "API token of each offering and the secret settings of its backends, "
+            "with where each goes and whether the file holds a placeholder for it."
+        ),
+        request=serializers.SiteAgentConfigGenerationSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.SiteAgentConfigSecretSerializer(many=True)
+        },
+    )
+    @action(detail=True, methods=["POST"])
+    def site_agent_config_secrets(self, request, uuid=None):
+        generated = self._generate_site_agent_config(request)
+        return Response(
+            serializers.SiteAgentConfigSecretSerializer(
+                generated.secrets, many=True
+            ).data
+        )
+
+    site_agent_config_secrets_permissions = generate_site_agent_config_permissions
+
+    def _generate_site_agent_config(self, request):
         service_provider: models.ServiceProvider = self.get_object()
 
         serializer = serializers.SiteAgentConfigGenerationSerializer(
@@ -1344,56 +1378,108 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
 
-        offerings = serializer.context.get("validated_offerings", [])
-        include_policy = validated_data.get("include_policy_settings", True)
+        generated = _GeneratedAgentConfig(validated_data["secret_format"])
+        generated.config["timezone"] = validated_data.get("timezone", "UTC")
         waldur_api_url = validated_data.get(
             "waldur_api_url"
         ) or request.build_absolute_uri("/api/")
-        tz = validated_data.get("timezone", "UTC")
+        include_policy = validated_data.get("include_policy_settings", True)
 
-        config = self._build_site_agent_config(
-            offerings=offerings,
-            waldur_api_url=waldur_api_url,
-            timezone_str=tz,
-            include_policy_settings=include_policy,
-        )
-
-        # Generate YAML with header comments
-        yaml_content = self._generate_yaml_with_header(config)
-
-        return HttpResponse(yaml_content, content_type="text/plain; charset=utf-8")
-
-    def _build_site_agent_config(
-        self, offerings, waldur_api_url, timezone_str, include_policy_settings
-    ):
-        """Build site agent configuration dictionary."""
-        config = {
-            "sentry_dsn": "",
-            "timezone": timezone_str,
-            "offerings": [],
-        }
-
-        for offering in offerings:
-            offering_config = self._build_offering_config(
-                offering, waldur_api_url, include_policy_settings
+        for offering in serializer.context.get("validated_offerings", []):
+            generated.config["offerings"].append(
+                self._build_offering_config(
+                    offering, waldur_api_url, include_policy, generated
+                )
             )
-            config["offerings"].append(offering_config)
+        return generated
 
-        return config
+    # An offering whose agent configuration names no backend for any role runs
+    # SLURM for all three, as every generated configuration did before roles
+    # could be set. Once one role is set, an unset role stays off: the agent
+    # skips a role whose backend is empty.
+    DEFAULT_AGENT_BACKEND = "slurm"
+    # The roles an offering runs; username management is set on its own.
+    AGENT_ROLE_FIELDS = tuple(
+        field
+        for field, role in site_agent_configuration.ROLE_FIELDS.items()
+        if role != site_agent_configuration.USERNAME_MANAGEMENT
+    )
+    # What an offering with no roles set gets, as before agent configurations.
+    LEGACY_API_TOKEN_PLACEHOLDER = "<YOUR_API_TOKEN_HERE>"
+    LEGACY_HOSTNAME_PLACEHOLDER = "<YOUR_SLURM_HOST>"
 
-    def _build_offering_config(self, offering, waldur_api_url, include_policy_settings):
-        """Build configuration for a single offering."""
+    @classmethod
+    def _has_agent_roles(cls, offering):
+        configuration = offering.agent_configuration or {}
+        return any(configuration.get(field) for field in cls.AGENT_ROLE_FIELDS)
+
+    @classmethod
+    def _offering_backends(cls, offering):
+        configuration = offering.agent_configuration or {}
+        if not cls._has_agent_roles(offering):
+            backends = dict.fromkeys(cls.AGENT_ROLE_FIELDS, cls.DEFAULT_AGENT_BACKEND)
+        else:
+            backends = {
+                field: configuration[field]
+                for field in cls.AGENT_ROLE_FIELDS
+                if configuration.get(field)
+            }
+        if configuration.get("username_management_backend"):
+            backends["username_management_backend"] = configuration[
+                "username_management_backend"
+            ]
+        return backends
+
+    def _build_offering_config(
+        self, offering, waldur_api_url, include_policy_settings, generated
+    ):
+        """Build configuration for a single offering.
+
+        An offering with no agent roles set is generated as before agent
+        configurations existed, apart from backend_type, which the agent
+        requires: the same placeholders, hostname and SLURM settings. With roles
+        set, the configuration follows the agent configuration, catalogue
+        defaults fill in what it leaves out, and secrets take secret_format.
+        """
+        legacy = not self._has_agent_roles(offering)
+        backends = self._offering_backends(offering)
+        secrets = site_agent_configuration.secret_settings(
+            dict.fromkeys(backends.values())
+        )
+        configuration = offering.agent_configuration or {}
+
+        if legacy and generated.secret_format == generated.COMMENT:
+            api_token = self.LEGACY_API_TOKEN_PLACEHOLDER
+            generated.add_secret(
+                offering, "waldur_api_token", None, REQUIRED_SECRET, in_file=True
+            )
+        else:
+            api_token = generated.placeholder(
+                offering,
+                "waldur_api_token",
+                None,
+                REQUIRED_SECRET,
+                "Waldur API token (User Profile -> Credentials -> API Token)",
+            )
         offering_config = {
             "name": offering.name,
             "waldur_api_url": waldur_api_url,
-            "waldur_api_token": "<YOUR_API_TOKEN_HERE>",
+            "waldur_api_token": api_token,
             "waldur_offering_uuid": str(offering.uuid),
-            "order_processing_backend": "slurm",
-            "membership_sync_backend": "slurm",
-            "reporting_backend": "slurm",
-            "backend_settings": self._build_backend_settings(offering),
+            # Required by the agent; generated configurations used to omit it
+            # and so failed to load. It names the first backend in role order.
+            "backend_type": next(
+                backends[field] for field in self.AGENT_ROLE_FIELDS if field in backends
+            ),
+            **backends,
+            **self._event_settings(configuration),
+            "backend_settings": self._build_backend_settings(
+                offering, backends, secrets, legacy, generated
+            ),
             "backend_components": self._build_backend_components(offering),
         }
+        if legacy:
+            generated.legacy_offerings = True
 
         if include_policy_settings:
             policy_settings = self._build_policy_settings(offering)
@@ -1402,19 +1488,94 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
         return offering_config
 
-    def _build_backend_settings(self, offering):
+    @staticmethod
+    def _event_settings(configuration):
+        """The offering's event settings, in the order the agent documents them."""
+        stored = configuration.get("event_settings") or {}
+        return {
+            name: stored[name]
+            for name in site_agent_configuration.EventSettingsSerializer().fields
+            if name in stored
+        }
+
+    def _build_backend_settings(self, offering, backends, secrets, legacy, generated):
         """Build backend_settings from the offering's agent configuration.
 
         The settings used to live in plugin_options; an offering written there
         since the data migration (by an import of an old export, say) is still
         read from it.
         """
-        settings = {
-            **(offering.plugin_options or {}),
-            **((offering.agent_configuration or {}).get("backend_settings") or {}),
-        }
+        configuration = offering.agent_configuration or {}
+        configured = site_agent_configuration.without_secrets(
+            configuration.get("backend_settings") or {}
+        )
+        settings = {**(offering.plugin_options or {}), **configured}
 
-        return {
+        backend_settings = {}
+        # Membership sync and reporting read the SLURM settings too, so they
+        # come with any role SLURM fills, not just order processing.
+        if any(
+            backends.get(field) == self.DEFAULT_AGENT_BACKEND
+            for field in self.AGENT_ROLE_FIELDS
+        ):
+            backend_settings = self._slurm_backend_settings(settings, legacy)
+        for key, value in configured.items():
+            backend_settings.setdefault(key, value)
+        if not legacy:
+            # What the configuration leaves out, the agent would take from its
+            # plugins' defaults anyway; written out, the file says what runs.
+            for key, value in site_agent_configuration.setting_defaults(
+                dict.fromkeys(backends.values())
+            ).items():
+                backend_settings.setdefault(key, value)
+        for backend, path, requirement in secrets:
+            self._add_secret_placeholder(
+                backend_settings, offering, backend, path, requirement, generated
+            )
+        return backend_settings
+
+    @staticmethod
+    def _add_secret_placeholder(
+        settings, offering, backend, path, requirement, generated
+    ):
+        """Put a placeholder where the operator has to add a secret.
+
+        A required secret gets one where its block is configured; a block is
+        never created just to hold one, as it would then lack its other
+        settings and read as complete once the secret is filled in. Optional
+        secrets, and those whose block is missing, are only listed.
+        """
+        field = f"backend_settings.{path}"
+        parts = path.split(".")
+        node = settings
+        if requirement != site_agent_configuration.OPTIONAL and not any(
+            part == "*" or part.endswith("[]") for part in parts
+        ):
+            for part in parts[:-1]:
+                node = node.get(part)
+                if not isinstance(node, dict):
+                    break
+            else:
+                if parts[-1] not in node:
+                    label = _SECRET_REQUIREMENT_LABELS[requirement]
+                    node[parts[-1]] = generated.placeholder(
+                        offering,
+                        field,
+                        backend,
+                        requirement,
+                        f"{backend}{label}",
+                    )
+                    return
+        generated.add_secret(offering, field, backend, requirement)
+
+    def _slurm_backend_settings(self, settings, legacy):
+        """The SLURM settings every generated configuration has, with defaults.
+
+        hostname is not a SLURM setting and the agent never reads it. An
+        offering with agent roles set has it only where it set one; one without
+        keeps the placeholder generated configurations always had.
+        """
+        backend_settings = {
             "default_account": settings.get("default_account", "root"),
             "customer_prefix": settings.get("customer_prefix", ""),
             "project_prefix": settings.get("project_prefix", ""),
@@ -1422,24 +1583,58 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             "qos_downscaled": settings.get("qos_downscaled", "limited"),
             "qos_paused": settings.get("qos_paused", "paused"),
             "qos_default": settings.get("qos_default", "normal"),
-            "hostname": settings.get("hostname", "<YOUR_SLURM_HOST>"),
-            "enable_user_homedir_account_creation": settings.get(
-                "enable_user_homedir_account_creation", False
-            ),
         }
+        if legacy:
+            backend_settings["hostname"] = settings.get(
+                "hostname", self.LEGACY_HOSTNAME_PLACEHOLDER
+            )
+        elif settings.get("hostname"):
+            backend_settings["hostname"] = settings["hostname"]
+        backend_settings["enable_user_homedir_account_creation"] = settings.get(
+            "enable_user_homedir_account_creation", False
+        )
+        return backend_settings
 
     def _build_backend_components(self, offering):
-        """Convert offering components to backend_components format."""
+        """Convert offering components to backend_components format.
+
+        Agent-only fields from the agent configuration, such as
+        unit_factor_reporting, are added to the component they name; they
+        never replace the fields that come from the offering component.
+        """
+        agent_fields = (offering.agent_configuration or {}).get(
+            "backend_components"
+        ) or {}
         components = {}
         for component in offering.components.all():
+            extra = agent_fields.get(component.type)
+            extra = extra if isinstance(extra, dict) else {}
             components[component.type] = {
+                **{
+                    key: value
+                    for key, value in extra.items()
+                    if key not in site_agent_configuration.OFFERING_COMPONENT_FIELDS
+                },
                 "measured_unit": component.measured_unit or "",
                 "unit_factor": component.unit_factor or 1,
-                "accounting_type": "usage"
-                if component.billing_type == BillingTypes.USAGE
-                else "limit",
+                # The agent knows usage, limit and one, the billing types
+                # waldur_site_load_components maps back; the SLURM backend
+                # multiplies a prepaid (one) limit by the subscription's months.
+                "accounting_type": {
+                    BillingTypes.USAGE: "usage",
+                    BillingTypes.ONE_TIME: "one",
+                }.get(component.billing_type, "limit"),
                 "label": component.name,
             }
+            # The agent's limit is the component's limit_amount, as
+            # waldur_site_load_components maps it; for a usage component SLURM
+            # caps every allocation at limit * unit_factor.
+            if component.limit_amount is not None:
+                # A Decimal would be dumped as a Python object tag.
+                limit = component.limit_amount
+                components[component.type]["limit"] = (
+                    int(limit) if limit == int(limit) else float(limit)
+                )
         return components
 
     def _build_policy_settings(self, offering):
@@ -1459,30 +1654,163 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         except SlurmPeriodicUsagePolicy.DoesNotExist:
             return None
 
-    def _generate_yaml_with_header(self, config):
-        """Generate YAML string with instructional header comments."""
-        header = (
-            textwrap.dedent("""
-            # Waldur Site Agent Configuration
-            # Generated: {timestamp}
-            #
-            # IMPORTANT - SECRETS TO CONFIGURE:
-            #   - waldur_api_token: Generate an API token from Waldur user settings
-            #     (User Profile -> Credentials -> API Token)
-            #   - hostname: Your SLURM cluster hostname (if shown as placeholder)
-            #
-            # Documentation: https://docs.waldur.com/latest/admin-guide/providers/site-agent/
-            #
-            # Place this file at /etc/waldur/waldur-site-agent-config.yaml
-            # and start the site agent service.
 
-        """)
-            .format(timestamp=timezone.now().isoformat())
-            .lstrip()
+REQUIRED_SECRET = site_agent_configuration.REQUIRED
+
+_SECRET_REQUIREMENT_LABELS = {
+    site_agent_configuration.REQUIRED: "",
+    site_agent_configuration.REQUIRED_WITH_PARENT: ", required if its block is set",
+    site_agent_configuration.OPTIONAL: ", optional",
+}
+
+
+class _GeneratedAgentConfig:
+    """A site agent configuration being generated, and the secrets it leaves out.
+
+    A secret's placeholder is a unique token while the configuration is built,
+    so that it can be written out as YAML cannot: an empty value with a comment
+    beside it, or a ${VARIABLE} reference.
+
+    The token carries a random part made for this file, and is replaced only
+    where it is a whole value. Settings, names and labels come from people who
+    may edit the offering but not the agent host: text of theirs that named a
+    token could otherwise put a secret into a setting the agent sends elsewhere,
+    such as a URL, once the operator fills the secrets in.
+    """
+
+    COMMENT = "comment"
+    ENV = "env"
+
+    def __init__(self, secret_format):
+        self.secret_format = secret_format
+        self.config = {"sentry_dsn": "", "timezone": "UTC", "offerings": []}
+        self.secrets = []
+        self.legacy_offerings = False
+        self._placeholders = []
+        self._env_prefixes = {}
+        self._token_prefix = f"__waldur_agent_secret_{token_hex(16)}_"
+        self._token = re.compile(
+            rf"(?<=: ){re.escape(self._token_prefix)}(\d+)__$", re.MULTILINE
         )
 
+    def add_secret(
+        self, offering, field, backend, requirement, in_file=False, env_var=None
+    ):
+        self.secrets.append(
+            {
+                "offering_uuid": offering.uuid,
+                "offering_name": offering.name,
+                "field": field,
+                "backend": backend,
+                "requirement": requirement,
+                "in_file": in_file,
+                "env_var": env_var,
+            }
+        )
+
+    def placeholder(self, offering, field, backend, requirement, description):
+        """A placeholder for a secret, recorded as one the file asks for."""
+        env_var = (
+            self._env_var(offering, field) if self.secret_format == self.ENV else None
+        )
+        self.add_secret(
+            offering, field, backend, requirement, in_file=True, env_var=env_var
+        )
+        # Comments end at a line break: keep the description on one line.
+        description = " ".join(str(description).split())
+        # Single quotes keep a filled-in secret as written: unquoted, " #"
+        # would end it and a leading "*" or "%" or a ": " would not load; in
+        # double quotes a backslash would start an escape. Only a "'" in the
+        # secret needs doubling, and fails to load rather than change.
+        rendered = (
+            f"'${{{env_var}}}'"
+            if self.secret_format == self.ENV
+            else f"''  # SECRET: {description}"
+        )
+        self._placeholders.append(rendered)
+        return f"{self._token_prefix}{len(self._placeholders) - 1}__"
+
+    @staticmethod
+    def _env_name(text):
+        name = re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_").upper()
+        return f"_{name}" if name[:1].isdigit() else name
+
+    def _env_var(self, offering, field):
+        """HPC_CLUSTER_WALDUR_API_TOKEN, HPC_CLUSTER_LDAP_BIND_PASSWORD, ...
+
+        Named after the offering, so a file of several offerings keeps their
+        secrets apart; two offerings of one name get their UUIDs to tell them
+        apart.
+        """
+        prefix = self._env_prefixes.get(offering.uuid)
+        if prefix is None:
+            prefix = self._env_name(offering.name)
+            if prefix in self._env_prefixes.values():
+                prefix = f"{prefix}_{offering.uuid.hex[:8].upper()}"
+            self._env_prefixes[offering.uuid] = prefix
+        setting = field.removeprefix("backend_settings.")
+        return f"{prefix}_{self._env_name(setting)}"
+
+    def checklist(self):
+        """Header lines naming each backend secret the operator must add."""
+        lines = []
+        for secret in self.secrets:
+            if secret["backend"] is None:
+                continue
+            # Names go into '#' comment lines: a line break would end the comment.
+            name = " ".join(secret["offering_name"].split())
+            line = (
+                f"{name}: {secret['field']} ({secret['backend']}"
+                f"{_SECRET_REQUIREMENT_LABELS[secret['requirement']]})"
+            )
+            if secret["env_var"]:
+                line += f" as ${{{secret['env_var']}}}"
+            lines.append(line)
+        return lines
+
+    def yaml_content(self):
+        """The configuration as YAML, with instructional header comments."""
+        hostname_hint = (
+            "#   - hostname: Your SLURM cluster hostname (if shown as placeholder)\n"
+            if self.legacy_offerings
+            else ""
+        )
+        header = (
+            "# Waldur Site Agent Configuration\n"
+            f"# Generated: {timezone.now().isoformat()}\n"
+            "#\n"
+            "# IMPORTANT - SECRETS TO CONFIGURE:\n"
+            "#   - waldur_api_token: Generate an API token from Waldur user settings\n"
+            "#     (User Profile -> Credentials -> API Token)\n"
+            f"{hostname_hint}"
+            "#\n"
+            "# Documentation: https://docs.waldur.com/latest/admin-guide/providers/site-agent/\n"
+            "#\n"
+            "# Place this file at /etc/waldur/waldur-site-agent-config.yaml\n"
+            "# and start the site agent service.\n"
+            "\n"
+        )
+        if self.secret_format == self.ENV:
+            header += (
+                "# Secrets are '${VARIABLE}' references: fill them in before starting\n"
+                "# the agent, for example with envsubst. The agent does not expand\n"
+                "# variables itself. A ' in a secret must be written twice ('').\n#\n"
+            )
+        checklist = self.checklist()
+        if checklist:
+            # Waldur never stores these, so the file cannot carry them; required
+            # ones are present as placeholders, the others only listed.
+            lines = "".join(f"#   - {line}\n" for line in checklist)
+            header += (
+                "# BACKEND SECRETS TO CONFIGURE (kept on the agent host only):\n"
+                f"{lines}#\n"
+            )
+
         yaml_content = yaml.dump(
-            config, default_flow_style=False, allow_unicode=True, sort_keys=False
+            self.config, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
+        yaml_content = self._token.sub(
+            lambda match: self._placeholders[int(match.group(1))], yaml_content
         )
         return header + yaml_content
 
@@ -6919,7 +7247,16 @@ class ProviderOfferingViewSet(
         if import_data.get("resource_options") is not None:
             offering.resource_options = import_data["resource_options"]
 
+        stored = (
+            models.Offering.objects.filter(pk=offering.pk)
+            .values_list("agent_configuration", flat=True)
+            .first()
+            if offering.pk
+            else None
+        )
         offering.save()
+        if (offering.agent_configuration or {}) != (stored or {}):
+            site_agent_configuration.record_change(offering, user)
         return offering, created, warnings
 
     def _import_plugin_options(self, offering, import_data, params, user, warnings):
