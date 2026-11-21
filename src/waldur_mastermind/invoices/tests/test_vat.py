@@ -182,6 +182,14 @@ EE_OPERATOR = override_settings(
         "ISSUER_DETAILS": {"country_code": "EE"},
     }
 )
+# For tests that run monthly invoicing and read the finalized invoice at midnight.
+EE_OPERATOR_FINALIZING_AT_MIDNIGHT = override_settings(
+    WALDUR_INVOICES={
+        **settings.WALDUR_INVOICES,
+        "ISSUER_DETAILS": {"country_code": "EE"},
+        "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS": 0,
+    }
+)
 
 
 @EE_OPERATOR
@@ -316,7 +324,7 @@ class RecheckVATCodeTest(APITestCase):
         check.assert_not_called()
 
 
-@EE_OPERATOR
+@EE_OPERATOR_FINALIZING_AT_MIDNIGHT
 class InvoiceTaxPercentTest(APITestCase):
     def setUp(self):
         # Invoices below are for September 2026.

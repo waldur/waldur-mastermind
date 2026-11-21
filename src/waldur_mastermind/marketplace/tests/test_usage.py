@@ -17,6 +17,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices import tasks as invoice_tasks
 from waldur_mastermind.invoices.compensations import MonthlyCompensation
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace import callbacks, models
@@ -2929,3 +2930,97 @@ class TotalLimitUsageTest(test.APITestCase):
 
         # Total usage = 100 + 200 + 50 = 350
         self.assertEqual(limit_usage.get("cpu"), 350)
+
+
+class MonthEndGracePeriodTest(test.APITestCase):
+    """A service provider can still finish the previous month just after midnight.
+
+    Runs the real invoice tasks under the default grace period, so it covers what
+    a site agent's previous-month report meets on the 1st.
+    """
+
+    def setUp(self):
+        provider = structure_fixtures.ProjectFixture()
+        self.provider_owner = provider.owner
+        consumer = structure_fixtures.ProjectFixture()
+        self.consumer_customer = consumer.customer
+        offering = factories.OfferingFactory(customer=provider.customer)
+        plan = factories.PlanFactory(offering=offering)
+        self.component = factories.OfferingComponentFactory(
+            offering=offering, billing_type=BillingTypes.USAGE, type="cpu"
+        )
+        factories.PlanComponentFactory(plan=plan, component=self.component)
+        project = consumer.project
+        with freeze_time("2024-01-15"):
+            self.resource = models.Resource.objects.create(
+                offering=offering, plan=plan, project=project, state=ResourceStates.OK
+            )
+            self.plan_period = models.ResourcePlanPeriod.objects.create(
+                resource=self.resource, plan=plan
+            )
+            invoice_tasks.create_monthly_invoices()
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+        self.client.force_authenticate(self.provider_owner)
+
+    def _report_january(self, amount):
+        return self.client.post(
+            "/api/marketplace-component-usages/set_usage/",
+            {
+                "plan_period": self.plan_period.uuid.hex,
+                "date": "2024-01-31T23:00:00+00:00",
+                "usages": [{"type": "cpu", "amount": amount}],
+            },
+            format="json",
+        )
+
+    def _report_january_per_user(self):
+        component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource, billing_period=datetime.date(2024, 1, 1)
+        )
+        return self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usages/",
+            {"usages": [{"username": "alice", "usage": 5}]},
+            format="json",
+        )
+
+    def _january_invoice(self):
+        return invoice_models.Invoice.objects.get(
+            customer=self.consumer_customer, year=2024, month=1
+        )
+
+    def test_previous_month_is_reportable_until_the_grace_period_ends(self):
+        with freeze_time("2024-01-31T23:00:00Z"):
+            self.assertEqual(self._report_january(10).status_code, 201)
+
+        with freeze_time("2024-02-01T00:00:00Z"):
+            invoice_tasks.create_monthly_invoices()
+        self.assertEqual(
+            self._january_invoice().state,
+            invoice_models.Invoice.States.PENDING_FINALIZATION,
+        )
+
+        with freeze_time("2024-02-01T01:00:00Z"):
+            invoice_tasks.finalize_previous_invoices()
+            self.assertEqual(
+                self._january_invoice().state,
+                invoice_models.Invoice.States.PENDING_FINALIZATION,
+            )
+            self.assertEqual(self._report_january(12).status_code, 201)
+            self.assertEqual(self._report_january_per_user().status_code, 201)
+
+        with freeze_time("2024-02-01T02:00:00Z"):
+            invoice_tasks.finalize_previous_invoices()
+        self.assertNotIn(
+            self._january_invoice().state, invoice_models.Invoice.States.MUTABLE_STATES
+        )
+
+        with freeze_time("2024-02-01T02:30:00Z"):
+            self.assertEqual(self._report_january(15).status_code, 400)
+            self.assertEqual(self._report_january_per_user().status_code, 400)
+
+        self.assertEqual(
+            models.ComponentUsage.objects.get(
+                resource=self.resource, billing_period=datetime.date(2024, 1, 1)
+            ).usage,
+            12,
+        )
