@@ -2300,6 +2300,110 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
             str(response.data),
         )
 
+    def _december_usage(self, component):
+        return models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=component,
+            usage=100,
+            date=datetime.datetime(2023, 12, 15, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2023, 12, 1),
+        )
+
+    def _december_invoice(self, state):
+        invoice_factories.InvoiceFactory(
+            customer=self.consumer_customer, year=2023, month=12, state=state
+        )
+
+    def _set_user_usage(self, component_usage, **item):
+        return self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            {"username": "user123", "usage": 25, **item},
+        )
+
+    def _set_user_usages(self, component_usage, **item):
+        return self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usages/",
+            {"usages": [{"username": "user123", "usage": 25, **item}]},
+            format="json",
+        )
+
+    def test_service_provider_can_backfill_user_usage_for_usage_components_while_invoice_is_mutable(
+        self,
+    ):
+        # The grace period lets set_usage finish the month; its per-user
+        # breakdown must be accepted on the same terms.
+        self.client.force_authenticate(self.fixture.owner)
+        self._december_invoice(invoice_models.Invoice.States.PENDING_FINALIZATION)
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.usage_component,
+            usage=100,
+            date=timezone.now(),
+            billing_period=core_utils.month_start(timezone.now()),
+        )
+        backfill_date = datetime.datetime(2023, 12, 15, 10, tzinfo=datetime.UTC)
+
+        for post in (self._set_user_usage, self._set_user_usages):
+            response = post(component_usage, date=backfill_date.isoformat())
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        user_usage = models.ComponentUserUsage.objects.get(
+            component_usage__billing_period=datetime.date(2023, 12, 1),
+            username="user123",
+        )
+        self.assertEqual(user_usage.usage, 25)
+
+    def test_service_provider_cannot_write_user_usage_into_frozen_past_period_without_date(
+        self,
+    ):
+        # Without a date the item lands on the component usage in the URL, so
+        # its billing period is the one the rule must check.
+        self.client.force_authenticate(self.fixture.owner)
+        self._december_invoice(invoice_models.Invoice.States.CREATED)
+        component_usage = self._december_usage(self.usage_component)
+
+        for post in (self._set_user_usage, self._set_user_usages):
+            response = post(component_usage)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.assertFalse(
+            models.ComponentUserUsage.objects.filter(
+                component_usage=component_usage
+            ).exists()
+        )
+
+    def test_service_provider_can_write_user_usage_into_mutable_past_period_without_date(
+        self,
+    ):
+        self.client.force_authenticate(self.fixture.owner)
+        self._december_invoice(invoice_models.Invoice.States.PENDING_FINALIZATION)
+        component_usage = self._december_usage(self.usage_component)
+
+        for post in (self._set_user_usage, self._set_user_usages):
+            response = post(component_usage)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_service_provider_can_write_limit_user_usage_into_past_period_without_date(
+        self,
+    ):
+        self.client.force_authenticate(self.fixture.owner)
+        component_usage = self._december_usage(self.limit_component)
+
+        for post in (self._set_user_usage, self._set_user_usages):
+            response = post(component_usage)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_staff_can_write_user_usage_into_frozen_past_period_without_date(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self._december_invoice(invoice_models.Invoice.States.CREATED)
+        component_usage = self._december_usage(self.usage_component)
+
+        for post in (self._set_user_usage, self._set_user_usages):
+            response = post(component_usage)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_service_provider_can_specify_date_for_usage_components_in_current_billing_period(
         self,
     ):
