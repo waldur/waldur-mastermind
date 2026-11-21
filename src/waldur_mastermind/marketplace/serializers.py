@@ -11942,6 +11942,47 @@ DISPLAY_ONLY_BILLING_TYPES = (BillingTypes.LIMIT, BillingTypes.ONE_TIME)
 # site agent's user is often an offering manager and always dates its reports.
 PROVIDER_USAGE_SOURCES = ["*", "customer", "customer.serviceprovider"]
 
+PAST_PERIOD_BACKFILL_ERROR = _(
+    "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods."
+)
+
+
+def has_mutable_invoice_for_period(resource, date_value):
+    """Whether the resource's customer already has an invoice for the billing
+    period of ``date_value`` that still accepts modifications.
+
+    Mirrors the gate applied when usage is actually written into an invoice
+    item, see billing_usage.BillingUsageProcessor._create_or_update_usage_invoice_item.
+    """
+    if not date_value:
+        return False
+
+    billing_period = core_utils.month_start(date_value)
+    invoice = Invoice.objects.filter(
+        customer=resource.project.customer,
+        year=billing_period.year,
+        month=billing_period.month,
+    ).first()
+    return bool(invoice) and invoice.state in Invoice.States.MUTABLE_STATES
+
+
+def provider_may_report_past_period(resource, component, plan, date_value):
+    """Whether a service provider may report a component's usage for the past
+    billing period of ``date_value``.
+
+    Limit-based and prepaid usage is display-only, so it may always be
+    backfilled. Usage-based usage creates invoice items, so it may be
+    backfilled only while the customer's invoice for that period can still
+    change (the finalization grace period). Totals and per-user usage follow
+    this one rule.
+    """
+    billing_type = billing_mode.resolve_component(component, plan).billing_type
+    if billing_type in DISPLAY_ONLY_BILLING_TYPES:
+        return True
+    return billing_type == BillingTypes.USAGE and has_mutable_invoice_for_period(
+        resource, date_value
+    )
+
 
 class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
     user = serializers.HyperlinkedRelatedField(
@@ -11966,34 +12007,14 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
         component_usage = self.context["view"].get_object()
         resource = component_usage.resource
 
-        # Check if user is service provider for the resource's offering
+        # Only a service provider may date a report; which periods it may
+        # reach is checked in validate, for dated and undated reports alike.
         if has_permission_on_any_source(
             self.context["request"],
             PermissionEnum.SET_RESOURCE_USAGE,
             resource.offering,
             PROVIDER_USAGE_SOURCES,
         ):
-            # Check if date is in the current billing period
-            current_billing_period = core_utils.month_start(timezone.now())
-            date_billing_period = core_utils.month_start(value)
-
-            # If date is in a past billing period (historical backfilling),
-            # only allow for display-only components (limit-based and prepaid)
-            if date_billing_period < current_billing_period:
-                effective_billing_type = billing_mode.resolve_component(
-                    component_usage.component,
-                    component_usage.plan_period.plan
-                    if component_usage.plan_period
-                    else resource.plan,
-                ).billing_type
-                if effective_billing_type not in DISPLAY_ONLY_BILLING_TYPES:
-                    raise serializers.ValidationError(
-                        _(
-                            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods."
-                        )
-                    )
-            # If date is in current billing period, allow for all component types
-            # (service provider is just specifying the measurement timestamp)
             return value
 
         raise serializers.ValidationError(
@@ -12002,10 +12023,38 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
             )
         )
 
+    def _validate_billing_period(self, component_usage, date_value):
+        """Apply set_usage's past-period rule to the period actually written.
+
+        A dated item goes to the date's billing period; an undated one to the
+        component usage the URL names, which may itself be in a past period.
+        """
+        # The same local month the view writes a dated item to.
+        billing_period = core_utils.month_start(
+            timezone.localtime(date_value)
+            if date_value
+            else component_usage.billing_period
+        )
+        if billing_period >= core_utils.month_start(timezone.now()):
+            return
+        if has_staff_access(self.context["request"]):
+            return
+        resource = component_usage.resource
+        plan = (
+            component_usage.plan_period.plan
+            if component_usage.plan_period
+            else resource.plan
+        )
+        if not provider_may_report_past_period(
+            resource, component_usage.component, plan, billing_period
+        ):
+            raise serializers.ValidationError({"date": PAST_PERIOD_BACKFILL_ERROR})
+
     def validate(self, attrs):
         user = attrs.get("user")
         component_usage = self.context["view"].get_object()
         new_usage = attrs.get("usage", 0)
+        self._validate_billing_period(component_usage, attrs.get("date"))
 
         usage_limit = models.ComponentUserUsageLimit.objects.filter(
             resource=component_usage.resource,
@@ -12261,26 +12310,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         help_text="Date for usage reporting (staff and service providers for limit-based components). If not provided, current date is used.",
     )
 
-    @staticmethod
-    def _has_mutable_invoice_for_period(resource, date_value):
-        """Whether the resource's customer already has an invoice for the
-        backfilled date's billing period that still accepts modifications.
-
-        Mirrors the gate applied when usage is actually written into an
-        invoice item, see
-        billing_usage.BillingUsageProcessor._create_or_update_usage_invoice_item.
-        """
-        if not date_value:
-            return False
-
-        billing_period = core_utils.month_start(date_value)
-        invoice = Invoice.objects.filter(
-            customer=resource.project.customer,
-            year=billing_period.year,
-            month=billing_period.month,
-        ).first()
-        return bool(invoice) and invoice.state in Invoice.States.MUTABLE_STATES
-
     def _is_backfillable_component_usage(self, attrs):
         """Check that every reported component is safe to backfill.
 
@@ -12297,27 +12326,17 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         if not resource:
             return False
 
-        usage_backfill_has_mutable_invoice = self._has_mutable_invoice_for_period(
-            resource, attrs.get("date")
-        )
-
         components_map = self.get_components_map(resource.plan.offering)
-        for usage in attrs.get("usages", []):
-            component = components_map.get(usage.get("type"))
-            if not component:
-                continue
-            effective_billing_type = billing_mode.resolve_component(
-                component, resource.plan
-            ).billing_type
-            if effective_billing_type in DISPLAY_ONLY_BILLING_TYPES:
-                continue
-            if (
-                effective_billing_type == BillingTypes.USAGE
-                and usage_backfill_has_mutable_invoice
-            ):
-                continue
-            return False
-        return True
+        return all(
+            provider_may_report_past_period(
+                resource, component, resource.plan, attrs.get("date")
+            )
+            for component in (
+                components_map.get(usage.get("type"))
+                for usage in attrs.get("usages", [])
+            )
+            if component
+        )
 
     def validate_date(self, value):
         if not value:
@@ -12423,11 +12442,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 if date_billing_period < current_billing_period:
                     if not self._is_backfillable_component_usage(attrs):
                         raise rf_exceptions.ValidationError(
-                            {
-                                "date": _(
-                                    "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods."
-                                )
-                            }
+                            {"date": PAST_PERIOD_BACKFILL_ERROR}
                         )
                 # If date is in current billing period, allow for all component types
                 # (service provider is just specifying the measurement timestamp)
@@ -12502,7 +12517,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             PermissionEnum.SET_RESOURCE_USAGE,
             resource.offering,
             PROVIDER_USAGE_SOURCES,
-        ) and self._has_mutable_invoice_for_period(resource, day)
+        ) and has_mutable_invoice_for_period(resource, day)
 
     def _validate_monthly_usages_have_no_days(self, attrs, resource, daily_usages):
         """A month total would be overwritten by the next report of its days."""
