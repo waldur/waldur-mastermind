@@ -6450,6 +6450,10 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         if agent_configuration is not None:
             offering.agent_configuration = agent_configuration
             offering.save(update_fields=["agent_configuration"])
+            if agent_configuration:
+                site_agent_configuration.record_change(
+                    offering, self.context["request"].user
+                )
         utils.create_offering_components(offering, custom_components)
         if limits:
             self._update_limits(offering, limits)
@@ -6961,8 +6965,12 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         self._update_service_attributes(instance, validated_data)
         self._update_secret_options(instance, validated_data)
+        agent_configuration_changed = False
         if "agent_configuration" in validated_data:
             agent_configuration = validated_data.pop("agent_configuration")
+            agent_configuration_changed = (
+                agent_configuration != instance.agent_configuration
+            )
             # Locked so that a component renamed or removed meanwhile, which
             # rewrites backend_components under the same lock, is seen here.
             models.Offering.objects.select_for_update().only("pk").get(pk=instance.pk)
@@ -6974,6 +6982,10 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             instance.agent_configuration = agent_configuration
         self._update_plugin_options(instance, validated_data)
         offering = super().update(instance, validated_data)
+        if agent_configuration_changed:
+            site_agent_configuration.record_change(
+                offering, self.context["request"].user
+            )
         joining = getattr(self, "_joining_offerings", None)
         if joining:
             # Validation refused an ambiguous switch; a clean one still has to
@@ -19260,6 +19272,17 @@ class SiteAgentConfigGenerationSerializer(serializers.Serializer):
         default="UTC",
         help_text="Timezone for the site agent",
     )
+    secret_format = serializers.ChoiceField(
+        choices=["comment", "env"],
+        default="comment",
+        help_text=(
+            "How a secret is left for the operator. 'comment': an empty value "
+            "with a '# SECRET:' comment. 'env': a ${VARIABLE} reference, for "
+            "filling the file in with envsubst or a similar tool; the agent does "
+            "not expand variables itself. Offerings with no agent roles set keep "
+            "the earlier placeholders in 'comment' format."
+        ),
+    )
 
     def validate_offering_uuids(self, value):
         """Validate that all offerings exist and belong to the service provider."""
@@ -19289,6 +19312,33 @@ class SiteAgentConfigGenerationSerializer(serializers.Serializer):
         # Store offerings for later use
         self.context["validated_offerings"] = list(valid_offerings)
         return value
+
+
+class SiteAgentConfigSecretSerializer(serializers.Serializer):
+    """A secret the operator adds to a generated site agent configuration."""
+
+    offering_uuid = serializers.UUIDField()
+    offering_name = serializers.CharField()
+    field = serializers.CharField(
+        help_text="Where the secret goes in the offering, such as "
+        "waldur_api_token or backend_settings.ldap.bind_password."
+    )
+    backend = serializers.CharField(
+        allow_null=True,
+        help_text="The backend that reads it; null for the offering's own fields.",
+    )
+    requirement = serializers.ChoiceField(
+        choices=["required", "required_with_parent", "optional"],
+        help_text="required_with_parent: needed once the block it sits in is set.",
+    )
+    in_file = serializers.BooleanField(
+        help_text="Whether the file has a placeholder for it; otherwise it is "
+        "only listed, to be added where it applies."
+    )
+    env_var = serializers.CharField(
+        allow_null=True,
+        help_text="The variable the placeholder names, with secret_format=env.",
+    )
 
 
 class ResourceMissingUsageSerializer(serializers.ModelSerializer):

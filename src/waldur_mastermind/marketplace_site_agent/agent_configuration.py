@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
+import reversion
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -197,15 +198,20 @@ def find_secret_settings(data: Any, prefix: str = "") -> list[str]:
         return found
     if not isinstance(data, dict):
         return found
-    secrets = secret_setting_names()
-    plain = declared_plain_setting_names()
     for key, value in data.items():
         path = f"{prefix}.{key}" if prefix else str(key)
-        if key in secrets or (looks_like_credential(key) and key not in plain):
+        if _names_a_secret(key):
             found.append(path)
             continue
         found.extend(find_secret_settings(value, path))
     return found
+
+
+def _names_a_secret(key: Any) -> bool:
+    """Whether a settings key is a secret: declared one, or named like one."""
+    return key in secret_setting_names() or (
+        looks_like_credential(key) and key not in declared_plain_setting_names()
+    )
 
 
 def configuration_secret_paths(configuration: dict[str, Any]) -> list[str]:
@@ -386,6 +392,40 @@ def _check_shared_data(
     return errors
 
 
+class EventSettingsSerializer(serializers.Serializer):
+    """How the agent receives events from Waldur instead of polling for them.
+
+    The same fields as an offering of the agent's configuration file. Waldur
+    does not derive them: the broker address it uses itself is often not the
+    one an agent outside reaches.
+    """
+
+    stomp_enabled = serializers.BooleanField(required=False)
+    stomp_membership_sync_enabled = serializers.BooleanField(
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "Use STOMP for membership sync; the agent follows stomp_enabled when "
+            "this is unset."
+        ),
+    )
+    stomp_ws_host = serializers.CharField(required=False, max_length=255)
+    stomp_ws_port = serializers.IntegerField(
+        required=False, min_value=1, max_value=65535
+    )
+    stomp_ws_path = serializers.CharField(required=False, max_length=255)
+    websocket_use_tls = serializers.BooleanField(required=False)
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            unknown = sorted(set(data) - set(self.fields))
+            if unknown:
+                raise serializers.ValidationError(
+                    {key: [_("Unknown event setting.")] for key in unknown}
+                )
+        return dict(super().to_internal_value(data))
+
+
 class AgentConfigurationSerializer(serializers.Serializer):
     """The agent side of a site-agent offering, minus its secrets.
 
@@ -418,6 +458,7 @@ class AgentConfigurationSerializer(serializers.Serializer):
     backend_components = serializers.DictField(
         child=serializers.DictField(), required=False
     )
+    event_settings = EventSettingsSerializer(required=False)
 
     def to_internal_value(self, data):
         # A key the agent would read but this serializer does not declare, such
@@ -630,3 +671,152 @@ def validate_component_types(
                 }
             }
         )
+
+
+# How much a backend needs one of its secrets.
+REQUIRED = "required"
+# Required by the block it sits in, which is itself optional: needed only when
+# that block is configured (ldap.bind_password once there is an ldap block).
+REQUIRED_WITH_PARENT = "required_with_parent"
+OPTIONAL = "optional"
+
+
+def _resolve(schema: dict[str, Any], node: Any) -> dict[str, Any]:
+    """Follow $ref and single-schema wrappers to the object schema."""
+    for _depth in range(10):
+        if not isinstance(node, dict):
+            return {}
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            node = schema.get("$defs", {}).get(ref.rsplit("/", 1)[-1], {})
+            continue
+        if "properties" not in node:
+            # A wrapper around one schema: Optional[...] is anyOf with null,
+            # and pydantic puts a described $ref under allOf.
+            options = [
+                option
+                for key in ("anyOf", "oneOf", "allOf")
+                for option in node.get(key) or []
+                if isinstance(option, dict) and option.get("type") != "null"
+            ]
+            if len(options) == 1:
+                node = options[0]
+                continue
+        return node
+    return {}
+
+
+def secret_requirement(schema: dict[str, Any], path: str) -> str:
+    """Whether a backend's settings need the secret at a dotted path."""
+    node = schema
+    parents_required = True
+    for index, segment in enumerate(path.split(".")):
+        node = _resolve(schema, node)
+        if segment == "*" or segment.endswith("[]"):
+            # A secret inside a mapping or list of entries is needed per entry.
+            return REQUIRED_WITH_PARENT
+        required = segment in (node.get("required") or [])
+        if index == len(path.split(".")) - 1:
+            if not required:
+                return OPTIONAL
+            return REQUIRED if parents_required else REQUIRED_WITH_PARENT
+        parents_required = parents_required and required
+        node = (node.get("properties") or {}).get(segment, {})
+    return OPTIONAL
+
+
+# Stricter first: what a path needs when backends disagree.
+_REQUIREMENT_ORDER = (REQUIRED, REQUIRED_WITH_PARENT, OPTIONAL)
+
+
+def secret_settings(backend_names: Iterable[str]) -> list[tuple[str, str, str]]:
+    """The secret settings of these backends as (backend, path, requirement).
+
+    These are what the operator adds to the generated configuration on the
+    agent host. A path is listed once, under the first backend that has it,
+    and needed as much as the backend that needs it most: two backends can
+    share a block (ldap) under schemas that disagree on what it requires.
+    """
+    found: dict[str, tuple[str, str]] = {}
+    for name in backend_names:
+        plugin = get_plugin(name)
+        if plugin is None:
+            continue
+        schema = plugin.get("settings_schema") or {}
+        for path in plugin.get("secret_settings") or []:
+            requirement = secret_requirement(schema, path)
+            if path not in found:
+                found[path] = (name, requirement)
+                continue
+            listed_under, current = found[path]
+            if _REQUIREMENT_ORDER.index(requirement) < _REQUIREMENT_ORDER.index(
+                current
+            ):
+                found[path] = (listed_under, requirement)
+    return [(name, path, requirement) for path, (name, requirement) in found.items()]
+
+
+def without_secrets(settings: dict[str, Any]) -> dict[str, Any]:
+    """A copy of backend_settings with every secret, in any shape, removed.
+
+    The serializer refuses secrets, so this only matters for data written some
+    other way; it keeps the generated configuration free of them regardless,
+    matching them by the same rule as find_secret_settings.
+    """
+    return _drop_secrets(settings or {})
+
+
+def _drop_secrets(data: Any) -> Any:
+    # Built anew rather than removed by path, so no key or nesting can make
+    # a path ambiguous (a key with a dot in it, a list inside a list).
+    if isinstance(data, list):
+        return [_drop_secrets(item) for item in data]
+    if isinstance(data, dict):
+        return {
+            key: _drop_secrets(value)
+            for key, value in data.items()
+            if not _names_a_secret(key)
+        }
+    return copy.deepcopy(data)
+
+
+def setting_defaults(backend_names: Iterable[str]) -> dict[str, Any]:
+    """The defaults the catalogue declares for these backends' settings.
+
+    Top-level, non-secret settings with a default other than null, in backend
+    order; the first backend to declare a setting gives its default.
+    """
+    defaults: dict[str, Any] = {}
+    for name in backend_names:
+        plugin = get_plugin(name)
+        if plugin is None:
+            continue
+        properties = (plugin.get("settings_schema") or {}).get("properties") or {}
+        for key, prop in properties.items():
+            if (
+                key in defaults
+                or not isinstance(prop, dict)
+                or _is_secret(prop)
+                or prop.get("default") is None
+            ):
+                continue
+            defaults[key] = copy.deepcopy(prop["default"])
+    return defaults
+
+
+# The comment of the offering revision that records an agent configuration
+# change: the offering's history then says who changed it and when. The
+# history endpoint leaves the configuration itself out (REDACTED_VERSION_FIELDS).
+CHANGE_REVISION_COMMENT = "Agent configuration changed"
+
+
+def record_change(offering, user) -> None:
+    """Record who changed an offering's agent configuration, and when.
+
+    Where the agent connects and what it runs now come from this
+    configuration, so a change to it should be traceable to a person.
+    """
+    with reversion.create_revision():
+        reversion.add_to_revision(offering)
+        reversion.set_user(user)
+        reversion.set_comment(CHANGE_REVISION_COMMENT)

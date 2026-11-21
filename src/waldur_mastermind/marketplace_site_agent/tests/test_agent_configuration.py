@@ -1,4 +1,5 @@
 import importlib
+from unittest import mock
 
 import yaml
 from django.apps import apps
@@ -6,6 +7,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status, test
+from reversion.models import Version
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
@@ -65,6 +67,61 @@ class AgentConfigurationTestMixin:
         return self.client.post(
             url, {"agent_configuration": agent_configuration}, format="json"
         )
+
+
+def configuration_changes(offering):
+    """(username, comment) of the revisions recording agent configuration changes."""
+    return [
+        (version.revision.user.username, version.revision.comment)
+        for version in Version.objects.get_for_object(offering).select_related(
+            "revision__user"
+        )
+        if version.revision.comment == agent_configuration.CHANGE_REVISION_COMMENT
+    ]
+
+
+class AgentConfigurationHistoryTest(AgentConfigurationTestMixin, test.APITestCase):
+    # Where the agent connects and what it runs come from the configuration,
+    # so the offering's history says who changed it and when.
+
+    def test_a_change_is_recorded_with_its_author(self):
+        self.update(SLURM_WITH_DWDI)
+
+        self.assertEqual(
+            configuration_changes(self.offering),
+            [
+                (
+                    self.fixture.owner.username,
+                    agent_configuration.CHANGE_REVISION_COMMENT,
+                )
+            ],
+        )
+
+    def test_saving_the_same_configuration_records_nothing(self):
+        self.update(SLURM_WITH_DWDI)
+        self.update(SLURM_WITH_DWDI)
+
+        self.assertEqual(len(configuration_changes(self.offering)), 1)
+
+    def test_history_shows_the_change_but_not_the_configuration(self):
+        self.update(SLURM_WITH_DWDI)
+        # The history endpoint is for staff and support.
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+
+        response = self.client.get(
+            factories.OfferingFactory.get_url(self.offering, "history")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        entry = next(
+            item
+            for item in response.data
+            if item["revision_comment"] == agent_configuration.CHANGE_REVISION_COMMENT
+        )
+        self.assertEqual(
+            entry["revision_user"]["username"], self.fixture.owner.username
+        )
+        self.assertNotIn("agent_configuration", entry["serialized_data"])
 
 
 class AgentConfigurationUpdateTest(AgentConfigurationTestMixin, test.APITestCase):
@@ -297,6 +354,40 @@ class AgentConfigurationUpdateTest(AgentConfigurationTestMixin, test.APITestCase
         response = self.update(configuration)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_event_settings_are_stored(self):
+        event_settings = {
+            "stomp_enabled": True,
+            "stomp_membership_sync_enabled": None,
+            "stomp_ws_host": "waldur.example.com",
+            "stomp_ws_port": 443,
+            "stomp_ws_path": "/rmqws-stomp",
+            "websocket_use_tls": True,
+        }
+
+        response = self.update({**SLURM_WITH_DWDI, "event_settings": event_settings})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.offering.agent_configuration["event_settings"], event_settings
+        )
+
+    def test_invalid_event_settings_are_refused(self):
+        for event_settings, field in (
+            ({"stomp_password": "x"}, "stomp_password"),
+            ({"stomp_ws_port": 70000}, "stomp_ws_port"),
+            ({"stomp_enabled": "maybe"}, "stomp_enabled"),
+        ):
+            with self.subTest(field=field):
+                response = self.update(
+                    {**SLURM_WITH_DWDI, "event_settings": event_settings}
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(
+                    field, response.data["agent_configuration"]["event_settings"]
+                )
 
     def test_component_named_like_a_credential_is_accepted(self):
         factories.OfferingComponentFactory(offering=self.offering, type="license_key")
@@ -815,6 +906,23 @@ class ImportValidationTest(test.APITestCase):
             **sections,
         }
 
+    def test_imported_configuration_is_recorded_with_the_importer(self):
+        response = self.import_offering(
+            self.document(agent_configuration=SLURM_WITH_DWDI)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = marketplace_models.Offering.objects.get(name="Imported cluster")
+        self.assertEqual(
+            configuration_changes(offering),
+            [
+                (
+                    self.fixture.owner.username,
+                    agent_configuration.CHANGE_REVISION_COMMENT,
+                )
+            ],
+        )
+
     def test_invalid_plugin_options_are_refused(self):
         response = self.import_offering(
             self.document(plugin_options={"username_generation_policy": "nonsense"})
@@ -1145,3 +1253,118 @@ class AgentConfigurationExportTest(AgentConfigurationTestMixin, test.APITestCase
         CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
 
         self.assertNotIn("agent_configuration", self.export())
+
+
+class SecretRequirementTest(test.APITestCase):
+    SCHEMA = {
+        "$defs": {
+            "Ldap": {
+                "properties": {"bind_password": {"secret": True}},
+                "required": ["bind_password"],
+            }
+        },
+        "properties": {
+            "token": {"secret": True},
+            "optional_token": {"secret": True},
+            "ldap": {"anyOf": [{"$ref": "#/$defs/Ldap"}, {"type": "null"}]},
+            "required_ldap": {"$ref": "#/$defs/Ldap"},
+        },
+        "required": ["token", "required_ldap"],
+    }
+
+    def test_requirements(self):
+        requirement = agent_configuration.secret_requirement
+        self.assertEqual(
+            requirement(self.SCHEMA, "token"), agent_configuration.REQUIRED
+        )
+        self.assertEqual(
+            requirement(self.SCHEMA, "optional_token"), agent_configuration.OPTIONAL
+        )
+        self.assertEqual(
+            requirement(self.SCHEMA, "ldap.bind_password"),
+            agent_configuration.REQUIRED_WITH_PARENT,
+        )
+        self.assertEqual(
+            requirement(self.SCHEMA, "required_ldap.bind_password"),
+            agent_configuration.REQUIRED,
+        )
+
+    def test_wrapped_ref_is_followed(self):
+        # pydantic puts a $ref with a description of its own under allOf.
+        schema = {
+            **self.SCHEMA,
+            "properties": {"ldap": {"allOf": [{"$ref": "#/$defs/Ldap"}]}},
+            "required": ["ldap"],
+        }
+
+        self.assertEqual(
+            agent_configuration.secret_requirement(schema, "ldap.bind_password"),
+            agent_configuration.REQUIRED,
+        )
+
+    def _secret_settings(self, plugins):
+        with mock.patch.object(
+            agent_configuration, "get_plugin", side_effect=plugins.get
+        ):
+            return agent_configuration.secret_settings(list(plugins))
+
+    def test_backend_that_needs_a_shared_secret_most_decides(self):
+        optional_ldap = {
+            "settings_schema": {**self.SCHEMA, "required": ["token"]},
+            "secret_settings": ["required_ldap.bind_password"],
+        }
+        required_ldap = {
+            "settings_schema": self.SCHEMA,
+            "secret_settings": ["required_ldap.bind_password"],
+        }
+
+        found = self._secret_settings(
+            {"ldap-roles": optional_ldap, "ldap": required_ldap}
+        )
+
+        self.assertEqual(
+            found,
+            [
+                (
+                    "ldap-roles",
+                    "required_ldap.bind_password",
+                    agent_configuration.REQUIRED,
+                )
+            ],
+        )
+
+    def test_plugin_with_null_secret_settings_has_none(self):
+        self.assertEqual(
+            self._secret_settings({"plain": {"secret_settings": None}}), []
+        )
+
+    def test_without_secrets_handles_any_key_and_nesting(self):
+        settings = {
+            "hosts": [[{"password": "a", "name": "h1"}]],
+            "a.b": {"token": "b", "x": 1},
+            "list[0]": "kept",
+        }
+
+        self.assertEqual(
+            agent_configuration.without_secrets(settings),
+            {"hosts": [[{"name": "h1"}]], "a.b": {"x": 1}, "list[0]": "kept"},
+        )
+
+    def test_without_secrets_strips_secrets_in_any_shape(self):
+        settings = {
+            "ldap": [{"bind_password": "a", "uri": "ldap://x"}, {"bind_password": "b"}],
+            "keycloak": {"keycloak_password": "c", "keycloak_url": "https://k"},
+            "site_api_key": "d",
+            "cluster_name": "alpha",
+        }
+
+        cleaned = agent_configuration.without_secrets(settings)
+
+        self.assertEqual(
+            cleaned,
+            {
+                "ldap": [{"uri": "ldap://x"}, {}],
+                "keycloak": {"keycloak_url": "https://k"},
+                "cluster_name": "alpha",
+            },
+        )
