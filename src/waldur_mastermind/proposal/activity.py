@@ -30,6 +30,7 @@ from django.db.models import Q
 
 from waldur_core.core.service_access import names_calls
 from waldur_core.logging import event_logger
+from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.middleware import (
     get_event_context,
@@ -103,6 +104,31 @@ def can_view_review_event_feed(user, review) -> bool:
     return permissions.oversees_proposal_call(
         user, proposal
     ) and not proposal_roles.is_on_applicant_team(user, proposal)
+
+
+def call_event_rows(user, call) -> Q | None:
+    """The events of ``call``'s feed ``user`` reads; ``None`` for all.
+
+    The call's feed records its modifications: settings and documents, who
+    was given or lost which role on the call, invitations, the rounds'
+    history. All of it is for the call team (``permissions.is_on_call_team``),
+    the same people the round events' guard lets read those: staff and
+    support, the call's managers, whoever configures the call or decides its
+    proposals on its managing organisation, and whoever may change who holds
+    which role on it (the customer's owners). Anyone else who sees the call
+    -- its reviewers and panel members -- reads only the events about them
+    (their own role on the call, an invitation to the call addressed to
+    their email) and their own actions.
+    """
+    if user.is_anonymous:
+        return Q(pk__in=[])
+    if permissions.is_on_call_team(user, call):
+        return None
+    return (
+        Q(context__affected_user_uuid=user.uuid.hex)
+        | logging_utils.invitation_events_addressed_to(user)
+        | _own_actions(user)
+    )
 
 
 @contextmanager

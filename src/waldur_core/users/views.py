@@ -57,6 +57,22 @@ class AcceptRequest(NamedTuple):
     allow_email_mismatch: bool
 
 
+# States of an invitation that was never sent to its address: a request
+# awaiting staff approval, or one staff refused. The invitee does not know of
+# it (``filters.InvitationFilterBackend`` does not list it to them), so its
+# events are not addressed to them either.
+UNSENT_INVITATION_STATES = (InvitationState.REQUESTED, InvitationState.REJECTED)
+
+
+def _invitee_context(invitation, email):
+    """The one address an invitation event names, for the invitee to find it
+    by (``logging.utils.invitation_events_addressed_to``); nothing for an
+    invitation never sent to that address."""
+    if invitation.state in UNSENT_INVITATION_STATES:
+        return {}
+    return {"invitee_email": email}
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List user invitations",
@@ -162,6 +178,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
                 "invitation": instance,
                 "user": self.request.user,
                 "scope": instance.scope,
+                **_invitee_context(instance, instance.email),
             },
             scopes=[instance.scope],
         )
@@ -181,18 +198,29 @@ class InvitationViewSet(viewsets.ModelViewSet):
                 else:
                     changes.append(f"{field}: {old_value} → {new_value}")
 
+        # The event names the invitation by the address it had.
+        old_email = original_values["email"]
+        new_email = new_values.get("email", old_email)
+        # An event that moves the invitation to another address names both
+        # addresses, so it is for neither invitee: each would read the
+        # other's. Only an event naming one address carries invitee_email,
+        # by which the invitee finds it
+        # (logging.utils.invitation_events_addressed_to).
+        moved = (new_email or "").lower() != (old_email or "").lower()
+
         if changes:
             event_logger.emit(
                 "Invitation to {invitation_email} for {scope_name} has been updated by {user_username}. Changes: {changes_summary}",
                 event_type=EventType.USER_INVITATION_UPDATED,
                 event_context={
-                    "invitation_email": invitation.email,
+                    "invitation_email": old_email,
                     "scope_name": invitation.scope.name,
                     "user_username": self.request.user.username,
                     "changes_summary": ", ".join(changes),
                     "invitation": invitation,
                     "user": self.request.user,
                     "scope": invitation.scope,
+                    **({} if moved else _invitee_context(invitation, old_email)),
                 },
                 scopes=[invitation.scope],
             )
