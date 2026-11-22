@@ -5774,9 +5774,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     ]
 
     @extend_schema(
-        description="Email the applicants of selected proposals of this call. "
-        "One message per recipient per proposal, sent asynchronously; each "
-        "proposal gets an event recording it.",
+        description="Email the applicants or the reviewers of selected "
+        "proposals of this call. One message per recipient per proposal, sent "
+        "asynchronously; each proposal gets an event recording it. Each "
+        "reviewer of a proposal's reviews in progress or submitted is written "
+        "to separately, with a link to their own review; that event is read by "
+        "the call team, staff and support, not by the applicant team.",
         request=serializers.NotifyProposalsSerializer,
         responses={200: serializers.NotifyProposalsResponseSerializer},
     )
@@ -5799,7 +5802,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         ).exists():
             raise exceptions.ValidationError(
                 _(
-                    "Mail to applicants is switched off on this site: an "
+                    "Call manager messages are switched off on this site: an "
                     "administrator enables the 'proposal_manager_message' "
                     "notification first."
                 )
@@ -5822,28 +5825,49 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         ]
         # Only a proposal someone on it receives mail for is told it was
         # written to; the others are reported, so the manager can follow up.
+        to_reviewers = recipients == notification_rules.MANAGER_MESSAGE_REVIEWERS
         proposals = []
         for proposal in found:
-            to, _cc = notification_rules.manager_message_emails(proposal, recipients)
-            if to:
-                proposals.append(proposal)
+            if to_reviewers and proposal_roles.is_on_applicant_team(
+                request.user, proposal
+            ):
+                # The applicant team never writes to its own reviewers, not
+                # even through a call manager role on the call.
+                reason = _("You are on its applicant team.")
+            elif to_reviewers:
+                reason = self._reviewers_skip_reason(proposal)
             else:
+                to, _cc = notification_rules.manager_message_emails(
+                    proposal, recipients
+                )
+                reason = "" if to else _("Nobody it is addressed to receives mail.")
+            if reason:
                 skipped_proposals.append(
                     {
                         "proposal_uuid": proposal.uuid.hex,
                         "proposal_name": proposal.name,
-                        "reason": _("Nobody it is addressed to receives mail."),
+                        "reason": reason,
                     }
                 )
+            else:
+                proposals.append(proposal)
 
         actor = request.user.full_name or request.user.username
+        # A message to the reviewers is logged under its own type, which the
+        # applicant team does not read (``activity.APPLICANT_EVENT_TYPES``),
+        # and names none of them.
+        event_type = (
+            EventType.PROPOSAL_REVIEWERS_NOTIFIED
+            if to_reviewers
+            else EventType.PROPOSAL_NOTIFICATION_SENT
+        )
         for proposal in proposals:
             # Placeholders, not an f-string: the subject is free text that may
             # hold braces.
             event_logger.emit(
                 "{actor} sent a message to the {audience} of proposal "
                 "{proposal_name}: {subject}",
-                event_type=EventType.PROPOSAL_NOTIFICATION_SENT,
+                event_type=event_type,
                 event_context={
                     "proposal": proposal,
                     "actor": actor,
@@ -5870,6 +5894,16 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
 
     notify_proposals_serializer_class = serializers.NotifyProposalsSerializer
+
+    @staticmethod
+    def _reviewers_skip_reason(proposal):
+        """Why a message to ``proposal``'s reviewers reaches nobody; empty
+        when it reaches someone."""
+        if notification_rules.manager_message_reviews(proposal).exists():
+            return ""
+        if not notification_rules.live_reviews(proposal).exists():
+            return _("It has no review in progress or submitted.")
+        return _("None of its reviewers receives mail.")
 
     @extend_schema(
         summary="Get call manager dashboard stats",

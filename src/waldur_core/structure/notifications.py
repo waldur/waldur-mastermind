@@ -1400,9 +1400,22 @@ class ProposalManagerMessageContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
     subject: str = Field(description="Subject written by the call manager.")
     body: str = Field(description="Message written by the call manager.")
+    audience: str = Field(
+        description=(
+            "Who the message is addressed to: 'applicant', 'team' or 'reviewers'."
+        )
+    )
     proposal_name: str = Field(description="Name of the proposal.")
     call_name: str = Field(description="Name of the call for proposals.")
-    proposal_url: str = Field(description="A URL to the proposal details page.")
+    proposal_url: str = Field(
+        description="A URL to the proposal details page; empty on mail to reviewers."
+    )
+    review_url: str = Field(
+        description=(
+            "A URL to the recipient's own review of the proposal, on mail to "
+            "reviewers; empty otherwise."
+        )
+    )
 
 
 class ReviewsCompleteContext(BaseModel):
@@ -1720,8 +1733,10 @@ class ProposalSection(NotificationSection):
     proposal_manager_message = Notification(
         key="proposal_manager_message",
         description=(
-            "A message a call manager writes to the applicants of selected "
-            "proposals. Subject and body are the manager's own text."
+            "A message a call manager writes to the applicants or the "
+            "reviewers of selected proposals. Subject and body are the "
+            "manager's own text. Each reviewer gets a message of their own, "
+            "linking to their review."
         ),
         context_model=ProposalManagerMessageContext,
     )

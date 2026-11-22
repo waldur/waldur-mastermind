@@ -236,6 +236,38 @@ def applicant_cc_emails(proposal, addressed=()):
 # Who a call manager's own message to a proposal reaches.
 MANAGER_MESSAGE_APPLICANT = "applicant"
 MANAGER_MESSAGE_TEAM = "team"
+MANAGER_MESSAGE_REVIEWERS = "reviewers"
+
+
+def live_reviews(proposal):
+    """The proposal's reviews that make their reviewer one: in review or
+    submitted, not rejected (declined, expired or withdrawn)."""
+    return proposal.review_set.exclude(reviewer__isnull=True).exclude(
+        state=models.Review.States.REJECTED
+    )
+
+
+def manager_message_reviews(proposal):
+    """The live reviews of ``proposal`` a call manager's message to its
+    reviewers is sent for: one mail each, to its reviewer alone, linking to
+    that review.
+
+    The reviewers are resolved as for a notification rule addressing the
+    assigned reviewers (``resolve_recipients``): nobody on the proposal's
+    applicant team, nobody a conflict of interest with it stands against,
+    mail-eligible addresses only.
+    """
+    reviewers = _mail_eligible(
+        _assigned_reviewer_users(proposal)
+        .exclude(id__in=proposal_roles.applicant_team_user_ids(proposal))
+        .exclude(id__in=proposal_roles.users_with_recorded_conflicts(proposal))
+    )
+    return (
+        live_reviews(proposal)
+        .filter(reviewer__in=reviewers)
+        .select_related("reviewer")
+        .order_by("created", "id")
+    )
 
 
 def manager_message_emails(proposal, recipients):
@@ -244,7 +276,8 @@ def manager_message_emails(proposal, recipients):
     ``applicant``: the proposal's creator while still on its team, else its
     managers, copied to the proposal roles the call copies on mail to the
     applicant. ``team``: everyone on its team now. Mail-eligible addresses
-    only; someone removed from the team is no longer told.
+    only; someone removed from the team is no longer told. The reviewers are
+    written to one by one instead (``manager_message_reviews``).
     """
     team = _applicant_users(proposal)
     if recipients == MANAGER_MESSAGE_TEAM:
@@ -284,11 +317,7 @@ def _offering_team_users(proposal):
 def _assigned_reviewer_users(proposal):
     """The reviewers of the proposal's live reviews: a review cancelled,
     expired or rejected no longer makes its reviewer one."""
-    reviewer_ids = (
-        proposal.review_set.exclude(reviewer__isnull=True)
-        .exclude(state=models.Review.States.REJECTED)
-        .values_list("reviewer_id", flat=True)
-    )
+    reviewer_ids = live_reviews(proposal).values_list("reviewer_id", flat=True)
     return User.objects.filter(id__in=reviewer_ids)
 
 

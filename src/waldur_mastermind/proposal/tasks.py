@@ -2296,30 +2296,56 @@ def step_event_mails(instance, trigger, rules, days_before=None):
 @shared_task(name="waldur_mastermind.proposal.notify_proposals")
 def notify_proposals(proposal_uuids, recipients, subject, body):
     """Send a call manager's message: to the recipients of each proposal
-    (``notification_rules.manager_message_emails``), re-read at send time."""
+    (``notification_rules.manager_message_emails``), or to the reviewer of
+    each of its live reviews (``notification_rules.manager_message_reviews``),
+    re-read at send time."""
     proposals = proposal_models.Proposal.objects.filter(
         uuid__in=proposal_uuids
     ).select_related("round__call", "created_by")
     for proposal in proposals:
-        to, cc = notification_rules.manager_message_emails(proposal, recipients)
-        if not to:
-            continue
         context = {
             "site_name": config.SITE_NAME,
             "subject": subject,
             "body": body,
+            "audience": recipients,
             "proposal_name": proposal.name,
             "call_name": proposal.round.call.name,
-            "proposal_url": core_utils.format_homeport_link(
-                "proposals/{proposal_uuid}/", proposal_uuid=proposal.uuid
-            ),
+            "proposal_url": "",
+            "review_url": "",
         }
+        if recipients == notification_rules.MANAGER_MESSAGE_REVIEWERS:
+            _mail_proposal_reviewers(proposal, context)
+            continue
+        to, cc = notification_rules.manager_message_emails(proposal, recipients)
+        if not to:
+            continue
+        context["proposal_url"] = core_utils.format_homeport_link(
+            "proposals/{proposal_uuid}/", proposal_uuid=proposal.uuid
+        )
         core_utils.broadcast_mail(
             "proposal",
             "proposal_manager_message",
             context,
             to,
             cc=cc or None,
+        )
+
+
+def _mail_proposal_reviewers(proposal, context):
+    """One mail per live review, to its reviewer alone: no reviewer learns
+    who else reviews the proposal, and nobody on its team is copied. It links
+    to the reviewer's own review, not to the applicant's proposal page."""
+    for review in notification_rules.manager_message_reviews(proposal):
+        core_utils.broadcast_mail(
+            "proposal",
+            "proposal_manager_message",
+            {
+                **context,
+                "review_url": core_utils.format_homeport_link(
+                    "proposal-review/{review_uuid}/", review_uuid=review.uuid
+                ),
+            },
+            [review.reviewer.email],
         )
 
 

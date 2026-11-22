@@ -10365,17 +10365,24 @@ class AssignmentImportResponseSerializer(serializers.Serializer):
 
 
 class NotifyProposalsSerializer(serializers.Serializer):
-    """A call manager's message to the applicants of selected proposals."""
+    """A call manager's message to the applicants or the reviewers of
+    selected proposals."""
 
     RECIPIENT_CHOICES = (
         ("applicant", "The applicant, with the roles the call copies"),
         ("team", "Everyone on the proposal team"),
+        (
+            "reviewers",
+            "The reviewers of its reviews in progress or submitted, each "
+            "written to separately",
+        ),
     )
 
     proposal_uuids = serializers.ListField(
         child=serializers.UUIDField(),
         min_length=1,
-        help_text="Proposals of this call whose applicants receive the message",
+        help_text="Proposals of this call whose applicants or reviewers receive "
+        "the message",
     )
     recipients = serializers.ChoiceField(
         choices=RECIPIENT_CHOICES,
@@ -10383,7 +10390,8 @@ class NotifyProposalsSerializer(serializers.Serializer):
         help_text="Who receives the message on each proposal",
     )
     subject = serializers.CharField(max_length=255)
-    body = serializers.CharField()
+    # Long enough for any real message; bounds what each recipient is mailed.
+    body = serializers.CharField(max_length=10000)
 
     def validate_subject(self, value):
         # A line break is not allowed in a mail header: the send would fail.
@@ -10398,7 +10406,8 @@ class NotifyProposalsResponseSerializer(serializers.Serializer):
     proposals_notified = serializers.IntegerField()
     skipped_proposals = SkippedProposalSerializer(
         many=True,
-        help_text="Requested proposals that are not part of this call",
+        help_text="Requested proposals not written to, with the reason: not "
+        "part of this call, or nobody it is addressed to receives mail",
     )
 
 

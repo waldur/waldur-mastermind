@@ -1,6 +1,8 @@
 {{ body }}
 
 Proposal: {{ proposal_name }} (call "{{ call_name }}")
-{{ proposal_url }}
+{% if audience == "reviewers" %}Your review: {{ review_url }}
 
-This message was sent by the call manager through {{ site_name }}.
+You receive this message as a reviewer of this proposal. It was sent by the call manager through {{ site_name }}.{% else %}{{ proposal_url }}
+
+This message was sent by the call manager through {{ site_name }}.{% endif %}
